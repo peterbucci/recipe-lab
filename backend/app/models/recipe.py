@@ -140,7 +140,6 @@ class RecipeIngredient(UUIDPrimaryKeyMixin, Base):
         Uuid(as_uuid=True),
         ForeignKey("recipe_versions.id", ondelete="RESTRICT"),
         nullable=False,
-        index=True,
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     quantity: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
@@ -167,7 +166,6 @@ class RecipeInstruction(UUIDPrimaryKeyMixin, Base):
         Uuid(as_uuid=True),
         ForeignKey("recipe_versions.id", ondelete="RESTRICT"),
         nullable=False,
-        index=True,
     )
     instruction: Mapped[str] = mapped_column(Text, nullable=False)
     display_order: Mapped[int] = mapped_column(Integer, nullable=False)

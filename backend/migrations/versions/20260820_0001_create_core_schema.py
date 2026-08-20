@@ -219,12 +219,6 @@ def upgrade() -> None:
             name="uq_recipe_version_ingredients_version_display_order",
         ),
     )
-    op.create_index(
-        op.f("ix_recipe_version_ingredients_recipe_version_id"),
-        "recipe_version_ingredients",
-        ["recipe_version_id"],
-        unique=False,
-    )
     op.create_table(
         "recipe_version_instructions",
         sa.Column("recipe_version_id", sa.Uuid(), nullable=False),
@@ -252,24 +246,10 @@ def upgrade() -> None:
             name="uq_recipe_version_instructions_version_display_order",
         ),
     )
-    op.create_index(
-        op.f("ix_recipe_version_instructions_recipe_version_id"),
-        "recipe_version_instructions",
-        ["recipe_version_id"],
-        unique=False,
-    )
 
 
 def downgrade() -> None:
-    op.drop_index(
-        op.f("ix_recipe_version_instructions_recipe_version_id"),
-        table_name="recipe_version_instructions",
-    )
     op.drop_table("recipe_version_instructions")
-    op.drop_index(
-        op.f("ix_recipe_version_ingredients_recipe_version_id"),
-        table_name="recipe_version_ingredients",
-    )
     op.drop_table("recipe_version_ingredients")
     op.drop_index("ix_recipe_saves_recipe_version_id", table_name="recipe_saves")
     op.drop_table("recipe_saves")
