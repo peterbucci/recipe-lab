@@ -17,12 +17,24 @@ public HTTP contract. Pydantic schemas should not double as SQLAlchemy models.
 ### Database
 
 PostgreSQL is the system of record. SQLAlchemy 2.x provides persistence and
-Alembic migrations should be introduced with the first schema milestone.
+Alembic provides ordered, reviewable schema migrations.
 
-Recipe versioning should use immutable or append-oriented records where
-practical. A saved variant points to its direct parent, allowing full lineage to
-be reconstructed without duplicating an opaque JSON document as the only source
-of truth.
+Each `recipe_lineages` row groups an original recipe and all of its variants.
+Every `recipe_versions` row is an append-oriented snapshot with a direct parent
+or, for the original, no parent. A composite foreign key prevents a version
+from naming a parent in another lineage, while a partial unique index permits
+only one root per lineage. Ingredients and instructions belong to a specific
+snapshot and have stable display positions.
+
+Application services must create a new version rather than edit an existing
+snapshot. Restrictive foreign keys protect referenced history from deletion;
+blanket database triggers that reject every update are deferred until the
+recipe creation lifecycle is defined, so seed corrections and future migrations
+are not made unnecessarily difficult.
+
+Saves and ratings reference exact versions rather than a mutable recipe record.
+Their composite keys allow only one of each interaction per user and version,
+and a rating constraint enforces the one-to-five scale.
 
 ### ML workspace
 

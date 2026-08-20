@@ -1,5 +1,56 @@
 # Recipe Lab API
 
-FastAPI service for Recipe Lab. The scaffold currently exposes a health check
-and establishes configuration and SQLAlchemy boundaries. Domain models and
-Alembic migrations belong to the schema milestone.
+FastAPI service for Recipe Lab. It exposes the API health check and owns the
+SQLAlchemy domain model and Alembic migration history.
+
+## Core schema
+
+The first schema milestone intentionally covers only the MVP foundation:
+
+- users who create or interact with recipes;
+- recipe lineages that group an original recipe with all of its variants;
+- append-only recipe-version snapshots with one optional parent;
+- ordered ingredient and instruction rows stored with each snapshot;
+- one save and one rating per user and recipe version.
+
+PostgreSQL constraints keep a parent in the same lineage, permit only one root
+per lineage, preserve display order, and restrict ratings to the supported
+one-to-five scale. Foreign-key deletion rules protect recipe history; deleting
+an interaction-only user removes that user's saves and ratings.
+
+## Migrations
+
+From this directory, apply all migrations and confirm that the SQLAlchemy
+metadata matches the migration history:
+
+```powershell
+python -m alembic upgrade head
+python -m alembic check
+```
+
+Create future revisions only after importing the affected models through
+`app.models`:
+
+```powershell
+python -m alembic revision --autogenerate -m "describe the schema change"
+```
+
+Review every generated migration before applying it. A migration is the
+deployable source of truth; `Base.metadata.create_all()` is not used to manage
+the application schema.
+
+## Tests and quality checks
+
+Start the local Compose database, install the development dependencies, and
+run the backend gate:
+
+```powershell
+$env:TEST_DATABASE_URL = "postgresql+psycopg://recipe_lab:recipe_lab@localhost:5432/recipe_lab"
+python -m ruff format --check .
+python -m ruff check .
+python -m mypy app migrations tests
+python -m pytest
+```
+
+Schema tests use real PostgreSQL behavior and create a random isolated schema
+that is dropped after the run. Use a local or disposable test database only.

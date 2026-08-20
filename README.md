@@ -48,17 +48,21 @@ recipe-lab/
 `-- .env.example       Documented development configuration
 ```
 
-## Current scaffold
+## Current foundation
 
-The initial scaffold provides:
+The repository currently provides:
 
 - a Next.js landing page and frontend unit/e2e test harnesses;
 - a FastAPI health endpoint and pytest coverage;
-- SQLAlchemy engine/session foundations without prematurely defining the schema;
+- a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
+  immutable recipe-version snapshots, ingredients, instructions, saves, and
+  ratings;
+- Alembic migrations and database-level lineage, ordering, rating, and
+  uniqueness constraints;
 - PostgreSQL and local development services through Docker Compose.
 
-Recipe schema, migrations, APIs, and screens are intentionally tracked as
-separate milestones.
+Recipe APIs, seed data, and product screens remain separate milestones. This
+keeps the schema work focused on the smallest durable foundation for the MVP.
 
 ## Quick start with Docker
 
@@ -66,7 +70,8 @@ Requirements: Docker Desktop with Docker Compose.
 
 ```powershell
 Copy-Item .env.example .env
-docker compose up --build
+docker compose up --build -d
+docker compose exec backend python -m alembic upgrade head
 ```
 
 Open:
@@ -87,6 +92,7 @@ cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
+python -m alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
@@ -104,11 +110,18 @@ Run the same backend checks enforced by CI:
 
 ```powershell
 cd backend
+$env:TEST_DATABASE_URL = "postgresql+psycopg://recipe_lab:recipe_lab@localhost:5432/recipe_lab"
 python -m ruff format --check .
 python -m ruff check .
-python -m mypy app tests
+python -m mypy app migrations tests
+python -m alembic upgrade head
+python -m alembic check
 python -m pytest
 ```
+
+The PostgreSQL tests create and remove a uniquely named schema for each test
+run. Point `TEST_DATABASE_URL` only at a local or otherwise disposable test
+database, never production.
 
 Run the same frontend checks enforced by CI:
 
@@ -134,9 +147,11 @@ npm run test:e2e
 ## Continuous integration
 
 The `CI` GitHub Actions workflow runs on every pull request and every push to
-`main`. Separate backend and frontend jobs make failures easy to locate. Python
-and npm download caches are keyed from their dependency files; the frontend
-uses `npm ci` with the committed `package-lock.json`.
+`main`. Separate backend and frontend jobs make failures easy to locate. The
+backend job starts PostgreSQL 17, applies the migration history, checks for
+uncommitted model changes, and runs the schema tests. Python and npm download
+caches are keyed from their dependency files; the frontend uses `npm ci` with
+the committed `package-lock.json`.
 
 The browser-based Playwright suite remains outside the required gate until the
 MVP has meaningful user flows. CI still loads the configuration and discovers
