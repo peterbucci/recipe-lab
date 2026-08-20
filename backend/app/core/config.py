@@ -10,9 +10,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    database_url: str = (
-        "postgresql+psycopg://recipe_lab:recipe_lab@localhost:5432/recipe_lab"
-    )
+    database_url: str = "postgresql+psycopg://recipe_lab:recipe_lab@localhost:5432/recipe_lab"
     cors_origins: str = "http://localhost:3000"
 
     @property
