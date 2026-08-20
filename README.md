@@ -100,23 +100,47 @@ npm run dev
 
 ## Tests and checks
 
-Backend:
+Run the same backend checks enforced by CI:
 
 ```powershell
 cd backend
-pytest
-ruff check .
+python -m ruff format --check .
+python -m ruff check .
+python -m mypy app tests
+python -m pytest
 ```
 
-Frontend:
+Run the same frontend checks enforced by CI:
 
 ```powershell
 cd frontend
-npm test
-npm run typecheck
 npm run lint
+npm run typecheck
+npm test
+npm run build
+npx playwright test --list
+```
+
+The Playwright list command validates test discovery without installing or
+launching a browser. To run the current end-to-end smoke test locally, install
+Chromium once and then run the suite:
+
+```powershell
+cd frontend
+npx playwright install chromium
 npm run test:e2e
 ```
+
+## Continuous integration
+
+The `CI` GitHub Actions workflow runs on every pull request and every push to
+`main`. Separate backend and frontend jobs make failures easy to locate. Python
+and npm download caches are keyed from their dependency files; the frontend
+uses `npm ci` with the committed `package-lock.json`.
+
+The browser-based Playwright suite remains outside the required gate until the
+MVP has meaningful user flows. CI still loads the configuration and discovers
+the smoke test so end-to-end support cannot silently break in the meantime.
 
 ## Working agreements
 
