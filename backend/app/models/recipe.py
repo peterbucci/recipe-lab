@@ -106,24 +106,20 @@ class RecipeVersion(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     ingredients: Mapped[list["RecipeIngredient"]] = relationship(
         back_populates="recipe_version",
         order_by="RecipeIngredient.display_order",
-        cascade="all, delete",
-        passive_deletes=True,
+        passive_deletes="all",
     )
     instructions: Mapped[list["RecipeInstruction"]] = relationship(
         back_populates="recipe_version",
         order_by="RecipeInstruction.display_order",
-        cascade="all, delete",
-        passive_deletes=True,
+        passive_deletes="all",
     )
     saves: Mapped[list["RecipeSave"]] = relationship(
         back_populates="recipe_version",
-        cascade="all, delete",
-        passive_deletes=True,
+        passive_deletes="all",
     )
     ratings: Mapped[list["RecipeRating"]] = relationship(
         back_populates="recipe_version",
-        cascade="all, delete",
-        passive_deletes=True,
+        passive_deletes="all",
     )
 
 
@@ -142,7 +138,7 @@ class RecipeIngredient(UUIDPrimaryKeyMixin, Base):
 
     recipe_version_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("recipe_versions.id", ondelete="CASCADE"),
+        ForeignKey("recipe_versions.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )
@@ -169,7 +165,7 @@ class RecipeInstruction(UUIDPrimaryKeyMixin, Base):
 
     recipe_version_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("recipe_versions.id", ondelete="CASCADE"),
+        ForeignKey("recipe_versions.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )

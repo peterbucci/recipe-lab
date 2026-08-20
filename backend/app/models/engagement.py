@@ -25,7 +25,7 @@ class RecipeSave(Base):
     )
     recipe_version_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("recipe_versions.id", ondelete="CASCADE"),
+        ForeignKey("recipe_versions.id", ondelete="RESTRICT"),
         primary_key=True,
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -54,7 +54,7 @@ class RecipeRating(Base):
     )
     recipe_version_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("recipe_versions.id", ondelete="CASCADE"),
+        ForeignKey("recipe_versions.id", ondelete="RESTRICT"),
         primary_key=True,
     )
     rating: Mapped[int] = mapped_column(SmallInteger, nullable=False)
