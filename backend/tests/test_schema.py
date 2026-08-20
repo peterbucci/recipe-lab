@@ -1,8 +1,9 @@
 from decimal import Decimal
 from typing import cast
+from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, func, insert, select
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -168,6 +169,72 @@ def test_parent_version_cannot_be_deleted_while_descendants_exist(
             db_session.execute(delete(RecipeVersion).where(RecipeVersion.id == root.id))
 
     assert_constraint_name(error.value, "fk_recipe_versions_parent_same_lineage")
+
+
+def test_recipe_version_parent_cannot_change_after_insert(db_session: Session) -> None:
+    creator = create_user(db_session, "immutable-topology@example.com")
+    lineage, root = create_lineage_with_root(db_session, creator, title="Root")
+    child = RecipeVersion(
+        lineage_id=lineage.id,
+        parent_version_id=root.id,
+        created_by_user_id=creator.id,
+        version_number=2,
+        title="Child",
+        description=None,
+        servings=Decimal("4.00"),
+    )
+    db_session.add(child)
+    db_session.flush()
+
+    with pytest.raises(IntegrityError) as error:
+        with db_session.begin_nested():
+            db_session.execute(
+                update(RecipeVersion)
+                .where(RecipeVersion.id == root.id)
+                .values(parent_version_id=child.id)
+            )
+
+    assert_constraint_name(error.value, "ck_recipe_versions_topology_immutable")
+
+
+def test_recipe_versions_cannot_be_inserted_as_a_cycle(db_session: Session) -> None:
+    creator = create_user(db_session, "cyclic-insert@example.com")
+    lineage = RecipeLineage(created_by_user_id=creator.id)
+    db_session.add(lineage)
+    db_session.flush()
+    first_id = uuid4()
+    second_id = uuid4()
+
+    with pytest.raises(IntegrityError) as error:
+        with db_session.begin_nested():
+            db_session.execute(
+                insert(RecipeVersion).values(
+                    [
+                        {
+                            "id": first_id,
+                            "lineage_id": lineage.id,
+                            "parent_version_id": second_id,
+                            "created_by_user_id": creator.id,
+                            "version_number": 1,
+                            "title": "Cyclic A",
+                            "description": None,
+                            "servings": Decimal("4.00"),
+                        },
+                        {
+                            "id": second_id,
+                            "lineage_id": lineage.id,
+                            "parent_version_id": first_id,
+                            "created_by_user_id": creator.id,
+                            "version_number": 2,
+                            "title": "Cyclic B",
+                            "description": None,
+                            "servings": Decimal("4.00"),
+                        },
+                    ]
+                )
+            )
+
+    assert_constraint_name(error.value, "ck_recipe_versions_lineage_acyclic")
 
 
 def test_ingredient_fields_and_display_order_round_trip(db_session: Session) -> None:

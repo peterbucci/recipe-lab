@@ -27,10 +27,13 @@ only one root per lineage. Ingredients and instructions belong to a specific
 snapshot and have stable display positions.
 
 Application services must create a new version rather than edit an existing
-snapshot. Restrictive foreign keys protect referenced history from deletion;
-blanket database triggers that reject every update are deferred until the
-recipe creation lifecycle is defined, so seed corrections and future migrations
-are not made unnecessarily difficult.
+snapshot. PostgreSQL prevents changes to a stored version's ID, lineage, or
+parent, and a recursive constraint trigger rejects cyclic bulk inserts. These
+guards keep lineage topology acyclic regardless of the write path. Restrictive
+foreign keys also protect referenced history from deletion. Blanket database
+triggers that reject every content update are deferred until the recipe
+creation lifecycle is defined, so seed corrections and future migrations are
+not made unnecessarily difficult.
 
 Saves and ratings reference exact versions rather than a mutable recipe record.
 Their composite keys allow only one of each interaction per user and version,
