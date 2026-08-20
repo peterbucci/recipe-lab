@@ -20,6 +20,7 @@ coverage/
 playwright-report/
 test-results/
 *.tsbuildinfo
+frontend/next-env.d.ts
 
 # Editors and operating systems
 .idea/
