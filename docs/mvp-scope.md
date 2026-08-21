@@ -13,6 +13,8 @@ variant, and compared with its parent in a way that is useful to a cook.
 - Parent-child variant relationships.
 - A diff that explains ingredient and instruction changes.
 - Save and rating actions.
+- Timestamped view, save, rating, and fork events with typed context and no
+  unnecessary personal or free-form tracking data.
 - A lineage view for related variants.
 - A clearly scoped shared demo identity for user actions; real authentication
   only when distinct accounts become necessary.

@@ -29,8 +29,10 @@ walnuts with pecans, and preserve both the changes and the parent relationship.
 Recipe Lab now has the schema needed to connect authored recipe text to
 canonical ingredients, aliases, broad categories, dietary flags, allergens,
 and directed substitution relationships. A curated, deterministic demo catalog
-now exercises that structure. After the MVP works, the product will record
-preference events such as views, saves, ratings, and forks.
+now exercises that structure. The product also records privacy-bounded,
+timestamped view, save, rating, and fork events with retry-safe action IDs.
+Those signals are stored for later evaluation; they do not activate an ML
+system in the request path.
 
 ### ML after useful signals exist
 
@@ -72,13 +74,16 @@ The repository currently provides:
   applies validated structured edits, and preserves direct parentage;
 - a clearly labeled shared demo identity with persistent, retry-safe save,
   unsave, rating, and rating-update actions on exact recipe versions;
+- append-only, server-timestamped preference events for explicit detail views,
+  saves, ratings, and forks, with typed context and UUID action-key replay
+  protection rather than free-form tracking data;
 - a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
   immutable recipe-version snapshots, ingredients, instructions, saves, and
-  ratings;
+  ratings plus their separate interaction history;
 - a canonical ingredient catalog with normalized aliases, category and
   dietary/allergen metadata, and explainable directed substitution edges;
-- Alembic migrations and database-level lineage, ordering, rating, and
-  uniqueness constraints;
+- Alembic migrations and database-level lineage, ordering, rating, event
+  privacy, and uniqueness constraints;
 - PostgreSQL and local development services through Docker Compose.
 
 The repository also includes a deterministic demo catalog with 25 recipe
@@ -177,6 +182,11 @@ cd frontend
 npx playwright install chromium
 npm run test:e2e
 ```
+
+Browser flows now exercise the real preference-event contract, including
+invisible detail views, so even the ordinary suite appends demo event history.
+Use a disposable local database whenever that history matters; rerunning the
+seed loader intentionally does not erase it.
 
 The canonical MVP journey intentionally writes a real save and an immutable
 recipe variant, so it is skipped during ordinary local browser runs. CI enables

@@ -12,12 +12,14 @@ The first schema milestone intentionally covers only the MVP foundation:
 - append-only recipe-version snapshots with one optional parent;
 - ordered ingredient and instruction rows stored with each snapshot, with the
   ingredient's authored display text preserved alongside its canonical ID;
-- one save and one rating per user and recipe version.
+- one save and one rating per user and recipe version;
+- append-only, typed preference events for explicit views, save-state actions,
+  ratings, and forks.
 
 PostgreSQL constraints keep a parent in the same lineage, permit only one root
 per lineage, preserve display order, and restrict ratings to the supported
 one-to-five scale. Foreign-key deletion rules protect recipe history; deleting
-an interaction-only user removes that user's saves and ratings.
+an interaction-only user removes that user's saves, ratings, and event history.
 
 ## Ingredient catalog
 
@@ -118,8 +120,11 @@ ID, display name, and `shared_demo` identity mode; its internal seed email is
 never exposed. Recipe detail responses include that profile's current saved
 state and rating for the exact version.
 
-Interaction writes are state-setting and safe to retry:
+Interaction writes are state-setting and require an opaque UUID
+`Idempotency-Key` header:
 
+- `POST /api/recipes/{recipe_version_id}/view` records an explicit detail-page
+  view without changing recipe state;
 - `PUT /api/recipes/{recipe_version_id}/save` saves a version;
 - `DELETE /api/recipes/{recipe_version_id}/save` removes that save;
 - `PUT /api/recipes/{recipe_version_id}/rating` creates or replaces the
@@ -127,18 +132,39 @@ Interaction writes are state-setting and safe to retry:
 
 The API selects the demo identity on the server and never accepts a user ID
 from the browser. PostgreSQL upserts plus the existing composite primary keys
-keep repeated or concurrent requests from creating duplicates. These rows are
-current product state only; they are not a preference-event history or an ML
-pipeline. A missing recipe returns 404, invalid input returns 422, and a
-database without the bundled demo identity returns a documented 503 response.
+keep current state unique. Repeating the same action key with the same meaning
+returns the current authoritative state without writing a second event;
+reusing it for different semantics returns HTTP 409. A missing recipe returns
+404, invalid input returns 422, and a database without the bundled demo
+identity returns a documented 503 response.
+
+## Preference events
+
+Successful first-seen product actions append one server-timestamped event in
+the same database transaction as their state change or child recipe. Events
+store only the server-selected user ID, acted-on recipe version, one of the
+four supported event types, and narrowly typed context: the resulting saved
+boolean, rating value, or forked child ID. A fork also stores a SHA-256
+fingerprint of the normalized validated request so an identical retry can
+return the original child without retaining the recipe title, instructions,
+or edit body.
+
+The event table deliberately has no JSON or free-form context, client
+timestamp, email, display name, IP address, user agent, referrer, or search
+query. There is no public generic event-ingestion or event-history endpoint.
+The detail page records a view through the dedicated action endpoint after it
+loads in the browser, so server rendering, link prefetching, and API reads do
+not silently count as views. A new action UUID represents a distinct action;
+an exact retry must reuse the original UUID.
 
 ## Recipe variant creation
 
 `POST /api/recipes/{recipe_version_id}/variants` creates a new child of an
-existing recipe version for the shared demo user. The request supplies the new
-title, nullable description, exact serving yield, and zero or more structured
-edits. A successful request returns the complete child snapshot with HTTP 201
-and a `Location` header for its detail resource.
+existing recipe version for the shared demo user. It requires the same UUID
+`Idempotency-Key` header used by other product actions. The request supplies
+the new title, nullable description, exact serving yield, and zero or more
+structured edits. A successful request returns the complete child snapshot
+with HTTP 201 and a `Location` header for its detail resource.
 
 Ingredient edits target row IDs from the direct source snapshot so recipes may
 use the same canonical ingredient more than once. Supported operations set a
@@ -159,9 +185,12 @@ lineage-wide version numbers. The route owns one transaction containing the
 copy, edits, parent link, and server-selected author; any failure rolls it all
 back.
 
-Fork requests are deliberately non-idempotent: two successful requests create
-two sibling versions. Client interfaces should disable duplicate submission.
-Idempotency-key storage, automatic substitutions, unit conversion, diff-event
+Repeating a fork with the same action key, source, and normalized request
+returns the original child and `Location` rather than creating a sibling.
+Reusing that key with a different source or payload returns HTTP 409. Different
+action keys intentionally create distinct sibling versions. Client interfaces
+still disable duplicate submission, but the server-side contract protects
+network retries. Automatic substitutions, unit conversion, edit-operation
 storage, and original-recipe creation remain outside this MVP endpoint.
 
 ## Migrations
