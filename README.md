@@ -55,7 +55,8 @@ recipe-lab/
 The repository currently provides:
 
 - a Next.js landing page and frontend unit/e2e test harnesses;
-- a FastAPI health endpoint and pytest coverage;
+- FastAPI health, paginated recipe-browse, and structured recipe-detail
+  endpoints with documented response and error schemas;
 - a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
   immutable recipe-version snapshots, ingredients, instructions, saves, and
   ratings;
@@ -67,8 +68,8 @@ The repository currently provides:
 
 The repository also includes a deterministic demo catalog with 25 recipe
 lineages, useful variants, ingredient aliases, and directed substitutions.
-Recipe APIs and product screens remain separate milestones. This keeps each
-story focused on the smallest durable foundation for the MVP.
+Recipe write APIs and product screens remain separate milestones. This keeps
+each story focused on the smallest durable foundation for the MVP.
 
 ## Quick start with Docker
 
@@ -85,6 +86,7 @@ Open:
 
 - Web app: <http://localhost:3000>
 - API health check: <http://localhost:8000/api/health>
+- Recipe browse API: <http://localhost:8000/api/recipes>
 - Interactive API docs: <http://localhost:8000/docs>
 
 Stop the services with `docker compose down`. Add `--volumes` only when you
@@ -100,6 +102,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
 python -m alembic upgrade head
+python -m app.seeds load
 uvicorn app.main:app --reload
 ```
 
