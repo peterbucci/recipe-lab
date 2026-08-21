@@ -1,0 +1,79 @@
+from datetime import datetime
+from decimal import Decimal
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class RecipeSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RecipeSummary(RecipeSchema):
+    id: UUID = Field(description="Stable identifier for this immutable recipe version.")
+    lineage_id: UUID = Field(description="Identifier shared by every version in the lineage.")
+    parent_version_id: UUID | None = Field(
+        description="Direct parent version, or null for the original root."
+    )
+    version_number: int = Field(ge=1, description="Lineage-wide version number.")
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None
+    servings: Decimal = Field(
+        gt=0,
+        max_digits=8,
+        decimal_places=2,
+        description="Exact serving yield, serialized as a JSON string.",
+    )
+    created_at: datetime = Field(description="Timestamp when this version was created.")
+
+
+class RecipeVersionReference(RecipeSchema):
+    id: UUID
+    version_number: int = Field(ge=1)
+    title: str = Field(min_length=1, max_length=200)
+
+
+class RecipeIngredientResponse(RecipeSchema):
+    id: UUID
+    ingredient_id: UUID
+    canonical_name: str = Field(
+        min_length=1,
+        max_length=200,
+        description="Current canonical catalog name.",
+    )
+    display_name: str = Field(
+        min_length=1,
+        max_length=200,
+        description="Authored name preserved in this recipe snapshot.",
+    )
+    quantity: Decimal | None = Field(
+        default=None,
+        gt=0,
+        max_digits=12,
+        decimal_places=4,
+        description="Exact amount as a JSON string, or null for an unspecified amount.",
+    )
+    unit: str | None = Field(default=None, max_length=64)
+    preparation_notes: str | None
+    display_order: int = Field(ge=0)
+
+
+class RecipeInstructionResponse(RecipeSchema):
+    id: UUID
+    text: str = Field(min_length=1)
+    display_order: int = Field(ge=0)
+
+
+class RecipeDetailResponse(RecipeSummary):
+    parent: RecipeVersionReference | None
+    children: list[RecipeVersionReference]
+    ingredients: list[RecipeIngredientResponse]
+    instructions: list[RecipeInstructionResponse]
+
+
+class RecipePageResponse(BaseModel):
+    items: list[RecipeSummary]
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1)
+    total: int = Field(ge=0, description="Total matches across every page.")
+    total_pages: int = Field(ge=0, description="Number of pages at the requested page size.")
