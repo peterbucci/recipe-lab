@@ -5,10 +5,15 @@ import type { RecipeViewerState } from "../../lib/interaction-api";
 import { RecipeInteractionPanel } from "./recipe-interaction-panel";
 
 const mocks = vi.hoisted(() => ({
+  createIdempotencyKey: vi.fn(),
   refresh: vi.fn(),
   setRecipeRating: vi.fn(),
   setRecipeSaved: vi.fn(),
 }));
+
+const FIRST_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
+const SECOND_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2";
+const THIRD_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mocks.refresh }),
@@ -17,6 +22,10 @@ vi.mock("next/navigation", () => ({
 vi.mock("../../lib/interaction-api", () => ({
   setRecipeRating: mocks.setRecipeRating,
   setRecipeSaved: mocks.setRecipeSaved,
+}));
+
+vi.mock("../../lib/idempotency-key", () => ({
+  createIdempotencyKey: mocks.createIdempotencyKey,
 }));
 
 function viewerState(overrides: Partial<RecipeViewerState> = {}): RecipeViewerState {
@@ -35,6 +44,9 @@ function viewerState(overrides: Partial<RecipeViewerState> = {}): RecipeViewerSt
 
 beforeEach(() => {
   vi.clearAllMocks();
+  let keyIndex = 0;
+  const keys = [FIRST_KEY, SECOND_KEY, THIRD_KEY];
+  mocks.createIdempotencyKey.mockImplementation(() => keys[keyIndex++] ?? THIRD_KEY);
 });
 
 describe("RecipeInteractionPanel", () => {
@@ -62,7 +74,11 @@ describe("RecipeInteractionPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^save recipe$/i }));
 
-    expect(mocks.setRecipeSaved).toHaveBeenCalledWith(initialState.recipe_version_id, true);
+    expect(mocks.setRecipeSaved).toHaveBeenCalledWith(
+      initialState.recipe_version_id,
+      true,
+      FIRST_KEY,
+    );
     expect(await screen.findByText(/saved to demo cook/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /remove saved recipe/i })).toHaveAttribute(
       "aria-pressed",
@@ -74,6 +90,7 @@ describe("RecipeInteractionPanel", () => {
     expect(mocks.setRecipeSaved).toHaveBeenLastCalledWith(
       initialState.recipe_version_id,
       false,
+      SECOND_KEY,
     );
     expect(await screen.findByText(/removed from demo cook's saved recipes/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^save recipe$/i })).toHaveAttribute(
@@ -117,7 +134,11 @@ describe("RecipeInteractionPanel", () => {
     expect(updateButton).toBeEnabled();
     fireEvent.click(updateButton);
 
-    expect(mocks.setRecipeRating).toHaveBeenCalledWith(initialState.recipe_version_id, 4);
+    expect(mocks.setRecipeRating).toHaveBeenCalledWith(
+      initialState.recipe_version_id,
+      4,
+      FIRST_KEY,
+    );
     expect(await screen.findByText(/your rating is now 4 out of 5 for demo cook/i)).toBeInTheDocument();
     expect(screen.getByText(/your current rating is 4 out of 5/i)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /4 stars/i })).toBeChecked();
@@ -148,5 +169,54 @@ describe("RecipeInteractionPanel", () => {
     expect(screen.getByText(/previous state is unchanged/i)).toBeInTheDocument();
     expect(screen.getByText(/haven’t rated this recipe yet/i)).toBeInTheDocument();
     expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it("reuses a save key after failure and replaces it when the desired state changes", async () => {
+    const initialState = viewerState();
+    mocks.setRecipeSaved
+      .mockRejectedValueOnce(new Error("response lost"))
+      .mockResolvedValueOnce({ ...initialState, saved: true })
+      .mockResolvedValueOnce(initialState);
+    render(<RecipeInteractionPanel initialViewerState={initialState} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^save recipe$/i }));
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: /^save recipe$/i }));
+    await screen.findByText(/saved to demo cook/i);
+    fireEvent.click(screen.getByRole("button", { name: /remove saved recipe/i }));
+    await screen.findByText(/removed from demo cook's saved recipes/i);
+
+    expect(mocks.setRecipeSaved.mock.calls).toEqual([
+      [initialState.recipe_version_id, true, FIRST_KEY],
+      [initialState.recipe_version_id, true, FIRST_KEY],
+      [initialState.recipe_version_id, false, SECOND_KEY],
+    ]);
+    expect(mocks.createIdempotencyKey).toHaveBeenCalledTimes(2);
+  });
+
+  it("reuses a rating key after failure and replaces it when the rating changes", async () => {
+    const initialState = viewerState();
+    mocks.setRecipeRating
+      .mockRejectedValueOnce(new Error("response lost"))
+      .mockResolvedValueOnce({ ...initialState, rating: 3 })
+      .mockResolvedValueOnce({ ...initialState, rating: 4 });
+    render(<RecipeInteractionPanel initialViewerState={initialState} />);
+
+    fireEvent.click(screen.getByRole("radio", { name: /3 stars/i }));
+    fireEvent.click(screen.getByRole("button", { name: /rate recipe/i }));
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: /rate recipe/i }));
+    await screen.findByText(/rating is now 3 out of 5/i);
+
+    fireEvent.click(screen.getByRole("radio", { name: /4 stars/i }));
+    fireEvent.click(screen.getByRole("button", { name: /update rating/i }));
+    await screen.findByText(/rating is now 4 out of 5/i);
+
+    expect(mocks.setRecipeRating.mock.calls).toEqual([
+      [initialState.recipe_version_id, 3, FIRST_KEY],
+      [initialState.recipe_version_id, 3, FIRST_KEY],
+      [initialState.recipe_version_id, 4, SECOND_KEY],
+    ]);
+    expect(mocks.createIdempotencyKey).toHaveBeenCalledTimes(2);
   });
 });

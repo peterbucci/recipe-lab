@@ -13,8 +13,9 @@ import { createRecipeVariant, VariantApiError } from "../../lib/variant-api";
 import { RecipeVariantEditor } from "./recipe-variant-editor";
 
 const mocks = vi.hoisted(() => ({
-  replace: vi.fn(),
+  createIdempotencyKey: vi.fn(),
   createRecipeVariant: vi.fn(),
+  replace: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -29,8 +30,14 @@ vi.mock("../../lib/variant-api", async (importOriginal) => {
   };
 });
 
+vi.mock("../../lib/idempotency-key", () => ({
+  createIdempotencyKey: mocks.createIdempotencyKey,
+}));
+
 const SOURCE_ID = "11111111-1111-4111-8111-111111111111";
 const CHILD_ID = "22222222-2222-4222-8222-222222222222";
+const FIRST_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
+const SECOND_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2";
 
 function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
   return {
@@ -129,6 +136,10 @@ function deferred<T>() {
 beforeEach(() => {
   mocks.replace.mockReset();
   mocks.createRecipeVariant.mockReset();
+  mocks.createIdempotencyKey.mockReset();
+  mocks.createIdempotencyKey
+    .mockReturnValueOnce(FIRST_KEY)
+    .mockReturnValueOnce(SECOND_KEY);
 });
 
 describe("RecipeVariantEditor", () => {
@@ -276,45 +287,49 @@ describe("RecipeVariantEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: /^create variant$/i }));
 
     await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
-    expect(createRecipeVariant).toHaveBeenCalledWith(SOURCE_ID, {
-      title: "Orange Pecan Carrot Cake",
-      description: null,
-      servings: "8.00",
-      ingredient_edits: [
-        {
-          op: "set_quantity",
-          recipe_ingredient_id: "sugar-row",
-          quantity: "140.0000",
-        },
-        {
-          op: "set_unit",
-          recipe_ingredient_id: "sugar-row",
-          unit: "cup",
-        },
-        {
-          op: "replace",
-          recipe_ingredient_id: "walnut-row",
-          ingredient_name: "Pecan",
-        },
-        { op: "remove", recipe_ingredient_id: "salt-row" },
-        {
-          op: "add",
-          ingredient_name: "Orange zest",
-          quantity: "1.25",
-          unit: "tbsp",
-          preparation_notes: "finely grated",
-        },
-      ],
-      instruction_edits: [
-        {
-          op: "update",
-          recipe_instruction_id: "mix-step",
-          text: "Whisk the dry ingredients thoroughly.",
-        },
-        { op: "remove", recipe_instruction_id: "fold-step" },
-        { op: "add", text: "Cool completely before serving." },
-      ],
-    });
+    expect(createRecipeVariant).toHaveBeenCalledWith(
+      SOURCE_ID,
+      {
+        title: "Orange Pecan Carrot Cake",
+        description: null,
+        servings: "8.00",
+        ingredient_edits: [
+          {
+            op: "set_quantity",
+            recipe_ingredient_id: "sugar-row",
+            quantity: "140.0000",
+          },
+          {
+            op: "set_unit",
+            recipe_ingredient_id: "sugar-row",
+            unit: "cup",
+          },
+          {
+            op: "replace",
+            recipe_ingredient_id: "walnut-row",
+            ingredient_name: "Pecan",
+          },
+          { op: "remove", recipe_ingredient_id: "salt-row" },
+          {
+            op: "add",
+            ingredient_name: "Orange zest",
+            quantity: "1.25",
+            unit: "tbsp",
+            preparation_notes: "finely grated",
+          },
+        ],
+        instruction_edits: [
+          {
+            op: "update",
+            recipe_instruction_id: "mix-step",
+            text: "Whisk the dry ingredients thoroughly.",
+          },
+          { op: "remove", recipe_instruction_id: "fold-step" },
+          { op: "add", text: "Cool completely before serving." },
+        ],
+      },
+      FIRST_KEY,
+    );
   });
 
   it("reports local validation errors without posting or clearing entered values", async () => {
@@ -383,6 +398,33 @@ describe("RecipeVariantEditor", () => {
     expect(createRecipeVariant).toHaveBeenCalledOnce();
     expect(mocks.replace).not.toHaveBeenCalled();
     await waitFor(() => expect(alert).toHaveFocus());
+  });
+
+  it("reuses a failed fork key until the draft changes", async () => {
+    vi.mocked(createRecipeVariant)
+      .mockRejectedValueOnce(new Error("response lost"))
+      .mockRejectedValueOnce(new Error("response lost"))
+      .mockResolvedValueOnce(createdRecipe());
+    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+
+    const createButton = screen.getByRole("button", { name: /^create variant$/i });
+    fireEvent.click(createButton);
+    await screen.findByRole("alert");
+    fireEvent.click(createButton);
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledTimes(2));
+    await screen.findByRole("alert");
+
+    fireEvent.change(screen.getByLabelText(/^title$/i), {
+      target: { value: "A revised carrot cake variant" },
+    });
+    fireEvent.click(createButton);
+
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledTimes(3));
+    const calls = vi.mocked(createRecipeVariant).mock.calls;
+    expect(calls[0]?.[2]).toBe(FIRST_KEY);
+    expect(calls[1]?.[2]).toBe(FIRST_KEY);
+    expect(calls[2]?.[2]).toBe(SECOND_KEY);
+    expect(mocks.createIdempotencyKey).toHaveBeenCalledTimes(2);
   });
 
   it("guards against same-tick duplicate submissions while creation is pending", async () => {

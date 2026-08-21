@@ -110,6 +110,7 @@ async function apiError(response: Response): Promise<VariantApiError> {
 export async function createRecipeVariant(
   sourceRecipeVersionId: string,
   payload: RecipeVariantCreateRequest,
+  idempotencyKey: string,
 ): Promise<RecipeDetail> {
   const response = await fetch(variantUrl(sourceRecipeVersionId), {
     method: "POST",
@@ -117,6 +118,7 @@ export async function createRecipeVariant(
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey,
     },
     body: JSON.stringify(payload),
   });

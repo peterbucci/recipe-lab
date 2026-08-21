@@ -8,6 +8,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
+vi.mock("./recipe-view-tracker", () => ({
+  RecipeViewTracker: () => null,
+}));
+
 function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
   return {
     id: "carrot-v2",
