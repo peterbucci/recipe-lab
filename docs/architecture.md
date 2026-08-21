@@ -36,11 +36,17 @@ it is not a safety claim.
 Ingredient substitutions are curated, directed relationships. They store a
 replacement with a positive quantity ratio or written guidance and require
 provenance or confidence. The lookup layer returns only explicitly recorded
-outgoing edges and never invents reverse or transitive substitutions. Curated
-catalog rows and their sources are deferred to the seed-data milestone. For
-compatible units, replacement quantity equals source quantity multiplied by
-`quantity_ratio`; otherwise an edge must communicate the conversion in its
-guidance.
+outgoing edges and never invents reverse or transitive substitutions. The
+packaged, versioned demo catalog provides original curated examples with a
+documented content license and provenance. For compatible units, replacement
+quantity equals source quantity multiplied by `quantity_ratio`; otherwise an
+edge must communicate the conversion in its guidance.
+
+Seed records use UUIDv5 identifiers derived from immutable dataset keys and a
+fixed publication timestamp. Loading is an explicit operational step, not an
+API-startup side effect. One transaction and a PostgreSQL advisory lock make a
+load atomic and serialize concurrent attempts. Compatible natural-key catalog
+rows are reused, while any changed immutable recipe snapshot fails loudly.
 
 Application services must create a new version rather than edit an existing
 snapshot. PostgreSQL prevents changes to a stored version's ID, lineage, or
