@@ -84,6 +84,32 @@ that is not present returns HTTP 404. Both use the documented `ErrorResponse`
 envelope. The response schemas and query constraints are available through
 OpenAPI at `/docs` and `/openapi.json`.
 
+## Recipe diff API
+
+`GET /api/recipes/{recipe_version_id}/diff` returns a deterministic,
+machine-readable comparison whose path identifier is the target version. By
+default the base is that target's direct parent. An optional
+`base_version_id` selects another version in the same lineage, including the
+target itself for an explicit no-change comparison.
+
+The response reports title, description, and serving changes in a fixed order.
+Ingredients are grouped as added, removed, replaced, or modified; paired rows
+include complete before-and-after snapshots plus fixed-order changed fields for
+canonical identity, authored display name, quantity, unit, and preparation
+notes. Instruction additions, removals, and text modifications are reported
+separately. Display order is presentation metadata, so moving otherwise equal
+rows does not create a content change. Exact decimals remain JSON strings.
+
+Recipe snapshots do not persist the edit operation or copied-row ancestry.
+The engine therefore documents a canonical snapshot comparison rather than
+claiming to replay author intent: it matches equal canonical ingredient
+occurrences first, recognizes replacements only through curated directed
+substitution edges, and uses stable occurrence matching for remaining rows.
+It never infers reverse or transitive substitutions. A root without an
+implicit base and a cross-lineage explicit comparison return documented 422
+errors; a missing version returns 404. Diff reads do not depend on the shared
+demo identity or interaction state.
+
 ## Shared demo interactions
 
 The MVP uses one fixed, clearly identified shared demo profile rather than

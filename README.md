@@ -63,6 +63,8 @@ The repository currently provides:
   the new child version;
 - FastAPI health, paginated recipe-browse, and structured recipe-detail
   endpoints with documented response and error schemas;
+- a deterministic structured-diff endpoint that compares recipe metadata,
+  ingredients, and instructions while preserving exact decimal values;
 - a transactional recipe-forking endpoint that copies a complete snapshot,
   applies validated structured edits, and preserves direct parentage;
 - a clearly labeled shared demo identity with persistent, retry-safe save,
@@ -78,9 +80,10 @@ The repository currently provides:
 
 The repository also includes a deterministic demo catalog with 25 recipe
 lineages, useful variants, ingredient aliases, and directed substitutions.
-Original-recipe creation and diff presentation remain separate milestones. The
-variant workflow deliberately omits graph visualization, row reordering,
-autosave, and ML so the core fork-and-navigate path stays focused on the MVP.
+Original-recipe creation and frontend diff visualization remain separate
+milestones. The variant workflow deliberately omits graph visualization, row
+reordering, autosave, and ML so the core fork-and-navigate path stays focused
+on the MVP.
 
 ## Quick start with Docker
 

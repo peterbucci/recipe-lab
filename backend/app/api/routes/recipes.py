@@ -9,12 +9,18 @@ from app.api.demo_context import get_demo_user_or_error, recipe_viewer_state_res
 from app.api.dependencies import get_session
 from app.api.errors import ApiError
 from app.models import RecipeIngredient, RecipeInstruction, RecipeVersion, User
+from app.repositories.recipe_diffs import (
+    get_direct_substitution_pairs,
+    get_recipe_version_diff_identity,
+    get_recipe_versions_for_diff,
+)
 from app.repositories.recipes import (
     browse_recipe_versions,
     get_recipe_rating_aggregate,
     get_recipe_version,
 )
 from app.schemas.errors import ErrorResponse
+from app.schemas.recipe_diffs import RecipeDiffResponse
 from app.schemas.recipe_forks import RecipeForkRequest
 from app.schemas.recipes import (
     RecipeDetailResponse,
@@ -24,6 +30,7 @@ from app.schemas.recipes import (
     RecipeSummary,
     RecipeVersionReference,
 )
+from app.services.recipe_diffs import build_recipe_diff
 from app.services.recipe_forks import InvalidRecipeEditsError, fork_recipe_version
 
 router = APIRouter(prefix="/recipes")
@@ -77,6 +84,19 @@ FORK_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     503: {
         "model": ErrorResponse,
         "description": "The seeded demo identity is unavailable.",
+    },
+}
+DIFF_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
+    404: {
+        "model": ErrorResponse,
+        "description": "The target or explicitly selected base recipe version does not exist.",
+    },
+    422: {
+        "model": ErrorResponse,
+        "description": (
+            "An identifier is invalid, an implicit parent is unavailable, or the versions "
+            "belong to different lineages."
+        ),
     },
 }
 
@@ -204,6 +224,86 @@ def recipe_detail(
 
     user = get_demo_user_or_error(session)
     return _detail_response(session, version=version, user=user)
+
+
+@router.get(
+    "/{recipe_version_id}/diff",
+    response_model=RecipeDiffResponse,
+    responses=DIFF_ERROR_RESPONSES,
+    summary="Compare structured recipe versions",
+    description=(
+        "Compares a base snapshot with the target recipe version. When base_version_id is "
+        "omitted, the target's direct parent is used. Explicit comparisons may select any "
+        "version in the same lineage."
+    ),
+)
+def recipe_diff(
+    recipe_version_id: UUID,
+    session: SessionDependency,
+    base_version_id: Annotated[
+        UUID | None,
+        Query(
+            description=(
+                "Version to compare from. Omit this value to use the target's direct parent."
+            )
+        ),
+    ] = None,
+) -> RecipeDiffResponse:
+    target_identity = get_recipe_version_diff_identity(session, recipe_version_id)
+    if target_identity is None:
+        raise ApiError(
+            status_code=404,
+            code="recipe_not_found",
+            message=f"Recipe version {recipe_version_id} was not found.",
+        )
+
+    resolved_base_id = base_version_id or target_identity.parent_version_id
+    if resolved_base_id is None:
+        raise ApiError(
+            status_code=422,
+            code="recipe_has_no_parent",
+            message=f"Recipe version {recipe_version_id} has no parent to compare.",
+        )
+
+    versions = get_recipe_versions_for_diff(
+        session,
+        {resolved_base_id, recipe_version_id},
+    )
+    target = versions.get(recipe_version_id)
+    if target is None:
+        raise ApiError(
+            status_code=404,
+            code="recipe_not_found",
+            message=f"Recipe version {recipe_version_id} was not found.",
+        )
+
+    base = versions.get(resolved_base_id)
+    if base is None:
+        raise ApiError(
+            status_code=404,
+            code="recipe_not_found",
+            message=f"Recipe version {resolved_base_id} was not found.",
+        )
+
+    if base.lineage_id != target.lineage_id:
+        raise ApiError(
+            status_code=422,
+            code="recipe_lineage_mismatch",
+            message=(
+                f"Recipe versions {resolved_base_id} and {recipe_version_id} do not belong "
+                "to the same lineage."
+            ),
+        )
+
+    ingredient_ids = {
+        item.ingredient_id for version in (base, target) for item in version.ingredients
+    }
+    substitution_pairs = get_direct_substitution_pairs(session, ingredient_ids)
+    return build_recipe_diff(
+        base=base,
+        target=target,
+        substitution_pairs=substitution_pairs,
+    )
 
 
 @router.post(

@@ -64,7 +64,10 @@ async def request_validation_error_handler(
     issues = [_validation_issue(error) for error in exception.errors()]
     identifier_error = any(
         issue.type.startswith("uuid_")
-        and any(part in {"recipe_version_id", "lineage_id"} for part in issue.location)
+        and any(
+            part in {"recipe_version_id", "lineage_id", "base_version_id"}
+            for part in issue.location
+        )
         for issue in issues
     )
     return _json_error(
