@@ -141,6 +141,39 @@ def test_substitution_pairs_are_directed_and_unique(db_session: Session) -> None
     )
 
 
+def test_substitution_ingredients_are_protected_from_deletion(
+    db_session: Session,
+) -> None:
+    source = create_ingredient(db_session, "Protected substitution source")
+    replacement = create_ingredient(db_session, "Protected substitution replacement")
+    db_session.add(
+        IngredientSubstitution(
+            source_ingredient_id=source.id,
+            replacement_ingredient_id=replacement.id,
+            quantity_ratio=Decimal("1.0000"),
+            provenance="Deletion protection fixture",
+        )
+    )
+    db_session.flush()
+
+    protected_deletes = [
+        (
+            delete(Ingredient).where(Ingredient.id == source.id),
+            "fk_ingredient_substitutions_source_ingredient",
+        ),
+        (
+            delete(Ingredient).where(Ingredient.id == replacement.id),
+            "fk_ingredient_substitutions_replacement_ingredient",
+        ),
+    ]
+    for statement, expected_constraint in protected_deletes:
+        with pytest.raises(IntegrityError) as error:
+            with db_session.begin_nested():
+                db_session.execute(statement)
+
+        assert_constraint_name(error.value, expected_constraint)
+
+
 def test_substitution_constraints_reject_unexplainable_edges(
     db_session: Session,
 ) -> None:

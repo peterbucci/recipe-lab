@@ -29,8 +29,10 @@ gives a canonical name precedence if another ingredient has a colliding alias.
 Substitutions are explicit directed edges. Each edge identifies its source and
 replacement and includes a positive quantity ratio or written guidance, plus
 provenance or a confidence value. Lookups do not infer reverse or transitive
-substitutions. Production catalog entries and sources belong to the seed-data
-milestone rather than this schema foundation.
+substitutions. When units are compatible, replacement quantity equals source
+quantity multiplied by `quantity_ratio`; substitutions without compatible
+units use written guidance instead. Production catalog entries and sources
+belong to the seed-data milestone rather than this schema foundation.
 
 ## Migrations
 

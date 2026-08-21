@@ -186,12 +186,20 @@ class IngredientSubstitution(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
 
     source_ingredient_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("ingredients.id", ondelete="RESTRICT"),
+        ForeignKey(
+            "ingredients.id",
+            name="fk_ingredient_substitutions_source_ingredient",
+            ondelete="RESTRICT",
+        ),
         nullable=False,
     )
     replacement_ingredient_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("ingredients.id", ondelete="RESTRICT"),
+        ForeignKey(
+            "ingredients.id",
+            name="fk_ingredient_substitutions_replacement_ingredient",
+            ondelete="RESTRICT",
+        ),
         nullable=False,
     )
     quantity_ratio: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)

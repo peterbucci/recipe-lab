@@ -261,13 +261,13 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["replacement_ingredient_id"],
             ["ingredients.id"],
-            name=op.f("fk_ingredient_substitutions_replacement_ingredient_id_ingredients"),
+            name="fk_ingredient_substitutions_replacement_ingredient",
             ondelete="RESTRICT",
         ),
         sa.ForeignKeyConstraint(
             ["source_ingredient_id"],
             ["ingredients.id"],
-            name=op.f("fk_ingredient_substitutions_source_ingredient_id_ingredients"),
+            name="fk_ingredient_substitutions_source_ingredient",
             ondelete="RESTRICT",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_ingredient_substitutions")),
