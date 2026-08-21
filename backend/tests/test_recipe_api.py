@@ -4,11 +4,12 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine
+from sqlalchemy import Engine, delete
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_session
 from app.main import create_app
+from app.models import RecipeRating, User
 from app.seeds.identifiers import seed_uuid
 
 DATASET_ID = "recipe-lab-demo-v1"
@@ -184,6 +185,8 @@ def test_recipe_detail_returns_ordered_snapshot_and_direct_children(
     assert detail["lineage_id"] == str(CARROT_LINEAGE_ID)
     assert detail["parent"] is None
     assert detail["servings"] == "8.00"
+    assert detail["average_rating"] is None
+    assert detail["rating_count"] == 0
     children = cast(list[dict[str, Any]], detail["children"])
     assert [child["id"] for child in children] == [
         str(CARROT_PECAN_ID),
@@ -199,6 +202,56 @@ def test_recipe_detail_returns_ordered_snapshot_and_direct_children(
     assert sugar["quantity"] == "180.0000"
     assert sugar["unit"] == "g"
     assert instructions[0]["text"].startswith("Heat the oven")
+
+
+def test_recipe_detail_summarizes_ratings_without_exposing_users(
+    api_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    user_ids = [uuid4(), uuid4()]
+    with Session(bind=seeded_api_engine) as session, session.begin():
+        session.add_all(
+            [
+                User(
+                    id=user_ids[0],
+                    email=f"{user_ids[0]}@example.com",
+                    display_name="First test rater",
+                ),
+                User(
+                    id=user_ids[1],
+                    email=f"{user_ids[1]}@example.com",
+                    display_name="Second test rater",
+                ),
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                RecipeRating(
+                    user_id=user_ids[0],
+                    recipe_version_id=CARROT_ROOT_ID,
+                    rating=4,
+                ),
+                RecipeRating(
+                    user_id=user_ids[1],
+                    recipe_version_id=CARROT_ROOT_ID,
+                    rating=5,
+                ),
+            ]
+        )
+
+    try:
+        response = api_client.get(f"/api/recipes/{CARROT_ROOT_ID}")
+        assert response.status_code == 200
+        detail = _json_object(response.json())
+        assert detail["average_rating"] == 4.5
+        assert detail["rating_count"] == 2
+        assert "ratings" not in detail
+        assert "users" not in detail
+    finally:
+        with Session(bind=seeded_api_engine) as session, session.begin():
+            session.execute(delete(RecipeRating).where(RecipeRating.user_id.in_(user_ids)))
+            session.execute(delete(User).where(User.id.in_(user_ids)))
 
 
 def test_recipe_detail_returns_parent_without_transitive_children(
@@ -283,6 +336,11 @@ def test_openapi_documents_recipe_and_error_schemas(api_client: TestClient) -> N
         "RecipeInstructionResponse",
         "ErrorResponse",
     } <= set(schemas)
+    detail_properties = schemas["RecipeDetailResponse"]["properties"]
+    assert detail_properties["average_rating"]["anyOf"][0]["minimum"] == 1
+    assert detail_properties["average_rating"]["anyOf"][0]["maximum"] == 5
+    assert detail_properties["rating_count"]["minimum"] == 0
+    assert {"average_rating", "rating_count"} <= set(schemas["RecipeDetailResponse"]["required"])
 
     browse_responses = paths["/api/recipes"]["get"]["responses"]
     detail_responses = paths["/api/recipes/{recipe_version_id}"]["get"]["responses"]

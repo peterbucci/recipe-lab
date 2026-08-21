@@ -65,6 +65,18 @@ class RecipeInstructionResponse(RecipeSchema):
 
 
 class RecipeDetailResponse(RecipeSummary):
+    average_rating: float | None = Field(
+        ge=1,
+        le=5,
+        description=(
+            "Average of ratings currently recorded for this recipe version, rounded to two "
+            "decimal places."
+        ),
+    )
+    rating_count: int = Field(
+        ge=0,
+        description="Number of ratings included in the aggregate.",
+    )
     parent: RecipeVersionReference | None
     children: list[RecipeVersionReference]
     ingredients: list[RecipeIngredientResponse]

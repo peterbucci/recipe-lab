@@ -4,13 +4,17 @@ import { describe, expect, it } from "vitest";
 import HomePage from "./page";
 
 describe("HomePage", () => {
-  it("keeps the initial product milestone focused on recipe versioning", () => {
+  it("leads visitors into the versioned recipe catalog", () => {
     render(<HomePage />);
 
     expect(
-      screen.getByRole("heading", { name: /recipes evolve\. keep the useful history/i }),
+      screen.getByRole("heading", { name: /a good recipe is only the beginning/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/prove recipe versioning before adding ml/i)).toBeInTheDocument();
-    expect(screen.getByText(/fork a recipe into a new variant/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /browse the catalog/i })).toHaveAttribute(
+      "href",
+      "/recipes",
+    );
+    expect(screen.getByText(/make recipe evolution understandable/i)).toBeInTheDocument();
+    expect(screen.getByText(/personalization comes after/i)).toBeInTheDocument();
   });
 });

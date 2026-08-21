@@ -54,7 +54,8 @@ recipe-lab/
 
 The repository currently provides:
 
-- a Next.js landing page and frontend unit/e2e test harnesses;
+- a responsive Next.js landing page, searchable recipe catalog, and structured
+  recipe detail pages with loading, empty, error, rating, and lineage states;
 - FastAPI health, paginated recipe-browse, and structured recipe-detail
   endpoints with documented response and error schemas;
 - a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
@@ -68,8 +69,8 @@ The repository currently provides:
 
 The repository also includes a deterministic demo catalog with 25 recipe
 lineages, useful variants, ingredient aliases, and directed substitutions.
-Recipe write APIs and product screens remain separate milestones. This keeps
-each story focused on the smallest durable foundation for the MVP.
+Recipe write and interaction flows remain separate milestones. This keeps each
+story focused on the smallest durable foundation for the MVP.
 
 ## Quick start with Docker
 
@@ -85,6 +86,7 @@ docker compose exec backend python -m app.seeds load
 Open:
 
 - Web app: <http://localhost:3000>
+- Recipe catalog: <http://localhost:3000/recipes>
 - API health check: <http://localhost:8000/api/health>
 - Recipe browse API: <http://localhost:8000/api/recipes>
 - Interactive API docs: <http://localhost:8000/docs>
@@ -150,8 +152,8 @@ npx playwright test --list
 ```
 
 The Playwright list command validates test discovery without installing or
-launching a browser. To run the current end-to-end smoke test locally, install
-Chromium once and then run the suite:
+launching a browser. To run the browser flow locally, keep the migrated and
+seeded backend running, install Chromium once, and then run the suite:
 
 ```powershell
 cd frontend

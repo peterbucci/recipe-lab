@@ -8,7 +8,11 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_session
 from app.api.errors import ApiError
 from app.models import RecipeIngredient, RecipeInstruction, RecipeVersion
-from app.repositories.recipes import browse_recipe_versions, get_recipe_version
+from app.repositories.recipes import (
+    browse_recipe_versions,
+    get_recipe_rating_aggregate,
+    get_recipe_version,
+)
 from app.schemas.errors import ErrorResponse
 from app.schemas.recipes import (
     RecipeDetailResponse,
@@ -154,8 +158,11 @@ def recipe_detail(
             message=f"Recipe version {recipe_version_id} was not found.",
         )
 
+    rating = get_recipe_rating_aggregate(session, recipe_version_id)
     return RecipeDetailResponse(
         **_summary(version).model_dump(),
+        average_rating=float(rating.average) if rating.average is not None else None,
+        rating_count=rating.count,
         parent=_reference(version.parent) if version.parent is not None else None,
         children=[_reference(child) for child in version.descendants],
         ingredients=[_ingredient(item) for item in version.ingredients],

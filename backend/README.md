@@ -74,7 +74,10 @@ the final page return an empty `items` list while preserving the total count.
 Ingredient responses preserve the authored display name alongside the
 canonical ingredient name and ID. Decimal quantities and servings serialize as
 JSON strings so PostgreSQL precision is not lost. Parent and child summaries
-are immediate relationships, not a recursively expanded lineage tree.
+are immediate relationships, not a recursively expanded lineage tree. Detail
+responses also include a read-only rating count and average. An unrated recipe
+returns a count of zero and a null average; individual users and ratings are not
+exposed.
 
 Malformed identifiers and invalid query values return HTTP 422; a valid UUID
 that is not present returns HTTP 404. Both use the documented `ErrorResponse`
