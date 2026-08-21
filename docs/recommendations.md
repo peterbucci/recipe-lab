@@ -3,9 +3,10 @@
 ## Purpose and boundary
 
 `baseline-v1` is a deterministic, request-time recommender for the shared demo
-profile. It establishes an explainable reference point before Recipe Lab adds
-offline evaluation or learned models. It does not train a model, persist a user
-profile or recommendation artifact, introduce randomness, or depend on a clock.
+profile. It establishes the explainable reference point used by Recipe Lab's
+offline evaluator before any learned model is considered. It does not train a
+model, persist a user profile or recommendation artifact, introduce randomness,
+or depend on a clock.
 
 `GET /api/recommendations?limit=10` returns up to the requested number of
 recommendations. Each item contains a recipe-version summary, its score, and a
@@ -20,7 +21,9 @@ returns the standard HTTP 422 error envelope; a database without the seeded demo
 identity returns the documented HTTP 503 response.
 
 The endpoint is API-only in this milestone. It does not add a frontend surface,
-a database migration, an offline training job, or an evaluation harness.
+a database migration, or an offline training job. The separate offline harness
+reconstructs point-in-time state from immutable event snapshots and calls the
+same pure scorer; the API never imports or runs that harness.
 
 ## Global score
 
@@ -138,6 +141,7 @@ The current identity is one shared demo profile, so its history and resulting
 personalization are shared by every visitor. `baseline-v1` is suitable as an
 explainable product and evaluation baseline, not as evidence of account-level
 personalization quality. It deliberately has no recency model, popularity
-dampening, semantic ingredient representation, collaborative signal, training
-pipeline, or offline metrics. The evaluation harness and learned recommenders
-remain separate roadmap work.
+dampening, semantic ingredient representation, collaborative signal, or
+training pipeline. The [offline evaluation harness](evaluation.md) measures it
+with a fixed-cutoff protocol, but learned recommenders remain separate roadmap
+work.

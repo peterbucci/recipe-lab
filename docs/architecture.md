@@ -210,11 +210,25 @@ the job instead of attempting fragile row-by-row cleanup of immutable history.
 
 ### ML workspace
 
-The `ml` directory remains separate from request-serving code. Stable event
-capture and a non-ML request-time baseline are now available. The baseline has
-no trained artifact or dependency on the `ml` workspace; it establishes the
-stable response interface and comparison point for later approaches. Offline
-evaluation still precedes any claim that a learned recommender is better.
+The `ml` directory is a separate Python distribution and is never imported by
+the request-serving application. Its offline evaluator consumes a versioned
+catalog-and-event snapshot, applies one strict UTC cutoff, reconstructs
+point-in-time preference state, and compares every registered approach with
+`baseline-v1`. The production recommendation adapter and evaluator share the
+same database-free baseline scorer; SQL loading remains outside that core.
+
+Snapshots are explicit artifacts rather than live database reads during a run.
+The PostgreSQL exporter uses a repeatable-read transaction and retains only
+opaque IDs plus typed event context. Local snapshots and reports are ignored;
+the committed synthetic fixture exists only to test split, metric, privacy, and
+reproducibility behavior. Canonical reports contain no raw profile or event IDs
+and omit wall-clock or host-dependent fields.
+
+The offline CI job checks formatting, types, tests, and byte-for-byte report
+reproducibility independently of the backend/frontend/MVP acceptance chain.
+Neither FastAPI startup nor a product request installs or runs evaluation code.
+See [offline recommendation evaluation](evaluation.md) for the protocol and
+limitations.
 
 ## Initial request path
 
@@ -224,11 +238,12 @@ Demo interaction:     Browser ----------> FastAPI -> SQLAlchemy -> PostgreSQL
 Variant creation:     Browser ----------> FastAPI -> SQLAlchemy -> PostgreSQL
 Version comparison:   Browser -> Next.js -> FastAPI -> SQLAlchemy -> PostgreSQL
 Recommendation read:  API client -------> FastAPI -> SQLAlchemy -> PostgreSQL
+Offline evaluation:   Snapshot file ----> Evaluator -> Canonical JSON report
 ```
 
-Future offline training reads versioned product data and writes versioned model
-artifacts or recommendations through an explicit boundary; it does not become a
-hidden dependency of core recipe creation.
+Future offline training may read the same versioned snapshot and write a
+versioned model artifact through an explicit adapter. It must not become a
+hidden dependency of core recipe creation or recommendation reads.
 
 ## Early design decisions to record
 
@@ -236,4 +251,4 @@ hidden dependency of core recipe creation.
 - Original-recipe creation and content-update enforcement.
 - Preference-event retention and migration from demo to authenticated users.
 - Recipe and metadata provenance.
-- Recommendation evaluation metrics and split strategy.
+- Authenticated-profile and impression semantics for later evaluation data.

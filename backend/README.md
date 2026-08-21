@@ -183,9 +183,12 @@ alone. Decimal `ROUND_HALF_UP` rounding and fixed component, title, version, and
 UUID tie-breaks make an unchanged database snapshot reproducible.
 
 This is a read-only, request-time baseline. It adds no table, model artifact,
-training job, evaluation run, personal telemetry, or frontend feature. See
-[baseline recommendations](../docs/recommendations.md) for the complete formula,
-candidate rules, and limitations of the shared demo identity.
+training job, personal telemetry, or frontend feature. Its SQL adapter calls a
+database-free scorer that is also used by the separate point-in-time evaluator,
+so production and offline formulas share one implementation. See
+[baseline recommendations](../docs/recommendations.md) for the complete formula
+and [offline recommendation evaluation](../docs/evaluation.md) for the split,
+metrics, reproducibility, and data-limitations contract.
 
 ## Recipe variant creation
 

@@ -38,9 +38,10 @@ trained ML system.
 ### ML after useful signals exist
 
 The ML roadmap begins with a transparent popularity or rule-based baseline,
-which is now available as the comparison point for later work. Content-based,
-collaborative, and hybrid recommenders remain deferred, and offline evaluation
-must be in place before a more complex model is considered better.
+which is now available as the comparison point for later work. A separate
+fixed-cutoff offline harness now measures that baseline reproducibly. Content-
+based, collaborative, and hybrid recommenders remain deferred; none should be
+considered better without a comparable evaluation report.
 
 ## Repository layout
 
@@ -48,7 +49,7 @@ must be in place before a more complex model is considered better.
 recipe-lab/
 |-- frontend/          Next.js and TypeScript web application
 |-- backend/           FastAPI, SQLAlchemy, and pytest
-|-- ml/                Deferred ML workspace and entry criteria
+|-- ml/                Offline recommendation evaluation package
 |-- docs/              Product scope and architecture notes
 |-- compose.yaml       Local frontend, API, and PostgreSQL services
 `-- .env.example       Documented development configuration
@@ -82,6 +83,9 @@ The repository currently provides:
 - a read-only `baseline-v1` recommendation API with documented Bayesian quality,
   normalized support, and bounded canonical-ingredient similarity signals,
   deterministic cold-start ordering, and a short reason for every result;
+- a versioned, leakage-safe offline evaluation harness with mandatory baseline
+  comparison, Precision@K, Recall@K, NDCG@K, coverage, popularity-bias metrics,
+  deterministic reports, and an explicitly synthetic verification fixture;
 - a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
   immutable recipe-version snapshots, ingredients, instructions, saves, and
   ratings plus their separate interaction history;
@@ -179,6 +183,25 @@ npm run build
 npx playwright test --list
 ```
 
+Run the offline evaluation checks and reproduce the synthetic verification
+report without touching a live database:
+
+```powershell
+cd ml
+python -m pip install -e ../backend -e ".[dev]"
+python -m ruff format --check src tests
+python -m ruff check src tests
+python -m mypy src tests
+python -m pytest
+recipe-lab-eval run --snapshot tests/fixtures/synthetic_snapshot_v1.json `
+  --k 5 --k 10 --seed 20260821 --output reports/synthetic-report.json
+```
+
+The snapshot's explicit UTC cutoff defines training and holdout data. The
+synthetic result validates the harness only; it is not a product benchmark.
+See [offline recommendation evaluation](docs/evaluation.md) for the snapshot
+command, metric definitions, and leakage/privacy rules.
+
 The Playwright list command validates test discovery without installing or
 launching a browser. To run the browser flow locally, keep the migrated and
 seeded backend running, install Chromium once, and then run the suite:
@@ -214,6 +237,11 @@ uncommitted model changes, and runs the schema tests. Python and npm download
 caches are keyed from their dependency files; the frontend uses `npm ci` with
 the committed `package-lock.json`.
 
+An independent `Offline evaluation` job installs the backend scoring core and
+the `ml` package, runs its static checks and tests, then generates the synthetic
+report twice and compares the bytes. It is deliberately outside the
+backend/frontend dependency chain and never starts a product service.
+
 After the backend and frontend quality jobs pass, the stable `MVP acceptance`
 job creates a fresh PostgreSQL 17 database, applies every migration, loads the
 deterministic seed catalog, builds the production frontend, and runs the full
@@ -236,4 +264,6 @@ WCAG A/AA checks. M1 is not considered complete unless this job passes.
 See [MVP scope](docs/mvp-scope.md) and [architecture](docs/architecture.md) for
 the initial boundaries and component responsibilities. The exact scoring and
 cold-start contract is documented in
-[baseline recommendations](docs/recommendations.md).
+[baseline recommendations](docs/recommendations.md). The fixed-cutoff metrics
+and report contract are documented in
+[offline recommendation evaluation](docs/evaluation.md).

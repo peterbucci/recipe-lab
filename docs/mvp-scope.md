@@ -49,7 +49,9 @@ It ranks recipe versions with deterministic Bayesian quality and normalized
 support signals, then applies a bounded canonical-ingredient match when the
 shared demo profile has positive history. It does not change the M1 browser
 journey or add a frontend recommendation surface, authentication, training,
-offline evaluation, or a learned model. See
+or a learned model. RCP-16 adds a separate offline evaluator with a fixed-cutoff
+split, full-catalog metrics, mandatory baseline comparison, and reproducible
+reports. Neither addition belongs to or blocks the deployed M1 request path. See
 [baseline recommendations](recommendations.md) for the exact contract.
 
 ## Exit criteria before ML work
@@ -59,3 +61,8 @@ offline evaluation, or a learned model. See
 - Seed and ingredient metadata provenance is documented.
 - A simple non-ML recommendation baseline exists.
 - Offline evaluation data and metrics are defined.
+
+Those prerequisites are now represented by the privacy-bounded preference
+events, `baseline-v1`, and the [offline evaluation protocol](evaluation.md).
+They enable measured experimentation after the MVP; they do not move learned
+recommendations or an ML runtime into MVP scope.
