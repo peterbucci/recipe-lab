@@ -58,6 +58,8 @@ The repository currently provides:
   recipe detail pages with loading, empty, error, rating, and lineage states;
 - FastAPI health, paginated recipe-browse, and structured recipe-detail
   endpoints with documented response and error schemas;
+- a transactional recipe-forking endpoint that copies a complete snapshot,
+  applies validated structured edits, and preserves direct parentage;
 - a clearly labeled shared demo identity with persistent, retry-safe save,
   unsave, rating, and rating-update actions on exact recipe versions;
 - a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
@@ -71,8 +73,9 @@ The repository currently provides:
 
 The repository also includes a deterministic demo catalog with 25 recipe
 lineages, useful variants, ingredient aliases, and directed substitutions.
-Recipe creation, forking, and diff workflows remain separate milestones. This
-keeps each story focused on the smallest durable foundation for the MVP.
+Original-recipe creation, the variant editor, and diff presentation remain
+separate milestones. This keeps each story focused on the smallest durable
+foundation for the MVP.
 
 ## Quick start with Docker
 
