@@ -79,6 +79,10 @@ describe("RecipeDetailView", () => {
       "href",
       "/recipes/carrot-v2/fork",
     );
+    expect(screen.getByRole("link", { name: /compare with parent/i })).toHaveAttribute(
+      "href",
+      "/recipes/carrot-v2/compare",
+    );
     expect(screen.getByText("140 g")).toBeInTheDocument();
     expect(screen.getByText("White sugar")).toBeInTheDocument();
     expect(screen.getByText(/catalog name: granulated sugar/i)).toBeInTheDocument();
@@ -124,6 +128,7 @@ describe("RecipeDetailView", () => {
 
     expect(screen.getByLabelText(/no ratings yet/i)).toBeInTheDocument();
     expect(screen.getByText(/does not have a direct variant yet/i)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /compare with parent/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /parent/i })).not.toBeInTheDocument();
     const lineage = screen.getByRole("list", { name: /immediate recipe lineage/i });
     expect(within(lineage).getAllByRole("listitem")).toHaveLength(1);

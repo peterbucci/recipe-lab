@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   RecipeApiError,
   fetchRecipe,
+  fetchRecipeDiff,
   fetchRecipePage,
   isRecipeVersionId,
+  type RecipeDiff,
   type RecipePage,
 } from "./recipe-api";
 
@@ -14,6 +16,24 @@ const emptyPage: RecipePage = {
   page_size: 12,
   total: 0,
   total_pages: 0,
+};
+
+const noChangeDiff: RecipeDiff = {
+  lineage_id: "33333333-3333-4333-8333-333333333333",
+  base_version: {
+    id: "11111111-1111-4111-8111-111111111111",
+    version_number: 1,
+    title: "Carrot Walnut Snack Cake",
+  },
+  target_version: {
+    id: "22222222-2222-4222-8222-222222222222",
+    version_number: 2,
+    title: "Copied Carrot Walnut Snack Cake",
+  },
+  metadata_changes: [],
+  ingredients: { added: [], removed: [], replaced: [], modified: [] },
+  instructions: { added: [], removed: [], modified: [] },
+  has_changes: false,
 };
 
 afterEach(() => {
@@ -62,6 +82,94 @@ describe("recipe API client", () => {
       new URL("http://api.example.test/api/recipes/missing%2Fid"),
       expect.any(Object),
     );
+  });
+
+  it("fetches a parent diff from the encoded route without caching", async () => {
+    vi.stubEnv("RECIPE_API_URL", "http://api.example.test/");
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(noChangeDiff), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchRecipeDiff("variant/id?draft=true")).resolves.toEqual(noChangeDiff);
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL("http://api.example.test/api/recipes/variant%2Fid%3Fdraft%3Dtrue/diff"),
+      {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      },
+    );
+  });
+
+  it("maps a missing recipe comparison to null", async () => {
+    vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 404 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchRecipeDiff("missing-comparison")).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("preserves a documented comparison error for the compare route", async () => {
+    vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: "recipe_has_no_parent",
+              message: "This recipe version has no parent to compare.",
+              issues: [],
+            },
+          }),
+          { status: 422, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    const error = await fetchRecipeDiff(noChangeDiff.base_version.id).catch(
+      (reason: unknown) => reason,
+    );
+
+    expect(error).toBeInstanceOf(RecipeApiError);
+    expect(error).toMatchObject({
+      code: "recipe_has_no_parent",
+      message: "This recipe version has no parent to compare.",
+      status: 422,
+    });
+  });
+
+  it("uses a safe fallback for a non-JSON comparison failure", async () => {
+    vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response("private upstream details", {
+          status: 503,
+          headers: { "Content-Type": "text/plain" },
+        }),
+      ),
+    );
+
+    const error = await fetchRecipeDiff(noChangeDiff.target_version.id).catch(
+      (reason: unknown) => reason,
+    );
+
+    expect(error).toBeInstanceOf(RecipeApiError);
+    expect(error).toMatchObject({
+      code: "recipe_api_error",
+      message: "The recipe service could not complete this request.",
+      status: 503,
+    });
+    expect(String(error)).not.toContain("private upstream details");
   });
 
   it("preserves the documented API error without exposing response internals", async () => {

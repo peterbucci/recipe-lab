@@ -94,6 +94,96 @@ test("browses, searches, and opens a structured recipe", async ({ page }) => {
   await expect(page.getByRole("link", { name: /direct child.*lower-sugar pecan/i })).toBeVisible();
 });
 
+test("compares the seeded carrot variant with its parent without writing recipe state", async ({
+  page,
+}) => {
+  const parentRecipeVersionId = await openCarrotRoot(page);
+
+  await page
+    .getByRole("link", { name: /direct child.*lower-sugar pecan carrot cake/i })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Lower-Sugar Pecan Carrot Cake", level: 1 }),
+  ).toBeVisible();
+
+  const targetMatch = new URL(page.url()).pathname.match(/^\/recipes\/([^/]+)$/);
+  if (!targetMatch) {
+    throw new Error(`Could not read the child recipe version ID from ${page.url()}.`);
+  }
+  const targetRecipeVersionId = decodeURIComponent(targetMatch[1]);
+
+  await page.getByRole("link", { name: "Compare with parent", exact: true }).click();
+  await expect(page).toHaveURL(`/recipes/${targetRecipeVersionId}/compare`);
+  await expect(
+    page.getByRole("heading", {
+      name: "How Lower-Sugar Pecan Carrot Cake changed",
+      level: 1,
+    }),
+  ).toBeVisible();
+
+  const sugarChange = page
+    .getByRole("heading", { name: "White sugar", level: 3, exact: true })
+    .locator("..");
+  await expect(sugarChange.getByText("Amount changed", { exact: true })).toBeVisible();
+  await expect(sugarChange.getByText("Before", { exact: true })).toBeVisible();
+  await expect(sugarChange.getByText("After", { exact: true })).toBeVisible();
+  await expect(sugarChange.getByText("180 g", { exact: true })).toBeVisible();
+  await expect(sugarChange.getByText("140 g", { exact: true })).toBeVisible();
+
+  const substitution = page
+    .getByRole("heading", { name: "Walnut replaced with Pecan", level: 3 })
+    .locator("..");
+  await expect(substitution.getByText("Substitution", { exact: true })).toBeVisible();
+  await expect(substitution.getByText("Original ingredient", { exact: true })).toBeVisible();
+  await expect(substitution.getByText("Replacement ingredient", { exact: true })).toBeVisible();
+  await expect(substitution.getByText("Walnut", { exact: true })).toBeVisible();
+  await expect(substitution.getByText("Pecan", { exact: true })).toBeVisible();
+
+  const comparedVersions = page.getByRole("navigation", {
+    name: "Compared recipe versions",
+  });
+  const parentLink = comparedVersions.getByRole("link", {
+    name: /before · parent.*carrot walnut snack cake.*version 1/i,
+  });
+  await parentLink.focus();
+  await expect(parentLink).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  await expect(page).toHaveURL(`/recipes/${parentRecipeVersionId}`);
+  await expect(
+    page.getByRole("heading", { name: "Carrot Walnut Snack Cake", level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Compare with parent" })).toHaveCount(0);
+});
+
+test("keeps the seeded recipe comparison usable at a phone viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openCarrotRoot(page);
+
+  await page
+    .getByRole("link", { name: /direct child.*lower-sugar pecan carrot cake/i })
+    .click();
+  await page.getByRole("link", { name: "Compare with parent", exact: true }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "How Lower-Sugar Pecan Carrot Cake changed",
+      level: 1,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("Before", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("After", { exact: true }).first()).toBeVisible();
+
+  const comparison = await page.locator(".recipe-diff-view").boundingBox();
+  expect(comparison).not.toBeNull();
+  expect(comparison!.x).toBeGreaterThanOrEqual(0);
+  expect(comparison!.x + comparison!.width).toBeLessThanOrEqual(390);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
+});
+
 test("persists shared demo saves and rating updates", async ({ page, request }) => {
   let recipeVersionId: string | undefined;
 
