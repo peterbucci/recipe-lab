@@ -61,6 +61,9 @@ The repository currently provides:
   for recipe details, ingredients, and instructions; validation failures keep
   the entered draft intact, while a successful `201 Created` response opens
   the new child version;
+- a dedicated `/recipes/{id}/compare` view for variants, with accessible
+  before/after values and distinct treatments for additions, removals,
+  substitutions, amount changes, metadata changes, and instruction changes;
 - FastAPI health, paginated recipe-browse, and structured recipe-detail
   endpoints with documented response and error schemas;
 - a deterministic structured-diff endpoint that compares recipe metadata,
@@ -80,10 +83,10 @@ The repository currently provides:
 
 The repository also includes a deterministic demo catalog with 25 recipe
 lineages, useful variants, ingredient aliases, and directed substitutions.
-Original-recipe creation and frontend diff visualization remain separate
-milestones. The variant workflow deliberately omits graph visualization, row
-reordering, autosave, and ML so the core fork-and-navigate path stays focused
-on the MVP.
+Original-recipe creation remains a separate milestone. The variant workflow
+deliberately omits arbitrary version comparison, graph visualization, row
+reordering, autosave, and ML so the core fork, compare, and navigate path stays
+focused on the MVP.
 
 ## Quick start with Docker
 
@@ -184,10 +187,10 @@ uncommitted model changes, and runs the schema tests. Python and npm download
 caches are keyed from their dependency files; the frontend uses `npm ci` with
 the committed `package-lock.json`.
 
-The browser-based Playwright suite exercises catalog, detail, and shared-demo
-interaction flows locally. It remains outside the required gate while CI loads
-its configuration and discovers the tests so end-to-end support cannot silently
-break in the meantime.
+The browser-based Playwright suite exercises catalog, detail, parent-comparison,
+variant-creation, and shared-demo interaction flows locally. It remains outside
+the required gate while CI loads its configuration and discovers the tests so
+end-to-end support cannot silently break in the meantime.
 
 ## Working agreements
 

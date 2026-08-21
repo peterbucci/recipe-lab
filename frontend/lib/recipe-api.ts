@@ -44,6 +44,58 @@ export interface RecipeDetail extends RecipeSummary {
   instructions: RecipeInstruction[];
 }
 
+export type RecipeFieldName = "title" | "description" | "servings";
+
+export type RecipeIngredientChangedField =
+  | "ingredient"
+  | "display_name"
+  | "quantity"
+  | "unit"
+  | "preparation_notes";
+
+export type RecipeInstructionChangedField = "text";
+
+export interface RecipeFieldChange {
+  field: RecipeFieldName;
+  before: string | null;
+  after: string | null;
+}
+
+export interface RecipeIngredientPairChange {
+  before: RecipeIngredient;
+  after: RecipeIngredient;
+  changed_fields: RecipeIngredientChangedField[];
+}
+
+export interface RecipeIngredientDiff {
+  added: RecipeIngredient[];
+  removed: RecipeIngredient[];
+  replaced: RecipeIngredientPairChange[];
+  modified: RecipeIngredientPairChange[];
+}
+
+export interface RecipeInstructionPairChange {
+  before: RecipeInstruction;
+  after: RecipeInstruction;
+  changed_fields: RecipeInstructionChangedField[];
+}
+
+export interface RecipeInstructionDiff {
+  added: RecipeInstruction[];
+  removed: RecipeInstruction[];
+  modified: RecipeInstructionPairChange[];
+}
+
+export interface RecipeDiff {
+  lineage_id: string;
+  base_version: RecipeVersionReference;
+  target_version: RecipeVersionReference;
+  metadata_changes: RecipeFieldChange[];
+  ingredients: RecipeIngredientDiff;
+  instructions: RecipeInstructionDiff;
+  has_changes: boolean;
+}
+
 export interface RecipePage {
   items: RecipeSummary[];
   page: number;
@@ -153,4 +205,17 @@ export async function fetchRecipe(recipeVersionId: string): Promise<RecipeDetail
     throw await apiError(response);
   }
   return (await response.json()) as RecipeDetail;
+}
+
+export async function fetchRecipeDiff(recipeVersionId: string): Promise<RecipeDiff | null> {
+  const response = await apiFetch(
+    apiUrl(`/api/recipes/${encodeURIComponent(recipeVersionId)}/diff`),
+  );
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw await apiError(response);
+  }
+  return (await response.json()) as RecipeDiff;
 }

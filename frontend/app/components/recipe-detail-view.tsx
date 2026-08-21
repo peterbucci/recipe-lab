@@ -50,6 +50,14 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
           >
             Create a variant
           </Link>
+          {recipe.parent ? (
+            <Link
+              className="button button--secondary"
+              href={`/recipes/${encodeURIComponent(recipe.id)}/compare`}
+            >
+              Compare with parent
+            </Link>
+          ) : null}
         </div>
         <RecipeInteractionPanel key={recipe.id} initialViewerState={recipe.viewer_state} />
       </header>
