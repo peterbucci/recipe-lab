@@ -1,29 +1,32 @@
 from uuid import UUID
 
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased, contains_eager
 
 from app.models import Ingredient, IngredientAlias, IngredientSubstitution
 
 
 def resolve_ingredient_name(session: Session, raw_name: str) -> Ingredient | None:
-    """Resolve an exact canonical name or alias after case/whitespace normalization."""
+    """Resolve an exact name, giving canonical names precedence over aliases."""
 
-    normalized_name = raw_name.strip().lower()
-    if not normalized_name:
+    trimmed_name = raw_name.strip()
+    if not trimmed_name:
         raise ValueError("ingredient name must not be blank")
 
-    alias_match = exists().where(
-        IngredientAlias.ingredient_id == Ingredient.id,
-        func.lower(func.btrim(IngredientAlias.alias)) == normalized_name,
+    normalized_input = func.lower(trimmed_name)
+    canonical_statement = select(Ingredient).where(
+        func.lower(func.btrim(Ingredient.canonical_name)) == normalized_input
     )
-    statement = select(Ingredient).where(
-        or_(
-            func.lower(func.btrim(Ingredient.canonical_name)) == normalized_name,
-            alias_match,
-        )
+    canonical_match = session.scalars(canonical_statement).one_or_none()
+    if canonical_match is not None:
+        return canonical_match
+
+    alias_statement = (
+        select(Ingredient)
+        .join(IngredientAlias)
+        .where(func.lower(func.btrim(IngredientAlias.alias)) == normalized_input)
     )
-    return session.scalars(statement).one_or_none()
+    return session.scalars(alias_statement).one_or_none()
 
 
 def list_direct_substitutions(

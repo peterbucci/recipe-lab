@@ -27,14 +27,17 @@ def test_exact_canonical_and_alias_names_resolve_case_insensitively(
             IngredientAlias(alias="Spring onion"),
         ],
     )
-    db_session.add(green_onion)
+    canonical_scallion = Ingredient(canonical_name="Scallion")
+    db_session.add_all([green_onion, canonical_scallion])
     db_session.flush()
 
     canonical_match = resolve_ingredient_name(db_session, "  GREEN ONION ")
-    alias_match = resolve_ingredient_name(db_session, "  sCaLlIoN  ")
+    alias_match = resolve_ingredient_name(db_session, "  SpRiNg OnIoN  ")
+    canonical_precedence = resolve_ingredient_name(db_session, "  sCaLlIoN  ")
 
     assert canonical_match is green_onion
     assert alias_match is green_onion
+    assert canonical_precedence is canonical_scallion
     assert resolve_ingredient_name(db_session, "shallot") is None
     with pytest.raises(ValueError, match="must not be blank"):
         resolve_ingredient_name(db_session, "   ")
@@ -101,6 +104,7 @@ def test_substitution_lookup_returns_only_direct_outgoing_edges(
     assert substitutions[0].notes == "Best in baked goods."
     assert substitutions[0].provenance == "Recipe Lab test fixture"
     assert substitutions[0].confidence == Decimal("0.9500")
+    assert substitutions[1].guidance == "Reduce other liquids if needed."
     assert list_direct_substitutions(db_session, salt.id) == []
 
     db_session.expunge_all()
