@@ -1,0 +1,152 @@
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { RecipeViewerState } from "../../lib/interaction-api";
+import { RecipeInteractionPanel } from "./recipe-interaction-panel";
+
+const mocks = vi.hoisted(() => ({
+  refresh: vi.fn(),
+  setRecipeRating: vi.fn(),
+  setRecipeSaved: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: mocks.refresh }),
+}));
+
+vi.mock("../../lib/interaction-api", () => ({
+  setRecipeRating: mocks.setRecipeRating,
+  setRecipeSaved: mocks.setRecipeSaved,
+}));
+
+function viewerState(overrides: Partial<RecipeViewerState> = {}): RecipeViewerState {
+  return {
+    recipe_version_id: "29454eba-3a4e-5380-b48c-c49dc3697b17",
+    user: {
+      id: "1fc5b3b8-cf73-54ce-b5d6-ed3c30df9fd9",
+      display_name: "Demo Cook",
+      identity_mode: "shared_demo",
+    },
+    saved: false,
+    rating: null,
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("RecipeInteractionPanel", () => {
+  it("identifies the shared demo profile and exposes current save and rating state", () => {
+    render(
+      <RecipeInteractionPanel initialViewerState={viewerState({ saved: true, rating: 4 })} />,
+    );
+
+    expect(screen.getByRole("heading", { name: /your demo activity/i })).toBeInTheDocument();
+    expect(screen.getByText(/saves and ratings are shared across this demo/i)).toBeInTheDocument();
+    const removeSaveButton = screen.getByRole("button", { name: /remove saved recipe/i });
+    expect(removeSaveButton).toHaveAttribute("aria-pressed", "true");
+    expect(removeSaveButton).toHaveTextContent("Remove saved recipe");
+    expect(screen.getByRole("radio", { name: /4 stars/i })).toBeChecked();
+    expect(screen.getByText(/your current rating is 4 out of 5/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /update rating/i })).toBeDisabled();
+  });
+
+  it("saves and unsaves from the canonical API response", async () => {
+    const initialState = viewerState();
+    mocks.setRecipeSaved
+      .mockResolvedValueOnce({ ...initialState, saved: true })
+      .mockResolvedValueOnce(initialState);
+    render(<RecipeInteractionPanel initialViewerState={initialState} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^save recipe$/i }));
+
+    expect(mocks.setRecipeSaved).toHaveBeenCalledWith(initialState.recipe_version_id, true);
+    expect(await screen.findByText(/saved to demo cook/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /remove saved recipe/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /remove saved recipe/i }));
+
+    expect(mocks.setRecipeSaved).toHaveBeenLastCalledWith(
+      initialState.recipe_version_id,
+      false,
+    );
+    expect(await screen.findByText(/removed from demo cook's saved recipes/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^save recipe$/i })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+
+  it("prevents duplicate save requests while a write is pending", async () => {
+    const initialState = viewerState();
+    let resolveSave: (state: RecipeViewerState) => void = () => undefined;
+    mocks.setRecipeSaved.mockReturnValue(
+      new Promise<RecipeViewerState>((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+    render(<RecipeInteractionPanel initialViewerState={initialState} />);
+
+    const saveButton = screen.getByRole("button", { name: /^save recipe$/i });
+    fireEvent.click(saveButton);
+    fireEvent.click(saveButton);
+
+    expect(mocks.setRecipeSaved).toHaveBeenCalledOnce();
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute("aria-busy", "true");
+
+    await act(async () => {
+      resolveSave({ ...initialState, saved: true });
+    });
+
+    expect(screen.getByRole("button", { name: /remove saved recipe/i })).toBeEnabled();
+  });
+
+  it("rates, updates the committed state, and refreshes the server aggregate", async () => {
+    const initialState = viewerState({ rating: 2 });
+    mocks.setRecipeRating.mockResolvedValue({ ...initialState, rating: 4 });
+    render(<RecipeInteractionPanel initialViewerState={initialState} />);
+
+    fireEvent.click(screen.getByRole("radio", { name: /4 stars/i }));
+    const updateButton = screen.getByRole("button", { name: /update rating/i });
+    expect(updateButton).toBeEnabled();
+    fireEvent.click(updateButton);
+
+    expect(mocks.setRecipeRating).toHaveBeenCalledWith(initialState.recipe_version_id, 4);
+    expect(await screen.findByText(/your rating is now 4 out of 5 for demo cook/i)).toBeInTheDocument();
+    expect(screen.getByText(/your current rating is 4 out of 5/i)).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /4 stars/i })).toBeChecked();
+    expect(screen.getByRole("button", { name: /update rating/i })).toBeDisabled();
+    expect(mocks.refresh).toHaveBeenCalledOnce();
+  });
+
+  it("announces failures and preserves the last confirmed state", async () => {
+    const initialState = viewerState();
+    mocks.setRecipeSaved.mockRejectedValue(new Error("network unavailable"));
+    mocks.setRecipeRating.mockRejectedValue(new Error("network unavailable"));
+    render(<RecipeInteractionPanel initialViewerState={initialState} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^save recipe$/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/previous state is unchanged/i);
+    expect(screen.getByRole("button", { name: /^save recipe$/i })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: /3 stars/i }));
+    fireEvent.click(screen.getByRole("button", { name: /rate recipe/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/previous rating is unchanged/i)).toBeInTheDocument();
+    });
+    expect(screen.getAllByRole("alert")).toHaveLength(2);
+    expect(screen.getByText(/previous state is unchanged/i)).toBeInTheDocument();
+    expect(screen.getByText(/haven’t rated this recipe yet/i)).toBeInTheDocument();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+});

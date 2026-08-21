@@ -13,8 +13,11 @@ Catalog search and pagination live in the URL, so standard links and a GET form
 work without shipping client-side state. Recipe reads use `no-store` because
 catalog membership, lineage children, and rating aggregates may change even
 though a single recipe-version snapshot is immutable. Client code is reserved
-for the retrying error boundary. `NEXT_PUBLIC_API_URL` remains available for
-future browser-originated interactions.
+for the retrying error boundary and a narrow save/rating panel on recipe detail
+pages. Server components read through `RECIPE_API_URL`; the client panel writes
+directly to FastAPI through `NEXT_PUBLIC_API_URL` and refreshes server-rendered
+rating aggregates after a successful rating. Local CORS configuration permits
+the exact `localhost` and `127.0.0.1` development origins.
 
 ### API
 
@@ -36,6 +39,13 @@ its canonical identity. A separate aggregate query returns only rating count
 and average, never individual interaction records. Validation and not-found
 failures share one documented error envelope while retaining their semantic
 HTTP status codes.
+
+The API, not the client, selects a deterministic interaction-only demo user.
+Save and rating endpoints set current state with PostgreSQL conflict handling,
+so retries and concurrent duplicate requests remain safe. Each mutation owns
+one transaction and returns the authoritative state after the write. This
+shared profile is explicitly identified as demo mode and is not presented as
+authentication.
 
 ### Database
 
@@ -82,7 +92,11 @@ not made unnecessarily difficult.
 
 Saves and ratings reference exact versions rather than a mutable recipe record.
 Their composite keys allow only one of each interaction per user and version,
-and a rating constraint enforces the one-to-five scale.
+and a rating constraint enforces the one-to-five scale. The bundled loader also
+ensures a fixed interaction-only demo user exists without deleting or changing
+that user's saves and ratings on a later seed run. Interaction rows remain
+mutable current state; timestamped preference events are a later, separate
+contract.
 
 ### ML workspace
 
@@ -94,7 +108,8 @@ honest.
 ## Initial request path
 
 ```text
-Browser -> Next.js -> FastAPI -> SQLAlchemy -> PostgreSQL
+Server-rendered read: Browser -> Next.js -> FastAPI -> SQLAlchemy -> PostgreSQL
+Demo interaction:     Browser ----------> FastAPI -> SQLAlchemy -> PostgreSQL
 ```
 
 Future offline training reads versioned product data and writes versioned model

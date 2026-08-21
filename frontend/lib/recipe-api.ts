@@ -1,3 +1,5 @@
+import type { RecipeViewerState } from "./interaction-api";
+
 export interface RecipeSummary {
   id: string;
   lineage_id: string;
@@ -35,6 +37,7 @@ export interface RecipeInstruction {
 export interface RecipeDetail extends RecipeSummary {
   average_rating: number | null;
   rating_count: number;
+  viewer_state: RecipeViewerState;
   parent: RecipeVersionReference | null;
   children: RecipeVersionReference[];
   ingredients: RecipeIngredient[];

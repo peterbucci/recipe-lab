@@ -1,8 +1,12 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import type { RecipeDetail } from "../../lib/recipe-api";
 import { RecipeDetailView } from "./recipe-detail-view";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
   return {
@@ -16,6 +20,16 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     created_at: "2026-08-20T00:00:00Z",
     average_rating: 4.5,
     rating_count: 2,
+    viewer_state: {
+      recipe_version_id: "carrot-v2",
+      user: {
+        id: "demo-cook",
+        display_name: "Demo Cook",
+        identity_mode: "shared_demo",
+      },
+      saved: false,
+      rating: null,
+    },
     parent: { id: "carrot-v1", version_number: 1, title: "Carrot Walnut Snack Cake" },
     children: [{ id: "carrot-v3", version_number: 3, title: "Orange Raisin Carrot Cake" }],
     ingredients: [
@@ -56,6 +70,11 @@ describe("RecipeDetailView", () => {
       screen.getByRole("heading", { name: /lower-sugar pecan carrot cake/i, level: 1 }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/4\.5 out of 5 from 2 ratings/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /your demo activity/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save recipe/i })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
     expect(screen.getByText("140 g")).toBeInTheDocument();
     expect(screen.getByText("White sugar")).toBeInTheDocument();
     expect(screen.getByText(/catalog name: granulated sugar/i)).toBeInTheDocument();
@@ -96,5 +115,34 @@ describe("RecipeDetailView", () => {
     expect(screen.getByLabelText(/no ratings yet/i)).toBeInTheDocument();
     expect(screen.getByText(/does not have a direct variant yet/i)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /parent/i })).not.toBeInTheDocument();
+  });
+
+  it("resets demo interaction state when navigation changes the recipe version", () => {
+    const initialRecipe = detail();
+    const { rerender } = render(<RecipeDetailView recipe={initialRecipe} />);
+
+    fireEvent.click(screen.getByRole("radio", { name: /5 stars/i }));
+    expect(screen.getByRole("radio", { name: /5 stars/i })).toBeChecked();
+
+    rerender(
+      <RecipeDetailView
+        recipe={detail({
+          id: "carrot-v3",
+          viewer_state: {
+            ...initialRecipe.viewer_state,
+            recipe_version_id: "carrot-v3",
+            saved: true,
+            rating: 3,
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /remove saved recipe/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("radio", { name: /3 stars/i })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /5 stars/i })).not.toBeChecked();
   });
 });
