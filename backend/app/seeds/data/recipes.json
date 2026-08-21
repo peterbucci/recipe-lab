@@ -1,0 +1,782 @@
+[
+  {
+    "key": "banana-oat-pancakes-v1",
+    "version_number": 1,
+    "title": "Banana Oat Pancakes",
+    "description": "A quick American-style breakfast made with blended oats and ripe banana.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "oats", "ingredient": "rolled-oats", "name": "Rolled oats", "quantity": "160", "unit": "g"},
+      {"key": "banana", "ingredient": "banana", "name": "Banana", "quantity": "240", "unit": "g", "preparation_notes": "peeled and sliced"},
+      {"key": "egg", "ingredient": "egg", "name": "Egg", "quantity": "2", "unit": "count"},
+      {"key": "milk", "ingredient": "milk", "name": "Milk", "quantity": "180", "unit": "ml"},
+      {"key": "baking-powder", "ingredient": "baking-powder", "name": "Baking powder", "quantity": "2", "unit": "tsp"},
+      {"key": "cinnamon", "ingredient": "cinnamon", "name": "Cinnamon", "quantity": "0.5", "unit": "tsp"},
+      {"key": "oil", "ingredient": "neutral-oil", "name": "Neutral oil", "quantity": "1", "unit": "tbsp"}
+    ],
+    "instructions": [
+      {"key": "blend", "text": "Blend the oats until finely ground, then add the banana, eggs, milk, baking powder, and cinnamon."},
+      {"key": "rest", "text": "Blend to a smooth batter and let it stand for 5 minutes while a skillet heats over medium heat."},
+      {"key": "cook", "text": "Brush the skillet with oil and cook small rounds until bubbles form, then turn and cook until set."}
+    ]
+  },
+  {
+    "key": "blueberry-banana-oat-pancakes-v2",
+    "parent": "banana-oat-pancakes-v1",
+    "version_number": 2,
+    "title": "Blueberry Banana Oat Pancakes",
+    "description": "The banana-oat pancakes with blueberries folded into each batch.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "oats", "ingredient": "rolled-oats", "name": "Rolled oats", "quantity": "160", "unit": "g"},
+      {"key": "banana", "ingredient": "banana", "name": "Banana", "quantity": "240", "unit": "g", "preparation_notes": "peeled and sliced"},
+      {"key": "egg", "ingredient": "egg", "name": "Egg", "quantity": "2", "unit": "count"},
+      {"key": "milk", "ingredient": "milk", "name": "Milk", "quantity": "180", "unit": "ml"},
+      {"key": "baking-powder", "ingredient": "baking-powder", "name": "Baking powder", "quantity": "2", "unit": "tsp"},
+      {"key": "cinnamon", "ingredient": "cinnamon", "name": "Cinnamon", "quantity": "0.5", "unit": "tsp"},
+      {"key": "blueberries", "ingredient": "blueberry", "name": "Blueberry", "quantity": "120", "unit": "g"},
+      {"key": "oil", "ingredient": "neutral-oil", "name": "Neutral oil", "quantity": "1", "unit": "tbsp"}
+    ],
+    "instructions": [
+      {"key": "blend", "text": "Blend the oats until finely ground, then blend in the banana, eggs, milk, baking powder, and cinnamon."},
+      {"key": "fold", "text": "Rest the batter for 5 minutes, then fold in the blueberries without crushing them."},
+      {"key": "cook", "text": "Brush a medium-hot skillet with oil and cook small rounds on both sides until set."}
+    ]
+  },
+  {
+    "key": "apple-cinnamon-overnight-oats-v1",
+    "version_number": 1,
+    "title": "Apple Cinnamon Overnight Oats",
+    "description": "A chilled make-ahead breakfast with apple, yogurt, and warm spice.",
+    "servings": "2",
+    "ingredients": [
+      {"key": "oats", "ingredient": "rolled-oats", "name": "Rolled oats", "quantity": "100", "unit": "g"},
+      {"key": "milk", "ingredient": "milk", "name": "Milk", "quantity": "240", "unit": "ml"},
+      {"key": "yogurt", "ingredient": "greek-yogurt", "name": "Greek yogurt", "quantity": "120", "unit": "g"},
+      {"key": "apple", "ingredient": "apple", "name": "Apple", "quantity": "160", "unit": "g", "preparation_notes": "cored and diced"},
+      {"key": "chia", "ingredient": "chia-seed", "name": "Chia seed", "quantity": "20", "unit": "g"},
+      {"key": "maple", "ingredient": "maple-syrup", "name": "Maple syrup", "quantity": "15", "unit": "ml"},
+      {"key": "cinnamon", "ingredient": "cinnamon", "name": "Cinnamon", "quantity": "1", "unit": "tsp"}
+    ],
+    "instructions": [
+      {"key": "mix", "text": "Stir the oats, milk, yogurt, chia seeds, maple syrup, and cinnamon together until evenly combined."},
+      {"key": "chill", "text": "Fold in half of the diced apple, cover, and refrigerate for at least 6 hours."},
+      {"key": "finish", "text": "Stir before serving and top with the remaining apple."}
+    ]
+  },
+  {
+    "key": "oat-milk-apple-overnight-oats-v2",
+    "parent": "apple-cinnamon-overnight-oats-v1",
+    "version_number": 2,
+    "title": "Oat-Milk Apple Overnight Oats",
+    "description": "The apple overnight oats with oat milk in place of dairy milk.",
+    "servings": "2",
+    "ingredients": [
+      {"key": "oats", "ingredient": "rolled-oats", "name": "Rolled oats", "quantity": "100", "unit": "g"},
+      {"key": "oat-milk", "ingredient": "oat-milk", "name": "Oat milk", "quantity": "240", "unit": "ml"},
+      {"key": "yogurt", "ingredient": "greek-yogurt", "name": "Greek yogurt", "quantity": "120", "unit": "g"},
+      {"key": "apple", "ingredient": "apple", "name": "Apple", "quantity": "160", "unit": "g", "preparation_notes": "cored and diced"},
+      {"key": "chia", "ingredient": "chia-seed", "name": "Chia seed", "quantity": "20", "unit": "g"},
+      {"key": "maple", "ingredient": "maple-syrup", "name": "Maple syrup", "quantity": "15", "unit": "ml"},
+      {"key": "cinnamon", "ingredient": "cinnamon", "name": "Cinnamon", "quantity": "1", "unit": "tsp"}
+    ],
+    "instructions": [
+      {"key": "mix", "text": "Stir the oats, oat milk, yogurt, chia seeds, maple syrup, and cinnamon together."},
+      {"key": "chill", "text": "Fold in half of the apple, cover, and refrigerate for at least 6 hours."},
+      {"key": "finish", "text": "Stir well and spoon the remaining apple over the chilled oats."}
+    ]
+  },
+  {
+    "key": "spinach-tomato-egg-skillet-v1",
+    "version_number": 1,
+    "title": "Spinach Tomato Egg Skillet",
+    "description": "A savory skillet breakfast with tender greens and tomatoes.",
+    "servings": "2",
+    "ingredients": [
+      {"key": "eggs", "ingredient": "egg", "name": "Egg", "quantity": "4", "unit": "count"},
+      {"key": "spinach", "ingredient": "spinach", "name": "Spinach", "quantity": "100", "unit": "g"},
+      {"key": "tomatoes", "ingredient": "cherry-tomato", "name": "Cherry tomato", "quantity": "180", "unit": "g", "preparation_notes": "halved"},
+      {"key": "onion", "ingredient": "onion", "name": "Onion", "quantity": "80", "unit": "g", "preparation_notes": "thinly sliced"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "1", "unit": "tbsp"},
+      {"key": "paprika", "ingredient": "paprika", "name": "Paprika", "quantity": "0.5", "unit": "tsp"},
+      {"key": "salt", "ingredient": "salt", "name": "Salt", "quantity": "0.25", "unit": "tsp"}
+    ],
+    "instructions": [
+      {"key": "saute", "text": "Heat the oil in a covered skillet and soften the onion with the paprika and salt."},
+      {"key": "wilt", "text": "Add the tomatoes and spinach and cook until the tomatoes soften and the spinach wilts."},
+      {"key": "set-eggs", "text": "Make four wells, crack in the eggs, cover, and cook until the whites and yolks are fully set."}
+    ]
+  },
+  {
+    "key": "lemon-chickpea-toast-v1",
+    "version_number": 1,
+    "title": "Lemon Chickpea Toast",
+    "description": "A bright Mediterranean-inspired chickpea spread on crisp whole-wheat toast.",
+    "servings": "2",
+    "ingredients": [
+      {"key": "bread", "ingredient": "whole-wheat-bread", "name": "Whole-wheat bread", "quantity": "4", "unit": "slice"},
+      {"key": "chickpeas", "ingredient": "chickpea", "name": "Garbanzo beans", "quantity": "240", "unit": "g", "preparation_notes": "drained and rinsed"},
+      {"key": "tahini", "ingredient": "tahini", "name": "Tahini", "quantity": "30", "unit": "g"},
+      {"key": "lemon", "ingredient": "lemon-juice", "name": "Lemon juice", "quantity": "30", "unit": "ml"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "1", "unit": "clove", "preparation_notes": "finely grated"},
+      {"key": "parsley", "ingredient": "parsley", "name": "Parsley", "quantity": "15", "unit": "g", "preparation_notes": "chopped"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "10", "unit": "ml"}
+    ],
+    "instructions": [
+      {"key": "mash", "text": "Mash the garbanzo beans with the tahini, lemon juice, garlic, and olive oil, leaving some texture."},
+      {"key": "toast", "text": "Toast the bread until crisp at the edges."},
+      {"key": "assemble", "text": "Fold the parsley into the chickpea mixture and spoon it over the warm toast."}
+    ]
+  },
+  {
+    "key": "peanut-butter-apple-oat-bites-v1",
+    "version_number": 1,
+    "title": "Peanut Butter Apple Oat Bites",
+    "description": "A no-bake oat snack with crisp apple and peanut butter.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "oats", "ingredient": "rolled-oats", "name": "Rolled oats", "quantity": "120", "unit": "g"},
+      {"key": "peanut-butter", "ingredient": "peanut-butter", "name": "Peanut butter", "quantity": "100", "unit": "g"},
+      {"key": "apple", "ingredient": "apple", "name": "Apple", "quantity": "100", "unit": "g", "preparation_notes": "finely diced"},
+      {"key": "maple", "ingredient": "maple-syrup", "name": "Maple syrup", "quantity": "30", "unit": "ml"},
+      {"key": "chia", "ingredient": "chia-seed", "name": "Chia seed", "quantity": "20", "unit": "g"},
+      {"key": "cinnamon", "ingredient": "cinnamon", "name": "Cinnamon", "quantity": "0.5", "unit": "tsp"}
+    ],
+    "instructions": [
+      {"key": "combine", "text": "Mix the oats, peanut butter, maple syrup, chia seeds, and cinnamon into a thick dough."},
+      {"key": "add-apple", "text": "Fold in the diced apple and chill the mixture for 20 minutes."},
+      {"key": "shape", "text": "Roll into twelve bite-size balls and keep chilled until serving."}
+    ]
+  },
+  {
+    "key": "red-lentil-coconut-stew-v1",
+    "version_number": 1,
+    "title": "Red Lentil Coconut Stew",
+    "description": "A pantry-friendly, South Asian-inspired stew with ginger and gentle curry spices.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "lentils", "ingredient": "red-lentil", "name": "Red lentil", "quantity": "220", "unit": "g", "preparation_notes": "rinsed"},
+      {"key": "coconut-milk", "ingredient": "coconut-milk", "name": "Coconut milk", "quantity": "400", "unit": "ml"},
+      {"key": "tomatoes", "ingredient": "crushed-tomato", "name": "Crushed tomato", "quantity": "400", "unit": "g"},
+      {"key": "broth", "ingredient": "vegetable-broth", "name": "Vegetable broth", "quantity": "500", "unit": "ml"},
+      {"key": "onion", "ingredient": "onion", "name": "Onion", "quantity": "150", "unit": "g", "preparation_notes": "diced"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "3", "unit": "clove", "preparation_notes": "minced"},
+      {"key": "ginger", "ingredient": "ginger", "name": "Ginger", "quantity": "15", "unit": "g", "preparation_notes": "grated"},
+      {"key": "curry", "ingredient": "curry-powder", "name": "Curry powder", "quantity": "2", "unit": "tbsp"},
+      {"key": "spinach", "ingredient": "spinach", "name": "Spinach", "quantity": "120", "unit": "g"}
+    ],
+    "instructions": [
+      {"key": "aromatics", "text": "Cook the onion in a splash of the coconut milk until soft, then stir in the garlic, ginger, and curry powder."},
+      {"key": "simmer", "text": "Add the lentils, remaining coconut milk, tomatoes, and broth and simmer gently until the lentils are tender."},
+      {"key": "finish", "text": "Fold in the spinach and cook just until wilted before serving."}
+    ]
+  },
+  {
+    "key": "sweet-potato-red-lentil-stew-v2",
+    "parent": "red-lentil-coconut-stew-v1",
+    "version_number": 2,
+    "title": "Sweet Potato Red Lentil Stew",
+    "description": "A thicker child variant with sweet potato and slightly milder seasoning.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "lentils", "ingredient": "red-lentil", "name": "Red lentil", "quantity": "220", "unit": "g", "preparation_notes": "rinsed"},
+      {"key": "sweet-potato", "ingredient": "sweet-potato", "name": "Sweet potato", "quantity": "350", "unit": "g", "preparation_notes": "peeled and cut into small cubes"},
+      {"key": "coconut-milk", "ingredient": "coconut-milk", "name": "Coconut milk", "quantity": "400", "unit": "ml"},
+      {"key": "tomatoes", "ingredient": "crushed-tomato", "name": "Crushed tomato", "quantity": "400", "unit": "g"},
+      {"key": "broth", "ingredient": "vegetable-broth", "name": "Vegetable broth", "quantity": "350", "unit": "ml"},
+      {"key": "onion", "ingredient": "onion", "name": "Onion", "quantity": "150", "unit": "g", "preparation_notes": "diced"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "3", "unit": "clove", "preparation_notes": "minced"},
+      {"key": "ginger", "ingredient": "ginger", "name": "Ginger", "quantity": "15", "unit": "g", "preparation_notes": "grated"},
+      {"key": "curry", "ingredient": "curry-powder", "name": "Curry powder", "quantity": "1.5", "unit": "tbsp"},
+      {"key": "spinach", "ingredient": "spinach", "name": "Spinach", "quantity": "120", "unit": "g"}
+    ],
+    "instructions": [
+      {"key": "aromatics", "text": "Soften the onion in a splash of coconut milk, then stir in the garlic, ginger, and curry powder."},
+      {"key": "simmer", "text": "Add the lentils, sweet potato, remaining coconut milk, tomatoes, and broth and simmer until both the lentils and potato are tender."},
+      {"key": "finish", "text": "Stir in the spinach and cook until wilted, adding a little water only if the stew is too thick."}
+    ]
+  },
+  {
+    "key": "tomato-white-bean-soup-v1",
+    "version_number": 1,
+    "title": "Tomato White Bean Soup",
+    "description": "A rustic Mediterranean-inspired soup with beans, vegetables, and basil.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "beans", "ingredient": "cannellini-bean", "name": "Cannellini bean", "quantity": "480", "unit": "g", "preparation_notes": "drained and rinsed"},
+      {"key": "tomatoes", "ingredient": "crushed-tomato", "name": "Crushed tomato", "quantity": "400", "unit": "g"},
+      {"key": "broth", "ingredient": "vegetable-broth", "name": "Vegetable broth", "quantity": "750", "unit": "ml"},
+      {"key": "onion", "ingredient": "onion", "name": "Onion", "quantity": "150", "unit": "g", "preparation_notes": "diced"},
+      {"key": "carrot", "ingredient": "carrot", "name": "Carrot", "quantity": "150", "unit": "g", "preparation_notes": "diced"},
+      {"key": "celery", "ingredient": "celery", "name": "Celery", "quantity": "120", "unit": "g", "preparation_notes": "diced"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "3", "unit": "clove", "preparation_notes": "minced"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "15", "unit": "ml"},
+      {"key": "basil", "ingredient": "basil", "name": "Basil", "quantity": "10", "unit": "g", "preparation_notes": "torn"}
+    ],
+    "instructions": [
+      {"key": "soften", "text": "Heat the oil in a soup pot and cook the onion, carrot, and celery until softened."},
+      {"key": "simmer", "text": "Stir in the garlic, tomatoes, beans, and broth and simmer for 20 minutes."},
+      {"key": "finish", "text": "Fold in the basil and lightly mash a few beans to give the broth more body."}
+    ]
+  },
+  {
+    "key": "black-bean-sweet-potato-chili-v1",
+    "version_number": 1,
+    "title": "Black Bean Sweet Potato Chili",
+    "description": "A Mexican-inspired meatless chili with smoky spice and tender sweet potato.",
+    "servings": "6",
+    "ingredients": [
+      {"key": "beans", "ingredient": "black-bean", "name": "Black bean", "quantity": "480", "unit": "g", "preparation_notes": "drained and rinsed"},
+      {"key": "sweet-potato", "ingredient": "sweet-potato", "name": "Sweet potato", "quantity": "400", "unit": "g", "preparation_notes": "peeled and diced"},
+      {"key": "tomatoes", "ingredient": "crushed-tomato", "name": "Crushed tomato", "quantity": "800", "unit": "g"},
+      {"key": "broth", "ingredient": "vegetable-broth", "name": "Vegetable broth", "quantity": "250", "unit": "ml"},
+      {"key": "pepper", "ingredient": "bell-pepper", "name": "Bell pepper", "quantity": "180", "unit": "g", "preparation_notes": "diced"},
+      {"key": "onion", "ingredient": "onion", "name": "Onion", "quantity": "150", "unit": "g", "preparation_notes": "diced"},
+      {"key": "cumin", "ingredient": "cumin", "name": "Cumin", "quantity": "2", "unit": "tsp"},
+      {"key": "paprika", "ingredient": "smoked-paprika", "name": "Smoked paprika", "quantity": "1", "unit": "tsp"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "15", "unit": "ml"}
+    ],
+    "instructions": [
+      {"key": "soften", "text": "Heat the oil in a heavy pot and soften the onion and bell pepper."},
+      {"key": "spice", "text": "Stir in the cumin and smoked paprika, then add the sweet potato, tomatoes, beans, and broth."},
+      {"key": "simmer", "text": "Simmer uncovered, stirring occasionally, until the sweet potato is tender and the chili has thickened."}
+    ]
+  },
+  {
+    "key": "chicken-ginger-rice-soup-v1",
+    "version_number": 1,
+    "title": "Chicken Ginger Rice Soup",
+    "description": "An East Asian-inspired chicken soup with ginger, rice, and scallions.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "chicken", "ingredient": "chicken-breast", "name": "Chicken breast", "quantity": "450", "unit": "g"},
+      {"key": "rice", "ingredient": "long-grain-rice", "name": "Long-grain rice", "quantity": "120", "unit": "g", "preparation_notes": "rinsed"},
+      {"key": "broth", "ingredient": "chicken-broth", "name": "Chicken broth", "quantity": "1500", "unit": "ml"},
+      {"key": "carrot", "ingredient": "carrot", "name": "Carrot", "quantity": "150", "unit": "g", "preparation_notes": "thinly sliced"},
+      {"key": "celery", "ingredient": "celery", "name": "Celery", "quantity": "120", "unit": "g", "preparation_notes": "thinly sliced"},
+      {"key": "ginger", "ingredient": "ginger", "name": "Ginger", "quantity": "20", "unit": "g", "preparation_notes": "cut into thin strips"},
+      {"key": "scallion", "ingredient": "scallion", "name": "Green onion", "quantity": "40", "unit": "g", "preparation_notes": "thinly sliced"},
+      {"key": "soy-sauce", "ingredient": "soy-sauce", "name": "Soy sauce", "quantity": "15", "unit": "ml"}
+    ],
+    "instructions": [
+      {"key": "start", "text": "Bring the broth, ginger, carrot, celery, and rice to a gentle simmer."},
+      {"key": "cook-chicken", "text": "Add the chicken and simmer until the thickest part reaches 165°F (74°C) on a food thermometer."},
+      {"key": "shred", "text": "Transfer the chicken to a clean board, shred it, and return it to the soup with the soy sauce."},
+      {"key": "finish", "text": "Cook until the rice is tender, then scatter the green onion over each serving."}
+    ]
+  },
+  {
+    "key": "mushroom-barley-soup-v1",
+    "version_number": 1,
+    "title": "Mushroom Barley Soup",
+    "description": "A hearty vegetable soup with earthy mushrooms and chewy pearl barley.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "barley", "ingredient": "pearl-barley", "name": "Pearl barley", "quantity": "180", "unit": "g", "preparation_notes": "rinsed"},
+      {"key": "mushrooms", "ingredient": "mushroom", "name": "Mushroom", "quantity": "400", "unit": "g", "preparation_notes": "sliced"},
+      {"key": "broth", "ingredient": "vegetable-broth", "name": "Vegetable broth", "quantity": "1200", "unit": "ml"},
+      {"key": "carrot", "ingredient": "carrot", "name": "Carrot", "quantity": "150", "unit": "g", "preparation_notes": "diced"},
+      {"key": "celery", "ingredient": "celery", "name": "Celery", "quantity": "120", "unit": "g", "preparation_notes": "diced"},
+      {"key": "onion", "ingredient": "onion", "name": "Onion", "quantity": "150", "unit": "g", "preparation_notes": "diced"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "3", "unit": "clove", "preparation_notes": "minced"},
+      {"key": "thyme", "ingredient": "thyme", "name": "Thyme", "quantity": "1", "unit": "tsp"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "15", "unit": "ml"}
+    ],
+    "instructions": [
+      {"key": "brown", "text": "Heat the oil in a soup pot and cook the mushrooms until their moisture evaporates and the edges brown."},
+      {"key": "soften", "text": "Add the onion, carrot, and celery and cook until softened, then stir in the garlic and thyme."},
+      {"key": "simmer", "text": "Add the barley and broth and simmer until the barley is tender and the soup is lightly thickened."}
+    ]
+  },
+  {
+    "key": "lemon-herb-chickpea-quinoa-bowl-v1",
+    "version_number": 1,
+    "title": "Lemon Herb Chickpea Quinoa Bowl",
+    "description": "A fresh Mediterranean-inspired grain bowl with chickpeas and tahini dressing.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "quinoa", "ingredient": "quinoa", "name": "Quinoa", "quantity": "180", "unit": "g", "preparation_notes": "rinsed"},
+      {"key": "chickpeas", "ingredient": "chickpea", "name": "Chickpea", "quantity": "480", "unit": "g", "preparation_notes": "drained and rinsed"},
+      {"key": "cucumber", "ingredient": "cucumber", "name": "Cucumber", "quantity": "250", "unit": "g", "preparation_notes": "diced"},
+      {"key": "tomatoes", "ingredient": "cherry-tomato", "name": "Cherry tomato", "quantity": "250", "unit": "g", "preparation_notes": "halved"},
+      {"key": "parsley", "ingredient": "parsley", "name": "Parsley", "quantity": "20", "unit": "g", "preparation_notes": "chopped"},
+      {"key": "lemon", "ingredient": "lemon-juice", "name": "Lemon juice", "quantity": "60", "unit": "ml"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "45", "unit": "ml"},
+      {"key": "tahini", "ingredient": "tahini", "name": "Tahini", "quantity": "45", "unit": "g"}
+    ],
+    "instructions": [
+      {"key": "cook-quinoa", "text": "Cook the quinoa according to its package directions, then spread it out to cool slightly."},
+      {"key": "dress", "text": "Whisk the lemon juice, olive oil, and tahini with a splash of water until pourable."},
+      {"key": "assemble", "text": "Divide the quinoa, chickpeas, cucumber, and tomatoes among bowls and finish with parsley and dressing."}
+    ]
+  },
+  {
+    "key": "brown-rice-chickpea-bowl-v2",
+    "parent": "lemon-herb-chickpea-quinoa-bowl-v1",
+    "version_number": 2,
+    "title": "Brown Rice Chickpea Bowl",
+    "description": "The lemon-herb bowl made with cooked brown rice instead of quinoa.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "brown-rice", "ingredient": "brown-rice", "name": "Brown rice", "quantity": "600", "unit": "g", "preparation_notes": "cooked and cooled slightly"},
+      {"key": "chickpeas", "ingredient": "chickpea", "name": "Chickpea", "quantity": "480", "unit": "g", "preparation_notes": "drained and rinsed"},
+      {"key": "cucumber", "ingredient": "cucumber", "name": "Cucumber", "quantity": "250", "unit": "g", "preparation_notes": "diced"},
+      {"key": "tomatoes", "ingredient": "cherry-tomato", "name": "Cherry tomato", "quantity": "250", "unit": "g", "preparation_notes": "halved"},
+      {"key": "parsley", "ingredient": "parsley", "name": "Parsley", "quantity": "20", "unit": "g", "preparation_notes": "chopped"},
+      {"key": "lemon", "ingredient": "lemon-juice", "name": "Lemon juice", "quantity": "60", "unit": "ml"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "45", "unit": "ml"},
+      {"key": "tahini", "ingredient": "tahini", "name": "Tahini", "quantity": "45", "unit": "g"}
+    ],
+    "instructions": [
+      {"key": "prepare-rice", "text": "Cook the brown rice ahead of time and allow it to cool until just warm."},
+      {"key": "dress", "text": "Whisk the lemon juice, olive oil, and tahini with enough water to make a pourable dressing."},
+      {"key": "assemble", "text": "Divide the brown rice, chickpeas, cucumber, and tomatoes among bowls and top with parsley and dressing."}
+    ]
+  },
+  {
+    "key": "sesame-tofu-broccoli-rice-bowl-v1",
+    "version_number": 1,
+    "title": "Sesame Tofu Broccoli Rice Bowl",
+    "description": "An East Asian-inspired rice bowl with crisp-edged tofu and a savory sesame sauce.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "tofu", "ingredient": "extra-firm-tofu", "name": "Extra-firm tofu", "quantity": "450", "unit": "g", "preparation_notes": "pressed and cubed"},
+      {"key": "broccoli", "ingredient": "broccoli", "name": "Broccoli", "quantity": "400", "unit": "g", "preparation_notes": "cut into florets"},
+      {"key": "rice", "ingredient": "long-grain-rice", "name": "Long-grain rice", "quantity": "240", "unit": "g", "preparation_notes": "rinsed"},
+      {"key": "carrot", "ingredient": "carrot", "name": "Carrot", "quantity": "150", "unit": "g", "preparation_notes": "cut into thin strips"},
+      {"key": "soy-sauce", "ingredient": "soy-sauce", "name": "Soy sauce", "quantity": "45", "unit": "ml"},
+      {"key": "sesame-oil", "ingredient": "sesame-oil", "name": "Sesame oil", "quantity": "15", "unit": "ml"},
+      {"key": "vinegar", "ingredient": "rice-vinegar", "name": "Rice vinegar", "quantity": "30", "unit": "ml"},
+      {"key": "sesame-seed", "ingredient": "sesame-seed", "name": "Sesame seed", "quantity": "20", "unit": "g"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "2", "unit": "clove", "preparation_notes": "minced"}
+    ],
+    "instructions": [
+      {"key": "cook-rice", "text": "Cook the rice according to its package directions and keep it covered off the heat."},
+      {"key": "brown-tofu", "text": "Brown the tofu in a wide skillet, then add the broccoli and carrot with a splash of water and cover until crisp-tender."},
+      {"key": "sauce", "text": "Stir together the soy sauce, sesame oil, rice vinegar, and garlic and toss the mixture through the skillet."},
+      {"key": "serve", "text": "Spoon the tofu and vegetables over rice and scatter with sesame seeds."}
+    ]
+  },
+  {
+    "key": "sesame-tempeh-broccoli-rice-bowl-v2",
+    "parent": "sesame-tofu-broccoli-rice-bowl-v1",
+    "version_number": 2,
+    "title": "Sesame Tempeh Broccoli Rice Bowl",
+    "description": "The sesame rice bowl with nutty browned tempeh in place of tofu.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "tempeh", "ingredient": "tempeh", "name": "Tempeh", "quantity": "450", "unit": "g", "preparation_notes": "cut into thin strips"},
+      {"key": "broccoli", "ingredient": "broccoli", "name": "Broccoli", "quantity": "400", "unit": "g", "preparation_notes": "cut into florets"},
+      {"key": "rice", "ingredient": "long-grain-rice", "name": "Long-grain rice", "quantity": "240", "unit": "g", "preparation_notes": "rinsed"},
+      {"key": "carrot", "ingredient": "carrot", "name": "Carrot", "quantity": "150", "unit": "g", "preparation_notes": "cut into thin strips"},
+      {"key": "soy-sauce", "ingredient": "soy-sauce", "name": "Soy sauce", "quantity": "45", "unit": "ml"},
+      {"key": "sesame-oil", "ingredient": "sesame-oil", "name": "Sesame oil", "quantity": "15", "unit": "ml"},
+      {"key": "vinegar", "ingredient": "rice-vinegar", "name": "Rice vinegar", "quantity": "30", "unit": "ml"},
+      {"key": "sesame-seed", "ingredient": "sesame-seed", "name": "Sesame seed", "quantity": "20", "unit": "g"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "2", "unit": "clove", "preparation_notes": "minced"}
+    ],
+    "instructions": [
+      {"key": "cook-rice", "text": "Cook the rice according to its package directions and keep it covered off the heat."},
+      {"key": "brown-tempeh", "text": "Brown the tempeh strips on both sides in a wide skillet."},
+      {"key": "vegetables", "text": "Add the broccoli and carrot with a splash of water and cover until crisp-tender."},
+      {"key": "finish", "text": "Toss with the soy sauce, sesame oil, rice vinegar, and garlic, then serve over rice with sesame seeds."}
+    ]
+  },
+  {
+    "key": "roasted-vegetable-couscous-salad-v1",
+    "version_number": 1,
+    "title": "Roasted Vegetable Couscous Salad",
+    "description": "A colorful North African-inspired couscous salad with roasted vegetables and chickpeas.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "couscous", "ingredient": "couscous", "name": "Couscous", "quantity": "220", "unit": "g"},
+      {"key": "zucchini", "ingredient": "zucchini", "name": "Courgette", "quantity": "250", "unit": "g", "preparation_notes": "diced"},
+      {"key": "pepper", "ingredient": "bell-pepper", "name": "Bell pepper", "quantity": "180", "unit": "g", "preparation_notes": "diced"},
+      {"key": "onion", "ingredient": "red-onion", "name": "Red onion", "quantity": "120", "unit": "g", "preparation_notes": "cut into wedges"},
+      {"key": "chickpeas", "ingredient": "chickpea", "name": "Chickpea", "quantity": "240", "unit": "g", "preparation_notes": "drained and rinsed"},
+      {"key": "lemon", "ingredient": "lemon-juice", "name": "Lemon juice", "quantity": "45", "unit": "ml"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "30", "unit": "ml"},
+      {"key": "parsley", "ingredient": "parsley", "name": "Parsley", "quantity": "20", "unit": "g", "preparation_notes": "chopped"}
+    ],
+    "instructions": [
+      {"key": "roast", "text": "Toss the courgette, bell pepper, and red onion with half the olive oil and roast until browned at the edges."},
+      {"key": "prepare-couscous", "text": "Prepare the couscous according to its package directions, fluff it, and let it cool slightly."},
+      {"key": "combine", "text": "Fold together the couscous, roasted vegetables, chickpeas, lemon juice, remaining oil, and parsley."}
+    ]
+  },
+  {
+    "key": "tuna-white-bean-salad-v1",
+    "version_number": 1,
+    "title": "Tuna White Bean Salad",
+    "description": "A no-cook Mediterranean-inspired salad with tuna, beans, and crisp vegetables.",
+    "servings": "3",
+    "ingredients": [
+      {"key": "tuna", "ingredient": "canned-tuna", "name": "Canned tuna", "quantity": "300", "unit": "g", "preparation_notes": "drained"},
+      {"key": "beans", "ingredient": "cannellini-bean", "name": "Cannellini bean", "quantity": "240", "unit": "g", "preparation_notes": "drained and rinsed"},
+      {"key": "cucumber", "ingredient": "cucumber", "name": "Cucumber", "quantity": "200", "unit": "g", "preparation_notes": "diced"},
+      {"key": "tomatoes", "ingredient": "cherry-tomato", "name": "Cherry tomato", "quantity": "200", "unit": "g", "preparation_notes": "halved"},
+      {"key": "onion", "ingredient": "red-onion", "name": "Red onion", "quantity": "80", "unit": "g", "preparation_notes": "thinly sliced"},
+      {"key": "lemon", "ingredient": "lemon-juice", "name": "Lemon juice", "quantity": "45", "unit": "ml"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "30", "unit": "ml"},
+      {"key": "parsley", "ingredient": "parsley", "name": "Parsley", "quantity": "15", "unit": "g", "preparation_notes": "chopped"}
+    ],
+    "instructions": [
+      {"key": "dress", "text": "Whisk the lemon juice and olive oil in a large bowl."},
+      {"key": "combine", "text": "Add the beans, cucumber, tomatoes, red onion, and parsley and toss to coat."},
+      {"key": "finish", "text": "Flake the tuna over the salad and fold gently so some larger pieces remain."}
+    ]
+  },
+  {
+    "key": "lentil-beet-walnut-salad-v1",
+    "version_number": 1,
+    "title": "Lentil Beet Walnut Salad",
+    "description": "An earthy lentil salad balanced with roasted beets, feta, and walnuts.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "lentils", "ingredient": "green-lentil", "name": "Green lentil", "quantity": "200", "unit": "g", "preparation_notes": "rinsed"},
+      {"key": "beets", "ingredient": "beet", "name": "Beet", "quantity": "400", "unit": "g", "preparation_notes": "peeled and cut into wedges"},
+      {"key": "arugula", "ingredient": "arugula", "name": "Rocket", "quantity": "120", "unit": "g"},
+      {"key": "feta", "ingredient": "feta", "name": "Feta", "quantity": "120", "unit": "g", "preparation_notes": "crumbled"},
+      {"key": "walnuts", "ingredient": "walnut", "name": "Walnut", "quantity": "80", "unit": "g", "preparation_notes": "roughly chopped"},
+      {"key": "vinegar", "ingredient": "balsamic-vinegar", "name": "Balsamic vinegar", "quantity": "30", "unit": "ml"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "30", "unit": "ml"}
+    ],
+    "instructions": [
+      {"key": "roast-beets", "text": "Toss the beets with a little of the olive oil and roast until tender and browned at the edges."},
+      {"key": "cook-lentils", "text": "Simmer the lentils in water until tender but intact, then drain and cool slightly."},
+      {"key": "assemble", "text": "Whisk the remaining oil with the vinegar and toss with the lentils, beets, and rocket; top with feta and walnuts."}
+    ]
+  },
+  {
+    "key": "tomato-basil-spaghetti-v1",
+    "version_number": 1,
+    "title": "Tomato Basil Spaghetti",
+    "description": "A simple Italian-inspired pasta with a garlic tomato sauce and fresh basil.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "spaghetti", "ingredient": "spaghetti", "name": "Spaghetti", "quantity": "360", "unit": "g"},
+      {"key": "tomatoes", "ingredient": "crushed-tomato", "name": "Crushed tomato", "quantity": "800", "unit": "g"},
+      {"key": "tomato-paste", "ingredient": "tomato-paste", "name": "Tomato paste", "quantity": "30", "unit": "g"},
+      {"key": "onion", "ingredient": "onion", "name": "Onion", "quantity": "150", "unit": "g", "preparation_notes": "finely diced"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "3", "unit": "clove", "preparation_notes": "minced"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "30", "unit": "ml"},
+      {"key": "basil", "ingredient": "basil", "name": "Basil", "quantity": "20", "unit": "g", "preparation_notes": "torn"},
+      {"key": "parmesan", "ingredient": "parmesan", "name": "Parmesan", "quantity": "60", "unit": "g", "preparation_notes": "finely grated"}
+    ],
+    "instructions": [
+      {"key": "sauce", "text": "Soften the onion in olive oil, stir in the garlic and tomato paste, then add the crushed tomato and simmer until thickened."},
+      {"key": "cook-pasta", "text": "Cook the spaghetti in boiling water until just tender, reserving a little cooking water before draining."},
+      {"key": "combine", "text": "Toss the spaghetti with the sauce and enough reserved water to coat, then fold in the basil and top with Parmesan."}
+    ]
+  },
+  {
+    "key": "whole-wheat-spinach-spaghetti-v2",
+    "parent": "tomato-basil-spaghetti-v1",
+    "version_number": 2,
+    "title": "Whole-Wheat Spinach Tomato Spaghetti",
+    "description": "The tomato basil pasta with whole-wheat spaghetti and spinach.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "spaghetti", "ingredient": "whole-wheat-spaghetti", "name": "Wholemeal spaghetti", "quantity": "360", "unit": "g"},
+      {"key": "tomatoes", "ingredient": "crushed-tomato", "name": "Crushed tomato", "quantity": "800", "unit": "g"},
+      {"key": "tomato-paste", "ingredient": "tomato-paste", "name": "Tomato paste", "quantity": "30", "unit": "g"},
+      {"key": "onion", "ingredient": "onion", "name": "Onion", "quantity": "150", "unit": "g", "preparation_notes": "finely diced"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "3", "unit": "clove", "preparation_notes": "minced"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "30", "unit": "ml"},
+      {"key": "spinach", "ingredient": "spinach", "name": "Spinach", "quantity": "120", "unit": "g"},
+      {"key": "basil", "ingredient": "basil", "name": "Basil", "quantity": "20", "unit": "g", "preparation_notes": "torn"},
+      {"key": "parmesan", "ingredient": "parmesan", "name": "Parmesan", "quantity": "60", "unit": "g", "preparation_notes": "finely grated"}
+    ],
+    "instructions": [
+      {"key": "sauce", "text": "Soften the onion in olive oil, stir in the garlic and tomato paste, then add the crushed tomato and simmer until thickened."},
+      {"key": "cook-pasta", "text": "Cook the wholemeal spaghetti according to its package directions, reserving a little cooking water before draining."},
+      {"key": "wilt", "text": "Stir the spinach into the sauce until wilted."},
+      {"key": "combine", "text": "Toss in the pasta with enough reserved water to coat, then add the basil and Parmesan."}
+    ]
+  },
+  {
+    "key": "mushroom-whole-wheat-spaghetti-v3",
+    "parent": "whole-wheat-spinach-spaghetti-v2",
+    "version_number": 3,
+    "title": "Mushroom Whole-Wheat Tomato Spaghetti",
+    "description": "A third-generation tomato pasta variant with browned mushrooms and spinach.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "spaghetti", "ingredient": "whole-wheat-spaghetti", "name": "Wholemeal spaghetti", "quantity": "360", "unit": "g"},
+      {"key": "tomatoes", "ingredient": "crushed-tomato", "name": "Crushed tomato", "quantity": "800", "unit": "g"},
+      {"key": "tomato-paste", "ingredient": "tomato-paste", "name": "Tomato paste", "quantity": "30", "unit": "g"},
+      {"key": "mushrooms", "ingredient": "mushroom", "name": "Mushroom", "quantity": "250", "unit": "g", "preparation_notes": "sliced"},
+      {"key": "onion", "ingredient": "onion", "name": "Onion", "quantity": "150", "unit": "g", "preparation_notes": "finely diced"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "3", "unit": "clove", "preparation_notes": "minced"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "30", "unit": "ml"},
+      {"key": "spinach", "ingredient": "spinach", "name": "Spinach", "quantity": "120", "unit": "g"},
+      {"key": "basil", "ingredient": "basil", "name": "Basil", "quantity": "20", "unit": "g", "preparation_notes": "torn"},
+      {"key": "parmesan", "ingredient": "parmesan", "name": "Parmesan", "quantity": "60", "unit": "g", "preparation_notes": "finely grated"}
+    ],
+    "instructions": [
+      {"key": "brown-mushrooms", "text": "Brown the mushrooms in half the olive oil and transfer them to a plate."},
+      {"key": "sauce", "text": "Use the remaining oil to soften the onion, then add the garlic, tomato paste, and crushed tomato and simmer until thickened."},
+      {"key": "cook-pasta", "text": "Cook the wholemeal spaghetti according to its package directions and reserve a little cooking water."},
+      {"key": "combine", "text": "Wilt the spinach into the sauce, return the mushrooms, and toss with the pasta, basil, Parmesan, and enough cooking water to coat."}
+    ]
+  },
+  {
+    "key": "mushroom-pea-risotto-v1",
+    "version_number": 1,
+    "title": "Mushroom Pea Risotto",
+    "description": "A creamy Italian-inspired rice dish with mushrooms, peas, and Parmesan.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "rice", "ingredient": "arborio-rice", "name": "Arborio rice", "quantity": "320", "unit": "g"},
+      {"key": "mushrooms", "ingredient": "mushroom", "name": "Mushroom", "quantity": "350", "unit": "g", "preparation_notes": "sliced"},
+      {"key": "peas", "ingredient": "green-peas", "name": "Green peas", "quantity": "180", "unit": "g"},
+      {"key": "broth", "ingredient": "vegetable-broth", "name": "Vegetable broth", "quantity": "1200", "unit": "ml", "preparation_notes": "kept hot"},
+      {"key": "onion", "ingredient": "onion", "name": "Onion", "quantity": "120", "unit": "g", "preparation_notes": "finely diced"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "2", "unit": "clove", "preparation_notes": "minced"},
+      {"key": "butter", "ingredient": "butter", "name": "Butter", "quantity": "40", "unit": "g"},
+      {"key": "parmesan", "ingredient": "parmesan", "name": "Parmesan", "quantity": "80", "unit": "g", "preparation_notes": "finely grated"}
+    ],
+    "instructions": [
+      {"key": "brown", "text": "Melt half the butter in a wide pan and brown the mushrooms, then transfer them to a plate."},
+      {"key": "toast-rice", "text": "Melt the remaining butter, soften the onion, stir in the garlic, and toast the rice for 1 minute."},
+      {"key": "add-broth", "text": "Add the hot broth a ladle at a time, stirring often and waiting for each addition to absorb before adding more."},
+      {"key": "finish", "text": "When the rice is tender and loose, fold in the peas, mushrooms, and Parmesan and serve immediately."}
+    ]
+  },
+  {
+    "key": "sheet-pan-lemon-chicken-vegetables-v1",
+    "version_number": 1,
+    "title": "Sheet-Pan Lemon Chicken and Vegetables",
+    "description": "A practical sheet-pan dinner with lemon, oregano, potatoes, and broccoli.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "chicken", "ingredient": "chicken-thigh", "name": "Chicken thigh", "quantity": "700", "unit": "g"},
+      {"key": "potatoes", "ingredient": "potato", "name": "Potato", "quantity": "700", "unit": "g", "preparation_notes": "cut into 2 cm pieces"},
+      {"key": "broccoli", "ingredient": "broccoli", "name": "Broccoli", "quantity": "400", "unit": "g", "preparation_notes": "cut into florets"},
+      {"key": "lemon", "ingredient": "lemon-juice", "name": "Lemon juice", "quantity": "60", "unit": "ml"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "45", "unit": "ml"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "4", "unit": "clove", "preparation_notes": "minced"},
+      {"key": "oregano", "ingredient": "oregano", "name": "Oregano", "quantity": "2", "unit": "tsp"}
+    ],
+    "instructions": [
+      {"key": "start-potatoes", "text": "Heat the oven to 220°C (425°F), toss the potatoes with one-third of the oil, and roast for 15 minutes."},
+      {"key": "season", "text": "Mix the remaining oil with the lemon juice, garlic, and oregano and coat the chicken and broccoli."},
+      {"key": "roast", "text": "Add the chicken and broccoli to the pan and roast until the potatoes are tender and the chicken reaches 165°F (74°C) on a food thermometer."}
+    ]
+  },
+  {
+    "key": "baked-dill-salmon-potatoes-v1",
+    "version_number": 1,
+    "title": "Baked Dill Salmon with Potatoes",
+    "description": "A bright salmon dinner with dill, green beans, and roasted potatoes.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "salmon", "ingredient": "salmon", "name": "Salmon", "quantity": "600", "unit": "g", "preparation_notes": "cut into four fillets"},
+      {"key": "potatoes", "ingredient": "potato", "name": "Potato", "quantity": "700", "unit": "g", "preparation_notes": "halved if small or cut into 3 cm pieces"},
+      {"key": "green-beans", "ingredient": "green-bean", "name": "Green bean", "quantity": "400", "unit": "g", "preparation_notes": "trimmed"},
+      {"key": "lemon", "ingredient": "lemon-juice", "name": "Lemon juice", "quantity": "45", "unit": "ml"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "30", "unit": "ml"},
+      {"key": "dill", "ingredient": "dill", "name": "Dill", "quantity": "20", "unit": "g", "preparation_notes": "chopped"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "2", "unit": "clove", "preparation_notes": "minced"}
+    ],
+    "instructions": [
+      {"key": "start-potatoes", "text": "Heat the oven to 220°C (425°F), toss the potatoes with half the oil, and roast for 20 minutes."},
+      {"key": "add-pan", "text": "Mix the remaining oil with the lemon juice, dill, and garlic and brush it over the salmon and green beans."},
+      {"key": "bake", "text": "Add the salmon and beans to the pan and bake until the salmon reaches 145°F (63°C) on a food thermometer and the vegetables are tender."}
+    ]
+  },
+  {
+    "key": "turkey-meatballs-tomato-spaghetti-v1",
+    "version_number": 1,
+    "title": "Turkey Meatballs with Tomato Spaghetti",
+    "description": "An Italian American-style pasta dinner with tender turkey meatballs and tomato sauce.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "turkey", "ingredient": "ground-turkey", "name": "Ground turkey", "quantity": "500", "unit": "g"},
+      {"key": "egg", "ingredient": "egg", "name": "Egg", "quantity": "1", "unit": "count"},
+      {"key": "breadcrumbs", "ingredient": "breadcrumbs", "name": "Breadcrumbs", "quantity": "60", "unit": "g"},
+      {"key": "parmesan", "ingredient": "parmesan", "name": "Parmesan", "quantity": "50", "unit": "g", "preparation_notes": "finely grated"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "2", "unit": "clove", "preparation_notes": "minced"},
+      {"key": "tomatoes", "ingredient": "crushed-tomato", "name": "Crushed tomato", "quantity": "800", "unit": "g"},
+      {"key": "onion", "ingredient": "onion", "name": "Onion", "quantity": "120", "unit": "g", "preparation_notes": "finely diced"},
+      {"key": "spaghetti", "ingredient": "spaghetti", "name": "Spaghetti", "quantity": "320", "unit": "g"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "15", "unit": "ml"}
+    ],
+    "instructions": [
+      {"key": "shape", "text": "Mix the turkey, egg, breadcrumbs, half the Parmesan, and half the garlic and shape into small meatballs."},
+      {"key": "brown", "text": "Brown the meatballs in the oil, then transfer them to a clean plate and soften the onion in the same pan."},
+      {"key": "simmer", "text": "Add the remaining garlic and crushed tomato, return the meatballs, and simmer until their centers reach 165°F (74°C) on a food thermometer."},
+      {"key": "serve", "text": "Cook and drain the spaghetti, toss it with the sauce, and serve with the meatballs and remaining Parmesan."}
+    ]
+  },
+  {
+    "key": "black-bean-tacos-v1",
+    "version_number": 1,
+    "title": "Black Bean Tacos",
+    "description": "A Mexican-inspired taco filling with sautéed peppers, beans, and crunchy cabbage.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "tortillas", "ingredient": "corn-tortilla", "name": "Corn tortilla", "quantity": "8", "unit": "count"},
+      {"key": "beans", "ingredient": "black-bean", "name": "Black bean", "quantity": "480", "unit": "g", "preparation_notes": "drained and rinsed"},
+      {"key": "pepper", "ingredient": "bell-pepper", "name": "Bell pepper", "quantity": "180", "unit": "g", "preparation_notes": "thinly sliced"},
+      {"key": "onion", "ingredient": "onion", "name": "Onion", "quantity": "120", "unit": "g", "preparation_notes": "thinly sliced"},
+      {"key": "cabbage", "ingredient": "cabbage", "name": "Cabbage", "quantity": "200", "unit": "g", "preparation_notes": "finely shredded"},
+      {"key": "avocado", "ingredient": "avocado", "name": "Avocado", "quantity": "200", "unit": "g", "preparation_notes": "sliced"},
+      {"key": "lime", "ingredient": "lime-juice", "name": "Lime juice", "quantity": "45", "unit": "ml"},
+      {"key": "cilantro", "ingredient": "cilantro", "name": "Fresh coriander", "quantity": "20", "unit": "g", "preparation_notes": "chopped"},
+      {"key": "oil", "ingredient": "neutral-oil", "name": "Neutral oil", "quantity": "15", "unit": "ml"}
+    ],
+    "instructions": [
+      {"key": "slaw", "text": "Toss the cabbage with half the lime juice and half the fresh coriander."},
+      {"key": "filling", "text": "Heat the oil in a skillet, soften the onion and bell pepper, then add the beans and warm them through."},
+      {"key": "warm-tortillas", "text": "Warm the tortillas in a dry skillet until flexible."},
+      {"key": "assemble", "text": "Fill each tortilla with the bean mixture, cabbage, avocado, remaining lime juice, and fresh coriander."}
+    ]
+  },
+  {
+    "key": "vegetable-fried-rice-v1",
+    "version_number": 1,
+    "title": "Vegetable Fried Rice",
+    "description": "An East Asian-inspired fried rice designed for cooked, chilled rice.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "rice", "ingredient": "long-grain-rice", "name": "Long-grain rice", "quantity": "600", "unit": "g", "preparation_notes": "cooked and chilled"},
+      {"key": "eggs", "ingredient": "egg", "name": "Egg", "quantity": "3", "unit": "count", "preparation_notes": "beaten"},
+      {"key": "peas", "ingredient": "green-peas", "name": "Green peas", "quantity": "150", "unit": "g"},
+      {"key": "carrot", "ingredient": "carrot", "name": "Carrot", "quantity": "150", "unit": "g", "preparation_notes": "finely diced"},
+      {"key": "scallion", "ingredient": "scallion", "name": "Scallion", "quantity": "50", "unit": "g", "preparation_notes": "thinly sliced"},
+      {"key": "soy-sauce", "ingredient": "soy-sauce", "name": "Soy sauce", "quantity": "45", "unit": "ml"},
+      {"key": "sesame-oil", "ingredient": "sesame-oil", "name": "Sesame oil", "quantity": "15", "unit": "ml"},
+      {"key": "neutral-oil", "ingredient": "neutral-oil", "name": "Neutral oil", "quantity": "15", "unit": "ml"}
+    ],
+    "instructions": [
+      {"key": "eggs", "text": "Heat a little neutral oil in a wide skillet, scramble the eggs until just set, and transfer them to a plate."},
+      {"key": "vegetables", "text": "Add the remaining neutral oil and cook the carrot and peas until crisp-tender."},
+      {"key": "fry-rice", "text": "Add the chilled rice and cook, tossing, until hot and separated."},
+      {"key": "finish", "text": "Return the eggs and stir in the soy sauce, sesame oil, and scallion."}
+    ]
+  },
+  {
+    "key": "herbed-chickpea-patties-tahini-v1",
+    "version_number": 1,
+    "title": "Herbed Chickpea Patties with Tahini",
+    "description": "A Middle Eastern-inspired baked chickpea patty with parsley and lemon tahini.",
+    "servings": "4",
+    "ingredients": [
+      {"key": "chickpeas", "ingredient": "chickpea", "name": "Chickpea", "quantity": "480", "unit": "g", "preparation_notes": "drained, rinsed, and patted dry"},
+      {"key": "onion", "ingredient": "onion", "name": "Onion", "quantity": "100", "unit": "g", "preparation_notes": "finely diced"},
+      {"key": "garlic", "ingredient": "garlic", "name": "Garlic", "quantity": "2", "unit": "clove", "preparation_notes": "minced"},
+      {"key": "parsley", "ingredient": "parsley", "name": "Parsley", "quantity": "30", "unit": "g", "preparation_notes": "chopped"},
+      {"key": "cumin", "ingredient": "cumin", "name": "Cumin", "quantity": "2", "unit": "tsp"},
+      {"key": "flour", "ingredient": "all-purpose-flour", "name": "All-purpose flour", "quantity": "50", "unit": "g"},
+      {"key": "oil", "ingredient": "olive-oil", "name": "Olive oil", "quantity": "30", "unit": "ml"},
+      {"key": "tahini", "ingredient": "tahini", "name": "Tahini", "quantity": "45", "unit": "g"},
+      {"key": "lemon", "ingredient": "lemon-juice", "name": "Lemon juice", "quantity": "30", "unit": "ml"}
+    ],
+    "instructions": [
+      {"key": "mix", "text": "Mash the chickpeas until mostly broken down, then mix in the onion, garlic, parsley, cumin, flour, and half the olive oil."},
+      {"key": "shape", "text": "Shape into eight patties, brush with the remaining oil, and arrange on a lined baking sheet."},
+      {"key": "bake", "text": "Bake at 220°C (425°F), turning once, until firm and browned on both sides."},
+      {"key": "sauce", "text": "Whisk the tahini and lemon juice with enough water to make a spoonable sauce and serve with the patties."}
+    ]
+  },
+  {
+    "key": "carrot-walnut-snack-cake-v1",
+    "version_number": 1,
+    "title": "Carrot Walnut Snack Cake",
+    "description": "A simple spiced carrot cake with walnuts and an unfrosted finish.",
+    "servings": "8",
+    "ingredients": [
+      {"key": "flour", "ingredient": "all-purpose-flour", "name": "All-purpose flour", "quantity": "220", "unit": "g"},
+      {"key": "carrot", "ingredient": "carrot", "name": "Carrot", "quantity": "300", "unit": "g", "preparation_notes": "finely grated"},
+      {"key": "sugar", "ingredient": "granulated-sugar", "name": "White sugar", "quantity": "180", "unit": "g"},
+      {"key": "eggs", "ingredient": "egg", "name": "Egg", "quantity": "2", "unit": "count"},
+      {"key": "oil", "ingredient": "neutral-oil", "name": "Vegetable oil", "quantity": "150", "unit": "ml"},
+      {"key": "nuts", "ingredient": "walnut", "name": "Walnut", "quantity": "100", "unit": "g", "preparation_notes": "roughly chopped"},
+      {"key": "cinnamon", "ingredient": "cinnamon", "name": "Cinnamon", "quantity": "2", "unit": "tsp"},
+      {"key": "baking-powder", "ingredient": "baking-powder", "name": "Baking powder", "quantity": "1", "unit": "tsp"},
+      {"key": "baking-soda", "ingredient": "baking-soda", "name": "Bicarbonate of soda", "quantity": "0.5", "unit": "tsp"}
+    ],
+    "instructions": [
+      {"key": "prepare", "text": "Heat the oven to 180°C (350°F), grease a 20 cm square pan, and line its base."},
+      {"key": "mix-dry", "text": "Whisk the flour, cinnamon, baking powder, and bicarbonate of soda together."},
+      {"key": "combine", "text": "Whisk the sugar, eggs, and oil, fold in the dry ingredients, then fold in the carrots and nuts."},
+      {"key": "bake", "text": "Spread the batter in the pan and bake until the center springs back and a tester comes out clean; cool before slicing."}
+    ]
+  },
+  {
+    "key": "lower-sugar-pecan-carrot-cake-v2",
+    "parent": "carrot-walnut-snack-cake-v1",
+    "version_number": 2,
+    "title": "Lower-Sugar Pecan Carrot Cake",
+    "description": "The carrot snack cake with less sugar and pecans replacing the walnuts.",
+    "servings": "8",
+    "ingredients": [
+      {"key": "flour", "ingredient": "all-purpose-flour", "name": "All-purpose flour", "quantity": "220", "unit": "g"},
+      {"key": "carrot", "ingredient": "carrot", "name": "Carrot", "quantity": "300", "unit": "g", "preparation_notes": "finely grated"},
+      {"key": "sugar", "ingredient": "granulated-sugar", "name": "White sugar", "quantity": "140", "unit": "g"},
+      {"key": "eggs", "ingredient": "egg", "name": "Egg", "quantity": "2", "unit": "count"},
+      {"key": "oil", "ingredient": "neutral-oil", "name": "Vegetable oil", "quantity": "150", "unit": "ml"},
+      {"key": "nuts", "ingredient": "pecan", "name": "Pecan", "quantity": "100", "unit": "g", "preparation_notes": "roughly chopped"},
+      {"key": "cinnamon", "ingredient": "cinnamon", "name": "Cinnamon", "quantity": "2", "unit": "tsp"},
+      {"key": "baking-powder", "ingredient": "baking-powder", "name": "Baking powder", "quantity": "1", "unit": "tsp"},
+      {"key": "baking-soda", "ingredient": "baking-soda", "name": "Bicarbonate of soda", "quantity": "0.5", "unit": "tsp"}
+    ],
+    "instructions": [
+      {"key": "prepare", "text": "Heat the oven to 180°C (350°F), grease a 20 cm square pan, and line its base."},
+      {"key": "mix-dry", "text": "Whisk the flour, cinnamon, baking powder, and bicarbonate of soda together."},
+      {"key": "combine", "text": "Whisk the sugar, eggs, and oil, fold in the dry ingredients, then fold in the carrots and nuts."},
+      {"key": "bake", "text": "Spread the batter in the pan and bake until the center springs back and a tester comes out clean; cool before slicing."}
+    ]
+  },
+  {
+    "key": "orange-raisin-carrot-cake-v3",
+    "parent": "carrot-walnut-snack-cake-v1",
+    "version_number": 3,
+    "title": "Orange Raisin Carrot Cake",
+    "description": "A sibling carrot-cake variant with orange zest and raisins instead of walnuts.",
+    "servings": "8",
+    "ingredients": [
+      {"key": "flour", "ingredient": "all-purpose-flour", "name": "All-purpose flour", "quantity": "220", "unit": "g"},
+      {"key": "carrot", "ingredient": "carrot", "name": "Carrot", "quantity": "300", "unit": "g", "preparation_notes": "finely grated"},
+      {"key": "sugar", "ingredient": "granulated-sugar", "name": "White sugar", "quantity": "180", "unit": "g"},
+      {"key": "eggs", "ingredient": "egg", "name": "Egg", "quantity": "2", "unit": "count"},
+      {"key": "oil", "ingredient": "neutral-oil", "name": "Vegetable oil", "quantity": "150", "unit": "ml"},
+      {"key": "raisins", "ingredient": "raisin", "name": "Raisin", "quantity": "90", "unit": "g"},
+      {"key": "orange-zest", "ingredient": "orange-zest", "name": "Orange zest", "quantity": "1", "unit": "tbsp"},
+      {"key": "cinnamon", "ingredient": "cinnamon", "name": "Cinnamon", "quantity": "2", "unit": "tsp"},
+      {"key": "baking-powder", "ingredient": "baking-powder", "name": "Baking powder", "quantity": "1", "unit": "tsp"},
+      {"key": "baking-soda", "ingredient": "baking-soda", "name": "Bicarbonate of soda", "quantity": "0.5", "unit": "tsp"}
+    ],
+    "instructions": [
+      {"key": "prepare", "text": "Heat the oven to 180°C (350°F), grease a 20 cm square pan, and line its base."},
+      {"key": "mix-dry", "text": "Whisk the flour, cinnamon, baking powder, and bicarbonate of soda together."},
+      {"key": "combine", "text": "Whisk the sugar, eggs, oil, and orange zest, fold in the dry ingredients, then fold in the carrots and raisins."},
+      {"key": "bake", "text": "Spread the batter in the pan and bake until the center springs back and a tester comes out clean; cool before slicing."}
+    ]
+  },
+  {
+    "key": "blueberry-oat-muffins-v1",
+    "version_number": 1,
+    "title": "Blueberry Oat Muffins",
+    "description": "A lightly spiced breakfast muffin with blueberries and an oat-studded crumb.",
+    "servings": "8",
+    "ingredients": [
+      {"key": "flour", "ingredient": "all-purpose-flour", "name": "Plain flour", "quantity": "180", "unit": "g"},
+      {"key": "oats", "ingredient": "rolled-oats", "name": "Old-fashioned oats", "quantity": "100", "unit": "g"},
+      {"key": "blueberries", "ingredient": "blueberry", "name": "Blueberry", "quantity": "180", "unit": "g"},
+      {"key": "sugar", "ingredient": "granulated-sugar", "name": "Granulated sugar", "quantity": "100", "unit": "g"},
+      {"key": "egg", "ingredient": "egg", "name": "Egg", "quantity": "1", "unit": "count"},
+      {"key": "milk", "ingredient": "milk", "name": "Milk", "quantity": "180", "unit": "ml"},
+      {"key": "oil", "ingredient": "neutral-oil", "name": "Neutral oil", "quantity": "60", "unit": "ml"},
+      {"key": "baking-powder", "ingredient": "baking-powder", "name": "Baking powder", "quantity": "2", "unit": "tsp"},
+      {"key": "cinnamon", "ingredient": "cinnamon", "name": "Cinnamon", "quantity": "0.5", "unit": "tsp"}
+    ],
+    "instructions": [
+      {"key": "prepare", "text": "Heat the oven to 190°C (375°F) and line eight wells of a muffin pan."},
+      {"key": "mix", "text": "Whisk the plain flour, oats, sugar, baking powder, and cinnamon; whisk the egg, milk, and oil separately."},
+      {"key": "combine", "text": "Fold the wet mixture into the dry ingredients just until combined, then gently fold in the blueberries."},
+      {"key": "bake", "text": "Divide among the prepared wells and bake until risen and a tester comes out clean; cool on a rack."}
+    ]
+  }
+]
