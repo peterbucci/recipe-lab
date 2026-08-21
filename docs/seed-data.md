@@ -27,6 +27,11 @@ deletes user data. If a deterministic recipe snapshot or substitution already
 exists with different content, the loader stops instead of silently changing
 history. The caller's transaction then rolls back the attempted load.
 
+Loading also ensures that the application-level `Demo Cook` profile used for
+shared MVP interactions exists. That identity is separate from the catalog
+author, has a fixed application-owned ID, and is not part of the CC0 recipe
+assets. Rerunning the loader preserves its saves and ratings.
+
 The loader can reuse a canonical ingredient that predates this catalog, even
 when that row has a different UUID. Recipe rows reference the actual canonical
 ingredient ID, which keeps migration-created and user-created catalog entries

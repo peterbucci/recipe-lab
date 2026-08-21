@@ -58,6 +58,8 @@ The repository currently provides:
   recipe detail pages with loading, empty, error, rating, and lineage states;
 - FastAPI health, paginated recipe-browse, and structured recipe-detail
   endpoints with documented response and error schemas;
+- a clearly labeled shared demo identity with persistent, retry-safe save,
+  unsave, rating, and rating-update actions on exact recipe versions;
 - a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
   immutable recipe-version snapshots, ingredients, instructions, saves, and
   ratings;
@@ -69,8 +71,8 @@ The repository currently provides:
 
 The repository also includes a deterministic demo catalog with 25 recipe
 lineages, useful variants, ingredient aliases, and directed substitutions.
-Recipe write and interaction flows remain separate milestones. This keeps each
-story focused on the smallest durable foundation for the MVP.
+Recipe creation, forking, and diff workflows remain separate milestones. This
+keeps each story focused on the smallest durable foundation for the MVP.
 
 ## Quick start with Docker
 
@@ -89,6 +91,7 @@ Open:
 - Recipe catalog: <http://localhost:3000/recipes>
 - API health check: <http://localhost:8000/api/health>
 - Recipe browse API: <http://localhost:8000/api/recipes>
+- Scoped demo identity: <http://localhost:8000/api/me>
 - Interactive API docs: <http://localhost:8000/docs>
 
 Stop the services with `docker compose down`. Add `--volumes` only when you
@@ -170,9 +173,10 @@ uncommitted model changes, and runs the schema tests. Python and npm download
 caches are keyed from their dependency files; the frontend uses `npm ci` with
 the committed `package-lock.json`.
 
-The browser-based Playwright suite remains outside the required gate until the
-MVP has meaningful user flows. CI still loads the configuration and discovers
-the smoke test so end-to-end support cannot silently break in the meantime.
+The browser-based Playwright suite exercises catalog, detail, and shared-demo
+interaction flows locally. It remains outside the required gate while CI loads
+its configuration and discovers the tests so end-to-end support cannot silently
+break in the meantime.
 
 ## Working agreements
 

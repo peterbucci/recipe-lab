@@ -84,6 +84,28 @@ that is not present returns HTTP 404. Both use the documented `ErrorResponse`
 envelope. The response schemas and query constraints are available through
 OpenAPI at `/docs` and `/openapi.json`.
 
+## Shared demo interactions
+
+The MVP uses one fixed, clearly identified shared demo profile rather than
+pretending to provide account authentication. `GET /api/me` returns its public
+ID, display name, and `shared_demo` identity mode; its internal seed email is
+never exposed. Recipe detail responses include that profile's current saved
+state and rating for the exact version.
+
+Interaction writes are state-setting and safe to retry:
+
+- `PUT /api/recipes/{recipe_version_id}/save` saves a version;
+- `DELETE /api/recipes/{recipe_version_id}/save` removes that save;
+- `PUT /api/recipes/{recipe_version_id}/rating` creates or replaces the
+  profile's one-to-five rating.
+
+The API selects the demo identity on the server and never accepts a user ID
+from the browser. PostgreSQL upserts plus the existing composite primary keys
+keep repeated or concurrent requests from creating duplicates. These rows are
+current product state only; they are not a preference-event history or an ML
+pipeline. A missing recipe returns 404, invalid input returns 422, and a
+database without the bundled demo identity returns a documented 503 response.
+
 ## Migrations
 
 From this directory, apply all migrations and confirm that the SQLAlchemy

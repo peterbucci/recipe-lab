@@ -14,7 +14,8 @@ variant, and compared with its parent in a way that is useful to a cook.
 - A diff that explains ingredient and instruction changes.
 - Save and rating actions.
 - A lineage view for related variants.
-- Basic authentication only when required to own user actions.
+- A clearly scoped shared demo identity for user actions; real authentication
+  only when distinct accounts become necessary.
 
 ## Explicitly deferred
 
