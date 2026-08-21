@@ -22,6 +22,7 @@ from app.models.common import CreatedAtMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.engagement import RecipeRating, RecipeSave
+    from app.models.ingredient import Ingredient
 
 
 class RecipeLineage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
@@ -141,6 +142,12 @@ class RecipeIngredient(UUIDPrimaryKeyMixin, Base):
         ForeignKey("recipe_versions.id", ondelete="RESTRICT"),
         nullable=False,
     )
+    ingredient_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("ingredients.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     quantity: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
     unit: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -148,6 +155,7 @@ class RecipeIngredient(UUIDPrimaryKeyMixin, Base):
     display_order: Mapped[int] = mapped_column(Integer, nullable=False)
 
     recipe_version: Mapped[RecipeVersion] = relationship(back_populates="ingredients")
+    ingredient: Mapped["Ingredient"] = relationship(back_populates="recipe_ingredients")
 
 
 class RecipeInstruction(UUIDPrimaryKeyMixin, Base):
