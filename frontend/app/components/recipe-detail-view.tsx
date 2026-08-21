@@ -3,6 +3,7 @@ import Link from "next/link";
 import { formatIngredientAmount, formatServings } from "../../lib/format";
 import type { RecipeDetail, RecipeVersionReference } from "../../lib/recipe-api";
 import { RatingSummary } from "./rating-summary";
+import { RecipeInteractionPanel } from "./recipe-interaction-panel";
 
 interface RecipeDetailViewProps {
   recipe: RecipeDetail;
@@ -42,6 +43,7 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
           </dl>
           <RatingSummary average={recipe.average_rating} count={recipe.rating_count} />
         </div>
+        <RecipeInteractionPanel key={recipe.id} initialViewerState={recipe.viewer_state} />
       </header>
 
       <div className="recipe-detail__body">
