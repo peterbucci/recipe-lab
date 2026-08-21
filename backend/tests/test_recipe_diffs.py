@@ -546,6 +546,101 @@ def test_only_direct_forward_substitutions_are_replacements() -> None:
     assert [item.canonical_name for item in reverse.ingredients.added] == ["Walnut"]
 
 
+def test_reordered_duplicate_replacements_preserve_equal_nonidentity_content() -> None:
+    walnut = _catalog_ingredient(55, "Walnut")
+    pecan = _catalog_ingredient(56, "Pecan")
+    base_id = _id(550)
+    target_id = _id(551)
+    base = _version(
+        version_id=base_id.int,
+        version_number=1,
+        ingredients=[
+            _ingredient(
+                row_id=5_500,
+                version_id=base_id,
+                catalog=walnut,
+                display_order=0,
+                quantity=Decimal("1"),
+                unit="cup",
+                preparation_notes="ground",
+            ),
+            _ingredient(
+                row_id=5_501,
+                version_id=base_id,
+                catalog=walnut,
+                display_order=1,
+                quantity=Decimal("2"),
+                unit="cup",
+                preparation_notes="chopped",
+            ),
+        ],
+        instructions=[],
+    )
+    target = _version(
+        version_id=target_id.int,
+        version_number=2,
+        parent_version_id=base_id,
+        ingredients=[
+            _ingredient(
+                row_id=5_510,
+                version_id=target_id,
+                catalog=pecan,
+                display_order=0,
+                quantity=Decimal("2.0000"),
+                unit="cup",
+                preparation_notes="chopped",
+            ),
+            _ingredient(
+                row_id=5_511,
+                version_id=target_id,
+                catalog=pecan,
+                display_order=1,
+                quantity=Decimal("1.0000"),
+                unit="cup",
+                preparation_notes="ground",
+            ),
+        ],
+        instructions=[],
+    )
+
+    diff = build_recipe_diff(base, target, {(walnut.id, pecan.id)})
+
+    assert diff.ingredients.added == []
+    assert diff.ingredients.removed == []
+    assert diff.ingredients.modified == []
+    assert [
+        (
+            change.before.quantity,
+            change.before.unit,
+            change.before.preparation_notes,
+            change.after.quantity,
+            change.after.unit,
+            change.after.preparation_notes,
+            change.changed_fields,
+        )
+        for change in diff.ingredients.replaced
+    ] == [
+        (
+            Decimal("1"),
+            "cup",
+            "ground",
+            Decimal("1.0000"),
+            "cup",
+            "ground",
+            ["ingredient", "display_name"],
+        ),
+        (
+            Decimal("2"),
+            "cup",
+            "chopped",
+            Decimal("2.0000"),
+            "cup",
+            "chopped",
+            ["ingredient", "display_name"],
+        ),
+    ]
+
+
 def test_decimal_equivalence_is_unchanged_and_null_transitions_are_explicit() -> None:
     flour = _catalog_ingredient(60, "Flour")
     salt = _catalog_ingredient(61, "Salt")

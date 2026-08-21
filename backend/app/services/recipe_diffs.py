@@ -52,6 +52,25 @@ def _ingredient_signature(
     return item.name, item.quantity, item.unit, item.preparation_notes
 
 
+def _replacement_candidate_order(
+    before: RecipeIngredient,
+    after: RecipeIngredient,
+) -> tuple[int, bool, bool, bool, int, int, int]:
+    """Prefer replacements that preserve amount semantics before row position."""
+
+    content_changes = (
+        before.quantity != after.quantity,
+        before.unit != after.unit,
+        before.preparation_notes != after.preparation_notes,
+    )
+    return (
+        sum(content_changes),
+        *content_changes,
+        abs(before.display_order - after.display_order),
+        *_ingredient_order(after),
+    )
+
+
 def _pair_exact_occurrences[Item: _Identified, Signature: Hashable](
     before_items: list[Item],
     after_items: list[Item],
@@ -146,10 +165,7 @@ def _pair_direct_substitutions(
                 for after in ordered_after
                 if (before.ingredient_id, after.ingredient_id) in substitution_pairs
             ),
-            key=lambda after: (
-                abs(before.display_order - after.display_order),
-                *_ingredient_order(after),
-            ),
+            key=lambda after: _replacement_candidate_order(before, after),
         )
         for before in ordered_before
     }
