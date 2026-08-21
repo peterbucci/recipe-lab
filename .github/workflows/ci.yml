@@ -115,6 +115,67 @@ jobs:
       - name: Validate Playwright configuration
         run: npx playwright test --list
 
+  offline-evaluation:
+    name: Offline evaluation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ml
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            backend/pyproject.toml
+            ml/pyproject.toml
+
+      - name: Install evaluation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ../backend -e ".[dev]"
+
+      - name: Check evaluation formatting
+        run: python -m ruff format --check src tests
+
+      - name: Lint evaluation package
+        run: python -m ruff check --output-format=github src tests
+
+      - name: Type-check evaluation package
+        run: python -m mypy src tests
+
+      - name: Test evaluation package
+        run: python -m pytest
+
+      - name: Verify byte-identical evaluation reports
+        shell: bash
+        run: |
+          recipe-lab-eval run \
+            --snapshot tests/fixtures/synthetic_snapshot_v1.json \
+            --k 5 --k 10 --seed 20260821 \
+            --output "$RUNNER_TEMP/evaluation-report-a.json"
+          recipe-lab-eval run \
+            --snapshot tests/fixtures/synthetic_snapshot_v1.json \
+            --k 10 --k 5 --seed 20260821 \
+            --output "$RUNNER_TEMP/evaluation-report-b.json"
+          cmp "$RUNNER_TEMP/evaluation-report-a.json" \
+            "$RUNNER_TEMP/evaluation-report-b.json"
+
+      - name: Upload reproducibility report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: offline-evaluation-report
+          path: ${{ runner.temp }}/evaluation-report-a.json
+          if-no-files-found: ignore
+          retention-days: 7
+
   mvp-acceptance:
     name: MVP acceptance
     if: ${{ always() }}
