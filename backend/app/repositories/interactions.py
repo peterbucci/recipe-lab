@@ -14,8 +14,15 @@ class RecipeViewerState:
     rating: int | None
 
 
-def get_user(session: Session, user_id: UUID) -> User | None:
-    return session.get(User, user_id)
+def get_user(
+    session: Session,
+    user_id: UUID,
+    *,
+    for_update: bool = False,
+) -> User | None:
+    if not for_update:
+        return session.get(User, user_id)
+    return session.scalar(select(User).where(User.id == user_id).with_for_update())
 
 
 def recipe_version_exists(session: Session, recipe_version_id: UUID) -> bool:
