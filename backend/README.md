@@ -10,13 +10,26 @@ The first schema milestone intentionally covers only the MVP foundation:
 - users who create or interact with recipes;
 - recipe lineages that group an original recipe with all of its variants;
 - append-only recipe-version snapshots with one optional parent;
-- ordered ingredient and instruction rows stored with each snapshot;
+- ordered ingredient and instruction rows stored with each snapshot, with the
+  ingredient's authored display text preserved alongside its canonical ID;
 - one save and one rating per user and recipe version.
 
 PostgreSQL constraints keep a parent in the same lineage, permit only one root
 per lineage, preserve display order, and restrict ratings to the supported
 one-to-five scale. Foreign-key deletion rules protect recipe history; deleting
 an interaction-only user removes that user's saves and ratings.
+
+## Ingredient catalog
+
+Canonical ingredients can have exact aliases, one broad category, and
+positive dietary-flag and allergen assignments. Missing assignments mean
+"unknown," not that an ingredient is safe for a diet or allergy.
+
+Substitutions are explicit directed edges. Each edge identifies its source and
+replacement and includes a positive quantity ratio or written guidance, plus
+provenance or a confidence value. Lookups do not infer reverse or transitive
+substitutions. Production catalog entries and sources belong to the seed-data
+milestone rather than this schema foundation.
 
 ## Migrations
 
