@@ -12,10 +12,14 @@ dependencies = [
   "alembic>=1.19,<2.0",
   "fastapi>=0.115,<1.0",
   "psycopg[binary]>=3.2,<4.0",
+  "pydantic>=2.9,<3.0",
   "pydantic-settings>=2.8,<3.0",
   "sqlalchemy>=2.0,<3.0",
   "uvicorn[standard]>=0.34,<1.0",
 ]
+
+[project.scripts]
+recipe-lab-seed = "app.seeds.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -27,6 +31,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[tool.setuptools.package-data]
+"app.seeds.data" = ["*.json", "*.md"]
 
 [tool.pytest.ini_options]
 addopts = "-q"

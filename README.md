@@ -28,8 +28,8 @@ walnuts with pecans, and preserve both the changes and the parent relationship.
 
 Recipe Lab now has the schema needed to connect authored recipe text to
 canonical ingredients, aliases, broad categories, dietary flags, allergens,
-and directed substitution relationships. Curated catalog content remains a
-separate seed-data milestone. After the MVP works, the product will record
+and directed substitution relationships. A curated, deterministic demo catalog
+now exercises that structure. After the MVP works, the product will record
 preference events such as views, saves, ratings, and forks.
 
 ### ML after useful signals exist
@@ -65,9 +65,10 @@ The repository currently provides:
   uniqueness constraints;
 - PostgreSQL and local development services through Docker Compose.
 
-Recipe APIs, production seed data, and product screens remain separate
-milestones. This keeps the schema work focused on the smallest durable
-foundation for the MVP.
+The repository also includes a deterministic demo catalog with 25 recipe
+lineages, useful variants, ingredient aliases, and directed substitutions.
+Recipe APIs and product screens remain separate milestones. This keeps each
+story focused on the smallest durable foundation for the MVP.
 
 ## Quick start with Docker
 
@@ -77,6 +78,7 @@ Requirements: Docker Desktop with Docker Compose.
 Copy-Item .env.example .env
 docker compose up --build -d
 docker compose exec backend python -m alembic upgrade head
+docker compose exec backend python -m app.seeds load
 ```
 
 Open:
@@ -127,6 +129,11 @@ python -m pytest
 The PostgreSQL tests create and remove a uniquely named schema for each test
 run. Point `TEST_DATABASE_URL` only at a local or otherwise disposable test
 database, never production.
+
+Validate the bundled catalog without writing to the database with
+`python -m app.seeds validate`. Seed loading is explicit, transactional, and
+safe to rerun; it is never coupled to API startup. See
+[seed data](docs/seed-data.md) for its reproducibility and provenance contract.
 
 Run the same frontend checks enforced by CI:
 

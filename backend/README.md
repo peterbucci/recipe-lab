@@ -31,8 +31,30 @@ replacement and includes a positive quantity ratio or written guidance, plus
 provenance or a confidence value. Lookups do not infer reverse or transitive
 substitutions. When units are compatible, replacement quantity equals source
 quantity multiplied by `quantity_ratio`; substitutions without compatible
-units use written guidance instead. Production catalog entries and sources
-belong to the seed-data milestone rather than this schema foundation.
+units use written guidance instead. The packaged demo catalog supplies curated
+examples for local development and tests. It is intentionally small and is not
+a production food database.
+
+## Demo seed catalog
+
+Validate the packaged catalog without a database:
+
+```powershell
+python -m app.seeds validate
+```
+
+After applying migrations, load it in one transaction:
+
+```powershell
+python -m app.seeds load
+```
+
+The command is idempotent: an exact rerun reuses the same UUIDv5 rows. It does
+not run during API startup, delete user data, or repair a changed immutable
+recipe snapshot. Conflicting data causes the transaction to fail. Catalog
+provenance and license notes are documented in the
+[packaged provenance](app/seeds/data/PROVENANCE.md) and repository-level
+[seed-data notes](../docs/seed-data.md).
 
 ## Migrations
 

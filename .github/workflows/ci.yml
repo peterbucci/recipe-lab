@@ -64,6 +64,9 @@ jobs:
       - name: Type-check backend
         run: python -m mypy app migrations tests
 
+      - name: Validate bundled seed catalog
+        run: python -m app.seeds validate
+
       - name: Apply database migrations
         run: python -m alembic upgrade head
 
