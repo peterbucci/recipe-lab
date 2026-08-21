@@ -56,6 +56,31 @@ provenance and license notes are documented in the
 [packaged provenance](app/seeds/data/PROVENANCE.md) and repository-level
 [seed-data notes](../docs/seed-data.md).
 
+## Recipe read API
+
+The read-only recipe API exposes every immutable version rather than collapsing
+a lineage to one "latest" row:
+
+- `GET /api/recipes` returns a paginated list of version summaries.
+- `GET /api/recipes/{recipe_version_id}` returns one complete snapshot with
+  ordered ingredients and instructions plus its direct parent and children.
+
+Browse requests support `page`, `page_size`, a literal case-insensitive `q`
+search over titles and descriptions, exact canonical-or-alias `ingredient`
+matching, `lineage_id`, and the optional `is_variant` filter. Filters combine
+with AND semantics. Results use a fixed title/version/ID order, and pages after
+the final page return an empty `items` list while preserving the total count.
+
+Ingredient responses preserve the authored display name alongside the
+canonical ingredient name and ID. Decimal quantities and servings serialize as
+JSON strings so PostgreSQL precision is not lost. Parent and child summaries
+are immediate relationships, not a recursively expanded lineage tree.
+
+Malformed identifiers and invalid query values return HTTP 422; a valid UUID
+that is not present returns HTTP 404. Both use the documented `ErrorResponse`
+envelope. The response schemas and query constraints are available through
+OpenAPI at `/docs` and `/openapi.json`.
+
 ## Migrations
 
 From this directory, apply all migrations and confirm that the SQLAlchemy

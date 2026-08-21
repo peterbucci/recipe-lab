@@ -11,6 +11,8 @@ from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.schema import CreateSchema, DropSchema
 
+from app.seeds import load_bundled_catalog, seed_catalog
+
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 TEST_DATABASE_ENV_VAR = "TEST_DATABASE_URL"
 
@@ -74,6 +76,18 @@ def migrated_engine(postgres_url: str) -> Iterator[Engine]:
         with engine.begin() as connection:
             config.attributes["connection"] = connection
             command.upgrade(config, "head")
+        yield engine
+
+
+@pytest.fixture(scope="session")
+def seeded_api_engine(postgres_url: str) -> Iterator[Engine]:
+    with isolated_postgres_engine(postgres_url) as engine:
+        config = make_alembic_config()
+        with engine.begin() as connection:
+            config.attributes["connection"] = connection
+            command.upgrade(config, "head")
+        with Session(bind=engine) as session, session.begin():
+            seed_catalog(session, load_bundled_catalog())
         yield engine
 
 

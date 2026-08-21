@@ -14,6 +14,20 @@ client-rendered.
 FastAPI owns validation, application rules, persistence boundaries, and the
 public HTTP contract. Pydantic schemas should not double as SQLAlchemy models.
 
+Recipe reads expose immutable version snapshots. Browse uses bounded
+page-based pagination, literal title/description search, and filters supported
+directly by current relational data. Its deterministic title/version/ID order
+prevents records from moving between unchanged pages. Ingredient membership is
+tested with `EXISTS` so matching rows cannot duplicate recipes or inflate the
+count.
+
+Detail reads eager-load the scalar parent and select-load ordered ingredients,
+instructions, and direct children. This keeps the query count bounded without
+creating a Cartesian product between collections. API schemas preserve exact
+decimal values as JSON strings and expose the authored ingredient name beside
+its canonical identity. Validation and not-found failures share one documented
+error envelope while retaining their semantic HTTP status codes.
+
 ### Database
 
 PostgreSQL is the system of record. SQLAlchemy 2.x provides persistence and
