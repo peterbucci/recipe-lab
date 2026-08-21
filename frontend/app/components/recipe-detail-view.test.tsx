@@ -75,6 +75,10 @@ describe("RecipeDetailView", () => {
       "aria-pressed",
       "false",
     );
+    expect(screen.getByRole("link", { name: /create a variant/i })).toHaveAttribute(
+      "href",
+      "/recipes/carrot-v2/fork",
+    );
     expect(screen.getByText("140 g")).toBeInTheDocument();
     expect(screen.getByText("White sugar")).toBeInTheDocument();
     expect(screen.getByText(/catalog name: granulated sugar/i)).toBeInTheDocument();
@@ -88,13 +92,19 @@ describe("RecipeDetailView", () => {
       "Fold the dry ingredients into the wet mixture.",
     ]);
 
-    expect(screen.getByRole("link", { name: /parent.*carrot walnut snack cake/i })).toHaveAttribute(
-      "href",
-      "/recipes/carrot-v1",
-    );
-    expect(screen.getByRole("link", { name: /direct child.*orange raisin carrot cake/i })).toHaveAttribute(
-      "href",
-      "/recipes/carrot-v3",
+    const lineage = screen.getByRole("list", { name: /immediate recipe lineage/i });
+    expect(within(lineage).getAllByRole("listitem")).toHaveLength(3);
+    expect(
+      within(lineage).getByRole("link", { name: /parent.*carrot walnut snack cake/i }),
+    ).toHaveAttribute("href", "/recipes/carrot-v1");
+    expect(
+      within(lineage).getByRole("link", {
+        name: /direct child.*orange raisin carrot cake/i,
+      }),
+    ).toHaveAttribute("href", "/recipes/carrot-v3");
+    expect(within(lineage).getByLabelText(/current recipe version/i)).toHaveAttribute(
+      "aria-current",
+      "page",
     );
   });
 
@@ -115,6 +125,12 @@ describe("RecipeDetailView", () => {
     expect(screen.getByLabelText(/no ratings yet/i)).toBeInTheDocument();
     expect(screen.getByText(/does not have a direct variant yet/i)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /parent/i })).not.toBeInTheDocument();
+    const lineage = screen.getByRole("list", { name: /immediate recipe lineage/i });
+    expect(within(lineage).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(lineage).getByLabelText(/current recipe version/i)).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
   it("resets demo interaction state when navigation changes the recipe version", () => {

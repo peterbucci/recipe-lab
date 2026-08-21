@@ -43,6 +43,14 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
           </dl>
           <RatingSummary average={recipe.average_rating} count={recipe.rating_count} />
         </div>
+        <div className="button-row recipe-detail__actions">
+          <Link
+            className="button button--primary"
+            href={`/recipes/${encodeURIComponent(recipe.id)}/fork`}
+          >
+            Create a variant
+          </Link>
+        </div>
         <RecipeInteractionPanel key={recipe.id} initialViewerState={recipe.viewer_state} />
       </header>
 
@@ -100,17 +108,29 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
           </div>
           <p>Parent and child links show one generation at a time.</p>
         </div>
-        <div className="lineage-grid">
-          {recipe.parent ? <VersionLink label="Parent" version={recipe.parent} /> : null}
-          <div className="lineage-card lineage-card--current" aria-label="Current recipe version">
-            <span>Current</span>
-            <strong>{recipe.title}</strong>
-            <small>Version {recipe.version_number}</small>
-          </div>
+        <ul className="lineage-grid" aria-label="Immediate recipe lineage">
+          {recipe.parent ? (
+            <li className="lineage-grid__item">
+              <VersionLink label="Parent" version={recipe.parent} />
+            </li>
+          ) : null}
+          <li className="lineage-grid__item">
+            <div
+              className="lineage-card lineage-card--current"
+              aria-current="page"
+              aria-label="Current recipe version"
+            >
+              <span>Current</span>
+              <strong>{recipe.title}</strong>
+              <small>Version {recipe.version_number}</small>
+            </div>
+          </li>
           {recipe.children.map((child) => (
-            <VersionLink key={child.id} label="Direct child" version={child} />
+            <li key={child.id} className="lineage-grid__item">
+              <VersionLink label="Direct child" version={child} />
+            </li>
           ))}
-        </div>
+        </ul>
         {!recipe.parent && recipe.children.length === 0 ? (
           <p className="lineage-empty">This original recipe does not have a direct variant yet.</p>
         ) : null}
