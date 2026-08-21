@@ -55,6 +55,24 @@ and average, never individual interaction records. Validation and not-found
 failures share one documented error envelope while retaining their semantic
 HTTP status codes.
 
+Recipe diffs use dedicated bounded snapshot queries rather than the broader
+detail loader. A target compares to its direct parent by default, while an
+explicit base may select any version in the same lineage. The pure diff engine
+ignores display order as content, matches exact canonical ingredient
+occurrences first, and classifies a replacement only when the catalog contains
+the corresponding directed substitution edge. Instruction changes are kept in
+a separate group. Stable sorting and fixed changed-field order make equivalent
+stored comparisons byte-for-byte repeatable, and the read never loads ratings,
+saves, or users.
+
+Forked ingredient and instruction rows receive fresh identifiers, and the
+schema deliberately does not persist edit events or copied-row ancestry. A
+snapshot comparison therefore cannot always distinguish an authored
+replacement from a removal followed by an addition, or an instruction update
+from remove-and-add. The API exposes a documented deterministic inference, not
+operation-history replay. Persisted row provenance would be a separate schema
+and migration decision if exact edit-intent reconstruction becomes necessary.
+
 The API, not the client, selects a deterministic interaction-only demo user.
 Save and rating endpoints set current state with PostgreSQL conflict handling,
 so retries and concurrent duplicate requests remain safe. Each mutation owns
@@ -139,6 +157,7 @@ honest.
 Server-rendered read: Browser -> Next.js -> FastAPI -> SQLAlchemy -> PostgreSQL
 Demo interaction:     Browser ----------> FastAPI -> SQLAlchemy -> PostgreSQL
 Variant creation:     Browser ----------> FastAPI -> SQLAlchemy -> PostgreSQL
+Version comparison:   Browser -> Next.js -> FastAPI -> SQLAlchemy -> PostgreSQL
 ```
 
 Future offline training reads versioned product data and writes versioned model
