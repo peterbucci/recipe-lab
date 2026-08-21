@@ -17,6 +17,7 @@ DOMAIN_TABLES = {
     "ingredient_dietary_flags",
     "ingredient_substitutions",
     "ingredients",
+    "preference_events",
     "recipe_lineages",
     "recipe_ratings",
     "recipe_saves",
@@ -47,6 +48,7 @@ def test_migrations_round_trip_on_empty_postgres_schema(
     with empty_postgres_engine.begin() as connection:
         alembic_config.attributes["connection"] = connection
         command.upgrade(alembic_config, "head")
+        command.check(alembic_config)
         current_revision = MigrationContext.configure(connection).get_current_revision()
 
     assert current_revision == script.get_current_head()

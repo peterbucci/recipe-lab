@@ -13,11 +13,19 @@ Catalog search and pagination live in the URL, so standard links and a GET form
 work without shipping client-side state. Recipe reads use `no-store` because
 catalog membership, lineage children, and rating aggregates may change even
 though a single recipe-version snapshot is immutable. Client code is reserved
-for retrying error boundaries, a narrow save/rating panel, and the structured
-variant editor. Server components read through `RECIPE_API_URL`; client
-mutations write directly to FastAPI through `NEXT_PUBLIC_API_URL`. Rating writes
-refresh the server-rendered aggregate after success. Local CORS configuration
-permits the exact `localhost` and `127.0.0.1` development origins.
+for retrying error boundaries, a narrow save/rating panel, the structured
+variant editor, and an invisible detail-view tracker. Server components read
+through `RECIPE_API_URL`; client actions write directly to FastAPI through
+`NEXT_PUBLIC_API_URL`. Rating writes refresh the server-rendered aggregate
+after success. Local CORS configuration permits the exact `localhost` and
+`127.0.0.1` development origins.
+
+Each event-producing browser action generates an opaque UUID and retains it
+while retrying the same desired save state, rating value, or validated fork
+draft. Changing the intended action rotates the key. The view tracker posts
+once after a detail component mounts and renders no UI; failures never hide the
+recipe. This makes browser navigation the view boundary instead of counting
+server rendering, prefetching, or unrelated recipe reads.
 
 The dedicated `/recipes/{recipeVersionId}/fork` server route loads the immutable
 source snapshot and passes it to a controlled client form. The editor keeps raw
@@ -85,19 +93,23 @@ operation-history replay. Persisted row provenance would be a separate schema
 and migration decision if exact edit-intent reconstruction becomes necessary.
 
 The API, not the client, selects a deterministic interaction-only demo user.
-Save and rating endpoints set current state with PostgreSQL conflict handling,
-so retries and concurrent duplicate requests remain safe. Each mutation owns
-one transaction and returns the authoritative state after the write. This
-shared profile is explicitly identified as demo mode and is not presented as
-authentication.
+View, save, rating, and fork actions require an opaque UUID key but never accept
+a user ID, event type, timestamp, or context body from the browser. The API
+locks the demo-user row before resolving that key, making concurrent exact
+retries serialize. Exact replays skip both state mutation and event insertion;
+conflicting reuse returns 409. Save and rating endpoints still return current
+authoritative state. This shared profile is explicitly identified as demo mode
+and is not presented as authentication.
 
 Recipe forking is an application service behind a single transactional route.
 It locks the lineage row before assigning the next lineage-wide version number,
 copies the source ingredients and instructions into draft values, validates and
 applies structured edits, and then inserts a fresh child snapshot with new row
 identifiers. The API controls lineage, direct parent, version number, display
-order, and demo-user attribution. Forking is intentionally non-idempotent;
-retry-safe creation would require a separate idempotency-key contract.
+order, and demo-user attribution. The fork action fingerprints the canonical
+validated request, then creates the child and its event in one transaction.
+An exact action-key retry returns that child; a changed source or payload with
+the same key is rejected. Different action keys remain distinct authored forks.
 
 ### Database
 
@@ -151,9 +163,18 @@ Saves and ratings reference exact versions rather than a mutable recipe record.
 Their composite keys allow only one of each interaction per user and version,
 and a rating constraint enforces the one-to-five scale. The bundled loader also
 ensures a fixed interaction-only demo user exists without deleting or changing
-that user's saves and ratings on a later seed run. Interaction rows remain
-mutable current state; timestamped preference events are a later, separate
-contract.
+that user's saves, ratings, or events on a later seed run.
+
+`preference_events` is separate append-only history. Its UUID primary key is
+the action idempotency key; PostgreSQL checks restrict types to view, save,
+rating, and fork and require the exact typed context shape for each. Ratings
+remain one to five, fork events identify a distinct related child and require a
+lowercase SHA-256 fingerprint, and a child can belong to only one fork event.
+The server supplies timezone-aware timestamps. User deletion cascades event
+history, while restrictive recipe references protect acted-on and forked
+versions. Focused user/type/time and recipe/type/time indexes support later
+offline aggregation. No generic JSON or personal request metadata is stored,
+and the initial migration performs no dishonest historical backfill.
 
 ### MVP acceptance boundary
 
@@ -178,10 +199,11 @@ the job instead of attempting fragile row-by-row cleanup of immutable history.
 
 ### ML workspace
 
-The `ml` directory remains separate from request-serving code until preference
-events and evaluation contracts are stable. The first recommender should expose
-the same interface expected of later models so baseline comparisons remain
-honest.
+The `ml` directory remains separate from request-serving code. Stable event
+capture is now available, but a non-ML baseline and offline evaluation contract
+still come before any recommender enters the product path. The first
+recommender should expose the same interface expected of later models so
+baseline comparisons remain honest.
 
 ## Initial request path
 
@@ -200,6 +222,6 @@ hidden dependency of core recipe creation.
 
 - Unit normalization and display-unit preservation.
 - Original-recipe creation and content-update enforcement.
-- Rating scale and event semantics.
+- Preference-event retention and migration from demo to authenticated users.
 - Recipe and metadata provenance.
 - Recommendation evaluation metrics and split strategy.

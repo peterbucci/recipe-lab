@@ -4,6 +4,7 @@ import { formatIngredientAmount, formatServings } from "../../lib/format";
 import type { RecipeDetail, RecipeVersionReference } from "../../lib/recipe-api";
 import { RatingSummary } from "./rating-summary";
 import { RecipeInteractionPanel } from "./recipe-interaction-panel";
+import { RecipeViewTracker } from "./recipe-view-tracker";
 
 interface RecipeDetailViewProps {
   recipe: RecipeDetail;
@@ -24,6 +25,7 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
 
   return (
     <article className="recipe-detail">
+      <RecipeViewTracker recipeVersionId={recipe.id} />
       <header className="recipe-detail__header">
         <div>
           <p className="eyebrow">{isVariant ? `Variant · Version ${recipe.version_number}` : "Original recipe"}</p>

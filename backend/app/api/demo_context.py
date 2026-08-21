@@ -13,8 +13,12 @@ from app.repositories.interactions import (
 from app.schemas.interactions import DemoUserResponse, RecipeViewerStateResponse
 
 
-def get_demo_user_or_error(session: Session) -> User:
-    user = get_user(session, DEMO_USER_ID)
+def get_demo_user_or_error(
+    session: Session,
+    *,
+    for_update: bool = False,
+) -> User:
+    user = get_user(session, DEMO_USER_ID, for_update=for_update)
     if user is None:
         raise ApiError(
             status_code=503,

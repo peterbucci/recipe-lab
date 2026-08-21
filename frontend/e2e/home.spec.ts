@@ -44,6 +44,10 @@ function ratingUrl(recipeVersionId: string): string {
   return `${apiBaseUrl}/api/recipes/${encodeURIComponent(recipeVersionId)}/rating`;
 }
 
+function actionHeaders(): Record<string, string> {
+  return { "Idempotency-Key": crypto.randomUUID() };
+}
+
 async function setRating(
   request: APIRequestContext,
   recipeVersionId: string,
@@ -51,7 +55,10 @@ async function setRating(
   action: string,
 ) {
   await expectApiSuccess(
-    request.put(ratingUrl(recipeVersionId), { data: { rating } }),
+    request.put(ratingUrl(recipeVersionId), {
+      data: { rating },
+      headers: actionHeaders(),
+    }),
     action,
   );
 }
@@ -190,7 +197,7 @@ test("persists shared demo saves and rating updates", async ({ page, request }) 
   try {
     recipeVersionId = await openCarrotRoot(page);
     await expectApiSuccess(
-      request.delete(saveUrl(recipeVersionId)),
+      request.delete(saveUrl(recipeVersionId), { headers: actionHeaders() }),
       "Initial save normalization",
     );
     await setRating(request, recipeVersionId, 3, "Initial rating normalization");
@@ -249,7 +256,7 @@ test("persists shared demo saves and rating updates", async ({ page, request }) 
   } finally {
     if (recipeVersionId) {
       await expectApiSuccess(
-        request.delete(saveUrl(recipeVersionId)),
+        request.delete(saveUrl(recipeVersionId), { headers: actionHeaders() }),
         "Final save normalization",
       );
       await setRating(request, recipeVersionId, 5, "Final rating normalization");

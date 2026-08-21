@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useId, useRef, useState } from "react";
 
+import { createIdempotencyKey } from "../../lib/idempotency-key";
 import {
   type RatingValue,
   type RecipeViewerState,
@@ -12,6 +13,11 @@ import {
 
 interface RecipeInteractionPanelProps {
   initialViewerState: RecipeViewerState;
+}
+
+interface ActionAttempt {
+  fingerprint: string;
+  idempotencyKey: string;
 }
 
 const RATING_OPTIONS: RatingValue[] = [1, 2, 3, 4, 5];
@@ -24,6 +30,8 @@ export function RecipeInteractionPanel({
   const contextId = useId();
   const saveStatusId = useId();
   const ratingStatusId = useId();
+  const saveAttemptRef = useRef<ActionAttempt | null>(null);
+  const ratingAttemptRef = useRef<ActionAttempt | null>(null);
   const [viewerState, setViewerState] = useState(initialViewerState);
   const [selectedRating, setSelectedRating] = useState<RatingValue | null>(
     initialViewerState.rating,
@@ -55,8 +63,20 @@ export function RecipeInteractionPanel({
     setSaveMessage("");
     setSaveError("");
 
+    const fingerprint = `${viewerState.recipe_version_id}:saved:${nextSaved}`;
+    if (saveAttemptRef.current?.fingerprint !== fingerprint) {
+      saveAttemptRef.current = {
+        fingerprint,
+        idempotencyKey: createIdempotencyKey(),
+      };
+    }
+
     try {
-      const updatedState = await setRecipeSaved(viewerState.recipe_version_id, nextSaved);
+      const updatedState = await setRecipeSaved(
+        viewerState.recipe_version_id,
+        nextSaved,
+        saveAttemptRef.current.idempotencyKey,
+      );
       setViewerState(updatedState);
       setSaveMessage(
         updatedState.saved
@@ -84,10 +104,19 @@ export function RecipeInteractionPanel({
     setRatingMessage("");
     setRatingError("");
 
+    const fingerprint = `${viewerState.recipe_version_id}:rating:${selectedRating}`;
+    if (ratingAttemptRef.current?.fingerprint !== fingerprint) {
+      ratingAttemptRef.current = {
+        fingerprint,
+        idempotencyKey: createIdempotencyKey(),
+      };
+    }
+
     try {
       const updatedState = await setRecipeRating(
         viewerState.recipe_version_id,
         selectedRating,
+        ratingAttemptRef.current.idempotencyKey,
       );
       setViewerState(updatedState);
       setSelectedRating(updatedState.rating);

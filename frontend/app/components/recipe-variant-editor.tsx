@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
+import { createIdempotencyKey } from "../../lib/idempotency-key";
 import type { RecipeDetail } from "../../lib/recipe-api";
 import { isRecipeVersionId } from "../../lib/recipe-api";
 import {
@@ -21,6 +22,11 @@ import { createRecipeVariant, VariantApiError } from "../../lib/variant-api";
 
 interface RecipeVariantEditorProps {
   sourceRecipe: RecipeDetail;
+}
+
+interface ForkAttempt {
+  fingerprint: string;
+  idempotencyKey: string;
 }
 
 interface FieldErrorProps {
@@ -48,6 +54,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
   const instructionCounter = useRef(0);
   const pendingFocusId = useRef<string | null>(null);
   const submittingRef = useRef(false);
+  const forkAttemptRef = useRef<ForkAttempt | null>(null);
   const [draft, setDraft] = useState<RecipeVariantDraft>(() =>
     createVariantDraft(sourceRecipe),
   );
@@ -182,8 +189,20 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
     setApiError("");
     setStatusMessage("Creating your child variant…");
 
+    const fingerprint = JSON.stringify(validation.payload);
+    if (forkAttemptRef.current?.fingerprint !== fingerprint) {
+      forkAttemptRef.current = {
+        fingerprint,
+        idempotencyKey: createIdempotencyKey(),
+      };
+    }
+
     try {
-      const created = await createRecipeVariant(sourceRecipe.id, validation.payload);
+      const created = await createRecipeVariant(
+        sourceRecipe.id,
+        validation.payload,
+        forkAttemptRef.current.idempotencyKey,
+      );
       if (!isRecipeVersionId(created.id)) {
         throw new VariantApiError(
           "The recipe service returned an invalid child identifier.",

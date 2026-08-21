@@ -37,7 +37,10 @@ function apiBaseUrl(): string {
   return configured.trim().replace(/\/+$/, "");
 }
 
-function interactionUrl(recipeVersionId: string, resource: "save" | "rating"): URL {
+function interactionUrl(
+  recipeVersionId: string,
+  resource: "rating" | "save" | "view",
+): URL {
   return new URL(
     `/api/recipes/${encodeURIComponent(recipeVersionId)}/${resource}`,
     `${apiBaseUrl()}/`,
@@ -92,19 +95,43 @@ async function interactionRequest(
 export async function setRecipeSaved(
   recipeVersionId: string,
   saved: boolean,
+  idempotencyKey: string,
 ): Promise<RecipeViewerState> {
   return interactionRequest(interactionUrl(recipeVersionId, "save"), {
     method: saved ? "PUT" : "DELETE",
+    headers: { "Idempotency-Key": idempotencyKey },
   });
 }
 
 export async function setRecipeRating(
   recipeVersionId: string,
   rating: RatingValue,
+  idempotencyKey: string,
 ): Promise<RecipeViewerState> {
   return interactionRequest(interactionUrl(recipeVersionId, "rating"), {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey,
+    },
     body: JSON.stringify({ rating }),
   });
+}
+
+export async function recordRecipeView(
+  recipeVersionId: string,
+  idempotencyKey: string,
+): Promise<void> {
+  const response = await fetch(interactionUrl(recipeVersionId, "view"), {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      "Idempotency-Key": idempotencyKey,
+    },
+  });
+
+  if (!response.ok) {
+    throw await apiError(response);
+  }
 }

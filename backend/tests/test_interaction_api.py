@@ -18,7 +18,7 @@ from app.core.demo_identity import (
     DEMO_USER_ID,
 )
 from app.main import create_app
-from app.models import RecipeRating, RecipeSave, User
+from app.models import PreferenceEvent, RecipeRating, RecipeSave, User
 from app.repositories.interactions import save_recipe
 from app.seeds.identifiers import seed_uuid
 
@@ -37,6 +37,7 @@ CARROT_PECAN_ID = seed_uuid(
 
 def _clear_demo_interactions(engine: Engine) -> None:
     with Session(bind=engine) as session, session.begin():
+        session.execute(delete(PreferenceEvent).where(PreferenceEvent.user_id == DEMO_USER_ID))
         session.execute(delete(RecipeRating).where(RecipeRating.user_id == DEMO_USER_ID))
         session.execute(delete(RecipeSave).where(RecipeSave.user_id == DEMO_USER_ID))
 
@@ -61,6 +62,10 @@ def interaction_client(seeded_api_engine: Engine) -> Iterator[TestClient]:
 
 def _json_object(response_json: object) -> dict[str, Any]:
     return cast(dict[str, Any], response_json)
+
+
+def _action_headers(action_id: UUID | None = None) -> dict[str, str]:
+    return {"Idempotency-Key": str(action_id or uuid4())}
 
 
 def _expected_state(
@@ -129,7 +134,11 @@ def test_save_and_unsave_are_retry_safe_and_database_unique(
     interaction_client: TestClient,
     seeded_api_engine: Engine,
 ) -> None:
-    first_save = interaction_client.put(f"/api/recipes/{CARROT_ROOT_ID}/save")
+    save_action_id = uuid4()
+    first_save = interaction_client.put(
+        f"/api/recipes/{CARROT_ROOT_ID}/save",
+        headers=_action_headers(save_action_id),
+    )
     assert first_save.status_code == 200
     assert first_save.json() == _expected_state(CARROT_ROOT_ID, saved=True, rating=None)
 
@@ -144,7 +153,10 @@ def test_save_and_unsave_are_retry_safe_and_database_unique(
         assert saved_row is not None
         first_created_at = saved_row.created_at
 
-    second_save = interaction_client.put(f"/api/recipes/{CARROT_ROOT_ID}/save")
+    second_save = interaction_client.put(
+        f"/api/recipes/{CARROT_ROOT_ID}/save",
+        headers=_action_headers(save_action_id),
+    )
     assert second_save.status_code == 200
     assert second_save.json() == _expected_state(CARROT_ROOT_ID, saved=True, rating=None)
     assert (
@@ -166,8 +178,15 @@ def test_save_and_unsave_are_retry_safe_and_database_unique(
         assert saved_row is not None
         assert saved_row.created_at == first_created_at
 
-    first_unsave = interaction_client.delete(f"/api/recipes/{CARROT_ROOT_ID}/save")
-    second_unsave = interaction_client.delete(f"/api/recipes/{CARROT_ROOT_ID}/save")
+    unsave_action_id = uuid4()
+    first_unsave = interaction_client.delete(
+        f"/api/recipes/{CARROT_ROOT_ID}/save",
+        headers=_action_headers(unsave_action_id),
+    )
+    second_unsave = interaction_client.delete(
+        f"/api/recipes/{CARROT_ROOT_ID}/save",
+        headers=_action_headers(unsave_action_id),
+    )
 
     assert first_unsave.status_code == 200
     assert first_unsave.json() == _expected_state(CARROT_ROOT_ID, saved=False, rating=None)
@@ -224,9 +243,11 @@ def test_rating_create_retry_and_update_keep_one_current_state_row(
     interaction_client: TestClient,
     seeded_api_engine: Engine,
 ) -> None:
+    rating_action_id = uuid4()
     first_rating = interaction_client.put(
         f"/api/recipes/{CARROT_ROOT_ID}/rating",
         json={"rating": 2},
+        headers=_action_headers(rating_action_id),
     )
     assert first_rating.status_code == 200
     assert first_rating.json() == _expected_state(CARROT_ROOT_ID, saved=False, rating=2)
@@ -245,10 +266,12 @@ def test_rating_create_retry_and_update_keep_one_current_state_row(
     repeated_rating = interaction_client.put(
         f"/api/recipes/{CARROT_ROOT_ID}/rating",
         json={"rating": 2},
+        headers=_action_headers(rating_action_id),
     )
     updated_rating = interaction_client.put(
         f"/api/recipes/{CARROT_ROOT_ID}/rating",
         json={"rating": 5},
+        headers=_action_headers(),
     )
 
     assert repeated_rating.status_code == 200
@@ -300,12 +323,14 @@ def test_rating_rejects_non_strict_or_out_of_range_values_without_changing_state
     initial_response = interaction_client.put(
         f"/api/recipes/{CARROT_ROOT_ID}/rating",
         json={"rating": 3},
+        headers=_action_headers(),
     )
     assert initial_response.status_code == 200
 
     response = interaction_client.put(
         f"/api/recipes/{CARROT_ROOT_ID}/rating",
         json={"rating": invalid_rating},
+        headers=_action_headers(),
     )
 
     assert response.status_code == 422
@@ -340,6 +365,7 @@ def test_rating_rejects_incomplete_or_identity_overriding_payloads(
     response = interaction_client.put(
         f"/api/recipes/{CARROT_ROOT_ID}/rating",
         json=payload,
+        headers=_action_headers(),
     )
 
     assert response.status_code == 422
@@ -373,9 +399,14 @@ def test_interaction_writes_reject_missing_recipe_versions(
     missing_id = uuid4()
     path = f"/api/recipes/{missing_id}/{suffix}"
     response = (
-        interaction_client.request(method, path)
+        interaction_client.request(method, path, headers=_action_headers())
         if payload is None
-        else interaction_client.request(method, path, json=payload)
+        else interaction_client.request(
+            method,
+            path,
+            json=payload,
+            headers=_action_headers(),
+        )
     )
 
     assert response.status_code == 404
@@ -404,9 +435,14 @@ def test_interaction_writes_reject_malformed_recipe_identifiers(
 ) -> None:
     path = f"/api/recipes/not-a-uuid/{suffix}"
     response = (
-        interaction_client.request(method, path)
+        interaction_client.request(method, path, headers=_action_headers())
         if payload is None
-        else interaction_client.request(method, path, json=payload)
+        else interaction_client.request(
+            method,
+            path,
+            json=payload,
+            headers=_action_headers(),
+        )
     )
 
     assert response.status_code == 422
@@ -444,10 +480,14 @@ def test_viewer_state_is_isolated_by_user_and_recipe_version(
         )
 
     try:
-        save_response = interaction_client.put(f"/api/recipes/{CARROT_ROOT_ID}/save")
+        save_response = interaction_client.put(
+            f"/api/recipes/{CARROT_ROOT_ID}/save",
+            headers=_action_headers(),
+        )
         rating_response = interaction_client.put(
             f"/api/recipes/{CARROT_ROOT_ID}/rating",
             json={"rating": 4},
+            headers=_action_headers(),
         )
         assert save_response.status_code == 200
         assert rating_response.status_code == 200
@@ -493,7 +533,10 @@ def test_missing_demo_user_returns_a_stable_service_error(
     try:
         identity_response = interaction_client.get("/api/me")
         detail_response = interaction_client.get(f"/api/recipes/{CARROT_ROOT_ID}")
-        save_response = interaction_client.put(f"/api/recipes/{CARROT_ROOT_ID}/save")
+        save_response = interaction_client.put(
+            f"/api/recipes/{CARROT_ROOT_ID}/save",
+            headers=_action_headers(),
+        )
 
         assert identity_response.status_code == 503
         assert identity_response.json() == expected_error

@@ -8,6 +8,7 @@ import {
 } from "./variant-api";
 
 const sourceRecipeVersionId = "29454eba/3a4e?5380";
+const idempotencyKey = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 const payload: RecipeVariantCreateRequest = {
   title: "Orange Pecan Carrot Cake",
@@ -84,7 +85,9 @@ describe("variant API client", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(createRecipeVariant(sourceRecipeVersionId, payload)).resolves.toEqual(created);
+    await expect(
+      createRecipeVariant(sourceRecipeVersionId, payload, idempotencyKey),
+    ).resolves.toEqual(created);
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledWith(
@@ -95,6 +98,7 @@ describe("variant API client", () => {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
         },
         body: JSON.stringify(payload),
       },
@@ -127,7 +131,7 @@ describe("variant API client", () => {
       ),
     );
 
-    const error = await createRecipeVariant("source-id", payload).catch(
+    const error = await createRecipeVariant("source-id", payload, idempotencyKey).catch(
       (reason: unknown) => reason,
     );
 
@@ -150,7 +154,7 @@ describe("variant API client", () => {
       ),
     );
 
-    const error = await createRecipeVariant("source-id", payload).catch(
+    const error = await createRecipeVariant("source-id", payload, idempotencyKey).catch(
       (reason: unknown) => reason,
     );
 

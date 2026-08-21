@@ -21,6 +21,7 @@ from app.core.demo_identity import (
 )
 from app.main import create_app
 from app.models import (
+    PreferenceEvent,
     RecipeIngredient,
     RecipeInstruction,
     RecipeLineage,
@@ -106,6 +107,7 @@ class VersionSnapshot:
 def _clear_demo_forks(engine: Engine) -> None:
     fork_ids = select(RecipeVersion.id).where(RecipeVersion.created_by_user_id == DEMO_USER_ID)
     with Session(bind=engine) as session, session.begin():
+        session.execute(delete(PreferenceEvent).where(PreferenceEvent.user_id == DEMO_USER_ID))
         session.execute(delete(RecipeRating).where(RecipeRating.recipe_version_id.in_(fork_ids)))
         session.execute(delete(RecipeSave).where(RecipeSave.recipe_version_id.in_(fork_ids)))
         session.execute(
@@ -152,6 +154,10 @@ def _base_payload(*, title: str = "My Carrot Cake") -> dict[str, Any]:
         "ingredient_edits": [],
         "instruction_edits": [],
     }
+
+
+def _action_headers(action_id: UUID | None = None) -> dict[str, str]:
+    return {"Idempotency-Key": str(action_id or uuid4())}
 
 
 def _snapshot_version(engine: Engine, recipe_version_id: UUID) -> VersionSnapshot:
@@ -244,6 +250,7 @@ def test_fork_copies_snapshot_and_persists_lineage_parent_and_author(
     response = fork_client.post(
         f"/api/recipes/{CARROT_ROOT_ID}/variants",
         json=_base_payload(),
+        headers=_action_headers(),
     )
 
     assert response.status_code == 201
@@ -313,6 +320,7 @@ def test_fork_from_variant_uses_direct_parent_and_lineage_wide_number(
     response = fork_client.post(
         f"/api/recipes/{CARROT_PECAN_ID}/variants",
         json=_base_payload(title="A Child of the Pecan Variant"),
+        headers=_action_headers(),
     )
 
     assert response.status_code == 201
@@ -378,6 +386,7 @@ def test_fork_applies_all_structured_edits_without_mutating_parent(
     response = fork_client.post(
         f"/api/recipes/{CARROT_ROOT_ID}/variants",
         json=payload,
+        headers=_action_headers(),
     )
 
     assert response.status_code == 201
@@ -474,6 +483,7 @@ def test_invalid_request_shapes_create_no_fork(
     response = fork_client.post(
         f"/api/recipes/{CARROT_ROOT_ID}/variants",
         json=payload,
+        headers=_action_headers(),
     )
 
     assert response.status_code == 422
@@ -548,6 +558,7 @@ def test_invalid_or_conflicting_edits_roll_back_without_mutating_parent(
     response = fork_client.post(
         f"/api/recipes/{CARROT_ROOT_ID}/variants",
         json=payload,
+        headers=_action_headers(),
     )
 
     assert response.status_code == 422
@@ -575,6 +586,7 @@ def test_removing_every_structured_row_is_rejected_atomically(
     response = fork_client.post(
         f"/api/recipes/{CARROT_ROOT_ID}/variants",
         json=payload,
+        headers=_action_headers(),
     )
 
     assert response.status_code == 422
@@ -617,6 +629,7 @@ def test_transaction_rolls_back_if_edit_processing_fails_after_child_insert(
     response = fork_client.post(
         f"/api/recipes/{CARROT_ROOT_ID}/variants",
         json=_base_payload(),
+        headers=_action_headers(),
     )
 
     assert response.status_code == 422
@@ -639,10 +652,12 @@ def test_missing_and_malformed_source_ids_create_no_fork(
     missing = fork_client.post(
         f"/api/recipes/{missing_id}/variants",
         json=_base_payload(),
+        headers=_action_headers(),
     )
     malformed = fork_client.post(
         "/api/recipes/not-a-uuid/variants",
         json=_base_payload(),
+        headers=_action_headers(),
     )
 
     assert missing.status_code == 404
@@ -669,6 +684,7 @@ def test_missing_demo_user_returns_service_error_without_partial_fork(
         response = fork_client.post(
             f"/api/recipes/{CARROT_ROOT_ID}/variants",
             json=_base_payload(),
+            headers=_action_headers(),
         )
 
         assert response.status_code == 503

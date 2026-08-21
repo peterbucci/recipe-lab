@@ -11,6 +11,7 @@ from app.models import (
     MAX_RATING,
     MIN_RATING,
     Ingredient,
+    PreferenceEvent,
     RecipeIngredient,
     RecipeInstruction,
     RecipeLineage,
@@ -477,3 +478,281 @@ def test_deleting_interaction_only_user_cascades_saves_and_ratings(
     rating_count = db_session.scalar(select(func.count()).select_from(RecipeRating))
     assert save_count == 0
     assert rating_count == 0
+
+
+def test_preference_events_round_trip_only_permitted_typed_context(
+    db_session: Session,
+) -> None:
+    author = create_user(db_session, "event-author@example.com")
+    participant = create_user(db_session, "event-participant@example.com")
+    lineage, source = create_lineage_with_root(
+        db_session,
+        author,
+        title="Preference Event Source",
+    )
+    child = RecipeVersion(
+        lineage_id=lineage.id,
+        parent_version_id=source.id,
+        created_by_user_id=participant.id,
+        version_number=2,
+        title="Preference Event Child",
+        description=None,
+        servings=Decimal("4.00"),
+    )
+    db_session.add(child)
+    db_session.flush()
+
+    events = [
+        PreferenceEvent(
+            id=uuid4(),
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="view",
+        ),
+        PreferenceEvent(
+            id=uuid4(),
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="save",
+            saved_value=True,
+        ),
+        PreferenceEvent(
+            id=uuid4(),
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="rating",
+            rating_value=4,
+        ),
+        PreferenceEvent(
+            id=uuid4(),
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="fork",
+            related_recipe_version_id=child.id,
+            request_fingerprint="a" * 64,
+        ),
+    ]
+    db_session.add_all(events)
+    db_session.flush()
+
+    assert [event.event_type for event in events] == ["view", "save", "rating", "fork"]
+    assert events[0].saved_value is None
+    assert events[1].saved_value is True
+    assert events[2].rating_value == 4
+    assert events[3].related_recipe_version_id == child.id
+    assert events[3].request_fingerprint == "a" * 64
+    assert all(event.occurred_at.tzinfo is not None for event in events)
+    assert set(PreferenceEvent.__table__.columns.keys()) == {
+        "id",
+        "user_id",
+        "recipe_version_id",
+        "event_type",
+        "saved_value",
+        "rating_value",
+        "related_recipe_version_id",
+        "request_fingerprint",
+        "occurred_at",
+    }
+
+
+def test_preference_event_context_matches_event_type(db_session: Session) -> None:
+    author = create_user(db_session, "event-context-author@example.com")
+    participant = create_user(db_session, "event-context-participant@example.com")
+    lineage, source = create_lineage_with_root(
+        db_session,
+        author,
+        title="Preference Event Context Source",
+    )
+    child = RecipeVersion(
+        lineage_id=lineage.id,
+        parent_version_id=source.id,
+        created_by_user_id=participant.id,
+        version_number=2,
+        title="Preference Event Context Child",
+        description=None,
+        servings=Decimal("4.00"),
+    )
+    db_session.add(child)
+    db_session.flush()
+
+    invalid_events = [
+        PreferenceEvent(
+            id=uuid4(),
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="view",
+            saved_value=False,
+        ),
+        PreferenceEvent(
+            id=uuid4(),
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="save",
+        ),
+        PreferenceEvent(
+            id=uuid4(),
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="rating",
+        ),
+        PreferenceEvent(
+            id=uuid4(),
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="fork",
+            related_recipe_version_id=child.id,
+        ),
+        PreferenceEvent(
+            id=uuid4(),
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="unsupported",
+        ),
+    ]
+
+    for event in invalid_events:
+        assert_flush_violates(
+            db_session,
+            event,
+            "ck_preference_events_context_matches_event_type",
+        )
+
+
+def test_preference_event_values_and_fork_relationship_are_constrained(
+    db_session: Session,
+) -> None:
+    author = create_user(db_session, "event-values-author@example.com")
+    participant = create_user(db_session, "event-values-participant@example.com")
+    lineage, source = create_lineage_with_root(
+        db_session,
+        author,
+        title="Preference Event Value Source",
+    )
+    children = [
+        RecipeVersion(
+            lineage_id=lineage.id,
+            parent_version_id=source.id,
+            created_by_user_id=participant.id,
+            version_number=version_number,
+            title=f"Preference Event Value Child {version_number}",
+            description=None,
+            servings=Decimal("4.00"),
+        )
+        for version_number in range(2, 5)
+    ]
+    db_session.add_all(children)
+    db_session.flush()
+
+    assert_flush_violates(
+        db_session,
+        PreferenceEvent(
+            id=uuid4(),
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="rating",
+            rating_value=6,
+        ),
+        "ck_preference_events_rating_value_supported_range",
+    )
+    assert_flush_violates(
+        db_session,
+        PreferenceEvent(
+            id=uuid4(),
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="fork",
+            related_recipe_version_id=source.id,
+            request_fingerprint="b" * 64,
+        ),
+        "ck_preference_events_related_recipe_version_differs",
+    )
+    assert_flush_violates(
+        db_session,
+        PreferenceEvent(
+            id=uuid4(),
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="fork",
+            related_recipe_version_id=children[0].id,
+            request_fingerprint="C" * 64,
+        ),
+        "ck_preference_events_request_fingerprint_lowercase_sha256",
+    )
+
+    action_id = uuid4()
+    db_session.add(
+        PreferenceEvent(
+            id=action_id,
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="view",
+        )
+    )
+    db_session.add(
+        PreferenceEvent(
+            id=uuid4(),
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="fork",
+            related_recipe_version_id=children[1].id,
+            request_fingerprint="d" * 64,
+        )
+    )
+    db_session.flush()
+
+    assert_flush_violates(
+        db_session,
+        PreferenceEvent(
+            id=action_id,
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="view",
+        ),
+        "pk_preference_events",
+    )
+    assert_flush_violates(
+        db_session,
+        PreferenceEvent(
+            id=uuid4(),
+            user_id=participant.id,
+            recipe_version_id=source.id,
+            event_type="fork",
+            related_recipe_version_id=children[1].id,
+            request_fingerprint="e" * 64,
+        ),
+        "uq_preference_events_related_recipe_version_id",
+    )
+
+
+def test_preference_event_user_deletion_cascades_but_recipe_deletion_is_restricted(
+    db_session: Session,
+) -> None:
+    author = create_user(db_session, "event-delete-author@example.com")
+    participant = create_user(db_session, "event-delete-participant@example.com")
+    _, source = create_lineage_with_root(
+        db_session,
+        author,
+        title="Preference Event Delete Source",
+    )
+    event = PreferenceEvent(
+        id=uuid4(),
+        user_id=participant.id,
+        recipe_version_id=source.id,
+        event_type="view",
+    )
+    db_session.add(event)
+    db_session.flush()
+
+    with pytest.raises(IntegrityError) as error:
+        with db_session.begin_nested():
+            db_session.execute(delete(RecipeVersion).where(RecipeVersion.id == source.id))
+
+    assert_constraint_name(
+        error.value,
+        "fk_preference_events_recipe_version_id_recipe_versions",
+    )
+
+    db_session.execute(delete(User).where(User.id == participant.id))
+
+    event_count = db_session.scalar(select(func.count()).select_from(PreferenceEvent))
+    assert event_count == 0

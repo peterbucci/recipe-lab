@@ -18,6 +18,7 @@ from app.models import (
     Ingredient,
     IngredientAlias,
     IngredientSubstitution,
+    PreferenceEvent,
     RecipeIngredient,
     RecipeRating,
     RecipeSave,
@@ -41,6 +42,7 @@ SEEDED_TABLE_COUNTS = {
     "ingredient_dietary_flags": 243,
     "ingredient_substitutions": 12,
     "ingredients": 99,
+    "preference_events": 0,
     "recipe_lineages": 25,
     "recipe_version_ingredients": 281,
     "recipe_version_instructions": 116,
@@ -183,6 +185,7 @@ def test_seed_rerun_preserves_demo_user_interactions(seed_engine: Engine) -> Non
         "recipe-version",
         "carrot-walnut-snack-cake-v1",
     )
+    event_id = uuid4()
     with Session(seed_engine) as session, session.begin():
         seed_catalog(session, catalog)
         session.add_all(
@@ -195,6 +198,12 @@ def test_seed_rerun_preserves_demo_user_interactions(seed_engine: Engine) -> Non
                     user_id=DEMO_USER_ID,
                     recipe_version_id=recipe_version_id,
                     rating=4,
+                ),
+                PreferenceEvent(
+                    id=event_id,
+                    user_id=DEMO_USER_ID,
+                    recipe_version_id=recipe_version_id,
+                    event_type="view",
                 ),
             ]
         )
@@ -214,10 +223,13 @@ def test_seed_rerun_preserves_demo_user_interactions(seed_engine: Engine) -> Non
                 "recipe_version_id": recipe_version_id,
             },
         )
+        original_event = session.get(PreferenceEvent, event_id)
         assert original_save is not None
         assert original_rating is not None
+        assert original_event is not None
         original_save_created_at = original_save.created_at
         original_rating_created_at = original_rating.created_at
+        original_event_occurred_at = original_event.occurred_at
 
     with Session(seed_engine) as session, session.begin():
         report = seed_catalog(session, catalog)
@@ -239,11 +251,14 @@ def test_seed_rerun_preserves_demo_user_interactions(seed_engine: Engine) -> Non
                 "recipe_version_id": recipe_version_id,
             },
         )
+        preserved_event = session.get(PreferenceEvent, event_id)
         assert preserved_save is not None
         assert preserved_save.created_at == original_save_created_at
         assert preserved_rating is not None
         assert preserved_rating.rating == 4
         assert preserved_rating.created_at == original_rating_created_at
+        assert preserved_event is not None
+        assert preserved_event.occurred_at == original_event_occurred_at
 
 
 def test_recipe_snapshot_drift_fails_and_rolls_back_repairs(

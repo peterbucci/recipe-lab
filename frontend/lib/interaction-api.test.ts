@@ -2,10 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   InteractionApiError,
+  recordRecipeView,
   type RecipeViewerState,
   setRecipeRating,
   setRecipeSaved,
 } from "./interaction-api";
+
+const IDEMPOTENCY_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 const viewerState: RecipeViewerState = {
   recipe_version_id: "29454eba-3a4e-5380-b48c-c49dc3697b17",
@@ -38,7 +41,9 @@ describe("interaction API client", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(setRecipeSaved(viewerState.recipe_version_id, saved)).resolves.toEqual(
+    await expect(
+      setRecipeSaved(viewerState.recipe_version_id, saved, IDEMPOTENCY_KEY),
+    ).resolves.toEqual(
       responseState,
     );
 
@@ -49,7 +54,10 @@ describe("interaction API client", () => {
       {
         method,
         cache: "no-store",
-        headers: { Accept: "application/json" },
+        headers: {
+          Accept: "application/json",
+          "Idempotency-Key": IDEMPOTENCY_KEY,
+        },
       },
     );
   });
@@ -64,7 +72,7 @@ describe("interaction API client", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await setRecipeRating(viewerState.recipe_version_id, 4);
+    await setRecipeRating(viewerState.recipe_version_id, 4, IDEMPOTENCY_KEY);
 
     expect(fetchMock).toHaveBeenCalledWith(
       new URL(
@@ -76,8 +84,35 @@ describe("interaction API client", () => {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
+          "Idempotency-Key": IDEMPOTENCY_KEY,
         },
         body: JSON.stringify({ rating: 4 }),
+      },
+    );
+  });
+
+  it("records a view without sending user or free-form context", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://api.example.test");
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(null, { status: 204 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      recordRecipeView(viewerState.recipe_version_id, IDEMPOTENCY_KEY),
+    ).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL(
+        `http://api.example.test/api/recipes/${viewerState.recipe_version_id}/view`,
+      ),
+      {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "Idempotency-Key": IDEMPOTENCY_KEY,
+        },
       },
     );
   });
@@ -97,9 +132,11 @@ describe("interaction API client", () => {
       .mockResolvedValueOnce(new Response("upstream failure", { status: 502 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const documentedError = await setRecipeSaved(viewerState.recipe_version_id, true).catch(
-      (reason: unknown) => reason,
-    );
+    const documentedError = await setRecipeSaved(
+      viewerState.recipe_version_id,
+      true,
+      IDEMPOTENCY_KEY,
+    ).catch((reason: unknown) => reason);
     expect(documentedError).toBeInstanceOf(InteractionApiError);
     expect(documentedError).toMatchObject({
       code: "demo_user_unavailable",
@@ -107,9 +144,11 @@ describe("interaction API client", () => {
       status: 503,
     });
 
-    const fallbackError = await setRecipeSaved(viewerState.recipe_version_id, false).catch(
-      (reason: unknown) => reason,
-    );
+    const fallbackError = await setRecipeSaved(
+      viewerState.recipe_version_id,
+      false,
+      IDEMPOTENCY_KEY,
+    ).catch((reason: unknown) => reason);
     expect(fallbackError).toMatchObject({
       code: "interaction_api_error",
       message: "The recipe service could not update your demo activity.",
