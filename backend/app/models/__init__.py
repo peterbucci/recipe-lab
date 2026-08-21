@@ -7,6 +7,7 @@ from app.models.ingredient import (
     IngredientCategory,
     IngredientSubstitution,
 )
+from app.models.preference_event import PREFERENCE_EVENT_TYPES, PreferenceEvent
 from app.models.recipe import (
     RecipeIngredient,
     RecipeInstruction,
@@ -24,6 +25,8 @@ __all__ = [
     "IngredientSubstitution",
     "MAX_RATING",
     "MIN_RATING",
+    "PREFERENCE_EVENT_TYPES",
+    "PreferenceEvent",
     "RecipeIngredient",
     "RecipeInstruction",
     "RecipeLineage",
