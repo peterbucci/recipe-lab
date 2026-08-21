@@ -1,10 +1,11 @@
 from dataclasses import dataclass
+from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, exists, func, or_, select
+from sqlalchemy import ColumnElement, Numeric, cast, exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
-from app.models import RecipeIngredient, RecipeVersion
+from app.models import RecipeIngredient, RecipeRating, RecipeVersion
 from app.repositories.ingredients import resolve_ingredient_name
 
 
@@ -12,6 +13,12 @@ from app.repositories.ingredients import resolve_ingredient_name
 class RecipeBrowseResult:
     items: list[RecipeVersion]
     total: int
+
+
+@dataclass(frozen=True, slots=True)
+class RecipeRatingAggregate:
+    average: Decimal | None
+    count: int
 
 
 def _escape_like(value: str) -> str:
@@ -93,3 +100,17 @@ def get_recipe_version(
         .where(RecipeVersion.id == recipe_version_id)
     )
     return session.scalar(statement)
+
+
+def get_recipe_rating_aggregate(
+    session: Session,
+    recipe_version_id: UUID,
+) -> RecipeRatingAggregate:
+    """Summarize ratings without loading individual user interactions."""
+
+    statement = select(
+        cast(func.avg(RecipeRating.rating), Numeric(3, 2)),
+        func.count(RecipeRating.user_id),
+    ).where(RecipeRating.recipe_version_id == recipe_version_id)
+    average, count = session.execute(statement).one()
+    return RecipeRatingAggregate(average=average, count=count)
