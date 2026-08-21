@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models import (
     MAX_RATING,
     MIN_RATING,
+    Ingredient,
     RecipeIngredient,
     RecipeInstruction,
     RecipeLineage,
@@ -25,6 +26,13 @@ def create_user(session: Session, email: str) -> User:
     session.add(user)
     session.flush()
     return user
+
+
+def create_ingredient(session: Session, canonical_name: str) -> Ingredient:
+    ingredient = Ingredient(canonical_name=canonical_name)
+    session.add(ingredient)
+    session.flush()
+    return ingredient
 
 
 def create_lineage_with_root(
@@ -240,9 +248,12 @@ def test_recipe_versions_cannot_be_inserted_as_a_cycle(db_session: Session) -> N
 def test_ingredient_fields_and_display_order_round_trip(db_session: Session) -> None:
     creator = create_user(db_session, "ingredients@example.com")
     _, version = create_lineage_with_root(db_session, creator, title="Structured Ingredients")
+    salt = create_ingredient(db_session, "Salt")
+    walnuts = create_ingredient(db_session, "Walnuts")
     version.ingredients.extend(
         [
             RecipeIngredient(
+                ingredient=salt,
                 name="Salt",
                 quantity=None,
                 unit=None,
@@ -250,6 +261,7 @@ def test_ingredient_fields_and_display_order_round_trip(db_session: Session) -> 
                 display_order=1,
             ),
             RecipeIngredient(
+                ingredient=walnuts,
                 name="Walnuts",
                 quantity=Decimal("0.1250"),
                 unit="cup",
@@ -263,6 +275,8 @@ def test_ingredient_fields_and_display_order_round_trip(db_session: Session) -> 
 
     first, second = version.ingredients
     assert first.name == "Walnuts"
+    assert first.ingredient_id == walnuts.id
+    assert first.ingredient.canonical_name == "Walnuts"
     assert first.quantity == Decimal("0.1250")
     assert first.unit == "cup"
     assert first.preparation_notes == "toasted and chopped"
@@ -270,13 +284,27 @@ def test_ingredient_fields_and_display_order_round_trip(db_session: Session) -> 
     assert second.quantity is None
     assert second.preparation_notes == "to taste"
 
+    with pytest.raises(IntegrityError) as error:
+        with db_session.begin_nested():
+            db_session.execute(delete(Ingredient).where(Ingredient.id == walnuts.id))
+
+    assert_constraint_name(
+        error.value,
+        "fk_recipe_version_ingredients_ingredient_id_ingredients",
+    )
+
 
 def test_ingredient_constraints_reject_invalid_rows(db_session: Session) -> None:
     creator = create_user(db_session, "ingredient-constraints@example.com")
     _, version = create_lineage_with_root(db_session, creator, title="Ingredient Constraints")
+    sugar = create_ingredient(db_session, "Sugar")
+    flour = create_ingredient(db_session, "Flour")
+    invalid_quantity = create_ingredient(db_session, "Invalid Quantity")
+    invalid_position = create_ingredient(db_session, "Invalid Position")
     db_session.add(
         RecipeIngredient(
             recipe_version_id=version.id,
+            ingredient_id=sugar.id,
             name="Sugar",
             quantity=Decimal("180.0000"),
             unit="g",
@@ -290,6 +318,7 @@ def test_ingredient_constraints_reject_invalid_rows(db_session: Session) -> None
         db_session,
         RecipeIngredient(
             recipe_version_id=version.id,
+            ingredient_id=flour.id,
             name="Flour",
             quantity=Decimal("250.0000"),
             unit="g",
@@ -302,6 +331,7 @@ def test_ingredient_constraints_reject_invalid_rows(db_session: Session) -> None
         db_session,
         RecipeIngredient(
             recipe_version_id=version.id,
+            ingredient_id=invalid_quantity.id,
             name="Invalid Quantity",
             quantity=Decimal("0.0000"),
             unit="g",
@@ -314,6 +344,7 @@ def test_ingredient_constraints_reject_invalid_rows(db_session: Session) -> None
         db_session,
         RecipeIngredient(
             recipe_version_id=version.id,
+            ingredient_id=invalid_position.id,
             name="Invalid Position",
             quantity=Decimal("1.0000"),
             unit=None,

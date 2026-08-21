@@ -26,9 +26,11 @@ walnuts with pecans, and preserve both the changes and the parent relationship.
 
 ### Product data before ML
 
-After the MVP works, Recipe Lab will record preference events such as views,
-saves, ratings, and forks. Ingredient metadata and explicit substitution
-relationships will be added with auditable source and confidence fields.
+Recipe Lab now has the schema needed to connect authored recipe text to
+canonical ingredients, aliases, broad categories, dietary flags, allergens,
+and directed substitution relationships. Curated catalog content remains a
+separate seed-data milestone. After the MVP works, the product will record
+preference events such as views, saves, ratings, and forks.
 
 ### ML after useful signals exist
 
@@ -57,12 +59,15 @@ The repository currently provides:
 - a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
   immutable recipe-version snapshots, ingredients, instructions, saves, and
   ratings;
+- a canonical ingredient catalog with normalized aliases, category and
+  dietary/allergen metadata, and explainable directed substitution edges;
 - Alembic migrations and database-level lineage, ordering, rating, and
   uniqueness constraints;
 - PostgreSQL and local development services through Docker Compose.
 
-Recipe APIs, seed data, and product screens remain separate milestones. This
-keeps the schema work focused on the smallest durable foundation for the MVP.
+Recipe APIs, production seed data, and product screens remain separate
+milestones. This keeps the schema work focused on the smallest durable
+foundation for the MVP.
 
 ## Quick start with Docker
 

@@ -26,6 +26,22 @@ from naming a parent in another lineage, while a partial unique index permits
 only one root per lineage. Ingredients and instructions belong to a specific
 snapshot and have stable display positions.
 
+Each recipe ingredient retains the cook-facing name from that snapshot and
+also references one canonical ingredient. The catalog normalizes canonical
+names and exact aliases for lookup, uses data-backed vocabularies for one broad
+category plus dietary and allergen assignments, and avoids fixed database
+enums. An absent dietary or allergen assignment means the metadata is unknown;
+it is not a safety claim.
+
+Ingredient substitutions are curated, directed relationships. They store a
+replacement with a positive quantity ratio or written guidance and require
+provenance or confidence. The lookup layer returns only explicitly recorded
+outgoing edges and never invents reverse or transitive substitutions. Curated
+catalog rows and their sources are deferred to the seed-data milestone. For
+compatible units, replacement quantity equals source quantity multiplied by
+`quantity_ratio`; otherwise an edge must communicate the conversion in its
+guidance.
+
 Application services must create a new version rather than edit an existing
 snapshot. PostgreSQL prevents changes to a stored version's ID, lineage, or
 parent, and a recursive constraint trigger rejects cyclic bulk inserts. These
@@ -59,7 +75,6 @@ hidden dependency of core recipe creation.
 ## Early design decisions to record
 
 - Unit normalization and display-unit preservation.
-- Ingredient identity versus free-form preparation notes.
 - Variant immutability and edit behavior.
 - Rating scale and event semantics.
 - Recipe and metadata provenance.
