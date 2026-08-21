@@ -1,10 +1,18 @@
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, func, select, text
 from sqlalchemy.orm import InstrumentedAttribute, Session
 
+from app.core.demo_identity import (
+    DEMO_USER_CREATED_AT,
+    DEMO_USER_DISPLAY_NAME,
+    DEMO_USER_EMAIL,
+    DEMO_USER_ID,
+    DEMO_USER_KEY,
+)
 from app.models import (
     Allergen,
     DietaryFlag,
@@ -29,9 +37,9 @@ from app.seeds.schema import (
     SubstitutionSeed,
 )
 
-SEED_USER_KEY = "catalog-author"
-SEED_USER_EMAIL = "demo-catalog@recipe-lab.invalid"
-SEED_USER_DISPLAY_NAME = "Recipe Lab Demo Catalog"
+CATALOG_USER_KEY = "catalog-author"
+CATALOG_USER_EMAIL = "demo-catalog@recipe-lab.invalid"
+CATALOG_USER_DISPLAY_NAME = "Recipe Lab Demo Catalog"
 SEED_ADVISORY_LOCK_ID = 0x52435005
 
 
@@ -154,38 +162,73 @@ def _get_or_create_allergen(
     return created
 
 
-def _get_or_create_seed_user(
+def _get_or_create_user(
     session: Session,
-    catalog: SeedCatalog,
     report: SeedReport,
+    *,
+    stable_key: str,
+    expected_id: UUID,
+    email: str,
+    display_name: str,
+    created_at: datetime,
 ) -> User:
-    expected_id = seed_uuid(catalog.metadata.dataset_id, "user", SEED_USER_KEY)
     by_id = session.get(User, expected_id)
-    by_email = session.scalar(select(User).where(User.email == SEED_USER_EMAIL))
+    by_email = session.scalar(select(User).where(User.email == email))
     if by_id is not None:
         if (
-            by_id.email != SEED_USER_EMAIL
-            or by_id.display_name != SEED_USER_DISPLAY_NAME
-            or by_id.created_at != catalog.published_at
+            by_id.email != email
+            or by_id.display_name != display_name
+            or by_id.created_at != created_at
         ):
-            raise _conflict("user", SEED_USER_KEY, "deterministic UUID has different content")
+            raise _conflict("user", stable_key, "deterministic UUID has different content")
         if by_email is not None and by_email.id != by_id.id:
-            raise _conflict("user", SEED_USER_KEY, "seed email belongs to another user")
+            raise _conflict("user", stable_key, "seed email belongs to another user")
         report.reused["users"] += 1
         return by_id
     if by_email is not None:
-        raise _conflict("user", SEED_USER_KEY, "seed email has a non-deterministic UUID")
+        raise _conflict("user", stable_key, "seed email has a non-deterministic UUID")
 
     created = User(
         id=expected_id,
-        email=SEED_USER_EMAIL,
-        display_name=SEED_USER_DISPLAY_NAME,
-        created_at=catalog.published_at,
+        email=email,
+        display_name=display_name,
+        created_at=created_at,
     )
     session.add(created)
     session.flush()
     report.created["users"] += 1
     return created
+
+
+def _get_or_create_catalog_user(
+    session: Session,
+    catalog: SeedCatalog,
+    report: SeedReport,
+) -> User:
+    return _get_or_create_user(
+        session,
+        report,
+        stable_key=CATALOG_USER_KEY,
+        expected_id=seed_uuid(catalog.metadata.dataset_id, "user", CATALOG_USER_KEY),
+        email=CATALOG_USER_EMAIL,
+        display_name=CATALOG_USER_DISPLAY_NAME,
+        created_at=catalog.published_at,
+    )
+
+
+def _get_or_create_demo_user(
+    session: Session,
+    report: SeedReport,
+) -> User:
+    return _get_or_create_user(
+        session,
+        report,
+        stable_key=DEMO_USER_KEY,
+        expected_id=DEMO_USER_ID,
+        email=DEMO_USER_EMAIL,
+        display_name=DEMO_USER_DISPLAY_NAME,
+        created_at=DEMO_USER_CREATED_AT,
+    )
 
 
 def _get_or_create_ingredient(
@@ -614,7 +657,8 @@ def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
         {"lock_id": SEED_ADVISORY_LOCK_ID},
     )
     report = SeedReport()
-    user = _get_or_create_seed_user(session, catalog, report)
+    user = _get_or_create_catalog_user(session, catalog, report)
+    _get_or_create_demo_user(session, report)
     categories = {
         seed.key: _get_or_create_category(session, catalog, seed, report)
         for seed in catalog.categories

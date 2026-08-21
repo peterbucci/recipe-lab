@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import StringConstraints
 from sqlalchemy.orm import Session
 
+from app.api.demo_context import get_demo_user_or_error, recipe_viewer_state_response
 from app.api.dependencies import get_session
 from app.api.errors import ApiError
 from app.models import RecipeIngredient, RecipeInstruction, RecipeVersion
@@ -56,6 +57,10 @@ DETAIL_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     404: {
         "model": ErrorResponse,
         "description": "The requested recipe version does not exist.",
+    },
+    503: {
+        "model": ErrorResponse,
+        "description": "The seeded demo identity is unavailable.",
     },
 }
 
@@ -158,11 +163,17 @@ def recipe_detail(
             message=f"Recipe version {recipe_version_id} was not found.",
         )
 
+    user = get_demo_user_or_error(session)
     rating = get_recipe_rating_aggregate(session, recipe_version_id)
     return RecipeDetailResponse(
         **_summary(version).model_dump(),
         average_rating=float(rating.average) if rating.average is not None else None,
         rating_count=rating.count,
+        viewer_state=recipe_viewer_state_response(
+            session,
+            user=user,
+            recipe_version_id=recipe_version_id,
+        ),
         parent=_reference(version.parent) if version.parent is not None else None,
         children=[_reference(child) for child in version.descendants],
         ingredients=[_ingredient(item) for item in version.ingredients],

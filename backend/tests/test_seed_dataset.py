@@ -8,9 +8,10 @@ from uuid import UUID
 import pytest
 from pydantic import ValidationError
 
+from app.core.demo_identity import DEMO_USER_ID, DEMO_USER_KEY
 from app.seeds.catalog import load_bundled_catalog
 from app.seeds.identifiers import SEED_NAMESPACE, seed_uuid
-from app.seeds.loader import SEED_USER_KEY
+from app.seeds.loader import CATALOG_USER_KEY
 from app.seeds.schema import RecipeSeed, SeedCatalog
 
 EXPECTED_RECIPE_VERSIONS = 34
@@ -50,7 +51,10 @@ def _record_list(raw_catalog: dict[str, Any], key: str) -> list[dict[str, Any]]:
 
 def _all_seed_ids(catalog: SeedCatalog) -> list[UUID]:
     dataset_id = catalog.metadata.dataset_id
-    identifiers = [seed_uuid(dataset_id, "user", SEED_USER_KEY)]
+    identifiers = [
+        seed_uuid(dataset_id, "user", CATALOG_USER_KEY),
+        seed_uuid(dataset_id, "user", DEMO_USER_KEY),
+    ]
     identifiers.extend(
         seed_uuid(dataset_id, "ingredient-category", category.key)
         for category in catalog.categories
@@ -287,9 +291,10 @@ def test_all_seed_owned_ids_are_unique_uuid5_values_with_stable_sentinels(
     assert len(identifiers) == len(set(identifiers))
 
     dataset_id = seed_catalog.metadata.dataset_id
-    assert seed_uuid(dataset_id, "user", SEED_USER_KEY) == UUID(
+    assert seed_uuid(dataset_id, "user", CATALOG_USER_KEY) == UUID(
         "16746db2-8776-5937-856c-252b72442671"
     )
+    assert seed_uuid(dataset_id, "user", DEMO_USER_KEY) == DEMO_USER_ID
     assert seed_uuid(dataset_id, "ingredient", "walnut") == UUID(
         "67a0963f-33ad-58ba-ac2b-3998d2e18757"
     )

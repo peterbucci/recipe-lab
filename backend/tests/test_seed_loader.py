@@ -8,13 +8,21 @@ from alembic.config import Config
 from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session
 
+from app.core.demo_identity import (
+    DEMO_USER_DISPLAY_NAME,
+    DEMO_USER_EMAIL,
+    DEMO_USER_ID,
+)
 from app.db.base import Base
 from app.models import (
     Ingredient,
     IngredientAlias,
     IngredientSubstitution,
     RecipeIngredient,
+    RecipeRating,
+    RecipeSave,
     RecipeVersion,
+    User,
 )
 from app.repositories.ingredients import (
     list_direct_substitutions,
@@ -22,6 +30,7 @@ from app.repositories.ingredients import (
 )
 from app.seeds import SeedConflictError, load_bundled_catalog, seed_catalog
 from app.seeds.identifiers import seed_uuid
+from app.seeds.loader import CATALOG_USER_KEY
 
 SEEDED_TABLE_COUNTS = {
     "allergens": 8,
@@ -36,7 +45,7 @@ SEEDED_TABLE_COUNTS = {
     "recipe_version_ingredients": 281,
     "recipe_version_instructions": 116,
     "recipe_versions": 34,
-    "users": 1,
+    "users": 2,
 }
 
 SEEDED_TABLES = tuple(SEEDED_TABLE_COUNTS)
@@ -112,12 +121,19 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
     with Session(seed_engine) as session:
         assert table_counts(session) == SEEDED_TABLE_COUNTS
 
+        catalog_user_id = seed_uuid(dataset_id, "user", CATALOG_USER_KEY)
+        demo_user = session.get(User, DEMO_USER_ID)
         carrot_root = session.get(RecipeVersion, carrot_root_id)
         lower_sugar = session.get(RecipeVersion, lower_sugar_id)
         orange_raisin = session.get(RecipeVersion, orange_raisin_id)
         pasta_v2 = session.get(RecipeVersion, pasta_v2_id)
         pasta_v3 = session.get(RecipeVersion, pasta_v3_id)
         assert carrot_root is not None
+        assert demo_user is not None
+        assert demo_user.email == DEMO_USER_EMAIL
+        assert demo_user.display_name == DEMO_USER_DISPLAY_NAME
+        assert demo_user.id != catalog_user_id
+        assert carrot_root.created_by_user_id == catalog_user_id
         assert lower_sugar is not None
         assert orange_raisin is not None
         assert pasta_v2 is not None
@@ -158,6 +174,76 @@ def test_second_committed_seed_load_is_an_exact_no_op(seed_engine: Engine) -> No
     assert second_report.created_total == 0
     assert second_report.reused_total == sum(SEEDED_TABLE_COUNTS.values())
     assert second_snapshot == first_snapshot
+
+
+def test_seed_rerun_preserves_demo_user_interactions(seed_engine: Engine) -> None:
+    catalog = load_bundled_catalog()
+    recipe_version_id = seed_uuid(
+        catalog.metadata.dataset_id,
+        "recipe-version",
+        "carrot-walnut-snack-cake-v1",
+    )
+    with Session(seed_engine) as session, session.begin():
+        seed_catalog(session, catalog)
+        session.add_all(
+            [
+                RecipeSave(
+                    user_id=DEMO_USER_ID,
+                    recipe_version_id=recipe_version_id,
+                ),
+                RecipeRating(
+                    user_id=DEMO_USER_ID,
+                    recipe_version_id=recipe_version_id,
+                    rating=4,
+                ),
+            ]
+        )
+
+    with Session(seed_engine) as session:
+        original_save = session.get(
+            RecipeSave,
+            {
+                "user_id": DEMO_USER_ID,
+                "recipe_version_id": recipe_version_id,
+            },
+        )
+        original_rating = session.get(
+            RecipeRating,
+            {
+                "user_id": DEMO_USER_ID,
+                "recipe_version_id": recipe_version_id,
+            },
+        )
+        assert original_save is not None
+        assert original_rating is not None
+        original_save_created_at = original_save.created_at
+        original_rating_created_at = original_rating.created_at
+
+    with Session(seed_engine) as session, session.begin():
+        report = seed_catalog(session, catalog)
+
+    assert report.created_total == 0
+    assert report.reused_total == sum(SEEDED_TABLE_COUNTS.values())
+    with Session(seed_engine) as session:
+        preserved_save = session.get(
+            RecipeSave,
+            {
+                "user_id": DEMO_USER_ID,
+                "recipe_version_id": recipe_version_id,
+            },
+        )
+        preserved_rating = session.get(
+            RecipeRating,
+            {
+                "user_id": DEMO_USER_ID,
+                "recipe_version_id": recipe_version_id,
+            },
+        )
+        assert preserved_save is not None
+        assert preserved_save.created_at == original_save_created_at
+        assert preserved_rating is not None
+        assert preserved_rating.rating == 4
+        assert preserved_rating.created_at == original_rating_created_at
 
 
 def test_recipe_snapshot_drift_fails_and_rolls_back_repairs(

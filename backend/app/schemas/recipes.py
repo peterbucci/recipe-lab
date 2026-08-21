@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.interactions import RecipeViewerStateResponse
+
 
 class RecipeSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -77,6 +79,7 @@ class RecipeDetailResponse(RecipeSummary):
         ge=0,
         description="Number of ratings included in the aggregate.",
     )
+    viewer_state: RecipeViewerStateResponse
     parent: RecipeVersionReference | None
     children: list[RecipeVersionReference]
     ingredients: list[RecipeIngredientResponse]
