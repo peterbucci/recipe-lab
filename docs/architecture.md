@@ -111,6 +111,17 @@ validated request, then creates the child and its event in one transaction.
 An exact action-key retry returns that child; a changed source or payload with
 the same key is rejected. Different action keys remain distinct authored forks.
 
+Recommendation reads are a separate, read-only application service exposed by
+`GET /api/recommendations`. The `baseline-v1` service aggregates current ratings
+and saves with distinct-user view and fork support, applies the documented
+Bayesian and candidate-wide normalization rules, and optionally adds a bounded
+canonical-ingredient Jaccard match against positive shared-demo history. It
+excludes exact interacted versions, rounds scores to six decimal places, and
+uses fixed component/title/version/ID tie-breaks. The response exposes a recipe
+summary, score, components, and short reason, never raw events or user
+identifiers. The full formula is recorded in
+[baseline recommendations](recommendations.md).
+
 ### Database
 
 PostgreSQL is the system of record. SQLAlchemy 2.x provides persistence and
@@ -200,10 +211,10 @@ the job instead of attempting fragile row-by-row cleanup of immutable history.
 ### ML workspace
 
 The `ml` directory remains separate from request-serving code. Stable event
-capture is now available, but a non-ML baseline and offline evaluation contract
-still come before any recommender enters the product path. The first
-recommender should expose the same interface expected of later models so
-baseline comparisons remain honest.
+capture and a non-ML request-time baseline are now available. The baseline has
+no trained artifact or dependency on the `ml` workspace; it establishes the
+stable response interface and comparison point for later approaches. Offline
+evaluation still precedes any claim that a learned recommender is better.
 
 ## Initial request path
 
@@ -212,6 +223,7 @@ Server-rendered read: Browser -> Next.js -> FastAPI -> SQLAlchemy -> PostgreSQL
 Demo interaction:     Browser ----------> FastAPI -> SQLAlchemy -> PostgreSQL
 Variant creation:     Browser ----------> FastAPI -> SQLAlchemy -> PostgreSQL
 Version comparison:   Browser -> Next.js -> FastAPI -> SQLAlchemy -> PostgreSQL
+Recommendation read:  API client -------> FastAPI -> SQLAlchemy -> PostgreSQL
 ```
 
 Future offline training reads versioned product data and writes versioned model

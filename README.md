@@ -31,14 +31,16 @@ canonical ingredients, aliases, broad categories, dietary flags, allergens,
 and directed substitution relationships. A curated, deterministic demo catalog
 now exercises that structure. The product also records privacy-bounded,
 timestamped view, save, rating, and fork events with retry-safe action IDs.
-Those signals are stored for later evaluation; they do not activate an ML
-system in the request path.
+Those signals now feed a deterministic, documented `baseline-v1` recommendation
+read for the shared demo profile. The baseline is request-time scoring, not a
+trained ML system.
 
 ### ML after useful signals exist
 
 The ML roadmap begins with a transparent popularity or rule-based baseline,
-then moves to content-based, collaborative, and hybrid recommenders. Offline
-evaluation must be in place before a more complex model is considered better.
+which is now available as the comparison point for later work. Content-based,
+collaborative, and hybrid recommenders remain deferred, and offline evaluation
+must be in place before a more complex model is considered better.
 
 ## Repository layout
 
@@ -77,6 +79,9 @@ The repository currently provides:
 - append-only, server-timestamped preference events for explicit detail views,
   saves, ratings, and forks, with typed context and UUID action-key replay
   protection rather than free-form tracking data;
+- a read-only `baseline-v1` recommendation API with documented Bayesian quality,
+  normalized support, and bounded canonical-ingredient similarity signals,
+  deterministic cold-start ordering, and a short reason for every result;
 - a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
   immutable recipe-version snapshots, ingredients, instructions, saves, and
   ratings plus their separate interaction history;
@@ -110,6 +115,7 @@ Open:
 - Recipe catalog: <http://localhost:3000/recipes>
 - API health check: <http://localhost:8000/api/health>
 - Recipe browse API: <http://localhost:8000/api/recipes>
+- Baseline recommendation API: <http://localhost:8000/api/recommendations>
 - Scoped demo identity: <http://localhost:8000/api/me>
 - Interactive API docs: <http://localhost:8000/docs>
 
@@ -228,4 +234,6 @@ WCAG A/AA checks. M1 is not considered complete unless this job passes.
   defaults, not production values.
 
 See [MVP scope](docs/mvp-scope.md) and [architecture](docs/architecture.md) for
-the initial boundaries and planned component responsibilities.
+the initial boundaries and component responsibilities. The exact scoring and
+cold-start contract is documented in
+[baseline recommendations](docs/recommendations.md).

@@ -21,7 +21,7 @@ variant, and compared with its parent in a way that is useful to a cook.
 
 ## Explicitly deferred
 
-- Personalized recommendations.
+- Learned, authenticated-account, and frontend recommendation experiences.
 - Automated substitution suggestions.
 - Social feeds, comments, and following.
 - Grocery lists and meal planning.
@@ -41,6 +41,16 @@ through the browser, frontend, API, and PostgreSQL against a freshly migrated
 and seeded disposable database. It also checks keyboard activation and WCAG
 A/AA rules. The milestone is not complete unless that job passes; ML work is
 not part of the gate.
+
+## Post-MVP signal baseline
+
+RCP-15 adds a read-only, explainable recommendation API after the M1 boundary.
+It ranks recipe versions with deterministic Bayesian quality and normalized
+support signals, then applies a bounded canonical-ingredient match when the
+shared demo profile has positive history. It does not change the M1 browser
+journey or add a frontend recommendation surface, authentication, training,
+offline evaluation, or a learned model. See
+[baseline recommendations](recommendations.md) for the exact contract.
 
 ## Exit criteria before ML work
 

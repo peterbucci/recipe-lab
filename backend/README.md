@@ -157,6 +157,36 @@ loads in the browser, so server rendering, link prefetching, and API reads do
 not silently count as views. A new action UUID represents a distinct action;
 an exact retry must reuse the original UUID.
 
+## Baseline recommendation API
+
+`GET /api/recommendations?limit=10` returns deterministic recommendations for
+the shared demo profile. The response names the strategy `baseline-v1`; each
+item includes a recipe-version summary, six-decimal score and components, and a
+short reason. The response also publishes the weights and whether positive
+history personalized the ranking. Exact recipe versions already present in the
+profile's activity are not returned. The limit defaults to 10, accepts 1 through
+50, and uses the standard 422 response when invalid; a missing demo identity
+returns 503.
+
+The global component gives 55% weight to Bayesian-smoothed rating quality, 20%
+to normalized distinct active savers, 15% to normalized distinct users who
+forked the version, and 10% to normalized distinct viewers. Support counts are
+normalized independently by the candidate-wide maximum. Rating quality uses a
+mean-3, strength-5 prior before mapping the one-to-five result onto zero through
+one.
+
+When positive demo history exists, the final score gives 60% to that global
+component and 40% to the strongest canonical-ingredient Jaccard match. History
+strength is 1.0 for an active save, rating of 5, fork source, or fork child; 0.5
+for a rating of 4; and 0.25 for a view. Cold-start requests use the global score
+alone. Decimal `ROUND_HALF_UP` rounding and fixed component, title, version, and
+UUID tie-breaks make an unchanged database snapshot reproducible.
+
+This is a read-only, request-time baseline. It adds no table, model artifact,
+training job, evaluation run, personal telemetry, or frontend feature. See
+[baseline recommendations](../docs/recommendations.md) for the complete formula,
+candidate rules, and limitations of the shared demo identity.
+
 ## Recipe variant creation
 
 `POST /api/recipes/{recipe_version_id}/variants` creates a new child of an
