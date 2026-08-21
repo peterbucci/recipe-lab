@@ -4,10 +4,17 @@
 
 ### Web application
 
-The Next.js application owns browser rendering and user interactions. It calls
-the API through the configured `NEXT_PUBLIC_API_URL`. Server and client
-components should be chosen per feature rather than making the whole app
-client-rendered.
+The Next.js application owns rendering and user interactions. Recipe browse
+and detail routes are server components that call the API through the private
+`RECIPE_API_URL`; Docker Compose points that value at the backend service while
+host-direct development defaults to `http://localhost:8000`.
+
+Catalog search and pagination live in the URL, so standard links and a GET form
+work without shipping client-side state. Recipe reads use `no-store` because
+catalog membership, lineage children, and rating aggregates may change even
+though a single recipe-version snapshot is immutable. Client code is reserved
+for the retrying error boundary. `NEXT_PUBLIC_API_URL` remains available for
+future browser-originated interactions.
 
 ### API
 
@@ -25,8 +32,10 @@ Detail reads eager-load the scalar parent and select-load ordered ingredients,
 instructions, and direct children. This keeps the query count bounded without
 creating a Cartesian product between collections. API schemas preserve exact
 decimal values as JSON strings and expose the authored ingredient name beside
-its canonical identity. Validation and not-found failures share one documented
-error envelope while retaining their semantic HTTP status codes.
+its canonical identity. A separate aggregate query returns only rating count
+and average, never individual interaction records. Validation and not-found
+failures share one documented error envelope while retaining their semantic
+HTTP status codes.
 
 ### Database
 
