@@ -55,7 +55,12 @@ recipe-lab/
 The repository currently provides:
 
 - a responsive Next.js landing page, searchable recipe catalog, and structured
-  recipe detail pages with loading, empty, error, rating, and lineage states;
+  recipe detail pages with loading, empty, error, rating, and immediate
+  parent/current/direct-child lineage states;
+- a dedicated `/recipes/{id}/fork` workflow with controlled structured edits
+  for recipe details, ingredients, and instructions; validation failures keep
+  the entered draft intact, while a successful `201 Created` response opens
+  the new child version;
 - FastAPI health, paginated recipe-browse, and structured recipe-detail
   endpoints with documented response and error schemas;
 - a transactional recipe-forking endpoint that copies a complete snapshot,
@@ -73,9 +78,9 @@ The repository currently provides:
 
 The repository also includes a deterministic demo catalog with 25 recipe
 lineages, useful variants, ingredient aliases, and directed substitutions.
-Original-recipe creation, the variant editor, and diff presentation remain
-separate milestones. This keeps each story focused on the smallest durable
-foundation for the MVP.
+Original-recipe creation and diff presentation remain separate milestones. The
+variant workflow deliberately omits graph visualization, row reordering,
+autosave, and ML so the core fork-and-navigate path stays focused on the MVP.
 
 ## Quick start with Docker
 

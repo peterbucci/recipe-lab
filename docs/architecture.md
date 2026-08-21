@@ -13,11 +13,26 @@ Catalog search and pagination live in the URL, so standard links and a GET form
 work without shipping client-side state. Recipe reads use `no-store` because
 catalog membership, lineage children, and rating aggregates may change even
 though a single recipe-version snapshot is immutable. Client code is reserved
-for the retrying error boundary and a narrow save/rating panel on recipe detail
-pages. Server components read through `RECIPE_API_URL`; the client panel writes
-directly to FastAPI through `NEXT_PUBLIC_API_URL` and refreshes server-rendered
-rating aggregates after a successful rating. Local CORS configuration permits
-the exact `localhost` and `127.0.0.1` development origins.
+for the retrying error boundary, a narrow save/rating panel, and the structured
+variant editor. Server components read through `RECIPE_API_URL`; client
+mutations write directly to FastAPI through `NEXT_PUBLIC_API_URL`. Rating writes
+refresh the server-rendered aggregate after success. Local CORS configuration
+permits the exact `localhost` and `127.0.0.1` development origins.
+
+The dedicated `/recipes/{recipeVersionId}/fork` server route loads the immutable
+source snapshot and passes it to a controlled client form. The editor keeps raw
+entered values in local state, validates them without resetting the draft, and
+derives typed quantity, unit, replacement, addition, removal, and instruction
+operations only at submission. API validation errors leave those values in
+place. A `201 Created` response supplies the child identifier, which the router
+uses to replace the editor route with the new recipe detail page. The source
+snapshot remains unchanged, while the API retains control of lineage, version
+number, display order, and demo-author attribution.
+
+Recipe detail pages render the available parent, current version, and direct
+children as an accessible semantic list. This intentionally communicates one
+generation at a time; a full graph, row reordering, autosave, and ML-assisted
+editing are outside the current workflow.
 
 ### API
 
@@ -123,6 +138,7 @@ honest.
 ```text
 Server-rendered read: Browser -> Next.js -> FastAPI -> SQLAlchemy -> PostgreSQL
 Demo interaction:     Browser ----------> FastAPI -> SQLAlchemy -> PostgreSQL
+Variant creation:     Browser ----------> FastAPI -> SQLAlchemy -> PostgreSQL
 ```
 
 Future offline training reads versioned product data and writes versioned model
@@ -132,7 +148,7 @@ hidden dependency of core recipe creation.
 ## Early design decisions to record
 
 - Unit normalization and display-unit preservation.
-- Variant immutability and edit behavior.
+- Original-recipe creation and content-update enforcement.
 - Rating scale and event semantics.
 - Recipe and metadata provenance.
 - Recommendation evaluation metrics and split strategy.

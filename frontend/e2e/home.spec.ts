@@ -6,6 +6,9 @@ import {
   type Page,
 } from "@playwright/test";
 
+import type { RecipeDetail } from "../lib/recipe-api";
+import type { RecipeVariantCreateRequest } from "../lib/variant-api";
+
 const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000").replace(
   /\/+$/,
   "",
@@ -51,6 +54,21 @@ async function setRating(
     request.put(ratingUrl(recipeVersionId), { data: { rating } }),
     action,
   );
+}
+
+async function fetchRecipeDetail(
+  request: APIRequestContext,
+  recipeVersionId: string,
+): Promise<RecipeDetail> {
+  const response = await request.get(
+    `${apiBaseUrl}/api/recipes/${encodeURIComponent(recipeVersionId)}`,
+  );
+  if (!response.ok()) {
+    throw new Error(
+      `Recipe detail request failed with ${response.status()}: ${await response.text()}`,
+    );
+  }
+  return (await response.json()) as RecipeDetail;
 }
 
 test("browses, searches, and opens a structured recipe", async ({ page }) => {
@@ -149,6 +167,154 @@ test("persists shared demo saves and rating updates", async ({ page, request }) 
   }
 });
 
+test("preserves variant edits after validation and opens the created child", async ({
+  page,
+  request,
+}) => {
+  const sourceRecipeVersionId = await openCarrotRoot(page);
+  const sourceRecipe = await fetchRecipeDetail(request, sourceRecipeVersionId);
+  const seededChildReference = sourceRecipe.children.find((child) =>
+    child.title.toLocaleLowerCase().includes("lower-sugar pecan"),
+  );
+  if (!seededChildReference) {
+    throw new Error("The seeded lower-sugar pecan child variant is unavailable.");
+  }
+  const seededChild = await fetchRecipeDetail(request, seededChildReference.id);
+  const sugar = sourceRecipe.ingredients.find(
+    (ingredient) => ingredient.canonical_name === "Granulated sugar",
+  );
+  const walnut = sourceRecipe.ingredients.find(
+    (ingredient) => ingredient.canonical_name === "Walnut",
+  );
+  const firstInstruction = sourceRecipe.instructions[0];
+  if (!sugar || !walnut || !firstInstruction) {
+    throw new Error("The seeded carrot recipe is missing the rows required by this test.");
+  }
+
+  let postAttempts = 0;
+  const submittedPayloads: RecipeVariantCreateRequest[] = [];
+  await page.route(
+    `**/api/recipes/${encodeURIComponent(sourceRecipeVersionId)}/variants`,
+    async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
+      }
+
+      postAttempts += 1;
+      submittedPayloads.push(
+        route.request().postDataJSON() as RecipeVariantCreateRequest,
+      );
+      const headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Content-Type": "application/json",
+      };
+      if (postAttempts === 1) {
+        await route.fulfill({
+          status: 422,
+          headers,
+          body: JSON.stringify({
+            error: {
+              code: "invalid_recipe_edits",
+              message: "The test ingredient edit is invalid.",
+              issues: [],
+            },
+          }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 201,
+        headers,
+        body: JSON.stringify(seededChild),
+      });
+    },
+  );
+
+  await page.getByRole("link", { name: "Create a variant", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Create a variant", level: 1 })).toBeVisible();
+  await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
+    `${sourceRecipe.title} variant`,
+  );
+  await expect(page.getByLabel("Description", { exact: true })).toHaveValue(
+    sourceRecipe.description ?? "",
+  );
+  await expect(page.getByLabel("Servings", { exact: true })).toHaveValue(
+    sourceRecipe.servings,
+  );
+
+  const sugarRow = page.getByRole("group", {
+    name: new RegExp(`^Ingredient ${sugar.display_order + 1}:`),
+  });
+  const walnutRow = page.getByRole("group", {
+    name: new RegExp(`^Ingredient ${walnut.display_order + 1}:`),
+  });
+  const variantTitle = "E2E Orange Pecan Carrot Cake";
+  const changedInstruction = "Fold gently until the batter is just combined.";
+  await page.getByLabel("Title", { exact: true }).fill(variantTitle);
+  await sugarRow.getByLabel("Quantity", { exact: true }).fill("125.5");
+  await sugarRow.getByLabel("Unit", { exact: true }).fill("cup");
+  await walnutRow
+    .getByLabel("Replacement ingredient (optional)", { exact: true })
+    .fill("Pecan");
+  await page.getByLabel("Step 1", { exact: true }).fill(changedInstruction);
+
+  await page.getByRole("button", { name: "Create variant", exact: true }).click();
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "Check the variant before creating it" }),
+  ).toContainText("The test ingredient edit is invalid.");
+  await expect(page.getByLabel("Title", { exact: true })).toHaveValue(variantTitle);
+  await expect(sugarRow.getByLabel("Quantity", { exact: true })).toHaveValue("125.5");
+  await expect(sugarRow.getByLabel("Unit", { exact: true })).toHaveValue("cup");
+  await expect(
+    walnutRow.getByLabel("Replacement ingredient (optional)", { exact: true }),
+  ).toHaveValue("Pecan");
+  await expect(page.getByLabel("Step 1", { exact: true })).toHaveValue(
+    changedInstruction,
+  );
+
+  const expectedPayload: RecipeVariantCreateRequest = {
+    title: variantTitle,
+    description: sourceRecipe.description,
+    servings: sourceRecipe.servings,
+    ingredient_edits: [
+      {
+        op: "set_quantity",
+        recipe_ingredient_id: sugar.id,
+        quantity: "125.5",
+      },
+      {
+        op: "set_unit",
+        recipe_ingredient_id: sugar.id,
+        unit: "cup",
+      },
+      {
+        op: "replace",
+        recipe_ingredient_id: walnut.id,
+        ingredient_name: "Pecan",
+      },
+    ],
+    instruction_edits: [
+      {
+        op: "update",
+        recipe_instruction_id: firstInstruction.id,
+        text: changedInstruction,
+      },
+    ],
+  };
+  expect(submittedPayloads).toEqual([expectedPayload]);
+
+  await page.getByRole("button", { name: "Create variant", exact: true }).click();
+  await expect(page).toHaveURL(`/recipes/${seededChild.id}`);
+  await expect(
+    page.getByRole("heading", { name: seededChild.title, level: 1 }),
+  ).toBeVisible();
+  expect(submittedPayloads).toEqual([expectedPayload, expectedPayload]);
+});
+
 test("keeps the recipe catalog usable at a phone viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/recipes?q=carrot");
@@ -176,6 +342,22 @@ test("keeps the recipe catalog usable at a phone viewport", async ({ page }) => 
   expect(interactionPanel).not.toBeNull();
   expect(interactionPanel!.x).toBeGreaterThanOrEqual(0);
   expect(interactionPanel!.x + interactionPanel!.width).toBeLessThanOrEqual(390);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
+
+  await page.getByRole("link", { name: "Create a variant", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Create a variant", level: 1 })).toBeVisible();
+  await expect(page.getByLabel("Title", { exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: /^Ingredient 1:/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create variant", exact: true })).toBeVisible();
+
+  const editor = await page.locator(".variant-editor").boundingBox();
+  expect(editor).not.toBeNull();
+  expect(editor!.x).toBeGreaterThanOrEqual(0);
+  expect(editor!.x + editor!.width).toBeLessThanOrEqual(390);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
