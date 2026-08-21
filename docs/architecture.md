@@ -4,16 +4,16 @@
 
 ### Web application
 
-The Next.js application owns rendering and user interactions. Recipe browse
-and detail routes are server components that call the API through the private
-`RECIPE_API_URL`; Docker Compose points that value at the backend service while
-host-direct development defaults to `http://localhost:8000`.
+The Next.js application owns rendering and user interactions. Recipe browse,
+detail, and comparison routes are server components that call the API through
+the private `RECIPE_API_URL`; Docker Compose points that value at the backend
+service while host-direct development defaults to `http://localhost:8000`.
 
 Catalog search and pagination live in the URL, so standard links and a GET form
 work without shipping client-side state. Recipe reads use `no-store` because
 catalog membership, lineage children, and rating aggregates may change even
 though a single recipe-version snapshot is immutable. Client code is reserved
-for the retrying error boundary, a narrow save/rating panel, and the structured
+for retrying error boundaries, a narrow save/rating panel, and the structured
 variant editor. Server components read through `RECIPE_API_URL`; client
 mutations write directly to FastAPI through `NEXT_PUBLIC_API_URL`. Rating writes
 refresh the server-rendered aggregate after success. Local CORS configuration
@@ -33,6 +33,17 @@ Recipe detail pages render the available parent, current version, and direct
 children as an accessible semantic list. This intentionally communicates one
 generation at a time; a full graph, row reordering, autosave, and ML-assisted
 editing are outside the current workflow.
+
+Variants expose a dedicated `/recipes/{recipeVersionId}/compare` server route.
+It requests the API's direct-parent diff and passes that response to a pure
+presentational viewer; the browser never attempts to infer changes from two
+recipe snapshots. The viewer labels every paired value as before and after,
+uses text and semantic `del`/`ins` markup in addition to visual treatment, and
+keeps metadata, ingredient, and instruction changes in separate groups.
+Original recipes receive a non-retryable no-parent state, missing versions use
+the standard not-found route, and temporary API failures stay within a
+comparison-specific retry boundary. Arbitrary base selection and full-lineage
+visualization remain outside the frontend MVP.
 
 ### API
 
