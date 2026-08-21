@@ -47,6 +47,14 @@ one transaction and returns the authoritative state after the write. This
 shared profile is explicitly identified as demo mode and is not presented as
 authentication.
 
+Recipe forking is an application service behind a single transactional route.
+It locks the lineage row before assigning the next lineage-wide version number,
+copies the source ingredients and instructions into draft values, validates and
+applies structured edits, and then inserts a fresh child snapshot with new row
+identifiers. The API controls lineage, direct parent, version number, display
+order, and demo-user attribution. Forking is intentionally non-idempotent;
+retry-safe creation would require a separate idempotency-key contract.
+
 ### Database
 
 PostgreSQL is the system of record. SQLAlchemy 2.x provides persistence and
@@ -89,6 +97,11 @@ foreign keys also protect referenced history from deletion. Blanket database
 triggers that reject every content update are deferred until the recipe
 creation lifecycle is defined, so seed corrections and future migrations are
 not made unnecessarily difficult.
+
+The lineage-wide version number is allocated while holding a row lock on the
+lineage itself. Locking only the selected parent would not serialize siblings
+created concurrently from different branches. The existing unique constraint
+on `(lineage_id, version_number)` remains a database backstop.
 
 Saves and ratings reference exact versions rather than a mutable recipe record.
 Their composite keys allow only one of each interaction per user and version,

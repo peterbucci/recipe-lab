@@ -106,6 +106,38 @@ current product state only; they are not a preference-event history or an ML
 pipeline. A missing recipe returns 404, invalid input returns 422, and a
 database without the bundled demo identity returns a documented 503 response.
 
+## Recipe variant creation
+
+`POST /api/recipes/{recipe_version_id}/variants` creates a new child of an
+existing recipe version for the shared demo user. The request supplies the new
+title, nullable description, exact serving yield, and zero or more structured
+edits. A successful request returns the complete child snapshot with HTTP 201
+and a `Location` header for its detail resource.
+
+Ingredient edits target row IDs from the direct source snapshot so recipes may
+use the same canonical ingredient more than once. Supported operations set a
+quantity, set or clear a unit, replace an ingredient through exact
+canonical-or-alias lookup, append an ingredient, or remove an ingredient.
+Instruction edits update, append, or remove a source instruction. Replacements
+preserve the source amount, unit, and preparation notes unless companion edits
+change them; they do not infer a conversion or require a curated substitution
+edge. Retained rows keep their relative order, additions append in request
+order, and the final positions are compact.
+
+The service copies every retained ingredient and instruction into fresh rows
+and never updates the source snapshot. It rejects unknown or cross-recipe row
+IDs, conflicting edits, unknown catalog ingredients, no-op replacements, and a
+result with no ingredients or instructions. PostgreSQL serializes version
+allocation on the lineage row, so simultaneous forks receive distinct,
+lineage-wide version numbers. The route owns one transaction containing the
+copy, edits, parent link, and server-selected author; any failure rolls it all
+back.
+
+Fork requests are deliberately non-idempotent: two successful requests create
+two sibling versions. Client interfaces should disable duplicate submission.
+Idempotency-key storage, automatic substitutions, unit conversion, diff-event
+storage, and original-recipe creation remain outside this MVP endpoint.
+
 ## Migrations
 
 From this directory, apply all migrations and confirm that the SQLAlchemy
