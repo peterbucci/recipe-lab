@@ -59,19 +59,19 @@ class RecommendationScoreBreakdown(BaseModel):
         ge=0,
         le=1,
         decimal_places=6,
-        description="Active-save support normalized against the catalog maximum.",
+        description="Distinct active-save support normalized against the eligible maximum.",
     )
     fork_popularity: Decimal = Field(
         ge=0,
         le=1,
         decimal_places=6,
-        description="Distinct-fork support normalized against the catalog maximum.",
+        description="Distinct-user fork support normalized against the eligible maximum.",
     )
     view_popularity: Decimal = Field(
         ge=0,
         le=1,
         decimal_places=6,
-        description="Distinct-view support normalized against the catalog maximum.",
+        description="Distinct-user view support normalized against the eligible maximum.",
     )
     global_score: Decimal = Field(
         ge=0,
