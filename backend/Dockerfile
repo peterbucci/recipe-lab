@@ -9,6 +9,8 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY app ./app
 RUN python -m pip install --upgrade pip && python -m pip install .
+COPY alembic.ini ./
+COPY migrations ./migrations
 
 EXPOSE 8000
 
