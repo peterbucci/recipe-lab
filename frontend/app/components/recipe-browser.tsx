@@ -41,9 +41,6 @@ export function RecipeBrowser({ data, query }: RecipeBrowserProps) {
 
         {data.total === 0 ? (
           <div className="empty-state">
-            <span className="empty-state__mark" aria-hidden="true">
-              0
-            </span>
             <h3>{query ? "No recipes matched that search." : "The catalog is empty."}</h3>
             <p>
               {query

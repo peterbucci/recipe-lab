@@ -5,9 +5,6 @@ export function SiteHeader() {
     <header className="site-header">
       <div className="site-header__inner">
         <Link className="brand" href="/" aria-label="Recipe Lab home">
-          <span className="brand__mark" aria-hidden="true">
-            RL
-          </span>
           <span>Recipe Lab</span>
         </Link>
         <nav aria-label="Primary navigation">

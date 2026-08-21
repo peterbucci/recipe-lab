@@ -34,4 +34,14 @@ test("keeps the recipe catalog usable at a phone viewport", async ({ page }) => 
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
     ),
   ).toBe(false);
+
+  await page.getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Carrot Walnut Snack Cake", level: 1 }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
 });
