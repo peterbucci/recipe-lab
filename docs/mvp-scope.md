@@ -29,10 +29,16 @@ variant, and compared with its parent in a way that is useful to a cook.
 
 ## MVP acceptance scenario
 
-Starting from a seeded carrot cake, a user creates a child variant, changes
-180 g of sugar to 140 g, replaces walnuts with pecans, and saves it. The detail
-screen identifies the parent, the diff shows both changes, and the lineage view
-shows the original and its child.
+Starting from the catalog, a user opens and saves the seeded carrot cake,
+creates a child variant, changes 180 g of sugar to 140 g, and replaces walnuts
+with pecans. The child detail identifies the parent, and the comparison shows
+both changes with explicit before and after values.
+
+The `MVP acceptance` CI job is the M1 completion gate. It runs this journey
+through the browser, frontend, API, and PostgreSQL against a freshly migrated
+and seeded disposable database. It also checks keyboard activation and WCAG
+A/AA rules. The milestone is not complete unless that job passes; ML work is
+not part of the gate.
 
 ## Exit criteria before ML work
 

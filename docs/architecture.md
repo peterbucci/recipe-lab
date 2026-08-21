@@ -155,6 +155,27 @@ that user's saves and ratings on a later seed run. Interaction rows remain
 mutable current state; timestamped preference events are a later, separate
 contract.
 
+### MVP acceptance boundary
+
+The `MVP acceptance` CI job is a full-stack completion gate rather than a
+mocked frontend test. Each run receives a new PostgreSQL service database,
+applies the complete migration history, and loads the deterministic catalog
+before starting a non-reloading API process and a production Next.js build.
+Playwright then runs with one worker because the shared demo identity and real
+fork write are intentionally stateful within that disposable run.
+
+The canonical test performs one uninterrupted browse, save, fork, structured
+edit, and parent-comparison journey. It never intercepts the fork request and
+therefore verifies the browser-to-database path, lineage persistence, and diff
+result together. Keyboard activation and automated WCAG A/AA checks cover the
+basic accessibility gate. The test is disabled unless both
+`MVP_ACCEPTANCE=1` and `ACCEPTANCE_DATABASE_ISOLATED=1` are explicitly set, and
+guarded local runs require explicit frontend and backend URLs on ports other
+than the normal 3000 and 8000. The flags attest that the caller provisioned an
+isolated database; they do not create one. Acceptance runs also refuse to reuse
+an existing frontend server. CI owns and discards its database service after
+the job instead of attempting fragile row-by-row cleanup of immutable history.
+
 ### ML workspace
 
 The `ml` directory remains separate from request-serving code until preference

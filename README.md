@@ -178,6 +178,17 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
+The canonical MVP journey intentionally writes a real save and an immutable
+recipe variant, so it is skipped during ordinary local browser runs. CI enables
+both acceptance guards only after creating a disposable PostgreSQL database.
+If you reproduce that test locally, point both applications at a fresh,
+disposable database and use dedicated ports before setting both
+`MVP_ACCEPTANCE=1` and `ACCEPTANCE_DATABASE_ISOLATED=1`; never run it against a
+database whose history you want to keep. Those flags are an explicit safety
+acknowledgment, not a database provisioner. The Playwright configuration also
+requires explicit application URLs and refuses the normal ports 3000 and 8000
+for a guarded local run.
+
 ## Continuous integration
 
 The `CI` GitHub Actions workflow runs on every pull request and every push to
@@ -187,10 +198,13 @@ uncommitted model changes, and runs the schema tests. Python and npm download
 caches are keyed from their dependency files; the frontend uses `npm ci` with
 the committed `package-lock.json`.
 
-The browser-based Playwright suite exercises catalog, detail, parent-comparison,
-variant-creation, and shared-demo interaction flows locally. It remains outside
-the required gate while CI loads its configuration and discovers the tests so
-end-to-end support cannot silently break in the meantime.
+After the backend and frontend quality jobs pass, the stable `MVP acceptance`
+job creates a fresh PostgreSQL 17 database, applies every migration, loads the
+deterministic seed catalog, builds the production frontend, and runs the full
+Playwright suite with one worker. Its canonical test uses the real API and
+database for browse → save → fork → edit → compare, including the 180 g to
+140 g sugar change, Walnut-to-Pecan substitution, keyboard navigation, and
+WCAG A/AA checks. M1 is not considered complete unless this job passes.
 
 ## Working agreements
 
