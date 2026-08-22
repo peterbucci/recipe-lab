@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Callable
@@ -68,6 +69,64 @@ def test_run_command_writes_the_same_report_for_reordered_k_values(
     )
 
     assert first_report.read_bytes() == second_report.read_bytes()
+    report = json.loads(first_report.read_text(encoding="utf-8"))
+    assert [model["model_id"] for model in report["models"]] == [
+        "baseline-v1",
+        "content-v1",
+    ]
+    content = report["models"][1]
+    assert [delta["k"] for delta in content["deltas_vs_baseline"]] == [5, 10]
+    assert all(delta["precision"] is not None for delta in content["deltas_vs_baseline"])
+
+
+def test_run_command_is_reproducible_across_python_hash_seeds(
+    synthetic_snapshot: EvaluationSnapshot,
+    tmp_path: Path,
+) -> None:
+    snapshot_path = tmp_path / "snapshot.json"
+    snapshot_path.write_text(snapshot_to_json(synthetic_snapshot), encoding="utf-8")
+    ml_root = Path(__file__).parents[1]
+    source_paths = (ml_root / "src", ml_root.parent / "backend")
+
+    def run_with_hash_seed(hash_seed: str) -> str:
+        environment = os.environ.copy()
+        python_path = [str(path) for path in source_paths]
+        if existing := environment.get("PYTHONPATH"):
+            python_path.append(existing)
+        environment["PYTHONPATH"] = os.pathsep.join(python_path)
+        environment["PYTHONHASHSEED"] = hash_seed
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "recipe_lab_evaluation",
+                "run",
+                "--snapshot",
+                str(snapshot_path),
+                "--k",
+                "1",
+                "--k",
+                "3",
+                "--seed",
+                "20260822",
+            ],
+            check=True,
+            capture_output=True,
+            cwd=ml_root,
+            env=environment,
+            text=True,
+        )
+        return completed.stdout
+
+    first = run_with_hash_seed("1")
+    second = run_with_hash_seed("987654")
+
+    assert first == second
+    report = json.loads(first)
+    assert [model["model_id"] for model in report["models"]] == [
+        "baseline-v1",
+        "content-v1",
+    ]
 
 
 def test_strict_run_writes_an_insufficient_report_then_returns_its_status(
