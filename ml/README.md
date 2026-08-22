@@ -1,8 +1,9 @@
 # Recipe Lab offline evaluation
 
-This Python package evaluates recommendation approaches against Recipe Lab's
-mandatory `baseline-v1`. It is deliberately separate from the FastAPI request
-path and has no training or serving responsibility.
+This Python package fits and evaluates Recipe Lab's deterministic offline
+`content-v1` recommender against the mandatory `baseline-v1`. It is deliberately
+separate from the FastAPI request path, persists no model artifact, and has no
+serving responsibility.
 
 ## Install
 
@@ -27,9 +28,10 @@ recipe-lab-eval run `
 ```
 
 The fixture contains only invented recipes, opaque UUIDs, and synthetic typed
-events. It verifies temporal isolation, metric arithmetic, baseline comparison,
-and byte-for-byte reproducibility. It is not a benchmark or evidence about real
-users.
+events. The command always evaluates `content-v1`; the runner automatically
+adds `baseline-v1` and records metrics and deltas for both. The fixture verifies
+temporal isolation, metric arithmetic, baseline comparison, and byte-for-byte
+reproducibility. It is not a benchmark or evidence about real users.
 
 ## Capture an evaluation snapshot
 
@@ -58,7 +60,21 @@ The snapshot embeds one UTC cutoff. Training uses only recipes and events
 strictly before it; events at or after it are held out. Changing the file after
 capture changes its canonical SHA-256 fingerprint.
 
-## Add a comparison model
+## Built-in content model
+
+`content-v1` combines canonical ingredient overlap, normalized title tokens,
+version proximity, and signed profile signals. It reconstructs the latest save
+and rating state, deduplicates views and forks, uses exact rational arithmetic,
+and defines a signed-global-prior cold start with stable metadata and UUID
+tie-breaks. See [offline content recommender](../docs/content-recommender.md) for
+the exact formulas, signal weights, and limitations.
+
+The command-line `run` path always supplies `ContentBasedV1Model()` to the
+evaluator. The generic Python `evaluate(snapshot, models=())` call remains
+baseline-only unless the caller explicitly supplies the content model or
+another comparison adapter.
+
+## Add another comparison model
 
 Implement the `EvaluationModel` protocol:
 
@@ -68,9 +84,9 @@ Implement the `EvaluationModel` protocol:
 
 Call `evaluate(snapshot, models=(your_model,), config=...)`. The runner always
 adds `baseline-v1`, rejects attempts to replace it, and records raw metrics plus
-baseline deltas for every model. The command-line entry point currently runs the
-built-in baseline; experiment code can register additional adapters through the
-Python API.
+baseline deltas for every model. Experiment code can supply additional adapters
+through the Python API; the CLI intentionally runs the fixed built-in
+`content-v1` comparison rather than accepting an arbitrary import path.
 
 ## Checks
 

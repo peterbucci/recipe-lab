@@ -21,7 +21,8 @@ variant, and compared with its parent in a way that is useful to a cook.
 
 ## Explicitly deferred
 
-- Learned, authenticated-account, and frontend recommendation experiences.
+- Online learned serving, authenticated-account, and frontend recommendation
+  experiences.
 - Automated substitution suggestions.
 - Social feeds, comments, and following.
 - Grocery lists and meal planning.
@@ -51,8 +52,12 @@ shared demo profile has positive history. It does not change the M1 browser
 journey or add a frontend recommendation surface, authentication, training,
 or a learned model. RCP-16 adds a separate offline evaluator with a fixed-cutoff
 split, full-catalog metrics, mandatory baseline comparison, and reproducible
-reports. Neither addition belongs to or blocks the deployed M1 request path. See
-[baseline recommendations](recommendations.md) for the exact contract.
+reports. RCP-17 adds the evaluator-only `content-v1` model, which uses structured
+recipe features and signed preference profiles with deterministic cold-start
+behavior. None of these additions belongs to or blocks the deployed M1 request
+path. See [baseline recommendations](recommendations.md),
+[offline content recommender](content-recommender.md), and
+[offline recommendation evaluation](evaluation.md) for the exact contracts.
 
 ## Exit criteria before ML work
 
@@ -64,5 +69,6 @@ reports. Neither addition belongs to or blocks the deployed M1 request path. See
 
 Those prerequisites are now represented by the privacy-bounded preference
 events, `baseline-v1`, and the [offline evaluation protocol](evaluation.md).
-They enable measured experimentation after the MVP; they do not move learned
-recommendations or an ML runtime into MVP scope.
+They now support measured `content-v1` experimentation after the MVP; they do
+not move an ML runtime, online learned recommendations, or a recommendation
+surface into MVP scope.
