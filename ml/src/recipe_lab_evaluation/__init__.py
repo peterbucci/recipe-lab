@@ -16,12 +16,34 @@ from .protocol import (
     ModelTrainingData,
     derive_model_seed,
 )
+from .readiness import (
+    DEFAULT_READINESS_THRESHOLDS,
+    READINESS_PROTOCOL_VERSION,
+    READINESS_REPORT_SCHEMA_VERSION,
+    ReadinessReport,
+    ReadinessThresholds,
+    assess_readiness,
+    readiness_report_to_document,
+    readiness_report_to_json,
+)
 from .report import EvaluationReport, report_to_document, report_to_json
 from .runner import EvaluationConfig, EvaluationError, evaluate
+from .simulator import (
+    SIMULATION_ASSUMPTIONS,
+    CohortSimulationConfig,
+    CohortSimulationError,
+    simulate_preference_cohort,
+)
 from .split import EvaluationSplit, UserEvaluationCase, split_snapshot
 
 __all__ = [
+    "DEFAULT_READINESS_THRESHOLDS",
+    "READINESS_PROTOCOL_VERSION",
+    "READINESS_REPORT_SCHEMA_VERSION",
     "SNAPSHOT_SCHEMA_VERSION",
+    "SIMULATION_ASSUMPTIONS",
+    "CohortSimulationConfig",
+    "CohortSimulationError",
     "EvaluationConfig",
     "EvaluationError",
     "EvaluationModel",
@@ -31,17 +53,23 @@ __all__ = [
     "FittedEvaluationModel",
     "ModelMetadata",
     "ModelTrainingData",
+    "ReadinessReport",
+    "ReadinessThresholds",
     "SnapshotEvent",
     "SnapshotRecipe",
     "SnapshotValidationError",
     "UserEvaluationCase",
     "create_snapshot",
+    "assess_readiness",
     "derive_model_seed",
     "evaluate",
     "load_snapshot",
     "parse_snapshot_json",
     "report_to_document",
     "report_to_json",
+    "readiness_report_to_document",
+    "readiness_report_to_json",
+    "simulate_preference_cohort",
     "snapshot_to_json",
     "split_snapshot",
 ]
