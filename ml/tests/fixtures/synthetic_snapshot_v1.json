@@ -1,0 +1,455 @@
+{
+  "schema_version": "recipe-lab-evaluation-snapshot-v1",
+  "dataset_id": "recipe-lab-synthetic-offline-v1",
+  "cutoff": "2026-06-01T00:00:00Z",
+  "limitations": [
+    "This versioned snapshot is synthetic and does not describe real people or observed product behavior.",
+    "The catalog and interaction history are intentionally small and sparse, so offline metrics are illustrative rather than production evidence.",
+    "Views are excluded from relevance labels, and the snapshot contains no exposure or negative-feedback counterfactuals."
+  ],
+  "recipes": [
+    {
+      "id": "a77962d1-01bf-4d61-9bfe-39fee1599ef6",
+      "created_at": "2026-01-01T00:00:00Z",
+      "title": "Fixture Alpha",
+      "version_number": 1,
+      "ingredient_ids": [
+        "6de72b10-016a-468e-8ee7-1fbcf0739468",
+        "644a55b7-0d28-477d-96b1-35b21c2dcc2e",
+        "41962b7c-de93-4e7c-b8db-1327aaded5de"
+      ]
+    },
+    {
+      "id": "72699b04-54dd-43f4-866a-b4bf7ede43a5",
+      "created_at": "2026-01-02T00:00:00Z",
+      "title": "Fixture Beta",
+      "version_number": 1,
+      "ingredient_ids": [
+        "6de72b10-016a-468e-8ee7-1fbcf0739468",
+        "644a55b7-0d28-477d-96b1-35b21c2dcc2e",
+        "404ab1fa-88db-4e5b-a8c9-e378e2d80914"
+      ]
+    },
+    {
+      "id": "bb3351d4-8e87-45c0-aba4-c89899a054cf",
+      "created_at": "2026-01-03T00:00:00Z",
+      "title": "Fixture Gamma",
+      "version_number": 1,
+      "ingredient_ids": [
+        "ec486b61-c86e-4f6e-a991-9f710a15d7a7",
+        "9a2e8856-65c0-4b14-9bda-db39793fd96a"
+      ]
+    },
+    {
+      "id": "742949c0-7d36-4d9f-9b73-ad894d217fdd",
+      "created_at": "2026-01-04T00:00:00Z",
+      "title": "Fixture Delta",
+      "version_number": 1,
+      "ingredient_ids": [
+        "ec486b61-c86e-4f6e-a991-9f710a15d7a7",
+        "fbc908d6-c0a1-4a32-b7f3-d84f74500ba4"
+      ]
+    },
+    {
+      "id": "8eb9358b-b24a-4301-83ae-58517bf34472",
+      "created_at": "2026-01-05T00:00:00Z",
+      "title": "Fixture Epsilon",
+      "version_number": 1,
+      "ingredient_ids": [
+        "1d2075b2-ed64-463f-99e8-8ec7fc07edb7",
+        "fd486c4e-1b13-4b18-9986-44468859b073"
+      ]
+    },
+    {
+      "id": "a16eacf5-e562-41c8-905b-b6e154dc2600",
+      "created_at": "2026-01-06T00:00:00Z",
+      "title": "Fixture Zeta",
+      "version_number": 1,
+      "ingredient_ids": [
+        "30f3b011-e72a-4d48-a361-d70e868b665c"
+      ]
+    },
+    {
+      "id": "303e2dd7-2ed4-4ef4-9546-19331da01667",
+      "created_at": "2026-01-07T00:00:00Z",
+      "title": "Fixture Eta",
+      "version_number": 1,
+      "ingredient_ids": [
+        "ec486b61-c86e-4f6e-a991-9f710a15d7a7",
+        "9a2e8856-65c0-4b14-9bda-db39793fd96a",
+        "bd016a88-e0dc-4dcc-9e56-d4c8c1232602"
+      ]
+    },
+    {
+      "id": "0f158620-0cd5-44d9-9aaa-2bf9f93f1efd",
+      "created_at": "2026-06-02T00:00:00Z",
+      "title": "Fixture Future",
+      "version_number": 1,
+      "ingredient_ids": [
+        "a85f6961-8767-4bb1-b84e-5da8d8c4be17"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "511e0335-a822-4e4e-8605-77683a38c9d2",
+      "user_id": "9f2749a0-70d7-45b4-8e26-391789315145",
+      "recipe_version_id": "a16eacf5-e562-41c8-905b-b6e154dc2600",
+      "event_type": "view",
+      "occurred_at": "2026-05-01T00:00:00Z",
+      "saved_value": null,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "0ced547f-4902-453b-9bb3-7339994cdf97",
+      "user_id": "9f2749a0-70d7-45b4-8e26-391789315145",
+      "recipe_version_id": "303e2dd7-2ed4-4ef4-9546-19331da01667",
+      "event_type": "save",
+      "occurred_at": "2026-05-02T00:00:00Z",
+      "saved_value": true,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "c32f4de1-1d2d-488d-bf70-af92090e3644",
+      "user_id": "9f2749a0-70d7-45b4-8e26-391789315145",
+      "recipe_version_id": "303e2dd7-2ed4-4ef4-9546-19331da01667",
+      "event_type": "save",
+      "occurred_at": "2026-05-02T00:00:00Z",
+      "saved_value": false,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "1afe299f-2c2a-4be9-ae42-a7ce84f912d4",
+      "user_id": "9f2749a0-70d7-45b4-8e26-391789315145",
+      "recipe_version_id": "a16eacf5-e562-41c8-905b-b6e154dc2600",
+      "event_type": "rating",
+      "occurred_at": "2026-05-04T00:00:00Z",
+      "saved_value": null,
+      "rating_value": 5,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "ebead965-6bd8-4cc4-a374-043b28de122e",
+      "user_id": "9f2749a0-70d7-45b4-8e26-391789315145",
+      "recipe_version_id": "a16eacf5-e562-41c8-905b-b6e154dc2600",
+      "event_type": "rating",
+      "occurred_at": "2026-05-04T00:00:00Z",
+      "saved_value": null,
+      "rating_value": 2,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "3b6ec88c-90c8-4c33-a5a8-dad9b305eabf",
+      "user_id": "81c1157d-5d41-4c20-ac4a-fa484404ed7b",
+      "recipe_version_id": "a77962d1-01bf-4d61-9bfe-39fee1599ef6",
+      "event_type": "view",
+      "occurred_at": "2026-04-01T00:00:00Z",
+      "saved_value": null,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "3e4169c5-5007-4883-bbe9-f89ec35441c7",
+      "user_id": "81c1157d-5d41-4c20-ac4a-fa484404ed7b",
+      "recipe_version_id": "a77962d1-01bf-4d61-9bfe-39fee1599ef6",
+      "event_type": "save",
+      "occurred_at": "2026-04-02T00:00:00Z",
+      "saved_value": true,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "cc47b2f5-a6c5-459d-9e45-ed73180d786e",
+      "user_id": "81c1157d-5d41-4c20-ac4a-fa484404ed7b",
+      "recipe_version_id": "72699b04-54dd-43f4-866a-b4bf7ede43a5",
+      "event_type": "rating",
+      "occurred_at": "2026-04-03T00:00:00Z",
+      "saved_value": null,
+      "rating_value": 5,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "f4f34ac0-8b20-48ee-98f2-d34c7c12f4d1",
+      "user_id": "81c1157d-5d41-4c20-ac4a-fa484404ed7b",
+      "recipe_version_id": "bb3351d4-8e87-45c0-aba4-c89899a054cf",
+      "event_type": "fork",
+      "occurred_at": "2026-04-04T00:00:00Z",
+      "saved_value": null,
+      "rating_value": null,
+      "related_recipe_version_id": "303e2dd7-2ed4-4ef4-9546-19331da01667"
+    },
+    {
+      "id": "64f5f091-9303-45c4-a36e-8cc69c11d603",
+      "user_id": "d96571e7-2c99-4e90-8d51-4d4a976b2a18",
+      "recipe_version_id": "a77962d1-01bf-4d61-9bfe-39fee1599ef6",
+      "event_type": "view",
+      "occurred_at": "2026-04-05T00:00:00Z",
+      "saved_value": null,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "d81f7055-80ea-4ec5-b7fa-cb914a44242e",
+      "user_id": "d96571e7-2c99-4e90-8d51-4d4a976b2a18",
+      "recipe_version_id": "72699b04-54dd-43f4-866a-b4bf7ede43a5",
+      "event_type": "view",
+      "occurred_at": "2026-04-06T00:00:00Z",
+      "saved_value": null,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "081b7f98-8ed8-463a-a0a2-5df781073323",
+      "user_id": "d96571e7-2c99-4e90-8d51-4d4a976b2a18",
+      "recipe_version_id": "72699b04-54dd-43f4-866a-b4bf7ede43a5",
+      "event_type": "save",
+      "occurred_at": "2026-04-07T00:00:00Z",
+      "saved_value": true,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "799ab33a-278f-496b-b4fc-849f581b983e",
+      "user_id": "d96571e7-2c99-4e90-8d51-4d4a976b2a18",
+      "recipe_version_id": "72699b04-54dd-43f4-866a-b4bf7ede43a5",
+      "event_type": "save",
+      "occurred_at": "2026-04-08T00:00:00Z",
+      "saved_value": false,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "80ffce15-9f18-4d0d-917c-b726381be371",
+      "user_id": "d96571e7-2c99-4e90-8d51-4d4a976b2a18",
+      "recipe_version_id": "bb3351d4-8e87-45c0-aba4-c89899a054cf",
+      "event_type": "rating",
+      "occurred_at": "2026-04-09T00:00:00Z",
+      "saved_value": null,
+      "rating_value": 4,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "1b377eff-27a1-45a8-89cf-0e66a20e1901",
+      "user_id": "d96571e7-2c99-4e90-8d51-4d4a976b2a18",
+      "recipe_version_id": "bb3351d4-8e87-45c0-aba4-c89899a054cf",
+      "event_type": "rating",
+      "occurred_at": "2026-04-10T00:00:00Z",
+      "saved_value": null,
+      "rating_value": 2,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "ec4433f8-40e5-4b4e-b265-94bb9334f2c8",
+      "user_id": "5427b58c-8bb5-4972-a7bc-b9dfe6ce14dc",
+      "recipe_version_id": "a77962d1-01bf-4d61-9bfe-39fee1599ef6",
+      "event_type": "view",
+      "occurred_at": "2026-04-11T00:00:00Z",
+      "saved_value": null,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "bb593957-2ae4-4225-8c3c-6cf829b1455c",
+      "user_id": "5427b58c-8bb5-4972-a7bc-b9dfe6ce14dc",
+      "recipe_version_id": "72699b04-54dd-43f4-866a-b4bf7ede43a5",
+      "event_type": "save",
+      "occurred_at": "2026-04-12T00:00:00Z",
+      "saved_value": true,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "1337a696-4a60-4c9b-9f63-c76ceabb779a",
+      "user_id": "5427b58c-8bb5-4972-a7bc-b9dfe6ce14dc",
+      "recipe_version_id": "742949c0-7d36-4d9f-9b73-ad894d217fdd",
+      "event_type": "rating",
+      "occurred_at": "2026-04-13T00:00:00Z",
+      "saved_value": null,
+      "rating_value": 5,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "875a3dfb-a794-44e1-be1b-1598b4d2ceb2",
+      "user_id": "c41113dd-352c-496c-a518-1d42f91eca80",
+      "recipe_version_id": "a77962d1-01bf-4d61-9bfe-39fee1599ef6",
+      "event_type": "view",
+      "occurred_at": "2026-04-14T00:00:00Z",
+      "saved_value": null,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "22101a2c-8ad5-4410-9edc-39c2bc32d0e2",
+      "user_id": "c41113dd-352c-496c-a518-1d42f91eca80",
+      "recipe_version_id": "bb3351d4-8e87-45c0-aba4-c89899a054cf",
+      "event_type": "save",
+      "occurred_at": "2026-04-15T00:00:00Z",
+      "saved_value": true,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "9fa24efc-f8e9-46a3-a76d-d70158fa210d",
+      "user_id": "c41113dd-352c-496c-a518-1d42f91eca80",
+      "recipe_version_id": "72699b04-54dd-43f4-866a-b4bf7ede43a5",
+      "event_type": "view",
+      "occurred_at": "2026-04-16T00:00:00Z",
+      "saved_value": null,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "83ffa605-df93-4886-90d9-d0aa7f1a7e36",
+      "user_id": "15346b0e-5c39-4ffa-8447-673f355d5348",
+      "recipe_version_id": "72699b04-54dd-43f4-866a-b4bf7ede43a5",
+      "event_type": "save",
+      "occurred_at": "2026-06-01T00:00:00Z",
+      "saved_value": true,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "b2613650-caf2-40c5-895b-87593d0cdbe4",
+      "user_id": "9f2749a0-70d7-45b4-8e26-391789315145",
+      "recipe_version_id": "a77962d1-01bf-4d61-9bfe-39fee1599ef6",
+      "event_type": "save",
+      "occurred_at": "2026-06-01T01:00:00Z",
+      "saved_value": true,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "01599c97-be9f-4c18-9ff5-a44e2a3dcae2",
+      "user_id": "9f2749a0-70d7-45b4-8e26-391789315145",
+      "recipe_version_id": "bb3351d4-8e87-45c0-aba4-c89899a054cf",
+      "event_type": "rating",
+      "occurred_at": "2026-06-01T02:00:00Z",
+      "saved_value": null,
+      "rating_value": 5,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "23ba9d66-735b-4014-b050-3ffe3f100c5b",
+      "user_id": "9f2749a0-70d7-45b4-8e26-391789315145",
+      "recipe_version_id": "bb3351d4-8e87-45c0-aba4-c89899a054cf",
+      "event_type": "rating",
+      "occurred_at": "2026-06-01T02:00:00Z",
+      "saved_value": null,
+      "rating_value": 2,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "04f0236a-05c5-4f24-8502-50bf39039e92",
+      "user_id": "9f2749a0-70d7-45b4-8e26-391789315145",
+      "recipe_version_id": "742949c0-7d36-4d9f-9b73-ad894d217fdd",
+      "event_type": "view",
+      "occurred_at": "2026-06-01T04:00:00Z",
+      "saved_value": null,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "b4f9bcd1-15be-4e43-81f8-a67f068dae63",
+      "user_id": "9f2749a0-70d7-45b4-8e26-391789315145",
+      "recipe_version_id": "8eb9358b-b24a-4301-83ae-58517bf34472",
+      "event_type": "fork",
+      "occurred_at": "2026-06-02T01:00:00Z",
+      "saved_value": null,
+      "rating_value": null,
+      "related_recipe_version_id": "0f158620-0cd5-44d9-9aaa-2bf9f93f1efd"
+    },
+    {
+      "id": "48e49da0-3a92-457c-a1d7-6a0efeb8cb81",
+      "user_id": "81c1157d-5d41-4c20-ac4a-fa484404ed7b",
+      "recipe_version_id": "742949c0-7d36-4d9f-9b73-ad894d217fdd",
+      "event_type": "rating",
+      "occurred_at": "2026-06-03T00:00:00Z",
+      "saved_value": null,
+      "rating_value": 4,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "d51dc9e9-bdb9-413b-b9d2-5cd0e64a766c",
+      "user_id": "81c1157d-5d41-4c20-ac4a-fa484404ed7b",
+      "recipe_version_id": "8eb9358b-b24a-4301-83ae-58517bf34472",
+      "event_type": "view",
+      "occurred_at": "2026-06-04T00:00:00Z",
+      "saved_value": null,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "950df98e-127b-477c-9b47-0c286d0fa950",
+      "user_id": "d96571e7-2c99-4e90-8d51-4d4a976b2a18",
+      "recipe_version_id": "742949c0-7d36-4d9f-9b73-ad894d217fdd",
+      "event_type": "save",
+      "occurred_at": "2026-06-05T00:00:00Z",
+      "saved_value": true,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "42ff63c0-c3b7-4273-a2e1-57a0edc40254",
+      "user_id": "d96571e7-2c99-4e90-8d51-4d4a976b2a18",
+      "recipe_version_id": "742949c0-7d36-4d9f-9b73-ad894d217fdd",
+      "event_type": "save",
+      "occurred_at": "2026-06-06T00:00:00Z",
+      "saved_value": false,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "a44dc07f-954f-4c2f-97a8-a2bc85b0bdbe",
+      "user_id": "d96571e7-2c99-4e90-8d51-4d4a976b2a18",
+      "recipe_version_id": "8eb9358b-b24a-4301-83ae-58517bf34472",
+      "event_type": "rating",
+      "occurred_at": "2026-06-07T00:00:00Z",
+      "saved_value": null,
+      "rating_value": 4,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "b98b3343-7ea2-4bdb-b444-c2310fc7f295",
+      "user_id": "d96571e7-2c99-4e90-8d51-4d4a976b2a18",
+      "recipe_version_id": "0f158620-0cd5-44d9-9aaa-2bf9f93f1efd",
+      "event_type": "rating",
+      "occurred_at": "2026-06-08T00:00:00Z",
+      "saved_value": null,
+      "rating_value": 5,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "d1d72a1b-b18d-44f3-95af-6440b887718a",
+      "user_id": "5427b58c-8bb5-4972-a7bc-b9dfe6ce14dc",
+      "recipe_version_id": "bb3351d4-8e87-45c0-aba4-c89899a054cf",
+      "event_type": "save",
+      "occurred_at": "2026-06-08T01:00:00Z",
+      "saved_value": true,
+      "rating_value": null,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "a1532f57-c293-48ad-ac28-81d961f85f59",
+      "user_id": "c41113dd-352c-496c-a518-1d42f91eca80",
+      "recipe_version_id": "742949c0-7d36-4d9f-9b73-ad894d217fdd",
+      "event_type": "rating",
+      "occurred_at": "2026-06-09T00:00:00Z",
+      "saved_value": null,
+      "rating_value": 5,
+      "related_recipe_version_id": null
+    },
+    {
+      "id": "586236ce-1814-4887-9364-bf97dd9a7156",
+      "user_id": "15346b0e-5c39-4ffa-8447-673f355d5348",
+      "recipe_version_id": "742949c0-7d36-4d9f-9b73-ad894d217fdd",
+      "event_type": "rating",
+      "occurred_at": "2026-06-10T00:00:00Z",
+      "saved_value": null,
+      "rating_value": 5,
+      "related_recipe_version_id": null
+    }
+  ]
+}

@@ -9,6 +9,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 *.egg-info/
+build/
 htmlcov/
 .coverage
 
@@ -21,6 +22,10 @@ playwright-report/
 test-results/
 *.tsbuildinfo
 frontend/next-env.d.ts
+
+# Local offline-evaluation data and reports
+ml/snapshots/
+ml/reports/
 
 # Editors and operating systems
 .idea/
