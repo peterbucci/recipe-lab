@@ -11,6 +11,7 @@ from pathlib import Path
 from sqlalchemy.exc import SQLAlchemyError
 
 from .dataset import SnapshotValidationError, load_snapshot, snapshot_to_json
+from .models import ContentBasedV1Model
 from .report import report_to_json
 from .runner import DEFAULT_KS, DEFAULT_SEED, EvaluationConfig, EvaluationError, evaluate
 from .sources import SnapshotExportError, export_postgres_snapshot
@@ -81,7 +82,7 @@ def _parser() -> argparse.ArgumentParser:
 
     run = subparsers.add_parser(
         "run",
-        help="evaluate baseline-v1 against a saved snapshot",
+        help="compare content-v1 with baseline-v1 against a saved snapshot",
     )
     run.add_argument("--snapshot", required=True, type=Path)
     run.add_argument(
@@ -149,6 +150,7 @@ def _run_command(arguments: argparse.Namespace) -> int:
         requested_ks = DEFAULT_KS if arguments.k is None else tuple(sorted(set(arguments.k)))
         report = evaluate(
             snapshot,
+            models=(ContentBasedV1Model(),),
             config=EvaluationConfig(seed=arguments.seed, ks=requested_ks),
         )
         report_json = report_to_json(report)
