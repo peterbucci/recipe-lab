@@ -6,12 +6,13 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Literal
 
+from .adoption import HybridAdoptionDecision
 from .dataset import canonical_json
 from .metrics import MetricsAtK
 from .protocol import JsonScalar
 from .split import EvaluationSplitCounts
 
-REPORT_SCHEMA_VERSION = "recipe-lab-offline-evaluation-report-v2"
+REPORT_SCHEMA_VERSION = "recipe-lab-offline-evaluation-report-v3"
 PROTOCOL_VERSION = "fixed-cutoff-full-catalog-v1"
 
 REQUIRED_LIMITATIONS = (
@@ -74,6 +75,7 @@ class EvaluationReport:
     ks: tuple[int, ...]
     split_counts: EvaluationSplitCounts
     models: tuple[ModelEvaluationReport, ...]
+    hybrid_adoption: HybridAdoptionDecision | None
     warnings: tuple[str, ...]
     limitations: tuple[str, ...]
 
@@ -119,6 +121,40 @@ def _deltas_document(deltas: MetricDeltasAtK) -> dict[str, object]:
     }
 
 
+def _hybrid_adoption_document(decision: HybridAdoptionDecision) -> dict[str, object]:
+    return {
+        "policy_version": decision.policy_version,
+        "status": decision.status,
+        "candidate_model_id": decision.candidate_model_id,
+        "primary_k": decision.primary_k,
+        "reference_model_id": decision.reference_model_id,
+        "evaluated_users": decision.evaluated_users,
+        "primary_ndcg_lift": _decimal(decision.primary_ndcg_lift),
+        "worst_ndcg_delta": _decimal(decision.worst_ndcg_delta),
+        "worst_recall_delta": _decimal(decision.worst_recall_delta),
+        "worst_coverage_delta": _decimal(decision.worst_coverage_delta),
+        "reason_codes": list(decision.reason_codes),
+        "policy": {
+            "minimum_evaluated_users": decision.policy.minimum_evaluated_users,
+            "minimum_primary_ndcg_lift": _decimal(decision.policy.minimum_primary_ndcg_lift),
+            "maximum_ndcg_regression": _decimal(decision.policy.maximum_ndcg_regression),
+            "maximum_recall_regression": _decimal(decision.policy.maximum_recall_regression),
+            "maximum_coverage_regression": _decimal(decision.policy.maximum_coverage_regression),
+        },
+        "comparisons": [
+            {
+                "k": comparison.k,
+                "reference_model_id": comparison.reference_model_id,
+                "evaluated_users": comparison.evaluated_users,
+                "ndcg_delta": _decimal(comparison.ndcg_delta),
+                "recall_delta": _decimal(comparison.recall_delta),
+                "coverage_delta": _decimal(comparison.coverage_delta),
+            }
+            for comparison in decision.comparisons
+        ],
+    }
+
+
 def report_to_document(report: EvaluationReport) -> dict[str, object]:
     return {
         "schema_version": report.schema_version,
@@ -161,6 +197,11 @@ def report_to_document(report: EvaluationReport) -> dict[str, object]:
             }
             for model in report.models
         ],
+        "hybrid_adoption": (
+            _hybrid_adoption_document(report.hybrid_adoption)
+            if report.hybrid_adoption is not None
+            else None
+        ),
         "warnings": list(report.warnings),
         "limitations": list(report.limitations),
     }

@@ -52,6 +52,14 @@ class CollaborativeArtifactMetadata:
     supported_item_count: int
 
 
+@dataclass(frozen=True, slots=True)
+class CollaborativeCandidateScore:
+    """Exact candidate score plus whether collaborative evidence was usable."""
+
+    score: Fraction
+    has_usable_evidence: bool
+
+
 def _timestamp(value: datetime) -> str:
     if value.tzinfo is None:
         raise ValueError("training timestamps must include a timezone")
@@ -126,7 +134,7 @@ def _signed_similarity(
     return Fraction(numerator, denominator)
 
 
-def score_collaborative_candidate(
+def score_collaborative_candidate_detail(
     *,
     candidate_id: UUID,
     user_id: UUID,
@@ -135,10 +143,15 @@ def score_collaborative_candidate(
     profiles_by_recipe: Mapping[UUID, tuple[UUID, ...]],
     similarity_cache: dict[UUID, Fraction | None],
     minimum_item_signal_profiles: int = MIN_ITEM_SIGNAL_PROFILES,
-) -> Fraction:
+) -> CollaborativeCandidateScore:
+    """Return the signed score and whether nonzero neighbor evidence survived."""
+
     candidate_profiles = profiles_by_recipe.get(candidate_id, ())
     if len(candidate_profiles) < minimum_item_signal_profiles:
-        return Fraction(0)
+        return CollaborativeCandidateScore(
+            score=Fraction(0),
+            has_usable_evidence=False,
+        )
 
     numerator = Fraction(0)
     denominator = Fraction(0)
@@ -156,8 +169,37 @@ def score_collaborative_candidate(
         numerator += similarity * signals_by_user[neighbor_id][candidate_id]
         denominator += abs(similarity)
     if numerator == 0 or denominator == 0:
-        return Fraction(0)
-    return numerator / denominator
+        return CollaborativeCandidateScore(
+            score=Fraction(0),
+            has_usable_evidence=False,
+        )
+    return CollaborativeCandidateScore(
+        score=numerator / denominator,
+        has_usable_evidence=True,
+    )
+
+
+def score_collaborative_candidate(
+    *,
+    candidate_id: UUID,
+    user_id: UUID,
+    target: Mapping[UUID, int],
+    signals_by_user: Mapping[UUID, Mapping[UUID, int]],
+    profiles_by_recipe: Mapping[UUID, tuple[UUID, ...]],
+    similarity_cache: dict[UUID, Fraction | None],
+    minimum_item_signal_profiles: int = MIN_ITEM_SIGNAL_PROFILES,
+) -> Fraction:
+    """Return the exact signed score, preserving the RCP-18 public helper."""
+
+    return score_collaborative_candidate_detail(
+        candidate_id=candidate_id,
+        user_id=user_id,
+        target=target,
+        signals_by_user=signals_by_user,
+        profiles_by_recipe=profiles_by_recipe,
+        similarity_cache=similarity_cache,
+        minimum_item_signal_profiles=minimum_item_signal_profiles,
+    ).score
 
 
 @dataclass(frozen=True, slots=True)
@@ -359,6 +401,8 @@ __all__ = [
     "MIN_NEIGHBOR_OVERLAP_ITEMS",
     "MIN_PROFILE_SIGNAL_ITEMS",
     "CollaborativeArtifactMetadata",
+    "CollaborativeCandidateScore",
     "CollaborativeV1Model",
     "score_collaborative_candidate",
+    "score_collaborative_candidate_detail",
 ]
