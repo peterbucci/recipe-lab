@@ -1,11 +1,12 @@
 # Recipe Lab offline evaluation
 
 This Python package fits and evaluates Recipe Lab's deterministic offline
-`content-v1` and readiness-gated `collaborative-v1` recommenders against the
-mandatory `baseline-v1`. It also provides a versioned synthetic cohort and a
-structural readiness gate. It is deliberately separate from the FastAPI request
+`content-v1`, readiness-gated `collaborative-v1`, and explicit rank-fusion
+`hybrid-v1` recommenders against the mandatory `baseline-v1`. It also provides
+a versioned synthetic cohort, a structural readiness gate, and a conservative
+hybrid-adoption scorecard. It is deliberately separate from the FastAPI request
 path, persists no serving model, and has no serving responsibility. Canonical
-reports carry aggregate collaborative artifact provenance only.
+reports carry aggregate evaluation and collaborative-artifact provenance only.
 
 ## Install
 
@@ -44,12 +45,12 @@ pairs, plus 64 supported temporal profiles and 128 eligible holdout items.
 
 The readiness report checks fixed minimums for profile, item, interaction,
 raw matrix support, effective nonzero signed support, sparsity, usable
-candidate-level neighbor evidence, and temporal-evaluation counts. `ready` for this synthetic
-cohort authorizes only fitting and testing the offline collaborative experiment;
-it is not evidence about real users, recommendation quality, or production
-readiness. For an insufficient snapshot, the default command still writes an
-`insufficient_data` report and exits zero; `--strict` exits 3 after writing that
-same report. See
+candidate-level neighbor evidence, and temporal-evaluation counts. `ready` for
+this synthetic cohort authorizes only fitting and testing the offline
+collaborative and hybrid experiments; it is not evidence about real users,
+recommendation quality, or production readiness. For an insufficient snapshot,
+the default command still writes an `insufficient_data` report and exits zero;
+`--strict` exits 3 after writing that same report. See
 [collaborative-filtering data readiness](../docs/collaborative-readiness.md) for
 the exact thresholds, assumptions, privacy rules, and proceed condition.
 
@@ -97,6 +98,34 @@ results verify only engineering behavior and cannot establish real-user lift.
 See the [offline collaborative recommender](../docs/collaborative-recommender.md)
 for the signed-neighborhood formula, sparse fallback, artifact contract, and
 interpretation rules.
+
+## Run the hybrid experiment
+
+Use the same ready snapshot to evaluate every built-in candidate on one split:
+
+```powershell
+recipe-lab-eval run `
+  --snapshot snapshots/readiness-simulated-v1.json `
+  --hybrid `
+  --k 1 --k 3 `
+  --seed 20260822 `
+  --output reports/hybrid-v1.json `
+  --strict
+```
+
+`--hybrid` and `--collaborative` are mutually exclusive. The hybrid suite
+contains `baseline-v1`, `collaborative-v1`, `content-v1`, and `hybrid-v1` in
+stable model-ID order and applies the complete collaborative-readiness gate
+before fitting. Report schema v3 adds an aggregate `hybrid_adoption` decision.
+Retaining a simpler model is a successful evaluation and returns zero; it does
+not make `--strict` fail.
+
+The generated cohort deterministically retains `content-v1`. Its hybrid NDCG
+is `0.625000` at K=1 and `0.866219` at K=3; the primary-K gain over content is
+only `0.001481`, below the policy's `0.010000` minimum, and other K=1 guardrails
+also regress. Synthetic evidence is independently barred from adoption. See the
+[offline hybrid recommender](../docs/hybrid-recommender.md) for the exact
+component formula, cold-start routes, reasons, metrics, and policy.
 
 ## Capture an evaluation snapshot
 
@@ -149,11 +178,28 @@ normalized signed candidate score. Sparse profiles, sparse candidates, missing
 neighbors, and equal scores resolve through the deterministic `content-v1`
 order.
 
-The CLI adds this model only with `--collaborative`; the default command remains
-the baseline/content comparison. The public evaluator enforces the same gate
+The CLI adds this model with `--collaborative` or as a comparator in the
+`--hybrid` suite; the default command remains the baseline/content comparison.
+The public evaluator enforces the same gate
 when `CollaborativeV1Model()` is supplied. Direct `.fit()` calls remain useful
 only for focused tests because the leakage-safe model protocol does not expose
 the held-out events required by the full-snapshot gate.
+
+## Built-in hybrid model
+
+`hybrid-v1` converts each component's top-50-or-smaller rank to an exact common
+score, then uses baseline-only, content-plus-baseline, or full
+content-plus-collaborative-plus-baseline routes according to the candidate's
+available evidence. Every detail carries a deterministic, non-identifying
+reason; the aggregate report intentionally omits candidate details and raw IDs.
+Its per-model artifact is null because it is closed-form rank fusion, while its
+metadata and parameter hash record the component versions, weights, routes,
+tie-break, and reason policy.
+
+The public evaluator requires `ContentBasedV1Model()` and
+`CollaborativeV1Model()` in the same call whenever `HybridV1Model()` is present,
+then applies readiness before fitting. This preserves the required same-split
+comparison rather than silently producing a baseline-versus-hybrid report.
 
 ## Add another comparison model
 
@@ -167,8 +213,8 @@ Call `evaluate(snapshot, models=(your_model,), config=...)`. The runner always
 adds `baseline-v1`, rejects attempts to replace it, and records raw metrics plus
 baseline deltas for every model. Experiment code can supply additional adapters
 through the Python API; the CLI intentionally exposes only the fixed built-in
-content comparison and its explicit, readiness-gated collaborative extension
-rather than accepting an arbitrary import path.
+content comparison and its explicit, readiness-gated collaborative and hybrid
+suites rather than accepting an arbitrary import path.
 
 ## Checks
 
@@ -186,4 +232,6 @@ contract is documented in
 contract defines when the snapshot structure is sufficient to run the RCP-18
 experiment, and the
 [offline collaborative recommender](../docs/collaborative-recommender.md)
-defines its scoring, fallback, artifact, and evaluation behavior.
+defines its scoring, fallback, artifact, and evaluation behavior. The
+[offline hybrid recommender](../docs/hybrid-recommender.md) defines rank fusion,
+explanation routes, and the conservative adoption policy.

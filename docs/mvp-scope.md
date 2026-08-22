@@ -58,15 +58,18 @@ behavior. RCP-18A adds an event-free catalog fixture, a deterministic synthetic
 preference cohort, and an aggregate structural-readiness gate. RCP-18 adds the
 opt-in, evaluator-only `collaborative-v1` user-neighborhood model, which refuses
 to fit through the CLI until that gate passes and uses `content-v1` when local
-evidence is sparse. Its generated `ready` result and model scores are engineering
-evidence only, not claims about real users or model quality. None of these
+evidence is sparse. RCP-19 adds evaluator-only `hybrid-v1` rank fusion, tested
+human-readable cold-start reasons, and a conservative aggregate scorecard that
+retains a simpler model unless same-split results clear every guardrail. Its
+generated `ready` result and model scores are engineering evidence only, not
+claims about real users or model quality. None of these
 additions belongs to or blocks the deployed M1 request path. See
 [baseline recommendations](recommendations.md),
 [offline content recommender](content-recommender.md),
-[offline recommendation evaluation](evaluation.md), and
-[collaborative-filtering data readiness](collaborative-readiness.md), and the
-[offline collaborative recommender](collaborative-recommender.md) for the exact
-contracts.
+[offline recommendation evaluation](evaluation.md),
+[collaborative-filtering data readiness](collaborative-readiness.md),
+[offline collaborative recommender](collaborative-recommender.md), and
+[offline hybrid recommender](hybrid-recommender.md) for the exact contracts.
 
 ## Exit criteria before ML work
 
@@ -83,5 +86,7 @@ structural support for the offline RCP-18 experiment explicit. A passing
 simulated fixture permits only engineering evaluation against that contract;
 conclusions about real interaction data require a separately captured,
 privacy-safe snapshot to pass and produce a reproducible baseline/content/model
-comparison. These additions do not move an ML runtime, online learned
+comparison. The same gate applies to RCP-19, and even an observed-data
+`adopt_hybrid` scorecard would remain an offline recommendation rather than a
+deployment. These additions do not move an ML runtime, online learned
 recommendations, or a recommendation surface into MVP scope.

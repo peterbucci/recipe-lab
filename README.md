@@ -46,10 +46,12 @@ preference signals with a defined cold-start rule. A deterministic simulator
 and aggregate readiness gate establish the engineering data contract for the
 opt-in `collaborative-v1` experiment. That deterministic user-neighborhood model
 uses signed interaction overlap, falls back to `content-v1` for sparse evidence,
-and records aggregate training provenance in its offline report. The generated
-cohort is not real-user or quality evidence. Hybrid models and online learned
-serving remain separate work; no approach should be considered better without a
-comparable evaluation report.
+and records aggregate training provenance in its offline report. The offline
+`hybrid-v1` experiment now fuses baseline, content, and collaborative ranks with
+explicit cold-start routes and a conservative same-split adoption decision. The
+generated cohort retains the simpler approach and is not real-user or quality
+evidence. Online learned serving remains separate work; no approach should be
+considered better without a comparable evaluation report.
 
 ## Repository layout
 
@@ -103,6 +105,10 @@ The repository currently provides:
 - an opt-in, readiness-gated `collaborative-v1` offline recommender with signed
   user-neighborhood scoring, deterministic content fallback, aggregate artifact
   metadata, and baseline/content comparison;
+- an opt-in `hybrid-v1` offline rank-fusion experiment with explicit baseline,
+  content, and collaborative component scores, deterministic cold-start reasons,
+  and a versioned policy that retains the simpler model unless aggregate results
+  clear every quality, support, and coverage guardrail;
 - a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
   immutable recipe-version snapshots, ingredients, instructions, saves, and
   ratings plus their separate interaction history;
@@ -219,6 +225,9 @@ recipe-lab-eval readiness --snapshot snapshots/readiness-simulated-v1.json `
 recipe-lab-eval run --snapshot snapshots/readiness-simulated-v1.json `
   --collaborative --k 1 --k 3 --seed 20260822 `
   --output reports/collaborative-v1.json --strict
+recipe-lab-eval run --snapshot snapshots/readiness-simulated-v1.json `
+  --hybrid --k 1 --k 3 --seed 20260822 `
+  --output reports/hybrid-v1.json --strict
 ```
 
 The snapshot's explicit UTC cutoff defines training and holdout data. Each CLI
@@ -226,6 +235,10 @@ run evaluates `content-v1` beside the automatically included `baseline-v1` and
 reports the metric deltas. `--collaborative` first requires the complete
 snapshot to pass the readiness gate, then adds `collaborative-v1`; an
 insufficient snapshot exits 3 before fitting or writing an evaluation report.
+The mutually exclusive `--hybrid` suite applies the same gate and evaluates
+baseline, collaborative, content, and hybrid models on one split. Its report
+contains an aggregate `hybrid_adoption` decision; retaining a simpler model is a
+successful evaluation and does not make the command fail.
 The synthetic results validate only the engineering contracts, not product
 quality or behavior for real users. See
 [offline recommendation evaluation](docs/evaluation.md) for the snapshot
@@ -235,7 +248,9 @@ contract. The simulator assumptions, fixed readiness thresholds, and proceed
 rule are documented in
 [collaborative-filtering data readiness](docs/collaborative-readiness.md); the
 signed-neighborhood, fallback, artifact, and interpretation rules are in the
-[offline collaborative recommender](docs/collaborative-recommender.md).
+[offline collaborative recommender](docs/collaborative-recommender.md). The
+rank-fusion routes, reasons, and adoption guardrails are in the
+[offline hybrid recommender](docs/hybrid-recommender.md).
 
 The Playwright list command validates test discovery without installing or
 launching a browser. To run the browser flow locally, keep the migrated and
@@ -279,6 +294,8 @@ verifies same-seed simulator and readiness-report reproducibility, a distinct
 changed-seed cohort, and a strict ready result for the engineering fixture. It
 then runs the gated collaborative experiment twice at K values 1 and 3, checks
 its quality, coverage, and artifact contract, and compares the report bytes. It
+also runs the complete hybrid suite twice, checks its exact synthetic metrics
+and conservative `retain_simpler` decision, and compares those report bytes. It
 is deliberately outside the backend/frontend dependency chain and never starts
 a product service.
 
@@ -312,4 +329,6 @@ features, signed profile, and cold-start formula are documented in
 cohort and structural gate are defined in
 [collaborative-filtering data readiness](docs/collaborative-readiness.md), and
 the signed-neighborhood experiment is documented in the
-[offline collaborative recommender](docs/collaborative-recommender.md).
+[offline collaborative recommender](docs/collaborative-recommender.md). The
+offline rank-fusion and model-adoption policy are documented in the
+[offline hybrid recommender](docs/hybrid-recommender.md).

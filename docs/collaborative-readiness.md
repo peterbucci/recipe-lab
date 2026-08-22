@@ -10,7 +10,8 @@ recommendation API, add a frontend surface, or make a production-readiness
 decision. The gate only checks whether usable nonzero collaborative candidate
 evidence exists. The separate
 [`collaborative-v1` experiment](collaborative-recommender.md) consumes this
-contract.
+contract, as does the collaborative component of the
+[`hybrid-v1` experiment](hybrid-recommender.md).
 
 A `ready` result means only that the snapshot meets the documented profile,
 item, interaction, support, sparsity, and temporal-evaluation minimums. It does
@@ -136,15 +137,16 @@ with status 3 when data is insufficient. Invalid input or configuration exits
 with status 2, and read/write failures exit with status 1. The CLI refuses to
 overwrite its input catalog or snapshot.
 
-## When the collaborative experiment may run
+## When collaborative-dependent experiments may run
 
 A ready report from the generated cohort permits fitting and testing the offline
-`collaborative-v1` adapter against a stable data contract. The
-`recipe-lab-eval run --collaborative` path applies this complete gate before any
-collaborative fit. If any threshold fails, it exits 3 without writing an
-evaluation report and directs the caller to this aggregate readiness command.
-This enforcement is independent of the run command's separate `--strict`
-evaluation-status behavior.
+`collaborative-v1` adapter and the collaborative component of `hybrid-v1`
+against a stable data contract. The mutually exclusive `recipe-lab-eval run
+--collaborative` and `recipe-lab-eval run --hybrid` suites apply this complete
+gate before any fit. If any threshold fails, either exits 3 without writing or
+overwriting an evaluation report and directs the caller to this aggregate
+readiness command. This enforcement is independent of the run command's
+separate `--strict` evaluation-status behavior.
 
 A passing generated cohort remains engineering evidence only. Simulated
 preferences are designed to exercise overlap and temporal evaluation, not to
@@ -152,9 +154,13 @@ imitate or predict people.
 
 Claims about real interaction data require an intentionally captured,
 privacy-safe snapshot to pass the same gate. Even then, readiness establishes
-only that an experiment can be run. Its report must show `collaborative-v1`
-beside `baseline-v1` and `content-v1` under the same fixed-cutoff protocol before
-any quality conclusion. See the
+only that an experiment can be run. A collaborative report must show
+`collaborative-v1` beside `baseline-v1` and `content-v1`; a hybrid report must
+add `hybrid-v1`. Every candidate uses the same fixed-cutoff split before any
+quality conclusion. See the
 [offline collaborative recommender](collaborative-recommender.md) for the exact
-scoring, fallback, artifact, and interpretation rules. Online serving, API
-changes, a recommendation UI, and deployment remain separate product decisions.
+scoring, fallback, artifact, and interpretation rules, and the
+[offline hybrid recommender](hybrid-recommender.md) for the fusion and adoption
+contract. A ready synthetic cohort is always retained as engineering-only
+evidence by the hybrid policy. Online serving, API changes, a recommendation
+UI, and deployment remain separate product decisions.

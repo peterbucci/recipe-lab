@@ -13,13 +13,15 @@ also ignored as generated artifacts and can carry caller-supplied dataset
 labels and limitation text. Only deliberately synthetic fixtures under
 `ml/tests/fixtures/` are committed. One verifies the baseline/content evaluator,
 while the event-free readiness catalog drives the deterministic RCP-18A
-simulator and gated collaborative experiment. These fixtures verify engineering
-contracts; their status and scores are not evidence about product quality or
-real people. See
+simulator and gated collaborative and hybrid experiments. These fixtures verify
+engineering contracts; their status and scores are not evidence about product
+quality or real people. See
 [collaborative-filtering data readiness](collaborative-readiness.md) for the
 simulator and gate, and the
-[offline collaborative recommender](collaborative-recommender.md) for the model
-contract.
+[offline collaborative recommender](collaborative-recommender.md) for the
+neighborhood model contract, and the
+[offline hybrid recommender](hybrid-recommender.md) for rank fusion and the
+adoption scorecard.
 
 ## Snapshot contract
 
@@ -126,16 +128,28 @@ snapshot to pass the complete collaborative-readiness gate, then also supplies
 evaluation report. A successful report contains `baseline-v1`,
 `collaborative-v1`, and `content-v1` in model-ID order.
 
+`run --hybrid` is mutually exclusive with `run --collaborative`. It applies the
+same readiness gate, then supplies the collaborative, content, and hybrid
+adapters together; the runner adds the baseline. The resulting stable order is
+`baseline-v1`, `collaborative-v1`, `content-v1`, and `hybrid-v1`. All four use
+one split and metric implementation. A failed gate exits 3 before fitting and
+does not create or replace the requested report.
+
 The generic Python `evaluate()` API adds only the baseline automatically, so
 callers must explicitly pass `ContentBasedV1Model()`, `CollaborativeV1Model()`,
-or another comparison adapter. The evaluator applies the same complete readiness
-gate whenever `collaborative-v1` is present. Directly fitting the adapter remains
+`HybridV1Model()`, or another comparison adapter. The evaluator applies the same
+complete readiness gate whenever `collaborative-v1` or `hybrid-v1` is present.
+When hybrid is present, content and collaborative must also be present; a
+hybrid-only call is rejected rather than publishing an incomplete comparison.
+Directly fitting an adapter remains
 useful only for focused model tests and is not a qualifying RCP-18 experiment;
 the full gate requires holdout data that the leakage-safe `fit()` protocol does
 not receive. The content model is documented
 in [offline content recommender](content-recommender.md), and the signed
 user-neighborhood and sparse fallback are documented in
-[offline collaborative recommender](collaborative-recommender.md).
+[offline collaborative recommender](collaborative-recommender.md). Rank fusion,
+explanation routes, and adoption are documented in
+[offline hybrid recommender](hybrid-recommender.md).
 
 ## Reproducibility and reports
 
@@ -146,7 +160,10 @@ and accepts but does not consume its derived seed; exact rational arithmetic and
 fixed tie-breaks make its fit and ranking independent of input order and seed.
 `collaborative-v1` is also closed-form and records but does not consume its
 derived seed. It uses exact rational similarity and scoring, sorted state, and
-the content fallback order.
+the content fallback order. `hybrid-v1` is closed-form exact-rational rank
+fusion. It derives isolated component seeds from its independent model seed;
+the current closed-form components record or accept those seeds without random
+sampling.
 
 Reports contain the protocol and schema versions, deterministic run ID,
 snapshot fingerprint and cutoff, seed, K values, split/filter counts, model
@@ -156,9 +173,10 @@ newline. It intentionally omits wall-clock generation times, durations, host
 paths, and raw event/profile IDs; identical inputs produce byte-identical
 reports.
 
-Report schema `recipe-lab-offline-evaluation-report-v2` adds a per-model
-`artifact` value without changing the `fixed-cutoff-full-catalog-v1` evaluation
-protocol. The value is null for baseline and content models. The collaborative
+Report schema `recipe-lab-offline-evaluation-report-v3` retains the per-model
+`artifact` value introduced in v2 without changing the
+`fixed-cutoff-full-catalog-v1` evaluation protocol. The value is null for
+baseline, content, and hybrid models. The collaborative
 object is flat and records its artifact/model versions, training cutoff,
 `derived_seed`, canonical training-data digest, and aggregate fitted-prefix and
 support counts. The runner validates the artifact's model ID, model version, and
@@ -167,6 +185,18 @@ Only a digest of the identifying fitted input is published; the report contains
 no raw recipe, event, or profile IDs. See the
 [collaborative artifact contract](collaborative-recommender.md#artifact-metadata)
 for the complete field list.
+
+Schema v3 adds top-level `hybrid_adoption`, which is null unless the complete
+hybrid suite is present. A non-null decision records the policy version, status,
+hybrid candidate and simpler reference IDs, primary K, evaluated-profile count,
+primary NDCG lift, worst all-K NDCG/recall/coverage deltas, stable reason codes,
+policy thresholds, and per-K aggregate comparisons. It contains no candidate,
+recipe, event, profile, or neighbor identifiers. The policy requires at least
+40 evaluated profiles, primary-K NDCG lift of at least `0.010000`, no NDCG or
+recall regression at any K, and no coverage regression below `-0.050000` at any
+K. Incomplete, missing-metric, and identified synthetic runs retain the simpler
+model. A `retain_simpler` decision is a successful complete evaluation and does
+not change the CLI exit status or deploy anything.
 
 When no profile has an eligible held-out label and candidate, the command still
 writes a valid `insufficient_data` report with null metrics and diagnostic
@@ -178,14 +208,16 @@ This evaluation insufficiency status is narrower than the collaborative-data
 readiness gate. `recipe-lab-eval readiness` additionally checks aggregate
 profile, item, typed-event, distinct matrix-cell, effective signed-signal
 support, usable candidate-level collaborative evidence, and temporal counts
-before the RCP-18 experiment runs. It uses the same cutoff and eligible-label
-semantics. It does not fit a model, rank recommendations, or compute quality
-metrics; it only verifies that nonzero collaborative candidate evidence exists.
+before the collaborative or hybrid experiment runs. It uses the same cutoff and
+eligible-label semantics. It does not fit a model, rank recommendations, or
+compute quality metrics; it only verifies that nonzero collaborative candidate
+evidence exists.
 Its aggregate report
 intentionally omits caller-controlled dataset labels, snapshot limitation text,
-recipe titles, and raw IDs. `run --collaborative` applies this gate regardless of
-the run command's `--strict` setting; `--strict` retains its separate meaning for
-an evaluation report that is insufficient under the core split.
+recipe titles, and raw IDs. `run --collaborative` and `run --hybrid` apply this
+gate regardless of the run command's `--strict` setting; `--strict` retains its
+separate meaning for an evaluation report that is insufficient under the core
+split.
 
 ## Known limitations
 
@@ -206,14 +238,15 @@ an evaluation report that is insufficient under the core split.
 - The RCP-18A generated cohort uses balanced exposure and deliberately positive
   holdout actions. A ready result for it validates only the offline engineering
   data contract; it does not show that observed Recipe Lab activity is ready or
-  that collaborative filtering will improve recommendations.
+  that collaborative or hybrid ranking will improve recommendations. The hybrid
+  adoption policy explicitly forces this synthetic evidence to retain the
+  simpler model.
 - Exact-version relevance does not yet measure lineage quality, substitution
   usefulness, nutrition, safety, or cooking outcomes.
 
 These limitations must travel with every snapshot and report. The offline
-`content-v1` and `collaborative-v1` implementations are comparison experiments,
-not deployment decisions. Collaborative quality must be read beside both the
-baseline deltas and the content model's raw metrics on the same report. Either
-approach should be considered for a separate serving milestone only after
-reproducible reports on suitable observed data show a useful improvement under
-this protocol.
+`content-v1`, `collaborative-v1`, and `hybrid-v1` implementations are comparison
+experiments, not deployment decisions. Their quality must be read from the same
+report. Even an `adopt_hybrid` offline scorecard result only says that one
+snapshot cleared the documented guardrails; serving remains a separate
+milestone requiring reproducible observed-data and online evidence.

@@ -148,4 +148,7 @@ with a fixed-cutoff protocol and compares it with the
 [offline `content-v1` recommender](content-recommender.md) and the opt-in,
 readiness-gated
 [offline `collaborative-v1` recommender](collaborative-recommender.md). Those
-experiments do not replace this production strategy or add a serving dependency.
+experiments also feed the evaluator-only
+[offline `hybrid-v1` rank fusion](hybrid-recommender.md). Its human-readable
+reasons are tested model details, not API output. None of these experiments
+replaces this production strategy or adds a serving dependency.
