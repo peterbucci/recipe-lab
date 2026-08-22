@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Iterable, Sequence
+import re
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -14,12 +16,20 @@ from .dataset import (
 )
 from .metrics import MetricsAtK, calculate_metrics, quantize_metric
 from .models.baseline_v1 import BaselineV1Model
+from .models.collaborative_v1 import (
+    COLLABORATIVE_ARTIFACT_SCHEMA_VERSION,
+    COLLABORATIVE_ARTIFACT_VERSION,
+    COLLABORATIVE_MODEL_ID,
+)
 from .protocol import (
     EvaluationModel,
+    FittedCollaborativeArtifactProvider,
+    JsonScalar,
     ModelMetadata,
     ModelTrainingData,
     derive_model_seed,
 )
+from .readiness import assess_readiness
 from .report import (
     PROTOCOL_VERSION,
     REPORT_SCHEMA_VERSION,
@@ -33,6 +43,36 @@ from .split import EvaluationSplit, split_snapshot
 DEFAULT_SEED = 20_260_821
 DEFAULT_KS = (5, 10)
 BASELINE_MODEL_ID = "baseline-v1"
+
+_ARTIFACT_KEYS = frozenset(
+    {
+        "artifact_schema_version",
+        "artifact_version",
+        "model_id",
+        "model_version",
+        "training_cutoff",
+        "derived_seed",
+        "training_data_sha256",
+        "recipe_count",
+        "event_count",
+        "profile_count",
+        "observed_event_pair_count",
+        "nonzero_signal_pair_count",
+        "supported_profile_count",
+        "supported_item_count",
+    }
+)
+_ARTIFACT_COUNT_KEYS = (
+    "recipe_count",
+    "event_count",
+    "profile_count",
+    "observed_event_pair_count",
+    "nonzero_signal_pair_count",
+    "supported_profile_count",
+    "supported_item_count",
+)
+_ARTIFACT_VERSION_PATTERN = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}")
+_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
 class EvaluationError(ValueError):
@@ -75,6 +115,74 @@ def _validate_metadata(metadata: ModelMetadata) -> None:
         raise EvaluationError(f"model {metadata.model_id!r} has non-JSON parameters") from error
 
 
+def _validate_artifact(
+    artifact: dict[str, JsonScalar],
+    *,
+    metadata: ModelMetadata,
+    model_seed: int,
+    expected_training_cutoff: datetime,
+) -> None:
+    if frozenset(artifact) != _ARTIFACT_KEYS:
+        raise EvaluationError(f"model {metadata.model_id!r} produced invalid artifact metadata")
+    if artifact["model_id"] != metadata.model_id:
+        raise EvaluationError(f"model {metadata.model_id!r} artifact has a mismatched model_id")
+    if artifact["model_version"] != metadata.version:
+        raise EvaluationError(
+            f"model {metadata.model_id!r} artifact has a mismatched model_version"
+        )
+    if type(artifact["derived_seed"]) is not int or artifact["derived_seed"] != model_seed:
+        raise EvaluationError(f"model {metadata.model_id!r} artifact has a mismatched seed")
+
+    schema_version = artifact["artifact_schema_version"]
+    artifact_version = artifact["artifact_version"]
+    if (
+        schema_version != COLLABORATIVE_ARTIFACT_SCHEMA_VERSION
+        or artifact_version != COLLABORATIVE_ARTIFACT_VERSION
+        or not isinstance(schema_version, str)
+        or _ARTIFACT_VERSION_PATTERN.fullmatch(schema_version) is None
+        or not isinstance(artifact_version, str)
+        or _ARTIFACT_VERSION_PATTERN.fullmatch(artifact_version) is None
+    ):
+        raise EvaluationError(f"model {metadata.model_id!r} produced invalid artifact metadata")
+
+    artifact_training_cutoff = artifact["training_cutoff"]
+    if not isinstance(artifact_training_cutoff, str):
+        raise EvaluationError(f"model {metadata.model_id!r} produced invalid artifact metadata")
+    try:
+        parsed_cutoff = datetime.fromisoformat(artifact_training_cutoff.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise EvaluationError(
+            f"model {metadata.model_id!r} produced invalid artifact metadata"
+        ) from error
+    if parsed_cutoff.tzinfo is None or parsed_cutoff.utcoffset() != timedelta(0):
+        raise EvaluationError(f"model {metadata.model_id!r} produced invalid artifact metadata")
+    canonical_cutoff = parsed_cutoff.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    expected_cutoff = expected_training_cutoff.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    if artifact_training_cutoff != canonical_cutoff or canonical_cutoff != expected_cutoff:
+        raise EvaluationError(f"model {metadata.model_id!r} produced invalid artifact metadata")
+
+    training_sha256 = artifact["training_data_sha256"]
+    if not isinstance(training_sha256, str) or _SHA256_PATTERN.fullmatch(training_sha256) is None:
+        raise EvaluationError(f"model {metadata.model_id!r} produced invalid artifact metadata")
+    counts: dict[str, int] = {}
+    for key in _ARTIFACT_COUNT_KEYS:
+        value = artifact[key]
+        if type(value) is not int or value < 0:
+            raise EvaluationError(f"model {metadata.model_id!r} produced invalid artifact metadata")
+        counts[key] = value
+
+    recipe_count = counts["recipe_count"]
+    event_count = counts["event_count"]
+    profile_count = counts["profile_count"]
+    if (
+        counts["supported_profile_count"] > profile_count
+        or counts["supported_item_count"] > recipe_count
+        or counts["observed_event_pair_count"] > event_count
+        or counts["nonzero_signal_pair_count"] > profile_count * recipe_count
+    ):
+        raise EvaluationError(f"model {metadata.model_id!r} produced invalid artifact metadata")
+
+
 def _models_with_baseline(models: Iterable[EvaluationModel]) -> tuple[EvaluationModel, ...]:
     supplied = tuple(models)
     for model in supplied:
@@ -93,7 +201,7 @@ def _rank_model(
     *,
     split: EvaluationSplit,
     config: EvaluationConfig,
-) -> tuple[dict[UUID, tuple[UUID, ...]], int]:
+) -> tuple[dict[UUID, tuple[UUID, ...]], int, dict[str, JsonScalar] | None]:
     model_seed = derive_model_seed(config.seed, model.metadata.model_id)
     fitted = model.fit(
         ModelTrainingData(
@@ -105,6 +213,35 @@ def _rank_model(
     )
     if fitted.metadata != model.metadata:
         raise EvaluationError(f"model {model.metadata.model_id!r} changed metadata during fit")
+    artifact: dict[str, JsonScalar] | None = None
+    if isinstance(fitted, FittedCollaborativeArtifactProvider):
+        raw_artifact = fitted.collaborative_artifact_document
+        if not isinstance(raw_artifact, Mapping) or any(
+            not isinstance(key, str) for key in raw_artifact
+        ):
+            raise EvaluationError(
+                f"model {model.metadata.model_id!r} produced invalid artifact metadata"
+            )
+        artifact = dict(sorted(raw_artifact.items()))
+        if any(
+            value is not None and not isinstance(value, str | int | float | bool)
+            for value in artifact.values()
+        ):
+            raise EvaluationError(
+                f"model {model.metadata.model_id!r} produced invalid artifact metadata"
+            )
+        try:
+            canonical_json(artifact)
+        except (TypeError, ValueError) as error:
+            raise EvaluationError(
+                f"model {model.metadata.model_id!r} produced invalid artifact metadata"
+            ) from error
+        _validate_artifact(
+            artifact,
+            metadata=model.metadata,
+            model_seed=model_seed,
+            expected_training_cutoff=split.cutoff,
+        )
     rankings: dict[UUID, tuple[UUID, ...]] = {}
     maximum_k = max(config.ks)
     for case in split.cases:
@@ -131,7 +268,7 @@ def _rank_model(
                 f"model {model.metadata.model_id!r} returned out-of-candidate recipe IDs"
             )
         rankings[case.user_id] = returned[:required]
-    return rankings, model_seed
+    return rankings, model_seed, artifact
 
 
 def _difference(value: Decimal | None, baseline: Decimal | None) -> Decimal | None:
@@ -233,11 +370,22 @@ def evaluate(
     normalized_snapshot = parse_snapshot_json(snapshot_to_json(snapshot))
     split = split_snapshot(normalized_snapshot)
     evaluation_models = _models_with_baseline(models)
+    if any(model.metadata.model_id == COLLABORATIVE_MODEL_ID for model in evaluation_models):
+        readiness = assess_readiness(normalized_snapshot)
+        if readiness.status != "ready":
+            reasons = ", ".join(readiness.reason_codes)
+            raise EvaluationError(f"collaborative readiness failed: {reasons}")
     metrics_by_model: dict[str, tuple[MetricsAtK, ...]] = {}
     seeds_by_model: dict[str, int] = {}
+    artifacts_by_model: dict[str, dict[str, JsonScalar] | None] = {}
     for model in evaluation_models:
-        rankings, model_seed = _rank_model(model, split=split, config=resolved_config)
+        rankings, model_seed, artifact = _rank_model(
+            model,
+            split=split,
+            config=resolved_config,
+        )
         seeds_by_model[model.metadata.model_id] = model_seed
+        artifacts_by_model[model.metadata.model_id] = artifact
         metrics_by_model[model.metadata.model_id] = tuple(
             calculate_metrics(
                 k=k,
@@ -256,6 +404,7 @@ def evaluate(
             parameters=dict(sorted(model.metadata.parameters.items())),
             parameter_sha256=_parameter_hash(model.metadata),
             seed=seeds_by_model[model.metadata.model_id],
+            artifact=artifacts_by_model[model.metadata.model_id],
             metrics=metrics_by_model[model.metadata.model_id],
             deltas_vs_baseline=_metric_deltas(
                 metrics_by_model[model.metadata.model_id], baseline_metrics

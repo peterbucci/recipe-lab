@@ -145,5 +145,7 @@ personalization quality. It deliberately has no recency model, popularity
 dampening, semantic ingredient representation, collaborative signal, or
 training pipeline. The [offline evaluation harness](evaluation.md) measures it
 with a fixed-cutoff protocol and compares it with the
-[offline `content-v1` recommender](content-recommender.md). That experiment does
-not replace this production strategy or add a serving dependency.
+[offline `content-v1` recommender](content-recommender.md) and the opt-in,
+readiness-gated
+[offline `collaborative-v1` recommender](collaborative-recommender.md). Those
+experiments do not replace this production strategy or add a serving dependency.

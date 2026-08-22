@@ -4,7 +4,7 @@ import hashlib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 from uuid import UUID
 
 from .dataset import SnapshotEvent, SnapshotRecipe
@@ -43,6 +43,20 @@ class FittedEvaluationModel(Protocol):
         candidate_ids: tuple[UUID, ...],
         limit: int,
     ) -> Sequence[UUID]: ...
+
+
+@runtime_checkable
+class FittedCollaborativeArtifactProvider(Protocol):
+    """Report-v2 contract for collaborative-v1 aggregate artifact metadata.
+
+    The runner validates the complete field allowlist and scalar types before
+    publishing it. The collaborative-specific property name prevents unrelated
+    future models from being mistaken for this schema. A future artifact shape
+    requires an explicit report schema revision.
+    """
+
+    @property
+    def collaborative_artifact_document(self) -> Mapping[str, JsonScalar]: ...
 
 
 class EvaluationModel(Protocol):

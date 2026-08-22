@@ -200,6 +200,61 @@ jobs:
             --output "$RUNNER_TEMP/readiness-report-c.json" --strict
           cmp "$RUNNER_TEMP/readiness-report-a.json" \
             "$RUNNER_TEMP/readiness-report-b.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "readiness-report-a.json").read_text()
+          )
+          assert report["schema_version"] == (
+              "recipe-lab-collaborative-readiness-report-v2"
+          )
+          assert report["protocol_version"] == (
+              "fixed-cutoff-collaborative-readiness-v2"
+          )
+          assert report["counts"]["collaborative_evidence"][
+              "profiles_with_usable_candidate_evidence"
+          ] == 64
+          PY
+
+      - name: Evaluate collaborative model on ready data
+        shell: bash
+        run: |
+          recipe-lab-eval run \
+            --snapshot "$RUNNER_TEMP/readiness-snapshot-a.json" \
+            --collaborative --k 1 --k 3 --seed 20260822 --strict \
+            --output "$RUNNER_TEMP/collaborative-report-a.json"
+          recipe-lab-eval run \
+            --snapshot "$RUNNER_TEMP/readiness-snapshot-b.json" \
+            --collaborative --k 3 --k 1 --seed 20260822 --strict \
+            --output "$RUNNER_TEMP/collaborative-report-b.json"
+          cmp "$RUNNER_TEMP/collaborative-report-a.json" \
+            "$RUNNER_TEMP/collaborative-report-b.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "collaborative-report-a.json").read_text()
+          )
+          assert report["status"] == "complete"
+          assert report["schema_version"] == "recipe-lab-offline-evaluation-report-v2"
+          assert report["protocol_version"] == "fixed-cutoff-full-catalog-v1"
+          assert [model["model_id"] for model in report["models"]] == [
+              "baseline-v1",
+              "collaborative-v1",
+              "content-v1",
+          ]
+          collaborative = report["models"][1]
+          assert collaborative["artifact"]["artifact_schema_version"] == (
+              "recipe-lab-collaborative-artifact-v1"
+          )
+          assert all(metric["ndcg"] is not None for metric in collaborative["metrics"])
+          assert all(metric["coverage"] is not None for metric in collaborative["metrics"])
+          PY
 
       - name: Upload reproducibility report
         if: ${{ !cancelled() }}
@@ -209,6 +264,7 @@ jobs:
           path: |
             ${{ runner.temp }}/evaluation-report-a.json
             ${{ runner.temp }}/readiness-report-a.json
+            ${{ runner.temp }}/collaborative-report-a.json
           if-no-files-found: ignore
           retention-days: 7
 

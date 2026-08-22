@@ -14,7 +14,9 @@ The command-line evaluator always runs `content-v1` and automatically includes
 `baseline-v1`, so every CLI report contains the content result, the reference
 result, and metric deltas at the same K values. The lower-level Python
 `evaluate()` function remains generic: callers must pass `ContentBasedV1Model()`
-when they want that comparison.
+when they want that comparison. The opt-in `run --collaborative` experiment also
+includes `content-v1` as both a direct comparator and the deterministic fallback
+for sparse collaborative evidence.
 
 ## Recipe features and similarity
 
@@ -131,3 +133,6 @@ Important limitations include:
 No offline result promotes `content-v1` into the request path automatically.
 Online serving, authenticated profiles, a frontend recommendation surface, and
 model-artifact lifecycle remain separate product and architecture decisions.
+Its additional role as the
+[`collaborative-v1` sparse fallback](collaborative-recommender.md#sparse-data-and-fallback)
+is likewise evaluator-only and adds no serving dependency.

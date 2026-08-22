@@ -237,7 +237,7 @@ def test_simulate_and_readiness_commands_are_reproducible_and_ready(
     assert report["reason_codes"] == []
     assert report["counts"]["profiles"]["training"] == 64
     assert report["counts"]["interactions"]["training"] == 640
-    assert report["counts"]["temporal_evaluation"]["profiles_with_supported_history"] == 64
+    assert report["counts"]["temporal_evaluation"]["profiles_with_collaborative_evidence"] == 64
 
 
 def test_simulate_rejects_recorded_activity_without_overwriting_output(
@@ -303,7 +303,12 @@ def test_readiness_default_is_nonblocking_but_strict_is_actionable(
 
 
 @pytest.mark.parametrize(
-    "command,input_option", [("simulate", "--catalog"), ("readiness", "--snapshot")]
+    "command,input_option",
+    [
+        ("simulate", "--catalog"),
+        ("readiness", "--snapshot"),
+        ("run", "--snapshot"),
+    ],
 )
 def test_generated_commands_refuse_to_overwrite_their_input(
     command: str,

@@ -4,9 +4,13 @@
 
 RCP-18A provides a deterministic way to generate an engineering cohort and a
 fixed gate for deciding whether an evaluation snapshot has enough structural
-support to begin offline collaborative-filtering work. It does not implement a
-collaborative model, change the recommendation API, add a frontend surface, or
-make a production-readiness decision.
+support to run offline collaborative-filtering work. The simulator and gate do
+not fit a model, rank recommendations, compute quality metrics, change the
+recommendation API, add a frontend surface, or make a production-readiness
+decision. The gate only checks whether usable nonzero collaborative candidate
+evidence exists. The separate
+[`collaborative-v1` experiment](collaborative-recommender.md) consumes this
+contract.
 
 A `ready` result means only that the snapshot meets the documented profile,
 item, interaction, support, sparsity, and temporal-evaluation minimums. It does
@@ -77,11 +81,11 @@ snapshot:
 ```powershell
 recipe-lab-eval readiness `
   --snapshot snapshots/readiness-simulated-v1.json `
-  --output reports/readiness-v1.json `
+  --output reports/readiness-v2.json `
   --strict
 ```
 
-The `fixed-cutoff-collaborative-readiness-v1` protocol uses the same strict UTC
+The `fixed-cutoff-collaborative-readiness-v2` protocol uses the same strict UTC
 cutoff and eligible holdout-label rules as the offline evaluator. Its versioned
 defaults are:
 
@@ -93,13 +97,27 @@ defaults are:
 | Supported profiles | 40 | Profiles with at least five distinct training items |
 | Supported items | 8 | Items observed from at least three distinct training profiles |
 | Observed training pairs | 200 | Distinct training profile-item matrix cells |
-| Temporal evaluation profiles | 20 | Eligible holdout profiles that also have supported training history |
-| Temporal relevant items | 20 | Eligible unseen positives belonging to those supported profiles |
+| Nonzero signal pairs | 200 | Cells left after the documented signed state aggregation |
+| Signal-supported profiles | 40 | Profiles with at least five nonzero aggregate signal items |
+| Signal-supported items | 8 | Items with nonzero signals from at least three profiles |
+| Temporal evaluation profiles | 20 | Profiles with usable candidate evidence |
+| Temporal relevant items | 20 | Eligible unseen positives for those profiles |
 
-The report also records total, observed, and unobserved matrix cells and exact
-density and sparsity fractions. Repeated event rows can raise the event count,
-but they cannot invent distinct profile-item support. Holdout-only activity and
-recipes unavailable at the cutoff likewise cannot inflate training readiness.
+The report schema is `recipe-lab-collaborative-readiness-report-v2`. It records
+both raw structural support and effective signed support, plus total, observed,
+and unobserved matrix cells and exact density and sparsity fractions. Save,
+rating, view, and fork contributions use the same weights and state rules as the
+collaborative model. A raw cell whose signed contributions fully cancel does not
+count as a nonzero signal cell. Temporal profiles must meet the effective
+five-signal minimum and have at least one supported candidate with a nonzero
+score from a neighbor sharing at least two signal items. This prevents a dense
+but non-overlapping matrix from passing while every prediction uses content
+fallback. The report's aggregate `collaborative_evidence` counts show supported
+targets, profiles with usable candidate evidence, and candidate items receiving
+that evidence. Repeated event rows can raise the event count, but they cannot
+invent distinct, effective, or neighborhood support. Holdout-only activity
+legitimately supplies temporal labels but cannot inflate training support;
+recipes unavailable at the cutoff cannot enter eligible temporal counts.
 
 Every check records its actual value, minimum, pass state, and stable failure
 reason. The overall status is `ready` only when every check passes; otherwise it
@@ -118,16 +136,25 @@ with status 3 when data is insufficient. Invalid input or configuration exits
 with status 2, and read/write failures exit with status 1. The CLI refuses to
 overwrite its input catalog or snapshot.
 
-## When RCP-18 may proceed
+## When the collaborative experiment may run
 
-A ready report from the generated cohort permits implementation and testing of
-an offline RCP-18 collaborative-filtering adapter against a stable data
-contract. It is engineering evidence only. Simulated preferences are designed
-to exercise overlap and temporal evaluation, not to imitate or predict people.
+A ready report from the generated cohort permits fitting and testing the offline
+`collaborative-v1` adapter against a stable data contract. The
+`recipe-lab-eval run --collaborative` path applies this complete gate before any
+collaborative fit. If any threshold fails, it exits 3 without writing an
+evaluation report and directs the caller to this aggregate readiness command.
+This enforcement is independent of the run command's separate `--strict`
+evaluation-status behavior.
+
+A passing generated cohort remains engineering evidence only. Simulated
+preferences are designed to exercise overlap and temporal evaluation, not to
+imitate or predict people.
 
 Claims about real interaction data require an intentionally captured,
 privacy-safe snapshot to pass the same gate. Even then, readiness establishes
-only that an experiment can be run: RCP-18 must still be evaluated beside
-`baseline-v1` under the fixed-cutoff protocol before any quality conclusion.
-Online serving, API changes, a recommendation UI, and deployment remain
-separate product decisions.
+only that an experiment can be run. Its report must show `collaborative-v1`
+beside `baseline-v1` and `content-v1` under the same fixed-cutoff protocol before
+any quality conclusion. See the
+[offline collaborative recommender](collaborative-recommender.md) for the exact
+scoring, fallback, artifact, and interpretation rules. Online serving, API
+changes, a recommendation UI, and deployment remain separate product decisions.

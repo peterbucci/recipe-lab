@@ -3,7 +3,11 @@
 The gate measures whether an evaluation snapshot has enough aggregate interaction
 support to begin collaborative-filtering experiments.  It is deliberately not a
 model-quality claim: event rows, distinct profile-item pairs, catalog support, and
-strictly temporal holdout labels are counted separately.
+strictly temporal holdout labels are counted separately. Because signed save,
+rating, view, and fork signals can cancel, the gate also requires enough nonzero
+post-aggregation matrix cells. It additionally verifies that enough temporal
+evaluation profiles have at least one candidate with a nonzero collaborative
+score, so a dense but non-overlapping matrix cannot pass on content fallback alone.
 
 An observed matrix cell is one distinct ``(profile, source recipe version)`` pair
 in the training prefix, regardless of how many typed events exist for that pair.
@@ -18,6 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, fields
 from datetime import UTC, datetime
+from fractions import Fraction
 from typing import Literal
 from uuid import UUID
 
@@ -27,10 +32,16 @@ from .dataset import (
     parse_snapshot_json,
     snapshot_to_json,
 )
+from .models.collaborative_v1 import (
+    MIN_ITEM_SIGNAL_PROFILES,
+    MIN_PROFILE_SIGNAL_ITEMS,
+    score_collaborative_candidate,
+)
+from .models.content_based_v1 import derive_preference_signals
 from .split import split_snapshot
 
-READINESS_REPORT_SCHEMA_VERSION = "recipe-lab-collaborative-readiness-report-v1"
-READINESS_PROTOCOL_VERSION = "fixed-cutoff-collaborative-readiness-v1"
+READINESS_REPORT_SCHEMA_VERSION = "recipe-lab-collaborative-readiness-report-v2"
+READINESS_PROTOCOL_VERSION = "fixed-cutoff-collaborative-readiness-v2"
 
 READINESS_LIMITATIONS = (
     (
@@ -40,6 +51,8 @@ READINESS_LIMITATIONS = (
     "This gate measures structural data support and temporal evaluability, not quality.",
     "A ready result from simulated events does not demonstrate behavior for real users.",
     "Event-row counts and distinct profile-item support measure different properties.",
+    "Signed state can cancel raw activity, so effective nonzero support is gated separately.",
+    "Usable candidate evidence is gated so a ready run cannot be content fallback only.",
 )
 
 type ReadinessStatus = Literal["ready", "insufficient_data"]
@@ -62,6 +75,9 @@ class ReadinessThresholds:
     minimum_distinct_training_profiles_per_item: int = 3
     minimum_supported_items: int = 8
     minimum_observed_training_pairs: int = 200
+    minimum_nonzero_signal_pairs: int = 200
+    minimum_signal_supported_profiles: int = 40
+    minimum_signal_supported_items: int = 8
     minimum_temporal_evaluation_profiles: int = 20
     minimum_temporal_relevant_items: int = 20
 
@@ -110,11 +126,27 @@ class SparsityCounts:
 
 
 @dataclass(frozen=True, slots=True)
+class EffectiveSignalCounts:
+    profiles_with_nonzero_signals: int
+    items_with_nonzero_signals: int
+    nonzero_signal_pairs: int
+    profiles_meeting_signal_minimum: int
+    items_meeting_signal_minimum: int
+
+
+@dataclass(frozen=True, slots=True)
+class CollaborativeEvidenceCounts:
+    profiles_with_supported_targets: int
+    profiles_with_usable_candidate_evidence: int
+    candidate_items_with_usable_evidence: int
+
+
+@dataclass(frozen=True, slots=True)
 class TemporalEvaluationCounts:
     split_eligible_profiles: int
     split_eligible_relevant_items: int
-    profiles_with_supported_history: int
-    relevant_items_for_supported_profiles: int
+    profiles_with_collaborative_evidence: int
+    relevant_items_for_collaborative_profiles: int
     raw_relevant_items: int
     filtered_already_interacted: int
     filtered_unavailable: int
@@ -127,6 +159,8 @@ class ReadinessCounts:
     interactions: InteractionCounts
     support: SupportCounts
     sparsity: SparsityCounts
+    effective_signals: EffectiveSignalCounts
+    collaborative_evidence: CollaborativeEvidenceCounts
     temporal_evaluation: TemporalEvaluationCounts
 
 
@@ -199,14 +233,32 @@ def _checks(
             failure_reason="observed_training_pairs_below_minimum",
         ),
         ReadinessCheck(
+            metric="nonzero_signal_pairs",
+            actual=counts.effective_signals.nonzero_signal_pairs,
+            minimum=thresholds.minimum_nonzero_signal_pairs,
+            failure_reason="nonzero_signal_pairs_below_minimum",
+        ),
+        ReadinessCheck(
+            metric="signal_supported_profiles",
+            actual=counts.effective_signals.profiles_meeting_signal_minimum,
+            minimum=thresholds.minimum_signal_supported_profiles,
+            failure_reason="signal_supported_profiles_below_minimum",
+        ),
+        ReadinessCheck(
+            metric="signal_supported_items",
+            actual=counts.effective_signals.items_meeting_signal_minimum,
+            minimum=thresholds.minimum_signal_supported_items,
+            failure_reason="signal_supported_items_below_minimum",
+        ),
+        ReadinessCheck(
             metric="temporal_evaluation_profiles",
-            actual=counts.temporal_evaluation.profiles_with_supported_history,
+            actual=counts.temporal_evaluation.profiles_with_collaborative_evidence,
             minimum=thresholds.minimum_temporal_evaluation_profiles,
             failure_reason="temporal_evaluation_profiles_below_minimum",
         ),
         ReadinessCheck(
             metric="temporal_relevant_items",
-            actual=counts.temporal_evaluation.relevant_items_for_supported_profiles,
+            actual=counts.temporal_evaluation.relevant_items_for_collaborative_profiles,
             minimum=thresholds.minimum_temporal_relevant_items,
             failure_reason="temporal_relevant_items_below_minimum",
         ),
@@ -247,7 +299,69 @@ def assess_readiness(
         if len(profile_ids) >= resolved_thresholds.minimum_distinct_training_profiles_per_item
     )
 
-    supported_cases = tuple(case for case in split.cases if case.user_id in supported_profiles)
+    derived_signals_by_profile = derive_preference_signals(split.training_events)
+    signals_by_profile = {
+        profile_id: {signal.recipe_version_id: signal.weight for signal in signals}
+        for profile_id, signals in derived_signals_by_profile.items()
+    }
+    signal_items_by_profile = {
+        profile_id: frozenset(signals) for profile_id, signals in signals_by_profile.items()
+    }
+    signal_profiles_by_item: dict[UUID, set[UUID]] = {}
+    for profile_id, item_ids in signal_items_by_profile.items():
+        for item_id in item_ids:
+            signal_profiles_by_item.setdefault(item_id, set()).add(profile_id)
+    signal_supported_profiles = frozenset(
+        profile_id
+        for profile_id, item_ids in signal_items_by_profile.items()
+        if len(item_ids) >= resolved_thresholds.minimum_distinct_training_items_per_profile
+    )
+    signal_supported_items = frozenset(
+        item_id
+        for item_id, profile_ids in signal_profiles_by_item.items()
+        if len(profile_ids) >= resolved_thresholds.minimum_distinct_training_profiles_per_item
+    )
+
+    profiles_by_signal_item = {
+        item_id: tuple(sorted(profile_ids, key=lambda value: value.int))
+        for item_id, profile_ids in signal_profiles_by_item.items()
+    }
+    supported_target_profiles: set[UUID] = set()
+    collaborative_profile_ids: set[UUID] = set()
+    collaborative_candidate_ids: set[UUID] = set()
+    for case in split.cases:
+        target = signals_by_profile.get(case.user_id, {})
+        if len(target) < max(
+            MIN_PROFILE_SIGNAL_ITEMS,
+            resolved_thresholds.minimum_distinct_training_items_per_profile,
+        ):
+            continue
+        supported_target_profiles.add(case.user_id)
+        similarity_cache: dict[UUID, Fraction | None] = {}
+        evidence_ids = {
+            candidate_id
+            for candidate_id in case.candidate_ids
+            if score_collaborative_candidate(
+                candidate_id=candidate_id,
+                user_id=case.user_id,
+                target=target,
+                signals_by_user=signals_by_profile,
+                profiles_by_recipe=profiles_by_signal_item,
+                similarity_cache=similarity_cache,
+                minimum_item_signal_profiles=max(
+                    MIN_ITEM_SIGNAL_PROFILES,
+                    resolved_thresholds.minimum_distinct_training_profiles_per_item,
+                ),
+            )
+            != 0
+        }
+        if evidence_ids:
+            collaborative_profile_ids.add(case.user_id)
+            collaborative_candidate_ids.update(evidence_ids)
+
+    collaborative_cases = tuple(
+        case for case in split.cases if case.user_id in collaborative_profile_ids
+    )
     possible_training_pairs = len(training_profiles) * len(split.recipes)
     observed_training_pairs = len(training_pairs)
     counts = ReadinessCounts(
@@ -275,12 +389,26 @@ def assess_readiness(
             observed_training_pairs=observed_training_pairs,
             unobserved_training_pairs=possible_training_pairs - observed_training_pairs,
         ),
+        effective_signals=EffectiveSignalCounts(
+            profiles_with_nonzero_signals=len(signal_items_by_profile),
+            items_with_nonzero_signals=len(signal_profiles_by_item),
+            nonzero_signal_pairs=sum(
+                len(item_ids) for item_ids in signal_items_by_profile.values()
+            ),
+            profiles_meeting_signal_minimum=len(signal_supported_profiles),
+            items_meeting_signal_minimum=len(signal_supported_items),
+        ),
+        collaborative_evidence=CollaborativeEvidenceCounts(
+            profiles_with_supported_targets=len(supported_target_profiles),
+            profiles_with_usable_candidate_evidence=len(collaborative_profile_ids),
+            candidate_items_with_usable_evidence=len(collaborative_candidate_ids),
+        ),
         temporal_evaluation=TemporalEvaluationCounts(
             split_eligible_profiles=split.counts.eligible_users,
             split_eligible_relevant_items=split.counts.eligible_relevant_items,
-            profiles_with_supported_history=len(supported_cases),
-            relevant_items_for_supported_profiles=sum(
-                len(case.relevant_ids) for case in supported_cases
+            profiles_with_collaborative_evidence=len(collaborative_cases),
+            relevant_items_for_collaborative_profiles=sum(
+                len(case.relevant_ids) for case in collaborative_cases
             ),
             raw_relevant_items=split.counts.raw_relevant_items,
             filtered_already_interacted=split.counts.filtered_already_interacted,
@@ -377,6 +505,32 @@ def readiness_report_to_document(report: ReadinessReport) -> dict[str, object]:
                 "density": density,
                 "sparsity": sparsity_fraction,
             },
+            "effective_signals": {
+                "profiles_with_nonzero_signals": (
+                    report.counts.effective_signals.profiles_with_nonzero_signals
+                ),
+                "items_with_nonzero_signals": (
+                    report.counts.effective_signals.items_with_nonzero_signals
+                ),
+                "nonzero_signal_pairs": report.counts.effective_signals.nonzero_signal_pairs,
+                "profiles_meeting_signal_minimum": (
+                    report.counts.effective_signals.profiles_meeting_signal_minimum
+                ),
+                "items_meeting_signal_minimum": (
+                    report.counts.effective_signals.items_meeting_signal_minimum
+                ),
+            },
+            "collaborative_evidence": {
+                "profiles_with_supported_targets": (
+                    report.counts.collaborative_evidence.profiles_with_supported_targets
+                ),
+                "profiles_with_usable_candidate_evidence": (
+                    report.counts.collaborative_evidence.profiles_with_usable_candidate_evidence
+                ),
+                "candidate_items_with_usable_evidence": (
+                    report.counts.collaborative_evidence.candidate_items_with_usable_evidence
+                ),
+            },
             "temporal_evaluation": {
                 "split_eligible_profiles": (
                     report.counts.temporal_evaluation.split_eligible_profiles
@@ -384,11 +538,11 @@ def readiness_report_to_document(report: ReadinessReport) -> dict[str, object]:
                 "split_eligible_relevant_items": (
                     report.counts.temporal_evaluation.split_eligible_relevant_items
                 ),
-                "profiles_with_supported_history": (
-                    report.counts.temporal_evaluation.profiles_with_supported_history
+                "profiles_with_collaborative_evidence": (
+                    report.counts.temporal_evaluation.profiles_with_collaborative_evidence
                 ),
-                "relevant_items_for_supported_profiles": (
-                    report.counts.temporal_evaluation.relevant_items_for_supported_profiles
+                "relevant_items_for_collaborative_profiles": (
+                    report.counts.temporal_evaluation.relevant_items_for_collaborative_profiles
                 ),
                 "raw_relevant_items": report.counts.temporal_evaluation.raw_relevant_items,
                 "filtered_already_interacted": (
@@ -421,6 +575,8 @@ __all__ = [
     "READINESS_LIMITATIONS",
     "READINESS_PROTOCOL_VERSION",
     "READINESS_REPORT_SCHEMA_VERSION",
+    "CollaborativeEvidenceCounts",
+    "EffectiveSignalCounts",
     "InteractionCounts",
     "ItemCounts",
     "ProfileCounts",
