@@ -42,9 +42,12 @@ which is now available as the comparison point for later work. A separate
 fixed-cutoff offline harness now measures that baseline reproducibly.
 `content-v1` is the first offline comparison model: it combines canonical
 ingredient overlap, normalized title tokens, version metadata, and signed
-preference signals with a defined cold-start rule. Collaborative, hybrid, and
-online learned recommenders remain deferred; no approach should be considered
-better without a comparable evaluation report.
+preference signals with a defined cold-start rule. A deterministic simulator
+and aggregate readiness gate now establish the engineering data contract for a
+later offline collaborative-filtering adapter. That generated cohort is not
+real-user or quality evidence. Collaborative models, hybrid models, and online
+learned serving remain separate work; no approach should be considered better
+without a comparable evaluation report.
 
 ## Repository layout
 
@@ -52,7 +55,7 @@ better without a comparable evaluation report.
 recipe-lab/
 |-- frontend/          Next.js and TypeScript web application
 |-- backend/           FastAPI, SQLAlchemy, and pytest
-|-- ml/                Offline content recommender and evaluation package
+|-- ml/                Offline recommenders, data readiness, and evaluation
 |-- docs/              Product scope and architecture notes
 |-- compose.yaml       Local frontend, API, and PostgreSQL services
 `-- .env.example       Documented development configuration
@@ -92,6 +95,8 @@ The repository currently provides:
 - a reproducible offline `content-v1` recommender that represents structured
   ingredients and recipe metadata, combines positive and negative preference
   signals, and defines deterministic cold-start behavior;
+- a versioned, privacy-safe synthetic preference simulator and deterministic
+  collaborative-readiness report with explicit support and temporal minimums;
 - a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
   immutable recipe-version snapshots, ingredients, instructions, saves, and
   ratings plus their separate interaction history;
@@ -201,16 +206,24 @@ python -m mypy src tests
 python -m pytest
 recipe-lab-eval run --snapshot tests/fixtures/synthetic_snapshot_v1.json `
   --k 5 --k 10 --seed 20260821 --output reports/synthetic-report.json
+recipe-lab-eval simulate --catalog tests/fixtures/readiness_catalog_v1.json `
+  --profiles 64 --seed 20260822 --output snapshots/readiness-simulated-v1.json
+recipe-lab-eval readiness --snapshot snapshots/readiness-simulated-v1.json `
+  --output reports/readiness-v1.json --strict
 ```
 
 The snapshot's explicit UTC cutoff defines training and holdout data. Each CLI
 run evaluates `content-v1` beside the automatically included `baseline-v1` and
 reports the metric deltas. The synthetic result validates the harness only; it
-is not a product benchmark. See
+is not a product benchmark. The separate simulated cohort and readiness report
+verify that an offline RCP-18 experiment can be built against a stable data
+contract; they do not demonstrate behavior or quality for real users. See
 [offline recommendation evaluation](docs/evaluation.md) for the snapshot
 command, metric definitions, and leakage/privacy rules, and
 [offline content recommender](docs/content-recommender.md) for the exact model
-contract.
+contract. The simulator assumptions, fixed readiness thresholds, and proceed
+rule are documented in
+[collaborative-filtering data readiness](docs/collaborative-readiness.md).
 
 The Playwright list command validates test discovery without installing or
 launching a browser. To run the browser flow locally, keep the migrated and
@@ -249,9 +262,11 @@ the committed `package-lock.json`.
 
 An independent `Offline evaluation` job installs the backend scoring core and
 the `ml` package, runs its static checks and tests, then generates the synthetic
-`content-v1` versus `baseline-v1` report twice and compares the bytes. It is
-deliberately outside the backend/frontend dependency chain and never starts a
-product service.
+`content-v1` versus `baseline-v1` report twice and compares the bytes. It also
+verifies same-seed simulator and readiness-report reproducibility, a distinct
+changed-seed cohort, and a strict ready result for the engineering fixture. It
+is deliberately outside the backend/frontend dependency chain and never starts
+a product service.
 
 After the backend and frontend quality jobs pass, the stable `MVP acceptance`
 job creates a fresh PostgreSQL 17 database, applies every migration, loads the
@@ -279,4 +294,6 @@ cold-start contract is documented in
 and report contract are documented in
 [offline recommendation evaluation](docs/evaluation.md), and the structured
 features, signed profile, and cold-start formula are documented in
-[offline content recommender](docs/content-recommender.md).
+[offline content recommender](docs/content-recommender.md). The engineering
+cohort and structural gate are defined in
+[collaborative-filtering data readiness](docs/collaborative-readiness.md).

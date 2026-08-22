@@ -226,19 +226,38 @@ this adapter on every run and the evaluator adds `baseline-v1`, so their
 metrics and deltas share one snapshot and protocol. See
 [offline content recommender](content-recommender.md) for the exact formulas.
 
+The same distribution owns the RCP-18A data-readiness boundary. A versioned
+simulator accepts only an event-free catalog snapshot, retains its recipes
+unchanged, and creates deterministic opaque profiles with pre-cutoff view plus
+save/rating signals and unseen positive holdout signals. It never fabricates
+forks because the evaluation snapshot has no lineage contract. A separate pure
+readiness check counts training profiles, available items, typed events,
+distinct profile-item cells, item/profile support, and leakage-safe holdout
+cases against fixed versioned minimums.
+
+Simulation and readiness have no serving adapter. A ready generated cohort
+permits only offline RCP-18 implementation and test work; it is not evidence
+about real users, model quality, or deployment. See
+[collaborative-filtering data readiness](collaborative-readiness.md) for the
+assumptions, thresholds, privacy contract, and proceed rule.
+
 Snapshots are explicit artifacts rather than live database reads during a run.
 The PostgreSQL exporter uses a repeatable-read transaction and retains only
 opaque IDs plus typed event context. Local snapshots and reports are ignored;
-the committed synthetic fixture exists only to test split, metric, privacy, and
-reproducibility behavior. Canonical reports contain no raw profile or event IDs
-and omit wall-clock or host-dependent fields.
+the committed synthetic fixtures exist only to test split, metric, simulation,
+readiness, privacy, and reproducibility behavior. Canonical reports contain no
+raw profile or event IDs and omit wall-clock or host-dependent fields. The
+aggregate readiness report also omits caller-controlled dataset labels and
+snapshot limitation text.
 
 The offline CI job checks formatting, types, tests, and byte-for-byte report
-reproducibility for `content-v1` and `baseline-v1` independently of the
+reproducibility for `content-v1` and `baseline-v1`. It separately verifies
+same-seed simulated snapshots and readiness reports, a distinct changed-seed
+cohort, and a strict ready fixture. The job remains independent of the
 backend/frontend/MVP acceptance chain. Neither FastAPI startup nor a product
 request installs or runs evaluation code. See
-[offline recommendation evaluation](evaluation.md) for the protocol and
-limitations.
+[offline recommendation evaluation](evaluation.md) for the evaluation protocol
+and limitations.
 
 ## Initial request path
 
@@ -249,12 +268,14 @@ Variant creation:     Browser ----------> FastAPI -> SQLAlchemy -> PostgreSQL
 Version comparison:   Browser -> Next.js -> FastAPI -> SQLAlchemy -> PostgreSQL
 Recommendation read:  API client -------> FastAPI -> SQLAlchemy -> PostgreSQL
 Offline evaluation:   Snapshot file ----> Evaluator -> Canonical JSON report
+Data readiness:       Catalog fixture --> Simulator -> Snapshot -> Readiness report
 ```
 
-`content-v1` creates no persisted model artifact and has no serving path.
-Future artifact persistence or online inference would require an explicit
-adapter and a separate product decision; it must not become a hidden dependency
-of core recipe creation or recommendation reads.
+`content-v1`, the simulator, and the readiness gate create no persisted model
+artifact and have no serving path. Future artifact persistence or online
+inference would require an explicit adapter and a separate product decision; it
+must not become a hidden dependency of core recipe creation or recommendation
+reads.
 
 ## Early design decisions to record
 
