@@ -13,8 +13,8 @@ import { RecipeDiffView } from "../../../components/recipe-diff-view";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Compare recipe versions",
-  description: "Review the structured changes between a recipe variant and its parent.",
+  title: "What changed",
+  description: "See the cooking changes between this recipe and the version it started from.",
 };
 
 interface RecipeComparePageProps {
@@ -26,8 +26,11 @@ function NoParentComparison({ recipeVersionId }: { recipeVersionId: string }) {
     <main id="main-content" className="state-page">
       <div className="empty-state empty-state--large">
         <p className="eyebrow">Original recipe</p>
-        <h1>There isn’t a parent version to compare.</h1>
-        <p>Comparisons are available after an original recipe has been made into a variant.</p>
+        <h1>This is the starting recipe.</h1>
+        <p>
+          Comparisons are available on variations, where Recipe Lab shows what changed from the
+          version they started from.
+        </p>
         <Link
           className="button button--primary"
           href={`/recipes/${encodeURIComponent(recipeVersionId)}`}
@@ -63,7 +66,7 @@ export default async function RecipeComparePage({ params }: RecipeComparePagePro
     <main id="main-content" className="page-shell page-shell--detail">
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link href={`/recipes/${encodeURIComponent(diff.target_version.id)}`}>
-          ← Back to {diff.target_version.title}
+          ← {diff.target_version.title}
         </Link>
       </nav>
       <RecipeDiffView diff={diff} />

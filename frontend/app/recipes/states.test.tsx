@@ -44,10 +44,12 @@ describe("recipe route states", () => {
     expect(screen.queryByText(/private diff service detail/i)).not.toBeInTheDocument();
   });
 
-  it("gives a missing recipe a route back to the catalog", () => {
+  it("gives a missing recipe a route back to the collection", () => {
     render(<RecipeNotFound />);
 
-    expect(screen.getByRole("heading", { name: /isn’t in the catalog/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /isn’t in the collection/i }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /browse recipes/i })).toHaveAttribute(
       "href",
       "/recipes",

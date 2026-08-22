@@ -52,9 +52,20 @@ test.describe("MVP acceptance", () => {
     const variantTitle = "MVP Lower-Sugar Pecan Carrot Cake";
 
     await page.goto("/");
+    await expect(
+      page.getByRole("heading", {
+        name: "Cook a recipe. Make it yours. Keep what worked.",
+        level: 1,
+      }),
+    ).toBeVisible();
+    await expectNoAccessibilityViolations(page);
     await activateWithKeyboard(
       page,
-      page.getByRole("link", { name: "Browse the catalog", exact: true }),
+      page
+        .getByRole("region", {
+          name: "Cook a recipe. Make it yours. Keep what worked.",
+        })
+        .getByRole("link", { name: "Explore recipes", exact: true }),
     );
     await expect(
       page.getByRole("heading", {
@@ -69,6 +80,7 @@ test.describe("MVP acceptance", () => {
     await expect(
       page.getByRole("heading", { name: "Results for “carrot”", level: 2 }),
     ).toBeVisible();
+    await expectNoAccessibilityViolations(page);
 
     await activateWithKeyboard(
       page,
@@ -100,11 +112,12 @@ test.describe("MVP acceptance", () => {
 
     await activateWithKeyboard(
       page,
-      page.getByRole("link", { name: "Create a variant", exact: true }),
+      page.getByRole("link", { name: "Make your own version", exact: true }),
     );
     await expect(
-      page.getByRole("heading", { name: "Create a variant", level: 1 }),
+      page.getByRole("heading", { name: "Make this recipe your own.", level: 1 }),
     ).toBeVisible();
+    await expect(page.getByRole("group", { name: "About your version" })).toBeVisible();
     await expectNoAccessibilityViolations(page);
 
     const sugarRow = page.getByRole("group", {
@@ -114,9 +127,17 @@ test.describe("MVP acceptance", () => {
       name: /^Ingredient \d+: Walnut$/,
     });
     await page.getByLabel("Title", { exact: true }).fill(variantTitle);
+    await activateWithKeyboard(
+      page,
+      sugarRow.getByRole("button", { name: "Change White sugar", exact: true }),
+    );
     await sugarRow.getByLabel("Quantity", { exact: true }).fill("140");
+    await activateWithKeyboard(
+      page,
+      walnutRow.getByRole("button", { name: "Change Walnut", exact: true }),
+    );
     await walnutRow
-      .getByLabel("Replacement ingredient (optional)", { exact: true })
+      .getByLabel("Swap ingredient (optional)", { exact: true })
       .fill("Pecan");
 
     const createResponse = page.waitForResponse(
@@ -128,7 +149,7 @@ test.describe("MVP acceptance", () => {
     );
     await activateWithKeyboard(
       page,
-      page.getByRole("button", { name: "Create variant", exact: true }),
+      page.getByRole("button", { name: "Create my version", exact: true }),
     );
     expect((await createResponse).status()).toBe(201);
 
@@ -140,7 +161,7 @@ test.describe("MVP acceptance", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("link", {
-        name: /parent.*carrot walnut snack cake.*version 1/i,
+        name: /based on.*carrot walnut snack cake.*version 1/i,
       }),
     ).toBeVisible();
 
@@ -158,25 +179,41 @@ test.describe("MVP acceptance", () => {
 
     await activateWithKeyboard(
       page,
-      page.getByRole("link", { name: "Compare with parent", exact: true }),
+      page.getByRole("link", { name: "See what changed", exact: true }),
     );
     await expect(page).toHaveURL(`/recipes/${childRecipeVersionId}/compare`);
     await expect(
-      page.getByRole("heading", { name: `How ${variantTitle} changed`, level: 1 }),
+      page.getByRole("heading", {
+        name: `What changed in ${variantTitle}`,
+        level: 1,
+      }),
     ).toBeVisible();
 
-    const sugarChange = page
-      .getByRole("heading", { name: "White sugar", level: 3, exact: true })
-      .locator("..");
+    const comparedRecipes = page.getByRole("navigation", { name: "Compared recipes" });
+    await expect(
+      comparedRecipes.getByRole("link", {
+        name: /starting recipe.*carrot walnut snack cake.*version 1/i,
+      }),
+    ).toBeVisible();
+    await expect(
+      comparedRecipes.getByRole("link", {
+        name: new RegExp(`this version.*${variantTitle}.*version \\d+`, "i"),
+      }),
+    ).toBeVisible();
+
+    const sugarChange = page.getByRole("article", {
+      name: "White sugar",
+      exact: true,
+    });
     await expect(sugarChange.getByText("Amount changed", { exact: true })).toBeVisible();
     await expect(sugarChange.getByText("Before", { exact: true })).toBeVisible();
     await expect(sugarChange.getByText("After", { exact: true })).toBeVisible();
     await expect(sugarChange.getByText("180 g", { exact: true })).toBeVisible();
     await expect(sugarChange.getByText("140 g", { exact: true })).toBeVisible();
 
-    const substitution = page
-      .getByRole("heading", { name: "Walnut replaced with Pecan", level: 3 })
-      .locator("..");
+    const substitution = page.getByRole("article", {
+      name: "Walnut replaced with Pecan",
+    });
     await expect(substitution.getByText("Substitution", { exact: true })).toBeVisible();
     await expect(
       substitution.getByText("Original ingredient", { exact: true }),

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { formatIngredientAmount, formatServings } from "../../lib/format";
 import type { RecipeDetail, RecipeVersionReference } from "../../lib/recipe-api";
 import { RatingSummary } from "./rating-summary";
+import { RecipeArtwork } from "./recipe-artwork";
 import { RecipeInteractionPanel } from "./recipe-interaction-panel";
 import { RecipeViewTracker } from "./recipe-view-tracker";
 
@@ -21,47 +22,52 @@ function VersionLink({ label, version }: { label: string; version: RecipeVersion
 }
 
 export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
-  const isVariant = recipe.parent_version_id !== null;
+  const isVariation = recipe.parent_version_id !== null;
 
   return (
     <article className="recipe-detail">
       <RecipeViewTracker recipeVersionId={recipe.id} />
       <header className="recipe-detail__header">
-        <div>
-          <p className="eyebrow">{isVariant ? `Variant · Version ${recipe.version_number}` : "Original recipe"}</p>
-          <h1>{recipe.title}</h1>
-          {recipe.description ? <p className="recipe-detail__description">{recipe.description}</p> : null}
-        </div>
-        <div className="recipe-facts" aria-label="Recipe facts">
-          <dl>
-            <div>
-              <dt>Yield</dt>
-              <dd>{formatServings(recipe.servings)}</dd>
+        <div className="recipe-detail__hero">
+          <RecipeArtwork className="recipe-detail__artwork" lineageKey={recipe.lineage_id} />
+          <div className="recipe-detail__intro">
+            <p className="eyebrow">{isVariation ? "Variation" : "Original"}</p>
+            <h1>{recipe.title}</h1>
+            {recipe.description ? (
+              <p className="recipe-detail__description">{recipe.description}</p>
+            ) : null}
+            <div className="recipe-facts recipe-detail__facts" aria-label="Recipe facts">
+              <dl>
+                <div>
+                  <dt>Makes</dt>
+                  <dd>{formatServings(recipe.servings)}</dd>
+                </div>
+                <div>
+                  <dt>Version</dt>
+                  <dd>{recipe.version_number}</dd>
+                </div>
+              </dl>
+              <RatingSummary average={recipe.average_rating} count={recipe.rating_count} />
             </div>
-            <div>
-              <dt>Version</dt>
-              <dd>{recipe.version_number}</dd>
+            <div className="button-row recipe-detail__actions">
+              <Link
+                className="button button--primary"
+                href={`/recipes/${encodeURIComponent(recipe.id)}/fork`}
+              >
+                Make your own version
+              </Link>
+              {recipe.parent ? (
+                <Link
+                  className="button button--secondary"
+                  href={`/recipes/${encodeURIComponent(recipe.id)}/compare`}
+                >
+                  See what changed
+                </Link>
+              ) : null}
             </div>
-          </dl>
-          <RatingSummary average={recipe.average_rating} count={recipe.rating_count} />
+            <RecipeInteractionPanel key={recipe.id} initialViewerState={recipe.viewer_state} />
+          </div>
         </div>
-        <div className="button-row recipe-detail__actions">
-          <Link
-            className="button button--primary"
-            href={`/recipes/${encodeURIComponent(recipe.id)}/fork`}
-          >
-            Create a variant
-          </Link>
-          {recipe.parent ? (
-            <Link
-              className="button button--secondary"
-              href={`/recipes/${encodeURIComponent(recipe.id)}/compare`}
-            >
-              Compare with parent
-            </Link>
-          ) : null}
-        </div>
-        <RecipeInteractionPanel key={recipe.id} initialViewerState={recipe.viewer_state} />
       </header>
 
       <div className="recipe-detail__body">
@@ -113,15 +119,17 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
       <section className="lineage-section" aria-labelledby="lineage-heading">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Immediate lineage</p>
-            <h2 id="lineage-heading">How this version connects</h2>
+            <p className="eyebrow">Recipe family</p>
+            <h2 id="lineage-heading">More versions of this recipe</h2>
           </div>
-          <p>Parent and child links show one generation at a time.</p>
+          <p>
+            See the recipe this one is based on and other versions made directly from it.
+          </p>
         </div>
-        <ul className="lineage-grid" aria-label="Immediate recipe lineage">
+        <ul className="lineage-grid" aria-label="More versions of this recipe">
           {recipe.parent ? (
             <li className="lineage-grid__item">
-              <VersionLink label="Parent" version={recipe.parent} />
+              <VersionLink label="Based on" version={recipe.parent} />
             </li>
           ) : null}
           <li className="lineage-grid__item">
@@ -130,19 +138,19 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
               aria-current="page"
               aria-label="Current recipe version"
             >
-              <span>Current</span>
+              <span>This version</span>
               <strong>{recipe.title}</strong>
               <small>Version {recipe.version_number}</small>
             </div>
           </li>
           {recipe.children.map((child) => (
             <li key={child.id} className="lineage-grid__item">
-              <VersionLink label="Direct child" version={child} />
+              <VersionLink label="Another version" version={child} />
             </li>
           ))}
         </ul>
         {!recipe.parent && recipe.children.length === 0 ? (
-          <p className="lineage-empty">This original recipe does not have a direct variant yet.</p>
+          <p className="lineage-empty">This recipe does not have another version yet.</p>
         ) : null}
       </section>
     </article>

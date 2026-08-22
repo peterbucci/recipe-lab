@@ -7,9 +7,12 @@ export function SiteHeader() {
         <Link className="brand" href="/" aria-label="Recipe Lab home">
           <span>Recipe Lab</span>
         </Link>
-        <nav aria-label="Primary navigation">
-          <Link className="nav-link" href="/recipes">
-            Browse recipes
+        <nav className="site-nav" aria-label="Primary navigation">
+          <Link className="nav-link site-nav__link" href="/recipes">
+            Explore recipes
+          </Link>
+          <Link className="nav-link site-nav__link" href="/#how-it-works">
+            How it works
           </Link>
         </nav>
       </div>

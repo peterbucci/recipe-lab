@@ -26,7 +26,6 @@ export function RecipeInteractionPanel({
   initialViewerState,
 }: RecipeInteractionPanelProps) {
   const router = useRouter();
-  const headingId = useId();
   const contextId = useId();
   const saveStatusId = useId();
   const ratingStatusId = useId();
@@ -121,7 +120,7 @@ export function RecipeInteractionPanel({
       setViewerState(updatedState);
       setSelectedRating(updatedState.rating);
       setRatingMessage(
-        `Your rating is now ${updatedState.rating} out of 5 for ${updatedState.user.display_name}.`,
+        `${updatedState.user.display_name}’s rating is now ${updatedState.rating} out of 5.`,
       );
       router.refresh();
     } catch {
@@ -132,16 +131,11 @@ export function RecipeInteractionPanel({
   }
 
   return (
-    <section className="recipe-interactions" aria-labelledby={headingId}>
-      <div className="recipe-interactions__header">
-        <div>
-          <p className="eyebrow">Shared demo profile</p>
-          <h2 id={headingId}>Your demo activity</h2>
-          <p id={contextId} className="recipe-interactions__context">
-            <strong>{viewerState.user.display_name}</strong> · Saves and ratings are shared
-            across this demo.
-          </p>
-        </div>
+    <section className="recipe-interactions" aria-label="Save and rate this recipe">
+      <div className="recipe-interactions__toolbar">
+        <p id={contextId} className="visually-hidden">
+          Public demo. Saves and ratings use the shared {viewerState.user.display_name} profile.
+        </p>
         <div className="recipe-interactions__save">
           <button
             className="button button--secondary interaction-save-button"
@@ -166,9 +160,14 @@ export function RecipeInteractionPanel({
         </div>
       </div>
 
-      <form className="recipe-rating-form" aria-busy={ratingPending} onSubmit={handleRatingSubmit}>
+      <form
+        className="recipe-rating-form"
+        aria-busy={ratingPending}
+        aria-describedby={contextId}
+        onSubmit={handleRatingSubmit}
+      >
         <fieldset disabled={interactionPending}>
-          <legend>Your rating</legend>
+          <legend>{viewerState.user.display_name}’s rating</legend>
           <div className="recipe-rating-options">
             {RATING_OPTIONS.map((rating) => (
               <label key={rating} className="recipe-rating-option">
@@ -187,8 +186,8 @@ export function RecipeInteractionPanel({
         </fieldset>
         <p className="recipe-rating-form__current">
           {viewerState.rating === null
-            ? "You haven’t rated this recipe yet."
-            : `Your current rating is ${viewerState.rating} out of 5.`}
+            ? `${viewerState.user.display_name} hasn’t rated this recipe yet.`
+            : `${viewerState.user.display_name}’s current rating is ${viewerState.rating} out of 5.`}
         </p>
         <button
           className="button button--primary"

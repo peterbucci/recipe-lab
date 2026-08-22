@@ -5,7 +5,7 @@ export default function RecipeNotFound() {
     <main id="main-content" className="state-page">
       <div className="empty-state empty-state--large">
         <p className="eyebrow">Recipe not found</p>
-        <h1>This recipe version isn’t in the catalog.</h1>
+        <h1>This recipe isn’t in the collection.</h1>
         <p>It may have moved, or the link may be incomplete.</p>
         <Link className="button button--primary" href="/recipes">
           Browse recipes

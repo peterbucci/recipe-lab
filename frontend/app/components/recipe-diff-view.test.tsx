@@ -137,63 +137,79 @@ function sectionNamed(name: string | RegExp): HTMLElement {
 }
 
 function articleNamed(name: string | RegExp): HTMLElement {
-  const article = screen.getByRole("heading", { name, level: 3 }).closest("article");
-  expect(article).not.toBeNull();
-  return article!;
+  return screen.getByRole("article", { name });
 }
 
 describe("RecipeDiffView", () => {
-  it("labels the compared versions and every old and new metadata value", () => {
+  it("leads with a cooking-first summary and orders changes by cooking flow", () => {
     render(<RecipeDiffView diff={mixedDiff()} />);
 
     expect(
       screen.getByRole("heading", {
-        name: "How Lower-Sugar Pecan Carrot Cake changed",
+        name: "What changed in Lower-Sugar Pecan Carrot Cake",
         level: 1,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("10 structured changes found.")).toBeInTheDocument();
+    expect(
+      screen.getByText("10 changes from Carrot Walnut Snack Cake."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "See how this recipe differs from Carrot Walnut Snack Cake. Every recorded change is shown exactly as stored.",
+      ),
+    ).toBeInTheDocument();
 
-    const versions = screen.getByRole("navigation", {
-      name: "Compared recipe versions",
-    });
+    const highlights = screen.getByRole("list", { name: "Change highlights" });
+    expect(within(highlights).getByText("4 ingredient changes")).toBeInTheDocument();
+    expect(within(highlights).getByText("3 instruction changes")).toBeInTheDocument();
+    expect(within(highlights).getByText("3 other detail changes")).toBeInTheDocument();
+
+    const versions = screen.getByRole("navigation", { name: "Compared recipes" });
     expect(
       within(versions).getByRole("link", {
-        name: /before · parent.*carrot walnut snack cake.*version 1/i,
+        name: /starting recipe.*carrot walnut snack cake.*version 1/i,
       }),
     ).toHaveAttribute("href", `/recipes/${baseVersion.id}`);
     expect(
       within(versions).getByRole("link", {
-        name: /after · variant.*lower-sugar pecan carrot cake.*version 2/i,
+        name: /this version.*lower-sugar pecan carrot cake.*version 2/i,
       }),
     ).toHaveAttribute("href", `/recipes/${targetVersion.id}`);
+    expect(screen.queryByText(/direct parent/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/before · parent/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/after · variant/i)).not.toBeInTheDocument();
 
-    const details = sectionNamed("Details that changed");
-    const title = within(details).getByRole("heading", { name: "Title", level: 3 });
-    const titleChange = title.closest("article");
-    expect(titleChange).not.toBeNull();
-    expect(within(titleChange!).getByText("Before")).toBeInTheDocument();
-    expect(within(titleChange!).getByText("After")).toBeInTheDocument();
-    expect(within(titleChange!).getByText(baseVersion.title).closest("del")).not.toBeNull();
-    expect(within(titleChange!).getByText(targetVersion.title).closest("ins")).not.toBeNull();
-
-    const descriptionChange = within(details)
-      .getByRole("heading", { name: "Description", level: 3 })
-      .closest("article");
-    expect(descriptionChange).not.toBeNull();
-    expect(within(descriptionChange!).getByText("Not provided")).toBeInTheDocument();
     expect(
-      within(descriptionChange!).getByText(
-        "The original cake with less sugar and toasted pecans.",
-      ),
-    ).toBeInTheDocument();
+      screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent),
+    ).toEqual(["Ingredient changes", "Instruction changes", "Other details"]);
+  });
 
-    const yieldChange = within(details)
-      .getByRole("heading", { name: "Yield", level: 3 })
-      .closest("article");
-    expect(yieldChange).not.toBeNull();
-    expect(within(yieldChange!).getByText("8 servings")).toBeInTheDocument();
-    expect(within(yieldChange!).getByText("6 servings")).toBeInTheDocument();
+  it("preserves every old and new recipe detail value", () => {
+    render(<RecipeDiffView diff={mixedDiff()} />);
+
+    const details = sectionNamed("Other details");
+    const titleChange = within(details).getByRole("article", { name: "Title" });
+    expect(within(titleChange).getByText("Title changed")).toBeInTheDocument();
+    expect(within(titleChange).getByText("Before")).toBeInTheDocument();
+    expect(within(titleChange).getByText("After")).toBeInTheDocument();
+    expect(within(titleChange).getByText(baseVersion.title).closest("del")).not.toBeNull();
+    expect(within(titleChange).getByText(targetVersion.title).closest("ins")).not.toBeNull();
+
+    const descriptionChange = within(details).getByRole("article", {
+      name: "Description",
+    });
+    expect(within(descriptionChange).getByText("Description changed")).toBeInTheDocument();
+    expect(within(descriptionChange).getByText("Not provided").closest("del")).not.toBeNull();
+    expect(
+      within(descriptionChange).getByText(
+        "The original cake with less sugar and toasted pecans.",
+      ).closest("ins"),
+    ).not.toBeNull();
+
+    const yieldChange = within(details).getByRole("article", { name: "Yield" });
+    expect(within(yieldChange).getByText("Yield changed")).toBeInTheDocument();
+    expect(within(yieldChange).getByText("8 servings").closest("del")).not.toBeNull();
+    expect(within(yieldChange).getByText("6 servings").closest("ins")).not.toBeNull();
   });
 
   it("gives additions, removals, substitutions, amounts, and preparation changes distinct text", () => {
@@ -201,7 +217,9 @@ describe("RecipeDiffView", () => {
 
     const ingredients = sectionNamed("Ingredient changes");
 
-    const substitution = articleNamed("Walnut replaced with Pecan");
+    const substitution = within(ingredients).getByRole("article", {
+      name: "Walnut replaced with Pecan",
+    });
     expect(within(substitution).getByText("Substitution")).toBeInTheDocument();
     expect(within(substitution).getByText("Amount changed")).toBeInTheDocument();
     expect(within(substitution).getByText("Preparation changed")).toBeInTheDocument();
@@ -216,7 +234,9 @@ describe("RecipeDiffView", () => {
       within(substitution).getByText(/preparation: toasted and chopped/i),
     ).toBeInTheDocument();
 
-    const amountChange = articleNamed("White sugar");
+    const amountChange = within(ingredients).getByRole("article", {
+      name: "White sugar",
+    });
     expect(within(amountChange).getByText("Amount changed")).toBeInTheDocument();
     expect(within(amountChange).getByText("Preparation changed")).toBeInTheDocument();
     expect(within(amountChange).getByText("Before")).toBeInTheDocument();
@@ -225,56 +245,86 @@ describe("RecipeDiffView", () => {
     expect(within(amountChange).getByText("140 g")).toBeInTheDocument();
     expect(within(amountChange).getByText(/preparation: divided/i)).toBeInTheDocument();
 
-    const addition = within(ingredients)
-      .getByRole("heading", { name: "Orange zest", level: 3 })
-      .closest("article");
-    expect(addition).not.toBeNull();
-    expect(within(addition!).getByText("Added")).toBeInTheDocument();
-    expect(within(addition!).getByText("New ingredient")).toBeInTheDocument();
-    expect(within(addition!).getByText("Orange zest").closest("ins")).not.toBeNull();
+    const addition = within(ingredients).getByRole("article", { name: "Orange zest" });
+    expect(within(addition).getByText("Added")).toBeInTheDocument();
+    expect(within(addition).getByText("New ingredient")).toBeInTheDocument();
+    expect(within(addition).getByText("Orange zest").closest("ins")).not.toBeNull();
+    expect(within(addition).getByText("1 tbsp").closest("ins")).not.toBeNull();
+    expect(within(addition).getByText(/preparation: finely grated/i)).toBeInTheDocument();
 
-    const removal = within(ingredients)
-      .getByRole("heading", { name: "Baking soda", level: 3 })
-      .closest("article");
-    expect(removal).not.toBeNull();
-    expect(within(removal!).getByText("Removed")).toBeInTheDocument();
-    expect(within(removal!).getByText("Removed ingredient")).toBeInTheDocument();
-    expect(within(removal!).getByText("Baking soda").closest("del")).not.toBeNull();
+    const removal = within(ingredients).getByRole("article", { name: "Baking soda" });
+    expect(within(removal).getByText("Removed")).toBeInTheDocument();
+    expect(within(removal).getByText("Removed ingredient")).toBeInTheDocument();
+    expect(within(removal).getByText("Baking soda").closest("del")).not.toBeNull();
+    expect(within(removal).getByText("0.5 tsp").closest("del")).not.toBeNull();
   });
 
   it("distinguishes added, removed, and modified instructions", () => {
     render(<RecipeDiffView diff={mixedDiff()} />);
 
     const instructions = sectionNamed("Instruction changes");
-    const changed = within(instructions)
-      .getByRole("heading", { name: "Updated instruction", level: 3 })
-      .closest("article");
-    expect(changed).not.toBeNull();
-    expect(within(changed!).getByText("Instruction changed")).toBeInTheDocument();
-    expect(within(changed!).getByText("Before")).toBeInTheDocument();
-    expect(within(changed!).getByText("After")).toBeInTheDocument();
-    expect(within(changed!).getByText("Bake until the center is set.")).toBeInTheDocument();
+    const changed = within(instructions).getByRole("article", {
+      name: "Updated instruction",
+    });
+    expect(within(changed).getByText("Instruction changed")).toBeInTheDocument();
+    expect(within(changed).getByText("Before")).toBeInTheDocument();
+    expect(within(changed).getByText("After")).toBeInTheDocument();
     expect(
-      within(changed!).getByText("Bake gently until the center is just set."),
-    ).toBeInTheDocument();
-
-    const added = within(instructions)
-      .getByRole("heading", { name: "Step 4", level: 3 })
-      .closest("article");
-    expect(added).not.toBeNull();
-    expect(within(added!).getByText("Instruction added")).toBeInTheDocument();
-    expect(within(added!).getByText("New instruction")).toBeInTheDocument();
-    expect(within(added!).getByText("Serve with yogurt.").closest("ins")).not.toBeNull();
-
-    const removed = within(instructions)
-      .getByRole("heading", { name: "Step 3", level: 3 })
-      .closest("article");
-    expect(removed).not.toBeNull();
-    expect(within(removed!).getByText("Instruction removed")).toBeInTheDocument();
-    expect(within(removed!).getByText("Removed instruction")).toBeInTheDocument();
-    expect(
-      within(removed!).getByText("Cool completely before slicing.").closest("del"),
+      within(changed).getByText("Bake until the center is set.").closest("del"),
     ).not.toBeNull();
+    expect(
+      within(changed).getByText("Bake gently until the center is just set.").closest("ins"),
+    ).not.toBeNull();
+
+    const added = within(instructions).getByRole("article", { name: "Step 4" });
+    expect(within(added).getByText("Instruction added")).toBeInTheDocument();
+    expect(within(added).getByText("New instruction")).toBeInTheDocument();
+    expect(within(added).getByText("Serve with yogurt.").closest("ins")).not.toBeNull();
+
+    const removed = within(instructions).getByRole("article", { name: "Step 3" });
+    expect(within(removed).getByText("Instruction removed")).toBeInTheDocument();
+    expect(within(removed).getByText("Removed instruction")).toBeInTheDocument();
+    expect(
+      within(removed).getByText("Cool completely before slicing.").closest("del"),
+    ).not.toBeNull();
+  });
+
+  it("labels every comparison article with its visible heading", () => {
+    render(<RecipeDiffView diff={mixedDiff()} />);
+
+    const articles = screen.getAllByRole("article");
+    expect(articles).toHaveLength(11);
+    for (const article of articles) {
+      expect(article).toHaveAccessibleName();
+      const labelledBy = article.getAttribute("aria-labelledby");
+      expect(labelledBy).not.toBeNull();
+      expect(document.getElementById(labelledBy!)).toBe(
+        article.querySelector(":scope > h1, :scope > header h1, :scope > h3"),
+      );
+    }
+
+    expect(articleNamed("What changed in Lower-Sugar Pecan Carrot Cake")).toBeInTheDocument();
+    expect(articleNamed("Walnut replaced with Pecan")).toBeInTheDocument();
+    expect(articleNamed("Updated instruction")).toBeInTheDocument();
+    expect(articleNamed("Title")).toBeInTheDocument();
+  });
+
+  it("uses singular summary and highlight labels for one change", () => {
+    const diff = mixedDiff();
+    diff.metadata_changes = [diff.metadata_changes[2]];
+    diff.ingredients = { added: [], removed: [], replaced: [], modified: [] };
+    diff.instructions = { added: [], removed: [], modified: [] };
+
+    render(<RecipeDiffView diff={diff} />);
+
+    expect(screen.getByText("1 change from Carrot Walnut Snack Cake.")).toBeInTheDocument();
+    const highlights = screen.getByRole("list", { name: "Change highlights" });
+    expect(within(highlights).getByText("1 other detail change")).toBeInTheDocument();
+    expect(within(highlights).queryByText(/ingredient/i)).not.toBeInTheDocument();
+    expect(within(highlights).queryByText(/instruction/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Other details" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Ingredient changes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Instruction changes" })).not.toBeInTheDocument();
   });
 
   it("renders an honest no-change state without empty change groups", () => {
@@ -287,11 +337,17 @@ describe("RecipeDiffView", () => {
     render(<RecipeDiffView diff={diff} />);
 
     expect(
-      screen.getByRole("heading", { name: "No changes from the parent", level: 2 }),
+      screen.getByRole("heading", {
+        name: "No changes from the starting recipe",
+        level: 2,
+      }),
     ).toBeInTheDocument();
     expect(screen.getByText(/matches carrot walnut snack cake/i)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Ingredient changes" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Instruction changes" })).not.toBeInTheDocument();
-    expect(screen.queryByText(/structured changes found/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Other details" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Change highlights" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^0 changes? from/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\boriginal\b/i)).not.toBeInTheDocument();
   });
 });

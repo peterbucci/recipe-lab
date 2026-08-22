@@ -16,11 +16,11 @@ export function RecipeBrowser({ data, query }: RecipeBrowserProps) {
   return (
     <>
       <header className="page-intro">
-        <p className="eyebrow">The demo catalog</p>
+        <p className="eyebrow">Recipe catalog</p>
         <h1>Find a recipe worth making your own.</h1>
         <p>
-          Browse originals and their variants. Every card opens a complete, structured recipe
-          snapshot with its place in the family tree intact.
+          Browse complete recipes and the variations cooks made from them. Pick a starting point,
+          then see what each cook changed.
         </p>
       </header>
 
@@ -29,13 +29,13 @@ export function RecipeBrowser({ data, query }: RecipeBrowserProps) {
       <section className="catalog-results" aria-labelledby="catalog-results-heading">
         <div className="section-heading section-heading--compact">
           <div>
-            <p className="eyebrow">Recipe versions</p>
+            <p className="eyebrow">Recipes and variations</p>
             <h2 id="catalog-results-heading">
-              {query ? `Results for “${query}”` : "Explore the collection"}
+              {query ? `Results for “${query}”` : "Explore every recipe"}
             </h2>
           </div>
           <p className="result-count" aria-live="polite">
-            {data.total} {data.total === 1 ? "recipe" : "recipes"}
+            {data.total} {data.total === 1 ? "recipe" : "recipes and variations"}
           </p>
         </div>
 
@@ -44,8 +44,8 @@ export function RecipeBrowser({ data, query }: RecipeBrowserProps) {
             <h3>{query ? "No recipes matched that search." : "The catalog is empty."}</h3>
             <p>
               {query
-                ? "Try a broader recipe title or a word from its description."
-                : "Recipes will appear here as soon as the demo catalog is loaded."}
+                ? "Try a broader recipe title or a word from the description."
+                : "Recipes will appear here as soon as the public demo catalog is loaded."}
             </p>
             {query ? (
               <Link className="button button--secondary" href="/recipes">

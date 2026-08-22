@@ -31,7 +31,7 @@ function page(overrides: Partial<RecipePage> = {}): RecipePage {
 
 describe("RecipeBrowser", () => {
   it("renders searchable recipe cards and query-preserving pagination", () => {
-    render(
+    const { container } = render(
       <RecipeBrowser
         data={page({
           items: [
@@ -59,7 +59,14 @@ describe("RecipeBrowser", () => {
       "href",
       "/recipes/recipe-two",
     );
-    expect(screen.getByText(/variant · version 2/i)).toBeInTheDocument();
+    expect(screen.getByText(/variation · version 2/i)).toBeInTheDocument();
+    const artworks = container.querySelectorAll(".recipe-card__artwork");
+    expect(artworks).toHaveLength(2);
+    expect(artworks[0]).toHaveAttribute("aria-hidden", "true");
+    expect(artworks[0]).toHaveAttribute(
+      "data-artwork-variant",
+      artworks[1].getAttribute("data-artwork-variant"),
+    );
     expect(screen.getByRole("link", { name: /next/i })).toHaveAttribute(
       "href",
       "/recipes?q=carrot&page=2",
@@ -80,7 +87,7 @@ describe("RecipeBrowser", () => {
 
     rerender(<RecipeBrowser data={page({ items: [], total: 0, total_pages: 0 })} query="" />);
     expect(screen.getByRole("heading", { name: /catalog is empty/i })).toBeInTheDocument();
-    expect(screen.getByText(/as soon as the demo catalog is loaded/i)).toBeInTheDocument();
+    expect(screen.getByText(/as soon as the public demo catalog is loaded/i)).toBeInTheDocument();
   });
 
   it("recovers from a page beyond the available results", () => {

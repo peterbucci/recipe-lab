@@ -8,9 +8,9 @@ export function RatingSummary({ average, count }: RatingSummaryProps) {
     return (
       <div className="rating-summary" aria-label="No ratings yet">
         <span className="rating-summary__score">—</span>
-        <span>
-          <strong>Not yet rated</strong>
-          <small>Ratings will appear here.</small>
+        <span className="rating-summary__details">
+          <strong className="rating-summary__label">Not yet rated</strong>
+          <small className="rating-summary__count">Ratings will appear here.</small>
         </span>
       </div>
     );
@@ -21,9 +21,9 @@ export function RatingSummary({ average, count }: RatingSummaryProps) {
   return (
     <div className="rating-summary" aria-label={label}>
       <span className="rating-summary__score">{formattedAverage}</span>
-      <span>
-        <strong>out of 5</strong>
-        <small>
+      <span className="rating-summary__details">
+        <strong className="rating-summary__label">out of 5</strong>
+        <small className="rating-summary__count">
           {count} {count === 1 ? "rating" : "ratings"}
         </small>
       </span>

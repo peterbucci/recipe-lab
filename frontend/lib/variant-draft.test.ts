@@ -72,7 +72,7 @@ describe("variant draft", () => {
     const draft = createVariantDraft(source);
 
     expect(draft).toEqual({
-      title: "Carrot Walnut Snack Cake variant",
+      title: "Carrot Walnut Snack Cake variation",
       description: "",
       servings: "8.00",
       ingredients: [
@@ -260,7 +260,7 @@ describe("variant draft", () => {
     expect(result.payload).toBeNull();
     expect(result.formErrors).toEqual([]);
     expect(result.fieldErrors).toMatchObject({
-      title: "Variant title is required.",
+      title: "Version title is required.",
       description: "Description contains an unsupported character.",
       servings: "Servings must be greater than zero.",
       [ingredientFieldKey("source-sugar-row", "name")]:

@@ -162,7 +162,7 @@ describe("variant API client", () => {
     expect(error).toMatchObject({
       status: 503,
       code: "variant_api_error",
-      message: "The recipe service could not create this variant.",
+      message: "The recipe service could not create your version.",
     });
     expect(String(error)).not.toContain("upstream gateway details");
   });

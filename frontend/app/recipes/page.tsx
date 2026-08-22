@@ -6,8 +6,8 @@ import { RecipeBrowser } from "../components/recipe-browser";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Browse recipes",
-  description: "Browse and search structured recipe originals and variants.",
+  title: "Explore recipes",
+  description: "Find original recipes and the variations other cooks have made.",
 };
 
 interface RecipeBrowsePageProps {
