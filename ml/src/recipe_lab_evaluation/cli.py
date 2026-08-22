@@ -11,7 +11,7 @@ from pathlib import Path
 from sqlalchemy.exc import SQLAlchemyError
 
 from .dataset import SnapshotValidationError, load_snapshot, snapshot_to_json
-from .models import ContentBasedV1Model
+from .models import CollaborativeV1Model, ContentBasedV1Model
 from .readiness import assess_readiness, readiness_report_to_json
 from .report import report_to_json
 from .runner import DEFAULT_KS, DEFAULT_SEED, EvaluationConfig, EvaluationError, evaluate
@@ -131,7 +131,7 @@ def _parser() -> argparse.ArgumentParser:
 
     run = subparsers.add_parser(
         "run",
-        help="compare content-v1 with baseline-v1 against a saved snapshot",
+        help="compare offline models with baseline-v1 against a saved snapshot",
     )
     run.add_argument("--snapshot", required=True, type=Path)
     run.add_argument(
@@ -141,6 +141,14 @@ def _parser() -> argparse.ArgumentParser:
         help="ranking cutoff; repeat as needed (defaults: 5 and 10)",
     )
     run.add_argument("--seed", type=_non_negative_integer, default=DEFAULT_SEED)
+    run.add_argument(
+        "--collaborative",
+        action="store_true",
+        help=(
+            "include collaborative-v1 after requiring the snapshot to pass "
+            "the collaborative-readiness gate"
+        ),
+    )
     run.add_argument("--output", type=Path, help="write the report here instead of stdout")
     run.add_argument(
         "--strict",
@@ -198,12 +206,31 @@ def _snapshot_command(arguments: argparse.Namespace) -> int:
 
 
 def _run_command(arguments: argparse.Namespace) -> int:
+    if arguments.output is not None and _same_path(arguments.snapshot, arguments.output):
+        print("error: evaluation output must not overwrite the snapshot", file=sys.stderr)
+        return 2
     try:
         snapshot = load_snapshot(arguments.snapshot)
+        if arguments.collaborative:
+            readiness = assess_readiness(snapshot)
+            if readiness.status != "ready":
+                reasons = ", ".join(readiness.reason_codes)
+                print(
+                    "error: collaborative-v1 was not fitted because the snapshot did not "
+                    f"pass collaborative readiness ({reasons}); run the readiness command "
+                    "(`recipe-lab-eval readiness`) for the aggregate report",
+                    file=sys.stderr,
+                )
+                return STRICT_INSUFFICIENT_DATA_EXIT_CODE
         requested_ks = DEFAULT_KS if arguments.k is None else tuple(sorted(set(arguments.k)))
+        models = (
+            (ContentBasedV1Model(), CollaborativeV1Model())
+            if arguments.collaborative
+            else (ContentBasedV1Model(),)
+        )
         report = evaluate(
             snapshot,
-            models=(ContentBasedV1Model(),),
+            models=models,
             config=EvaluationConfig(seed=arguments.seed, ks=requested_ks),
         )
         report_json = report_to_json(report)

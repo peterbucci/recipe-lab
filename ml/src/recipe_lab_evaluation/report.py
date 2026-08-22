@@ -11,7 +11,7 @@ from .metrics import MetricsAtK
 from .protocol import JsonScalar
 from .split import EvaluationSplitCounts
 
-REPORT_SCHEMA_VERSION = "recipe-lab-offline-evaluation-report-v1"
+REPORT_SCHEMA_VERSION = "recipe-lab-offline-evaluation-report-v2"
 PROTOCOL_VERSION = "fixed-cutoff-full-catalog-v1"
 
 REQUIRED_LIMITATIONS = (
@@ -53,6 +53,7 @@ class ModelEvaluationReport:
     parameters: Mapping[str, JsonScalar]
     parameter_sha256: str
     seed: int
+    artifact: Mapping[str, JsonScalar] | None
     metrics: tuple[MetricsAtK, ...]
     deltas_vs_baseline: tuple[MetricDeltasAtK, ...]
 
@@ -150,6 +151,9 @@ def report_to_document(report: EvaluationReport) -> dict[str, object]:
                 "parameters": dict(sorted(model.parameters.items())),
                 "parameter_sha256": model.parameter_sha256,
                 "seed": model.seed,
+                "artifact": (
+                    dict(sorted(model.artifact.items())) if model.artifact is not None else None
+                ),
                 "metrics": [_metrics_document(metrics) for metrics in model.metrics],
                 "deltas_vs_baseline": [
                     _deltas_document(deltas) for deltas in model.deltas_vs_baseline
