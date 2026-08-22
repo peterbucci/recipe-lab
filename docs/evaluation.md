@@ -10,9 +10,13 @@ does not run in the request path, and does not persist or deploy a model.
 Every run consumes one immutable, versioned JSON snapshot. Local snapshots are
 ignored by Git because they contain stable opaque activity IDs. Reports are
 also ignored as generated artifacts and can carry caller-supplied dataset
-labels and limitation text. Only the deliberately synthetic fixture under
-`ml/tests/fixtures/` is committed. That fixture verifies the harness; its scores
-are not evidence about product quality or real people.
+labels and limitation text. Only deliberately synthetic fixtures under
+`ml/tests/fixtures/` are committed. One verifies the evaluator, while the
+event-free readiness catalog drives the deterministic RCP-18A simulator. These
+fixtures verify engineering contracts; their status and scores are not evidence
+about product quality or real people. See
+[collaborative-filtering data readiness](collaborative-readiness.md) for that
+separate simulator and gate.
 
 ## Snapshot contract
 
@@ -142,6 +146,14 @@ reason codes. That is more honest than a zero score. Insufficient data exits
 successfully by default so the offline package cannot block the product; the
 explicit `--strict` option is available for evaluation-only automation.
 
+This evaluation insufficiency status is narrower than the collaborative-data
+readiness gate. `recipe-lab-eval readiness` additionally checks aggregate
+profile, item, typed-event, distinct matrix-cell, support, and temporal counts
+before RCP-18 work begins. It uses the same cutoff and eligible-label semantics,
+but it does not fit or score a model. Its aggregate report intentionally omits
+caller-controlled dataset labels, snapshot limitation text, recipe titles, and
+raw IDs.
+
 ## Known limitations
 
 - The bundled product seed has no preference events, so it cannot establish
@@ -158,6 +170,10 @@ explicit `--strict` option is available for evaluation-only automation.
   cannot reconstruct it.
 - The catalog and synthetic fixture are small. Results do not support
   statistical significance, generalization, or deployment claims.
+- The RCP-18A generated cohort uses balanced exposure and deliberately positive
+  holdout actions. A ready result for it validates only the offline engineering
+  data contract; it does not show that observed Recipe Lab activity is ready or
+  that collaborative filtering will improve recommendations.
 - Exact-version relevance does not yet measure lineage quality, substitution
   usefulness, nutrition, safety, or cooking outcomes.
 

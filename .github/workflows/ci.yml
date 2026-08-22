@@ -167,12 +167,48 @@ jobs:
           cmp "$RUNNER_TEMP/evaluation-report-a.json" \
             "$RUNNER_TEMP/evaluation-report-b.json"
 
+      - name: Verify collaborative-readiness reproducibility
+        shell: bash
+        run: |
+          recipe-lab-eval simulate \
+            --catalog tests/fixtures/readiness_catalog_v1.json \
+            --profiles 64 --seed 20260822 \
+            --output "$RUNNER_TEMP/readiness-snapshot-a.json"
+          recipe-lab-eval simulate \
+            --catalog tests/fixtures/readiness_catalog_v1.json \
+            --profiles 64 --seed 20260822 \
+            --output "$RUNNER_TEMP/readiness-snapshot-b.json"
+          cmp "$RUNNER_TEMP/readiness-snapshot-a.json" \
+            "$RUNNER_TEMP/readiness-snapshot-b.json"
+          recipe-lab-eval simulate \
+            --catalog tests/fixtures/readiness_catalog_v1.json \
+            --profiles 64 --seed 20260823 \
+            --output "$RUNNER_TEMP/readiness-snapshot-c.json"
+          if cmp -s "$RUNNER_TEMP/readiness-snapshot-a.json" \
+            "$RUNNER_TEMP/readiness-snapshot-c.json"; then
+            echo "Different simulator seeds produced identical snapshots"
+            exit 1
+          fi
+          recipe-lab-eval readiness \
+            --snapshot "$RUNNER_TEMP/readiness-snapshot-a.json" \
+            --output "$RUNNER_TEMP/readiness-report-a.json" --strict
+          recipe-lab-eval readiness \
+            --snapshot "$RUNNER_TEMP/readiness-snapshot-b.json" \
+            --output "$RUNNER_TEMP/readiness-report-b.json" --strict
+          recipe-lab-eval readiness \
+            --snapshot "$RUNNER_TEMP/readiness-snapshot-c.json" \
+            --output "$RUNNER_TEMP/readiness-report-c.json" --strict
+          cmp "$RUNNER_TEMP/readiness-report-a.json" \
+            "$RUNNER_TEMP/readiness-report-b.json"
+
       - name: Upload reproducibility report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v6
         with:
           name: offline-evaluation-report
-          path: ${{ runner.temp }}/evaluation-report-a.json
+          path: |
+            ${{ runner.temp }}/evaluation-report-a.json
+            ${{ runner.temp }}/readiness-report-a.json
           if-no-files-found: ignore
           retention-days: 7
 

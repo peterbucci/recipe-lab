@@ -54,10 +54,16 @@ or a learned model. RCP-16 adds a separate offline evaluator with a fixed-cutoff
 split, full-catalog metrics, mandatory baseline comparison, and reproducible
 reports. RCP-17 adds the evaluator-only `content-v1` model, which uses structured
 recipe features and signed preference profiles with deterministic cold-start
-behavior. None of these additions belongs to or blocks the deployed M1 request
-path. See [baseline recommendations](recommendations.md),
-[offline content recommender](content-recommender.md), and
-[offline recommendation evaluation](evaluation.md) for the exact contracts.
+behavior. RCP-18A adds an event-free catalog fixture, a deterministic synthetic
+preference cohort, and an aggregate structural-readiness gate for later offline
+collaborative-filtering work. Its generated `ready` result is engineering
+evidence only, not a claim about real users or model quality. None of these
+additions belongs to or blocks the deployed M1 request path. See
+[baseline recommendations](recommendations.md),
+[offline content recommender](content-recommender.md),
+[offline recommendation evaluation](evaluation.md), and
+[collaborative-filtering data readiness](collaborative-readiness.md) for the
+exact contracts.
 
 ## Exit criteria before ML work
 
@@ -69,6 +75,9 @@ path. See [baseline recommendations](recommendations.md),
 
 Those prerequisites are now represented by the privacy-bounded preference
 events, `baseline-v1`, and the [offline evaluation protocol](evaluation.md).
-They now support measured `content-v1` experimentation after the MVP; they do
-not move an ML runtime, online learned recommendations, or a recommendation
-surface into MVP scope.
+The [collaborative-readiness gate](collaborative-readiness.md) now makes the
+minimum structural support for offline RCP-18 work explicit. A passing simulated
+fixture permits implementation against that contract; conclusions about real
+interaction data require a separately captured privacy-safe snapshot to pass.
+These additions do not move an ML runtime, online learned recommendations, or a
+recommendation surface into MVP scope.
