@@ -21,6 +21,8 @@ from recipe_lab_evaluation.dataset import (
 )
 from recipe_lab_evaluation.split import split_snapshot
 
+READINESS_CATALOG = Path(__file__).parent / "fixtures" / "readiness_catalog_v1.json"
+
 
 def test_run_command_writes_the_same_report_for_reordered_k_values(
     synthetic_snapshot: EvaluationSnapshot,
@@ -177,6 +179,145 @@ def test_strict_run_writes_an_insufficient_report_then_returns_its_status(
     assert default_report_path.read_bytes() == report_path.read_bytes()
 
 
+def test_simulate_and_readiness_commands_are_reproducible_and_ready(
+    tmp_path: Path,
+) -> None:
+    first_snapshot = tmp_path / "simulated-a.json"
+    second_snapshot = tmp_path / "simulated-b.json"
+    different_snapshot = tmp_path / "simulated-c.json"
+
+    for output, seed in (
+        (first_snapshot, "20260822"),
+        (second_snapshot, "20260822"),
+        (different_snapshot, "20260823"),
+    ):
+        assert (
+            main(
+                [
+                    "simulate",
+                    "--catalog",
+                    str(READINESS_CATALOG),
+                    "--profiles",
+                    "64",
+                    "--seed",
+                    seed,
+                    "--output",
+                    str(output),
+                ]
+            )
+            == 0
+        )
+
+    assert first_snapshot.read_bytes() == second_snapshot.read_bytes()
+    assert first_snapshot.read_bytes() != different_snapshot.read_bytes()
+    generated = load_snapshot(first_snapshot)
+    assert len({event.user_id for event in generated.events}) == 64
+    assert len(generated.events) == 896
+
+    first_report = tmp_path / "readiness-a.json"
+    second_report = tmp_path / "readiness-b.json"
+    for output in (first_report, second_report):
+        assert (
+            main(
+                [
+                    "readiness",
+                    "--snapshot",
+                    str(first_snapshot),
+                    "--output",
+                    str(output),
+                    "--strict",
+                ]
+            )
+            == 0
+        )
+
+    assert first_report.read_bytes() == second_report.read_bytes()
+    report = json.loads(first_report.read_text(encoding="utf-8"))
+    assert report["status"] == "ready"
+    assert report["reason_codes"] == []
+    assert report["counts"]["profiles"]["training"] == 64
+    assert report["counts"]["interactions"]["training"] == 640
+    assert report["counts"]["temporal_evaluation"]["profiles_with_supported_history"] == 64
+
+
+def test_simulate_rejects_recorded_activity_without_overwriting_output(
+    synthetic_snapshot: EvaluationSnapshot,
+    tmp_path: Path,
+    capsys: Any,
+) -> None:
+    catalog_path = tmp_path / "recorded.json"
+    output_path = tmp_path / "existing.json"
+    catalog_path.write_text(snapshot_to_json(synthetic_snapshot), encoding="utf-8")
+    output_path.write_text("keep me", encoding="utf-8")
+
+    exit_code = main(
+        [
+            "simulate",
+            "--catalog",
+            str(catalog_path),
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    assert exit_code == 2
+    assert output_path.read_text(encoding="utf-8") == "keep me"
+    assert "simulated and recorded activity cannot be mixed" in capsys.readouterr().err
+
+
+def test_readiness_default_is_nonblocking_but_strict_is_actionable(
+    tmp_path: Path,
+) -> None:
+    default_report = tmp_path / "readiness-default.json"
+    strict_report = tmp_path / "readiness-strict.json"
+
+    assert (
+        main(
+            [
+                "readiness",
+                "--snapshot",
+                str(READINESS_CATALOG),
+                "--output",
+                str(default_report),
+            ]
+        )
+        == 0
+    )
+    assert (
+        main(
+            [
+                "readiness",
+                "--snapshot",
+                str(READINESS_CATALOG),
+                "--output",
+                str(strict_report),
+                "--strict",
+            ]
+        )
+        == STRICT_INSUFFICIENT_DATA_EXIT_CODE
+    )
+    assert default_report.read_bytes() == strict_report.read_bytes()
+    report = json.loads(default_report.read_text(encoding="utf-8"))
+    assert report["status"] == "insufficient_data"
+    assert "training_profiles_below_minimum" in report["reason_codes"]
+
+
+@pytest.mark.parametrize(
+    "command,input_option", [("simulate", "--catalog"), ("readiness", "--snapshot")]
+)
+def test_generated_commands_refuse_to_overwrite_their_input(
+    command: str,
+    input_option: str,
+    tmp_path: Path,
+) -> None:
+    input_path = tmp_path / "input.json"
+    input_path.write_bytes(READINESS_CATALOG.read_bytes())
+    arguments = [command, input_option, str(input_path), "--output", str(input_path)]
+
+    assert main(arguments) == 2
+    assert input_path.read_bytes() == READINESS_CATALOG.read_bytes()
+
+
 def test_invalid_snapshot_does_not_overwrite_an_existing_report(
     tmp_path: Path,
 ) -> None:
@@ -326,4 +467,6 @@ def test_module_entry_point_exposes_help() -> None:
 
     assert completed.returncode == 0
     assert "snapshot" in completed.stdout
+    assert "simulate" in completed.stdout
+    assert "readiness" in completed.stdout
     assert "run" in completed.stdout
