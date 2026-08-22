@@ -47,7 +47,7 @@ class FittedEvaluationModel(Protocol):
 
 @runtime_checkable
 class FittedCollaborativeArtifactProvider(Protocol):
-    """Report-v2 contract for collaborative-v1 aggregate artifact metadata.
+    """Report-v3 contract for collaborative-v1 aggregate artifact metadata.
 
     The runner validates the complete field allowlist and scalar types before
     publishing it. The collaborative-specific property name prevents unrelated

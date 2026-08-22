@@ -8,6 +8,12 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+from .adoption import (
+    DEFAULT_HYBRID_ADOPTION_POLICY,
+    HYBRID_ADOPTION_POLICY_VERSION,
+    HYBRID_CANDIDATE_MODEL_ID,
+    decide_hybrid_adoption,
+)
 from .dataset import (
     EvaluationSnapshot,
     canonical_json,
@@ -20,10 +26,14 @@ from .models.collaborative_v1 import (
     COLLABORATIVE_ARTIFACT_SCHEMA_VERSION,
     COLLABORATIVE_ARTIFACT_VERSION,
     COLLABORATIVE_MODEL_ID,
+    CollaborativeV1Model,
 )
+from .models.content_based_v1 import CONTENT_MODEL_ID, ContentBasedV1Model
+from .models.hybrid_v1 import HYBRID_MODEL_ID, HybridV1Model
 from .protocol import (
     EvaluationModel,
     FittedCollaborativeArtifactProvider,
+    FittedEvaluationModel,
     JsonScalar,
     ModelMetadata,
     ModelTrainingData,
@@ -37,6 +47,7 @@ from .report import (
     EvaluationReport,
     MetricDeltasAtK,
     ModelEvaluationReport,
+    ReportStatus,
 )
 from .split import EvaluationSplit, split_snapshot
 
@@ -80,6 +91,15 @@ class EvaluationError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class _ValidatedEvaluationModel:
+    metadata: ModelMetadata
+    delegate: EvaluationModel
+
+    def fit(self, training: ModelTrainingData, *, seed: int) -> FittedEvaluationModel:
+        return self.delegate.fit(training, seed=seed)
+
+
+@dataclass(frozen=True, slots=True)
 class EvaluationConfig:
     seed: int = DEFAULT_SEED
     ks: tuple[int, ...] = DEFAULT_KS
@@ -113,6 +133,24 @@ def _validate_metadata(metadata: ModelMetadata) -> None:
         canonical_json(_parameter_document(metadata))
     except (TypeError, ValueError) as error:
         raise EvaluationError(f"model {metadata.model_id!r} has non-JSON parameters") from error
+
+
+def _normalize_metadata(metadata: ModelMetadata) -> ModelMetadata:
+    if type(metadata.model_id) is not str or type(metadata.version) is not str:
+        raise TypeError("model identity fields must be plain strings")
+    parameters = dict(metadata.parameters.items())
+    if any(type(key) is not str for key in parameters) or any(
+        value is not None and type(value) not in (str, int, float, bool)
+        for value in parameters.values()
+    ):
+        raise TypeError("model parameters must contain plain JSON scalar values")
+    normalized = ModelMetadata(
+        model_id=metadata.model_id,
+        version=metadata.version,
+        parameters=parameters,
+    )
+    _validate_metadata(normalized)
+    return normalized
 
 
 def _validate_artifact(
@@ -185,11 +223,28 @@ def _validate_artifact(
 
 def _models_with_baseline(models: Iterable[EvaluationModel]) -> tuple[EvaluationModel, ...]:
     supplied = tuple(models)
+    validated: list[EvaluationModel] = []
     for model in supplied:
-        _validate_metadata(model.metadata)
-        if model.metadata.model_id == BASELINE_MODEL_ID:
+        try:
+            raw_metadata = model.metadata
+            if not isinstance(raw_metadata, ModelMetadata):
+                raise TypeError("metadata must be ModelMetadata")
+            metadata = _normalize_metadata(raw_metadata)
+        except Exception as error:
+            raise EvaluationError("model metadata could not be read") from error
+        if metadata.model_id == BASELINE_MODEL_ID:
             raise EvaluationError("baseline-v1 is reserved and is included automatically")
-    all_models: tuple[EvaluationModel, ...] = (BaselineV1Model(), *supplied)
+        expected: tuple[type[object], ModelMetadata] | None = None
+        if metadata.model_id == CONTENT_MODEL_ID:
+            expected = (ContentBasedV1Model, ContentBasedV1Model.metadata)
+        elif metadata.model_id == COLLABORATIVE_MODEL_ID:
+            expected = (CollaborativeV1Model, CollaborativeV1Model.metadata)
+        elif metadata.model_id == HYBRID_MODEL_ID:
+            expected = (HybridV1Model, HybridV1Model.metadata)
+        if expected is not None and (model.__class__ is not expected[0] or metadata != expected[1]):
+            raise EvaluationError(f"{metadata.model_id} is reserved for its built-in adapter")
+        validated.append(_ValidatedEvaluationModel(metadata=metadata, delegate=model))
+    all_models: tuple[EvaluationModel, ...] = (BaselineV1Model(), *validated)
     ids = [model.metadata.model_id for model in all_models]
     if len(ids) != len(set(ids)):
         raise EvaluationError("model_id values must be unique")
@@ -203,60 +258,85 @@ def _rank_model(
     config: EvaluationConfig,
 ) -> tuple[dict[UUID, tuple[UUID, ...]], int, dict[str, JsonScalar] | None]:
     model_seed = derive_model_seed(config.seed, model.metadata.model_id)
-    fitted = model.fit(
-        ModelTrainingData(
-            cutoff=split.cutoff,
-            recipes=split.recipes,
-            events=split.training_events,
-        ),
-        seed=model_seed,
-    )
-    if fitted.metadata != model.metadata:
+    try:
+        fitted = model.fit(
+            ModelTrainingData(
+                cutoff=split.cutoff,
+                recipes=split.recipes,
+                events=split.training_events,
+            ),
+            seed=model_seed,
+        )
+    except Exception as error:
+        raise EvaluationError(f"model {model.metadata.model_id!r} failed during fit") from error
+    try:
+        raw_fitted_metadata = fitted.metadata
+        if not isinstance(raw_fitted_metadata, ModelMetadata):
+            raise TypeError("fitted metadata must be ModelMetadata")
+        fitted_metadata = _normalize_metadata(raw_fitted_metadata)
+        metadata_changed = fitted_metadata != model.metadata
+    except Exception as error:
+        raise EvaluationError(
+            f"model {model.metadata.model_id!r} produced invalid fitted metadata"
+        ) from error
+    if metadata_changed:
         raise EvaluationError(f"model {model.metadata.model_id!r} changed metadata during fit")
     artifact: dict[str, JsonScalar] | None = None
     if isinstance(fitted, FittedCollaborativeArtifactProvider):
-        raw_artifact = fitted.collaborative_artifact_document
-        if not isinstance(raw_artifact, Mapping) or any(
-            not isinstance(key, str) for key in raw_artifact
-        ):
-            raise EvaluationError(
-                f"model {model.metadata.model_id!r} produced invalid artifact metadata"
-            )
-        artifact = dict(sorted(raw_artifact.items()))
-        if any(
-            value is not None and not isinstance(value, str | int | float | bool)
-            for value in artifact.values()
-        ):
-            raise EvaluationError(
-                f"model {model.metadata.model_id!r} produced invalid artifact metadata"
-            )
         try:
+            raw_artifact = fitted.collaborative_artifact_document
+            if not isinstance(raw_artifact, Mapping) or any(
+                type(key) is not str for key in raw_artifact
+            ):
+                raise TypeError("artifact must be a plain scalar mapping")
+            artifact = dict(sorted(raw_artifact.items()))
+            if any(type(key) is not str for key in artifact) or any(
+                value is not None and type(value) not in (str, int, float, bool)
+                for value in artifact.values()
+            ):
+                raise TypeError("artifact must contain plain JSON scalar values")
             canonical_json(artifact)
-        except (TypeError, ValueError) as error:
+        except Exception as error:
             raise EvaluationError(
                 f"model {model.metadata.model_id!r} produced invalid artifact metadata"
             ) from error
-        _validate_artifact(
-            artifact,
-            metadata=model.metadata,
-            model_seed=model_seed,
-            expected_training_cutoff=split.cutoff,
-        )
+        try:
+            _validate_artifact(
+                artifact,
+                metadata=model.metadata,
+                model_seed=model_seed,
+                expected_training_cutoff=split.cutoff,
+            )
+        except EvaluationError:
+            raise
+        except Exception as error:
+            raise EvaluationError(
+                f"model {model.metadata.model_id!r} produced invalid artifact metadata"
+            ) from error
     rankings: dict[UUID, tuple[UUID, ...]] = {}
     maximum_k = max(config.ks)
     for case in split.cases:
         required = min(maximum_k, len(case.candidate_ids))
-        returned = tuple(
-            fitted.rank(
-                user_id=case.user_id,
-                candidate_ids=case.candidate_ids,
-                limit=required,
+        try:
+            returned = tuple(
+                fitted.rank(
+                    user_id=case.user_id,
+                    candidate_ids=case.candidate_ids,
+                    limit=required,
+                )
             )
-        )
+        except Exception as error:
+            raise EvaluationError(
+                f"model {model.metadata.model_id!r} failed to return a ranking"
+            ) from error
+        if any(type(recipe_id) is not UUID for recipe_id in returned):
+            raise EvaluationError(
+                f"model {model.metadata.model_id!r} returned a non-UUID recipe ID"
+            )
         if len(returned) != required:
             raise EvaluationError(
                 f"model {model.metadata.model_id!r} returned {len(returned)} items "
-                f"for user {case.user_id}, expected exactly {required}"
+                f"for an evaluation case, expected exactly {required}"
             )
         if len(returned) != len(set(returned)):
             raise EvaluationError(
@@ -355,6 +435,26 @@ def _run_id(
         "seed": config.seed,
         "ks": list(config.ks),
         "models": [_parameter_document(model.metadata) for model in models],
+        "hybrid_adoption_policy": (
+            {
+                "policy_version": HYBRID_ADOPTION_POLICY_VERSION,
+                "minimum_evaluated_users": (DEFAULT_HYBRID_ADOPTION_POLICY.minimum_evaluated_users),
+                "minimum_primary_ndcg_lift": str(
+                    DEFAULT_HYBRID_ADOPTION_POLICY.minimum_primary_ndcg_lift
+                ),
+                "maximum_ndcg_regression": str(
+                    DEFAULT_HYBRID_ADOPTION_POLICY.maximum_ndcg_regression
+                ),
+                "maximum_recall_regression": str(
+                    DEFAULT_HYBRID_ADOPTION_POLICY.maximum_recall_regression
+                ),
+                "maximum_coverage_regression": str(
+                    DEFAULT_HYBRID_ADOPTION_POLICY.maximum_coverage_regression
+                ),
+            }
+            if any(model.metadata.model_id == HYBRID_CANDIDATE_MODEL_ID for model in models)
+            else None
+        ),
     }
     return hashlib.sha256(canonical_json(document).encode("utf-8")).hexdigest()
 
@@ -370,11 +470,19 @@ def evaluate(
     normalized_snapshot = parse_snapshot_json(snapshot_to_json(snapshot))
     split = split_snapshot(normalized_snapshot)
     evaluation_models = _models_with_baseline(models)
-    if any(model.metadata.model_id == COLLABORATIVE_MODEL_ID for model in evaluation_models):
+    evaluation_model_ids = {model.metadata.model_id for model in evaluation_models}
+    if evaluation_model_ids & {COLLABORATIVE_MODEL_ID, HYBRID_CANDIDATE_MODEL_ID}:
         readiness = assess_readiness(normalized_snapshot)
         if readiness.status != "ready":
             reasons = ", ".join(readiness.reason_codes)
             raise EvaluationError(f"collaborative readiness failed: {reasons}")
+    if HYBRID_CANDIDATE_MODEL_ID in evaluation_model_ids and not {
+        CONTENT_MODEL_ID,
+        COLLABORATIVE_MODEL_ID,
+    }.issubset(evaluation_model_ids):
+        raise EvaluationError(
+            "hybrid-v1 requires content-v1 and collaborative-v1 in the same evaluation"
+        )
     metrics_by_model: dict[str, tuple[MetricsAtK, ...]] = {}
     seeds_by_model: dict[str, int] = {}
     artifacts_by_model: dict[str, dict[str, JsonScalar] | None] = {}
@@ -413,12 +521,22 @@ def evaluate(
         for model in evaluation_models
     )
     reason_codes = _reason_codes(split)
+    report_status: ReportStatus = "insufficient_data" if reason_codes else "complete"
     limitations = tuple(sorted(set((*normalized_snapshot.limitations, *REQUIRED_LIMITATIONS))))
+    hybrid_adoption = (
+        decide_hybrid_adoption(
+            report_status=report_status,
+            metrics_by_model=metrics_by_model,
+            snapshot_limitations=normalized_snapshot.limitations,
+        )
+        if HYBRID_CANDIDATE_MODEL_ID in evaluation_model_ids
+        else None
+    )
     return EvaluationReport(
         schema_version=REPORT_SCHEMA_VERSION,
         protocol_version=PROTOCOL_VERSION,
         run_id=_run_id(normalized_snapshot, resolved_config, evaluation_models),
-        status="insufficient_data" if reason_codes else "complete",
+        status=report_status,
         reason_codes=reason_codes,
         dataset_id=normalized_snapshot.dataset_id,
         snapshot_sha256=normalized_snapshot.sha256,
@@ -429,6 +547,7 @@ def evaluate(
         ks=resolved_config.ks,
         split_counts=split.counts,
         models=model_reports,
+        hybrid_adoption=hybrid_adoption,
         warnings=_warnings(split),
         limitations=limitations,
     )

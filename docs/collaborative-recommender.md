@@ -121,9 +121,11 @@ remains a separate report comparator rather than an internal fallback.
 
 Every fitted collaborative model exposes aggregate-only artifact provenance.
 The evaluator copies it into the collaborative model's flat `artifact` object
-in the canonical report. `baseline-v1` and `content-v1` report `artifact: null`.
-The report schema is `recipe-lab-offline-evaluation-report-v2`; the evaluation
-protocol remains `fixed-cutoff-full-catalog-v1`.
+in the canonical report. `baseline-v1`, `content-v1`, and `hybrid-v1` report
+`artifact: null`. The current report schema is
+`recipe-lab-offline-evaluation-report-v3`; the collaborative artifact shape
+introduced in report v2 and the `fixed-cutoff-full-catalog-v1` evaluation
+protocol remain unchanged.
 
 | Artifact field | Meaning |
 | --- | --- |
@@ -157,6 +159,13 @@ bias, plus deltas from `baseline-v1`. The content and collaborative raw metrics
 share the same snapshot, cutoff, candidate sets, relevance labels, K values, and
 metric implementation, so they can be compared directly to test whether
 interaction neighborhoods add value beyond structured content.
+
+The mutually exclusive `--hybrid` suite uses the same gate and includes this
+model as both a standalone comparator and an explicit component of `hybrid-v1`.
+It adds `hybrid-v1` as the fourth model without changing this model's scores or
+aggregate artifact. See the
+[offline hybrid recommender](hybrid-recommender.md) for normalized rank fusion,
+cold-start reasons, and the conservative adoption scorecard.
 
 The RCP-18A fixture has eight available versions and five training items per
 profile, leaving three candidates. K values 1 and 3 therefore exercise both top

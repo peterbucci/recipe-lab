@@ -1,3 +1,11 @@
+from .adoption import (
+    DEFAULT_HYBRID_ADOPTION_POLICY,
+    HYBRID_ADOPTION_POLICY_VERSION,
+    HybridAdoptionComparisonAtK,
+    HybridAdoptionDecision,
+    HybridAdoptionPolicy,
+    decide_hybrid_adoption,
+)
 from .dataset import (
     SNAPSHOT_SCHEMA_VERSION,
     EvaluationSnapshot,
@@ -38,6 +46,8 @@ from .split import EvaluationSplit, UserEvaluationCase, split_snapshot
 
 __all__ = [
     "DEFAULT_READINESS_THRESHOLDS",
+    "DEFAULT_HYBRID_ADOPTION_POLICY",
+    "HYBRID_ADOPTION_POLICY_VERSION",
     "READINESS_PROTOCOL_VERSION",
     "READINESS_REPORT_SCHEMA_VERSION",
     "SNAPSHOT_SCHEMA_VERSION",
@@ -51,6 +61,9 @@ __all__ = [
     "EvaluationSnapshot",
     "EvaluationSplit",
     "FittedEvaluationModel",
+    "HybridAdoptionComparisonAtK",
+    "HybridAdoptionDecision",
+    "HybridAdoptionPolicy",
     "ModelMetadata",
     "ModelTrainingData",
     "ReadinessReport",
@@ -62,6 +75,7 @@ __all__ = [
     "create_snapshot",
     "assess_readiness",
     "derive_model_seed",
+    "decide_hybrid_adoption",
     "evaluate",
     "load_snapshot",
     "parse_snapshot_json",

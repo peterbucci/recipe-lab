@@ -796,8 +796,9 @@ def test_cli_ready_collaborative_report_has_artifact_quality_coverage_and_no_raw
 
     raw_report = report_path.read_text(encoding="utf-8")
     report = json.loads(raw_report)
-    assert report["schema_version"] == "recipe-lab-offline-evaluation-report-v2"
+    assert report["schema_version"] == "recipe-lab-offline-evaluation-report-v3"
     assert report["protocol_version"] == "fixed-cutoff-full-catalog-v1"
+    assert report["hybrid_adoption"] is None
     assert [model["model_id"] for model in report["models"]] == [
         "baseline-v1",
         COLLABORATIVE_MODEL_ID,

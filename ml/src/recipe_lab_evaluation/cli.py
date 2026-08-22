@@ -11,7 +11,8 @@ from pathlib import Path
 from sqlalchemy.exc import SQLAlchemyError
 
 from .dataset import SnapshotValidationError, load_snapshot, snapshot_to_json
-from .models import CollaborativeV1Model, ContentBasedV1Model
+from .models import CollaborativeV1Model, ContentBasedV1Model, HybridV1Model
+from .protocol import EvaluationModel
 from .readiness import assess_readiness, readiness_report_to_json
 from .report import report_to_json
 from .runner import DEFAULT_KS, DEFAULT_SEED, EvaluationConfig, EvaluationError, evaluate
@@ -141,12 +142,21 @@ def _parser() -> argparse.ArgumentParser:
         help="ranking cutoff; repeat as needed (defaults: 5 and 10)",
     )
     run.add_argument("--seed", type=_non_negative_integer, default=DEFAULT_SEED)
-    run.add_argument(
+    model_selection = run.add_mutually_exclusive_group()
+    model_selection.add_argument(
         "--collaborative",
         action="store_true",
         help=(
             "include collaborative-v1 after requiring the snapshot to pass "
             "the collaborative-readiness gate"
+        ),
+    )
+    model_selection.add_argument(
+        "--hybrid",
+        action="store_true",
+        help=(
+            "compare hybrid-v1 with baseline-v1, content-v1, and collaborative-v1 "
+            "after requiring the collaborative-readiness gate"
         ),
     )
     run.add_argument("--output", type=Path, help="write the report here instead of stdout")
@@ -181,6 +191,17 @@ def _same_path(first: Path, second: Path) -> bool:
     return first.resolve(strict=False) == second.resolve(strict=False)
 
 
+def _write_stdout(content: str) -> None:
+    """Write canonical UTF-8 bytes without platform newline translation."""
+
+    binary_output = getattr(sys.stdout, "buffer", None)
+    if binary_output is None:
+        sys.stdout.write(content)
+        return
+    binary_output.write(content.encode("utf-8"))
+    binary_output.flush()
+
+
 def _snapshot_command(arguments: argparse.Namespace) -> int:
     try:
         snapshot = export_postgres_snapshot(
@@ -211,23 +232,30 @@ def _run_command(arguments: argparse.Namespace) -> int:
         return 2
     try:
         snapshot = load_snapshot(arguments.snapshot)
-        if arguments.collaborative:
+        if arguments.collaborative or arguments.hybrid:
             readiness = assess_readiness(snapshot)
             if readiness.status != "ready":
                 reasons = ", ".join(readiness.reason_codes)
+                selected_model = "hybrid-v1" if arguments.hybrid else "collaborative-v1"
                 print(
-                    "error: collaborative-v1 was not fitted because the snapshot did not "
+                    f"error: {selected_model} was not fitted because the snapshot did not "
                     f"pass collaborative readiness ({reasons}); run the readiness command "
                     "(`recipe-lab-eval readiness`) for the aggregate report",
                     file=sys.stderr,
                 )
                 return STRICT_INSUFFICIENT_DATA_EXIT_CODE
         requested_ks = DEFAULT_KS if arguments.k is None else tuple(sorted(set(arguments.k)))
-        models = (
-            (ContentBasedV1Model(), CollaborativeV1Model())
-            if arguments.collaborative
-            else (ContentBasedV1Model(),)
-        )
+        models: tuple[EvaluationModel, ...]
+        if arguments.hybrid:
+            models = (
+                ContentBasedV1Model(),
+                CollaborativeV1Model(),
+                HybridV1Model(),
+            )
+        elif arguments.collaborative:
+            models = (ContentBasedV1Model(), CollaborativeV1Model())
+        else:
+            models = (ContentBasedV1Model(),)
         report = evaluate(
             snapshot,
             models=models,
@@ -235,7 +263,7 @@ def _run_command(arguments: argparse.Namespace) -> int:
         )
         report_json = report_to_json(report)
         if arguments.output is None:
-            sys.stdout.write(report_json)
+            _write_stdout(report_json)
         else:
             _atomic_write(arguments.output, report_json)
     except SnapshotValidationError as error:
@@ -291,7 +319,7 @@ def _readiness_command(arguments: argparse.Namespace) -> int:
         report = assess_readiness(snapshot)
         report_json = readiness_report_to_json(report)
         if arguments.output is None:
-            sys.stdout.write(report_json)
+            _write_stdout(report_json)
         else:
             _atomic_write(arguments.output, report_json)
     except SnapshotValidationError as error:

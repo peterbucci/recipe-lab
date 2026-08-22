@@ -16,7 +16,9 @@ result, and metric deltas at the same K values. The lower-level Python
 `evaluate()` function remains generic: callers must pass `ContentBasedV1Model()`
 when they want that comparison. The opt-in `run --collaborative` experiment also
 includes `content-v1` as both a direct comparator and the deterministic fallback
-for sparse collaborative evidence.
+for sparse collaborative evidence. The mutually exclusive `run --hybrid` suite
+also includes it as a direct comparator and converts its top-window rank into an
+explicit component of the content-fallback and full-hybrid routes.
 
 ## Recipe features and similarity
 
@@ -135,4 +137,6 @@ Online serving, authenticated profiles, a frontend recommendation surface, and
 model-artifact lifecycle remain separate product and architecture decisions.
 Its additional role as the
 [`collaborative-v1` sparse fallback](collaborative-recommender.md#sparse-data-and-fallback)
-is likewise evaluator-only and adds no serving dependency.
+is likewise evaluator-only and adds no serving dependency. Its rank-fusion role
+and human-readable fallback reasons are defined in the
+[offline hybrid recommender](hybrid-recommender.md).

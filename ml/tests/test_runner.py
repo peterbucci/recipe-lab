@@ -1,5 +1,5 @@
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import Any, Literal, cast
@@ -11,6 +11,7 @@ from recipe_lab_evaluation.dataset import EvaluationSnapshot, create_snapshot
 from recipe_lab_evaluation.protocol import (
     EvaluationModel,
     FittedEvaluationModel,
+    JsonScalar,
     ModelMetadata,
     ModelTrainingData,
     derive_model_seed,
@@ -100,6 +101,90 @@ class SeedRecordingModel:
         del training
         self.seen_seeds.append(seed)
         return _PreferredFittedModel(self.metadata, {})
+
+
+@dataclass(frozen=True, slots=True)
+class _UnreadableArtifactFitted:
+    metadata: ModelMetadata
+
+    @property
+    def collaborative_artifact_document(self) -> Mapping[str, JsonScalar]:
+        raise RuntimeError("private profile identifier must not escape")
+
+    def rank(
+        self,
+        *,
+        user_id: UUID,
+        candidate_ids: tuple[UUID, ...],
+        limit: int,
+    ) -> Sequence[UUID]:
+        del user_id
+        return candidate_ids[:limit]
+
+
+@dataclass(frozen=True, slots=True)
+class _MalformedRankingFitted:
+    metadata: ModelMetadata
+
+    def rank(
+        self,
+        *,
+        user_id: UUID,
+        candidate_ids: tuple[UUID, ...],
+        limit: int,
+    ) -> Sequence[UUID]:
+        del user_id, candidate_ids, limit
+        return None  # type: ignore[return-value]
+
+
+@dataclass(frozen=True, slots=True)
+class _StaticFittedModel:
+    metadata: ModelMetadata
+    fitted: FittedEvaluationModel
+
+    def fit(self, training: ModelTrainingData, *, seed: int) -> FittedEvaluationModel:
+        del training, seed
+        return self.fitted
+
+
+class _StatefulParameters(Mapping[str, JsonScalar]):
+    def __init__(self) -> None:
+        self._iterations = 0
+
+    def __getitem__(self, key: str) -> JsonScalar:
+        if key != "safe":
+            raise KeyError(key)
+        return 1
+
+    def __iter__(self) -> Iterator[str]:
+        self._iterations += 1
+        if self._iterations > 1:
+            raise RuntimeError("private profile identifier must not escape")
+        return iter(("safe",))
+
+    def __len__(self) -> int:
+        return 1
+
+
+class _HostileUUID(UUID):
+    def __hash__(self) -> int:
+        raise RuntimeError("private profile identifier must not escape")
+
+
+@dataclass(frozen=True, slots=True)
+class _HostileUuidRankingFitted:
+    metadata: ModelMetadata
+
+    def rank(
+        self,
+        *,
+        user_id: UUID,
+        candidate_ids: tuple[UUID, ...],
+        limit: int,
+    ) -> Sequence[UUID]:
+        del user_id
+        hostile = _HostileUUID(str(candidate_ids[0]))
+        return (hostile, *candidate_ids[1:limit])
 
 
 def _oracle_model(snapshot: EvaluationSnapshot, model_id: str = "fixture-oracle") -> PreferredModel:
@@ -193,6 +278,89 @@ def test_runner_rejects_invalid_model_rankings(
             models=(model,),
             config=EvaluationConfig(ks=(2,)),
         )
+
+
+@pytest.mark.parametrize("failure", ["artifact", "ranking"])
+def test_runner_redacts_malformed_model_protocol_failures(
+    synthetic_snapshot: EvaluationSnapshot,
+    failure: str,
+) -> None:
+    metadata = ModelMetadata(model_id=f"malformed-{failure}", version="1")
+    fitted: FittedEvaluationModel
+    if failure == "artifact":
+        fitted = _UnreadableArtifactFitted(metadata)
+    else:
+        fitted = _MalformedRankingFitted(metadata)
+
+    with pytest.raises(EvaluationError) as raised:
+        evaluate(
+            synthetic_snapshot,
+            models=(_StaticFittedModel(metadata, fitted),),
+            config=EvaluationConfig(ks=(2,)),
+        )
+
+    assert "private profile identifier" not in str(raised.value)
+    assert "invalid artifact metadata" in str(raised.value) or "failed to return" in str(
+        raised.value
+    )
+
+
+def test_runner_redacts_unreadable_model_metadata(
+    synthetic_snapshot: EvaluationSnapshot,
+) -> None:
+    class _UnreadableMetadataModel:
+        @property
+        def metadata(self) -> ModelMetadata:
+            raise RuntimeError("private profile identifier must not escape")
+
+        def fit(self, training: ModelTrainingData, *, seed: int) -> FittedEvaluationModel:
+            del training, seed
+            raise AssertionError("unreadable metadata must stop before fit")
+
+    with pytest.raises(EvaluationError) as raised:
+        evaluate(
+            synthetic_snapshot,
+            models=(_UnreadableMetadataModel(),),
+            config=EvaluationConfig(ks=(2,)),
+        )
+
+    assert str(raised.value) == "model metadata could not be read"
+
+
+def test_runner_uses_a_plain_cached_metadata_copy(
+    synthetic_snapshot: EvaluationSnapshot,
+) -> None:
+    metadata = ModelMetadata(
+        model_id="stateful-metadata",
+        version="1",
+        parameters=_StatefulParameters(),
+    )
+
+    with pytest.raises(EvaluationError) as raised:
+        evaluate(
+            synthetic_snapshot,
+            models=(PreferredModel(metadata, {}),),
+            config=EvaluationConfig(ks=(2,)),
+        )
+
+    assert "private profile identifier" not in str(raised.value)
+    assert "invalid fitted metadata" in str(raised.value)
+
+
+def test_runner_rejects_uuid_subclasses_before_hashing(
+    synthetic_snapshot: EvaluationSnapshot,
+) -> None:
+    metadata = ModelMetadata(model_id="hostile-uuid", version="1")
+
+    with pytest.raises(EvaluationError) as raised:
+        evaluate(
+            synthetic_snapshot,
+            models=(_StaticFittedModel(metadata, _HostileUuidRankingFitted(metadata)),),
+            config=EvaluationConfig(ks=(2,)),
+        )
+
+    assert "private profile identifier" not in str(raised.value)
+    assert "non-UUID recipe ID" in str(raised.value)
 
 
 def test_insufficient_data_is_a_valid_report_with_null_metrics(

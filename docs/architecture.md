@@ -246,9 +246,19 @@ beside both `baseline-v1` and `content-v1`. See the
 [offline collaborative recommender](collaborative-recommender.md) for the exact
 formula and fallback thresholds.
 
-Simulation, readiness, and the collaborative model have no serving adapter. A
-ready generated cohort permits only offline fitting and test work; it is not
-evidence about real users, model quality, or deployment. See
+The mutually exclusive `run --hybrid` suite applies the same gate and evaluates
+baseline, collaborative, content, and `hybrid-v1` on exactly one split. The
+hybrid converts each component's first 50-or-fewer ranks to exact normalized
+scores and selects baseline-only, content-plus-baseline, or full three-component
+routes per candidate. Its fitted details retain non-identifying reasons for
+focused tests; only aggregate metrics and an adoption scorecard reach the
+report. The scorecard retains the simpler model unless fixed support, NDCG,
+recall, coverage, and non-synthetic-evidence guardrails all pass. See the
+[offline hybrid recommender](hybrid-recommender.md) for the formula and policy.
+
+Simulation, readiness, and the collaborative and hybrid models have no serving
+adapter. A ready generated cohort permits only offline fitting and test work;
+it is not evidence about real users, model quality, or deployment. See
 [collaborative-filtering data readiness](collaborative-readiness.md) for the
 assumptions, thresholds, privacy contract, and proceed rule.
 
@@ -262,14 +272,20 @@ aggregate readiness report also omits caller-controlled dataset labels and
 snapshot limitation text. Collaborative model results contain a flat artifact
 object with model/artifact versions, a canonical training-prefix digest, the
 derived seed, cutoff, and aggregate fitted/support counts. Only the digest—not
-the identifying training rows—is published.
+the identifying training rows—is published. The hybrid has no separately
+persisted artifact; its report entry is null. Report schema v3 adds only
+aggregate hybrid-adoption policy, comparison, status, and reason fields, never
+candidate details or raw IDs.
 
 The offline CI job checks formatting, types, tests, and byte-for-byte report
 reproducibility for `content-v1` and `baseline-v1`. It separately verifies
 same-seed simulated snapshots and readiness reports, a distinct changed-seed
 cohort, and a strict ready fixture. The ready snapshots then drive two
 byte-identical `collaborative-v1` reports at K values 1 and 3; CI checks stable
-model membership, quality, coverage, and artifact metadata. The job remains
+model membership, quality, coverage, and artifact metadata. It also generates
+two byte-identical four-model hybrid reports, asserts exact fixture metrics and
+the expected `retain_simpler` decision, and treats non-adoption as a successful
+experiment. The job remains
 independent of the backend/frontend/MVP acceptance chain. Neither FastAPI
 startup nor a product request installs or runs evaluation code. See
 [offline recommendation evaluation](evaluation.md) for the evaluation protocol
@@ -286,14 +302,16 @@ Recommendation read:  API client -------> FastAPI -> SQLAlchemy -> PostgreSQL
 Offline evaluation:   Snapshot file ----> Evaluator -> Canonical JSON report
 Data readiness:       Catalog fixture --> Simulator -> Snapshot -> Readiness report
 Collaborative run:     Ready snapshot ---> Gate -> CF/content/baseline report
+Hybrid run:            Ready snapshot ---> Gate -> Hybrid/CF/content/baseline report
 ```
 
-`content-v1`, `collaborative-v1`, the simulator, and the readiness gate create no
-persisted serving model and have no serving path. The collaborative evaluation
-report carries aggregate fitted-artifact provenance, not weights or a runtime
-payload. Future artifact persistence or online inference would require an
-explicit adapter and a separate product decision; it must not become a hidden
-dependency of core recipe creation or recommendation reads.
+`content-v1`, `collaborative-v1`, `hybrid-v1`, the simulator, and the readiness
+gate create no persisted serving model and have no serving path. The
+collaborative evaluation report carries aggregate fitted-artifact provenance,
+not weights or a runtime payload; the hybrid carries no model artifact. Future
+artifact persistence or online inference would require an explicit adapter and
+a separate product decision; it must not become a hidden dependency of core
+recipe creation or recommendation reads.
 
 ## Early design decisions to record
 
