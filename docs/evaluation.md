@@ -5,7 +5,7 @@
 Recipe Lab evaluates recommendation approaches against the deterministic
 `baseline-v1` before treating a more complex approach as an improvement. The
 evaluator is an offline package under `ml/`; it is not imported by FastAPI,
-does not run in the request path, and does not train or deploy a model.
+does not run in the request path, and does not persist or deploy a model.
 
 Every run consumes one immutable, versioned JSON snapshot. Local snapshots are
 ignored by Git because they contain stable opaque activity IDs. Reports are
@@ -111,11 +111,22 @@ Each non-baseline result reports raw metrics and deltas from the baseline at the
 same K. Model IDs are unique, and `baseline-v1` is reserved so a comparison
 cannot replace the reference implementation accidentally.
 
+The `recipe-lab-eval run` command supplies the built-in `content-v1` model on
+every run, while the evaluator adds `baseline-v1`; CLI reports therefore always
+contain both in stable model-ID order. The generic Python `evaluate()` API adds
+only the baseline automatically, so callers must explicitly pass
+`ContentBasedV1Model()` or another comparison adapter. The exact structured
+features, signed preference profile, similarity formula, and cold-start order
+for `content-v1` are documented in
+[offline content recommender](content-recommender.md).
+
 ## Reproducibility and reports
 
 The default run seed is `20260821`. Each model receives an independent seed
 derived with SHA-256 from that run seed and model ID, so adding or reordering a
-model cannot change another model's random stream.
+model cannot change another model's random stream. `content-v1` is closed-form
+and accepts but does not consume its derived seed; exact rational arithmetic and
+fixed tie-breaks make its fit and ranking independent of input order and seed.
 
 Reports contain the protocol and schema versions, deterministic run ID,
 snapshot fingerprint and cutoff, seed, K values, split/filter counts, model
@@ -150,6 +161,8 @@ explicit `--strict` option is available for evaluation-only automation.
 - Exact-version relevance does not yet measure lineage quality, substitution
   usefulness, nutrition, safety, or cooking outcomes.
 
-These limitations must travel with every snapshot and report. Learned models
-remain future work and should be promoted only after a reproducible report
-shows a useful improvement over the baseline under this protocol.
+These limitations must travel with every snapshot and report. The offline
+`content-v1` implementation is a comparison experiment, not a deployment
+decision. It should be considered for a separate serving milestone only after
+reproducible reports on suitable data show a useful improvement over the
+baseline under this protocol.

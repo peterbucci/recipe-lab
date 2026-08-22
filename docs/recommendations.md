@@ -4,9 +4,9 @@
 
 `baseline-v1` is a deterministic, request-time recommender for the shared demo
 profile. It establishes the explainable reference point used by Recipe Lab's
-offline evaluator before any learned model is considered. It does not train a
-model, persist a user profile or recommendation artifact, introduce randomness,
-or depend on a clock.
+offline evaluator for every comparison model, including `content-v1`. It does
+not train a model, persist a user profile or recommendation artifact, introduce
+randomness, or depend on a clock.
 
 `GET /api/recommendations?limit=10` returns up to the requested number of
 recommendations. Each item contains a recipe-version summary, its score, and a
@@ -23,7 +23,8 @@ identity returns the documented HTTP 503 response.
 The endpoint is API-only in this milestone. It does not add a frontend surface,
 a database migration, or an offline training job. The separate offline harness
 reconstructs point-in-time state from immutable event snapshots and calls the
-same pure scorer; the API never imports or runs that harness.
+same pure scorer for the baseline comparison; the API never imports or runs
+that harness or the offline `content-v1` model.
 
 ## Global score
 
@@ -143,5 +144,6 @@ explainable product and evaluation baseline, not as evidence of account-level
 personalization quality. It deliberately has no recency model, popularity
 dampening, semantic ingredient representation, collaborative signal, or
 training pipeline. The [offline evaluation harness](evaluation.md) measures it
-with a fixed-cutoff protocol, but learned recommenders remain separate roadmap
-work.
+with a fixed-cutoff protocol and compares it with the
+[offline `content-v1` recommender](content-recommender.md). That experiment does
+not replace this production strategy or add a serving dependency.

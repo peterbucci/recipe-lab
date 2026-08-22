@@ -217,6 +217,15 @@ point-in-time preference state, and compares every registered approach with
 `baseline-v1`. The production recommendation adapter and evaluator share the
 same database-free baseline scorer; SQL loading remains outside that core.
 
+The built-in `content-v1` adapter fits only in memory from the catalog and
+training prefix. It represents each version with canonical ingredient IDs,
+case-folded title tokens, and version metadata, then combines exact content
+similarity with signed save, rating, view, and fork signals. A signed global
+prior and fixed metadata/UUID tie-breaks define cold start. The CLI supplies
+this adapter on every run and the evaluator adds `baseline-v1`, so their
+metrics and deltas share one snapshot and protocol. See
+[offline content recommender](content-recommender.md) for the exact formulas.
+
 Snapshots are explicit artifacts rather than live database reads during a run.
 The PostgreSQL exporter uses a repeatable-read transaction and retains only
 opaque IDs plus typed event context. Local snapshots and reports are ignored;
@@ -225,9 +234,10 @@ reproducibility behavior. Canonical reports contain no raw profile or event IDs
 and omit wall-clock or host-dependent fields.
 
 The offline CI job checks formatting, types, tests, and byte-for-byte report
-reproducibility independently of the backend/frontend/MVP acceptance chain.
-Neither FastAPI startup nor a product request installs or runs evaluation code.
-See [offline recommendation evaluation](evaluation.md) for the protocol and
+reproducibility for `content-v1` and `baseline-v1` independently of the
+backend/frontend/MVP acceptance chain. Neither FastAPI startup nor a product
+request installs or runs evaluation code. See
+[offline recommendation evaluation](evaluation.md) for the protocol and
 limitations.
 
 ## Initial request path
@@ -241,9 +251,10 @@ Recommendation read:  API client -------> FastAPI -> SQLAlchemy -> PostgreSQL
 Offline evaluation:   Snapshot file ----> Evaluator -> Canonical JSON report
 ```
 
-Future offline training may read the same versioned snapshot and write a
-versioned model artifact through an explicit adapter. It must not become a
-hidden dependency of core recipe creation or recommendation reads.
+`content-v1` creates no persisted model artifact and has no serving path.
+Future artifact persistence or online inference would require an explicit
+adapter and a separate product decision; it must not become a hidden dependency
+of core recipe creation or recommendation reads.
 
 ## Early design decisions to record
 

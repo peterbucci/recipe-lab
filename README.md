@@ -39,9 +39,12 @@ trained ML system.
 
 The ML roadmap begins with a transparent popularity or rule-based baseline,
 which is now available as the comparison point for later work. A separate
-fixed-cutoff offline harness now measures that baseline reproducibly. Content-
-based, collaborative, and hybrid recommenders remain deferred; none should be
-considered better without a comparable evaluation report.
+fixed-cutoff offline harness now measures that baseline reproducibly.
+`content-v1` is the first offline comparison model: it combines canonical
+ingredient overlap, normalized title tokens, version metadata, and signed
+preference signals with a defined cold-start rule. Collaborative, hybrid, and
+online learned recommenders remain deferred; no approach should be considered
+better without a comparable evaluation report.
 
 ## Repository layout
 
@@ -49,7 +52,7 @@ considered better without a comparable evaluation report.
 recipe-lab/
 |-- frontend/          Next.js and TypeScript web application
 |-- backend/           FastAPI, SQLAlchemy, and pytest
-|-- ml/                Offline recommendation evaluation package
+|-- ml/                Offline content recommender and evaluation package
 |-- docs/              Product scope and architecture notes
 |-- compose.yaml       Local frontend, API, and PostgreSQL services
 `-- .env.example       Documented development configuration
@@ -86,6 +89,9 @@ The repository currently provides:
 - a versioned, leakage-safe offline evaluation harness with mandatory baseline
   comparison, Precision@K, Recall@K, NDCG@K, coverage, popularity-bias metrics,
   deterministic reports, and an explicitly synthetic verification fixture;
+- a reproducible offline `content-v1` recommender that represents structured
+  ingredients and recipe metadata, combines positive and negative preference
+  signals, and defines deterministic cold-start behavior;
 - a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
   immutable recipe-version snapshots, ingredients, instructions, saves, and
   ratings plus their separate interaction history;
@@ -197,10 +203,14 @@ recipe-lab-eval run --snapshot tests/fixtures/synthetic_snapshot_v1.json `
   --k 5 --k 10 --seed 20260821 --output reports/synthetic-report.json
 ```
 
-The snapshot's explicit UTC cutoff defines training and holdout data. The
-synthetic result validates the harness only; it is not a product benchmark.
-See [offline recommendation evaluation](docs/evaluation.md) for the snapshot
-command, metric definitions, and leakage/privacy rules.
+The snapshot's explicit UTC cutoff defines training and holdout data. Each CLI
+run evaluates `content-v1` beside the automatically included `baseline-v1` and
+reports the metric deltas. The synthetic result validates the harness only; it
+is not a product benchmark. See
+[offline recommendation evaluation](docs/evaluation.md) for the snapshot
+command, metric definitions, and leakage/privacy rules, and
+[offline content recommender](docs/content-recommender.md) for the exact model
+contract.
 
 The Playwright list command validates test discovery without installing or
 launching a browser. To run the browser flow locally, keep the migrated and
@@ -239,8 +249,9 @@ the committed `package-lock.json`.
 
 An independent `Offline evaluation` job installs the backend scoring core and
 the `ml` package, runs its static checks and tests, then generates the synthetic
-report twice and compares the bytes. It is deliberately outside the
-backend/frontend dependency chain and never starts a product service.
+`content-v1` versus `baseline-v1` report twice and compares the bytes. It is
+deliberately outside the backend/frontend dependency chain and never starts a
+product service.
 
 After the backend and frontend quality jobs pass, the stable `MVP acceptance`
 job creates a fresh PostgreSQL 17 database, applies every migration, loads the
@@ -266,4 +277,6 @@ the initial boundaries and component responsibilities. The exact scoring and
 cold-start contract is documented in
 [baseline recommendations](docs/recommendations.md). The fixed-cutoff metrics
 and report contract are documented in
-[offline recommendation evaluation](docs/evaluation.md).
+[offline recommendation evaluation](docs/evaluation.md), and the structured
+features, signed profile, and cold-start formula are documented in
+[offline content recommender](docs/content-recommender.md).
