@@ -241,8 +241,9 @@ jobs:
               (Path(os.environ["RUNNER_TEMP"]) / "collaborative-report-a.json").read_text()
           )
           assert report["status"] == "complete"
-          assert report["schema_version"] == "recipe-lab-offline-evaluation-report-v2"
+          assert report["schema_version"] == "recipe-lab-offline-evaluation-report-v3"
           assert report["protocol_version"] == "fixed-cutoff-full-catalog-v1"
+          assert report["hybrid_adoption"] is None
           assert [model["model_id"] for model in report["models"]] == [
               "baseline-v1",
               "collaborative-v1",
@@ -256,6 +257,111 @@ jobs:
           assert all(metric["coverage"] is not None for metric in collaborative["metrics"])
           PY
 
+      - name: Evaluate hybrid model and adoption policy on ready data
+        shell: bash
+        run: |
+          recipe-lab-eval run \
+            --snapshot "$RUNNER_TEMP/readiness-snapshot-a.json" \
+            --hybrid --k 1 --k 3 --seed 20260822 --strict \
+            --output "$RUNNER_TEMP/hybrid-report-a.json"
+          recipe-lab-eval run \
+            --snapshot "$RUNNER_TEMP/readiness-snapshot-b.json" \
+            --hybrid --k 3 --k 1 --seed 20260822 --strict \
+            --output "$RUNNER_TEMP/hybrid-report-b.json"
+          cmp "$RUNNER_TEMP/hybrid-report-a.json" \
+            "$RUNNER_TEMP/hybrid-report-b.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "hybrid-report-a.json").read_text()
+          )
+          assert report["status"] == "complete"
+          assert report["schema_version"] == "recipe-lab-offline-evaluation-report-v3"
+          assert report["protocol_version"] == "fixed-cutoff-full-catalog-v1"
+          assert [model["model_id"] for model in report["models"]] == [
+              "baseline-v1",
+              "collaborative-v1",
+              "content-v1",
+              "hybrid-v1",
+          ]
+
+          hybrid = report["models"][3]
+          assert hybrid["artifact"] is None
+          assert hybrid["metrics"] == [
+              {
+                  "coverage": "0.750000",
+                  "k": 1,
+                  "mean_candidate_popularity": "1.000000",
+                  "mean_recommended_popularity": "1.000000",
+                  "ndcg": "0.625000",
+                  "popularity_bias": "0.000000",
+                  "precision": "0.625000",
+                  "recall": "0.312500",
+                  "support": {"evaluated_users": 64, "relevant_items": 128},
+              },
+              {
+                  "coverage": "1.000000",
+                  "k": 3,
+                  "mean_candidate_popularity": "1.000000",
+                  "mean_recommended_popularity": "1.000000",
+                  "ndcg": "0.866219",
+                  "popularity_bias": "0.000000",
+                  "precision": "0.666667",
+                  "recall": "1.000000",
+                  "support": {"evaluated_users": 64, "relevant_items": 128},
+              },
+          ]
+
+          decision = report["hybrid_adoption"]
+          assert decision == {
+              "candidate_model_id": "hybrid-v1",
+              "comparisons": [
+                  {
+                      "coverage_delta": "-0.125000",
+                      "evaluated_users": 64,
+                      "k": 1,
+                      "ndcg_delta": "-0.015625",
+                      "recall_delta": "-0.007813",
+                      "reference_model_id": "content-v1",
+                  },
+                  {
+                      "coverage_delta": "0.000000",
+                      "evaluated_users": 64,
+                      "k": 3,
+                      "ndcg_delta": "0.001481",
+                      "recall_delta": "0.000000",
+                      "reference_model_id": "content-v1",
+                  },
+              ],
+              "evaluated_users": 64,
+              "policy": {
+                  "maximum_coverage_regression": "0.050000",
+                  "maximum_ndcg_regression": "0.000000",
+                  "maximum_recall_regression": "0.000000",
+                  "minimum_evaluated_users": 40,
+                  "minimum_primary_ndcg_lift": "0.010000",
+              },
+              "policy_version": "hybrid-adoption-policy-v1",
+              "primary_k": 3,
+              "primary_ndcg_lift": "0.001481",
+              "reason_codes": [
+                  "synthetic_evidence_only",
+                  "primary_ndcg_lift_below_minimum",
+                  "ndcg_regression",
+                  "recall_regression",
+                  "coverage_regression",
+              ],
+              "reference_model_id": "content-v1",
+              "status": "retain_simpler",
+              "worst_coverage_delta": "-0.125000",
+              "worst_ndcg_delta": "-0.015625",
+              "worst_recall_delta": "-0.007813",
+          }
+          PY
+
       - name: Upload reproducibility report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v6
@@ -265,6 +371,7 @@ jobs:
             ${{ runner.temp }}/evaluation-report-a.json
             ${{ runner.temp }}/readiness-report-a.json
             ${{ runner.temp }}/collaborative-report-a.json
+            ${{ runner.temp }}/hybrid-report-a.json
           if-no-files-found: ignore
           retention-days: 7
 
