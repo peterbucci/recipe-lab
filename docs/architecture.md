@@ -256,9 +256,23 @@ report. The scorecard retains the simpler model unless fixed support, NDCG,
 recall, coverage, and non-synthetic-evidence guardrails all pass. See the
 [offline hybrid recommender](hybrid-recommender.md) for the formula and policy.
 
-Simulation, readiness, and the collaborative and hybrid models have no serving
-adapter. A ready generated cohort permits only offline fitting and test work;
-it is not evidence about real users, model quality, or deployment. See
+The same distribution separately owns `substitution-rules-v1`. It constructs
+candidates only from curated outgoing substitution edges, removes replacements
+that fail requested declared dietary/allergen tag checks, and orders survivors
+by relationship evidence, exact recipe-context similarity, explicit preference
+affinity, and stable ingredient metadata. The substitution benchmark is a
+separate versioned catalog-and-case contract; it does not reuse the temporal
+recommendation snapshot. Queries require the source in their recipe context and
+restrict preference keys to that source's direct replacements. Relationship
+confidence describes the curated edge, never medical, allergen, or food-safety
+confidence. See the
+[offline substitution rules engine](substitution-engine.md) for the hard
+constraints, formulas, caution, and evaluation protocol.
+
+Simulation, readiness, the recommendation models, and the substitution rules
+have no serving adapter. A ready generated cohort or validated substitution
+fixture permits only offline fitting and test work; neither is evidence about
+real users, model quality, cooking outcomes, safety, or deployment. See
 [collaborative-filtering data readiness](collaborative-readiness.md) for the
 assumptions, thresholds, privacy contract, and proceed rule.
 
@@ -277,6 +291,15 @@ persisted artifact; its report entry is null. Report schema v3 adds only
 aggregate hybrid-adoption policy, comparison, status, and reason fields, never
 candidate details or raw IDs.
 
+Substitution reports are separate canonical aggregate artifacts. They contain a
+benchmark fingerprint, deterministic run ID, rule strategy, aggregate counts,
+metrics, status, reason codes, and limitations, but omit ingredient,
+relationship, recipe-context, and case IDs and names. Caller-supplied benchmark
+IDs and limitation text stay out of the report but remain covered by its input
+fingerprint; published limitations are evaluator controlled. The report
+explicitly records that learned ranking was not attempted and separately counts
+and measures exact caution-text compliance.
+
 The offline CI job checks formatting, types, tests, and byte-for-byte report
 reproducibility for `content-v1` and `baseline-v1`. It separately verifies
 same-seed simulated snapshots and readiness reports, a distinct changed-seed
@@ -285,7 +308,9 @@ byte-identical `collaborative-v1` reports at K values 1 and 3; CI checks stable
 model membership, quality, coverage, and artifact metadata. It also generates
 two byte-identical four-model hybrid reports, asserts exact fixture metrics and
 the expected `retain_simpler` decision, and treats non-adoption as a successful
-experiment. The job remains
+experiment. Finally, it executes the substitution benchmark twice, compares
+the canonical bytes, and asserts the exact engineering-validation report. The
+job remains
 independent of the backend/frontend/MVP acceptance chain. Neither FastAPI
 startup nor a product request installs or runs evaluation code. See
 [offline recommendation evaluation](evaluation.md) for the evaluation protocol
@@ -303,15 +328,18 @@ Offline evaluation:   Snapshot file ----> Evaluator -> Canonical JSON report
 Data readiness:       Catalog fixture --> Simulator -> Snapshot -> Readiness report
 Collaborative run:     Ready snapshot ---> Gate -> CF/content/baseline report
 Hybrid run:            Ready snapshot ---> Gate -> Hybrid/CF/content/baseline report
+Substitution rules:    Benchmark file --> Direct-edge rules -> Aggregate report
 ```
 
-`content-v1`, `collaborative-v1`, `hybrid-v1`, the simulator, and the readiness
-gate create no persisted serving model and have no serving path. The
+`content-v1`, `collaborative-v1`, `hybrid-v1`, `substitution-rules-v1`, the
+simulator, and the readiness gate create no persisted serving model and have no
+serving path. The
 collaborative evaluation report carries aggregate fitted-artifact provenance,
-not weights or a runtime payload; the hybrid carries no model artifact. Future
-artifact persistence or online inference would require an explicit adapter and
-a separate product decision; it must not become a hidden dependency of core
-recipe creation or recommendation reads.
+not weights or a runtime payload; the hybrid and substitution rules carry no
+model artifact. Future artifact persistence, learned substitution ranking, or
+online inference would require an explicit adapter and a separate product
+decision; it must not become a hidden dependency of core recipe creation or
+recommendation reads.
 
 ## Early design decisions to record
 

@@ -362,6 +362,109 @@ jobs:
           }
           PY
 
+      - name: Verify substitution rules report
+        shell: bash
+        run: |
+          recipe-lab-eval substitution-run \
+            --benchmark tests/fixtures/substitution_benchmark_v1.json \
+            --output "$RUNNER_TEMP/substitution-report-a.json" --strict
+          recipe-lab-eval substitution-run \
+            --benchmark tests/fixtures/substitution_benchmark_v1.json \
+            --output "$RUNNER_TEMP/substitution-report-b.json" --strict
+          cmp "$RUNNER_TEMP/substitution-report-a.json" \
+            "$RUNNER_TEMP/substitution-report-b.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "substitution-report-a.json").read_text()
+          )
+          assert set(report) == {
+              "benchmark_sha256",
+              "counts",
+              "learned_ranking_attempted",
+              "limitations",
+              "metrics",
+              "protocol_version",
+              "reason_codes",
+              "run_id",
+              "schema_version",
+              "status",
+              "strategy",
+          }
+          assert report["schema_version"] == (
+              "recipe-lab-substitution-evaluation-report-v1"
+          )
+          assert report["protocol_version"] == "curated-direct-rules-benchmark-v1"
+          assert report["benchmark_sha256"] == (
+              "a426af3fab31afc2b8a71b8d4d052b7ade1f703f14aef714112344a894b844f0"
+          )
+          assert report["run_id"] == (
+              "f34b4160c45339e4fe36bc79a96a0b9e82ddd2badb070ca8da9bfdda24d7887d"
+          )
+          assert report["status"] == "engineering_validated"
+          assert report["reason_codes"] == []
+          assert report["strategy"] == "substitution-rules-v1"
+          assert report["learned_ranking_attempted"] is False
+          assert report["counts"] == {
+              "allergen_filtered": 2,
+              "cases": 6,
+              "cases_with_expected_results": 5,
+              "caution_mismatches": 0,
+              "constraint_violations": 0,
+              "dietary_filtered": 2,
+              "direct_candidates_considered": 13,
+              "eligible_candidates": 9,
+              "empty_expected_cases": 1,
+              "exact_ranking_matches": 6,
+              "expected_candidates": 9,
+              "matching_candidates": 9,
+              "missing_explanations": 0,
+              "missing_provenance_or_confidence": 0,
+              "missing_ratio_or_guidance": 0,
+              "non_direct_outputs": 0,
+              "returned_candidates": 9,
+              "top1_matches": 5,
+          }
+          assert report["metrics"] == {
+              "candidate_recall": "1.000000",
+              "caution_compliance": "1.000000",
+              "constraint_compliance": "1.000000",
+              "direct_edge_precision": "1.000000",
+              "empty_result_accuracy": "1.000000",
+              "exact_ranking_accuracy": "1.000000",
+              "explanation_coverage": "1.000000",
+              "provenance_or_confidence_coverage": "1.000000",
+              "ratio_or_guidance_coverage": "1.000000",
+              "top1_accuracy": "1.000000",
+          }
+          assert report["limitations"] == [
+              (
+                  "Ingredient metadata contains positive declarations only; "
+                  "missing metadata is unknown."
+              ),
+              "No learned substitution ranking was trained or evaluated.",
+              (
+                  "No substitution impressions, selections, rejection reasons, "
+                  "or cooking outcomes exist."
+              ),
+              (
+                  "The benchmark cases are synthetic engineering fixtures, "
+                  "not user-outcome evidence."
+              ),
+              (
+                  "The live demo catalog has one outgoing candidate per "
+                  "substitution source."
+              ),
+              (
+                  "The report validates deterministic rules and constraints, "
+                  "not medical or food safety."
+              ),
+          ]
+          PY
+
       - name: Upload reproducibility report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v6
@@ -372,6 +475,7 @@ jobs:
             ${{ runner.temp }}/readiness-report-a.json
             ${{ runner.temp }}/collaborative-report-a.json
             ${{ runner.temp }}/hybrid-report-a.json
+            ${{ runner.temp }}/substitution-report-a.json
           if-no-files-found: ignore
           retention-days: 7
 

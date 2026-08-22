@@ -4,9 +4,12 @@ This Python package fits and evaluates Recipe Lab's deterministic offline
 `content-v1`, readiness-gated `collaborative-v1`, and explicit rank-fusion
 `hybrid-v1` recommenders against the mandatory `baseline-v1`. It also provides
 a versioned synthetic cohort, a structural readiness gate, and a conservative
-hybrid-adoption scorecard. It is deliberately separate from the FastAPI request
-path, persists no serving model, and has no serving responsibility. Canonical
-reports carry aggregate evaluation and collaborative-artifact provenance only.
+hybrid-adoption scorecard. The package separately evaluates the deterministic
+`substitution-rules-v1` engine against a versioned direct-edge benchmark before
+any learned substitution ranking is attempted. It is deliberately separate
+from the FastAPI request path, persists no serving model, and has no serving
+responsibility. Canonical reports carry aggregate evaluation and provenance
+only.
 
 ## Install
 
@@ -127,6 +130,35 @@ also regress. Synthetic evidence is independently barred from adoption. See the
 [offline hybrid recommender](../docs/hybrid-recommender.md) for the exact
 component formula, cold-start routes, reasons, metrics, and policy.
 
+## Run the substitution rules benchmark
+
+Evaluate the committed deterministic rules fixture without a database:
+
+```powershell
+recipe-lab-eval substitution-run `
+  --benchmark tests/fixtures/substitution_benchmark_v1.json `
+  --output reports/substitution-rules-v1.json `
+  --strict
+```
+
+This command uses a separate `recipe-lab-substitution-benchmark-v1` contract;
+it does not consume a recommendation snapshot or run a temporal split. Cases
+exercise curated direct edges, dietary and allergen tag filters, recipe-context
+ordering, signed preference ordering, constraint precedence, and an expected
+empty result. The canonical aggregate report records deterministic counts and
+coverage/accuracy metrics, including exact caution compliance, and always states
+`learned_ranking_attempted: false`.
+
+The fixture reaches `engineering_validated` with six synthetic cases. That
+status verifies rule execution and report reproducibility, not taste, cooking
+outcomes, cross-contact, medical suitability, or user demand. Ingredient tags
+are positive declarations only; missing metadata remains unknown. `--strict`
+writes the report and exits 3 for `invalid` or `insufficient_data`, while a
+validated report exits zero. See the
+[offline substitution rules engine](../docs/substitution-engine.md) for hard
+constraints, exact ordering, output explanations, caution text, metrics, and
+scope.
+
 ## Capture an evaluation snapshot
 
 Use an intentionally selected database. Persistent developer and browser
@@ -201,6 +233,27 @@ The public evaluator requires `ContentBasedV1Model()` and
 then applies readiness before fitting. This preserves the required same-split
 comparison rather than silently producing a baseline-versus-hybrid report.
 
+## Built-in substitution rules
+
+`substitution-rules-v1` considers only curated outgoing relationships for one
+source ingredient. Required dietary flags and excluded declared allergens are
+hard filters. The remaining candidates use relationship evidence first, then
+exact recipe-context Jaccard similarity, normalized signed preference affinity,
+and stable ingredient metadata tie-breaks. Every item retains its ratio or
+guidance, provenance or confidence, components, and a deterministic
+human-readable explanation.
+
+Queries require the source ingredient to appear in the recipe context and
+accept preference weights only for its direct curated replacements.
+Relationship confidence describes the curated edge; it is never medical,
+allergen, label, cross-contact, or food-safety confidence.
+
+The Python API can build the catalog from the bundled seed, but no FastAPI
+route or frontend consumes it. Missing dietary or allergen metadata is unknown,
+not proof of suitability, and every result carries a label/cross-contact
+caution. The rules engine is the offline baseline for later substitution work;
+it is not a learned ranker.
+
 ## Add another comparison model
 
 Implement the `EvaluationModel` protocol:
@@ -234,4 +287,6 @@ experiment, and the
 [offline collaborative recommender](../docs/collaborative-recommender.md)
 defines its scoring, fallback, artifact, and evaluation behavior. The
 [offline hybrid recommender](../docs/hybrid-recommender.md) defines rank fusion,
-explanation routes, and the conservative adoption policy.
+explanation routes, and the conservative adoption policy. The separate
+[offline substitution rules engine](../docs/substitution-engine.md) defines the
+curated candidate, hard-constraint, ordering, caution, and benchmark contracts.

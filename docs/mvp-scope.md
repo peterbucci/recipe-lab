@@ -23,7 +23,8 @@ variant, and compared with its parent in a way that is useful to a cook.
 
 - Online learned serving, authenticated-account, and frontend recommendation
   experiences.
-- Automated substitution suggestions.
+- Automated substitution suggestions in the API or frontend. An offline rules
+  benchmark may be developed after the MVP without joining its request path.
 - Social feeds, comments, and following.
 - Grocery lists and meal planning.
 - Nutrition or medical claims.
@@ -62,14 +63,20 @@ evidence is sparse. RCP-19 adds evaluator-only `hybrid-v1` rank fusion, tested
 human-readable cold-start reasons, and a conservative aggregate scorecard that
 retains a simpler model unless same-split results clear every guardrail. Its
 generated `ready` result and model scores are engineering evidence only, not
-claims about real users or model quality. None of these
+claims about real users or model quality. RCP-20 adds the separate offline
+`substitution-rules-v1` baseline: it evaluates curated direct edges, hard
+declared dietary/allergen constraints, recipe context, and explicit preference
+weights against a synthetic benchmark before learned ranking. It adds no API,
+frontend, recipe-editing behavior, or medical-safety claim. None of these
 additions belongs to or blocks the deployed M1 request path. See
 [baseline recommendations](recommendations.md),
 [offline content recommender](content-recommender.md),
 [offline recommendation evaluation](evaluation.md),
 [collaborative-filtering data readiness](collaborative-readiness.md),
 [offline collaborative recommender](collaborative-recommender.md), and
-[offline hybrid recommender](hybrid-recommender.md) for the exact contracts.
+[offline hybrid recommender](hybrid-recommender.md) for the recommendation
+contracts, and [offline substitution rules engine](substitution-engine.md) for
+the candidate, hard-constraint, caution, and rules-benchmark contract.
 
 ## Exit criteria before ML work
 
@@ -88,5 +95,8 @@ conclusions about real interaction data require a separately captured,
 privacy-safe snapshot to pass and produce a reproducible baseline/content/model
 comparison. The same gate applies to RCP-19, and even an observed-data
 `adopt_hybrid` scorecard would remain an offline recommendation rather than a
-deployment. These additions do not move an ML runtime, online learned
-recommendations, or a recommendation surface into MVP scope.
+deployment. Likewise, an `engineering_validated` RCP-20 report only confirms
+the synthetic rules contract; it does not authorize learned substitution
+ranking or serving. These additions do not move an ML runtime, online learned
+recommendations, automated substitutions, or a recommendation surface into MVP
+scope.

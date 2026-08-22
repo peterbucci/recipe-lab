@@ -50,8 +50,11 @@ and records aggregate training provenance in its offline report. The offline
 `hybrid-v1` experiment now fuses baseline, content, and collaborative ranks with
 explicit cold-start routes and a conservative same-split adoption decision. The
 generated cohort retains the simpler approach and is not real-user or quality
-evidence. Online learned serving remains separate work; no approach should be
-considered better without a comparable evaluation report.
+evidence. A separate offline `substitution-rules-v1` engine now evaluates
+curated direct replacements, declared dietary/allergen constraints, recipe
+context, and explicit preference weights before any learned substitution
+ranking is attempted. Online learned serving remains separate work; no approach
+should be considered better without a comparable evaluation report.
 
 ## Repository layout
 
@@ -109,6 +112,11 @@ The repository currently provides:
   content, and collaborative component scores, deterministic cold-start reasons,
   and a versioned policy that retains the simpler model unless aggregate results
   clear every quality, support, and coverage guardrail;
+- an offline `substitution-rules-v1` engine that filters curated directed edges
+  by declared dietary/allergen constraints, orders eligible replacements with
+  relationship evidence, recipe context, and explicit preference weights, and
+  emits ratio-or-guidance, provenance-or-confidence, explanations, and an
+  unknown-metadata caution;
 - a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
   immutable recipe-version snapshots, ingredients, instructions, saves, and
   ratings plus their separate interaction history;
@@ -228,6 +236,9 @@ recipe-lab-eval run --snapshot snapshots/readiness-simulated-v1.json `
 recipe-lab-eval run --snapshot snapshots/readiness-simulated-v1.json `
   --hybrid --k 1 --k 3 --seed 20260822 `
   --output reports/hybrid-v1.json --strict
+recipe-lab-eval substitution-run `
+  --benchmark tests/fixtures/substitution_benchmark_v1.json `
+  --output reports/substitution-rules-v1.json --strict
 ```
 
 The snapshot's explicit UTC cutoff defines training and holdout data. Each CLI
@@ -240,7 +251,13 @@ baseline, collaborative, content, and hybrid models on one split. Its report
 contains an aggregate `hybrid_adoption` decision; retaining a simpler model is a
 successful evaluation and does not make the command fail.
 The synthetic results validate only the engineering contracts, not product
-quality or behavior for real users. See
+quality or behavior for real users. The substitution command uses its own
+synthetic direct-edge benchmark rather than the temporal recommendation
+snapshot. Its `engineering_validated` result confirms deterministic rule and
+report behavior only; it does not establish taste, cooking success,
+cross-contact safety, or demand for a product surface. Relationship confidence
+describes curation of an edge, not medical, allergen, or food-safety confidence.
+See
 [offline recommendation evaluation](docs/evaluation.md) for the snapshot
 command, metric definitions, and leakage/privacy rules, and
 [offline content recommender](docs/content-recommender.md) for the exact model
@@ -250,7 +267,9 @@ rule are documented in
 signed-neighborhood, fallback, artifact, and interpretation rules are in the
 [offline collaborative recommender](docs/collaborative-recommender.md). The
 rank-fusion routes, reasons, and adoption guardrails are in the
-[offline hybrid recommender](docs/hybrid-recommender.md).
+[offline hybrid recommender](docs/hybrid-recommender.md). The curated candidate,
+hard-constraint, ordering, caution, and benchmark contracts are in the
+[offline substitution rules engine](docs/substitution-engine.md).
 
 The Playwright list command validates test discovery without installing or
 launching a browser. To run the browser flow locally, keep the migrated and
@@ -296,8 +315,9 @@ then runs the gated collaborative experiment twice at K values 1 and 3, checks
 its quality, coverage, and artifact contract, and compares the report bytes. It
 also runs the complete hybrid suite twice, checks its exact synthetic metrics
 and conservative `retain_simpler` decision, and compares those report bytes. It
-is deliberately outside the backend/frontend dependency chain and never starts
-a product service.
+then runs the substitution rules benchmark twice, compares the report bytes,
+and checks the exact aggregate validation result. It is deliberately outside
+the backend/frontend dependency chain and never starts a product service.
 
 After the backend and frontend quality jobs pass, the stable `MVP acceptance`
 job creates a fresh PostgreSQL 17 database, applies every migration, loads the
@@ -331,4 +351,6 @@ cohort and structural gate are defined in
 the signed-neighborhood experiment is documented in the
 [offline collaborative recommender](docs/collaborative-recommender.md). The
 offline rank-fusion and model-adoption policy are documented in the
-[offline hybrid recommender](docs/hybrid-recommender.md).
+[offline hybrid recommender](docs/hybrid-recommender.md). The deterministic
+substitution baseline, declared-tag filtering, and non-safety boundary are documented in
+the [offline substitution rules engine](docs/substitution-engine.md).

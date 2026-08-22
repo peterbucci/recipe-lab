@@ -22,6 +22,14 @@ from .simulator import (
     simulate_preference_cohort,
 )
 from .sources import SnapshotExportError, export_postgres_snapshot
+from .substitution_dataset import (
+    SubstitutionBenchmarkError,
+    load_substitution_benchmark,
+)
+from .substitution_evaluation import (
+    evaluate_substitution_rules,
+    substitution_evaluation_report_to_json,
+)
 
 STRICT_INSUFFICIENT_DATA_EXIT_CODE = 3
 DEFAULT_SIMULATION_SEED = 20260822
@@ -79,7 +87,10 @@ def _k_cutoff(value: str) -> int:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="recipe-lab-eval",
-        description="Build snapshots and run deterministic offline recommendation evaluation.",
+        description=(
+            "Build snapshots and run deterministic offline recommendation or substitution "
+            "evaluation."
+        ),
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -164,6 +175,22 @@ def _parser() -> argparse.ArgumentParser:
         "--strict",
         action="store_true",
         help="return a nonzero status when the dataset is insufficient",
+    )
+
+    substitution_run = subparsers.add_parser(
+        "substitution-run",
+        help="evaluate deterministic constraint-aware substitution rules",
+    )
+    substitution_run.add_argument("--benchmark", required=True, type=Path)
+    substitution_run.add_argument(
+        "--output",
+        type=Path,
+        help="write the aggregate report here instead of stdout",
+    )
+    substitution_run.add_argument(
+        "--strict",
+        action="store_true",
+        help="return a nonzero status unless engineering validation passes",
     )
     return parser
 
@@ -337,6 +364,39 @@ def _readiness_command(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _substitution_run_command(arguments: argparse.Namespace) -> int:
+    if arguments.output is not None and _same_path(arguments.benchmark, arguments.output):
+        print(
+            "error: substitution report must not overwrite the benchmark",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        benchmark = load_substitution_benchmark(arguments.benchmark)
+        report = evaluate_substitution_rules(benchmark)
+        report_json = substitution_evaluation_report_to_json(report)
+        if arguments.output is None:
+            _write_stdout(report_json)
+        else:
+            _atomic_write(arguments.output, report_json)
+    except SubstitutionBenchmarkError as error:
+        print(f"error: invalid substitution benchmark: {error}", file=sys.stderr)
+        return 2
+    except ValueError:
+        print("error: substitution evaluation configuration is invalid", file=sys.stderr)
+        return 2
+    except OSError:
+        print(
+            "error: could not read the substitution benchmark or write the report",
+            file=sys.stderr,
+        )
+        return 1
+
+    if arguments.strict and report.status != "engineering_validated":
+        return STRICT_INSUFFICIENT_DATA_EXIT_CODE
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the command-line interface and return a process exit code."""
 
@@ -349,4 +409,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _readiness_command(arguments)
     if arguments.command == "run":
         return _run_command(arguments)
+    if arguments.command == "substitution-run":
+        return _substitution_run_command(arguments)
     raise AssertionError(f"unhandled command: {arguments.command}")

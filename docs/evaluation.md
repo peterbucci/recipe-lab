@@ -21,7 +21,9 @@ simulator and gate, and the
 [offline collaborative recommender](collaborative-recommender.md) for the
 neighborhood model contract, and the
 [offline hybrid recommender](hybrid-recommender.md) for rank fusion and the
-adoption scorecard.
+adoption scorecard. A separate synthetic benchmark exercises the offline
+substitution rules; it does not use this snapshot or recommendation protocol.
+See the [offline substitution rules engine](substitution-engine.md).
 
 ## Snapshot contract
 
@@ -219,6 +221,46 @@ gate regardless of the run command's `--strict` setting; `--strict` retains its
 separate meaning for an evaluation report that is insufficient under the core
 split.
 
+## Separate substitution-rules benchmark
+
+`recipe-lab-eval substitution-run` evaluates `substitution-rules-v1` under the
+separate `curated-direct-rules-benchmark-v1` protocol. A substitution benchmark
+contains a versioned synthetic ingredient catalog, curated directed edges,
+recipe contexts, stated limitations, and cases with constraints, explicit
+preference weights, and expected rankings. It contains no profile events,
+temporal cutoff, train/holdout split, recommendation impressions, or model
+adoption decision.
+
+The rules engine applies required dietary flags and excluded declared allergens
+as hard filters before ordering eligible direct edges. Its benchmark reports
+exact-ranking/top-one accuracy, expected-candidate recall, empty-result
+accuracy, direct-edge precision, declared-constraint compliance, and coverage
+for ratio-or-guidance, provenance-or-confidence, explanations, and exact
+caution text. These metrics verify the stated synthetic cases; they do not
+measure culinary quality, exposure, user preference, nutrition, cross-contact,
+or medical suitability. Relationship confidence describes curation of an edge,
+not medical, allergen, or food-safety confidence.
+
+The canonical substitution report uses schema
+`recipe-lab-substitution-evaluation-report-v1`. It records the benchmark digest,
+deterministic run ID, aggregate counts and metrics, rules strategy, status,
+reason codes, limitations, and `learned_ranking_attempted: false`. It omits
+ingredient, relationship, recipe-context, and case IDs and names. Like the
+aggregate collaborative-readiness report, it does not copy caller-supplied
+benchmark IDs or limitation text into the report; those values remain covered
+by the benchmark fingerprint. Published limitations are fixed by the evaluator.
+
+Status `engineering_validated` means the deterministic rules exactly satisfied
+the committed engineering cases and completeness checks. It is not a model
+quality or production-readiness result. Status is `invalid` for a completed
+benchmark that violates the contract and `insufficient_data` when no meaningful
+nonempty case exists. The default command writes any valid report and exits
+zero; `--strict` writes the same report and exits 3 unless engineering validation
+passes. Invalid benchmark syntax or configuration exits 2.
+
+The full candidate, ordering, caution, and metric definitions are documented in
+[offline substitution rules engine](substitution-engine.md).
+
 ## Known limitations
 
 - The bundled product seed has no preference events, so it cannot establish
@@ -243,10 +285,18 @@ split.
   simpler model.
 - Exact-version relevance does not yet measure lineage quality, substitution
   usefulness, nutrition, safety, or cooking outcomes.
+- The substitution benchmark is synthetic, and the live demo catalog currently
+  has only one outgoing candidate per substitution source; its perfect fixture
+  metrics do not establish ranking quality or usefulness.
+- Substitution dietary/allergen tags are positive declarations only. Missing
+  metadata remains unknown, and declared-tag compliance is not evidence of
+  product-label accuracy, cross-contact safety, or medical suitability.
 
-These limitations must travel with every snapshot and report. The offline
-`content-v1`, `collaborative-v1`, and `hybrid-v1` implementations are comparison
-experiments, not deployment decisions. Their quality must be read from the same
-report. Even an `adopt_hybrid` offline scorecard result only says that one
-snapshot cleared the documented guardrails; serving remains a separate
-milestone requiring reproducible observed-data and online evidence.
+The recommendation limitations must travel with every snapshot and report. The
+substitution report instead publishes its fixed evaluator limitations and keeps
+caller-supplied benchmark text fingerprint-only. The offline `content-v1`,
+`collaborative-v1`, and `hybrid-v1` implementations are comparison experiments,
+not deployment decisions. Their quality must be read from the same report. Even
+an `adopt_hybrid` offline scorecard result only says that one snapshot cleared
+the documented guardrails; serving remains a separate milestone requiring
+reproducible observed-data and online evidence.
