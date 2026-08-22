@@ -1,0 +1,57 @@
+{
+  "schema_version": "recipe-lab-substitution-benchmark-v1",
+  "benchmark_id": "recipe-lab-synthetic-substitution-rules-v1",
+  "limitations": [
+    "Cases and preference weights are synthetic and test rule behavior only.",
+    "The fixture does not measure taste, cooking outcome, cross-contact, or medical suitability."
+  ],
+  "catalog": {
+    "dataset_id": "recipe-lab-synthetic-substitution-catalog-v1",
+    "dietary_flags": [
+      {"id": "10000000-0000-4000-8000-000000000001", "name": "Vegan"},
+      {"id": "10000000-0000-4000-8000-000000000002", "name": "Vegetarian"},
+      {"id": "10000000-0000-4000-8000-000000000003", "name": "Gluten-free"}
+    ],
+    "allergens": [
+      {"id": "20000000-0000-4000-8000-000000000001", "name": "Milk"},
+      {"id": "20000000-0000-4000-8000-000000000002", "name": "Tree nut"},
+      {"id": "20000000-0000-4000-8000-000000000003", "name": "Wheat"}
+    ],
+    "ingredients": [
+      {"id": "30000000-0000-4000-8000-000000000001", "name": "Milk", "dietary_flag_ids": ["10000000-0000-4000-8000-000000000002", "10000000-0000-4000-8000-000000000003"], "allergen_ids": ["20000000-0000-4000-8000-000000000001"]},
+      {"id": "30000000-0000-4000-8000-000000000002", "name": "Oat milk", "dietary_flag_ids": ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002"], "allergen_ids": []},
+      {"id": "30000000-0000-4000-8000-000000000003", "name": "Coconut milk", "dietary_flag_ids": ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002", "10000000-0000-4000-8000-000000000003"], "allergen_ids": []},
+      {"id": "30000000-0000-4000-8000-000000000004", "name": "Almond milk", "dietary_flag_ids": ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002", "10000000-0000-4000-8000-000000000003"], "allergen_ids": ["20000000-0000-4000-8000-000000000002"]},
+      {"id": "30000000-0000-4000-8000-000000000005", "name": "Flour", "dietary_flag_ids": ["10000000-0000-4000-8000-000000000002"], "allergen_ids": ["20000000-0000-4000-8000-000000000003"]},
+      {"id": "30000000-0000-4000-8000-000000000006", "name": "Banana", "dietary_flag_ids": ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002", "10000000-0000-4000-8000-000000000003"], "allergen_ids": []},
+      {"id": "30000000-0000-4000-8000-000000000007", "name": "Curry powder", "dietary_flag_ids": [], "allergen_ids": []},
+      {"id": "30000000-0000-4000-8000-000000000008", "name": "Chickpea", "dietary_flag_ids": ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002", "10000000-0000-4000-8000-000000000003"], "allergen_ids": []},
+      {"id": "30000000-0000-4000-8000-000000000009", "name": "Berries", "dietary_flag_ids": ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002", "10000000-0000-4000-8000-000000000003"], "allergen_ids": []},
+      {"id": "30000000-0000-4000-8000-000000000010", "name": "Cream", "dietary_flag_ids": ["10000000-0000-4000-8000-000000000002", "10000000-0000-4000-8000-000000000003"], "allergen_ids": ["20000000-0000-4000-8000-000000000001"]},
+      {"id": "30000000-0000-4000-8000-000000000011", "name": "Salt", "dietary_flag_ids": ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002", "10000000-0000-4000-8000-000000000003"], "allergen_ids": []}
+    ],
+    "relationships": [
+      {"id": "40000000-0000-4000-8000-000000000001", "source_ingredient_id": "30000000-0000-4000-8000-000000000001", "replacement_ingredient_id": "30000000-0000-4000-8000-000000000002", "quantity_ratio": "1.0000", "guidance": null, "notes": "Thickness varies by product.", "provenance": "Synthetic RCP-20 engineering fixture.", "relationship_confidence": "0.8000"},
+      {"id": "40000000-0000-4000-8000-000000000002", "source_ingredient_id": "30000000-0000-4000-8000-000000000001", "replacement_ingredient_id": "30000000-0000-4000-8000-000000000003", "quantity_ratio": null, "guidance": "Use the same volume only when coconut flavor suits the recipe.", "notes": null, "provenance": "Synthetic RCP-20 engineering fixture.", "relationship_confidence": "0.8000"},
+      {"id": "40000000-0000-4000-8000-000000000003", "source_ingredient_id": "30000000-0000-4000-8000-000000000001", "replacement_ingredient_id": "30000000-0000-4000-8000-000000000004", "quantity_ratio": "1.0000", "guidance": null, "notes": "Flavor and fortification vary by product.", "provenance": "Synthetic RCP-20 engineering fixture.", "relationship_confidence": "0.8000"},
+      {"id": "40000000-0000-4000-8000-000000000004", "source_ingredient_id": "30000000-0000-4000-8000-000000000010", "replacement_ingredient_id": "30000000-0000-4000-8000-000000000001", "quantity_ratio": null, "guidance": "Use only where a thinner result is acceptable.", "notes": null, "provenance": "Synthetic RCP-20 engineering fixture.", "relationship_confidence": "0.9000"}
+    ],
+    "recipe_contexts": [
+      {"id": "50000000-0000-4000-8000-000000000001", "ingredient_ids": ["30000000-0000-4000-8000-000000000001", "30000000-0000-4000-8000-000000000005", "30000000-0000-4000-8000-000000000006"]},
+      {"id": "50000000-0000-4000-8000-000000000002", "ingredient_ids": ["30000000-0000-4000-8000-000000000002", "30000000-0000-4000-8000-000000000005", "30000000-0000-4000-8000-000000000006"]},
+      {"id": "50000000-0000-4000-8000-000000000003", "ingredient_ids": ["30000000-0000-4000-8000-000000000003", "30000000-0000-4000-8000-000000000007", "30000000-0000-4000-8000-000000000008"]},
+      {"id": "50000000-0000-4000-8000-000000000004", "ingredient_ids": ["30000000-0000-4000-8000-000000000004", "30000000-0000-4000-8000-000000000006", "30000000-0000-4000-8000-000000000009"]},
+      {"id": "50000000-0000-4000-8000-000000000005", "ingredient_ids": ["30000000-0000-4000-8000-000000000001", "30000000-0000-4000-8000-000000000011"]},
+      {"id": "50000000-0000-4000-8000-000000000006", "ingredient_ids": ["30000000-0000-4000-8000-000000000010", "30000000-0000-4000-8000-000000000005"]},
+      {"id": "50000000-0000-4000-8000-000000000007", "ingredient_ids": ["30000000-0000-4000-8000-000000000011", "30000000-0000-4000-8000-000000000007"]}
+    ]
+  },
+  "cases": [
+    {"id": "pancake-context", "source_ingredient_id": "30000000-0000-4000-8000-000000000001", "recipe_context_id": "50000000-0000-4000-8000-000000000001", "required_dietary_flag_ids": [], "excluded_allergen_ids": [], "preference_weights": [], "limit": 3, "expected_ranking": ["30000000-0000-4000-8000-000000000002", "30000000-0000-4000-8000-000000000004", "30000000-0000-4000-8000-000000000003"]},
+    {"id": "declared-dietary-and-allergen-filter", "source_ingredient_id": "30000000-0000-4000-8000-000000000001", "recipe_context_id": "50000000-0000-4000-8000-000000000001", "required_dietary_flag_ids": ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000003"], "excluded_allergen_ids": ["20000000-0000-4000-8000-000000000002"], "preference_weights": [], "limit": 3, "expected_ranking": ["30000000-0000-4000-8000-000000000003"]},
+    {"id": "preference-breaks-context-tie", "source_ingredient_id": "30000000-0000-4000-8000-000000000001", "recipe_context_id": "50000000-0000-4000-8000-000000000005", "required_dietary_flag_ids": [], "excluded_allergen_ids": [], "preference_weights": [{"ingredient_id": "30000000-0000-4000-8000-000000000002", "weight": -2}, {"ingredient_id": "30000000-0000-4000-8000-000000000003", "weight": 1}, {"ingredient_id": "30000000-0000-4000-8000-000000000004", "weight": 4}], "limit": 3, "expected_ranking": ["30000000-0000-4000-8000-000000000004", "30000000-0000-4000-8000-000000000003", "30000000-0000-4000-8000-000000000002"]},
+    {"id": "constraint-overrides-preference", "source_ingredient_id": "30000000-0000-4000-8000-000000000001", "recipe_context_id": "50000000-0000-4000-8000-000000000005", "required_dietary_flag_ids": ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000003"], "excluded_allergen_ids": ["20000000-0000-4000-8000-000000000002"], "preference_weights": [{"ingredient_id": "30000000-0000-4000-8000-000000000004", "weight": 10}], "limit": 3, "expected_ranking": ["30000000-0000-4000-8000-000000000003"]},
+    {"id": "direct-only-no-transitive-expansion", "source_ingredient_id": "30000000-0000-4000-8000-000000000010", "recipe_context_id": "50000000-0000-4000-8000-000000000006", "required_dietary_flag_ids": [], "excluded_allergen_ids": [], "preference_weights": [], "limit": 5, "expected_ranking": ["30000000-0000-4000-8000-000000000001"]},
+    {"id": "empty-when-no-curated-edge", "source_ingredient_id": "30000000-0000-4000-8000-000000000011", "recipe_context_id": "50000000-0000-4000-8000-000000000007", "required_dietary_flag_ids": [], "excluded_allergen_ids": [], "preference_weights": [], "limit": 5, "expected_ranking": []}
+  ]
+}
