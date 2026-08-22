@@ -55,15 +55,18 @@ split, full-catalog metrics, mandatory baseline comparison, and reproducible
 reports. RCP-17 adds the evaluator-only `content-v1` model, which uses structured
 recipe features and signed preference profiles with deterministic cold-start
 behavior. RCP-18A adds an event-free catalog fixture, a deterministic synthetic
-preference cohort, and an aggregate structural-readiness gate for later offline
-collaborative-filtering work. Its generated `ready` result is engineering
-evidence only, not a claim about real users or model quality. None of these
+preference cohort, and an aggregate structural-readiness gate. RCP-18 adds the
+opt-in, evaluator-only `collaborative-v1` user-neighborhood model, which refuses
+to fit through the CLI until that gate passes and uses `content-v1` when local
+evidence is sparse. Its generated `ready` result and model scores are engineering
+evidence only, not claims about real users or model quality. None of these
 additions belongs to or blocks the deployed M1 request path. See
 [baseline recommendations](recommendations.md),
 [offline content recommender](content-recommender.md),
 [offline recommendation evaluation](evaluation.md), and
-[collaborative-filtering data readiness](collaborative-readiness.md) for the
-exact contracts.
+[collaborative-filtering data readiness](collaborative-readiness.md), and the
+[offline collaborative recommender](collaborative-recommender.md) for the exact
+contracts.
 
 ## Exit criteria before ML work
 
@@ -75,9 +78,10 @@ exact contracts.
 
 Those prerequisites are now represented by the privacy-bounded preference
 events, `baseline-v1`, and the [offline evaluation protocol](evaluation.md).
-The [collaborative-readiness gate](collaborative-readiness.md) now makes the
-minimum structural support for offline RCP-18 work explicit. A passing simulated
-fixture permits implementation against that contract; conclusions about real
-interaction data require a separately captured privacy-safe snapshot to pass.
-These additions do not move an ML runtime, online learned recommendations, or a
-recommendation surface into MVP scope.
+The [collaborative-readiness gate](collaborative-readiness.md) makes the minimum
+structural support for the offline RCP-18 experiment explicit. A passing
+simulated fixture permits only engineering evaluation against that contract;
+conclusions about real interaction data require a separately captured,
+privacy-safe snapshot to pass and produce a reproducible baseline/content/model
+comparison. These additions do not move an ML runtime, online learned
+recommendations, or a recommendation surface into MVP scope.

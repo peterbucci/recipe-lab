@@ -11,12 +11,15 @@ Every run consumes one immutable, versioned JSON snapshot. Local snapshots are
 ignored by Git because they contain stable opaque activity IDs. Reports are
 also ignored as generated artifacts and can carry caller-supplied dataset
 labels and limitation text. Only deliberately synthetic fixtures under
-`ml/tests/fixtures/` are committed. One verifies the evaluator, while the
-event-free readiness catalog drives the deterministic RCP-18A simulator. These
-fixtures verify engineering contracts; their status and scores are not evidence
-about product quality or real people. See
-[collaborative-filtering data readiness](collaborative-readiness.md) for that
-separate simulator and gate.
+`ml/tests/fixtures/` are committed. One verifies the baseline/content evaluator,
+while the event-free readiness catalog drives the deterministic RCP-18A
+simulator and gated collaborative experiment. These fixtures verify engineering
+contracts; their status and scores are not evidence about product quality or
+real people. See
+[collaborative-filtering data readiness](collaborative-readiness.md) for the
+simulator and gate, and the
+[offline collaborative recommender](collaborative-recommender.md) for the model
+contract.
 
 ## Snapshot contract
 
@@ -116,13 +119,23 @@ same K. Model IDs are unique, and `baseline-v1` is reserved so a comparison
 cannot replace the reference implementation accidentally.
 
 The `recipe-lab-eval run` command supplies the built-in `content-v1` model on
-every run, while the evaluator adds `baseline-v1`; CLI reports therefore always
-contain both in stable model-ID order. The generic Python `evaluate()` API adds
-only the baseline automatically, so callers must explicitly pass
-`ContentBasedV1Model()` or another comparison adapter. The exact structured
-features, signed preference profile, similarity formula, and cold-start order
-for `content-v1` are documented in
-[offline content recommender](content-recommender.md).
+every run, while the evaluator adds `baseline-v1`; default CLI reports therefore
+contain both in stable model-ID order. `run --collaborative` first requires the
+snapshot to pass the complete collaborative-readiness gate, then also supplies
+`collaborative-v1`. A failed gate exits 3 before fitting and does not write an
+evaluation report. A successful report contains `baseline-v1`,
+`collaborative-v1`, and `content-v1` in model-ID order.
+
+The generic Python `evaluate()` API adds only the baseline automatically, so
+callers must explicitly pass `ContentBasedV1Model()`, `CollaborativeV1Model()`,
+or another comparison adapter. The evaluator applies the same complete readiness
+gate whenever `collaborative-v1` is present. Directly fitting the adapter remains
+useful only for focused model tests and is not a qualifying RCP-18 experiment;
+the full gate requires holdout data that the leakage-safe `fit()` protocol does
+not receive. The content model is documented
+in [offline content recommender](content-recommender.md), and the signed
+user-neighborhood and sparse fallback are documented in
+[offline collaborative recommender](collaborative-recommender.md).
 
 ## Reproducibility and reports
 
@@ -131,6 +144,9 @@ derived with SHA-256 from that run seed and model ID, so adding or reordering a
 model cannot change another model's random stream. `content-v1` is closed-form
 and accepts but does not consume its derived seed; exact rational arithmetic and
 fixed tie-breaks make its fit and ranking independent of input order and seed.
+`collaborative-v1` is also closed-form and records but does not consume its
+derived seed. It uses exact rational similarity and scoring, sorted state, and
+the content fallback order.
 
 Reports contain the protocol and schema versions, deterministic run ID,
 snapshot fingerprint and cutoff, seed, K values, split/filter counts, model
@@ -140,6 +156,18 @@ newline. It intentionally omits wall-clock generation times, durations, host
 paths, and raw event/profile IDs; identical inputs produce byte-identical
 reports.
 
+Report schema `recipe-lab-offline-evaluation-report-v2` adds a per-model
+`artifact` value without changing the `fixed-cutoff-full-catalog-v1` evaluation
+protocol. The value is null for baseline and content models. The collaborative
+object is flat and records its artifact/model versions, training cutoff,
+`derived_seed`, canonical training-data digest, and aggregate fitted-prefix and
+support counts. The runner validates the artifact's model ID, model version, and
+derived seed.
+Only a digest of the identifying fitted input is published; the report contains
+no raw recipe, event, or profile IDs. See the
+[collaborative artifact contract](collaborative-recommender.md#artifact-metadata)
+for the complete field list.
+
 When no profile has an eligible held-out label and candidate, the command still
 writes a valid `insufficient_data` report with null metrics and diagnostic
 reason codes. That is more honest than a zero score. Insufficient data exits
@@ -148,11 +176,16 @@ explicit `--strict` option is available for evaluation-only automation.
 
 This evaluation insufficiency status is narrower than the collaborative-data
 readiness gate. `recipe-lab-eval readiness` additionally checks aggregate
-profile, item, typed-event, distinct matrix-cell, support, and temporal counts
-before RCP-18 work begins. It uses the same cutoff and eligible-label semantics,
-but it does not fit or score a model. Its aggregate report intentionally omits
-caller-controlled dataset labels, snapshot limitation text, recipe titles, and
-raw IDs.
+profile, item, typed-event, distinct matrix-cell, effective signed-signal
+support, usable candidate-level collaborative evidence, and temporal counts
+before the RCP-18 experiment runs. It uses the same cutoff and eligible-label
+semantics. It does not fit a model, rank recommendations, or compute quality
+metrics; it only verifies that nonzero collaborative candidate evidence exists.
+Its aggregate report
+intentionally omits caller-controlled dataset labels, snapshot limitation text,
+recipe titles, and raw IDs. `run --collaborative` applies this gate regardless of
+the run command's `--strict` setting; `--strict` retains its separate meaning for
+an evaluation report that is insufficient under the core split.
 
 ## Known limitations
 
@@ -178,7 +211,9 @@ raw IDs.
   usefulness, nutrition, safety, or cooking outcomes.
 
 These limitations must travel with every snapshot and report. The offline
-`content-v1` implementation is a comparison experiment, not a deployment
-decision. It should be considered for a separate serving milestone only after
-reproducible reports on suitable data show a useful improvement over the
-baseline under this protocol.
+`content-v1` and `collaborative-v1` implementations are comparison experiments,
+not deployment decisions. Collaborative quality must be read beside both the
+baseline deltas and the content model's raw metrics on the same report. Either
+approach should be considered for a separate serving milestone only after
+reproducible reports on suitable observed data show a useful improvement under
+this protocol.

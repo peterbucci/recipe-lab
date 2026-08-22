@@ -232,12 +232,23 @@ unchanged, and creates deterministic opaque profiles with pre-cutoff view plus
 save/rating signals and unseen positive holdout signals. It never fabricates
 forks because the evaluation snapshot has no lineage contract. A separate pure
 readiness check counts training profiles, available items, typed events,
-distinct profile-item cells, item/profile support, and leakage-safe holdout
-cases against fixed versioned minimums.
+distinct raw profile-item cells, nonzero signed cells, raw/effective item and
+profile support, usable candidate-level neighbor evidence, and leakage-safe
+holdout cases against fixed versioned minimums. This prevents state cancellation
+or a non-overlapping matrix from passing on row volume alone.
 
-Simulation and readiness have no serving adapter. A ready generated cohort
-permits only offline RCP-18 implementation and test work; it is not evidence
-about real users, model quality, or deployment. See
+The opt-in `run --collaborative` path applies that complete gate before fitting
+`collaborative-v1`. The model builds signed user/version signals with the same
+state and weight rules as `content-v1`, scores candidates from exact signed
+user-neighborhood overlap, and uses the content order when a profile, item,
+neighbor, or score lacks collaborative support. A qualifying run reports it
+beside both `baseline-v1` and `content-v1`. See the
+[offline collaborative recommender](collaborative-recommender.md) for the exact
+formula and fallback thresholds.
+
+Simulation, readiness, and the collaborative model have no serving adapter. A
+ready generated cohort permits only offline fitting and test work; it is not
+evidence about real users, model quality, or deployment. See
 [collaborative-filtering data readiness](collaborative-readiness.md) for the
 assumptions, thresholds, privacy contract, and proceed rule.
 
@@ -248,14 +259,19 @@ the committed synthetic fixtures exist only to test split, metric, simulation,
 readiness, privacy, and reproducibility behavior. Canonical reports contain no
 raw profile or event IDs and omit wall-clock or host-dependent fields. The
 aggregate readiness report also omits caller-controlled dataset labels and
-snapshot limitation text.
+snapshot limitation text. Collaborative model results contain a flat artifact
+object with model/artifact versions, a canonical training-prefix digest, the
+derived seed, cutoff, and aggregate fitted/support counts. Only the digest—not
+the identifying training rows—is published.
 
 The offline CI job checks formatting, types, tests, and byte-for-byte report
 reproducibility for `content-v1` and `baseline-v1`. It separately verifies
 same-seed simulated snapshots and readiness reports, a distinct changed-seed
-cohort, and a strict ready fixture. The job remains independent of the
-backend/frontend/MVP acceptance chain. Neither FastAPI startup nor a product
-request installs or runs evaluation code. See
+cohort, and a strict ready fixture. The ready snapshots then drive two
+byte-identical `collaborative-v1` reports at K values 1 and 3; CI checks stable
+model membership, quality, coverage, and artifact metadata. The job remains
+independent of the backend/frontend/MVP acceptance chain. Neither FastAPI
+startup nor a product request installs or runs evaluation code. See
 [offline recommendation evaluation](evaluation.md) for the evaluation protocol
 and limitations.
 
@@ -269,13 +285,15 @@ Version comparison:   Browser -> Next.js -> FastAPI -> SQLAlchemy -> PostgreSQL
 Recommendation read:  API client -------> FastAPI -> SQLAlchemy -> PostgreSQL
 Offline evaluation:   Snapshot file ----> Evaluator -> Canonical JSON report
 Data readiness:       Catalog fixture --> Simulator -> Snapshot -> Readiness report
+Collaborative run:     Ready snapshot ---> Gate -> CF/content/baseline report
 ```
 
-`content-v1`, the simulator, and the readiness gate create no persisted model
-artifact and have no serving path. Future artifact persistence or online
-inference would require an explicit adapter and a separate product decision; it
-must not become a hidden dependency of core recipe creation or recommendation
-reads.
+`content-v1`, `collaborative-v1`, the simulator, and the readiness gate create no
+persisted serving model and have no serving path. The collaborative evaluation
+report carries aggregate fitted-artifact provenance, not weights or a runtime
+payload. Future artifact persistence or online inference would require an
+explicit adapter and a separate product decision; it must not become a hidden
+dependency of core recipe creation or recommendation reads.
 
 ## Early design decisions to record
 

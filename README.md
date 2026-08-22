@@ -43,11 +43,13 @@ fixed-cutoff offline harness now measures that baseline reproducibly.
 `content-v1` is the first offline comparison model: it combines canonical
 ingredient overlap, normalized title tokens, version metadata, and signed
 preference signals with a defined cold-start rule. A deterministic simulator
-and aggregate readiness gate now establish the engineering data contract for a
-later offline collaborative-filtering adapter. That generated cohort is not
-real-user or quality evidence. Collaborative models, hybrid models, and online
-learned serving remain separate work; no approach should be considered better
-without a comparable evaluation report.
+and aggregate readiness gate establish the engineering data contract for the
+opt-in `collaborative-v1` experiment. That deterministic user-neighborhood model
+uses signed interaction overlap, falls back to `content-v1` for sparse evidence,
+and records aggregate training provenance in its offline report. The generated
+cohort is not real-user or quality evidence. Hybrid models and online learned
+serving remain separate work; no approach should be considered better without a
+comparable evaluation report.
 
 ## Repository layout
 
@@ -96,7 +98,11 @@ The repository currently provides:
   ingredients and recipe metadata, combines positive and negative preference
   signals, and defines deterministic cold-start behavior;
 - a versioned, privacy-safe synthetic preference simulator and deterministic
-  collaborative-readiness report with explicit support and temporal minimums;
+  collaborative-readiness report with explicit raw/effective support, usable
+  neighbor evidence, and temporal minimums;
+- an opt-in, readiness-gated `collaborative-v1` offline recommender with signed
+  user-neighborhood scoring, deterministic content fallback, aggregate artifact
+  metadata, and baseline/content comparison;
 - a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
   immutable recipe-version snapshots, ingredients, instructions, saves, and
   ratings plus their separate interaction history;
@@ -209,21 +215,27 @@ recipe-lab-eval run --snapshot tests/fixtures/synthetic_snapshot_v1.json `
 recipe-lab-eval simulate --catalog tests/fixtures/readiness_catalog_v1.json `
   --profiles 64 --seed 20260822 --output snapshots/readiness-simulated-v1.json
 recipe-lab-eval readiness --snapshot snapshots/readiness-simulated-v1.json `
-  --output reports/readiness-v1.json --strict
+  --output reports/readiness-v2.json --strict
+recipe-lab-eval run --snapshot snapshots/readiness-simulated-v1.json `
+  --collaborative --k 1 --k 3 --seed 20260822 `
+  --output reports/collaborative-v1.json --strict
 ```
 
 The snapshot's explicit UTC cutoff defines training and holdout data. Each CLI
 run evaluates `content-v1` beside the automatically included `baseline-v1` and
-reports the metric deltas. The synthetic result validates the harness only; it
-is not a product benchmark. The separate simulated cohort and readiness report
-verify that an offline RCP-18 experiment can be built against a stable data
-contract; they do not demonstrate behavior or quality for real users. See
+reports the metric deltas. `--collaborative` first requires the complete
+snapshot to pass the readiness gate, then adds `collaborative-v1`; an
+insufficient snapshot exits 3 before fitting or writing an evaluation report.
+The synthetic results validate only the engineering contracts, not product
+quality or behavior for real users. See
 [offline recommendation evaluation](docs/evaluation.md) for the snapshot
 command, metric definitions, and leakage/privacy rules, and
 [offline content recommender](docs/content-recommender.md) for the exact model
 contract. The simulator assumptions, fixed readiness thresholds, and proceed
 rule are documented in
-[collaborative-filtering data readiness](docs/collaborative-readiness.md).
+[collaborative-filtering data readiness](docs/collaborative-readiness.md); the
+signed-neighborhood, fallback, artifact, and interpretation rules are in the
+[offline collaborative recommender](docs/collaborative-recommender.md).
 
 The Playwright list command validates test discovery without installing or
 launching a browser. To run the browser flow locally, keep the migrated and
@@ -265,6 +277,8 @@ the `ml` package, runs its static checks and tests, then generates the synthetic
 `content-v1` versus `baseline-v1` report twice and compares the bytes. It also
 verifies same-seed simulator and readiness-report reproducibility, a distinct
 changed-seed cohort, and a strict ready result for the engineering fixture. It
+then runs the gated collaborative experiment twice at K values 1 and 3, checks
+its quality, coverage, and artifact contract, and compares the report bytes. It
 is deliberately outside the backend/frontend dependency chain and never starts
 a product service.
 
@@ -296,4 +310,6 @@ and report contract are documented in
 features, signed profile, and cold-start formula are documented in
 [offline content recommender](docs/content-recommender.md). The engineering
 cohort and structural gate are defined in
-[collaborative-filtering data readiness](docs/collaborative-readiness.md).
+[collaborative-filtering data readiness](docs/collaborative-readiness.md), and
+the signed-neighborhood experiment is documented in the
+[offline collaborative recommender](docs/collaborative-recommender.md).
