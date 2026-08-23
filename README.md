@@ -90,6 +90,10 @@ The repository currently provides:
   applies validated structured edits, and preserves direct parentage;
 - a clearly labeled shared demo identity with persistent, retry-safe save,
   unsave, rating, and rating-update actions on exact recipe versions;
+- configurable hosted OIDC sign-in with Authorization Code plus PKCE,
+  server-managed opaque sessions, CSRF-protected account mutations, and an
+  accessible onboarding/account UI; RCP-23 deliberately leaves recipe actions
+  on Demo Cook until the account-scope cutover;
 - append-only, server-timestamped preference events for explicit detail views,
   saves, ratings, and forks, with typed context and UUID action-key replay
   protection rather than free-form tracking data;
@@ -152,6 +156,7 @@ Open:
 - Recipe browse API: <http://localhost:8000/api/recipes>
 - Baseline recommendation API: <http://localhost:8000/api/recommendations>
 - Scoped demo identity: <http://localhost:8000/api/me>
+- Account session status: <http://localhost:3000/api/auth/session>
 - Interactive API docs: <http://localhost:8000/docs>
 
 Stop the services with `docker compose down`. Add `--volumes` only when you
@@ -202,6 +207,9 @@ Validate the bundled catalog without writing to the database with
 `python -m app.seeds validate`. Seed loading is explicit, transactional, and
 safe to rerun; it is never coupled to API startup. See
 [seed data](docs/seed-data.md) for its reproducibility and provenance contract.
+Hosted account setup and the boundary between signed-in members and the shared
+demo interaction profile are documented in
+[account authentication and sessions](docs/authentication.md).
 
 Run the same frontend checks enforced by CI:
 

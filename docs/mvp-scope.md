@@ -21,8 +21,8 @@ variant, and compared with its parent in a way that is useful to a cook.
 
 ## Explicitly deferred
 
-- Online learned serving, authenticated-account, and frontend recommendation
-  experiences.
+- Online learned serving, account-scoped recipe activity and publishing, and
+  frontend recommendation experiences.
 - Automated substitution suggestions in the API or frontend. An offline rules
   benchmark may be developed after the MVP without joining its request path.
 - Social feeds, comments, and following.
@@ -43,6 +43,21 @@ through the browser, frontend, API, and PostgreSQL against a freshly migrated
 and seeded disposable database. It also checks keyboard activation and WCAG
 A/AA rules. The milestone is not complete unless that job passes; ML work is
 not part of the gate.
+
+## Post-MVP account foundation
+
+RCP-23 adds hosted OIDC sign-in, local member onboarding, server-managed opaque
+sessions, and CSRF-protected account mutations after the original demo
+milestone. Anonymous recipe reads remain available. Catalog Author and Demo
+Cook become explicit non-login identities, and no shared demo activity is
+claimed by a registering member.
+
+This foundation is not the account-principal cutover. Recipe views, saves,
+ratings, forks, and online recommendations continue to use the visibly shared
+Demo Cook until RCP-24 changes their authorization and data ownership together.
+RCP-23 also adds no recipe publishing, public cook profile, password database,
+social linking, or deployment gate. See
+[account authentication and sessions](authentication.md).
 
 ## Post-MVP signal baseline
 

@@ -112,13 +112,45 @@ implicit base and a cross-lineage explicit comparison return documented 422
 errors; a missing version returns 404. Diff reads do not depend on the shared
 demo identity or interaction state.
 
+## Accounts and server-managed sessions
+
+RCP-23 adds configurable hosted OpenID Connect sign-in using Authorization Code
+with PKCE. The backend owns discovery, code exchange, ID-token verification,
+local identity resolution, and the opaque Recipe Lab session. The browser sees
+neither provider tokens nor the private provider issuer, subject, or verified
+email. A member is resolved only by the exact OIDC issuer-and-subject pair;
+email is never an identity merge key.
+
+The account routes are:
+
+- `GET /api/auth/login` and `GET /api/auth/callback` for the protected OIDC
+  round trip;
+- `GET /api/auth/session` for anonymous, onboarding-required, or authenticated
+  state;
+- `PATCH /api/auth/session/profile` for handle/display-name onboarding; and
+- `POST /api/auth/logout` for server-side session revocation.
+
+Only a digest of each high-entropy session token is stored. The opaque session
+cookie is HttpOnly, SameSite Lax, application-scoped, and Secure outside local
+development. Account mutations additionally require a trusted exact `Origin`
+and the session-bound CSRF token sent in `X-CSRF-Token`. Expired or revoked
+sessions and sessions belonging to suspended/deleted members do not
+authenticate.
+
+Catalog Author and Demo Cook are explicitly non-login system/demo users. This
+story establishes accounts without silently changing existing recipe actions:
+`/api/me`, saves, ratings, views, forks, and online recommendations still use
+Demo Cook until RCP-24. See
+[account authentication and sessions](../docs/authentication.md) for setup,
+privacy, failure, and testing details.
+
 ## Shared demo interactions
 
-The MVP uses one fixed, clearly identified shared demo profile rather than
-pretending to provide account authentication. `GET /api/me` returns its public
-ID, display name, and `shared_demo` identity mode; its internal seed email is
-never exposed. Recipe detail responses include that profile's current saved
-state and rating for the exact version.
+The original MVP interaction routes still use one fixed, clearly identified
+shared demo profile. `GET /api/me` returns its public ID, display name, and
+`shared_demo` identity mode; its internal seed email is never exposed. Recipe
+detail responses include that profile's current saved state and rating for the
+exact version. A signed-in RCP-23 member does not own this state.
 
 Interaction writes are state-setting and require an opaque UUID
 `Idempotency-Key` header:
