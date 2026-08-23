@@ -24,8 +24,8 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
         <p className="eyebrow">One last step</p>
         <h1 id="onboarding-title">Finish account setup</h1>
         <p className="lede">
-          Choose a name for your account and reserve a unique account handle. Current demo
-          recipes and activity still use Demo Cook and do not show these account details.
+          Choose a name for your account and reserve a unique account handle. Your saves,
+          ratings, and recipe versions will stay with this account.
         </p>
         <OnboardingForm returnTo={safeReturnTo(requestedReturnTo)} />
       </section>

@@ -22,6 +22,15 @@ interface ActionAttempt {
 
 const RATING_OPTIONS: RatingValue[] = [1, 2, 3, 4, 5];
 
+function isUnauthorized(reason: unknown): boolean {
+  return (
+    typeof reason === "object" &&
+    reason !== null &&
+    "status" in reason &&
+    reason.status === 401
+  );
+}
+
 export function RecipeInteractionPanel({
   initialViewerState,
 }: RecipeInteractionPanelProps) {
@@ -79,14 +88,16 @@ export function RecipeInteractionPanel({
       setViewerState(updatedState);
       setSaveMessage(
         updatedState.saved
-          ? `Saved to ${updatedState.user.display_name}.`
-          : `Removed from ${updatedState.user.display_name}'s saved recipes.`,
+          ? "Saved to your account."
+          : "Removed from your saved recipes.",
       );
-    } catch {
+    } catch (reason) {
       setSaveError(
-        nextSaved
-          ? "We couldn’t save this recipe. Your previous state is unchanged."
-          : "We couldn’t remove this saved recipe. Your previous state is unchanged.",
+        isUnauthorized(reason)
+          ? "Your session expired. Sign in again to continue."
+          : nextSaved
+            ? "We couldn’t save this recipe. Your previous state is unchanged."
+            : "We couldn’t remove this saved recipe. Your previous state is unchanged.",
       );
     } finally {
       setSavePending(false);
@@ -119,12 +130,14 @@ export function RecipeInteractionPanel({
       );
       setViewerState(updatedState);
       setSelectedRating(updatedState.rating);
-      setRatingMessage(
-        `${updatedState.user.display_name}’s rating is now ${updatedState.rating} out of 5.`,
-      );
+      setRatingMessage(`Your rating is now ${updatedState.rating} out of 5.`);
       router.refresh();
-    } catch {
-      setRatingError("We couldn’t update your rating. Your previous rating is unchanged.");
+    } catch (reason) {
+      setRatingError(
+        isUnauthorized(reason)
+          ? "Your session expired. Sign in again to continue."
+          : "We couldn’t update your rating. Your previous rating is unchanged.",
+      );
     } finally {
       setRatingPending(false);
     }
@@ -134,7 +147,7 @@ export function RecipeInteractionPanel({
     <section className="recipe-interactions" aria-label="Save and rate this recipe">
       <div className="recipe-interactions__toolbar">
         <p id={contextId} className="visually-hidden">
-          Public demo. Saves and ratings use the shared {viewerState.user.display_name} profile.
+          Saves and ratings are specific to your account.
         </p>
         <div className="recipe-interactions__save">
           <button
@@ -167,7 +180,7 @@ export function RecipeInteractionPanel({
         onSubmit={handleRatingSubmit}
       >
         <fieldset disabled={interactionPending}>
-          <legend>{viewerState.user.display_name}’s rating</legend>
+          <legend>Your rating</legend>
           <div className="recipe-rating-options">
             {RATING_OPTIONS.map((rating) => (
               <label key={rating} className="recipe-rating-option">
@@ -186,8 +199,8 @@ export function RecipeInteractionPanel({
         </fieldset>
         <p className="recipe-rating-form__current">
           {viewerState.rating === null
-            ? `${viewerState.user.display_name} hasn’t rated this recipe yet.`
-            : `${viewerState.user.display_name}’s current rating is ${viewerState.rating} out of 5.`}
+            ? "You haven’t rated this recipe yet."
+            : `Your current rating is ${viewerState.rating} out of 5.`}
         </p>
         <button
           className="button button--primary"

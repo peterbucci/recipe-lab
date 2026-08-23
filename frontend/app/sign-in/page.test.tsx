@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import SignInPage from "./page";
 
 describe("SignInPage", () => {
-  it("keeps anonymous browsing available and explains the shared-demo boundary", async () => {
+  it("keeps anonymous browsing available and explains member benefits", async () => {
     render(
       await SignInPage({
         searchParams: Promise.resolve({ return_to: "/recipes?q=carrot" }),
@@ -12,7 +12,8 @@ describe("SignInPage", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Sign in to Recipe Lab" })).toBeVisible();
-    expect(screen.getByText("The demo is still shared.")).toBeVisible();
+    expect(screen.getByText(/save and rate recipes/i)).toBeVisible();
+    expect(screen.queryByText(/demo/i)).toBeNull();
     expect(screen.getByRole("link", { name: "Continue to sign in" })).toHaveAttribute(
       "href",
       "/api/auth/login?return_to=%2Frecipes%3Fq%3Dcarrot",

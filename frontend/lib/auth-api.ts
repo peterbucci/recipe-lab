@@ -175,7 +175,7 @@ async function apiError(response: Response): Promise<AuthApiError> {
   return new AuthApiError(message, response.status, code, issues);
 }
 
-function notifySessionExpired() {
+export function notifySessionExpired() {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT));
   }
@@ -231,7 +231,7 @@ export function readCookie(name: string, cookieHeader?: string): string | null {
   return null;
 }
 
-function csrfHeaders(): HeadersInit {
+export function memberMutationHeaders(): Record<string, string> {
   const csrfToken = readCookie(CSRF_COOKIE_NAME);
   if (!csrfToken) {
     notifySessionExpired();
@@ -252,7 +252,7 @@ export async function updateAccountProfile(
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
-      ...csrfHeaders(),
+      ...memberMutationHeaders(),
     },
     body: JSON.stringify(profile),
   });
@@ -272,7 +272,7 @@ export async function updateAccountProfile(
 export async function signOut(): Promise<void> {
   await authFetch("/api/auth/logout", {
     method: "POST",
-    headers: csrfHeaders(),
+    headers: memberMutationHeaders(),
   });
 }
 

@@ -25,16 +25,10 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         <p className="eyebrow">Your account</p>
         <h1 id="sign-in-title">Sign in to Recipe Lab</h1>
         <p className="lede">
-          Set up an account now so Recipe Lab can recognize you. You can still browse every
-          public recipe without an account.
+          Sign in to save and rate recipes, get recommendations shaped by your activity, and
+          make recipe versions tied to your account. You can still browse every public recipe
+          without an account.
         </p>
-        <div className="auth-card__notice">
-          <strong>The demo is still shared.</strong>
-          <p>
-            Until the next account story, saves, ratings, views, and recipe versions continue
-            to use the shared Demo Cook profile—even while you’re signed in.
-          </p>
-        </div>
         <div className="button-row auth-card__actions">
           <a className="button button--primary" href={signInHref(returnTo)}>
             Continue to sign in

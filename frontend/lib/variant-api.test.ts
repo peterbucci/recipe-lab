@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RecipeDetail } from "./recipe-api";
 import {
@@ -49,11 +49,6 @@ function createdRecipe(): RecipeDetail {
     rating_count: 0,
     viewer_state: {
       recipe_version_id: "8f0fe3cc-df03-4db7-bdc7-78ccfb97d54f",
-      user: {
-        id: "1fc5b3b8-cf73-54ce-b5d6-ed3c30df9fd9",
-        display_name: "Demo Cook",
-        identity_mode: "shared_demo",
-      },
       saved: false,
       rating: null,
     },
@@ -68,7 +63,12 @@ function createdRecipe(): RecipeDetail {
   };
 }
 
+beforeEach(() => {
+  document.cookie = "recipe_lab_csrf=test-csrf-token; path=/";
+});
+
 afterEach(() => {
+  document.cookie = "recipe_lab_csrf=; max-age=0; path=/";
   vi.unstubAllGlobals();
 });
 
@@ -97,8 +97,10 @@ describe("variant API client", () => {
           Accept: "application/json",
           "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey,
+          "X-CSRF-Token": "test-csrf-token",
         },
         body: JSON.stringify(payload),
+        credentials: "same-origin",
       },
     );
 

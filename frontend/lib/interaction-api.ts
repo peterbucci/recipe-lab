@@ -1,17 +1,14 @@
-export type RatingValue = 1 | 2 | 3 | 4 | 5;
+import {
+  memberMutationHeaders,
+  notifySessionExpired,
+} from "./auth-api";
+import {
+  parseRecipeViewerState,
+  type RatingValue,
+  type RecipeViewerState,
+} from "./recipe-viewer-state";
 
-export interface DemoUser {
-  id: string;
-  display_name: string;
-  identity_mode: "shared_demo";
-}
-
-export interface RecipeViewerState {
-  recipe_version_id: string;
-  user: DemoUser;
-  saved: boolean;
-  rating: RatingValue | null;
-}
+export type { RatingValue, RecipeViewerState } from "./recipe-viewer-state";
 
 interface ApiErrorPayload {
   error?: {
@@ -44,7 +41,7 @@ function isErrorPayload(value: unknown): value is ApiErrorPayload {
 }
 
 async function apiError(response: Response): Promise<InteractionApiError> {
-  let message = "The recipe service could not update your demo activity.";
+  let message = "The recipe service could not update your recipe activity.";
   let code = "interaction_api_error";
 
   try {
@@ -73,15 +70,35 @@ async function interactionRequest(
     cache: "no-store",
     headers: {
       Accept: "application/json",
+      ...memberMutationHeaders(),
       ...init.headers,
     },
+    credentials: "same-origin",
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      notifySessionExpired();
+    }
     throw await apiError(response);
   }
 
-  return (await response.json()) as RecipeViewerState;
+  try {
+    const state = parseRecipeViewerState(await response.json());
+    if (state === null) {
+      throw new TypeError("Member mutations must return private recipe state.");
+    }
+    return state;
+  } catch (reason) {
+    if (reason instanceof InteractionApiError) {
+      throw reason;
+    }
+    throw new InteractionApiError(
+      "Recipe Lab received an invalid recipe activity response.",
+      502,
+      "invalid_interaction_response",
+    );
+  }
 }
 
 export async function setRecipeSaved(
@@ -120,10 +137,61 @@ export async function recordRecipeView(
     headers: {
       Accept: "application/json",
       "Idempotency-Key": idempotencyKey,
+      ...memberMutationHeaders(),
     },
+    credentials: "same-origin",
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      notifySessionExpired();
+    }
     throw await apiError(response);
+  }
+}
+
+export async function fetchRecipeViewerState(
+  recipeVersionId: string,
+  signal?: AbortSignal,
+): Promise<RecipeViewerState | null> {
+  const response = await fetch(
+    `/api/recipes/${encodeURIComponent(recipeVersionId)}`,
+    {
+      method: "GET",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal,
+    },
+  );
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      notifySessionExpired();
+    }
+    throw await apiError(response);
+  }
+
+  try {
+    const payload: unknown = await response.json();
+    if (typeof payload !== "object" || payload === null || !("viewer_state" in payload)) {
+      throw new TypeError("Missing viewer state.");
+    }
+    const viewerState = parseRecipeViewerState(
+      (payload as Record<string, unknown>).viewer_state,
+    );
+    if (viewerState !== null && viewerState.recipe_version_id !== recipeVersionId) {
+      throw new TypeError("Private state belongs to a different recipe.");
+    }
+    return viewerState;
+  } catch (reason) {
+    if (reason instanceof InteractionApiError) {
+      throw reason;
+    }
+    throw new InteractionApiError(
+      "Recipe Lab received an invalid private recipe state.",
+      502,
+      "invalid_interaction_response",
+    );
   }
 }

@@ -47,7 +47,7 @@ function emptyMessage(query: string, isVariant?: boolean): string {
   if (isVariant !== undefined) {
     return "Choose another filter to see the recipes that are available.";
   }
-  return "Recipes will appear here when they are added to the public demo.";
+  return "Recipes will appear here when they are added.";
 }
 
 export function RecipeBrowser({ data, query, recipeType }: RecipeBrowserProps) {
