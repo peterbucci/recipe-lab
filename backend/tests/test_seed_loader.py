@@ -15,6 +15,8 @@ from app.core.demo_identity import (
 )
 from app.db.base import Base
 from app.models import (
+    ACCOUNT_KIND_DEMO,
+    ACCOUNT_KIND_SYSTEM,
     Ingredient,
     IngredientAlias,
     IngredientSubstitution,
@@ -124,6 +126,7 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
         assert table_counts(session) == SEEDED_TABLE_COUNTS
 
         catalog_user_id = seed_uuid(dataset_id, "user", CATALOG_USER_KEY)
+        catalog_user = session.get(User, catalog_user_id)
         demo_user = session.get(User, DEMO_USER_ID)
         carrot_root = session.get(RecipeVersion, carrot_root_id)
         lower_sugar = session.get(RecipeVersion, lower_sugar_id)
@@ -131,9 +134,12 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
         pasta_v2 = session.get(RecipeVersion, pasta_v2_id)
         pasta_v3 = session.get(RecipeVersion, pasta_v3_id)
         assert carrot_root is not None
+        assert catalog_user is not None
+        assert catalog_user.account_kind == ACCOUNT_KIND_SYSTEM
         assert demo_user is not None
         assert demo_user.email == DEMO_USER_EMAIL
         assert demo_user.display_name == DEMO_USER_DISPLAY_NAME
+        assert demo_user.account_kind == ACCOUNT_KIND_DEMO
         assert demo_user.id != catalog_user_id
         assert carrot_root.created_by_user_id == catalog_user_id
         assert lower_sugar is not None
@@ -237,6 +243,7 @@ def test_seed_rerun_preserves_demo_user_interactions(seed_engine: Engine) -> Non
     assert report.created_total == 0
     assert report.reused_total == sum(SEEDED_TABLE_COUNTS.values())
     with Session(seed_engine) as session:
+        preserved_demo_user = session.get(User, DEMO_USER_ID)
         preserved_save = session.get(
             RecipeSave,
             {
@@ -252,6 +259,8 @@ def test_seed_rerun_preserves_demo_user_interactions(seed_engine: Engine) -> Non
             },
         )
         preserved_event = session.get(PreferenceEvent, event_id)
+        assert preserved_demo_user is not None
+        assert preserved_demo_user.account_kind == ACCOUNT_KIND_DEMO
         assert preserved_save is not None
         assert preserved_save.created_at == original_save_created_at
         assert preserved_rating is not None
