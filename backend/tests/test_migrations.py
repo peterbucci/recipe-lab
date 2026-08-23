@@ -370,16 +370,17 @@ def test_activity_migration_preserves_legacy_actor_and_scopes_action_keys(
                 },
             ],
         )
-        with connection.begin_nested(), pytest.raises(IntegrityError):
-            connection.execute(
-                migrated_events.insert().values(
-                    id=uuid4(),
-                    action_id=shared_action_id,
-                    user_id=member_a_id,
-                    recipe_version_id=recipe_version_id,
-                    event_type="view",
+        with pytest.raises(IntegrityError):
+            with connection.begin_nested():
+                connection.execute(
+                    migrated_events.insert().values(
+                        id=uuid4(),
+                        action_id=shared_action_id,
+                        user_id=member_a_id,
+                        recipe_version_id=recipe_version_id,
+                        event_type="view",
+                    )
                 )
-            )
 
         scoped_rows = connection.scalar(
             sa.select(sa.func.count())

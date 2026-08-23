@@ -48,7 +48,7 @@ test("keeps browsing anonymous and starts sign-in with a keyboard", async ({ pag
   await expect(page).toHaveURL("/sign-in");
   await expect(page).toHaveTitle("Sign in · Recipe Lab");
   await expect(page.getByRole("heading", { name: "Sign in to Recipe Lab" })).toBeVisible();
-  await expect(page.getByText("The demo is still shared.")).toBeVisible();
+  await expect(page.getByText(/sign in to save and rate recipes/i)).toBeVisible();
   await expect(page.getByRole("link", { name: "Keep browsing" })).toHaveAttribute(
     "href",
     "/recipes",

@@ -6,6 +6,10 @@ const isAcceptanceRun =
   isMvpAcceptance && process.env.ACCEPTANCE_DATABASE_ISOLATED === "1";
 const isCi = Boolean(process.env.CI);
 
+export function traceModeForRun(acceptanceRun: boolean) {
+  return acceptanceRun ? ("off" as const) : ("on-first-retry" as const);
+}
+
 if (isAcceptanceRun && !isCi) {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
   const serverApiUrl = process.env.RECIPE_API_URL;
@@ -44,7 +48,9 @@ export default defineConfig({
   use: {
     baseURL,
     screenshot: "only-on-failure",
-    trace: isAcceptanceRun ? "retain-on-failure" : "on-first-retry",
+    // Authenticated acceptance traces can retain Cookie and X-CSRF-Token headers.
+    // Keep them disabled because test-results is uploaded as a CI diagnostic artifact.
+    trace: traceModeForRun(isAcceptanceRun),
   },
   projects: [
     {

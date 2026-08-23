@@ -1,6 +1,7 @@
 # Environment and local secrets
 .env
 .env.*.local
+recipe-lab-acceptance-sessions.json
 
 # Python
 __pycache__/

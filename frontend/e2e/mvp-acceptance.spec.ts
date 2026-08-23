@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { useAcceptanceMember } from "./acceptance-session";
+
 const recipePathPattern = /^\/recipes\/([^/]+)$/;
 
 async function activateWithKeyboard(page: Page, control: Locator): Promise<void> {
@@ -51,6 +53,7 @@ test.describe("MVP acceptance", () => {
   }) => {
     const variantTitle = "MVP Lower-Sugar Pecan Carrot Cake";
 
+    await useAcceptanceMember(page, "alice");
     await page.goto("/");
     await expect(
       page.getByRole("heading", {
@@ -96,7 +99,7 @@ test.describe("MVP acceptance", () => {
     await expect(saveButton).toHaveAttribute("aria-pressed", "false");
     await activateWithKeyboard(page, saveButton);
     await expect(
-      page.getByText("Saved to Demo Cook.", { exact: true }),
+      page.getByText("Saved to your account.", { exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Remove saved recipe", exact: true }),
@@ -224,5 +227,50 @@ test.describe("MVP acceptance", () => {
     await expect(substitution.getByText("Walnut", { exact: true })).toBeVisible();
     await expect(substitution.getByText("Pecan", { exact: true })).toBeVisible();
     await expectNoAccessibilityViolations(page);
+  });
+
+  test("keeps saved and rating state isolated between two members", async ({ page }) => {
+    await useAcceptanceMember(page, "alice");
+    await page.goto("/recipes?q=carrot");
+    await page
+      .getByRole("link", { name: "Lower-Sugar Pecan Carrot Cake", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Lower-Sugar Pecan Carrot Cake", level: 1 }),
+    ).toBeVisible();
+
+    const aliceSave = page.getByRole("button", { name: "Save recipe", exact: true });
+    await expect(aliceSave).toHaveAttribute("aria-pressed", "false");
+    await aliceSave.click();
+    await expect(page.getByText("Saved to your account.", { exact: true })).toBeVisible();
+    await page.getByRole("radio", { name: "4 stars", exact: true }).check();
+    await page.getByRole("button", { name: "Rate recipe", exact: true }).click();
+    await expect(page.getByText("Your rating is now 4 out of 5.", { exact: true })).toBeVisible();
+
+    await useAcceptanceMember(page, "bob");
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Save recipe", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    await expect(
+      page.getByText("You haven’t rated this recipe yet.", { exact: true }),
+    ).toBeVisible();
+    for (const rating of await page.getByRole("radio").all()) {
+      await expect(rating).not.toBeChecked();
+    }
+    await page.getByRole("radio", { name: "2 stars", exact: true }).check();
+    await page.getByRole("button", { name: "Rate recipe", exact: true }).click();
+    await expect(page.getByText("Your rating is now 2 out of 5.", { exact: true })).toBeVisible();
+
+    await useAcceptanceMember(page, "alice");
+    await page.reload();
+    await expect(
+      page.getByRole("button", { name: "Remove saved recipe", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("radio", { name: "4 stars", exact: true })).toBeChecked();
+    await expect(
+      page.getByText("Your current rating is 4 out of 5.", { exact: true }),
+    ).toBeVisible();
   });
 });

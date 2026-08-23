@@ -490,10 +490,12 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://recipe_lab:recipe_lab@127.0.0.1:5432/recipe_lab_acceptance
       CORS_ORIGINS: http://127.0.0.1:3000
+      AUTH_ALLOWED_ORIGINS: http://127.0.0.1:3000
       RECIPE_API_URL: http://127.0.0.1:8000
       NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
       NEXT_TELEMETRY_DISABLED: "1"
       ACCEPTANCE_DATABASE_ISOLATED: "1"
+      ACCEPTANCE_SESSION_FIXTURE: ${{ runner.temp }}/recipe-lab-acceptance-sessions.json
       MVP_ACCEPTANCE: "1"
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
       PLAYWRIGHT_WEB_SERVER_COMMAND: npm run start -- --hostname 127.0.0.1 --port 3000
@@ -561,6 +563,10 @@ jobs:
           python -m alembic upgrade head
           python -m app.seeds load
 
+      - name: Provision isolated acceptance member sessions
+        working-directory: backend
+        run: python -m app.testing.acceptance_sessions
+
       - name: Build frontend
         working-directory: frontend
         run: npm run build
@@ -593,6 +599,11 @@ jobs:
       - name: Run MVP browser acceptance suite
         working-directory: frontend
         run: npm run test:e2e
+
+      - name: Remove acceptance session fixture
+        if: always()
+        shell: bash
+        run: rm -f -- "$ACCEPTANCE_SESSION_FIXTURE"
 
       - name: Upload acceptance diagnostics
         if: ${{ !cancelled() }}
