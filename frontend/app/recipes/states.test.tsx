@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import RootNotFound from "../not-found";
 import RecipeCompareError from "./[recipeVersionId]/compare/error";
 import RecipeCompareLoading from "./[recipeVersionId]/compare/loading";
 import RecipeNotFound from "./[recipeVersionId]/not-found";
@@ -12,9 +13,11 @@ describe("recipe route states", () => {
   it("announces browse and detail loading states", () => {
     const { rerender } = render(<RecipeBrowseLoading />);
     expect(screen.getByRole("status")).toHaveTextContent(/loading recipes/i);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading the recipe list.");
 
     rerender(<RecipeDetailLoading />);
     expect(screen.getByRole("status")).toHaveTextContent(/loading recipe/i);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading ingredients and instructions.");
 
     rerender(<RecipeCompareLoading />);
     expect(screen.getByRole("status")).toHaveTextContent(/loading comparison/i);
@@ -50,6 +53,19 @@ describe("recipe route states", () => {
     expect(
       screen.getByRole("heading", { name: /isn’t in the collection/i }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /browse recipes/i })).toHaveAttribute(
+      "href",
+      "/recipes",
+    );
+  });
+
+  it("gives a missing page a plain-language route back to recipes", () => {
+    render(<RootNotFound />);
+
+    expect(
+      screen.getByRole("heading", { name: "We couldn’t find that page." }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Browse the recipes to find something to cook.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /browse recipes/i })).toHaveAttribute(
       "href",
       "/recipes",

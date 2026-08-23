@@ -100,6 +100,9 @@ describe("RecipeDetailView", () => {
     expect(screen.getByText(/catalog name: granulated sugar/i)).toBeInTheDocument();
     expect(screen.getByText("divided")).toBeInTheDocument();
     expect(screen.getByText(/amount not specified/i)).toBeInTheDocument();
+    expect(screen.queryByText("Mise en place", { selector: ".eyebrow" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Method", { selector: ".eyebrow" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Recipe family", { selector: ".eyebrow" })).not.toBeInTheDocument();
 
     const instructions = screen.getByRole("heading", { name: /instructions/i }).closest("section");
     expect(instructions).not.toBeNull();

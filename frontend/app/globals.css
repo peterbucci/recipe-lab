@@ -2002,6 +2002,11 @@ a.lineage-card:hover {
     gap: 0.35rem;
   }
 
+  .lineage-preview__card span,
+  .lineage-preview__card small {
+    grid-column: 1;
+  }
+
   .lineage-preview__connector {
     padding-left: 0;
   }

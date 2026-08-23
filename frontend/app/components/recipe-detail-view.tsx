@@ -74,7 +74,6 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
         <section className="ingredient-panel" aria-labelledby="ingredients-heading">
           <div className="section-heading section-heading--compact">
             <div>
-              <p className="eyebrow">Mise en place</p>
               <h2 id="ingredients-heading">Ingredients</h2>
             </div>
             <span>{recipe.ingredients.length} items</span>
@@ -103,7 +102,6 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
         <section className="instruction-panel" aria-labelledby="instructions-heading">
           <div className="section-heading section-heading--compact">
             <div>
-              <p className="eyebrow">Method</p>
               <h2 id="instructions-heading">Instructions</h2>
             </div>
             <span>{recipe.instructions.length} steps</span>
@@ -119,7 +117,6 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
       <section className="lineage-section" aria-labelledby="lineage-heading">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Recipe family</p>
             <h2 id="lineage-heading">More versions of this recipe</h2>
           </div>
           <p>

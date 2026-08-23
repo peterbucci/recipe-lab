@@ -36,8 +36,8 @@ export default async function RecipeVariantPage({ params }: RecipeVariantPagePro
         <p className="eyebrow">Start with {recipe.title}</p>
         <h1>Make this recipe your own.</h1>
         <p>
-          Change only what you want. The recipe you started from stays exactly as it is, and your
-          version will keep a clear link back to it.
+          Change only what you want. The recipe you started from stays unchanged, and your version
+          stays connected to it.
         </p>
       </header>
       <RecipeVariantEditor sourceRecipe={recipe} />

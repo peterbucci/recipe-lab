@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     default: "Recipe Lab",
     template: "%s · Recipe Lab",
   },
-  description: "Cook complete recipes, save thoughtful variations, and compare what changed.",
+  description: "Change a recipe, save your version, and compare it with where you started.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
@@ -23,15 +23,14 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           <div className="public-demo-notice__inner">
             <strong>Public demo</strong>
             <span>
-              Saves, ratings, views, and new variations use the shared Demo Cook profile and may
-              include activity from other visitors.
+              Saves, ratings, views, and versions created here are shared between visitors.
             </span>
           </div>
         </aside>
         <SiteHeader />
         {children}
         <footer className="site-footer">
-          <p>Recipe Lab · Cook, adapt, and compare recipes.</p>
+          <p>Recipe Lab · Explore recipes and compare versions.</p>
         </footer>
       </body>
     </html>

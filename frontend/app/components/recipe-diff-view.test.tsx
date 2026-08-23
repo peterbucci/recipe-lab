@@ -155,7 +155,7 @@ describe("RecipeDiffView", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "See how this recipe differs from Carrot Walnut Snack Cake. Every recorded change is shown exactly as stored.",
+        "See how this recipe differs from Carrot Walnut Snack Cake. This comparison covers recipe details, ingredients, and instructions.",
       ),
     ).toBeInTheDocument();
 

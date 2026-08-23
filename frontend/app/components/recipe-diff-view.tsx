@@ -263,8 +263,8 @@ export function RecipeDiffView({ diff }: RecipeDiffViewProps) {
         <p className="eyebrow">What changed</p>
         <h1 id={pageHeadingId}>What changed in {diff.target_version.title}</h1>
         <p className="recipe-diff-view__lede">
-          See how this recipe differs from {diff.base_version.title}. Every recorded change is
-          shown exactly as stored.
+          See how this recipe differs from {diff.base_version.title}. This comparison covers recipe
+          details, ingredients, and instructions.
         </p>
         <nav className="recipe-diff-versions" aria-label="Compared recipes">
           <ol>

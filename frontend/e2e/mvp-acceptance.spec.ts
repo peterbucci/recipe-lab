@@ -54,7 +54,7 @@ test.describe("MVP acceptance", () => {
     await page.goto("/");
     await expect(
       page.getByRole("heading", {
-        name: "Cook a recipe. Make it yours. Keep what worked.",
+        name: "Recipes change. Recipe Lab keeps track.",
         level: 1,
       }),
     ).toBeVisible();
@@ -63,13 +63,13 @@ test.describe("MVP acceptance", () => {
       page,
       page
         .getByRole("region", {
-          name: "Cook a recipe. Make it yours. Keep what worked.",
+          name: "Recipes change. Recipe Lab keeps track.",
         })
         .getByRole("link", { name: "Explore recipes", exact: true }),
     );
     await expect(
       page.getByRole("heading", {
-        name: "Find a recipe worth making your own.",
+        name: "Find something to cook",
         level: 1,
       }),
     ).toBeVisible();

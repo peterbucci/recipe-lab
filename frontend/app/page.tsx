@@ -7,18 +7,17 @@ export default function HomePage() {
     <main id="main-content">
       <section className="home-hero" aria-labelledby="home-title">
         <div className="home-hero__copy">
-          <p className="eyebrow">Cook. Change. Learn.</p>
-          <h1 id="home-title">Cook a recipe. Make it yours. Keep what worked.</h1>
+          <h1 id="home-title">Recipes change. Recipe Lab keeps track.</h1>
           <p className="lede">
-            Start with a complete recipe, shape a variation around the way you cook, and keep a
-            clear record of every ingredient and instruction you changed.
+            Start with a recipe, change it to suit you, and save your version without changing the
+            recipe you started from. Compare the two to see exactly what changed.
           </p>
           <div className="button-row">
             <Link className="button button--primary" href="/recipes">
               Explore recipes
             </Link>
             <Link className="button button--secondary" href="#how-it-works">
-              See how it works
+              How it works
             </Link>
           </div>
         </div>
@@ -28,11 +27,14 @@ export default function HomePage() {
             className="home-hero__artwork"
             lineageKey="recipe-lab-home-lineage"
           />
-          <div className="lineage-preview home-concept" aria-label="How a recipe variation works">
+          <div
+            className="lineage-preview home-concept"
+            aria-label="How saving a changed recipe works"
+          >
             <div className="lineage-preview__card home-concept__version">
-              <span>Original recipe</span>
-              <strong>Cook the complete starting recipe</strong>
-              <small>Ingredients and instructions stay intact</small>
+              <span>Starting recipe</span>
+              <strong>Start with a recipe</strong>
+              <small>The recipe stays unchanged</small>
             </div>
             <span
               className="lineage-preview__connector home-concept__connector"
@@ -41,9 +43,9 @@ export default function HomePage() {
               ↓
             </span>
             <div className="lineage-preview__card lineage-preview__card--accent home-concept__version home-concept__version--variation">
-              <span>Variation</span>
-              <strong>Save your changes as a new version</strong>
-              <small>The original is always there to compare</small>
+              <span>Your version</span>
+              <strong>Save it as your own version</strong>
+              <small>Compare it with the recipe you started from</small>
             </div>
           </div>
         </div>
@@ -56,12 +58,11 @@ export default function HomePage() {
       >
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Three simple steps</p>
-            <h2 id="how-it-works-heading">A cooking notebook that remembers the details.</h2>
+            <h2 id="how-it-works-heading">How Recipe Lab works</h2>
           </div>
           <p>
-            Explore a complete recipe, cook it as written or adjust it, then see exactly how your
-            version differs from the one that inspired it.
+            Every recipe can be a starting point. Change what you want, save your version, and keep
+            it connected to the recipe you started with.
           </p>
         </div>
         <ol className="principle-grid home-steps">
@@ -69,26 +70,22 @@ export default function HomePage() {
             <span className="home-steps__number" aria-hidden="true">
               01
             </span>
-            <h3>Choose something good to cook</h3>
-            <p>Search the catalog and open a complete recipe with clear quantities and steps.</p>
+            <h3>Find a recipe</h3>
+            <p>Browse recipes and versions already in Recipe Lab.</p>
           </li>
           <li className="home-steps__item">
             <span className="home-steps__number" aria-hidden="true">
               02
             </span>
-            <h3>Make a variation</h3>
-            <p>
-              Adjust ingredients or instructions without overwriting the recipe you started from.
-            </p>
+            <h3>Make it yours</h3>
+            <p>Change ingredients, amounts, or instructions.</p>
           </li>
           <li className="home-steps__item">
             <span className="home-steps__number" aria-hidden="true">
               03
             </span>
-            <h3>Compare what changed</h3>
-            <p>
-              Review the two versions side by side and carry the useful changes into your next cook.
-            </p>
+            <h3>Compare versions</h3>
+            <p>See exactly what differs from the recipe you started with.</p>
           </li>
         </ol>
       </section>
