@@ -41,10 +41,12 @@ describe("RecipeBrowser", () => {
               parent_version_id: "recipe-one",
               version_number: 2,
               title: "Lower-Sugar Pecan Carrot Cake",
+              description: null,
             }),
           ],
         })}
         query="carrot"
+        recipeType="all"
       />,
     );
 
@@ -55,11 +57,28 @@ describe("RecipeBrowser", () => {
       "/recipes",
     );
     expect(screen.getByRole("heading", { name: /results for “carrot”/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /find something to cook/i })).toBeInTheDocument();
+    expect(screen.getByText("13 recipes")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /lower-sugar pecan carrot cake/i })).toHaveAttribute(
       "href",
       "/recipes/recipe-two",
     );
-    expect(screen.getByText(/variation · version 2/i)).toBeInTheDocument();
+    expect(screen.getByText(/^original$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^version 2$/i)).toBeInTheDocument();
+    expect(screen.getByText(/no description provided/i)).toBeInTheDocument();
+    const filters = screen.getByRole("navigation", { name: /recipe type/i });
+    expect(within(filters).getByRole("link", { name: "All" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(filters).getByRole("link", { name: "Originals" })).toHaveAttribute(
+      "href",
+      "/recipes?q=carrot&type=originals",
+    );
+    expect(within(filters).getByRole("link", { name: "Versions" })).toHaveAttribute(
+      "href",
+      "/recipes?q=carrot&type=versions",
+    );
     const artworks = container.querySelectorAll(".recipe-card__artwork");
     expect(artworks).toHaveLength(2);
     expect(artworks[0]).toHaveAttribute("aria-hidden", "true");
@@ -76,7 +95,11 @@ describe("RecipeBrowser", () => {
 
   it("distinguishes an empty search from an empty catalog", () => {
     const { rerender } = render(
-      <RecipeBrowser data={page({ items: [], total: 0, total_pages: 0 })} query="rutabaga" />,
+      <RecipeBrowser
+        data={page({ items: [], total: 0, total_pages: 0 })}
+        query="rutabaga"
+        recipeType="all"
+      />,
     );
 
     expect(screen.getByRole("heading", { name: /no recipes matched/i })).toBeInTheDocument();
@@ -85,21 +108,77 @@ describe("RecipeBrowser", () => {
       "/recipes",
     );
 
-    rerender(<RecipeBrowser data={page({ items: [], total: 0, total_pages: 0 })} query="" />);
-    expect(screen.getByRole("heading", { name: /catalog is empty/i })).toBeInTheDocument();
-    expect(screen.getByText(/as soon as the public demo catalog is loaded/i)).toBeInTheDocument();
+    rerender(
+      <RecipeBrowser
+        data={page({ items: [], total: 0, total_pages: 0 })}
+        query=""
+        recipeType="all"
+      />,
+    );
+    expect(screen.getByRole("heading", { name: /no recipes are available yet/i })).toBeInTheDocument();
+    expect(screen.getByText(/when they are added to the public demo/i)).toBeInTheDocument();
   });
 
-  it("recovers from a page beyond the available results", () => {
-    render(
-      <RecipeBrowser data={page({ items: [], page: 99, total: 13, total_pages: 2 })} query="carrot" />,
+  it("preserves the active filter across search controls, pagination, and stale-page recovery", () => {
+    const { rerender } = render(
+      <RecipeBrowser data={page({ page: 2, total_pages: 3 })} query="carrot" recipeType="versions" />,
     );
 
-    expect(screen.getByRole("heading", { name: /beyond the catalog/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /return to the first page/i })).toHaveAttribute(
+    const search = screen.getByRole("search");
+    expect(search.querySelector('input[name="type"]')).toHaveValue("versions");
+    expect(within(search).getByRole("link", { name: /clear/i })).toHaveAttribute(
+      "href",
+      "/recipes?type=versions",
+    );
+
+    const filters = screen.getByRole("navigation", { name: /recipe type/i });
+    expect(within(filters).getByRole("link", { name: "Versions" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(filters).getByRole("link", { name: "All" })).toHaveAttribute(
       "href",
       "/recipes?q=carrot",
     );
+    expect(within(filters).getByRole("link", { name: "Originals" })).toHaveAttribute(
+      "href",
+      "/recipes?q=carrot&type=originals",
+    );
+    expect(screen.getByRole("link", { name: /previous/i })).toHaveAttribute(
+      "href",
+      "/recipes?q=carrot&type=versions",
+    );
+    expect(screen.getByRole("link", { name: /next/i })).toHaveAttribute(
+      "href",
+      "/recipes?q=carrot&type=versions&page=3",
+    );
+
+    rerender(
+      <RecipeBrowser
+        data={page({ items: [], page: 99, total: 13, total_pages: 2 })}
+        query="carrot"
+        recipeType="versions"
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: /beyond the results/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /return to the first page/i })).toHaveAttribute(
+      "href",
+      "/recipes?q=carrot&type=versions",
+    );
     expect(screen.queryByRole("navigation", { name: /recipe result pages/i })).not.toBeInTheDocument();
+  });
+
+  it("shows an honest empty state for a filtered collection", () => {
+    render(
+      <RecipeBrowser
+        data={page({ items: [], total: 0, total_pages: 0 })}
+        query=""
+        recipeType="originals"
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: /no original recipes are available yet/i })).toBeInTheDocument();
+    expect(screen.getByText(/choose another filter/i)).toBeInTheDocument();
   });
 });

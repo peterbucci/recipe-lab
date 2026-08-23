@@ -11,8 +11,8 @@ interface RecipeCardProps {
 export function RecipeCard({ recipe }: RecipeCardProps) {
   const titleId = `recipe-card-title-${recipe.id}`;
   const versionLabel = recipe.parent_version_id
-    ? `Variation · Version ${recipe.version_number}`
-    : "Original recipe";
+    ? `Version ${recipe.version_number}`
+    : "Original";
 
   return (
     <li className="recipe-grid__item">
@@ -27,7 +27,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
             <Link href={`/recipes/${recipe.id}`}>{recipe.title}</Link>
           </h3>
           <p className="recipe-card__description">
-            {recipe.description ?? "A complete recipe from the Recipe Lab catalog."}
+            {recipe.description ?? "No description provided."}
           </p>
           <span className="text-link recipe-card__link-hint" aria-hidden="true">
             View recipe <span aria-hidden="true">→</span>

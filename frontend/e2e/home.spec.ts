@@ -84,13 +84,17 @@ test("browses, searches, and opens a structured recipe", async ({ page }) => {
   await expect(page).toHaveTitle(/Recipe Lab/);
   await expect(
     page.getByRole("heading", {
-      name: "Cook a recipe. Make it yours. Keep what worked.",
+      name: "Recipes change. Recipe Lab keeps track.",
       level: 1,
     }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("complementary", { name: "Public demo notice" }),
-  ).toBeVisible();
+  const publicDemoNotice = page.getByRole("complementary", {
+    name: "Public demo notice",
+  });
+  await expect(publicDemoNotice).toBeVisible();
+  await expect(publicDemoNotice).toContainText(
+    "Saves, ratings, views, and versions created here are shared between visitors.",
+  );
 
   const primaryNavigation = page.getByRole("navigation", {
     name: "Primary navigation",
@@ -98,11 +102,40 @@ test("browses, searches, and opens a structured recipe", async ({ page }) => {
   await primaryNavigation
     .getByRole("link", { name: "Explore recipes", exact: true })
     .click();
-  await expect(page.getByRole("heading", { name: /find a recipe worth making your own/i })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Find something to cook", level: 1 }),
+  ).toBeVisible();
+
+  const recipeType = page.getByRole("navigation", { name: "Recipe type" });
+  await expect(recipeType.getByRole("link", { name: "All", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
 
   await page.getByLabel(/search recipes/i).fill("carrot");
   await page.getByRole("button", { name: /^search$/i }).click();
   await expect(page.getByRole("heading", { name: /results for “carrot”/i })).toBeVisible();
+
+  await recipeType.getByRole("link", { name: "Originals", exact: true }).click();
+  await expect(page).toHaveURL("/recipes?q=carrot&type=originals");
+  await expect(
+    page.getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Lower-Sugar Pecan Carrot Cake", exact: true }),
+  ).toHaveCount(0);
+
+  await recipeType.getByRole("link", { name: "Versions", exact: true }).click();
+  await expect(page).toHaveURL("/recipes?q=carrot&type=versions");
+  await expect(
+    page.getByRole("link", { name: "Lower-Sugar Pecan Carrot Cake", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true }),
+  ).toHaveCount(0);
+
+  await recipeType.getByRole("link", { name: "All", exact: true }).click();
+  await expect(page).toHaveURL("/recipes?q=carrot");
 
   await page.getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Carrot Walnut Snack Cake", level: 1 })).toBeVisible();
@@ -116,6 +149,35 @@ test("browses, searches, and opens a structured recipe", async ({ page }) => {
       name: /another version.*lower-sugar pecan carrot cake.*version 2/i,
     }),
   ).toBeVisible();
+});
+
+test("keeps the plain-language homepage readable at a phone viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  await expect(
+    page.getByRole("heading", {
+      name: "Recipes change. Recipe Lab keeps track.",
+      level: 1,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Explore recipes", exact: true }).first(),
+  ).toBeVisible();
+
+  const conceptHeadings = page.locator(".home-concept__version strong");
+  await expect(conceptHeadings).toHaveCount(2);
+  for (const heading of await conceptHeadings.all()) {
+    const box = await heading.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThan(200);
+  }
+
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
 });
 
 test("compares the seeded carrot variant with its parent without writing recipe state", async ({
