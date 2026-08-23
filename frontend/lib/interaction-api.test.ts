@@ -22,7 +22,6 @@ const viewerState: RecipeViewerState = {
 };
 
 afterEach(() => {
-  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
 
@@ -31,7 +30,6 @@ describe("interaction API client", () => {
     [true, "PUT"],
     [false, "DELETE"],
   ] as const)("writes saved=%s with %s and returns canonical state", async (saved, method) => {
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://api.example.test/");
     const responseState = { ...viewerState, saved };
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(JSON.stringify(responseState), {
@@ -48,9 +46,7 @@ describe("interaction API client", () => {
     );
 
     expect(fetchMock).toHaveBeenCalledWith(
-      new URL(
-        `http://api.example.test/api/recipes/${viewerState.recipe_version_id}/save`,
-      ),
+      `/api/recipes/${viewerState.recipe_version_id}/save`,
       {
         method,
         cache: "no-store",
@@ -63,7 +59,6 @@ describe("interaction API client", () => {
   });
 
   it("sends a bounded rating as JSON", async () => {
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://api.example.test");
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(JSON.stringify(viewerState), {
         status: 200,
@@ -75,9 +70,7 @@ describe("interaction API client", () => {
     await setRecipeRating(viewerState.recipe_version_id, 4, IDEMPOTENCY_KEY);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      new URL(
-        `http://api.example.test/api/recipes/${viewerState.recipe_version_id}/rating`,
-      ),
+      `/api/recipes/${viewerState.recipe_version_id}/rating`,
       {
         method: "PUT",
         cache: "no-store",
@@ -92,7 +85,6 @@ describe("interaction API client", () => {
   });
 
   it("records a view without sending user or free-form context", async () => {
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://api.example.test");
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(null, { status: 204 }),
     );
@@ -103,9 +95,7 @@ describe("interaction API client", () => {
     ).resolves.toBeUndefined();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      new URL(
-        `http://api.example.test/api/recipes/${viewerState.recipe_version_id}/view`,
-      ),
+      `/api/recipes/${viewerState.recipe_version_id}/view`,
       {
         method: "POST",
         cache: "no-store",
@@ -118,7 +108,6 @@ describe("interaction API client", () => {
   });
 
   it("preserves the API error envelope and uses a stable non-JSON fallback", async () => {
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://api.example.test");
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(

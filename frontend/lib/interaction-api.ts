@@ -32,19 +32,11 @@ export class InteractionApiError extends Error {
   }
 }
 
-function apiBaseUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-  return configured.trim().replace(/\/+$/, "");
-}
-
 function interactionUrl(
   recipeVersionId: string,
   resource: "rating" | "save" | "view",
-): URL {
-  return new URL(
-    `/api/recipes/${encodeURIComponent(recipeVersionId)}/${resource}`,
-    `${apiBaseUrl()}/`,
-  );
+): string {
+  return `/api/recipes/${encodeURIComponent(recipeVersionId)}/${resource}`;
 }
 
 function isErrorPayload(value: unknown): value is ApiErrorPayload {
@@ -73,7 +65,7 @@ async function apiError(response: Response): Promise<InteractionApiError> {
 }
 
 async function interactionRequest(
-  url: URL,
+  url: string,
   init: RequestInit,
 ): Promise<RecipeViewerState> {
   const response = await fetch(url, {
