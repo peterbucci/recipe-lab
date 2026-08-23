@@ -4,9 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.errors import register_error_handlers
 from app.api.router import api_router
 from app.core.config import settings
+from app.core.logging import install_sensitive_query_redaction
 
 
 def create_app() -> FastAPI:
+    install_sensitive_query_redaction()
     application = FastAPI(
         title="Recipe Lab API",
         summary="API for structured, forkable recipe variants.",
