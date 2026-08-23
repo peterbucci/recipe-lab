@@ -5,8 +5,8 @@ export default function NotFound() {
     <main id="main-content" className="state-page">
       <div className="empty-state empty-state--large">
         <p className="eyebrow">Page not found</p>
-        <h1>There’s nothing cooking at this address.</h1>
-        <p>Return to the catalog and find a recipe to explore.</p>
+        <h1>We couldn’t find that page.</h1>
+        <p>Browse the recipes to find something to cook.</p>
         <Link className="button button--primary" href="/recipes">
           Browse recipes
         </Link>

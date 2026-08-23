@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { createIdempotencyKey } from "../../lib/idempotency-key";
+import { formatIngredientAmount } from "../../lib/format";
 import type { RecipeDetail } from "../../lib/recipe-api";
 import { isRecipeVersionId } from "../../lib/recipe-api";
 import {
@@ -46,6 +47,50 @@ function fieldDescription(helperId: string, errorId: string, error?: string): st
   return error ? `${helperId} ${errorId}` : helperId;
 }
 
+function optionalValue(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function ingredientStatus(ingredient: VariantIngredientDraft): "New" | "Changed" | "Starting ingredient" {
+  if (ingredient.sourceId === null) {
+    return "New";
+  }
+  if (
+    optionalValue(ingredient.ingredientName) !== null ||
+    optionalValue(ingredient.quantity) !== ingredient.originalQuantity ||
+    optionalValue(ingredient.unit) !== ingredient.originalUnit
+  ) {
+    return "Changed";
+  }
+  return "Starting ingredient";
+}
+
+function instructionStatus(instruction: VariantInstructionDraft): "New" | "Changed" | "Starting step" {
+  if (instruction.sourceId === null) {
+    return "New";
+  }
+  return instruction.text.trim() === instruction.originalText?.trim()
+    ? "Starting step"
+    : "Changed";
+}
+
+function ingredientSummary(ingredient: VariantIngredientDraft): string {
+  const name = optionalValue(ingredient.ingredientName) ?? ingredient.sourceDisplayName ?? "New ingredient";
+  const amount = formatIngredientAmount(
+    optionalValue(ingredient.quantity),
+    optionalValue(ingredient.unit),
+  );
+  return `${name} · ${amount}`;
+}
+
+function startingIngredientSummary(ingredient: VariantIngredientDraft): string {
+  const name =
+    ingredient.sourceDisplayName ?? ingredient.sourceCanonicalName ?? "Starting ingredient";
+  const amount = formatIngredientAmount(ingredient.originalQuantity, ingredient.originalUnit);
+  return `${name} · ${amount}`;
+}
+
 export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) {
   const router = useRouter();
   const formId = useId().replace(/:/g, "");
@@ -55,6 +100,9 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
   const pendingFocusId = useRef<string | null>(null);
   const submittingRef = useRef(false);
   const forkAttemptRef = useRef<ForkAttempt | null>(null);
+  const [initialDraftFingerprint] = useState(() =>
+    JSON.stringify(createVariantDraft(sourceRecipe)),
+  );
   const [draft, setDraft] = useState<RecipeVariantDraft>(() =>
     createVariantDraft(sourceRecipe),
   );
@@ -63,6 +111,13 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
   const [apiError, setApiError] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [pending, setPending] = useState(false);
+  const [expandedIngredientKeys, setExpandedIngredientKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [expandedInstructionKeys, setExpandedInstructionKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const hasUnsavedChanges = JSON.stringify(draft) !== initialDraftFingerprint;
 
   useEffect(() => {
     if (!pendingFocusId.current) {
@@ -72,6 +127,20 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
     document.getElementById(pendingFocusId.current)?.focus();
     pendingFocusId.current = null;
   }, [draft]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges || pending) {
+      return;
+    }
+
+    function warnBeforeLeaving(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [hasUnsavedChanges, pending]);
 
   function focusErrorSummary() {
     window.setTimeout(() => errorSummaryRef.current?.focus(), 0);
@@ -145,6 +214,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
       key,
     );
     clearErrors();
+    setExpandedIngredientKeys((current) => new Set(current).add(key));
     focusAfterDraftUpdate(`${formId}-${key}-name`);
     setDraft((current) => ({
       ...current,
@@ -159,6 +229,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
       key,
     );
     clearErrors();
+    setExpandedInstructionKeys((current) => new Set(current).add(key));
     focusAfterDraftUpdate(`${formId}-${key}-text`);
     setDraft((current) => ({
       ...current,
@@ -174,6 +245,24 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
 
     const validation = validateVariantDraft(draft);
     if (validation.payload === null) {
+      const invalidIngredientKeys = Object.keys(validation.fieldErrors)
+        .filter((key) => key.startsWith("ingredient."))
+        .map((key) => key.split(".")[1])
+        .filter((key): key is string => Boolean(key));
+      const invalidInstructionKeys = Object.keys(validation.fieldErrors)
+        .filter((key) => key.startsWith("instruction."))
+        .map((key) => key.split(".")[1])
+        .filter((key): key is string => Boolean(key));
+      if (invalidIngredientKeys.length > 0) {
+        setExpandedIngredientKeys((current) =>
+          new Set([...current, ...invalidIngredientKeys]),
+        );
+      }
+      if (invalidInstructionKeys.length > 0) {
+        setExpandedInstructionKeys((current) =>
+          new Set([...current, ...invalidInstructionKeys]),
+        );
+      }
       setFieldErrors(validation.fieldErrors);
       setFormErrors(validation.formErrors);
       setApiError("");
@@ -187,7 +276,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
     setFieldErrors({});
     setFormErrors([]);
     setApiError("");
-    setStatusMessage("Creating your child variant…");
+    setStatusMessage("Creating your version…");
 
     const fingerprint = JSON.stringify(validation.payload);
     if (forkAttemptRef.current?.fingerprint !== fingerprint) {
@@ -205,11 +294,11 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
       );
       if (!isRecipeVersionId(created.id)) {
         throw new VariantApiError(
-          "The recipe service returned an invalid child identifier.",
+          "The recipe service returned an invalid recipe identifier.",
           502,
         );
       }
-      setStatusMessage("Variant created. Opening the new recipe…");
+      setStatusMessage("Your version is ready. Opening the recipe…");
       router.replace(`/recipes/${encodeURIComponent(created.id)}`);
     } catch (error) {
       submittingRef.current = false;
@@ -218,7 +307,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
       setApiError(
         error instanceof VariantApiError
           ? error.message
-          : "The recipe service could not create this variant. Please try again.",
+          : "The recipe service could not create your version. Please try again.",
       );
       focusErrorSummary();
     }
@@ -234,7 +323,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
     <form
       className="variant-editor"
       aria-busy={pending}
-      aria-label={`Create a child variant from ${sourceRecipe.title}`}
+      aria-label={`Make ${sourceRecipe.title} your own`}
       noValidate
       onSubmit={handleSubmit}
     >
@@ -245,7 +334,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
           role="alert"
           tabIndex={-1}
         >
-          <h2>Check the variant before creating it</h2>
+          <h2>Check your version before creating it</h2>
           {apiError ? <p>{apiError}</p> : null}
           {validationMessages.length > 0 ? (
             <ul>
@@ -258,7 +347,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
       ) : null}
 
       <fieldset className="variant-editor__section" disabled={pending}>
-        <legend>Variant details</legend>
+        <legend>About your version</legend>
         <div className="variant-details-grid">
           <div className="variant-field variant-field--wide">
             <label htmlFor={`${formId}-title`}>Title</label>
@@ -315,8 +404,8 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
       >
         <legend>Ingredients</legend>
         <p id={`${formId}-ingredients-help`} className="variant-editor__help">
-          Change amounts or units, enter an exact catalog name or alias as a replacement,
-          or stage a row for removal. Blank amount and unit fields mean unspecified.
+          Keep what works, or change an ingredient, amount, or unit. Use an exact catalog name
+          when swapping an ingredient. Blank amounts and units mean unspecified.
         </p>
         <div className="variant-editor__rows">
           {draft.ingredients.map((ingredient, index) => {
@@ -330,6 +419,8 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
               ? `Ingredient ${index + 1}: ${ingredient.sourceDisplayName}`
               : `New ingredient ${index + 1}`;
             const removeToggleId = `${rowId}-remove-toggle`;
+            const status = ingredientStatus(ingredient);
+            const isExpanded = expandedIngredientKeys.has(ingredient.key);
 
             return (
               <fieldset
@@ -340,7 +431,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
                 {ingredient.removed ? (
                   <div className="variant-removed-row">
                     <p>
-                      <strong>{rowLabel}</strong> will be removed from the child variant.
+                      <strong>{rowLabel}</strong> will not be included in your version.
                     </p>
                     <button
                       id={removeToggleId}
@@ -357,22 +448,57 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
                   </div>
                 ) : (
                   <>
-                    {ingredient.sourceId ? (
-                      <div className="variant-row__source">
-                        <strong>{ingredient.sourceDisplayName}</strong>
-                        {ingredient.sourceCanonicalName !== ingredient.sourceDisplayName ? (
+                    <div className="variant-row__source">
+                      <div>
+                        <span
+                          className={`variant-row__status${status === "Changed" ? " variant-row__status--changed" : ""}`}
+                        >
+                          {status}
+                        </span>
+                        <strong>{ingredientSummary(ingredient)}</strong>
+                        {status === "Changed" ? (
+                          <small className="variant-row__change-summary">
+                            Before: {startingIngredientSummary(ingredient)} → Now:{" "}
+                            {ingredientSummary(ingredient)}
+                          </small>
+                        ) : null}
+                        {optionalValue(ingredient.ingredientName) === null &&
+                        ingredient.sourceCanonicalName !== ingredient.sourceDisplayName ? (
                           <small>Catalog name: {ingredient.sourceCanonicalName}</small>
                         ) : null}
                         {ingredient.preparationNotes ? (
                           <small>Preparation: {ingredient.preparationNotes}</small>
                         ) : null}
                       </div>
-                    ) : null}
+                      <button
+                        className="button button--secondary variant-row__edit"
+                        type="button"
+                        aria-expanded={isExpanded}
+                        aria-controls={`${rowId}-fields`}
+                        onClick={() =>
+                          setExpandedIngredientKeys((current) => {
+                            const next = new Set(current);
+                            if (next.has(ingredient.key)) {
+                              next.delete(ingredient.key);
+                            } else {
+                              next.add(ingredient.key);
+                            }
+                            return next;
+                          })
+                        }
+                      >
+                        {isExpanded
+                          ? `Done editing ${rowLabel}`
+                          : `Change ${rowLabel}`}
+                      </button>
+                    </div>
+                    {isExpanded ? (
+                    <div id={`${rowId}-fields`} className="variant-row__fields">
                     <div className="variant-ingredient-grid">
                       <div className="variant-field variant-field--name">
                         <label htmlFor={`${rowId}-name`}>
                           {ingredient.sourceId
-                            ? "Replacement ingredient (optional)"
+                            ? "Swap ingredient (optional)"
                             : "Ingredient name"}
                         </label>
                         <input
@@ -395,7 +521,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
                         />
                         <small id={`${rowId}-name-help`}>
                           {ingredient.sourceId
-                            ? "Use an exact catalog name or alias, or leave blank to keep the current ingredient."
+                            ? "Leave blank to keep the starting ingredient."
                             : "Use an exact catalog name or alias."}
                         </small>
                         <FieldError id={`${rowId}-name-error`} message={fieldErrors[nameKey]} />
@@ -476,6 +602,8 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
                     >
                       Remove {rowLabel}
                     </button>
+                    </div>
+                    ) : null}
                   </>
                 )}
               </fieldset>
@@ -490,13 +618,15 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
       <fieldset className="variant-editor__section" disabled={pending}>
         <legend>Instructions</legend>
         <p className="variant-editor__help">
-          Edit the existing method, stage steps for removal, or append a new step.
+          Rewrite a step, leave it as written, remove it, or add a new one.
         </p>
         <ol className="variant-instruction-list">
           {draft.instructions.map((instruction, index) => {
             const errorKey = instructionFieldKey(instruction.key);
             const rowId = `${formId}-${instruction.key}`;
             const removeToggleId = `${rowId}-remove-toggle`;
+            const status = instructionStatus(instruction);
+            const isExpanded = expandedInstructionKeys.has(instruction.key);
             return (
               <li
                 key={instruction.key}
@@ -505,7 +635,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
                 {instruction.removed ? (
                   <div className="variant-removed-row">
                     <p>
-                      <strong>Step {index + 1}</strong> will be removed from the child variant.
+                      <strong>Step {index + 1}</strong> will not be included in your version.
                     </p>
                     <button
                       id={removeToggleId}
@@ -522,8 +652,44 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
                   </div>
                 ) : (
                   <>
+                    <div className="variant-instruction__header">
+                      <div>
+                        <strong>Step {index + 1}</strong>
+                        <span
+                          className={`variant-row__status${status === "Changed" ? " variant-row__status--changed" : ""}`}
+                        >
+                          {status}
+                        </span>
+                        {!isExpanded ? (
+                          <p className="variant-instruction__summary">{instruction.text}</p>
+                        ) : null}
+                      </div>
+                      <button
+                        className="button button--secondary variant-row__edit"
+                        type="button"
+                        aria-expanded={isExpanded}
+                        aria-controls={`${rowId}-fields`}
+                        onClick={() =>
+                          setExpandedInstructionKeys((current) => {
+                            const next = new Set(current);
+                            if (next.has(instruction.key)) {
+                              next.delete(instruction.key);
+                            } else {
+                              next.add(instruction.key);
+                            }
+                            return next;
+                          })
+                        }
+                      >
+                        {isExpanded
+                          ? `Done editing step ${index + 1}`
+                          : `Edit step ${index + 1}`}
+                      </button>
+                    </div>
+                    {isExpanded ? (
+                    <div id={`${rowId}-fields`} className="variant-row__fields">
                     <div className="variant-field">
-                      <label htmlFor={`${rowId}-text`}>Step {index + 1}</label>
+                      <label htmlFor={`${rowId}-text`}>Instruction</label>
                       <textarea
                         id={`${rowId}-text`}
                         value={instruction.text}
@@ -554,6 +720,8 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
                     >
                       Remove step {index + 1}
                     </button>
+                    </div>
+                    ) : null}
                   </>
                 )}
               </li>
@@ -568,7 +736,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
       <footer className="variant-editor__actions">
         <div>
           <button className="button button--primary" type="submit" disabled={pending}>
-            {pending ? "Creating variant…" : "Create variant"}
+            {pending ? "Creating your version…" : "Create my version"}
           </button>
           {pending ? (
             <span className="button button--disabled" aria-disabled="true">
@@ -581,7 +749,10 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
           )}
         </div>
         <p role="status" aria-live="polite">
-          {statusMessage}
+          {statusMessage ||
+            (hasUnsavedChanges
+              ? "You have unsaved changes."
+              : "Start with the recipe as written, then change only what you need.")}
         </p>
       </footer>
     </form>

@@ -105,6 +105,7 @@ export interface RecipePage {
 }
 
 interface RecipePageQuery {
+  isVariant?: boolean;
   page?: number;
   pageSize?: number;
   query?: string;
@@ -178,6 +179,7 @@ async function apiFetch(url: URL): Promise<Response> {
 }
 
 export async function fetchRecipePage({
+  isVariant,
   page = 1,
   pageSize = 12,
   query,
@@ -187,6 +189,9 @@ export async function fetchRecipePage({
   url.searchParams.set("page_size", String(pageSize));
   if (query) {
     url.searchParams.set("q", query);
+  }
+  if (isVariant !== undefined) {
+    url.searchParams.set("is_variant", String(isVariant));
   }
 
   const response = await apiFetch(url);

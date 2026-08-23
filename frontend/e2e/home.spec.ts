@@ -83,22 +83,101 @@ test("browses, searches, and opens a structured recipe", async ({ page }) => {
 
   await expect(page).toHaveTitle(/Recipe Lab/);
   await expect(
-    page.getByRole("heading", { name: /a good recipe is only the beginning/i }),
+    page.getByRole("heading", {
+      name: "Recipes change. Recipe Lab keeps track.",
+      level: 1,
+    }),
+  ).toBeVisible();
+  const publicDemoNotice = page.getByRole("complementary", {
+    name: "Public demo notice",
+  });
+  await expect(publicDemoNotice).toBeVisible();
+  await expect(publicDemoNotice).toContainText(
+    "Saves, ratings, views, and versions created here are shared between visitors.",
+  );
+
+  const primaryNavigation = page.getByRole("navigation", {
+    name: "Primary navigation",
+  });
+  await primaryNavigation
+    .getByRole("link", { name: "Explore recipes", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Find something to cook", level: 1 }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: /browse the catalog/i }).click();
-  await expect(page.getByRole("heading", { name: /find a recipe worth making your own/i })).toBeVisible();
+  const recipeType = page.getByRole("navigation", { name: "Recipe type" });
+  await expect(recipeType.getByRole("link", { name: "All", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
 
   await page.getByLabel(/search recipes/i).fill("carrot");
   await page.getByRole("button", { name: /^search$/i }).click();
   await expect(page.getByRole("heading", { name: /results for “carrot”/i })).toBeVisible();
 
+  await recipeType.getByRole("link", { name: "Originals", exact: true }).click();
+  await expect(page).toHaveURL("/recipes?q=carrot&type=originals");
+  await expect(
+    page.getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Lower-Sugar Pecan Carrot Cake", exact: true }),
+  ).toHaveCount(0);
+
+  await recipeType.getByRole("link", { name: "Versions", exact: true }).click();
+  await expect(page).toHaveURL("/recipes?q=carrot&type=versions");
+  await expect(
+    page.getByRole("link", { name: "Lower-Sugar Pecan Carrot Cake", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true }),
+  ).toHaveCount(0);
+
+  await recipeType.getByRole("link", { name: "All", exact: true }).click();
+  await expect(page).toHaveURL("/recipes?q=carrot");
+
   await page.getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Carrot Walnut Snack Cake", level: 1 })).toBeVisible();
   await expect(page.getByRole("heading", { name: /ingredients/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /instructions/i })).toBeVisible();
-  await expect(page.getByRole("heading", { name: /your demo activity/i })).toBeVisible();
-  await expect(page.getByRole("link", { name: /direct child.*lower-sugar pecan/i })).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Save and rate this recipe" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", {
+      name: /another version.*lower-sugar pecan carrot cake.*version 2/i,
+    }),
+  ).toBeVisible();
+});
+
+test("keeps the plain-language homepage readable at a phone viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  await expect(
+    page.getByRole("heading", {
+      name: "Recipes change. Recipe Lab keeps track.",
+      level: 1,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Explore recipes", exact: true }).first(),
+  ).toBeVisible();
+
+  const conceptHeadings = page.locator(".home-concept__version strong");
+  await expect(conceptHeadings).toHaveCount(2);
+  for (const heading of await conceptHeadings.all()) {
+    const box = await heading.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThan(200);
+  }
+
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
 });
 
 test("compares the seeded carrot variant with its parent without writing recipe state", async ({
@@ -107,7 +186,9 @@ test("compares the seeded carrot variant with its parent without writing recipe 
   const parentRecipeVersionId = await openCarrotRoot(page);
 
   await page
-    .getByRole("link", { name: /direct child.*lower-sugar pecan carrot cake/i })
+    .getByRole("link", {
+      name: /another version.*lower-sugar pecan carrot cake.*version 2/i,
+    })
     .click();
   await expect(
     page.getByRole("heading", { name: "Lower-Sugar Pecan Carrot Cake", level: 1 }),
@@ -119,39 +200,43 @@ test("compares the seeded carrot variant with its parent without writing recipe 
   }
   const targetRecipeVersionId = decodeURIComponent(targetMatch[1]);
 
-  await page.getByRole("link", { name: "Compare with parent", exact: true }).click();
+  await page.getByRole("link", { name: "See what changed", exact: true }).click();
   await expect(page).toHaveURL(`/recipes/${targetRecipeVersionId}/compare`);
   await expect(
     page.getByRole("heading", {
-      name: "How Lower-Sugar Pecan Carrot Cake changed",
+      name: "What changed in Lower-Sugar Pecan Carrot Cake",
       level: 1,
     }),
   ).toBeVisible();
 
-  const sugarChange = page
-    .getByRole("heading", { name: "White sugar", level: 3, exact: true })
-    .locator("..");
+  const sugarChange = page.getByRole("article", {
+    name: "White sugar",
+    exact: true,
+  });
   await expect(sugarChange.getByText("Amount changed", { exact: true })).toBeVisible();
   await expect(sugarChange.getByText("Before", { exact: true })).toBeVisible();
   await expect(sugarChange.getByText("After", { exact: true })).toBeVisible();
   await expect(sugarChange.getByText("180 g", { exact: true })).toBeVisible();
   await expect(sugarChange.getByText("140 g", { exact: true })).toBeVisible();
 
-  const substitution = page
-    .getByRole("heading", { name: "Walnut replaced with Pecan", level: 3 })
-    .locator("..");
+  const substitution = page.getByRole("article", {
+    name: "Walnut replaced with Pecan",
+  });
   await expect(substitution.getByText("Substitution", { exact: true })).toBeVisible();
   await expect(substitution.getByText("Original ingredient", { exact: true })).toBeVisible();
   await expect(substitution.getByText("Replacement ingredient", { exact: true })).toBeVisible();
   await expect(substitution.getByText("Walnut", { exact: true })).toBeVisible();
   await expect(substitution.getByText("Pecan", { exact: true })).toBeVisible();
 
-  const comparedVersions = page.getByRole("navigation", {
-    name: "Compared recipe versions",
-  });
+  const comparedVersions = page.getByRole("navigation", { name: "Compared recipes" });
   const parentLink = comparedVersions.getByRole("link", {
-    name: /before · parent.*carrot walnut snack cake.*version 1/i,
+    name: /starting recipe.*carrot walnut snack cake.*version 1/i,
   });
+  await expect(
+    comparedVersions.getByRole("link", {
+      name: /this version.*lower-sugar pecan carrot cake.*version 2/i,
+    }),
+  ).toBeVisible();
   await parentLink.focus();
   await expect(parentLink).toBeFocused();
   await page.keyboard.press("Enter");
@@ -160,7 +245,7 @@ test("compares the seeded carrot variant with its parent without writing recipe 
   await expect(
     page.getByRole("heading", { name: "Carrot Walnut Snack Cake", level: 1 }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "Compare with parent" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "See what changed" })).toHaveCount(0);
 });
 
 test("keeps the seeded recipe comparison usable at a phone viewport", async ({ page }) => {
@@ -168,12 +253,14 @@ test("keeps the seeded recipe comparison usable at a phone viewport", async ({ p
   await openCarrotRoot(page);
 
   await page
-    .getByRole("link", { name: /direct child.*lower-sugar pecan carrot cake/i })
+    .getByRole("link", {
+      name: /another version.*lower-sugar pecan carrot cake.*version 2/i,
+    })
     .click();
-  await page.getByRole("link", { name: "Compare with parent", exact: true }).click();
+  await page.getByRole("link", { name: "See what changed", exact: true }).click();
   await expect(
     page.getByRole("heading", {
-      name: "How Lower-Sugar Pecan Carrot Cake changed",
+      name: "What changed in Lower-Sugar Pecan Carrot Cake",
       level: 1,
     }),
   ).toBeVisible();
@@ -231,27 +318,35 @@ test("persists shared demo saves and rating updates", async ({ page, request }) 
     await page.getByRole("radio", { name: "4 stars", exact: true }).check();
     await page.getByRole("button", { name: "Update rating", exact: true }).click();
     await expect(
-      page.getByText("Your rating is now 4 out of 5 for Demo Cook.", { exact: true }),
+      page.getByText("Demo Cook’s rating is now 4 out of 5.", { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText("Your current rating is 4 out of 5.", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Demo Cook’s current rating is 4 out of 5.", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByLabel("4.0 out of 5 from 1 rating", { exact: true })).toBeVisible();
 
     await page.reload();
     await expect(page.getByRole("radio", { name: "4 stars", exact: true })).toBeChecked();
-    await expect(page.getByText("Your current rating is 4 out of 5.", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Demo Cook’s current rating is 4 out of 5.", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByLabel("4.0 out of 5 from 1 rating", { exact: true })).toBeVisible();
 
     await page.getByRole("radio", { name: "5 stars", exact: true }).check();
     await page.getByRole("button", { name: "Update rating", exact: true }).click();
     await expect(
-      page.getByText("Your rating is now 5 out of 5 for Demo Cook.", { exact: true }),
+      page.getByText("Demo Cook’s rating is now 5 out of 5.", { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText("Your current rating is 5 out of 5.", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Demo Cook’s current rating is 5 out of 5.", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByLabel("5.0 out of 5 from 1 rating", { exact: true })).toBeVisible();
 
     await page.reload();
     await expect(page.getByRole("radio", { name: "5 stars", exact: true })).toBeChecked();
-    await expect(page.getByText("Your current rating is 5 out of 5.", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Demo Cook’s current rating is 5 out of 5.", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByLabel("5.0 out of 5 from 1 rating", { exact: true })).toBeVisible();
   } finally {
     if (recipeVersionId) {
@@ -329,10 +424,13 @@ test("preserves variant edits after validation and opens the created child", asy
     },
   );
 
-  await page.getByRole("link", { name: "Create a variant", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Create a variant", level: 1 })).toBeVisible();
+  await page.getByRole("link", { name: "Make your own version", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Make this recipe your own.", level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByRole("group", { name: "About your version" })).toBeVisible();
   await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
-    `${sourceRecipe.title} variant`,
+    `${sourceRecipe.title} variation`,
   );
   await expect(page.getByLabel("Description", { exact: true })).toHaveValue(
     sourceRecipe.description ?? "",
@@ -350,28 +448,55 @@ test("preserves variant edits after validation and opens the created child", asy
   const variantTitle = "E2E Orange Pecan Carrot Cake";
   const changedInstruction = "Fold gently until the batter is just combined.";
   await page.getByLabel("Title", { exact: true }).fill(variantTitle);
+  await sugarRow
+    .getByRole("button", {
+      name: `Change ${sugar.display_name}`,
+      exact: true,
+    })
+    .click();
   await sugarRow.getByLabel("Quantity", { exact: true }).fill("125.5");
   await sugarRow.getByLabel("Unit", { exact: true }).fill("cup");
   await walnutRow
-    .getByLabel("Replacement ingredient (optional)", { exact: true })
+    .getByRole("button", {
+      name: `Change ${walnut.display_name}`,
+      exact: true,
+    })
+    .click();
+  await walnutRow
+    .getByLabel("Swap ingredient (optional)", { exact: true })
     .fill("Pecan");
-  await page.getByLabel("Step 1", { exact: true }).fill(changedInstruction);
+  const firstStepNumber = firstInstruction.display_order + 1;
+  await page
+    .getByRole("button", {
+      name: `Edit step ${firstStepNumber}`,
+      exact: true,
+    })
+    .click();
+  const firstInstructionRow = page.getByRole("listitem").filter({
+    has: page.getByRole("button", {
+      name: `Done editing step ${firstStepNumber}`,
+      exact: true,
+    }),
+  });
+  const firstInstructionInput = firstInstructionRow.getByRole("textbox", {
+    name: "Instruction",
+    exact: true,
+  });
+  await firstInstructionInput.fill(changedInstruction);
 
-  await page.getByRole("button", { name: "Create variant", exact: true }).click();
+  await page.getByRole("button", { name: "Create my version", exact: true }).click();
   await expect(
     page
       .getByRole("alert")
-      .filter({ hasText: "Check the variant before creating it" }),
+      .filter({ hasText: "Check your version before creating it" }),
   ).toContainText("The test ingredient edit is invalid.");
   await expect(page.getByLabel("Title", { exact: true })).toHaveValue(variantTitle);
   await expect(sugarRow.getByLabel("Quantity", { exact: true })).toHaveValue("125.5");
   await expect(sugarRow.getByLabel("Unit", { exact: true })).toHaveValue("cup");
   await expect(
-    walnutRow.getByLabel("Replacement ingredient (optional)", { exact: true }),
+    walnutRow.getByLabel("Swap ingredient (optional)", { exact: true }),
   ).toHaveValue("Pecan");
-  await expect(page.getByLabel("Step 1", { exact: true })).toHaveValue(
-    changedInstruction,
-  );
+  await expect(firstInstructionInput).toHaveValue(changedInstruction);
 
   const expectedPayload: RecipeVariantCreateRequest = {
     title: variantTitle,
@@ -404,7 +529,7 @@ test("preserves variant edits after validation and opens the created child", asy
   };
   expect(submittedPayloads).toEqual([expectedPayload]);
 
-  await page.getByRole("button", { name: "Create variant", exact: true }).click();
+  await page.getByRole("button", { name: "Create my version", exact: true }).click();
   await expect(page).toHaveURL(`/recipes/${seededChild.id}`);
   await expect(
     page.getByRole("heading", { name: seededChild.title, level: 1 }),
@@ -428,8 +553,12 @@ test("keeps the recipe catalog usable at a phone viewport", async ({ page }) => 
   await expect(
     page.getByRole("heading", { name: "Carrot Walnut Snack Cake", level: 1 }),
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: /your demo activity/i })).toBeVisible();
-  await expect(page.getByRole("group", { name: /your rating/i })).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Save and rate this recipe" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Demo Cook’s rating", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("radio", { name: "5 stars", exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: /^(save recipe|remove saved recipe)$/i }),
@@ -445,11 +574,21 @@ test("keeps the recipe catalog usable at a phone viewport", async ({ page }) => 
     ),
   ).toBe(false);
 
-  await page.getByRole("link", { name: "Create a variant", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Create a variant", level: 1 })).toBeVisible();
+  await page.getByRole("link", { name: "Make your own version", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Make this recipe your own.", level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByRole("group", { name: "About your version" })).toBeVisible();
   await expect(page.getByLabel("Title", { exact: true })).toBeVisible();
   await expect(page.getByRole("group", { name: /^Ingredient 1:/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Create variant", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: /^Ingredient 1:/ }).getByRole("button", {
+      name: /change /i,
+    }),
+  ).toHaveAttribute("aria-expanded", "false");
+  await expect(
+    page.getByRole("button", { name: "Create my version", exact: true }),
+  ).toBeVisible();
 
   const editor = await page.locator(".variant-editor").boundingBox();
   expect(editor).not.toBeNull();

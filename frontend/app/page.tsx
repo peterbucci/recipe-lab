@@ -1,71 +1,93 @@
 import Link from "next/link";
 
+import { RecipeArtwork } from "./components/recipe-artwork";
+
 export default function HomePage() {
   return (
     <main id="main-content">
       <section className="home-hero" aria-labelledby="home-title">
         <div className="home-hero__copy">
-          <p className="eyebrow">Structured recipes. Useful history.</p>
-          <h1 id="home-title">A good recipe is only the beginning.</h1>
+          <h1 id="home-title">Recipes change. Recipe Lab keeps track.</h1>
           <p className="lede">
-            Browse a living catalog where every variation keeps its ingredients, method, and
-            relationship to the recipe that inspired it.
+            Start with a recipe, change it to suit you, and save your version without changing the
+            recipe you started from. Compare the two to see exactly what changed.
           </p>
           <div className="button-row">
             <Link className="button button--primary" href="/recipes">
-              Browse the catalog
+              Explore recipes
             </Link>
-            <Link className="button button--secondary" href="/recipes?q=carrot">
-              See the carrot cake lineage
+            <Link className="button button--secondary" href="#how-it-works">
+              How it works
             </Link>
           </div>
         </div>
 
-        <div className="lineage-preview" aria-label="Example recipe lineage">
-          <div className="lineage-preview__card">
-            <span>Original · v1</span>
-            <strong>Carrot walnut cake</strong>
-            <small>180 g sugar · walnuts</small>
-          </div>
-          <span className="lineage-preview__connector" aria-hidden="true">
-            ↓
-          </span>
-          <div className="lineage-preview__card lineage-preview__card--accent">
-            <span>Variant · v2</span>
-            <strong>Lower-sugar pecan cake</strong>
-            <small>140 g sugar · pecans</small>
+        <div className="home-hero__visual">
+          <RecipeArtwork
+            className="home-hero__artwork"
+            lineageKey="recipe-lab-home-lineage"
+          />
+          <div
+            className="lineage-preview home-concept"
+            aria-label="How saving a changed recipe works"
+          >
+            <div className="lineage-preview__card home-concept__version">
+              <span>Starting recipe</span>
+              <strong>Start with a recipe</strong>
+              <small>The recipe stays unchanged</small>
+            </div>
+            <span
+              className="lineage-preview__connector home-concept__connector"
+              aria-hidden="true"
+            >
+              ↓
+            </span>
+            <div className="lineage-preview__card lineage-preview__card--accent home-concept__version home-concept__version--variation">
+              <span>Your version</span>
+              <strong>Save it as your own version</strong>
+              <small>Compare it with the recipe you started from</small>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="home-principles" aria-labelledby="principles-heading">
+      <section
+        className="home-principles home-how-it-works"
+        id="how-it-works"
+        aria-labelledby="how-it-works-heading"
+      >
         <div className="section-heading">
           <div>
-            <p className="eyebrow">The MVP promise</p>
-            <h2 id="principles-heading">Make recipe evolution understandable.</h2>
+            <h2 id="how-it-works-heading">How Recipe Lab works</h2>
           </div>
           <p>
-            Recipe Lab starts with durable product fundamentals. Personalization comes after the
-            core cooking experience works.
+            Every recipe can be a starting point. Change what you want, save your version, and keep
+            it connected to the recipe you started with.
           </p>
         </div>
-        <div className="principle-grid">
-          <article>
-            <span>01</span>
-            <h3>Browse every version</h3>
-            <p>Originals and variants stay discoverable instead of collapsing into one latest copy.</p>
-          </article>
-          <article>
-            <span>02</span>
-            <h3>Cook from structure</h3>
-            <p>Quantities, units, preparation notes, and ordered instructions remain precise.</p>
-          </article>
-          <article>
-            <span>03</span>
-            <h3>Follow the lineage</h3>
-            <p>Move between a recipe, its parent, and its direct children without losing context.</p>
-          </article>
-        </div>
+        <ol className="principle-grid home-steps">
+          <li className="home-steps__item">
+            <span className="home-steps__number" aria-hidden="true">
+              01
+            </span>
+            <h3>Find a recipe</h3>
+            <p>Browse recipes and versions already in Recipe Lab.</p>
+          </li>
+          <li className="home-steps__item">
+            <span className="home-steps__number" aria-hidden="true">
+              02
+            </span>
+            <h3>Make it yours</h3>
+            <p>Change ingredients, amounts, or instructions.</p>
+          </li>
+          <li className="home-steps__item">
+            <span className="home-steps__number" aria-hidden="true">
+              03
+            </span>
+            <h3>Compare versions</h3>
+            <p>See exactly what differs from the recipe you started with.</p>
+          </li>
+        </ol>
       </section>
     </main>
   );

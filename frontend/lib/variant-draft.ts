@@ -57,7 +57,7 @@ function sameName(left: string, right: string): boolean {
 }
 
 function initialVariantTitle(sourceTitle: string): string {
-  const suffix = " variant";
+  const suffix = " variation";
   const source = normalized(sourceTitle);
   if (source.length + suffix.length <= TITLE_MAX_LENGTH) {
     return `${source}${suffix}`;
@@ -198,7 +198,7 @@ export function validateVariantDraft(draft: RecipeVariantDraft): VariantDraftVal
   const instructionEdits: InstructionEdit[] = [];
 
   const titleError = textError(draft.title, {
-    label: "Variant title",
+    label: "Version title",
     maxLength: TITLE_MAX_LENGTH,
     required: true,
   });

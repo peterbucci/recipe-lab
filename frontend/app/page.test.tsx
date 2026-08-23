@@ -4,17 +4,25 @@ import { describe, expect, it } from "vitest";
 import HomePage from "./page";
 
 describe("HomePage", () => {
-  it("leads visitors into the versioned recipe catalog", () => {
+  it("explains how Recipe Lab keeps changed recipes connected", () => {
     render(<HomePage />);
 
     expect(
-      screen.getByRole("heading", { name: /a good recipe is only the beginning/i }),
+      screen.getByRole("heading", {
+        name: /recipes change\. recipe lab keeps track/i,
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /browse the catalog/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /explore recipes/i })).toHaveAttribute(
       "href",
       "/recipes",
     );
-    expect(screen.getByText(/make recipe evolution understandable/i)).toBeInTheDocument();
-    expect(screen.getByText(/personalization comes after/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^how it works$/i })).toHaveAttribute(
+      "href",
+      "#how-it-works",
+    );
+    expect(screen.getByRole("heading", { name: /make it yours/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /compare versions/i })).toBeInTheDocument();
+    expect(screen.queryByText(/cook\. change\. learn/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/cooking notebook/i)).not.toBeInTheDocument();
   });
 });

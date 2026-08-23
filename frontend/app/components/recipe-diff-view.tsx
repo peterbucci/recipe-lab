@@ -83,11 +83,12 @@ function SingleIngredientChange({
   kind: "added" | "removed";
 }) {
   const added = kind === "added";
+  const headingId = `ingredient-change-${kind}-${ingredient.id}`;
   return (
     <li className={`recipe-diff-entry recipe-diff-entry--${kind}`}>
-      <article>
+      <article aria-labelledby={headingId}>
         <p className="recipe-diff-kind">{added ? "Added" : "Removed"}</p>
-        <h3>
+        <h3 id={headingId}>
           {added ? <ins>{ingredient.display_name}</ins> : <del>{ingredient.display_name}</del>}
         </h3>
         <div className={`recipe-diff-single-value recipe-diff-single-value--${kind}`}>
@@ -133,6 +134,10 @@ function PairedIngredientChange({
 }) {
   const substitution = kind === "substitution";
   const labels = ingredientChangeLabels(change);
+  const secondaryLabels = substitution
+    ? labels.filter((label) => label !== "Name changed")
+    : labels.slice(1);
+  const headingId = `ingredient-change-${kind}-${change.before.id}-${change.after.id}`;
 
   return (
     <li
@@ -140,18 +145,18 @@ function PairedIngredientChange({
         substitution ? "substitution" : "modified"
       }`}
     >
-      <article>
+      <article aria-labelledby={headingId}>
         <div className="recipe-diff-kinds" role="group" aria-label="Change type">
           <span className="recipe-diff-kind">
             {substitution ? "Substitution" : labels[0] ?? "Ingredient changed"}
           </span>
-          {(substitution ? labels : labels.slice(1)).map((label) => (
+          {secondaryLabels.map((label) => (
             <span key={label} className="recipe-diff-kind recipe-diff-kind--secondary">
               {label}
             </span>
           ))}
         </div>
-        <h3>
+        <h3 id={headingId}>
           {substitution
             ? `${change.before.display_name} replaced with ${change.after.display_name}`
             : change.after.display_name}
@@ -176,11 +181,12 @@ function metadataValue(change: RecipeFieldChange, value: string | null): string 
 
 function MetadataChange({ change }: { change: RecipeFieldChange }) {
   const label = metadataLabels[change.field];
+  const headingId = `recipe-detail-change-${change.field}`;
   return (
     <li className="recipe-diff-entry recipe-diff-entry--modified">
-      <article>
+      <article aria-labelledby={headingId}>
         <p className="recipe-diff-kind">{label} changed</p>
-        <h3>{label}</h3>
+        <h3 id={headingId}>{label}</h3>
         <ValuePair
           before={metadataValue(change, change.before)}
           after={metadataValue(change, change.after)}
@@ -199,11 +205,12 @@ function SingleInstructionChange({
 }) {
   const added = kind === "added";
   const step = instruction.display_order + 1;
+  const headingId = `instruction-change-${kind}-${instruction.id}`;
   return (
     <li className={`recipe-diff-entry recipe-diff-entry--${kind}`}>
-      <article>
+      <article aria-labelledby={headingId}>
         <p className="recipe-diff-kind">Instruction {added ? "added" : "removed"}</p>
-        <h3>Step {step}</h3>
+        <h3 id={headingId}>Step {step}</h3>
         <div className={`recipe-diff-single-value recipe-diff-single-value--${kind}`}>
           <span>{added ? "New instruction" : "Removed instruction"}</span>
           {added ? <ins>{instruction.text}</ins> : <del>{instruction.text}</del>}
@@ -214,24 +221,29 @@ function SingleInstructionChange({
 }
 
 function ModifiedInstruction({ change }: { change: RecipeInstructionPairChange }) {
+  const headingId = `instruction-change-modified-${change.before.id}-${change.after.id}`;
   return (
     <li className="recipe-diff-entry recipe-diff-entry--modified">
-      <article>
+      <article aria-labelledby={headingId}>
         <p className="recipe-diff-kind">Instruction changed</p>
-        <h3>Updated instruction</h3>
+        <h3 id={headingId}>Updated instruction</h3>
         <ValuePair before={change.before.text} after={change.after.text} />
       </article>
     </li>
   );
 }
 
-function changeCount(diff: RecipeDiff): number {
+function ingredientChangeCount(diff: RecipeDiff): number {
   return (
-    diff.metadata_changes.length +
     diff.ingredients.added.length +
     diff.ingredients.removed.length +
     diff.ingredients.replaced.length +
-    diff.ingredients.modified.length +
+    diff.ingredients.modified.length
+  );
+}
+
+function instructionChangeCount(diff: RecipeDiff): number {
+  return (
     diff.instructions.added.length +
     diff.instructions.removed.length +
     diff.instructions.modified.length
@@ -239,35 +251,33 @@ function changeCount(diff: RecipeDiff): number {
 }
 
 export function RecipeDiffView({ diff }: RecipeDiffViewProps) {
-  const totalChanges = changeCount(diff);
-  const hasIngredientChanges = Object.values(diff.ingredients).some(
-    (changes) => changes.length > 0,
-  );
-  const hasInstructionChanges = Object.values(diff.instructions).some(
-    (changes) => changes.length > 0,
-  );
+  const ingredientChanges = ingredientChangeCount(diff);
+  const instructionChanges = instructionChangeCount(diff);
+  const detailChanges = diff.metadata_changes.length;
+  const totalChanges = ingredientChanges + instructionChanges + detailChanges;
+  const pageHeadingId = `recipe-diff-heading-${diff.target_version.id}`;
 
   return (
-    <article className="recipe-diff-view">
+    <article className="recipe-diff-view" aria-labelledby={pageHeadingId}>
       <header className="recipe-diff-view__header">
-        <p className="eyebrow">Version comparison</p>
-        <h1>How {diff.target_version.title} changed</h1>
+        <p className="eyebrow">What changed</p>
+        <h1 id={pageHeadingId}>What changed in {diff.target_version.title}</h1>
         <p className="recipe-diff-view__lede">
-          A structured comparison with its direct parent. Before and after values are labeled
-          throughout the page.
+          See how this recipe differs from {diff.base_version.title}. This comparison covers recipe
+          details, ingredients, and instructions.
         </p>
-        <nav className="recipe-diff-versions" aria-label="Compared recipe versions">
+        <nav className="recipe-diff-versions" aria-label="Compared recipes">
           <ol>
             <li>
               <Link href={`/recipes/${encodeURIComponent(diff.base_version.id)}`}>
-                <span>Before · Parent</span>
+                <span>Starting recipe</span>
                 <strong>{diff.base_version.title}</strong>
                 <small>Version {diff.base_version.version_number}</small>
               </Link>
             </li>
             <li>
               <Link href={`/recipes/${encodeURIComponent(diff.target_version.id)}`}>
-                <span>After · Variant</span>
+                <span>This version</span>
                 <strong>{diff.target_version.title}</strong>
                 <small>Version {diff.target_version.version_number}</small>
               </Link>
@@ -279,7 +289,7 @@ export function RecipeDiffView({ diff }: RecipeDiffViewProps) {
       {!diff.has_changes ? (
         <section className="recipe-diff-empty" aria-labelledby="recipe-diff-empty-heading">
           <p className="eyebrow">Comparison complete</p>
-          <h2 id="recipe-diff-empty-heading">No changes from the parent</h2>
+          <h2 id="recipe-diff-empty-heading">No changes from the starting recipe</h2>
           <p>
             This version matches {diff.base_version.title} for recipe details, ingredients,
             and instructions.
@@ -288,30 +298,29 @@ export function RecipeDiffView({ diff }: RecipeDiffViewProps) {
       ) : (
         <div className="recipe-diff-content">
           <p className="recipe-diff-summary">
-            {totalChanges} structured {totalChanges === 1 ? "change" : "changes"} found.
+            {totalChanges} {totalChanges === 1 ? "change" : "changes"} from{" "}
+            {diff.base_version.title}.
           </p>
+          <ul className="recipe-diff-highlights" aria-label="Change highlights">
+            {ingredientChanges > 0 ? (
+              <li>
+                {ingredientChanges} ingredient {ingredientChanges === 1 ? "change" : "changes"}
+              </li>
+            ) : null}
+            {instructionChanges > 0 ? (
+              <li>
+                {instructionChanges} instruction{" "}
+                {instructionChanges === 1 ? "change" : "changes"}
+              </li>
+            ) : null}
+            {detailChanges > 0 ? (
+              <li>
+                {detailChanges} other detail {detailChanges === 1 ? "change" : "changes"}
+              </li>
+            ) : null}
+          </ul>
 
-          {diff.metadata_changes.length > 0 ? (
-            <section className="recipe-diff-group" aria-labelledby="recipe-detail-changes-heading">
-              <div className="section-heading section-heading--compact">
-                <div>
-                  <p className="eyebrow">Recipe details</p>
-                  <h2 id="recipe-detail-changes-heading">Details that changed</h2>
-                </div>
-                <span>
-                  {diff.metadata_changes.length}{" "}
-                  {diff.metadata_changes.length === 1 ? "change" : "changes"}
-                </span>
-              </div>
-              <ul className="recipe-diff-list">
-                {diff.metadata_changes.map((change) => (
-                  <MetadataChange key={change.field} change={change} />
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
-          {hasIngredientChanges ? (
+          {ingredientChanges > 0 ? (
             <section className="recipe-diff-group" aria-labelledby="ingredient-changes-heading">
               <div className="section-heading section-heading--compact">
                 <div>
@@ -352,7 +361,7 @@ export function RecipeDiffView({ diff }: RecipeDiffViewProps) {
             </section>
           ) : null}
 
-          {hasInstructionChanges ? (
+          {instructionChanges > 0 ? (
             <section className="recipe-diff-group" aria-labelledby="instruction-changes-heading">
               <div className="section-heading section-heading--compact">
                 <div>
@@ -380,6 +389,28 @@ export function RecipeDiffView({ diff }: RecipeDiffViewProps) {
                     instruction={instruction}
                     kind="removed"
                   />
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {detailChanges > 0 ? (
+            <section
+              className="recipe-diff-group recipe-diff-group--secondary"
+              aria-labelledby="recipe-detail-changes-heading"
+            >
+              <div className="section-heading section-heading--compact">
+                <div>
+                  <p className="eyebrow">Recipe information</p>
+                  <h2 id="recipe-detail-changes-heading">Other details</h2>
+                </div>
+                <span>
+                  {detailChanges} {detailChanges === 1 ? "change" : "changes"}
+                </span>
+              </div>
+              <ul className="recipe-diff-list">
+                {diff.metadata_changes.map((change) => (
+                  <MetadataChange key={change.field} change={change} />
                 ))}
               </ul>
             </section>

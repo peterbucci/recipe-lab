@@ -50,18 +50,25 @@ beforeEach(() => {
 });
 
 describe("RecipeInteractionPanel", () => {
-  it("identifies the shared demo profile and exposes current save and rating state", () => {
+  it("keeps shared-demo context available without repeating a visible notice", () => {
     render(
       <RecipeInteractionPanel initialViewerState={viewerState({ saved: true, rating: 4 })} />,
     );
 
-    expect(screen.getByRole("heading", { name: /your demo activity/i })).toBeInTheDocument();
-    expect(screen.getByText(/saves and ratings are shared across this demo/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", {
+        name: /save and rate this recipe/i,
+      }),
+    ).toBeInTheDocument();
+    const context = screen.getByText(/public demo.*shared demo cook profile/i);
+    expect(context).toHaveClass("visually-hidden");
+    expect(screen.queryByRole("heading", { name: /demo activity/i })).not.toBeInTheDocument();
     const removeSaveButton = screen.getByRole("button", { name: /remove saved recipe/i });
     expect(removeSaveButton).toHaveAttribute("aria-pressed", "true");
+    expect(removeSaveButton).toHaveAccessibleDescription(/public demo.*shared demo cook profile/i);
     expect(removeSaveButton).toHaveTextContent("Remove saved recipe");
     expect(screen.getByRole("radio", { name: /4 stars/i })).toBeChecked();
-    expect(screen.getByText(/your current rating is 4 out of 5/i)).toBeInTheDocument();
+    expect(screen.getByText(/demo cook’s current rating is 4 out of 5/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /update rating/i })).toBeDisabled();
   });
 
@@ -139,8 +146,8 @@ describe("RecipeInteractionPanel", () => {
       4,
       FIRST_KEY,
     );
-    expect(await screen.findByText(/your rating is now 4 out of 5 for demo cook/i)).toBeInTheDocument();
-    expect(screen.getByText(/your current rating is 4 out of 5/i)).toBeInTheDocument();
+    expect(await screen.findByText(/demo cook’s rating is now 4 out of 5/i)).toBeInTheDocument();
+    expect(screen.getByText(/demo cook’s current rating is 4 out of 5/i)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /4 stars/i })).toBeChecked();
     expect(screen.getByRole("button", { name: /update rating/i })).toBeDisabled();
     expect(mocks.refresh).toHaveBeenCalledOnce();
@@ -167,7 +174,7 @@ describe("RecipeInteractionPanel", () => {
     });
     expect(screen.getAllByRole("alert")).toHaveLength(2);
     expect(screen.getByText(/previous state is unchanged/i)).toBeInTheDocument();
-    expect(screen.getByText(/haven’t rated this recipe yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/demo cook hasn’t rated this recipe yet/i)).toBeInTheDocument();
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
 

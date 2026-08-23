@@ -59,18 +59,52 @@ describe("recipe API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      fetchRecipePage({ page: 2, pageSize: 12, query: "carrot & pecan" }),
+      fetchRecipePage({ isVariant: true, page: 2, pageSize: 12, query: "carrot & pecan" }),
     ).resolves.toEqual(emptyPage);
 
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, options] = fetchMock.mock.calls[0];
     expect(String(url)).toBe(
-      "http://api.example.test/api/recipes?page=2&page_size=12&q=carrot+%26+pecan",
+      "http://api.example.test/api/recipes?page=2&page_size=12&q=carrot+%26+pecan&is_variant=true",
     );
     expect(options).toEqual({
       cache: "no-store",
       headers: { Accept: "application/json" },
     });
+  });
+
+  it("sends an explicit false variant filter when browsing original recipes", async () => {
+    vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(emptyPage), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchRecipePage({ isVariant: false });
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe(
+      "http://api.example.test/api/recipes?page=1&page_size=12&is_variant=false",
+    );
+  });
+
+  it("omits the variant filter when browsing all recipes", async () => {
+    vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(emptyPage), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchRecipePage({ isVariant: undefined });
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe("http://api.example.test/api/recipes?page=1&page_size=12");
   });
 
   it("maps a missing recipe to null", async () => {

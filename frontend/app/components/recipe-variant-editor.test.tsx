@@ -133,6 +133,45 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+function instructionRow(stepNumber: number): HTMLElement {
+  const stepLabel = screen.getByText(`Step ${stepNumber}`, {
+    selector: "strong",
+  });
+  const row = stepLabel.closest("li");
+
+  if (!row) {
+    throw new Error(`Could not find the row for step ${stepNumber}.`);
+  }
+
+  return row;
+}
+
+function expandIngredientRow(row: HTMLElement, name: string): void {
+  const changeButton = within(row).queryByRole("button", {
+    name: `Change ${name}`,
+  });
+  if (changeButton) {
+    fireEvent.click(changeButton);
+  }
+}
+
+function expandInstructionRow(stepNumber: number): HTMLElement {
+  const row = instructionRow(stepNumber);
+  const editButton = within(row).queryByRole("button", {
+    name: `Edit step ${stepNumber}`,
+  });
+  if (editButton) {
+    fireEvent.click(editButton);
+  }
+  return row;
+}
+
+function instructionInput(stepNumber: number): HTMLTextAreaElement {
+  return within(expandInstructionRow(stepNumber)).getByRole("textbox", {
+    name: /^instruction$/i,
+  });
+}
+
 beforeEach(() => {
   mocks.replace.mockReset();
   mocks.createRecipeVariant.mockReset();
@@ -147,13 +186,15 @@ describe("RecipeVariantEditor", () => {
     render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
 
     const form = screen.getByRole("form", {
-      name: /create a child variant from carrot walnut snack cake/i,
+      name: /make carrot walnut snack cake your own/i,
     });
-    expect(within(form).getByRole("group", { name: /variant details/i })).toBeInTheDocument();
+    expect(
+      within(form).getByRole("group", { name: /about your version/i }),
+    ).toBeInTheDocument();
     expect(within(form).getByRole("group", { name: /^ingredients$/i })).toBeInTheDocument();
     expect(within(form).getByRole("group", { name: /^instructions$/i })).toBeInTheDocument();
     expect(within(form).getByLabelText(/^title$/i)).toHaveValue(
-      "Carrot Walnut Snack Cake variant",
+      "Carrot Walnut Snack Cake variation",
     );
     expect(within(form).getByLabelText(/^description$/i)).toHaveValue(
       "A softly spiced snack cake.",
@@ -167,9 +208,21 @@ describe("RecipeVariantEditor", () => {
     const sugar = within(form).getByRole("group", {
       name: "Ingredient 1: White sugar",
     });
-    expect(within(sugar).getByText("White sugar")).toBeInTheDocument();
+    expect(within(sugar).getByText("White sugar · 180 g")).toBeInTheDocument();
+    expect(within(sugar).getByText("Starting ingredient")).toBeInTheDocument();
     expect(within(sugar).getByText(/catalog name: granulated sugar/i)).toBeInTheDocument();
-    expect(within(sugar).getByLabelText(/replacement ingredient/i)).toHaveValue("");
+    const changeSugar = within(sugar).getByRole("button", {
+      name: "Change White sugar",
+    });
+    expect(changeSugar).toHaveAttribute("aria-expanded", "false");
+    expect(within(sugar).queryByLabelText(/^quantity$/i)).not.toBeInTheDocument();
+    fireEvent.click(changeSugar);
+    expect(
+      within(sugar).getByRole("button", {
+        name: "Done editing White sugar",
+      }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(within(sugar).getByLabelText(/swap ingredient/i)).toHaveValue("");
     expect(within(sugar).getByLabelText(/^quantity$/i)).toHaveValue("180.0000");
     expect(within(sugar).getByLabelText(/^quantity$/i)).toHaveAttribute(
       "inputmode",
@@ -178,11 +231,25 @@ describe("RecipeVariantEditor", () => {
     expect(within(sugar).getByLabelText(/^unit$/i)).toHaveValue("g");
 
     const salt = within(form).getByRole("group", { name: /ingredient 3/i });
+    expandIngredientRow(salt, "Salt");
     expect(within(salt).getByLabelText(/^quantity$/i)).toHaveValue("");
     expect(within(salt).getByLabelText(/^unit$/i)).toHaveValue("");
-    expect(within(form).getByLabelText(/^step 1$/i)).toHaveValue(
+    const firstStep = instructionRow(1);
+    const editFirstStep = within(firstStep).getByRole("button", {
+      name: "Edit step 1",
+    });
+    expect(editFirstStep).toHaveAttribute("aria-expanded", "false");
+    expect(within(firstStep).queryByRole("textbox")).not.toBeInTheDocument();
+    fireEvent.click(editFirstStep);
+    expect(
+      within(firstStep).getByRole("button", {
+        name: "Done editing step 1",
+      }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(instructionInput(1)).toHaveValue(
       "Whisk the dry ingredients.",
     );
+    expect(within(instructionRow(1)).getByText("Starting step")).toBeInTheDocument();
     expect(within(form).getByRole("link", { name: /^cancel$/i })).toHaveAttribute(
       "href",
       `/recipes/${SOURCE_ID}`,
@@ -197,6 +264,7 @@ describe("RecipeVariantEditor", () => {
       name: "New ingredient 4",
     });
     expect(within(addedIngredient).getByLabelText(/ingredient name/i)).toHaveFocus();
+    expect(within(addedIngredient).getByText("New")).toBeInTheDocument();
 
     fireEvent.click(
       within(addedIngredient).getByRole("button", { name: /remove new ingredient 4/i }),
@@ -211,8 +279,9 @@ describe("RecipeVariantEditor", () => {
     ).toHaveFocus();
 
     fireEvent.click(screen.getByRole("button", { name: /add instruction/i }));
-    const newStep = screen.getByLabelText("Step 4", { exact: true });
+    const newStep = instructionInput(4);
     expect(newStep).toHaveFocus();
+    expect(within(instructionRow(4)).getByText("New")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /remove step 4/i }));
     const undoStep = screen.getByRole("button", {
       name: /undo removal of step 4/i,
@@ -220,6 +289,47 @@ describe("RecipeVariantEditor", () => {
     expect(undoStep).toHaveFocus();
     fireEvent.click(undoStep);
     expect(screen.getByRole("button", { name: /remove step 4/i })).toHaveFocus();
+  });
+
+  it("warns before leaving after the cook changes the draft", () => {
+    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+
+    fireEvent.change(screen.getByLabelText(/^title$/i), {
+      target: { value: "My carrot cake" },
+    });
+
+    expect(screen.getByRole("status")).toHaveTextContent(/you have unsaved changes/i);
+    const beforeUnload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(beforeUnload);
+    expect(beforeUnload.defaultPrevented).toBe(true);
+  });
+
+  it("reopens a compact row when validation finds an error inside it", async () => {
+    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+
+    const sugar = screen.getByRole("group", { name: /ingredient 1/i });
+    fireEvent.click(within(sugar).getByRole("button", { name: /change white sugar/i }));
+    fireEvent.change(within(sugar).getByLabelText(/^quantity$/i), {
+      target: { value: "not a number" },
+    });
+    fireEvent.click(
+      within(sugar).getByRole("button", { name: /done editing white sugar/i }),
+    );
+    expect(within(sugar).queryByLabelText(/^quantity$/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+
+    await waitFor(() =>
+      expect(within(sugar).getByLabelText(/^quantity$/i)).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      ),
+    );
+    expect(
+      screen
+        .getByRole("heading", { name: /check your version before creating it/i })
+        .closest("div"),
+    ).toHaveFocus();
   });
 
   it("submits the exact mixed edit payload after add, remove, and undo interactions", async () => {
@@ -234,25 +344,42 @@ describe("RecipeVariantEditor", () => {
     });
 
     const sugar = screen.getByRole("group", { name: /ingredient 1/i });
+    expandIngredientRow(sugar, "White sugar");
     fireEvent.change(within(sugar).getByLabelText(/^quantity$/i), {
       target: { value: "140.0000" },
     });
     fireEvent.change(within(sugar).getByLabelText(/^unit$/i), {
       target: { value: "cup" },
     });
+    expect(within(sugar).getByText("White sugar · 140 cup")).toBeInTheDocument();
+    expect(
+      within(sugar).getByText(
+        "Before: White sugar · 180 g → Now: White sugar · 140 cup",
+      ),
+    ).toBeInTheDocument();
 
     const walnuts = screen.getByRole("group", { name: /ingredient 2/i });
-    fireEvent.change(within(walnuts).getByLabelText(/replacement ingredient/i), {
+    expandIngredientRow(walnuts, "Walnuts");
+    fireEvent.change(within(walnuts).getByLabelText(/swap ingredient/i), {
       target: { value: "  Pecan  " },
     });
+    expect(within(walnuts).getByText("Changed")).toBeInTheDocument();
+    expect(within(walnuts).getByText("Pecan · 100 g")).toBeInTheDocument();
+    expect(
+      within(walnuts).getByText(
+        "Before: Walnuts · 100 g → Now: Pecan · 100 g",
+      ),
+    ).toBeInTheDocument();
+    expect(within(walnuts).queryByText(/catalog name: walnut/i)).not.toBeInTheDocument();
 
     const salt = screen.getByRole("group", { name: /ingredient 3/i });
+    expandIngredientRow(salt, "Salt");
     fireEvent.click(within(salt).getByRole("button", { name: /remove salt/i }));
     expect(
       within(salt).getByText(
         (_, element) =>
           element?.tagName === "P" &&
-          element.textContent === "Salt will be removed from the child variant.",
+          element.textContent === "Salt will not be included in your version.",
       ),
     ).toBeInTheDocument();
     fireEvent.click(within(salt).getByRole("button", { name: /undo removal/i }));
@@ -275,16 +402,18 @@ describe("RecipeVariantEditor", () => {
       target: { value: " finely grated " },
     });
 
-    fireEvent.change(screen.getByLabelText(/^step 1$/i), {
+    fireEvent.change(instructionInput(1), {
       target: { value: "  Whisk the dry ingredients thoroughly.  " },
     });
+    expect(within(instructionRow(1)).getByText("Changed")).toBeInTheDocument();
+    expandInstructionRow(2);
     fireEvent.click(screen.getByRole("button", { name: /remove step 2/i }));
     fireEvent.click(screen.getByRole("button", { name: /add instruction/i }));
-    fireEvent.change(screen.getByLabelText(/^step 4$/i), {
+    fireEvent.change(instructionInput(4), {
       target: { value: "  Cool completely before serving.  " },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /^create variant$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
 
     await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
     expect(createRecipeVariant).toHaveBeenCalledWith(
@@ -337,19 +466,19 @@ describe("RecipeVariantEditor", () => {
 
     const title = screen.getByLabelText(/^title$/i);
     const servings = screen.getByLabelText(/^servings$/i);
-    const sugarQuantity = within(
-      screen.getByRole("group", { name: /ingredient 1/i }),
-    ).getByLabelText(/^quantity$/i);
-    const firstStep = screen.getByLabelText(/^step 1$/i);
+    const sugar = screen.getByRole("group", { name: /ingredient 1/i });
+    expandIngredientRow(sugar, "White sugar");
+    const sugarQuantity = within(sugar).getByLabelText(/^quantity$/i);
+    const firstStep = instructionInput(1);
 
     fireEvent.change(title, { target: { value: "   " } });
     fireEvent.change(servings, { target: { value: "0.00" } });
     fireEvent.change(sugarQuantity, { target: { value: "1.00001" } });
     fireEvent.change(firstStep, { target: { value: "   " } });
-    fireEvent.click(screen.getByRole("button", { name: /^create variant$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
 
     const alert = await screen.findByRole("alert");
-    expect(within(alert).getByText("Variant title is required.")).toBeInTheDocument();
+    expect(within(alert).getByText("Version title is required.")).toBeInTheDocument();
     expect(within(alert).getByText("Servings must be greater than zero.")).toBeInTheDocument();
     expect(
       within(alert).getByText("Quantity can have at most 4 decimal places."),
@@ -380,12 +509,12 @@ describe("RecipeVariantEditor", () => {
     render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
 
     const title = screen.getByLabelText(/^title$/i);
-    const replacement = within(
-      screen.getByRole("group", { name: /ingredient 2/i }),
-    ).getByLabelText(/replacement ingredient/i);
+    const walnuts = screen.getByRole("group", { name: /ingredient 2/i });
+    expandIngredientRow(walnuts, "Walnuts");
+    const replacement = within(walnuts).getByLabelText(/swap ingredient/i);
     fireEvent.change(title, { target: { value: "Tropical carrot cake" } });
     fireEvent.change(replacement, { target: { value: "Dragon fruit" } });
-    fireEvent.click(screen.getByRole("button", { name: /^create variant$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
 
     const alert = await screen.findByRole("alert");
     expect(
@@ -394,7 +523,7 @@ describe("RecipeVariantEditor", () => {
     expect(title).toHaveValue("Tropical carrot cake");
     expect(replacement).toHaveValue("Dragon fruit");
     expect(screen.getByRole("form")).toHaveAttribute("aria-busy", "false");
-    expect(screen.getByRole("button", { name: /^create variant$/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^create my version$/i })).toBeEnabled();
     expect(createRecipeVariant).toHaveBeenCalledOnce();
     expect(mocks.replace).not.toHaveBeenCalled();
     await waitFor(() => expect(alert).toHaveFocus());
@@ -407,7 +536,7 @@ describe("RecipeVariantEditor", () => {
       .mockResolvedValueOnce(createdRecipe());
     render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
 
-    const createButton = screen.getByRole("button", { name: /^create variant$/i });
+    const createButton = screen.getByRole("button", { name: /^create my version$/i });
     fireEvent.click(createButton);
     await screen.findByRole("alert");
     fireEvent.click(createButton);
@@ -438,8 +567,8 @@ describe("RecipeVariantEditor", () => {
 
     expect(createRecipeVariant).toHaveBeenCalledOnce();
     expect(form).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByRole("button", { name: /creating variant/i })).toBeDisabled();
-    expect(screen.getByText(/creating your child variant/i)).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /creating your version/i })).toBeDisabled();
+    expect(screen.getByText(/creating your version/i, { selector: "p" })).toHaveAttribute(
       "role",
       "status",
     );
@@ -452,11 +581,11 @@ describe("RecipeVariantEditor", () => {
     expect(mocks.replace).toHaveBeenCalledWith(`/recipes/${CHILD_ID}`);
   });
 
-  it("replaces the editor route with the newly created child recipe", async () => {
+  it("replaces the editor route with the newly created recipe version", async () => {
     vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
     render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /^create variant$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
 
     await waitFor(() => {
       expect(mocks.replace).toHaveBeenCalledOnce();
@@ -464,7 +593,7 @@ describe("RecipeVariantEditor", () => {
     });
     expect(screen.getByRole("form")).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Variant created. Opening the new recipe…",
+      "Your version is ready. Opening the recipe…",
     );
   });
 });

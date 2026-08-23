@@ -67,23 +67,31 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
 }
 
 describe("RecipeDetailView", () => {
-  it("shows the structured recipe, aggregate rating, and direct lineage links", () => {
-    render(<RecipeDetailView recipe={detail()} />);
+  it("leads with the recipe, cooking actions, and immediate family links", () => {
+    const { container } = render(<RecipeDetailView recipe={detail()} />);
 
     expect(
       screen.getByRole("heading", { name: /lower-sugar pecan carrot cake/i, level: 1 }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Variation", { selector: ".eyebrow" })).toBeInTheDocument();
+    expect(container.querySelector(".recipe-detail__artwork")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
     expect(screen.getByLabelText(/4\.5 out of 5 from 2 ratings/i)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /your demo activity/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: /save and rate this recipe/i }),
+    ).toHaveTextContent(/public demo.*shared demo cook profile/i);
+    expect(screen.queryByRole("heading", { name: /demo activity/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /save recipe/i })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
-    expect(screen.getByRole("link", { name: /create a variant/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /make your own version/i })).toHaveAttribute(
       "href",
       "/recipes/carrot-v2/fork",
     );
-    expect(screen.getByRole("link", { name: /compare with parent/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /see what changed/i })).toHaveAttribute(
       "href",
       "/recipes/carrot-v2/compare",
     );
@@ -92,6 +100,9 @@ describe("RecipeDetailView", () => {
     expect(screen.getByText(/catalog name: granulated sugar/i)).toBeInTheDocument();
     expect(screen.getByText("divided")).toBeInTheDocument();
     expect(screen.getByText(/amount not specified/i)).toBeInTheDocument();
+    expect(screen.queryByText("Mise en place", { selector: ".eyebrow" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Method", { selector: ".eyebrow" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Recipe family", { selector: ".eyebrow" })).not.toBeInTheDocument();
 
     const instructions = screen.getByRole("heading", { name: /instructions/i }).closest("section");
     expect(instructions).not.toBeNull();
@@ -100,14 +111,14 @@ describe("RecipeDetailView", () => {
       "Fold the dry ingredients into the wet mixture.",
     ]);
 
-    const lineage = screen.getByRole("list", { name: /immediate recipe lineage/i });
+    const lineage = screen.getByRole("list", { name: /more versions of this recipe/i });
     expect(within(lineage).getAllByRole("listitem")).toHaveLength(3);
     expect(
-      within(lineage).getByRole("link", { name: /parent.*carrot walnut snack cake/i }),
+      within(lineage).getByRole("link", { name: /based on.*carrot walnut snack cake/i }),
     ).toHaveAttribute("href", "/recipes/carrot-v1");
     expect(
       within(lineage).getByRole("link", {
-        name: /direct child.*orange raisin carrot cake/i,
+        name: /another version.*orange raisin carrot cake/i,
       }),
     ).toHaveAttribute("href", "/recipes/carrot-v3");
     expect(within(lineage).getByLabelText(/current recipe version/i)).toHaveAttribute(
@@ -131,10 +142,11 @@ describe("RecipeDetailView", () => {
     );
 
     expect(screen.getByLabelText(/no ratings yet/i)).toBeInTheDocument();
-    expect(screen.getByText(/does not have a direct variant yet/i)).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /compare with parent/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /parent/i })).not.toBeInTheDocument();
-    const lineage = screen.getByRole("list", { name: /immediate recipe lineage/i });
+    expect(screen.getByText("Original", { selector: ".eyebrow" })).toBeInTheDocument();
+    expect(screen.getByText(/does not have another version yet/i)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /see what changed/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /based on/i })).not.toBeInTheDocument();
+    const lineage = screen.getByRole("list", { name: /more versions of this recipe/i });
     expect(within(lineage).getAllByRole("listitem")).toHaveLength(1);
     expect(within(lineage).getByLabelText(/current recipe version/i)).toHaveAttribute(
       "aria-current",

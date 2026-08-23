@@ -87,7 +87,7 @@ function isErrorPayload(value: unknown): value is ApiErrorPayload {
 }
 
 async function apiError(response: Response): Promise<VariantApiError> {
-  let message = "The recipe service could not create this variant.";
+  let message = "The recipe service could not create your version.";
   let code = "variant_api_error";
 
   try {
