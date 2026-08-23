@@ -544,6 +544,7 @@ def test_preference_events_round_trip_only_permitted_typed_context(
     assert all(event.occurred_at.tzinfo is not None for event in events)
     assert set(PreferenceEvent.__table__.columns.keys()) == {
         "id",
+        "action_id",
         "user_id",
         "recipe_version_id",
         "event_type",
