@@ -7,7 +7,7 @@ The artwork is decorative and family-stable; it is not presented as recipe photo
 
 ![Cooking-first home](assets/rcp-13a-home-desktop.png)
 
-![Recipe catalog](assets/rcp-13a-catalog-desktop.png)
+![Original recipe catalog filter](assets/rcp-13a-catalog-desktop.png)
 
 ![Recipe detail](assets/rcp-13a-detail-desktop.png)
 
