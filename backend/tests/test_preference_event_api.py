@@ -13,12 +13,6 @@ from sqlalchemy.orm import Session
 import app.api.routes.interactions as interaction_routes
 import app.api.routes.recipes as recipe_routes
 from app.api.dependencies import get_session
-from app.core.demo_identity import (
-    DEMO_USER_CREATED_AT,
-    DEMO_USER_DISPLAY_NAME,
-    DEMO_USER_EMAIL,
-    DEMO_USER_ID,
-)
 from app.main import create_app
 from app.models import (
     PreferenceEvent,
@@ -30,6 +24,11 @@ from app.models import (
     User,
 )
 from app.seeds.identifiers import seed_uuid
+from tests.member_session import (
+    MemberCredentials,
+    authenticate_client,
+    create_member_credentials,
+)
 
 DATASET_ID = "recipe-lab-demo-v1"
 CARROT_ROOT_ID = seed_uuid(
@@ -42,6 +41,7 @@ CARROT_PECAN_ID = seed_uuid(
     "recipe-version",
     "lower-sugar-pecan-carrot-cake-v2",
 )
+MEMBER_USER_ID = UUID("77000000-0000-4000-8000-000000000003")
 
 
 def _action_headers(action_id: UUID | None = None) -> dict[str, str]:
@@ -58,14 +58,14 @@ def _fork_payload(*, title: str = "Preference Event Carrot Cake") -> dict[str, o
     }
 
 
-def _clear_demo_activity(engine: Engine) -> None:
+def _clear_member_activity(engine: Engine) -> None:
     with Session(bind=engine) as session, session.begin():
         fork_ids = list(
             session.scalars(
-                select(RecipeVersion.id).where(RecipeVersion.created_by_user_id == DEMO_USER_ID)
+                select(RecipeVersion.id).where(RecipeVersion.created_by_user_id == MEMBER_USER_ID)
             )
         )
-        event_filter = PreferenceEvent.user_id == DEMO_USER_ID
+        event_filter = PreferenceEvent.user_id == MEMBER_USER_ID
         if fork_ids:
             event_filter = or_(
                 event_filter,
@@ -73,8 +73,8 @@ def _clear_demo_activity(engine: Engine) -> None:
                 PreferenceEvent.related_recipe_version_id.in_(fork_ids),
             )
         session.execute(delete(PreferenceEvent).where(event_filter))
-        session.execute(delete(RecipeRating).where(RecipeRating.user_id == DEMO_USER_ID))
-        session.execute(delete(RecipeSave).where(RecipeSave.user_id == DEMO_USER_ID))
+        session.execute(delete(RecipeRating).where(RecipeRating.user_id == MEMBER_USER_ID))
+        session.execute(delete(RecipeSave).where(RecipeSave.user_id == MEMBER_USER_ID))
         if fork_ids:
             session.execute(
                 delete(RecipeIngredient).where(RecipeIngredient.recipe_version_id.in_(fork_ids))
@@ -86,16 +86,33 @@ def _clear_demo_activity(engine: Engine) -> None:
 
 
 @pytest.fixture(autouse=True)
-def clean_demo_activity(seeded_api_engine: Engine) -> Iterator[None]:
-    _clear_demo_activity(seeded_api_engine)
+def clean_member_activity(seeded_api_engine: Engine) -> Iterator[None]:
+    _clear_member_activity(seeded_api_engine)
     try:
         yield
     finally:
-        _clear_demo_activity(seeded_api_engine)
+        _clear_member_activity(seeded_api_engine)
+
+
+@pytest.fixture(autouse=True)
+def test_member_credentials(
+    seeded_api_engine: Engine,
+    clean_member_activity: None,
+) -> Iterator[MemberCredentials]:
+    credentials = create_member_credentials(seeded_api_engine, user_id=MEMBER_USER_ID)
+    try:
+        yield credentials
+    finally:
+        _clear_member_activity(seeded_api_engine)
+        with Session(bind=seeded_api_engine) as session, session.begin():
+            session.execute(delete(User).where(User.id == MEMBER_USER_ID))
 
 
 @pytest.fixture
-def preference_client(seeded_api_engine: Engine) -> Iterator[TestClient]:
+def preference_client(
+    seeded_api_engine: Engine,
+    test_member_credentials: MemberCredentials,
+) -> Iterator[TestClient]:
     application = create_app()
 
     def override_session() -> Iterator[Session]:
@@ -105,6 +122,7 @@ def preference_client(seeded_api_engine: Engine) -> Iterator[TestClient]:
     application.dependency_overrides[get_session] = override_session
     try:
         with TestClient(application) as client:
+            authenticate_client(client, test_member_credentials)
             yield client
     finally:
         application.dependency_overrides.clear()
@@ -119,13 +137,28 @@ def _event_count(engine: Engine) -> int:
         return session.scalar(select(func.count()).select_from(PreferenceEvent)) or 0
 
 
-def _demo_fork_count(engine: Engine) -> int:
+def _event_by_action(
+    session: Session,
+    action_id: UUID,
+    *,
+    event_type: str | None = None,
+) -> PreferenceEvent | None:
+    statement = select(PreferenceEvent).where(
+        PreferenceEvent.user_id == MEMBER_USER_ID,
+        PreferenceEvent.action_id == action_id,
+    )
+    if event_type is not None:
+        statement = statement.where(PreferenceEvent.event_type == event_type)
+    return session.scalar(statement)
+
+
+def _member_fork_count(engine: Engine) -> int:
     with Session(bind=engine) as session:
         return (
             session.scalar(
                 select(func.count())
                 .select_from(RecipeVersion)
-                .where(RecipeVersion.created_by_user_id == DEMO_USER_ID)
+                .where(RecipeVersion.created_by_user_id == MEMBER_USER_ID)
             )
             or 0
         )
@@ -148,9 +181,9 @@ def test_explicit_view_action_is_timestamped_and_exact_replays_are_deduplicated(
     assert first.content == b""
 
     with Session(bind=seeded_api_engine) as session:
-        event = session.get(PreferenceEvent, action_id)
+        event = _event_by_action(session, action_id, event_type="view")
         assert event is not None
-        assert event.user_id == DEMO_USER_ID
+        assert event.user_id == MEMBER_USER_ID
         assert event.recipe_version_id == CARROT_ROOT_ID
         assert event.event_type == "view"
         assert event.saved_value is None
@@ -168,7 +201,7 @@ def test_explicit_view_action_is_timestamped_and_exact_replays_are_deduplicated(
     assert replay.status_code == 204
     assert _event_count(seeded_api_engine) == 1
     with Session(bind=seeded_api_engine) as session:
-        event = session.get(PreferenceEvent, action_id)
+        event = _event_by_action(session, action_id, event_type="view")
         assert event is not None
         assert event.occurred_at == occurred_at
 
@@ -220,7 +253,7 @@ def test_action_keys_are_required_and_conflicting_reuse_does_not_change_state(
     assert conflict.json() == {
         "error": {
             "code": "idempotency_key_conflict",
-            "message": ("The Idempotency-Key has already been used for a different recipe action."),
+            "message": "The Idempotency-Key conflicts with an earlier action in this operation.",
             "issues": [],
         }
     }
@@ -229,11 +262,11 @@ def test_action_keys_are_required_and_conflicting_reuse_does_not_change_state(
         _json_object(missing_recipe_conflict.json())["error"]["code"] == "idempotency_key_conflict"
     )
     with Session(bind=seeded_api_engine) as session:
-        assert session.get(PreferenceEvent, action_id) is not None
+        assert _event_by_action(session, action_id, event_type="save") is not None
         assert (
             session.get(
                 RecipeSave,
-                {"user_id": DEMO_USER_ID, "recipe_version_id": CARROT_ROOT_ID},
+                {"user_id": MEMBER_USER_ID, "recipe_version_id": CARROT_ROOT_ID},
             )
             is not None
         )
@@ -289,10 +322,10 @@ def test_save_and_rating_actions_record_typed_history_without_reapplying_old_ret
     assert _json_object(old_retry.json())["rating"] == 5
 
     with Session(bind=seeded_api_engine) as session:
-        save_event = session.get(PreferenceEvent, save_action_id)
-        unsave_event = session.get(PreferenceEvent, unsave_action_id)
-        rating_two_event = session.get(PreferenceEvent, rating_two_action_id)
-        rating_five_event = session.get(PreferenceEvent, rating_five_action_id)
+        save_event = _event_by_action(session, save_action_id, event_type="save")
+        unsave_event = _event_by_action(session, unsave_action_id, event_type="save")
+        rating_two_event = _event_by_action(session, rating_two_action_id, event_type="rating")
+        rating_five_event = _event_by_action(session, rating_five_action_id, event_type="rating")
         assert save_event is not None
         assert save_event.event_type == "save"
         assert save_event.saved_value is True
@@ -307,14 +340,14 @@ def test_save_and_rating_actions_record_typed_history_without_reapplying_old_ret
         assert rating_five_event.rating_value == 5
         rating = session.get(
             RecipeRating,
-            {"user_id": DEMO_USER_ID, "recipe_version_id": CARROT_ROOT_ID},
+            {"user_id": MEMBER_USER_ID, "recipe_version_id": CARROT_ROOT_ID},
         )
         assert rating is not None
         assert rating.rating == 5
         assert (
             session.get(
                 RecipeSave,
-                {"user_id": DEMO_USER_ID, "recipe_version_id": CARROT_ROOT_ID},
+                {"user_id": MEMBER_USER_ID, "recipe_version_id": CARROT_ROOT_ID},
             )
             is None
         )
@@ -344,13 +377,13 @@ def test_fork_action_replay_returns_the_original_child_and_conflicts_on_payload_
     first_child_id = UUID(_json_object(first.json())["id"])
     assert _json_object(replay.json())["id"] == str(first_child_id)
     assert first.headers["location"] == replay.headers["location"]
-    assert _demo_fork_count(seeded_api_engine) == 1
+    assert _member_fork_count(seeded_api_engine) == 1
     assert _event_count(seeded_api_engine) == 1
 
     with Session(bind=seeded_api_engine) as session:
-        event = session.get(PreferenceEvent, action_id)
+        event = _event_by_action(session, action_id, event_type="fork")
         assert event is not None
-        assert event.user_id == DEMO_USER_ID
+        assert event.user_id == MEMBER_USER_ID
         assert event.recipe_version_id == CARROT_ROOT_ID
         assert event.event_type == "fork"
         assert event.related_recipe_version_id == first_child_id
@@ -365,12 +398,13 @@ def test_fork_action_replay_returns_the_original_child_and_conflicts_on_payload_
     )
     assert conflict.status_code == 409
     assert _json_object(conflict.json())["error"]["code"] == "idempotency_key_conflict"
-    assert _demo_fork_count(seeded_api_engine) == 1
+    assert _member_fork_count(seeded_api_engine) == 1
     assert _event_count(seeded_api_engine) == 1
 
 
 def test_concurrent_fork_retries_create_one_child_and_one_event(
     seeded_api_engine: Engine,
+    test_member_credentials: MemberCredentials,
 ) -> None:
     start = Barrier(2)
     action_id = uuid4()
@@ -385,6 +419,7 @@ def test_concurrent_fork_retries_create_one_child_and_one_event(
 
         application.dependency_overrides[get_session] = override_session
         with TestClient(application) as client:
+            authenticate_client(client, test_member_credentials)
             start.wait(timeout=10)
             response = client.post(
                 f"/api/recipes/{CARROT_ROOT_ID}/variants",
@@ -404,7 +439,7 @@ def test_concurrent_fork_retries_create_one_child_and_one_event(
     assert {result[0] for result in results} == {201}
     assert len({result[1] for result in results}) == 1
     assert len({result[2] for result in results}) == 1
-    assert _demo_fork_count(seeded_api_engine) == 1
+    assert _member_fork_count(seeded_api_engine) == 1
     assert _event_count(seeded_api_engine) == 1
 
 
@@ -427,7 +462,7 @@ def test_event_failure_rolls_back_current_state_and_immutable_fork(
         assert (
             session.get(
                 RecipeSave,
-                {"user_id": DEMO_USER_ID, "recipe_version_id": CARROT_ROOT_ID},
+                {"user_id": MEMBER_USER_ID, "recipe_version_id": CARROT_ROOT_ID},
             )
             is None
         )
@@ -441,35 +476,24 @@ def test_event_failure_rolls_back_current_state_and_immutable_fork(
             json=_fork_payload(),
         )
 
-    assert _demo_fork_count(seeded_api_engine) == 0
+    assert _member_fork_count(seeded_api_engine) == 0
     assert _event_count(seeded_api_engine) == 0
 
 
-def test_missing_demo_identity_records_no_event(
+def test_missing_session_member_records_no_event(
     preference_client: TestClient,
     seeded_api_engine: Engine,
 ) -> None:
     with Session(bind=seeded_api_engine) as session, session.begin():
-        session.execute(delete(User).where(User.id == DEMO_USER_ID))
+        session.execute(delete(User).where(User.id == MEMBER_USER_ID))
 
     action_id = uuid4()
-    try:
-        response = preference_client.post(
-            f"/api/recipes/{CARROT_ROOT_ID}/view",
-            headers=_action_headers(action_id),
-        )
-        assert response.status_code == 503
-        assert _event_count(seeded_api_engine) == 0
-    finally:
-        with Session(bind=seeded_api_engine) as session, session.begin():
-            session.add(
-                User(
-                    id=DEMO_USER_ID,
-                    email=DEMO_USER_EMAIL,
-                    display_name=DEMO_USER_DISPLAY_NAME,
-                    created_at=DEMO_USER_CREATED_AT,
-                )
-            )
+    response = preference_client.post(
+        f"/api/recipes/{CARROT_ROOT_ID}/view",
+        headers=_action_headers(action_id),
+    )
+    assert response.status_code == 401
+    assert _event_count(seeded_api_engine) == 0
 
 
 def test_cors_and_openapi_document_only_the_bounded_action_contract(

@@ -73,10 +73,10 @@ class RecommendationResult:
 
 def recommend_recipe_versions(
     session: Session,
-    user_id: UUID,
+    user_id: UUID | None,
     limit: int,
 ) -> RecommendationResult:
-    """Rank deterministic baseline recommendations for the server-selected profile."""
+    """Rank globally for signed-out callers or personalize for one session-selected member."""
 
     if not 1 <= limit <= MAX_RECOMMENDATIONS:
         raise ValueError(f"limit must be between 1 and {MAX_RECOMMENDATIONS}.")

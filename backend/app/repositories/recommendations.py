@@ -46,9 +46,9 @@ class RecommendationData:
 
 def load_recommendation_data(
     session: Session,
-    user_id: UUID,
+    user_id: UUID | None,
 ) -> RecommendationData:
-    """Bulk-load the immutable catalog and aggregate signals without per-recipe queries."""
+    """Load catalog signals plus only the optional signed-in member's private history."""
 
     rating_aggregates = (
         select(
@@ -126,38 +126,44 @@ def load_recommendation_data(
         )
     )
 
-    saved_recipe_version_ids = frozenset(
-        session.scalars(select(RecipeSave.recipe_version_id).where(RecipeSave.user_id == user_id))
-    )
-    ratings = tuple(
-        RecommendationUserRating(recipe_version_id=recipe_version_id, rating=int(rating))
-        for recipe_version_id, rating in session.execute(
-            select(RecipeRating.recipe_version_id, RecipeRating.rating)
-            .where(RecipeRating.user_id == user_id)
-            .order_by(RecipeRating.recipe_version_id)
-        )
-    )
-    events = tuple(
-        RecommendationUserEvent(
-            recipe_version_id=recipe_version_id,
-            event_type=event_type,
-            related_recipe_version_id=related_recipe_version_id,
-        )
-        for recipe_version_id, event_type, related_recipe_version_id in session.execute(
-            select(
-                PreferenceEvent.recipe_version_id,
-                PreferenceEvent.event_type,
-                PreferenceEvent.related_recipe_version_id,
-            )
-            .where(PreferenceEvent.user_id == user_id)
-            .distinct()
-            .order_by(
-                PreferenceEvent.recipe_version_id,
-                PreferenceEvent.event_type,
-                PreferenceEvent.related_recipe_version_id,
+    saved_recipe_version_ids: frozenset[UUID] = frozenset()
+    ratings: tuple[RecommendationUserRating, ...] = ()
+    events: tuple[RecommendationUserEvent, ...] = ()
+    if user_id is not None:
+        saved_recipe_version_ids = frozenset(
+            session.scalars(
+                select(RecipeSave.recipe_version_id).where(RecipeSave.user_id == user_id)
             )
         )
-    )
+        ratings = tuple(
+            RecommendationUserRating(recipe_version_id=recipe_version_id, rating=int(rating))
+            for recipe_version_id, rating in session.execute(
+                select(RecipeRating.recipe_version_id, RecipeRating.rating)
+                .where(RecipeRating.user_id == user_id)
+                .order_by(RecipeRating.recipe_version_id)
+            )
+        )
+        events = tuple(
+            RecommendationUserEvent(
+                recipe_version_id=recipe_version_id,
+                event_type=event_type,
+                related_recipe_version_id=related_recipe_version_id,
+            )
+            for recipe_version_id, event_type, related_recipe_version_id in session.execute(
+                select(
+                    PreferenceEvent.recipe_version_id,
+                    PreferenceEvent.event_type,
+                    PreferenceEvent.related_recipe_version_id,
+                )
+                .where(PreferenceEvent.user_id == user_id)
+                .distinct()
+                .order_by(
+                    PreferenceEvent.recipe_version_id,
+                    PreferenceEvent.event_type,
+                    PreferenceEvent.related_recipe_version_id,
+                )
+            )
+        )
     return RecommendationData(
         candidates=candidates,
         saved_recipe_version_ids=saved_recipe_version_ids,

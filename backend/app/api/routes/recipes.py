@@ -1,14 +1,18 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Header, Query, Response, status
+from fastapi import APIRouter, Body, Header, Query, Response, status
 from pydantic import StringConstraints
 from sqlalchemy.orm import Session
 
-from app.api.demo_context import get_demo_user_or_error, recipe_viewer_state_response
-from app.api.dependencies import get_session
+from app.api.dependencies import (
+    CsrfProtectedSessionDependency,
+    OptionalAuthenticatedSessionDependency,
+    SessionDependency,
+)
 from app.api.errors import ApiError
-from app.models import RecipeIngredient, RecipeInstruction, RecipeVersion, User
+from app.api.member_context import lock_active_member_actor, recipe_viewer_state_response
+from app.models import RecipeIngredient, RecipeInstruction, RecipeVersion
 from app.repositories.recipe_diffs import (
     get_direct_substitution_pairs,
     get_recipe_version_diff_identity,
@@ -60,14 +64,13 @@ IngredientName = Annotated[
         pattern=r"^[^\x00]*$",
     ),
 ]
-SessionDependency = Annotated[Session, Depends(get_session)]
 ActionIdHeader = Annotated[
     UUID,
     Header(
         alias="Idempotency-Key",
         description=(
-            "Opaque UUID for this fork action. Reusing it with the same source and payload "
-            "returns the original child; reusing it for different semantics returns 409."
+            "Opaque UUID scoped to this member's fork operation. Reusing it with the same "
+            "source and payload returns the original child; conflicting reuse returns 409."
         ),
     ),
 ]
@@ -84,12 +87,16 @@ DETAIL_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
         "model": ErrorResponse,
         "description": "The requested recipe version does not exist.",
     },
-    503: {
-        "model": ErrorResponse,
-        "description": "The seeded demo identity is unavailable.",
-    },
 }
 FORK_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
+    401: {
+        "model": ErrorResponse,
+        "description": "A valid member session is required.",
+    },
+    403: {
+        "model": ErrorResponse,
+        "description": "CSRF or Origin evidence is invalid, or account setup is incomplete.",
+    },
     404: {
         "model": ErrorResponse,
         "description": "The source recipe version does not exist.",
@@ -101,10 +108,6 @@ FORK_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     422: {
         "model": ErrorResponse,
         "description": "The request shape, identifier, or recipe edits are invalid.",
-    },
-    503: {
-        "model": ErrorResponse,
-        "description": "The seeded demo identity is unavailable.",
     },
 }
 DIFF_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
@@ -155,17 +158,21 @@ def _detail_response(
     session: Session,
     *,
     version: RecipeVersion,
-    user: User,
+    viewer_user_id: UUID | None,
 ) -> RecipeDetailResponse:
     rating = get_recipe_rating_aggregate(session, version.id)
     return RecipeDetailResponse(
         **_summary(version).model_dump(),
         average_rating=float(rating.average) if rating.average is not None else None,
         rating_count=rating.count,
-        viewer_state=recipe_viewer_state_response(
-            session,
-            user=user,
-            recipe_version_id=version.id,
+        viewer_state=(
+            recipe_viewer_state_response(
+                session,
+                user_id=viewer_user_id,
+                recipe_version_id=version.id,
+            )
+            if viewer_user_id is not None
+            else None
         ),
         parent=_reference(version.parent) if version.parent is not None else None,
         children=[_reference(child) for child in version.descendants],
@@ -233,8 +240,12 @@ def browse_recipes(
 )
 def recipe_detail(
     recipe_version_id: UUID,
+    response: Response,
     session: SessionDependency,
+    authenticated: OptionalAuthenticatedSessionDependency,
 ) -> RecipeDetailResponse:
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Vary"] = "Cookie"
     version = get_recipe_version(session, recipe_version_id)
     if version is None:
         raise ApiError(
@@ -243,8 +254,13 @@ def recipe_detail(
             message=f"Recipe version {recipe_version_id} was not found.",
         )
 
-    user = get_demo_user_or_error(session)
-    return _detail_response(session, version=version, user=user)
+    detail = _detail_response(
+        session,
+        version=version,
+        viewer_user_id=authenticated.user_id if authenticated is not None else None,
+    )
+    session.commit()
+    return detail
 
 
 @router.get(
@@ -344,64 +360,66 @@ def create_recipe_variant(
     action_id: ActionIdHeader,
     response: Response,
     session: SessionDependency,
+    authenticated: CsrfProtectedSessionDependency,
 ) -> RecipeDetailResponse:
     request_fingerprint = recipe_fork_request_fingerprint(recipe_version_id, payload)
-    with session.begin():
-        user = get_demo_user_or_error(session, for_update=True)
-        intent = PreferenceEventIntent(
-            action_id=action_id,
-            user_id=user.id,
-            recipe_version_id=recipe_version_id,
-            event_type="fork",
-            request_fingerprint=request_fingerprint,
-        )
+    actor_id = lock_active_member_actor(session, authenticated)
+    intent = PreferenceEventIntent(
+        action_id=action_id,
+        user_id=actor_id,
+        recipe_version_id=recipe_version_id,
+        event_type="fork",
+        request_fingerprint=request_fingerprint,
+    )
+    try:
+        replayed_event = find_preference_event_replay(session, intent)
+    except IdempotencyKeyConflictError as error:
+        raise ApiError(
+            status_code=409,
+            code="idempotency_key_conflict",
+            message="The Idempotency-Key conflicts with an earlier fork action.",
+        ) from error
+
+    if replayed_event is not None:
+        child_id = replayed_event.related_recipe_version_id
+        if child_id is None:
+            raise RuntimeError("The replayed fork event has no child recipe version.")
+    else:
         try:
-            replayed_event = find_preference_event_replay(session, intent)
-        except IdempotencyKeyConflictError as error:
+            child_id = fork_recipe_version(
+                session,
+                source_version_id=recipe_version_id,
+                author_user_id=actor_id,
+                payload=payload,
+            )
+        except InvalidRecipeEditsError as error:
             raise ApiError(
-                status_code=409,
-                code="idempotency_key_conflict",
-                message=(
-                    "The Idempotency-Key has already been used for a different recipe action."
-                ),
+                status_code=422,
+                code="invalid_recipe_edits",
+                message=str(error),
             ) from error
 
-        if replayed_event is not None:
-            child_id = replayed_event.related_recipe_version_id
-            if child_id is None:
-                raise RuntimeError("The replayed fork event has no child recipe version.")
-        else:
-            try:
-                child_id = fork_recipe_version(
-                    session,
-                    source_version_id=recipe_version_id,
-                    author_user_id=user.id,
-                    payload=payload,
-                )
-            except InvalidRecipeEditsError as error:
-                raise ApiError(
-                    status_code=422,
-                    code="invalid_recipe_edits",
-                    message=str(error),
-                ) from error
-
-            if child_id is None:
-                raise ApiError(
-                    status_code=404,
-                    code="recipe_not_found",
-                    message=f"Recipe version {recipe_version_id} was not found.",
-                )
-
-            record_preference_event(
-                session,
-                intent,
-                related_recipe_version_id=child_id,
+        if child_id is None:
+            raise ApiError(
+                status_code=404,
+                code="recipe_not_found",
+                message=f"Recipe version {recipe_version_id} was not found.",
             )
 
-        session.expire_all()
-        child = get_recipe_version(session, child_id)
-        if child is None:
-            raise RuntimeError("The newly created recipe version could not be reloaded.")
+        record_preference_event(
+            session,
+            intent,
+            related_recipe_version_id=child_id,
+        )
 
-        response.headers["Location"] = f"/api/recipes/{child_id}"
-        return _detail_response(session, version=child, user=user)
+    session.expire_all()
+    child = get_recipe_version(session, child_id)
+    if child is None:
+        raise RuntimeError("The newly created recipe version could not be reloaded.")
+
+    response.headers["Location"] = f"/api/recipes/{child_id}"
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Vary"] = "Cookie"
+    detail = _detail_response(session, version=child, viewer_user_id=actor_id)
+    session.commit()
+    return detail

@@ -3,29 +3,40 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.api.errors import ApiError
-from app.core.demo_identity import DEMO_USER_ID
-from app.models import User
+from app.models import ACCOUNT_KIND_MEMBER, USER_STATUS_ACTIVE
 from app.repositories.interactions import (
     get_recipe_viewer_state,
     get_user,
     recipe_version_exists,
 )
-from app.schemas.interactions import DemoUserResponse, RecipeViewerStateResponse
+from app.schemas.interactions import RecipeViewerStateResponse
+from app.services.auth import AuthenticatedSession
 
 
-def get_demo_user_or_error(
+def lock_active_member_actor(
     session: Session,
-    *,
-    for_update: bool = False,
-) -> User:
-    user = get_user(session, DEMO_USER_ID, for_update=for_update)
-    if user is None:
+    authenticated: AuthenticatedSession,
+) -> UUID:
+    """Lock and revalidate the member selected exclusively by the session cookie."""
+
+    user = get_user(session, authenticated.user_id, for_update=True)
+    if (
+        user is None
+        or user.account_kind != ACCOUNT_KIND_MEMBER
+        or user.status != USER_STATUS_ACTIVE
+    ):
         raise ApiError(
-            status_code=503,
-            code="demo_user_unavailable",
-            message="The demo user is unavailable. Load the bundled seed data and try again.",
+            status_code=401,
+            code="authentication_required",
+            message="Sign in to continue.",
         )
-    return user
+    if user.handle is None:
+        raise ApiError(
+            status_code=403,
+            code="account_setup_required",
+            message="Finish account setup to continue.",
+        )
+    return user.id
 
 
 def ensure_recipe_exists(session: Session, recipe_version_id: UUID) -> None:
@@ -37,28 +48,19 @@ def ensure_recipe_exists(session: Session, recipe_version_id: UUID) -> None:
         )
 
 
-def demo_user_response(user: User) -> DemoUserResponse:
-    return DemoUserResponse(
-        id=user.id,
-        display_name=user.display_name,
-        identity_mode="shared_demo",
-    )
-
-
 def recipe_viewer_state_response(
     session: Session,
     *,
-    user: User,
+    user_id: UUID,
     recipe_version_id: UUID,
 ) -> RecipeViewerStateResponse:
     state = get_recipe_viewer_state(
         session,
-        user_id=user.id,
+        user_id=user_id,
         recipe_version_id=recipe_version_id,
     )
     return RecipeViewerStateResponse(
         recipe_version_id=recipe_version_id,
-        user=demo_user_response(user),
         saved=state.saved,
         rating=state.rating,
     )

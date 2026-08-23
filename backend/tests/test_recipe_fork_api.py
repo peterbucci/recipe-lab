@@ -13,12 +13,6 @@ from sqlalchemy.orm import Session
 
 import app.api.routes.recipes as recipe_routes
 from app.api.dependencies import get_session
-from app.core.demo_identity import (
-    DEMO_USER_CREATED_AT,
-    DEMO_USER_DISPLAY_NAME,
-    DEMO_USER_EMAIL,
-    DEMO_USER_ID,
-)
 from app.main import create_app
 from app.models import (
     PreferenceEvent,
@@ -34,6 +28,11 @@ from app.schemas.recipe_forks import RecipeForkRequest
 from app.seeds.identifiers import seed_uuid
 from app.seeds.loader import CATALOG_USER_KEY
 from app.services.recipe_forks import InvalidRecipeEditsError, fork_recipe_version
+from tests.member_session import (
+    MemberCredentials,
+    authenticate_client,
+    create_member_credentials,
+)
 
 DATASET_ID = "recipe-lab-demo-v1"
 CARROT_ROOT_KEY = "carrot-walnut-snack-cake-v1"
@@ -69,6 +68,7 @@ BAKE_INSTRUCTION_ID = seed_uuid(
 )
 PECAN_ID = seed_uuid(DATASET_ID, "ingredient", "pecan")
 ORANGE_ZEST_ID = seed_uuid(DATASET_ID, "ingredient", "orange-zest")
+MEMBER_USER_ID = UUID("77000000-0000-4000-8000-000000000002")
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,10 +104,10 @@ class VersionSnapshot:
     instructions: tuple[InstructionSnapshot, ...]
 
 
-def _clear_demo_forks(engine: Engine) -> None:
-    fork_ids = select(RecipeVersion.id).where(RecipeVersion.created_by_user_id == DEMO_USER_ID)
+def _clear_member_forks(engine: Engine) -> None:
+    fork_ids = select(RecipeVersion.id).where(RecipeVersion.created_by_user_id == MEMBER_USER_ID)
     with Session(bind=engine) as session, session.begin():
-        session.execute(delete(PreferenceEvent).where(PreferenceEvent.user_id == DEMO_USER_ID))
+        session.execute(delete(PreferenceEvent).where(PreferenceEvent.user_id == MEMBER_USER_ID))
         session.execute(delete(RecipeRating).where(RecipeRating.recipe_version_id.in_(fork_ids)))
         session.execute(delete(RecipeSave).where(RecipeSave.recipe_version_id.in_(fork_ids)))
         session.execute(
@@ -117,21 +117,38 @@ def _clear_demo_forks(engine: Engine) -> None:
             delete(RecipeInstruction).where(RecipeInstruction.recipe_version_id.in_(fork_ids))
         )
         session.execute(
-            delete(RecipeVersion).where(RecipeVersion.created_by_user_id == DEMO_USER_ID)
+            delete(RecipeVersion).where(RecipeVersion.created_by_user_id == MEMBER_USER_ID)
         )
 
 
 @pytest.fixture(autouse=True)
-def clean_demo_forks(seeded_api_engine: Engine) -> Iterator[None]:
-    _clear_demo_forks(seeded_api_engine)
+def clean_member_forks(seeded_api_engine: Engine) -> Iterator[None]:
+    _clear_member_forks(seeded_api_engine)
     try:
         yield
     finally:
-        _clear_demo_forks(seeded_api_engine)
+        _clear_member_forks(seeded_api_engine)
+
+
+@pytest.fixture(autouse=True)
+def test_member_credentials(
+    seeded_api_engine: Engine,
+    clean_member_forks: None,
+) -> Iterator[MemberCredentials]:
+    credentials = create_member_credentials(seeded_api_engine, user_id=MEMBER_USER_ID)
+    try:
+        yield credentials
+    finally:
+        _clear_member_forks(seeded_api_engine)
+        with Session(bind=seeded_api_engine) as session, session.begin():
+            session.execute(delete(User).where(User.id == MEMBER_USER_ID))
 
 
 @pytest.fixture
-def fork_client(seeded_api_engine: Engine) -> Iterator[TestClient]:
+def fork_client(
+    seeded_api_engine: Engine,
+    test_member_credentials: MemberCredentials,
+) -> Iterator[TestClient]:
     application = create_app()
 
     def override_session() -> Iterator[Session]:
@@ -141,6 +158,7 @@ def fork_client(seeded_api_engine: Engine) -> Iterator[TestClient]:
     application.dependency_overrides[get_session] = override_session
     try:
         with TestClient(application) as client:
+            authenticate_client(client, test_member_credentials)
             yield client
     finally:
         application.dependency_overrides.clear()
@@ -149,7 +167,7 @@ def fork_client(seeded_api_engine: Engine) -> Iterator[TestClient]:
 def _base_payload(*, title: str = "My Carrot Cake") -> dict[str, Any]:
     return {
         "title": title,
-        "description": "A structured demo-user variant.",
+        "description": "A structured member variant.",
         "servings": "8.00",
         "ingredient_edits": [],
         "instruction_edits": [],
@@ -225,13 +243,13 @@ def _instruction_values(items: tuple[InstructionSnapshot, ...]) -> list[tuple[ob
     return [(item.text, item.display_order) for item in items]
 
 
-def _demo_fork_count(engine: Engine) -> int:
+def _member_fork_count(engine: Engine) -> int:
     with Session(bind=engine) as session:
         return (
             session.scalar(
                 select(func.count())
                 .select_from(RecipeVersion)
-                .where(RecipeVersion.created_by_user_id == DEMO_USER_ID)
+                .where(RecipeVersion.created_by_user_id == MEMBER_USER_ID)
             )
             or 0
         )
@@ -270,10 +288,10 @@ def test_fork_copies_snapshot_and_persists_lineage_parent_and_author(
     child = _snapshot_version(seeded_api_engine, child_id)
     assert child.lineage_id == CARROT_LINEAGE_ID
     assert child.parent_version_id == CARROT_ROOT_ID
-    assert child.created_by_user_id == DEMO_USER_ID
+    assert child.created_by_user_id == MEMBER_USER_ID
     assert child.version_number == 4
     assert child.title == "My Carrot Cake"
-    assert child.description == "A structured demo-user variant."
+    assert child.description == "A structured member variant."
     assert child.servings == Decimal("8.00")
     assert {item.id for item in child.ingredients}.isdisjoint(
         item.id for item in parent_before.ingredients
@@ -297,14 +315,14 @@ def test_fork_copies_snapshot_and_persists_lineage_parent_and_author(
         assert (
             session.get(
                 RecipeSave,
-                {"user_id": DEMO_USER_ID, "recipe_version_id": child_id},
+                {"user_id": MEMBER_USER_ID, "recipe_version_id": child_id},
             )
             is None
         )
         assert (
             session.get(
                 RecipeRating,
-                {"user_id": DEMO_USER_ID, "recipe_version_id": child_id},
+                {"user_id": MEMBER_USER_ID, "recipe_version_id": child_id},
             )
             is None
         )
@@ -329,7 +347,7 @@ def test_fork_from_variant_uses_direct_parent_and_lineage_wide_number(
     assert child.lineage_id == CARROT_LINEAGE_ID
     assert child.parent_version_id == CARROT_PECAN_ID
     assert child.version_number == 4
-    assert child.created_by_user_id == DEMO_USER_ID
+    assert child.created_by_user_id == MEMBER_USER_ID
     assert detail["parent"]["id"] == str(CARROT_PECAN_ID)
 
 
@@ -490,7 +508,7 @@ def test_invalid_request_shapes_create_no_fork(
     error = _json_object(response.json())["error"]
     assert error["code"] == "validation_error"
     assert error["issues"]
-    assert _demo_fork_count(seeded_api_engine) == 0
+    assert _member_fork_count(seeded_api_engine) == 0
 
 
 @pytest.mark.parametrize(
@@ -566,7 +584,7 @@ def test_invalid_or_conflicting_edits_roll_back_without_mutating_parent(
     assert error["code"] == "invalid_recipe_edits"
     assert error["message"]
     assert error["issues"] == []
-    assert _demo_fork_count(seeded_api_engine) == 0
+    assert _member_fork_count(seeded_api_engine) == 0
     assert _snapshot_version(seeded_api_engine, CARROT_ROOT_ID) == parent_before
 
 
@@ -591,7 +609,7 @@ def test_removing_every_structured_row_is_rejected_atomically(
 
     assert response.status_code == 422
     assert _json_object(response.json())["error"]["code"] == "invalid_recipe_edits"
-    assert _demo_fork_count(seeded_api_engine) == 0
+    assert _member_fork_count(seeded_api_engine) == 0
     assert _snapshot_version(seeded_api_engine, CARROT_ROOT_ID) == parent
 
 
@@ -640,7 +658,7 @@ def test_transaction_rolls_back_if_edit_processing_fails_after_child_insert(
             "issues": [],
         }
     }
-    assert _demo_fork_count(seeded_api_engine) == 0
+    assert _member_fork_count(seeded_api_engine) == 0
     assert _snapshot_version(seeded_api_engine, CARROT_ROOT_ID) == parent_before
 
 
@@ -670,44 +688,25 @@ def test_missing_and_malformed_source_ids_create_no_fork(
     }
     assert malformed.status_code == 422
     assert _json_object(malformed.json())["error"]["code"] == "invalid_identifier"
-    assert _demo_fork_count(seeded_api_engine) == 0
+    assert _member_fork_count(seeded_api_engine) == 0
 
 
-def test_missing_demo_user_returns_service_error_without_partial_fork(
+def test_missing_session_member_rejects_fork_without_partial_write(
     fork_client: TestClient,
     seeded_api_engine: Engine,
 ) -> None:
     with Session(bind=seeded_api_engine) as session, session.begin():
-        session.execute(delete(User).where(User.id == DEMO_USER_ID))
+        session.execute(delete(User).where(User.id == MEMBER_USER_ID))
 
-    try:
-        response = fork_client.post(
-            f"/api/recipes/{CARROT_ROOT_ID}/variants",
-            json=_base_payload(),
-            headers=_action_headers(),
-        )
+    response = fork_client.post(
+        f"/api/recipes/{CARROT_ROOT_ID}/variants",
+        json=_base_payload(),
+        headers=_action_headers(),
+    )
 
-        assert response.status_code == 503
-        assert response.json() == {
-            "error": {
-                "code": "demo_user_unavailable",
-                "message": (
-                    "The demo user is unavailable. Load the bundled seed data and try again."
-                ),
-                "issues": [],
-            }
-        }
-        assert _demo_fork_count(seeded_api_engine) == 0
-    finally:
-        with Session(bind=seeded_api_engine) as session, session.begin():
-            session.add(
-                User(
-                    id=DEMO_USER_ID,
-                    email=DEMO_USER_EMAIL,
-                    display_name=DEMO_USER_DISPLAY_NAME,
-                    created_at=DEMO_USER_CREATED_AT,
-                )
-            )
+    assert response.status_code == 401
+    assert _json_object(response.json())["error"]["code"] == "authentication_required"
+    assert _member_fork_count(seeded_api_engine) == 0
 
 
 def test_concurrent_forks_allocate_unique_contiguous_lineage_numbers(
@@ -726,7 +725,7 @@ def test_concurrent_forks_allocate_unique_contiguous_lineage_numbers(
             child_id = fork_recipe_version(
                 session,
                 source_version_id=CARROT_ROOT_ID,
-                author_user_id=DEMO_USER_ID,
+                author_user_id=MEMBER_USER_ID,
                 payload=payload,
             )
             assert child_id is not None
@@ -741,7 +740,7 @@ def test_concurrent_forks_allocate_unique_contiguous_lineage_numbers(
     assert sorted(child.version_number for child in children) == list(range(4, 4 + worker_count))
     assert all(child.lineage_id == CARROT_LINEAGE_ID for child in children)
     assert all(child.parent_version_id == CARROT_ROOT_ID for child in children)
-    assert all(child.created_by_user_id == DEMO_USER_ID for child in children)
+    assert all(child.created_by_user_id == MEMBER_USER_ID for child in children)
     assert all(
         _ingredient_values(child.ingredients) == _ingredient_values(source.ingredients)
         for child in children
@@ -764,7 +763,7 @@ def test_openapi_documents_recipe_fork_contract(fork_client: TestClient) -> None
     assert operation["responses"]["201"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/RecipeDetailResponse"
     )
-    for status_code in ("404", "422", "503"):
+    for status_code in ("401", "403", "404", "409", "422"):
         assert operation["responses"][status_code]["content"]["application/json"]["schema"][
             "$ref"
         ].endswith("/ErrorResponse")

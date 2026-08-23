@@ -1,10 +1,8 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Query, Response
 
-from app.api.demo_context import get_demo_user_or_error
-from app.api.dependencies import get_session
+from app.api.dependencies import OptionalAuthenticatedSessionDependency, SessionDependency
 from app.schemas.errors import ErrorResponse
 from app.schemas.recipes import RecipeSummary
 from app.schemas.recommendations import (
@@ -28,16 +26,11 @@ from app.services.recommendations import (
 )
 
 router = APIRouter(prefix="/recommendations")
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 RECOMMENDATION_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     422: {
         "model": ErrorResponse,
         "description": "The requested recommendation limit is invalid.",
-    },
-    503: {
-        "model": ErrorResponse,
-        "description": "The seeded demo identity is unavailable.",
     },
 }
 
@@ -49,12 +42,14 @@ RECOMMENDATION_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     summary="Get explainable baseline recommendations",
     description=(
         "Ranks recipe versions with the deterministic baseline-v1 quality, popularity, "
-        "and canonical-ingredient similarity formula for the server-selected shared demo "
-        "profile. The endpoint performs no model inference or writes."
+        "and canonical-ingredient similarity formula. Signed-out requests use the deterministic "
+        "global ranking; signed-in requests use only that member's private history."
     ),
 )
 def get_recommendations(
+    response: Response,
     session: SessionDependency,
+    authenticated: OptionalAuthenticatedSessionDependency,
     limit: Annotated[
         int,
         Query(
@@ -64,9 +59,14 @@ def get_recommendations(
         ),
     ] = 10,
 ) -> RecipeRecommendationsResponse:
-    user = get_demo_user_or_error(session)
-    result = recommend_recipe_versions(session, user.id, limit)
-    return RecipeRecommendationsResponse(
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Vary"] = "Cookie"
+    result = recommend_recipe_versions(
+        session,
+        authenticated.user_id if authenticated is not None else None,
+        limit,
+    )
+    recommendations_response = RecipeRecommendationsResponse(
         strategy=BASELINE_STRATEGY,
         personalized=result.personalized,
         weights=RecommendationWeightsResponse(
@@ -96,3 +96,5 @@ def get_recommendations(
             for item in result.items
         ],
     )
+    session.commit()
+    return recommendations_response
