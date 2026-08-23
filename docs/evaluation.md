@@ -265,8 +265,9 @@ The full candidate, ordering, caution, and metric definitions are documented in
 
 - The bundled product seed has no preference events, so it cannot establish
   recommendation quality by itself.
-- The current shared demo identity can combine multiple visitors and is not a
-  coherent account-level profile.
+- Historical Demo Cook activity can combine multiple visitors and is not a
+  coherent account-level profile. It must remain labeled legacy/demo evidence
+  rather than being transferred to or interpreted as a member's history.
 - Persistent browser and developer activity can pollute a live demo database;
   capture from an intentionally selected database and preserve the resulting
   snapshot as an immutable run input.

@@ -2,8 +2,9 @@
 
 ## Purpose and boundary
 
-`baseline-v1` is a deterministic, request-time recommender for the shared demo
-profile. It establishes the explainable reference point used by Recipe Lab's
+`baseline-v1` is a deterministic, request-time recommender with an anonymous
+global cold start and optional signed-in member personalization. It establishes
+the explainable reference point used by Recipe Lab's
 offline evaluator for every comparison model, including `content-v1`. It does
 not train a model, persist a user profile or recommendation artifact, introduce
 randomness, or depend on a clock.
@@ -14,11 +15,18 @@ short reason plus the six scoring components. The response identifies the
 strategy as `baseline-v1`, reports whether positive history personalized the
 ranking, and publishes the weights and quality prior it used. The read uses the
 existing catalog, current saves and ratings, and the privacy-bounded preference
-events; it does not collect or return additional personal data.
+events. A signed-in request reads only that member's private history. A
+signed-out request reads no personal history and sets `personalized` to false;
+it does not create anonymous tracking or return additional personal data.
 
 `limit` defaults to 10 and accepts values from 1 through 50. An invalid value
-returns the standard HTTP 422 error envelope; a database without the seeded demo
-identity returns the documented HTTP 503 response.
+returns the standard HTTP 422 error envelope. Public cold-start requests do not
+depend on the seeded Demo Cook identity.
+
+Because the same URL may vary by the private member session, the API marks every
+recommendation response `private, no-store` and varies it by cookie. No
+recommendation result is embedded in a shared cache or public server-rendered
+page, and this story adds no recommendation UI.
 
 The endpoint is API-only in this milestone. It does not add a frontend surface,
 a database migration, or an offline training job. The separate offline harness
@@ -67,11 +75,11 @@ These weights make smoothed rating quality the primary signal while still
 recognizing deliberate saves, forks, and views in descending order of
 strength.
 
-## Demo-history personalization
+## Member-history personalization
 
 Personalization is a bounded ingredient-similarity boost, not a learned content
-model. The server builds history anchors for the shared demo profile from
-existing product state and events:
+model. When a valid member session is present, the server builds history
+anchors from only that member's existing product state and events:
 
 | Positive history signal | Strength |
 | --- | ---: |
@@ -103,8 +111,8 @@ P(c) = max over history anchors h of strength(h) * J(c, h)
 ```
 
 If there is no positive history, `P` is unavailable and the request uses the
-cold-start rule. Exact recipe versions already interacted with by the demo
-profile are excluded from the returned candidates; their ingredients may still
+cold-start rule. Exact recipe versions already interacted with by the current
+member are excluded from the returned candidates; their ingredients may still
 act as history anchors. This favors novel versions without treating one
 version's activity as activity on its lineage relatives.
 
@@ -131,17 +139,20 @@ same database snapshot and limit therefore produce the same order and scores.
 There is no random shuffle, time window, or time-decay term.
 
 Reasons are short deterministic summaries of the ranking signal. A
-personalized item identifies ingredient similarity to demo-profile activity;
-otherwise the reason identifies global rating or support evidence. A catalog
-with no support still produces a stable Bayesian-prior fallback rather than an
-arbitrary order. Reasons do not expose user IDs or raw event history.
+personalized item identifies ingredient similarity to the signed-in member's
+activity; otherwise the reason identifies global rating or support evidence. A
+catalog with no support still produces a stable Bayesian-prior fallback rather
+than an arbitrary order. Reasons do not expose user IDs or raw event history.
 
 ## Known limitations
 
-The current identity is one shared demo profile, so its history and resulting
-personalization are shared by every visitor. `baseline-v1` is suitable as an
-explainable product and evaluation baseline, not as evidence of account-level
-personalization quality. It deliberately has no recency model, popularity
+Member histories are isolated, but the available real-account cohort and
+outcome evidence remain insufficient to claim that personalization improves
+recommendation quality. Legacy Demo Cook activity may still contribute to the
+same aggregate popularity and rating signals as other historical activity, but
+it is never used as a member's personal history or transferred to an account.
+`baseline-v1` remains an explainable product and evaluation baseline. It
+deliberately has no recency model, popularity
 dampening, semantic ingredient representation, collaborative signal, or
 training pipeline. The [offline evaluation harness](evaluation.md) measures it
 with a fixed-cutoff protocol and compares it with the

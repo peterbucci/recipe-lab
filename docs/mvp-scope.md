@@ -16,13 +16,13 @@ variant, and compared with its parent in a way that is useful to a cook.
 - Timestamped view, save, rating, and fork events with typed context and no
   unnecessary personal or free-form tracking data.
 - A lineage view for related variants.
-- A clearly scoped shared demo identity for user actions; real authentication
-  only when distinct accounts become necessary.
+- Anonymous public recipe browsing, plus authenticated member ownership for
+  save, rating, recorded-view, and fork actions.
 
 ## Explicitly deferred
 
-- Online learned serving, account-scoped recipe activity and publishing, and
-  frontend recommendation experiences.
+- Online learned serving, original recipe publishing, public cook profiles,
+  and frontend recommendation experiences.
 - Automated substitution suggestions in the API or frontend. An offline rules
   benchmark may be developed after the MVP without joining its request path.
 - Social feeds, comments, and following.
@@ -52,11 +52,14 @@ milestone. Anonymous recipe reads remain available. Catalog Author and Demo
 Cook become explicit non-login identities, and no shared demo activity is
 claimed by a registering member.
 
-This foundation is not the account-principal cutover. Recipe views, saves,
-ratings, forks, and online recommendations continue to use the visibly shared
-Demo Cook until RCP-24 changes their authorization and data ownership together.
-RCP-23 also adds no recipe publishing, public cook profile, password database,
-social linking, or deployment gate. See
+RCP-24 completes the account-principal cutover for current actions. Recipe
+views, saves, ratings, and forks require an active onboarded member session,
+trusted Origin, and bound CSRF token; public recipe reads remain anonymous.
+Recommendation requests use only the current member's private history when
+signed in and a deterministic global cold start when signed out. No legacy Demo
+Cook activity is transferred to a member, and the shared-demo runtime identity
+route is removed. RCP-23 and RCP-24 add no original recipe publishing, public
+cook profile, password database, social linking, or deployment gate. See
 [account authentication and sessions](authentication.md).
 
 ## Post-MVP signal baseline
@@ -64,13 +67,13 @@ social linking, or deployment gate. See
 RCP-15 adds a read-only, explainable recommendation API after the M1 boundary.
 It ranks recipe versions with deterministic Bayesian quality and normalized
 support signals, then applies a bounded canonical-ingredient match when the
-shared demo profile has positive history. It does not change the M1 browser
-journey or add a frontend recommendation surface, authentication, training,
-or a learned model. RCP-16 adds a separate offline evaluator with a fixed-cutoff
-split, full-catalog metrics, mandatory baseline comparison, and reproducible
-reports. RCP-17 adds the evaluator-only `content-v1` model, which uses structured
-recipe features and signed preference profiles with deterministic cold-start
-behavior. RCP-18A adds an event-free catalog fixture, a deterministic synthetic
+signed-in member has positive history. Signed-out requests use the global
+cold-start ranking. It does not add a frontend recommendation surface,
+training, or a learned model. RCP-16 adds a separate offline evaluator with a
+fixed-cutoff split, full-catalog metrics, mandatory baseline comparison, and
+reproducible reports. RCP-17 adds the evaluator-only `content-v1` model, which
+uses structured recipe features and signed preference profiles with
+deterministic cold-start behavior. RCP-18A adds an event-free catalog fixture, a deterministic synthetic
 preference cohort, and an aggregate structural-readiness gate. RCP-18 adds the
 opt-in, evaluator-only `collaborative-v1` user-neighborhood model, which refuses
 to fit through the CLI until that gate passes and uses `content-v1` when local
