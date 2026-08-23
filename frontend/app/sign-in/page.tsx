@@ -1,0 +1,53 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+
+import { safeReturnTo, signInHref } from "../../lib/auth-api";
+
+export const metadata: Metadata = {
+  title: "Sign in",
+  description: "Sign in securely to set up your Recipe Lab account.",
+};
+
+interface SignInPageProps {
+  searchParams: Promise<{ return_to?: string | string[] }>;
+}
+
+export default async function SignInPage({ searchParams }: SignInPageProps) {
+  const query = await searchParams;
+  const requestedReturnTo = Array.isArray(query.return_to)
+    ? query.return_to[0]
+    : query.return_to;
+  const returnTo = safeReturnTo(requestedReturnTo);
+
+  return (
+    <main id="main-content" className="auth-page">
+      <section className="auth-card" aria-labelledby="sign-in-title">
+        <p className="eyebrow">Your account</p>
+        <h1 id="sign-in-title">Sign in to Recipe Lab</h1>
+        <p className="lede">
+          Set up an account now so Recipe Lab can recognize you. You can still browse every
+          public recipe without an account.
+        </p>
+        <div className="auth-card__notice">
+          <strong>The demo is still shared.</strong>
+          <p>
+            Until the next account story, saves, ratings, views, and recipe versions continue
+            to use the shared Demo Cook profile—even while you’re signed in.
+          </p>
+        </div>
+        <div className="button-row auth-card__actions">
+          <a className="button button--primary" href={signInHref(returnTo)}>
+            Continue to sign in
+          </a>
+          <Link className="button button--secondary" href="/recipes">
+            Keep browsing
+          </Link>
+        </div>
+        <p className="auth-card__fine-print">
+          Sign-in credentials are handled by the identity provider. Recipe Lab receives only
+          the account identity needed to set up your account.
+        </p>
+      </section>
+    </main>
+  );
+}

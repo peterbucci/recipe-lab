@@ -70,16 +70,8 @@ export class VariantApiError extends Error {
   }
 }
 
-function apiBaseUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-  return configured.trim().replace(/\/+$/, "");
-}
-
-function variantUrl(sourceRecipeVersionId: string): URL {
-  return new URL(
-    `/api/recipes/${encodeURIComponent(sourceRecipeVersionId)}/variants`,
-    `${apiBaseUrl()}/`,
-  );
+function variantUrl(sourceRecipeVersionId: string): string {
+  return `/api/recipes/${encodeURIComponent(sourceRecipeVersionId)}/variants`;
 }
 
 function isErrorPayload(value: unknown): value is ApiErrorPayload {

@@ -1,0 +1,38 @@
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+
+import SignInPage from "./page";
+
+describe("SignInPage", () => {
+  it("keeps anonymous browsing available and explains the shared-demo boundary", async () => {
+    render(
+      await SignInPage({
+        searchParams: Promise.resolve({ return_to: "/recipes?q=carrot" }),
+      }),
+    );
+
+    expect(screen.getByRole("heading", { name: "Sign in to Recipe Lab" })).toBeVisible();
+    expect(screen.getByText("The demo is still shared.")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Continue to sign in" })).toHaveAttribute(
+      "href",
+      "/api/auth/login?return_to=%2Frecipes%3Fq%3Dcarrot",
+    );
+    expect(screen.getByRole("link", { name: "Keep browsing" })).toHaveAttribute(
+      "href",
+      "/recipes",
+    );
+  });
+
+  it("does not put an external return destination into the login URL", async () => {
+    render(
+      await SignInPage({
+        searchParams: Promise.resolve({ return_to: "https://malicious.example/steal" }),
+      }),
+    );
+
+    expect(screen.getByRole("link", { name: "Continue to sign in" })).toHaveAttribute(
+      "href",
+      "/api/auth/login?return_to=%2Frecipes",
+    );
+  });
+});

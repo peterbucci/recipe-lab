@@ -16,9 +16,10 @@ though a single recipe-version snapshot is immutable. Client code is reserved
 for retrying error boundaries, a narrow save/rating panel, the structured
 variant editor, and an invisible detail-view tracker. Server components read
 through `RECIPE_API_URL`; client actions write directly to FastAPI through
-`NEXT_PUBLIC_API_URL`. Rating writes refresh the server-rendered aggregate
-after success. Local CORS configuration permits the exact `localhost` and
-`127.0.0.1` development origins.
+the same-origin Next.js `/api` proxy, which forwards to `RECIPE_API_URL`.
+Rating writes refresh the server-rendered aggregate after success. Local CORS
+configuration permits the exact `localhost` and `127.0.0.1` development
+origins.
 
 Each event-producing browser action generates an opaque UUID and retains it
 while retrying the same desired save state, rating value, or validated fork
@@ -92,6 +93,21 @@ from remove-and-add. The API exposes a documented deterministic inference, not
 operation-history replay. Persisted row provenance would be a separate schema
 and migration decision if exact edit-intent reconstruction becomes necessary.
 
+Account authentication is a separate boundary from the recipe interaction
+principal. A same-origin Next.js proxy carries browser requests to the API. The
+API performs hosted OpenID Connect discovery, Authorization Code exchange with
+PKCE, and strict ID-token validation, then resolves one local member by exact
+provider issuer and subject. The browser receives only a high-entropy opaque
+Recipe Lab session cookie; the database stores its digest. A separate
+session-bound CSRF token plus exact Origin validation protects account
+mutations. Provider tokens, provider subject, and private email do not cross the
+public session boundary. See [account authentication and
+sessions](authentication.md).
+
+RCP-23 deliberately does not change recipe-action ownership. A signed-in member
+can manage only the account session and onboarding profile in this slice; the
+following demo interaction path remains in place until RCP-24.
+
 The API, not the client, selects a deterministic interaction-only demo user.
 View, save, rating, and fork actions require an opaque UUID key but never accept
 a user ID, event type, timestamp, or context body from the browser. The API
@@ -126,6 +142,14 @@ identifiers. The full formula is recorded in
 
 PostgreSQL is the system of record. SQLAlchemy 2.x provides persistence and
 Alembic provides ordered, reviewable schema migrations.
+
+The user record distinguishes member, system, and demo accounts and tracks
+active, suspended, and deleted status. OIDC identities store the private exact
+issuer/subject binding separately from the public account fields. Login
+transactions hold one-time state/nonce/PKCE material with short expirations;
+session rows hold only session and CSRF digests, lifecycle timestamps, and the
+member foreign key. Catalog Author and Demo Cook are seeded as non-login
+identities, and no migration transfers their existing activity to a member.
 
 Each `recipe_lineages` row groups an original recipe and all of its variants.
 Every `recipe_versions` row is an append-oriented snapshot with a direct parent
@@ -319,16 +343,16 @@ and limitations.
 ## Initial request path
 
 ```text
-Server-rendered read: Browser -> Next.js -> FastAPI -> SQLAlchemy -> PostgreSQL
-Demo interaction:     Browser ----------> FastAPI -> SQLAlchemy -> PostgreSQL
-Variant creation:     Browser ----------> FastAPI -> SQLAlchemy -> PostgreSQL
-Version comparison:   Browser -> Next.js -> FastAPI -> SQLAlchemy -> PostgreSQL
-Recommendation read:  API client -------> FastAPI -> SQLAlchemy -> PostgreSQL
-Offline evaluation:   Snapshot file ----> Evaluator -> Canonical JSON report
-Data readiness:       Catalog fixture --> Simulator -> Snapshot -> Readiness report
-Collaborative run:     Ready snapshot ---> Gate -> CF/content/baseline report
-Hybrid run:            Ready snapshot ---> Gate -> Hybrid/CF/content/baseline report
-Substitution rules:    Benchmark file --> Direct-edge rules -> Aggregate report
+Server-rendered read: Browser -> Next.js ---------> FastAPI -> PostgreSQL
+Browser API action:   Browser -> Next.js /api ----> FastAPI -> PostgreSQL
+Account login:        Browser -> Next.js /api ----> FastAPI <-> OIDC provider
+                                                    |
+                                                    +-------> PostgreSQL
+Offline evaluation:  Snapshot file --------------> Evaluator -> JSON report
+Data readiness:      Catalog fixture -> Simulator -> Snapshot -> Readiness report
+Collaborative run:   Ready snapshot -> Gate -> CF/content/baseline report
+Hybrid run:          Ready snapshot -> Gate -> Hybrid/CF/content/baseline report
+Substitution rules:  Benchmark file -> Direct-edge rules -> Aggregate report
 ```
 
 `content-v1`, `collaborative-v1`, `hybrid-v1`, `substitution-rules-v1`, the

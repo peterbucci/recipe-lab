@@ -17,6 +17,8 @@ DOMAIN_TABLES = {
     "ingredient_dietary_flags",
     "ingredient_substitutions",
     "ingredients",
+    "oidc_identities",
+    "oidc_login_transactions",
     "preference_events",
     "recipe_lineages",
     "recipe_ratings",
@@ -25,6 +27,7 @@ DOMAIN_TABLES = {
     "recipe_version_instructions",
     "recipe_versions",
     "users",
+    "user_sessions",
 }
 
 INGREDIENT_TABLES = {
@@ -173,3 +176,68 @@ def test_ingredient_migration_backfills_legacy_recipe_rows(
             sa.text("SELECT ingredient_id FROM recipe_version_ingredients")
         ).scalars()
         assert all(isinstance(ingredient_id, UUID) for ingredient_id in reupgraded_rows)
+
+
+def test_secure_account_migration_classifies_seed_users_without_rekeying(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    catalog_author_id = UUID("16746db2-8776-5937-856c-252b72442671")
+    demo_cook_id = UUID("1fc5b3b8-cf73-54ce-b5d6-ed3c30df9fd9")
+    member_id = uuid4()
+
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260821_0004")
+
+        legacy_users = sa.Table("users", sa.MetaData(), autoload_with=connection)
+        connection.execute(
+            legacy_users.insert(),
+            [
+                {
+                    "id": catalog_author_id,
+                    "email": "demo-catalog@recipe-lab.invalid",
+                    "display_name": "Recipe Lab Demo Catalog",
+                },
+                {
+                    "id": demo_cook_id,
+                    "email": "demo-cook@recipe-lab.invalid",
+                    "display_name": "Demo Cook",
+                },
+                {
+                    "id": member_id,
+                    "email": "member@example.com",
+                    "display_name": "Existing Member",
+                },
+            ],
+        )
+
+        command.upgrade(alembic_config, "head")
+
+        users = sa.Table("users", sa.MetaData(), autoload_with=connection)
+        rows = {
+            row.id: row
+            for row in connection.execute(
+                sa.select(
+                    users.c.id,
+                    users.c.email,
+                    users.c.account_kind,
+                    users.c.status,
+                    users.c.created_at,
+                    users.c.updated_at,
+                )
+            )
+        }
+        assert rows[catalog_author_id].account_kind == "system"
+        assert rows[demo_cook_id].account_kind == "demo"
+        assert rows[member_id].account_kind == "member"
+        assert all(row.status == "active" for row in rows.values())
+        assert all(row.updated_at == row.created_at for row in rows.values())
+
+        connection.execute(
+            users.insert().values(
+                id=uuid4(),
+                email=rows[member_id].email,
+                display_name="Same Email, Different Identity",
+            )
+        )

@@ -69,13 +69,11 @@ function createdRecipe(): RecipeDetail {
 }
 
 afterEach(() => {
-  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
 
 describe("variant API client", () => {
   it("posts the exact structured fork request and returns the created detail", async () => {
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://api.example.test/");
     const created = createdRecipe();
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(JSON.stringify(created), {
@@ -91,7 +89,7 @@ describe("variant API client", () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledWith(
-      new URL("http://api.example.test/api/recipes/29454eba%2F3a4e%3F5380/variants"),
+      "/api/recipes/29454eba%2F3a4e%3F5380/variants",
       {
         method: "POST",
         cache: "no-store",
@@ -114,7 +112,6 @@ describe("variant API client", () => {
   });
 
   it("preserves the backend error status, code, and safe message", async () => {
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://api.example.test");
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(

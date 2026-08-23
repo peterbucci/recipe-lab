@@ -283,6 +283,7 @@ test("persists shared demo saves and rating updates", async ({ page, request }) 
 
   try {
     recipeVersionId = await openCarrotRoot(page);
+    const recipeArticle = page.getByRole("article");
     await expectApiSuccess(
       request.delete(saveUrl(recipeVersionId), { headers: actionHeaders() }),
       "Initial save normalization",
@@ -321,16 +322,24 @@ test("persists shared demo saves and rating updates", async ({ page, request }) 
       page.getByText("Demo Cook’s rating is now 4 out of 5.", { exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByText("Demo Cook’s current rating is 4 out of 5.", { exact: true }),
+      recipeArticle.getByText("Demo Cook’s current rating is 4 out of 5.", {
+        exact: true,
+      }),
     ).toBeVisible();
-    await expect(page.getByLabel("4.0 out of 5 from 1 rating", { exact: true })).toBeVisible();
+    await expect(
+      recipeArticle.getByLabel("4.0 out of 5 from 1 rating", { exact: true }),
+    ).toBeVisible();
 
     await page.reload();
     await expect(page.getByRole("radio", { name: "4 stars", exact: true })).toBeChecked();
     await expect(
-      page.getByText("Demo Cook’s current rating is 4 out of 5.", { exact: true }),
+      recipeArticle.getByText("Demo Cook’s current rating is 4 out of 5.", {
+        exact: true,
+      }),
     ).toBeVisible();
-    await expect(page.getByLabel("4.0 out of 5 from 1 rating", { exact: true })).toBeVisible();
+    await expect(
+      recipeArticle.getByLabel("4.0 out of 5 from 1 rating", { exact: true }),
+    ).toBeVisible();
 
     await page.getByRole("radio", { name: "5 stars", exact: true }).check();
     await page.getByRole("button", { name: "Update rating", exact: true }).click();
@@ -338,16 +347,24 @@ test("persists shared demo saves and rating updates", async ({ page, request }) 
       page.getByText("Demo Cook’s rating is now 5 out of 5.", { exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByText("Demo Cook’s current rating is 5 out of 5.", { exact: true }),
+      recipeArticle.getByText("Demo Cook’s current rating is 5 out of 5.", {
+        exact: true,
+      }),
     ).toBeVisible();
-    await expect(page.getByLabel("5.0 out of 5 from 1 rating", { exact: true })).toBeVisible();
+    await expect(
+      recipeArticle.getByLabel("5.0 out of 5 from 1 rating", { exact: true }),
+    ).toBeVisible();
 
     await page.reload();
     await expect(page.getByRole("radio", { name: "5 stars", exact: true })).toBeChecked();
     await expect(
-      page.getByText("Demo Cook’s current rating is 5 out of 5.", { exact: true }),
+      recipeArticle.getByText("Demo Cook’s current rating is 5 out of 5.", {
+        exact: true,
+      }),
     ).toBeVisible();
-    await expect(page.getByLabel("5.0 out of 5 from 1 rating", { exact: true })).toBeVisible();
+    await expect(
+      recipeArticle.getByLabel("5.0 out of 5 from 1 rating", { exact: true }),
+    ).toBeVisible();
   } finally {
     if (recipeVersionId) {
       await expectApiSuccess(

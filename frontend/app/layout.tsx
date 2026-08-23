@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import {
+  AuthSessionProvider,
+  SessionRecoveryNotice,
+} from "./components/auth-session-provider";
 import { SiteHeader } from "./components/site-header";
 import "./globals.css";
 
@@ -19,16 +23,19 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <a className="skip-link" href="#main-content">
           Skip to content
         </a>
-        <aside className="public-demo-notice" aria-label="Public demo notice">
-          <div className="public-demo-notice__inner">
-            <strong>Public demo</strong>
-            <span>
-              Saves, ratings, views, and versions created here are shared between visitors.
-            </span>
-          </div>
-        </aside>
-        <SiteHeader />
-        {children}
+        <AuthSessionProvider>
+          <aside className="public-demo-notice" aria-label="Public demo notice">
+            <div className="public-demo-notice__inner">
+              <strong>Public demo</strong>
+              <span>
+                Saves, ratings, views, and versions created here are shared between visitors.
+              </span>
+            </div>
+          </aside>
+          <SessionRecoveryNotice />
+          <SiteHeader />
+          {children}
+        </AuthSessionProvider>
         <footer className="site-footer">
           <p>Recipe Lab · Explore recipes and compare versions.</p>
         </footer>

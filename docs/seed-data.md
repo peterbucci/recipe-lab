@@ -32,6 +32,12 @@ shared MVP interactions exists. That identity is separate from the catalog
 author, has a fixed application-owned ID, and is not part of the CC0 recipe
 assets. Rerunning the loader preserves its saves and ratings.
 
+RCP-23 classifies Catalog Author as a non-login `system` account and Demo Cook
+as a non-login `demo` account. Neither can be linked to an OIDC identity or
+claimed by a member. Seed reruns preserve their existing recipe and interaction
+history and verify their application-owned classification and display metadata
+rather than transferring or silently rewriting either identity.
+
 The loader can reuse a canonical ingredient that predates this catalog, even
 when that row has a different UUID. Recipe rows reference the actual canonical
 ingredient ID, which keeps migration-created and user-created catalog entries
