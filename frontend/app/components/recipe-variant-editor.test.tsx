@@ -189,6 +189,9 @@ describe("RecipeVariantEditor", () => {
     ).toBeInTheDocument();
     expect(within(form).getByRole("group", { name: /^ingredients$/i })).toBeInTheDocument();
     expect(within(form).getByRole("group", { name: /^instructions$/i })).toBeInTheDocument();
+    expect(
+      within(form).getByText(/every published ingredient must match an existing catalog/i),
+    ).toBeInTheDocument();
     expect(within(form).getByLabelText(/^title$/i)).toHaveValue(
       "Carrot Walnut Snack Cake variation",
     );
@@ -497,7 +500,7 @@ describe("RecipeVariantEditor", () => {
   it("preserves the draft and stays on the editor after a backend 422", async () => {
     vi.mocked(createRecipeVariant).mockRejectedValue(
       new VariantApiError(
-        'Ingredient "Dragon fruit" is not in the catalog.',
+        'Ingredient "Dragon fruit" is not in the curated catalog and cannot be published.',
         422,
         "invalid_recipe_edits",
       ),
@@ -514,7 +517,9 @@ describe("RecipeVariantEditor", () => {
 
     const alert = await screen.findByRole("alert");
     expect(
-      within(alert).getByText('Ingredient "Dragon fruit" is not in the catalog.'),
+      within(alert).getByText(
+        'Ingredient "Dragon fruit" is not in the curated catalog and cannot be published.',
+      ),
     ).toBeInTheDocument();
     expect(title).toHaveValue("Tropical carrot cake");
     expect(replacement).toHaveValue("Dragon fruit");

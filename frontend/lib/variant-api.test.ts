@@ -121,7 +121,8 @@ describe("variant API client", () => {
           JSON.stringify({
             error: {
               code: "invalid_recipe_edits",
-              message: 'Ingredient "Dragon fruit" is not in the catalog.',
+              message:
+                'Ingredient "Dragon fruit" is not in the curated catalog and cannot be published.',
               issues: [],
             },
           }),
@@ -138,7 +139,8 @@ describe("variant API client", () => {
     expect(error).toMatchObject({
       status: 422,
       code: "invalid_recipe_edits",
-      message: 'Ingredient "Dragon fruit" is not in the catalog.',
+      message:
+        'Ingredient "Dragon fruit" is not in the curated catalog and cannot be published.',
     });
   });
 
