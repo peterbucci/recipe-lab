@@ -72,18 +72,29 @@ Origin evidence for mutations, and a row in `catalog_curators`. The grant is
 narrow: it authorizes ingredient-catalog review only and is never inferred from
 an email address, handle, or account creation order.
 
-An operator grants access by stable user ID after verifying the intended
-member:
+An operator with backend database credentials grants or revokes access by the
+member's stable UUID. Granting requires the target to exist as an active,
+onboarded member. The optional granting-member UUID records who authorized the
+change; omit it for an initial operator-managed grant:
 
-```sql
-INSERT INTO catalog_curators (user_id, granted_by_user_id)
-VALUES ('member-uuid', 'granting-member-uuid')
-ON CONFLICT (user_id) DO NOTHING;
+```powershell
+cd backend
+python -m app.catalog_curators grant --user-id <member-uuid>
+python -m app.catalog_curators grant --user-id <member-uuid> --granted-by-user-id <grantor-uuid>
+python -m app.catalog_curators revoke --user-id <member-uuid>
 ```
 
-For an initial operator-managed grant, `granted_by_user_id` may be null. Revoke
-the grant by deleting only that member's row from `catalog_curators`; existing
-request decisions and audit evidence remain protected by their foreign keys.
+The installed `recipe-lab-curator` command accepts the same `grant` and
+`revoke` arguments. Both operations are idempotent: repeating an existing grant
+or an already completed revocation exits successfully without changing data.
+Revocation remains available after a member is suspended or otherwise becomes
+ineligible, and it leaves existing request decisions and append-only audit
+evidence intact.
+
+These commands use the configured `DATABASE_URL` and are the only supported
+role-management interface. The application exposes no HTTP self-promotion or
+general administration route, and email, handle, or account order never imply
+curator access.
 
 Curators use the private, paginated `GET /api/ingredient-requests` queue and
 `POST /api/ingredient-requests/{request_id}/review`. Approval accepts only a

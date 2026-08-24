@@ -1,4 +1,8 @@
-import { memberMutationHeaders, notifySessionExpired } from "./auth-api";
+import {
+  type ApiValidationIssue,
+  memberMutationHeaders,
+  notifySessionExpired,
+} from "./auth-api";
 
 export interface CatalogIngredient {
   id: string;
@@ -20,16 +24,86 @@ export interface CatalogIngredientSelection {
   displayName: string;
 }
 
+export type IngredientCatalogRequestStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "duplicate";
+
 export interface MissingIngredientRequest {
   id: string;
   proposed_name: string;
   context: string | null;
-  status: "pending" | "approved" | "rejected" | "duplicate";
+  status: IngredientCatalogRequestStatus;
   created_at: string;
   reviewed_at: string | null;
   decision_reason: string | null;
   resolved_ingredient_id: string | null;
 }
+
+export interface IngredientCatalogReviewItem extends MissingIngredientRequest {
+  updated_at: string;
+  requester_user_id: string;
+  reviewer_user_id: string | null;
+  duplicate_of_request_id: string | null;
+  approved_canonical_name: string | null;
+  approved_aliases: string[] | null;
+  approval_provenance: string | null;
+}
+
+export interface IngredientCatalogReviewPage {
+  items: IngredientCatalogReviewItem[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+}
+
+export interface IngredientCatalogRequester {
+  id: string;
+  handle: string | null;
+  display_name: string;
+}
+
+export interface IngredientCatalogRequestCandidate {
+  id: string;
+  proposed_name: string;
+  status: "pending" | "approved";
+  created_at: string;
+  resolved_ingredient_id: string | null;
+  approved_canonical_name: string | null;
+}
+
+export interface IngredientCatalogReviewDetail extends IngredientCatalogReviewItem {
+  requester: IngredientCatalogRequester;
+  catalog_candidates: CatalogIngredient[];
+  request_candidates: IngredientCatalogRequestCandidate[];
+}
+
+export interface ApproveIngredientCatalogRequestInput {
+  decision: "approve";
+  canonical_name: string;
+  aliases: string[];
+  reason: string;
+  provenance: string;
+}
+
+export interface RejectIngredientCatalogRequestInput {
+  decision: "reject";
+  reason: string;
+}
+
+export interface DuplicateIngredientCatalogRequestInput {
+  decision: "duplicate";
+  reason: string;
+  ingredient_id: string | null;
+  request_id: string | null;
+}
+
+export type IngredientCatalogReviewInput =
+  | ApproveIngredientCatalogRequestInput
+  | RejectIngredientCatalogRequestInput
+  | DuplicateIngredientCatalogRequestInput;
 
 export interface MissingIngredientRequestInput {
   proposed_name: string;
@@ -40,18 +114,26 @@ interface ApiErrorPayload {
   error?: {
     code?: unknown;
     message?: unknown;
+    issues?: unknown;
   };
 }
 
 export class IngredientCatalogApiError extends Error {
   readonly status: number;
   readonly code: string;
+  readonly issues: ApiValidationIssue[];
 
-  constructor(message: string, status: number, code = "ingredient_catalog_api_error") {
+  constructor(
+    message: string,
+    status: number,
+    code = "ingredient_catalog_api_error",
+    issues: ApiValidationIssue[] = [],
+  ) {
     super(message);
     this.name = "IngredientCatalogApiError";
     this.status = status;
     this.code = code;
+    this.issues = issues;
   }
 }
 
@@ -68,6 +150,23 @@ function isUuid(value: unknown): value is string {
 
 function isBoundedText(value: unknown, maxLength: number): value is string {
   return typeof value === "string" && value.trim().length > 0 && value.length <= maxLength;
+}
+
+function isNullableUuid(value: unknown): value is string | null {
+  return value === null || isUuid(value);
+}
+
+function isNullableBoundedText(value: unknown, maxLength: number): value is string | null {
+  return value === null || isBoundedText(value, maxLength);
+}
+
+function isCatalogRequestStatus(value: unknown): value is IngredientCatalogRequestStatus {
+  return (
+    value === "pending" ||
+    value === "approved" ||
+    value === "rejected" ||
+    value === "duplicate"
+  );
 }
 
 function parseCatalogIngredient(value: unknown): CatalogIngredient | null {
@@ -130,14 +229,12 @@ function parseCatalogPage(value: unknown): CatalogIngredientPage {
 }
 
 function parseMissingIngredientRequest(value: unknown): MissingIngredientRequest {
-  const statuses = new Set(["pending", "approved", "rejected", "duplicate"]);
   if (
     !isRecord(value) ||
     !isUuid(value.id) ||
     !isBoundedText(value.proposed_name, 200) ||
     (value.context !== null && typeof value.context !== "string") ||
-    typeof value.status !== "string" ||
-    !statuses.has(value.status) ||
+    !isCatalogRequestStatus(value.status) ||
     typeof value.created_at !== "string" ||
     (value.reviewed_at !== null && typeof value.reviewed_at !== "string") ||
     (value.decision_reason !== null && typeof value.decision_reason !== "string") ||
@@ -154,11 +251,159 @@ function parseMissingIngredientRequest(value: unknown): MissingIngredientRequest
     id: value.id,
     proposed_name: value.proposed_name,
     context: value.context,
-    status: value.status as MissingIngredientRequest["status"],
+    status: value.status,
     created_at: value.created_at,
     reviewed_at: value.reviewed_at,
     decision_reason: value.decision_reason,
     resolved_ingredient_id: value.resolved_ingredient_id,
+  };
+}
+
+function parseReviewItem(value: unknown): IngredientCatalogReviewItem {
+  const request = parseMissingIngredientRequest(value);
+  if (
+    !isRecord(value) ||
+    typeof value.updated_at !== "string" ||
+    !isUuid(value.requester_user_id) ||
+    !isNullableUuid(value.reviewer_user_id) ||
+    !isNullableUuid(value.duplicate_of_request_id) ||
+    !isNullableBoundedText(value.approved_canonical_name, 200) ||
+    (value.approved_aliases !== null &&
+      (!Array.isArray(value.approved_aliases) ||
+        !value.approved_aliases.every((alias) => isBoundedText(alias, 200)))) ||
+    !isNullableBoundedText(value.approval_provenance, 1_000)
+  ) {
+    throw new IngredientCatalogApiError(
+      "Recipe Lab received an invalid ingredient review response.",
+      502,
+      "invalid_ingredient_review_response",
+    );
+  }
+
+  return {
+    ...request,
+    updated_at: value.updated_at,
+    requester_user_id: value.requester_user_id,
+    reviewer_user_id: value.reviewer_user_id,
+    duplicate_of_request_id: value.duplicate_of_request_id,
+    approved_canonical_name: value.approved_canonical_name,
+    approved_aliases: value.approved_aliases as string[] | null,
+    approval_provenance: value.approval_provenance,
+  };
+}
+
+function parseReviewPage(value: unknown): IngredientCatalogReviewPage {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.items) ||
+    !Number.isInteger(value.page) ||
+    !Number.isInteger(value.page_size) ||
+    !Number.isInteger(value.total) ||
+    !Number.isInteger(value.total_pages)
+  ) {
+    throw new IngredientCatalogApiError(
+      "Recipe Lab received an invalid ingredient review queue.",
+      502,
+      "invalid_ingredient_review_response",
+    );
+  }
+
+  const items = value.items.map(parseReviewItem);
+  if (
+    (value.page as number) < 1 ||
+    (value.page_size as number) < 1 ||
+    (value.page_size as number) > 100 ||
+    (value.total as number) < 0 ||
+    (value.total_pages as number) < 0
+  ) {
+    throw new IngredientCatalogApiError(
+      "Recipe Lab received an invalid ingredient review queue.",
+      502,
+      "invalid_ingredient_review_response",
+    );
+  }
+
+  return {
+    items,
+    page: value.page as number,
+    page_size: value.page_size as number,
+    total: value.total as number,
+    total_pages: value.total_pages as number,
+  };
+}
+
+function parseRequester(value: unknown): IngredientCatalogRequester | null {
+  if (
+    !isRecord(value) ||
+    !isUuid(value.id) ||
+    !isBoundedText(value.display_name, 120) ||
+    (value.handle !== null && !isBoundedText(value.handle, 30))
+  ) {
+    return null;
+  }
+  return {
+    id: value.id,
+    display_name: value.display_name,
+    handle: value.handle,
+  };
+}
+
+function parseRequestCandidate(value: unknown): IngredientCatalogRequestCandidate | null {
+  if (
+    !isRecord(value) ||
+    !isUuid(value.id) ||
+    !isBoundedText(value.proposed_name, 200) ||
+    (value.status !== "pending" && value.status !== "approved") ||
+    typeof value.created_at !== "string" ||
+    !isNullableUuid(value.resolved_ingredient_id) ||
+    !isNullableBoundedText(value.approved_canonical_name, 200)
+  ) {
+    return null;
+  }
+  return {
+    id: value.id,
+    proposed_name: value.proposed_name,
+    status: value.status,
+    created_at: value.created_at,
+    resolved_ingredient_id: value.resolved_ingredient_id,
+    approved_canonical_name: value.approved_canonical_name,
+  };
+}
+
+function parseReviewDetail(value: unknown): IngredientCatalogReviewDetail {
+  const request = parseReviewItem(value);
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.catalog_candidates) ||
+    value.catalog_candidates.length > 10 ||
+    !Array.isArray(value.request_candidates) ||
+    value.request_candidates.length > 10
+  ) {
+    throw new IngredientCatalogApiError(
+      "Recipe Lab received an invalid ingredient review detail.",
+      502,
+      "invalid_ingredient_review_response",
+    );
+  }
+  const requester = parseRequester(value.requester);
+  const catalogCandidates = value.catalog_candidates.map(parseCatalogIngredient);
+  const requestCandidates = value.request_candidates.map(parseRequestCandidate);
+  if (
+    requester === null ||
+    catalogCandidates.some((candidate) => candidate === null) ||
+    requestCandidates.some((candidate) => candidate === null)
+  ) {
+    throw new IngredientCatalogApiError(
+      "Recipe Lab received an invalid ingredient review detail.",
+      502,
+      "invalid_ingredient_review_response",
+    );
+  }
+  return {
+    ...request,
+    requester,
+    catalog_candidates: catalogCandidates as CatalogIngredient[],
+    request_candidates: requestCandidates as IngredientCatalogRequestCandidate[],
   };
 }
 
@@ -172,6 +417,7 @@ async function apiError(
 ): Promise<IngredientCatalogApiError> {
   let message = fallback;
   let code = "ingredient_catalog_api_error";
+  let issues: ApiValidationIssue[] = [];
 
   try {
     const payload: unknown = await response.json();
@@ -182,12 +428,34 @@ async function apiError(
       if (typeof payload.error.code === "string") {
         code = payload.error.code;
       }
+      if (Array.isArray(payload.error.issues)) {
+        issues = payload.error.issues.flatMap((issue) => {
+          if (
+            !isRecord(issue) ||
+            !Array.isArray(issue.location) ||
+            !issue.location.every(
+              (part) => typeof part === "string" || typeof part === "number",
+            ) ||
+            typeof issue.message !== "string" ||
+            typeof issue.type !== "string"
+          ) {
+            return [];
+          }
+          return [
+            {
+              location: issue.location as Array<string | number>,
+              message: issue.message,
+              type: issue.type,
+            },
+          ];
+        });
+      }
     }
   } catch {
     // Keep the stable user-facing fallback when the upstream body is not JSON.
   }
 
-  return new IngredientCatalogApiError(message, response.status, code);
+  return new IngredientCatalogApiError(message, response.status, code, issues);
 }
 
 export async function searchCatalogIngredients({
@@ -244,6 +512,94 @@ export async function submitMissingIngredientRequest(
     throw await apiError(response, "The ingredient request could not be submitted.");
   }
   return parseMissingIngredientRequest(await response.json());
+}
+
+export async function browseIngredientCatalogReviewRequests({
+  status = "pending",
+  page = 1,
+  pageSize = 20,
+  query = "",
+  signal,
+}: {
+  status?: IngredientCatalogRequestStatus;
+  page?: number;
+  pageSize?: number;
+  query?: string;
+  signal?: AbortSignal;
+} = {}): Promise<IngredientCatalogReviewPage> {
+  const search = new URLSearchParams({
+    status,
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  const normalizedQuery = query.trim();
+  if (normalizedQuery) {
+    search.set("q", normalizedQuery);
+  }
+  const response = await fetch(`/api/ingredient-requests?${search.toString()}`, {
+    method: "GET",
+    cache: "no-store",
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  if (!response.ok) {
+    if (response.status === 401) {
+      notifySessionExpired();
+    }
+    throw await apiError(response, "The ingredient review queue could not be loaded.");
+  }
+  return parseReviewPage(await response.json());
+}
+
+export async function fetchIngredientCatalogReviewDetail(
+  requestId: string,
+  signal?: AbortSignal,
+): Promise<IngredientCatalogReviewDetail> {
+  const response = await fetch(
+    `/api/ingredient-requests/${encodeURIComponent(requestId)}/review`,
+    {
+      method: "GET",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal,
+    },
+  );
+  if (!response.ok) {
+    if (response.status === 401) {
+      notifySessionExpired();
+    }
+    throw await apiError(response, "The ingredient request could not be loaded.");
+  }
+  return parseReviewDetail(await response.json());
+}
+
+export async function reviewIngredientCatalogRequest(
+  requestId: string,
+  input: IngredientCatalogReviewInput,
+): Promise<IngredientCatalogReviewItem> {
+  const response = await fetch(
+    `/api/ingredient-requests/${encodeURIComponent(requestId)}/review`,
+    {
+      method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...memberMutationHeaders(),
+      },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) {
+    if (response.status === 401) {
+      notifySessionExpired();
+    }
+    throw await apiError(response, "The ingredient review could not be saved.");
+  }
+  return parseReviewItem(await response.json());
 }
 
 export function selectionForCatalogIngredient(

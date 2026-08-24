@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.catalog_names import normalize_catalog_name
 from app.models import CatalogCurator, IngredientCatalogAuditEvent, IngredientCatalogRequest
 
 
@@ -13,8 +14,16 @@ class IngredientRequestBrowseResult:
     total: int
 
 
-def is_catalog_curator(session: Session, user_id: UUID) -> bool:
-    return session.get(CatalogCurator, user_id) is not None
+def is_catalog_curator(
+    session: Session,
+    user_id: UUID,
+    *,
+    for_update: bool = False,
+) -> bool:
+    statement = select(CatalogCurator.user_id).where(CatalogCurator.user_id == user_id)
+    if for_update:
+        statement = statement.with_for_update()
+    return session.scalar(statement) is not None
 
 
 def find_pending_request_by_normalized_name(
@@ -48,6 +57,7 @@ def browse_catalog_requests(
     *,
     requester_user_id: UUID | None,
     status: str | None,
+    search: str | None,
     offset: int,
     limit: int,
 ) -> IngredientRequestBrowseResult:
@@ -56,19 +66,91 @@ def browse_catalog_requests(
         filters.append(IngredientCatalogRequest.requester_user_id == requester_user_id)
     if status is not None:
         filters.append(IngredientCatalogRequest.status == status)
+    if search is not None:
+        literal_pattern = f"%{_escape_like(search)}%"
+        normalized_pattern = f"%{_escape_like(normalize_catalog_name(search))}%"
+        approved_alias = func.jsonb_array_elements_text(
+            IngredientCatalogRequest.approved_aliases
+        ).table_valued("value")
+        approved_alias_match = (
+            select(approved_alias.c.value)
+            .where(approved_alias.c.value.ilike(literal_pattern, escape="\\"))
+            .exists()
+        )
+        filters.append(
+            or_(
+                IngredientCatalogRequest.proposed_name.ilike(literal_pattern, escape="\\"),
+                IngredientCatalogRequest.normalized_name.ilike(
+                    normalized_pattern,
+                    escape="\\",
+                ),
+                IngredientCatalogRequest.approved_canonical_name.ilike(
+                    literal_pattern,
+                    escape="\\",
+                ),
+                approved_alias_match,
+            )
+        )
 
     total = (
         session.scalar(select(func.count()).select_from(IngredientCatalogRequest).where(*filters))
         or 0
     )
+    ordering = []
+    if status is None:
+        ordering.append(case((IngredientCatalogRequest.status == "pending", 0), else_=1))
     statement = (
         select(IngredientCatalogRequest)
         .where(*filters)
-        .order_by(IngredientCatalogRequest.created_at.desc(), IngredientCatalogRequest.id)
+        .order_by(
+            *ordering,
+            IngredientCatalogRequest.created_at.desc(),
+            IngredientCatalogRequest.id,
+        )
         .offset(offset)
         .limit(limit)
     )
     return IngredientRequestBrowseResult(items=list(session.scalars(statement)), total=total)
+
+
+def find_catalog_request_candidates(
+    session: Session,
+    *,
+    request_id: UUID,
+    search_terms: list[str],
+    limit: int,
+) -> list[IngredientCatalogRequest]:
+    """Return bounded advisory pending/approved request candidates."""
+
+    patterns = [f"%{_escape_like(term)}%" for term in search_terms if term]
+    if not patterns:
+        return []
+    matches = [
+        or_(
+            IngredientCatalogRequest.proposed_name.ilike(pattern, escape="\\"),
+            IngredientCatalogRequest.normalized_name.ilike(pattern, escape="\\"),
+        )
+        for pattern in patterns
+    ]
+    statement = (
+        select(IngredientCatalogRequest)
+        .where(
+            IngredientCatalogRequest.id != request_id,
+            IngredientCatalogRequest.status.in_(("pending", "approved")),
+            or_(*matches),
+        )
+        .order_by(
+            case((IngredientCatalogRequest.status == "approved", 0), else_=1),
+            IngredientCatalogRequest.created_at.desc(),
+            IngredientCatalogRequest.id,
+        )
+        .limit(limit)
+    )
+    return list(session.scalars(statement))
+
+
+def _escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def append_catalog_audit_event(

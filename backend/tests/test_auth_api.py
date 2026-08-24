@@ -170,6 +170,7 @@ def test_proxy_callback_creates_one_member_and_routes_first_login_to_onboarding(
     assert session_response.status_code == 200
     assert session_response.json()["status"] == "onboarding_required"
     assert set(session_response.json()["user"]) == {"id", "handle", "display_name"}
+    assert session_response.json()["capabilities"] == {"review_ingredient_requests": False}
     assert "email" not in session_response.text
     assert "member-subject-123" not in session_response.text
 
@@ -211,6 +212,7 @@ def test_onboarding_requires_origin_and_session_bound_csrf_then_logout_revokes(
             "handle": "test-cook",
             "display_name": "Test Cook",
         },
+        "capabilities": {"review_ingredient_requests": False},
     }
 
     logout = auth_api.client.post(

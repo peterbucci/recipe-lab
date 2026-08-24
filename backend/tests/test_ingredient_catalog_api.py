@@ -703,6 +703,176 @@ def test_reject_and_duplicate_decisions_are_terminal_and_resolve_safely(
     assert "not an approved request" in invalid_response.text
 
 
+def test_curator_session_capability_tracks_the_narrow_database_grant(
+    catalog_api: CatalogApi,
+) -> None:
+    assert catalog_api.curator.get("/api/auth/session").json()["capabilities"] == {
+        "review_ingredient_requests": True
+    }
+    assert catalog_api.member.get("/api/auth/session").json()["capabilities"] == {
+        "review_ingredient_requests": False
+    }
+    assert catalog_api.incomplete.get("/api/auth/session").json()["capabilities"] == {
+        "review_ingredient_requests": False
+    }
+
+    with Session(bind=catalog_api.engine) as session, session.begin():
+        grant = session.get(CatalogCurator, CURATOR_ID)
+        assert grant is not None
+        session.delete(grant)
+        session.add(CatalogCurator(user_id=MEMBER_ID, granted_by_user_id=PEER_CURATOR_ID))
+
+    assert catalog_api.curator.get("/api/auth/session").json()["capabilities"] == {
+        "review_ingredient_requests": False
+    }
+    assert catalog_api.member.get("/api/auth/session").json()["capabilities"] == {
+        "review_ingredient_requests": True
+    }
+
+
+def test_curator_queue_filters_pending_first_and_detail_surfaces_safe_candidates(
+    catalog_api: CatalogApi,
+) -> None:
+    pending = _submit(
+        catalog_api.member,
+        "Chickpea flour",
+        "Useful for a gluten-free batter.",
+    )
+    approved_request = _submit(catalog_api.other_member, "Chickpea meal")
+    approved = _approve(
+        catalog_api,
+        approved_request["id"],
+        canonical_name="Chickpea meal",
+        aliases=["Ground chickpea meal"],
+    )
+    rejected = _submit(catalog_api.other_member, "Vague chickpea item")
+    reject_response = catalog_api.curator.post(
+        f"/api/ingredient-requests/{rejected['id']}/review",
+        json={"decision": "reject", "reason": "The proposed name is not specific enough."},
+    )
+    duplicate = _submit(catalog_api.other_member, "Chickpea meal variation")
+    duplicate_response = catalog_api.curator.post(
+        f"/api/ingredient-requests/{duplicate['id']}/review",
+        json={
+            "decision": "duplicate",
+            "reason": "The reviewed chickpea meal identity already covers this request.",
+            "ingredient_id": approved["resolved_ingredient_id"],
+            "request_id": None,
+        },
+    )
+    assert reject_response.status_code == 200
+    assert duplicate_response.status_code == 200
+
+    queue = catalog_api.curator.get(
+        "/api/ingredient-requests",
+        params={"page": 1, "page_size": 20},
+    )
+    assert queue.status_code == 200
+    queue_items = _json_object(queue.json())["items"]
+    statuses = [item["status"] for item in queue_items]
+    first_terminal = next(
+        (index for index, request_status in enumerate(statuses) if request_status != "pending"),
+        len(statuses),
+    )
+    assert all(request_status == "pending" for request_status in statuses[:first_terminal])
+    assert pending["id"] in [item["id"] for item in queue_items[:first_terminal]]
+
+    approved_name_search = catalog_api.curator.get(
+        "/api/ingredient-requests",
+        params={
+            "status": "approved",
+            "q": "ground chickpea",
+            "page": 1,
+            "page_size": 1,
+        },
+    )
+    assert approved_name_search.status_code == 200
+    approved_name_page = _json_object(approved_name_search.json())
+    assert approved_name_page["total"] == 1
+    assert approved_name_page["total_pages"] == 1
+    assert [item["id"] for item in approved_name_page["items"]] == [approved_request["id"]]
+
+    literal_wildcard = catalog_api.curator.get(
+        "/api/ingredient-requests",
+        params={"q": "%", "page_size": 100},
+    )
+    assert literal_wildcard.status_code == 200
+    assert _json_object(literal_wildcard.json())["items"] == []
+    for invalid_q in ("", "x" * 101):
+        assert (
+            catalog_api.curator.get(
+                "/api/ingredient-requests",
+                params={"q": invalid_q},
+            ).status_code
+            == 422
+        )
+    assert (
+        catalog_api.anonymous.get(
+            "/api/ingredient-requests",
+            params={"q": "chickpea"},
+        ).status_code
+        == 401
+    )
+    assert (
+        catalog_api.other_member.get(
+            "/api/ingredient-requests",
+            params={"q": "chickpea"},
+        ).status_code
+        == 403
+    )
+
+    expected_ids = {
+        "pending": pending["id"],
+        "approved": approved_request["id"],
+        "rejected": rejected["id"],
+        "duplicate": duplicate["id"],
+    }
+    for request_status, expected_id in expected_ids.items():
+        filtered = catalog_api.curator.get(
+            "/api/ingredient-requests",
+            params={"status": request_status, "page": 1, "page_size": 1},
+        )
+        assert filtered.status_code == 200
+        filtered_body = _json_object(filtered.json())
+        assert filtered_body["items"][0]["id"] == expected_id
+        assert filtered_body["items"][0]["status"] == request_status
+        assert filtered_body["page_size"] == 1
+
+    detail_path = f"/api/ingredient-requests/{pending['id']}/review"
+    assert catalog_api.anonymous.get(detail_path).status_code == 401
+    forbidden = catalog_api.other_member.get(detail_path)
+    assert forbidden.status_code == 403
+    assert _json_object(forbidden.json())["error"]["code"] == "catalog_curator_required"
+
+    detail_response = catalog_api.curator.get(detail_path)
+    assert detail_response.status_code == 200
+    assert detail_response.headers["cache-control"] == "private, no-store"
+    detail = _json_object(detail_response.json())
+    assert detail["requester"] == {
+        "id": str(MEMBER_ID),
+        "handle": "catalog_member",
+        "display_name": "Catalog Member",
+    }
+    assert "@" not in detail_response.text
+    chickpea_candidates = [
+        candidate
+        for candidate in detail["catalog_candidates"]
+        if candidate["id"] == str(CHICKPEA_ID)
+    ]
+    assert chickpea_candidates == [
+        {
+            "id": str(CHICKPEA_ID),
+            "canonical_name": "Chickpea",
+            "aliases": ["Garbanzo bean", "Garbanzo beans"],
+        }
+    ]
+    related = {candidate["id"]: candidate for candidate in detail["request_candidates"]}
+    assert related[approved_request["id"]]["status"] == "approved"
+    assert related[approved_request["id"]]["approved_canonical_name"] == "Chickpea meal"
+    assert all(candidate["status"] in {"pending", "approved"} for candidate in related.values())
+    assert detail["updated_at"]
+
+
 def test_catalog_openapi_documents_stable_ids_requests_and_curator_review(
     catalog_api: CatalogApi,
 ) -> None:
@@ -713,7 +883,14 @@ def test_catalog_openapi_documents_stable_ids_requests_and_curator_review(
     assert set(paths["/api/ingredients"]) == {"get"}
     assert set(paths["/api/ingredient-requests"]) == {"get", "post"}
     assert set(paths["/api/ingredient-requests/{request_id}"]) == {"get"}
-    assert set(paths["/api/ingredient-requests/{request_id}/review"]) == {"post"}
+    assert set(paths["/api/ingredient-requests/{request_id}/review"]) == {"get", "post"}
+    queue_parameters = {
+        parameter["name"]: parameter
+        for parameter in paths["/api/ingredient-requests"]["get"]["parameters"]
+    }
+    query_variants = queue_parameters["q"]["schema"]["anyOf"]
+    query_schema = next(variant for variant in query_variants if variant.get("type") == "string")
+    assert query_schema["maxLength"] == 100
     catalog_item = schemas["IngredientCatalogItem"]["properties"]
     assert "Stable curated ingredient identity" in catalog_item["id"]["description"]
     request_status = schemas["IngredientCatalogRequestResponse"]["properties"]["status"]

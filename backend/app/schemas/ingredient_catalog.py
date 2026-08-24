@@ -85,6 +85,7 @@ class IngredientCatalogRequestResponse(CatalogSchema):
 
 
 class IngredientCatalogRequestReviewResponse(IngredientCatalogRequestResponse):
+    updated_at: datetime
     requester_user_id: UUID
     reviewer_user_id: UUID | None
     duplicate_of_request_id: UUID | None
@@ -111,6 +112,27 @@ class IngredientCatalogReviewPage(BaseModel):
     page_size: int = Field(ge=1)
     total: int = Field(ge=0)
     total_pages: int = Field(ge=0)
+
+
+class IngredientCatalogRequester(CatalogSchema):
+    id: UUID
+    handle: str | None = Field(default=None, min_length=3, max_length=30)
+    display_name: str = Field(min_length=1, max_length=120)
+
+
+class IngredientCatalogRequestCandidate(CatalogSchema):
+    id: UUID
+    proposed_name: CatalogName
+    status: Literal["pending", "approved"]
+    created_at: datetime
+    resolved_ingredient_id: UUID | None
+    approved_canonical_name: CatalogName | None
+
+
+class IngredientCatalogReviewDetail(IngredientCatalogRequestReviewResponse):
+    requester: IngredientCatalogRequester
+    catalog_candidates: list[IngredientCatalogItem] = Field(max_length=10)
+    request_candidates: list[IngredientCatalogRequestCandidate] = Field(max_length=10)
 
 
 class ApproveIngredientCatalogRequest(CatalogSchema):

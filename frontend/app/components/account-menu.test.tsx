@@ -62,6 +62,44 @@ describe("AccountMenu", () => {
     expect(within(menu!).getByRole("button", { name: "Sign out" })).toBeEnabled();
   });
 
+  it("shows the review workspace only to a catalog curator", () => {
+    const { rerender } = render(
+      <AuthSessionProvider
+        key="member"
+        initialSession={{
+          status: "authenticated",
+          user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
+          capabilities: { review_ingredient_requests: false },
+        }}
+      >
+        <AccountMenu />
+      </AuthSessionProvider>,
+    );
+
+    fireEvent.click(screen.getByLabelText("Account menu for Alice Cook"));
+    expect(
+      screen.queryByRole("link", { name: "Review ingredient requests" }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <AuthSessionProvider
+        key="curator"
+        initialSession={{
+          status: "authenticated",
+          user: { id: "curator-id", display_name: "Casey Curator", handle: "casey" },
+          capabilities: { review_ingredient_requests: true },
+        }}
+      >
+        <AccountMenu />
+      </AuthSessionProvider>,
+    );
+
+    fireEvent.click(screen.getByLabelText("Account menu for Casey Curator"));
+    expect(
+      screen.getByRole("link", { name: "Review ingredient requests" }),
+    ).toHaveAttribute("href", "/catalog/ingredient-requests");
+  });
+
   it("signs out with CSRF protection and replaces the menu with sign-in", async () => {
     document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(

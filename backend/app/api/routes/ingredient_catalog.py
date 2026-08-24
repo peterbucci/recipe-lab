@@ -12,27 +12,33 @@ from app.api.dependencies import (
 )
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor, lock_catalog_curator_actor
+from app.models import Ingredient
 from app.repositories.catalog_requests import (
     browse_catalog_requests,
+    find_catalog_request_candidates,
     get_catalog_request,
     is_catalog_curator,
 )
-from app.repositories.ingredients import browse_ingredients
+from app.repositories.ingredients import browse_ingredients, find_ingredient_candidates
 from app.schemas.errors import ErrorResponse
 from app.schemas.ingredient_catalog import (
     CatalogRequestStatus,
     IngredientCatalogItem,
     IngredientCatalogPage,
+    IngredientCatalogRequestCandidate,
     IngredientCatalogRequestCreate,
+    IngredientCatalogRequester,
     IngredientCatalogRequestPage,
     IngredientCatalogRequestResponse,
     IngredientCatalogRequestReviewResponse,
+    IngredientCatalogReviewDetail,
     IngredientCatalogReviewPage,
     IngredientCatalogReviewRequest,
 )
 from app.services.catalog_requests import (
     CatalogRequestAlreadyReviewedError,
     CatalogRequestConflictError,
+    catalog_candidate_search_terms,
     review_catalog_request,
     submit_catalog_request,
 )
@@ -69,6 +75,17 @@ def _private_no_store(response: Response) -> None:
     response.headers["Vary"] = "Cookie"
 
 
+def _catalog_item(item: Ingredient) -> IngredientCatalogItem:
+    return IngredientCatalogItem(
+        id=item.id,
+        canonical_name=item.canonical_name,
+        aliases=sorted(
+            (alias.alias for alias in item.aliases),
+            key=lambda value: (value.casefold(), value),
+        ),
+    )
+
+
 @router.get(
     "/ingredients",
     response_model=IngredientCatalogPage,
@@ -91,17 +108,7 @@ def ingredient_catalog(
         limit=page_size,
     )
     return IngredientCatalogPage(
-        items=[
-            IngredientCatalogItem(
-                id=item.id,
-                canonical_name=item.canonical_name,
-                aliases=sorted(
-                    (alias.alias for alias in item.aliases),
-                    key=lambda value: (value.casefold(), value),
-                ),
-            )
-            for item in result.items
-        ],
+        items=[_catalog_item(item) for item in result.items],
         page=page,
         page_size=page_size,
         total=result.total,
@@ -173,6 +180,7 @@ def my_ingredient_requests(
         session,
         requester_user_id=actor_id,
         status=None,
+        search=None,
         offset=(page - 1) * page_size,
         limit=page_size,
     )
@@ -230,12 +238,14 @@ def review_queue(
     page: Annotated[int, Query(ge=1, le=1_000_000)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     request_status: Annotated[CatalogRequestStatus | None, Query(alias="status")] = None,
+    q: Annotated[SearchTerm | None, Query()] = None,
 ) -> IngredientCatalogReviewPage:
     lock_catalog_curator_actor(session, authenticated)
     result = browse_catalog_requests(
         session,
         requester_user_id=None,
         status=request_status,
+        search=q,
         offset=(page - 1) * page_size,
         limit=page_size,
     )
@@ -251,6 +261,63 @@ def review_queue(
     session.commit()
     _private_no_store(response)
     return page_response
+
+
+@router.get(
+    "/ingredient-requests/{request_id}/review",
+    response_model=IngredientCatalogReviewDetail,
+    responses=CATALOG_ERROR_RESPONSES,
+    summary="Read an ingredient request for catalog review",
+    description=(
+        "Returns curator-only requester identity and bounded advisory catalog and request "
+        "candidates. Candidates never establish ingredient identity automatically."
+    ),
+)
+def review_request_detail(
+    request_id: UUID,
+    response: Response,
+    session: SessionDependency,
+    authenticated: RequiredAuthenticatedSessionDependency,
+) -> IngredientCatalogReviewDetail:
+    lock_catalog_curator_actor(session, authenticated)
+    request = get_catalog_request(session, request_id)
+    if request is None:
+        session.rollback()
+        raise ApiError(
+            status_code=404,
+            code="ingredient_request_not_found",
+            message=f"Ingredient request {request_id} was not found.",
+        )
+
+    terms = catalog_candidate_search_terms(request.proposed_name)
+    catalog_candidates = find_ingredient_candidates(
+        session,
+        search_terms=terms,
+        limit=10,
+    )
+    request_candidates = find_catalog_request_candidates(
+        session,
+        request_id=request.id,
+        search_terms=terms,
+        limit=10,
+    )
+    base = IngredientCatalogRequestReviewResponse.model_validate(request)
+    detail = IngredientCatalogReviewDetail(
+        **base.model_dump(),
+        requester=IngredientCatalogRequester(
+            id=request.requester.id,
+            handle=request.requester.handle,
+            display_name=request.requester.display_name,
+        ),
+        catalog_candidates=[_catalog_item(item) for item in catalog_candidates],
+        request_candidates=[
+            IngredientCatalogRequestCandidate.model_validate(candidate)
+            for candidate in request_candidates
+        ],
+    )
+    session.commit()
+    _private_no_store(response)
+    return detail
 
 
 @router.post(
@@ -271,7 +338,7 @@ def review_ingredient_request(
     session: SessionDependency,
     authenticated: CsrfProtectedSessionDependency,
 ) -> IngredientCatalogRequestReviewResponse:
-    reviewer_id = lock_catalog_curator_actor(session, authenticated)
+    reviewer_id = lock_catalog_curator_actor(session, authenticated, lock_grant=True)
     try:
         request = review_catalog_request(
             session,

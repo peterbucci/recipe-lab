@@ -101,6 +101,21 @@ terminal review decision. The request states, duplicate controls, transactional
 approval, audit evidence, and operator-managed curator grant are documented in
 [catalog intake](../docs/catalog-intake.md).
 
+Catalog-curator access is managed only by an operator with backend database
+credentials. The target is always an active, onboarded member selected by
+stable UUID; there is no browser or member-facing role-management endpoint.
+From this directory, grant or revoke the narrow role idempotently with:
+
+```powershell
+python -m app.catalog_curators grant --user-id <member-uuid>
+python -m app.catalog_curators grant --user-id <member-uuid> --granted-by-user-id <grantor-uuid>
+python -m app.catalog_curators revoke --user-id <member-uuid>
+```
+
+The installed `recipe-lab-curator` entry point accepts the same subcommands.
+Repeating an already satisfied grant or revocation succeeds without changing
+catalog decisions or audit evidence.
+
 ## Recipe diff API
 
 `GET /api/recipes/{recipe_version_id}/diff` returns a deterministic,

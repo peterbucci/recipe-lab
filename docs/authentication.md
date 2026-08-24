@@ -125,6 +125,6 @@ member-scoped idempotency, and two-member activity/recommendation isolation.
 Frontend tests cover the same-origin proxy, sign-in, onboarding, account menu,
 session expiry, signed-out action gates, member interactions, keyboard
 operation, mobile layout, and accessibility. The guarded full-stack acceptance
-run provisions two digest-only member sessions in an isolated database; OIDC
-provider behavior remains covered by a local fake, so CI needs no real tenant
-or secrets.
+run provisions digest-only Alice, Bob, and catalog-curator sessions in an
+isolated database; OIDC provider behavior remains covered by a local fake, so
+CI needs no real tenant or secrets.

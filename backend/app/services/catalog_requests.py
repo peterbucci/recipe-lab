@@ -36,6 +36,21 @@ class CatalogRequestAlreadyReviewedError(ValueError):
     pass
 
 
+def catalog_candidate_search_terms(proposed_name: str, *, limit: int = 6) -> list[str]:
+    """Build bounded advisory search terms without asserting ingredient identity."""
+
+    raw_name = proposed_name.strip()
+    normalized_name = normalize_catalog_name(raw_name)
+    terms: list[str] = []
+    for candidate in (raw_name, normalized_name, *normalized_name.split()):
+        if len(candidate) < 3 or candidate in terms:
+            continue
+        terms.append(candidate)
+        if len(terms) == limit:
+            break
+    return terms
+
+
 def _normalized_catalog_candidates(session: Session) -> dict[str, str]:
     """Index likely duplicate labels without asserting semantic identity."""
 
