@@ -37,16 +37,24 @@ class RecipeVersionReference(RecipeSchema):
 
 class RecipeIngredientResponse(RecipeSchema):
     id: UUID
-    ingredient_id: UUID
+    ingredient_id: UUID = Field(
+        description=(
+            "Required curated catalog identity used for comparison, filtering, "
+            "substitution, and recommendation signals."
+        )
+    )
     canonical_name: str = Field(
         min_length=1,
         max_length=200,
-        description="Current canonical catalog name.",
+        description="Current canonical name for the required catalog identity.",
     )
     display_name: str = Field(
         min_length=1,
         max_length=200,
-        description="Authored name preserved in this recipe snapshot.",
+        description=(
+            "Authored canonical-or-alias wording preserved for presentation; this value "
+            "does not define ingredient identity."
+        ),
     )
     quantity: Decimal | None = Field(
         default=None,

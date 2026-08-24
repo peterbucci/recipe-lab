@@ -115,10 +115,14 @@ def _validate_ingredient_targets(
     return drafts
 
 
-def _resolve_ingredient_id(session: Session, submitted_name: str) -> UUID:
+def _resolve_required_catalog_ingredient_id(session: Session, submitted_name: str) -> UUID:
+    """Resolve publication identity without creating or inferring catalog metadata."""
+
     ingredient = resolve_ingredient_name(session, submitted_name)
     if ingredient is None:
-        raise _invalid(f'Ingredient "{submitted_name}" is not in the catalog.')
+        raise _invalid(
+            f'Ingredient "{submitted_name}" is not in the curated catalog and cannot be published.'
+        )
     return ingredient.id
 
 
@@ -136,7 +140,9 @@ def _apply_ingredient_edits(
             additions.append(
                 _IngredientDraft(
                     source_id=None,
-                    ingredient_id=_resolve_ingredient_id(session, edit.ingredient_name),
+                    ingredient_id=_resolve_required_catalog_ingredient_id(
+                        session, edit.ingredient_name
+                    ),
                     name=edit.ingredient_name,
                     quantity=edit.quantity,
                     unit=edit.unit,
@@ -151,7 +157,7 @@ def _apply_ingredient_edits(
         elif isinstance(edit, SetIngredientUnit):
             draft.unit = edit.unit
         elif isinstance(edit, ReplaceIngredient):
-            replacement_id = _resolve_ingredient_id(session, edit.ingredient_name)
+            replacement_id = _resolve_required_catalog_ingredient_id(session, edit.ingredient_name)
             if replacement_id == draft.ingredient_id:
                 raise _invalid(
                     f"Ingredient row {edit.recipe_ingredient_id} already uses "
