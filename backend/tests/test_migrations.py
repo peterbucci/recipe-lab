@@ -57,7 +57,20 @@ def test_migrations_round_trip_on_empty_postgres_schema(
         current_revision = MigrationContext.configure(connection).get_current_revision()
 
     assert current_revision == script.get_current_head()
-    assert DOMAIN_TABLES <= set(inspect(empty_postgres_engine).get_table_names())
+    upgraded_inspector = inspect(empty_postgres_engine)
+    assert DOMAIN_TABLES <= set(upgraded_inspector.get_table_names())
+    ingredient_columns = {
+        column["name"]: column
+        for column in upgraded_inspector.get_columns("recipe_version_ingredients")
+    }
+    assert ingredient_columns["ingredient_id"]["nullable"] is False
+    ingredient_foreign_keys = upgraded_inspector.get_foreign_keys("recipe_version_ingredients")
+    assert any(
+        foreign_key["constrained_columns"] == ["ingredient_id"]
+        and foreign_key["referred_table"] == "ingredients"
+        and foreign_key["referred_columns"] == ["id"]
+        for foreign_key in ingredient_foreign_keys
+    )
 
     with empty_postgres_engine.begin() as connection:
         alembic_config.attributes["connection"] = connection

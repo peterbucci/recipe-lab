@@ -404,8 +404,9 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
       >
         <legend>Ingredients</legend>
         <p id={`${formId}-ingredients-help`} className="variant-editor__help">
-          Keep what works, or change an ingredient, amount, or unit. Use an exact catalog name
-          when swapping an ingredient. Blank amounts and units mean unspecified.
+          Keep what works, or change an ingredient, amount, or unit. Every published ingredient
+          must match an existing catalog name or alias. Accepted catalog wording is preserved for
+          display; blank amounts and units mean unspecified.
         </p>
         <div className="variant-editor__rows">
           {draft.ingredients.map((ingredient, index) => {

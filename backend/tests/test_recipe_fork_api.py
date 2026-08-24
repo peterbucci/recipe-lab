@@ -15,6 +15,8 @@ import app.api.routes.recipes as recipe_routes
 from app.api.dependencies import get_session
 from app.main import create_app
 from app.models import (
+    Ingredient,
+    IngredientAlias,
     PreferenceEvent,
     RecipeIngredient,
     RecipeInstruction,
@@ -68,6 +70,7 @@ BAKE_INSTRUCTION_ID = seed_uuid(
 )
 PECAN_ID = seed_uuid(DATASET_ID, "ingredient", "pecan")
 ORANGE_ZEST_ID = seed_uuid(DATASET_ID, "ingredient", "orange-zest")
+CHICKPEA_ID = seed_uuid(DATASET_ID, "ingredient", "chickpea")
 MEMBER_USER_ID = UUID("77000000-0000-4000-8000-000000000002")
 
 
@@ -253,6 +256,42 @@ def _member_fork_count(engine: Engine) -> int:
             )
             or 0
         )
+
+
+def _member_fork_event_count(engine: Engine) -> int:
+    with Session(bind=engine) as session:
+        return (
+            session.scalar(
+                select(func.count())
+                .select_from(PreferenceEvent)
+                .where(
+                    PreferenceEvent.user_id == MEMBER_USER_ID,
+                    PreferenceEvent.event_type == "fork",
+                )
+            )
+            or 0
+        )
+
+
+def _catalog_snapshot(
+    engine: Engine,
+) -> tuple[tuple[tuple[UUID, str], ...], tuple[tuple[UUID, UUID, str], ...]]:
+    with Session(bind=engine) as session:
+        ingredients = tuple(
+            session.execute(
+                select(Ingredient.id, Ingredient.canonical_name).order_by(Ingredient.id)
+            ).tuples()
+        )
+        aliases = tuple(
+            session.execute(
+                select(
+                    IngredientAlias.id,
+                    IngredientAlias.ingredient_id,
+                    IngredientAlias.alias,
+                ).order_by(IngredientAlias.id)
+            ).tuples()
+        )
+    return ingredients, aliases
 
 
 def _json_object(value: object) -> dict[str, Any]:
@@ -445,6 +484,38 @@ def test_fork_applies_all_structured_edits_without_mutating_parent(
     assert _snapshot_version(seeded_api_engine, CARROT_ROOT_ID) == parent_before
 
 
+def test_known_alias_preserves_display_text_and_uses_catalog_identity(
+    fork_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    payload = _base_payload(title="Carrot Cake with Chickpeas")
+    payload["ingredient_edits"] = [
+        {
+            "op": "add",
+            "ingredient_name": "  garbanzo beans  ",
+            "quantity": "1",
+            "unit": "cup",
+        }
+    ]
+
+    response = fork_client.post(
+        f"/api/recipes/{CARROT_ROOT_ID}/variants",
+        json=payload,
+        headers=_action_headers(),
+    )
+
+    assert response.status_code == 201
+    detail = _json_object(response.json())
+    added = cast(list[dict[str, Any]], detail["ingredients"])[-1]
+    assert added["ingredient_id"] == str(CHICKPEA_ID)
+    assert added["canonical_name"] == "Chickpea"
+    assert added["display_name"] == "garbanzo beans"
+
+    stored = _snapshot_version(seeded_api_engine, UUID(detail["id"])).ingredients[-1]
+    assert stored.ingredient_id == CHICKPEA_ID
+    assert stored.name == "garbanzo beans"
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -523,13 +594,6 @@ def test_invalid_request_shapes_create_no_fork(
         ],
         [
             {
-                "op": "replace",
-                "recipe_ingredient_id": str(NUTS_ROW_ID),
-                "ingredient_name": "Not a catalog ingredient",
-            }
-        ],
-        [
-            {
                 "op": "set_quantity",
                 "recipe_ingredient_id": str(SUGAR_ROW_ID),
                 "quantity": "150",
@@ -558,7 +622,6 @@ def test_invalid_request_shapes_create_no_fork(
     ],
     ids=[
         "target-from-other-version",
-        "unknown-catalog-ingredient",
         "duplicate-operation",
         "remove-and-edit",
         "replacement-is-no-op",
@@ -586,6 +649,54 @@ def test_invalid_or_conflicting_edits_roll_back_without_mutating_parent(
     assert error["issues"] == []
     assert _member_fork_count(seeded_api_engine) == 0
     assert _snapshot_version(seeded_api_engine, CARROT_ROOT_ID) == parent_before
+
+
+@pytest.mark.parametrize(
+    "edit",
+    [
+        {
+            "op": "add",
+            "ingredient_name": "Not a catalog ingredient",
+        },
+        {
+            "op": "replace",
+            "recipe_ingredient_id": str(NUTS_ROW_ID),
+            "ingredient_name": "Not a catalog ingredient",
+        },
+    ],
+    ids=["add", "replace"],
+)
+def test_unknown_ingredient_cannot_publish_or_mutate_the_catalog(
+    fork_client: TestClient,
+    seeded_api_engine: Engine,
+    edit: dict[str, object],
+) -> None:
+    parent_before = _snapshot_version(seeded_api_engine, CARROT_ROOT_ID)
+    catalog_before = _catalog_snapshot(seeded_api_engine)
+    payload = _base_payload()
+    payload["ingredient_edits"] = [edit]
+
+    response = fork_client.post(
+        f"/api/recipes/{CARROT_ROOT_ID}/variants",
+        json=payload,
+        headers=_action_headers(),
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "invalid_recipe_edits",
+            "message": (
+                'Ingredient "Not a catalog ingredient" is not in the curated catalog and '
+                "cannot be published."
+            ),
+            "issues": [],
+        }
+    }
+    assert _member_fork_count(seeded_api_engine) == 0
+    assert _member_fork_event_count(seeded_api_engine) == 0
+    assert _snapshot_version(seeded_api_engine, CARROT_ROOT_ID) == parent_before
+    assert _catalog_snapshot(seeded_api_engine) == catalog_before
 
 
 def test_removing_every_structured_row_is_rejected_atomically(
@@ -777,3 +888,19 @@ def test_openapi_documents_recipe_fork_contract(fork_client: TestClient) -> None
     instruction_items = request_schema["properties"]["instruction_edits"]["items"]
     assert ingredient_items["discriminator"]["propertyName"] == "op"
     assert instruction_items["discriminator"]["propertyName"] == "op"
+    assert "existing curated catalog" in operation["description"]
+    assert (
+        "Unknown names cannot"
+        in schemas["AddIngredient"]["properties"]["ingredient_name"]["description"]
+    )
+    assert (
+        "resolved catalog identity"
+        in schemas["ReplaceIngredient"]["properties"]["ingredient_name"]["description"]
+    )
+    ingredient_response = schemas["RecipeIngredientResponse"]["properties"]
+    assert (
+        "Required curated catalog identity" in ingredient_response["ingredient_id"]["description"]
+    )
+    assert (
+        "does not define ingredient identity" in ingredient_response["display_name"]["description"]
+    )
