@@ -120,6 +120,8 @@ def validate_substitution_catalog(catalog: SubstitutionCatalog) -> None:
 
     if not catalog.dataset_id.strip():
         raise ValueError("substitution catalog dataset_id must not be blank")
+    if any(not isinstance(ingredient.id, UUID) for ingredient in catalog.ingredients):
+        raise ValueError("substitution catalog ingredients require UUID catalog identities")
     ingredients = {ingredient.id: ingredient for ingredient in catalog.ingredients}
     if len(ingredients) != len(catalog.ingredients):
         raise ValueError("substitution catalog ingredient IDs must be unique")
@@ -142,6 +144,12 @@ def validate_substitution_catalog(catalog: SubstitutionCatalog) -> None:
     relationship_ids: set[UUID] = set()
     directed_pairs: set[tuple[UUID, UUID]] = set()
     for relationship in catalog.relationships:
+        if (
+            not isinstance(relationship.id, UUID)
+            or not isinstance(relationship.source_ingredient_id, UUID)
+            or not isinstance(relationship.replacement_ingredient_id, UUID)
+        ):
+            raise ValueError("substitution relationships require UUID catalog identities")
         if relationship.id in relationship_ids:
             raise ValueError("substitution relationship IDs must be unique")
         relationship_ids.add(relationship.id)
@@ -175,6 +183,10 @@ def validate_substitution_catalog(catalog: SubstitutionCatalog) -> None:
 
     recipe_ids: set[UUID] = set()
     for recipe in catalog.recipe_contexts:
+        if not isinstance(recipe.id, UUID) or any(
+            not isinstance(ingredient_id, UUID) for ingredient_id in recipe.ingredient_ids
+        ):
+            raise ValueError("substitution recipe contexts require UUID catalog identities")
         if recipe.id in recipe_ids:
             raise ValueError("substitution recipe context IDs must be unique")
         recipe_ids.add(recipe.id)
@@ -264,6 +276,10 @@ def recommend_substitutions(
     validate_substitution_catalog(catalog)
     if type(query.limit) is not int or not 1 <= query.limit <= MAX_SUBSTITUTION_RESULTS:
         raise ValueError(f"substitution limit must be between 1 and {MAX_SUBSTITUTION_RESULTS}")
+    if not isinstance(query.source_ingredient_id, UUID):
+        raise ValueError("substitution source ingredient requires a catalog UUID identity")
+    if any(not isinstance(ingredient_id, UUID) for ingredient_id in query.recipe_ingredient_ids):
+        raise ValueError("substitution recipe context requires catalog UUID identities")
     ingredients = {ingredient.id: ingredient for ingredient in catalog.ingredients}
     source = ingredients.get(query.source_ingredient_id)
     if source is None:

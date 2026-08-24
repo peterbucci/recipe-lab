@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
 from uuid import UUID
@@ -42,6 +43,40 @@ def _event_type(value: str) -> EventType:
     return cast(EventType, value)
 
 
+def _linked_ingredients_by_recipe(
+    rows: Iterable[tuple[UUID, UUID | None]],
+) -> defaultdict[UUID, set[UUID]]:
+    """Group only trusted catalog identities for recommendation snapshots."""
+
+    linked: defaultdict[UUID, set[UUID]] = defaultdict(set)
+    for recipe_version_id, ingredient_id in rows:
+        if ingredient_id is not None:
+            linked[recipe_version_id].add(ingredient_id)
+    return linked
+
+
+def _snapshot_recipes(
+    recipe_rows: Iterable[tuple[UUID, datetime, str, int]],
+    ingredient_rows: Iterable[tuple[UUID, UUID | None]],
+) -> tuple[SnapshotRecipe, ...]:
+    ingredients_by_recipe = _linked_ingredients_by_recipe(ingredient_rows)
+    return tuple(
+        SnapshotRecipe(
+            id=recipe_id,
+            created_at=_utc(created_at, field="recipe created_at"),
+            title=title,
+            version_number=version_number,
+            ingredient_ids=tuple(
+                sorted(
+                    ingredients_by_recipe[recipe_id],
+                    key=lambda ingredient_id: ingredient_id.int,
+                )
+            ),
+        )
+        for recipe_id, created_at, title, version_number in recipe_rows
+    )
+
+
 def _extract(engine: Engine) -> tuple[tuple[SnapshotRecipe, ...], tuple[SnapshotEvent, ...]]:
     if engine.dialect.name != "postgresql":
         raise SnapshotExportError("snapshot export requires PostgreSQL")
@@ -64,7 +99,9 @@ def _extract(engine: Engine) -> tuple[tuple[SnapshotRecipe, ...], tuple[Snapshot
                 select(
                     RecipeIngredient.recipe_version_id,
                     RecipeIngredient.ingredient_id,
-                ).order_by(
+                )
+                .where(RecipeIngredient.ingredient_id.is_not(None))
+                .order_by(
                     RecipeIngredient.recipe_version_id,
                     RecipeIngredient.ingredient_id,
                 )
@@ -82,24 +119,15 @@ def _extract(engine: Engine) -> tuple[tuple[SnapshotRecipe, ...], tuple[Snapshot
                 ).order_by(PreferenceEvent.occurred_at, PreferenceEvent.id)
             ).all()
 
-    ingredients_by_recipe: defaultdict[UUID, set[UUID]] = defaultdict(set)
-    for recipe_version_id, ingredient_id in ingredient_rows:
-        ingredients_by_recipe[recipe_version_id].add(ingredient_id)
-
-    recipes = tuple(
-        SnapshotRecipe(
-            id=recipe_id,
-            created_at=_utc(created_at, field="recipe created_at"),
-            title=title,
-            version_number=version_number,
-            ingredient_ids=tuple(
-                sorted(
-                    ingredients_by_recipe[recipe_id],
-                    key=lambda ingredient_id: ingredient_id.int,
-                )
-            ),
-        )
-        for recipe_id, created_at, title, version_number in recipe_rows
+    recipes = _snapshot_recipes(
+        (
+            (recipe_id, created_at, title, version_number)
+            for recipe_id, created_at, title, version_number in recipe_rows
+        ),
+        (
+            (recipe_version_id, ingredient_id)
+            for recipe_version_id, ingredient_id in ingredient_rows
+        ),
     )
     events = tuple(
         SnapshotEvent(

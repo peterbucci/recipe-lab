@@ -285,10 +285,24 @@ def test_query_rejects_invalid_limits(
         ),
         (
             lambda case: SubstitutionQuery(
+                source_ingredient_id=cast(UUID, None),
+                recipe_ingredient_ids=frozenset({case.source_ingredient_id}),
+            ),
+            "catalog UUID identity",
+        ),
+        (
+            lambda case: SubstitutionQuery(
                 source_ingredient_id=case.source_ingredient_id,
                 recipe_ingredient_ids=frozenset({UUID("ffffffff-ffff-4fff-8fff-ffffffffffff")}),
             ),
             "recipe context",
+        ),
+        (
+            lambda case: SubstitutionQuery(
+                source_ingredient_id=case.source_ingredient_id,
+                recipe_ingredient_ids=frozenset({case.source_ingredient_id, cast(UUID, None)}),
+            ),
+            "catalog UUID identities",
         ),
         (
             lambda case: SubstitutionQuery(
@@ -344,7 +358,9 @@ def test_query_rejects_invalid_limits(
     ],
     ids=[
         "source",
+        "unresolved-source",
         "context",
+        "unresolved-context",
         "dietary",
         "allergen",
         "unknown-preference",
@@ -394,6 +410,16 @@ def test_query_rejects_non_integer_preference_weights(
         (
             lambda catalog: replace(
                 catalog,
+                ingredients=(
+                    replace(catalog.ingredients[0], id=cast(UUID, None)),
+                    *catalog.ingredients[1:],
+                ),
+            ),
+            "ingredients require UUID catalog identities",
+        ),
+        (
+            lambda catalog: replace(
+                catalog,
                 ingredients=(*catalog.ingredients, catalog.ingredients[0]),
             ),
             "ingredient IDs must be unique",
@@ -410,6 +436,34 @@ def test_query_rejects_non_integer_preference_weights(
                 ),
             ),
             "unknown metadata",
+        ),
+        (
+            lambda catalog: replace(
+                catalog,
+                relationships=(
+                    replace(
+                        catalog.relationships[0],
+                        source_ingredient_id=cast(UUID, None),
+                    ),
+                    *catalog.relationships[1:],
+                ),
+            ),
+            "relationships require UUID catalog identities",
+        ),
+        (
+            lambda catalog: replace(
+                catalog,
+                recipe_contexts=(
+                    replace(
+                        catalog.recipe_contexts[0],
+                        ingredient_ids=frozenset(
+                            {*catalog.recipe_contexts[0].ingredient_ids, cast(UUID, None)}
+                        ),
+                    ),
+                    *catalog.recipe_contexts[1:],
+                ),
+            ),
+            "recipe contexts require UUID catalog identities",
         ),
         (
             lambda catalog: replace(
@@ -470,8 +524,11 @@ def test_query_rejects_non_integer_preference_weights(
         ),
     ],
     ids=[
+        "unresolved-ingredient-identity",
         "duplicate-ingredient",
         "unknown-metadata",
+        "unresolved-relationship-identity",
+        "unresolved-context-identity",
         "duplicate-relationship",
         "self-edge",
         "missing-guidance",

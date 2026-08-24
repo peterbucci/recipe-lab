@@ -165,3 +165,24 @@ def test_snapshot_fingerprint_is_independent_of_equivalent_input_order() -> None
     assert reordered.recipes == original.recipes
     assert reordered.events == original.events
     assert reordered.sha256 == original.sha256
+
+
+def test_snapshot_allows_a_recipe_with_no_linked_catalog_ingredients() -> None:
+    document = _fixture_document()
+    recipes = cast(list[dict[str, Any]], document["recipes"])
+    recipe_id = recipes[0]["id"]
+    recipes[0]["ingredient_ids"] = []
+
+    snapshot = _parse_document(document)
+
+    recipe = next(item for item in snapshot.recipes if str(item.id) == recipe_id)
+    assert recipe.ingredient_ids == ()
+
+
+def test_snapshot_rejects_null_as_an_ingredient_identity_sentinel() -> None:
+    document = _fixture_document()
+    recipes = cast(list[dict[str, Any]], document["recipes"])
+    recipes[0]["ingredient_ids"] = [None]
+
+    with pytest.raises(SnapshotValidationError, match="non-blank string"):
+        _parse_document(document)

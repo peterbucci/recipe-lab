@@ -107,6 +107,18 @@ def test_content_features_use_ingredients_normalized_title_and_version_metadata(
     )
 
 
+def test_empty_canonical_sets_do_not_create_false_ingredient_similarity() -> None:
+    first = _recipe(1, title="Savory Alpha")
+    second = _recipe(2, title="Sweet Beta")
+
+    first_features = recipe_content_features(first)
+    second_features = recipe_content_features(second)
+
+    assert first_features.ingredient_ids == frozenset()
+    assert second_features.ingredient_ids == frozenset()
+    assert content_similarity(first_features, second_features) == Fraction(1, 10)
+
+
 def test_personalized_ranking_uses_each_structured_feature_channel() -> None:
     source = _recipe(1, title="Middle", version=1, ingredients=(101, 102))
     ingredient_match = _recipe(2, title="Zulu", version=10, ingredients=(101, 102))
