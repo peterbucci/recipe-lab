@@ -74,22 +74,40 @@ an email address, handle, or account creation order.
 
 An operator with backend database credentials grants or revokes access by the
 member's stable UUID. Granting requires the target to exist as an active,
-onboarded member. The optional granting-member UUID records who authorized the
-change; omit it for an initial operator-managed grant:
+onboarded member. Safe lookup and inventory commands help the operator find
+that UUID and discover grants that need revocation:
 
 ```powershell
 cd backend
+python -m app.catalog_curators eligible
+python -m app.catalog_curators eligible --query <uuid-handle-or-display-name> --limit 20
+python -m app.catalog_curators list --limit 100
 python -m app.catalog_curators grant --user-id <member-uuid>
 python -m app.catalog_curators grant --user-id <member-uuid> --granted-by-user-id <grantor-uuid>
 python -m app.catalog_curators revoke --user-id <member-uuid>
 ```
 
-The installed `recipe-lab-curator` command accepts the same `grant` and
-`revoke` arguments. Both operations are idempotent: repeating an existing grant
-or an already completed revocation exits successfully without changing data.
-Revocation remains available after a member is suspended or otherwise becomes
-ineligible, and it leaves existing request decisions and append-only audit
-evidence intact.
+`eligible` searches an optional literal query against only stable UUID, handle,
+and display name. It returns active, onboarded members and identifies which
+already hold the narrow role. `list` returns current grants even when a holder
+has since been suspended, deleted, or left onboarding incomplete, keeping every
+grant discoverable for revocation. Its output includes the grant timestamp and
+optional `granted_by_user_id` attribution. Both commands have deterministic
+ordering, default limits, and an enforced maximum of 100 rows. Their JSON output
+contains only stable UUID, handle, display name, eligibility/curator flags, and
+the grant fields just described. They never search or expose email addresses,
+OIDC identities, or session data.
+
+The installed `recipe-lab-curator` command accepts the same subcommands and
+arguments. Grant and revoke are idempotent: repeating an existing grant or an
+already completed revocation exits successfully without changing data.
+Revocation remains available after a member becomes ineligible, and it leaves
+existing request decisions and append-only audit evidence intact.
+
+`granted_by_user_id` is audit attribution only. It records the member associated
+with the decision when one exists; it does not authorize the command, confer a
+role, or permit self-promotion. Possession of the configured operator/database
+access is the authorization boundary for every role-management command.
 
 These commands use the configured `DATABASE_URL` and are the only supported
 role-management interface. The application exposes no HTTP self-promotion or

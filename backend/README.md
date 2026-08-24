@@ -104,17 +104,29 @@ approval, audit evidence, and operator-managed curator grant are documented in
 Catalog-curator access is managed only by an operator with backend database
 credentials. The target is always an active, onboarded member selected by
 stable UUID; there is no browser or member-facing role-management endpoint.
-From this directory, grant or revoke the narrow role idempotently with:
+From this directory, find eligible members, inspect current grants, or change
+the narrow role idempotently with:
 
 ```powershell
+python -m app.catalog_curators eligible --query <uuid-handle-or-display-name> --limit 20
+python -m app.catalog_curators list --limit 100
 python -m app.catalog_curators grant --user-id <member-uuid>
 python -m app.catalog_curators grant --user-id <member-uuid> --granted-by-user-id <grantor-uuid>
 python -m app.catalog_curators revoke --user-id <member-uuid>
 ```
 
+The `eligible` query is optional and searches only stable UUID, handle, and
+display name. Both reads enforce a 100-row maximum and emit deterministic JSON
+containing only those safe profile fields, role/eligibility flags, and, for
+current grants, `granted_at` and `granted_by_user_id`. Email, OIDC identity, and
+session data are neither searched nor returned. The current-grant list retains
+suspended or otherwise ineligible holders so an operator can revoke them.
+
 The installed `recipe-lab-curator` entry point accepts the same subcommands.
-Repeating an already satisfied grant or revocation succeeds without changing
-catalog decisions or audit evidence.
+`granted_by_user_id` is optional audit attribution, not authorization to run the
+command; operator access to the configured database is the authorization
+boundary. Repeating an already satisfied grant or revocation succeeds without
+changing catalog decisions or audit evidence.
 
 ## Recipe diff API
 
