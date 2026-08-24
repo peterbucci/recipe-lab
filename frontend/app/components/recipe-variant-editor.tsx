@@ -20,6 +20,7 @@ import {
   validateVariantDraft,
 } from "../../lib/variant-draft";
 import { createRecipeVariant, VariantApiError } from "../../lib/variant-api";
+import { IngredientCatalogPicker } from "./ingredient-catalog-picker";
 
 interface RecipeVariantEditorProps {
   sourceRecipe: RecipeDetail;
@@ -43,10 +44,6 @@ function FieldError({ id, message }: FieldErrorProps) {
   ) : null;
 }
 
-function fieldDescription(helperId: string, errorId: string, error?: string): string {
-  return error ? `${helperId} ${errorId}` : helperId;
-}
-
 function optionalValue(value: string): string | null {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
@@ -57,7 +54,7 @@ function ingredientStatus(ingredient: VariantIngredientDraft): "New" | "Changed"
     return "New";
   }
   if (
-    optionalValue(ingredient.ingredientName) !== null ||
+    ingredient.selectedIngredient !== null ||
     optionalValue(ingredient.quantity) !== ingredient.originalQuantity ||
     optionalValue(ingredient.unit) !== ingredient.originalUnit
   ) {
@@ -76,7 +73,10 @@ function instructionStatus(instruction: VariantInstructionDraft): "New" | "Chang
 }
 
 function ingredientSummary(ingredient: VariantIngredientDraft): string {
-  const name = optionalValue(ingredient.ingredientName) ?? ingredient.sourceDisplayName ?? "New ingredient";
+  const name =
+    ingredient.selectedIngredient?.displayName ??
+    ingredient.sourceDisplayName ??
+    "New ingredient";
   const amount = formatIngredientAmount(
     optionalValue(ingredient.quantity),
     optionalValue(ingredient.unit),
@@ -215,7 +215,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
     );
     clearErrors();
     setExpandedIngredientKeys((current) => new Set(current).add(key));
-    focusAfterDraftUpdate(`${formId}-${key}-name`);
+    focusAfterDraftUpdate(`${formId}-${key}-ingredient-search`);
     setDraft((current) => ({
       ...current,
       ingredients: [...current.ingredients, ingredient],
@@ -404,9 +404,9 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
       >
         <legend>Ingredients</legend>
         <p id={`${formId}-ingredients-help`} className="variant-editor__help">
-          Keep what works, or change an ingredient, amount, or unit. Every published ingredient
-          must match an existing catalog name or alias. Accepted catalog wording is preserved for
-          display; blank amounts and units mean unspecified.
+          Keep what works, or change an ingredient, amount, or unit. Choose every added or swapped
+          ingredient from the curated catalog. Catalog aliases can be used for display; blank
+          amounts and units mean unspecified.
         </p>
         <div className="variant-editor__rows">
           {draft.ingredients.map((ingredient, index) => {
@@ -463,8 +463,13 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
                             {ingredientSummary(ingredient)}
                           </small>
                         ) : null}
-                        {optionalValue(ingredient.ingredientName) === null &&
-                        ingredient.sourceCanonicalName !== ingredient.sourceDisplayName ? (
+                        {ingredient.selectedIngredient?.displayName !==
+                        ingredient.selectedIngredient?.canonicalName ? (
+                          <small>
+                            Catalog name: {ingredient.selectedIngredient?.canonicalName}
+                          </small>
+                        ) : ingredient.selectedIngredient === null &&
+                          ingredient.sourceCanonicalName !== ingredient.sourceDisplayName ? (
                           <small>Catalog name: {ingredient.sourceCanonicalName}</small>
                         ) : null}
                         {ingredient.preparationNotes ? (
@@ -497,34 +502,26 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
                     <div id={`${rowId}-fields`} className="variant-row__fields">
                     <div className="variant-ingredient-grid">
                       <div className="variant-field variant-field--name">
-                        <label htmlFor={`${rowId}-name`}>
-                          {ingredient.sourceId
-                            ? "Swap ingredient (optional)"
-                            : "Ingredient name"}
-                        </label>
-                        <input
-                          id={`${rowId}-name`}
-                          value={ingredient.ingredientName}
-                          maxLength={200}
-                          aria-invalid={Boolean(fieldErrors[nameKey])}
-                          aria-describedby={fieldDescription(
-                            `${rowId}-name-help`,
-                            `${rowId}-name-error`,
-                            fieldErrors[nameKey],
-                          )}
-                          onChange={(event) =>
+                        <IngredientCatalogPicker
+                          idPrefix={`${rowId}-ingredient`}
+                          contextLabel={groupLabel}
+                          label={
+                            ingredient.sourceId
+                              ? "Swap ingredient (optional)"
+                              : "Ingredient"
+                          }
+                          value={ingredient.selectedIngredient}
+                          disabled={pending}
+                          invalid={Boolean(fieldErrors[nameKey])}
+                          describedBy={fieldErrors[nameKey] ? `${rowId}-name-error` : undefined}
+                          onChange={(selection) =>
                             updateIngredient(
                               ingredient.key,
-                              { ingredientName: event.target.value },
+                              { selectedIngredient: selection },
                               "name",
                             )
                           }
                         />
-                        <small id={`${rowId}-name-help`}>
-                          {ingredient.sourceId
-                            ? "Leave blank to keep the starting ingredient."
-                            : "Use an exact catalog name or alias."}
-                        </small>
                         <FieldError id={`${rowId}-name-error`} message={fieldErrors[nameKey]} />
                       </div>
                       <div className="variant-field">

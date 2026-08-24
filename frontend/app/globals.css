@@ -1971,6 +1971,189 @@ a.lineage-card:hover {
   font-weight: 650;
 }
 
+.ingredient-picker {
+  min-width: 0;
+}
+
+.ingredient-picker > label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.ingredient-picker > small {
+  display: block;
+  margin-bottom: 0.55rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.ingredient-picker__search {
+  display: flex;
+  align-items: stretch;
+  gap: 0.55rem;
+}
+
+.ingredient-picker__search input {
+  flex: 1;
+}
+
+.ingredient-picker__selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.65rem;
+  border: 1px solid var(--leaf);
+  border-radius: 0.7rem;
+  background: var(--surface-soft);
+  padding: 0.65rem 0.75rem;
+  gap: 0.75rem;
+}
+
+.ingredient-picker__selection > div,
+.ingredient-picker__selection strong,
+.ingredient-picker__selection small {
+  display: block;
+  min-width: 0;
+}
+
+.ingredient-picker__selection > div > span {
+  display: block;
+  color: var(--leaf-dark);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.ingredient-picker__selection small {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.ingredient-picker__status {
+  min-height: 1.2rem;
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.ingredient-picker__alert,
+.ingredient-request-panel__alert {
+  margin: 0.45rem 0 0;
+  color: var(--focus);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.ingredient-picker__results {
+  display: grid;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  gap: 0.4rem;
+  list-style: none;
+}
+
+.ingredient-picker__results button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0.65rem 0.75rem;
+  gap: 0.75rem;
+  text-align: left;
+}
+
+.ingredient-picker__results button:hover,
+.ingredient-picker__results button[aria-pressed="true"] {
+  border-color: var(--leaf);
+  background: var(--surface-soft);
+}
+
+.ingredient-picker__results button > span,
+.ingredient-picker__results strong,
+.ingredient-picker__results small {
+  display: block;
+  min-width: 0;
+}
+
+.ingredient-picker__results button > span:last-child {
+  color: var(--leaf-dark);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.ingredient-picker__results small {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.ingredient-picker__pagination,
+.ingredient-picker__missing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.65rem;
+  gap: 0.55rem;
+}
+
+.ingredient-picker__pagination span,
+.ingredient-picker__missing p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.ingredient-request-panel {
+  margin-top: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface-soft);
+  padding: 0.85rem;
+}
+
+.ingredient-request-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  gap: 0.75rem;
+}
+
+.ingredient-request-panel__header h3 {
+  margin-bottom: 0.25rem;
+  font-size: 1rem;
+}
+
+.ingredient-request-panel__header p {
+  max-width: 34rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.ingredient-request-panel .variant-field + .variant-field {
+  margin-top: 0.7rem;
+}
+
+.ingredient-request-panel__status {
+  min-height: 1.2rem;
+  margin: 0.45rem 0;
+  color: var(--leaf-dark);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
 .variant-editor__rows {
   margin-bottom: 1rem;
 }
@@ -2390,6 +2573,24 @@ a.lineage-card:hover {
   .variant-details-grid,
   .variant-ingredient-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ingredient-picker__search,
+  .ingredient-picker__selection,
+  .ingredient-picker__pagination,
+  .ingredient-picker__missing,
+  .ingredient-request-panel__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ingredient-picker__search .button,
+  .ingredient-picker__selection .button,
+  .ingredient-picker__results button,
+  .ingredient-picker__pagination .button,
+  .ingredient-picker__missing .button,
+  .ingredient-request-panel .button {
+    width: 100%;
   }
 
   .variant-field--wide {

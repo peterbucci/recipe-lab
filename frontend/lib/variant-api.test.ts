@@ -9,6 +9,7 @@ import {
 
 const sourceRecipeVersionId = "29454eba/3a4e?5380";
 const idempotencyKey = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const pecanId = "33333333-3333-4333-8333-333333333333";
 
 const payload: RecipeVariantCreateRequest = {
   title: "Orange Pecan Carrot Cake",
@@ -23,7 +24,8 @@ const payload: RecipeVariantCreateRequest = {
     {
       op: "replace",
       recipe_ingredient_id: "walnut-row",
-      ingredient_name: "Pecan",
+      ingredient_id: pecanId,
+      display_name: "Pecan",
     },
   ],
   instruction_edits: [

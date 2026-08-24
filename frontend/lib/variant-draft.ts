@@ -1,4 +1,5 @@
 import type { RecipeDetail } from "./recipe-api";
+import type { CatalogIngredientSelection } from "./ingredient-catalog-api";
 import type {
   IngredientEdit,
   InstructionEdit,
@@ -8,9 +9,10 @@ import type {
 export interface VariantIngredientDraft {
   key: string;
   sourceId: string | null;
+  sourceIngredientId: string | null;
   sourceDisplayName: string | null;
   sourceCanonicalName: string | null;
-  ingredientName: string;
+  selectedIngredient: CatalogIngredientSelection | null;
   quantity: string;
   originalQuantity: string | null;
   unit: string;
@@ -73,9 +75,10 @@ export function createVariantDraft(source: RecipeDetail): RecipeVariantDraft {
     ingredients: source.ingredients.map((ingredient) => ({
       key: `source-${ingredient.id}`,
       sourceId: ingredient.id,
+      sourceIngredientId: ingredient.ingredient_id,
       sourceDisplayName: ingredient.display_name,
       sourceCanonicalName: ingredient.canonical_name,
-      ingredientName: "",
+      selectedIngredient: null,
       quantity: ingredient.quantity ?? "",
       originalQuantity: ingredient.quantity,
       unit: ingredient.unit ?? "",
@@ -97,9 +100,10 @@ export function createAddedIngredientDraft(key: string): VariantIngredientDraft 
   return {
     key,
     sourceId: null,
+    sourceIngredientId: null,
     sourceDisplayName: null,
     sourceCanonicalName: null,
-    ingredientName: "",
+    selectedIngredient: null,
     quantity: "",
     originalQuantity: null,
     unit: "",
@@ -191,6 +195,33 @@ function textError(
   return null;
 }
 
+function selectionError(
+  selection: CatalogIngredientSelection | null,
+  required: boolean,
+): string | null {
+  if (selection === null) {
+    return required ? "Choose an ingredient from the catalog." : null;
+  }
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      selection.ingredientId,
+    ) ||
+    textError(selection.canonicalName, {
+      label: "Catalog ingredient name",
+      maxLength: INGREDIENT_NAME_MAX_LENGTH,
+      required: true,
+    }) ||
+    textError(selection.displayName, {
+      label: "Catalog ingredient label",
+      maxLength: INGREDIENT_NAME_MAX_LENGTH,
+      required: true,
+    })
+  ) {
+    return "Choose an ingredient from the catalog.";
+  }
+  return null;
+}
+
 export function validateVariantDraft(draft: RecipeVariantDraft): VariantDraftValidation {
   const fieldErrors: Record<string, string> = {};
   const formErrors: string[] = [];
@@ -241,12 +272,10 @@ export function validateVariantDraft(draft: RecipeVariantDraft): VariantDraftVal
       continue;
     }
 
-    const nameRequired = ingredient.sourceId === null;
-    const nameError = textError(ingredient.ingredientName, {
-      label: nameRequired ? "Ingredient name" : "Replacement ingredient",
-      maxLength: INGREDIENT_NAME_MAX_LENGTH,
-      required: nameRequired,
-    });
+    const nameError = selectionError(
+      ingredient.selectedIngredient,
+      ingredient.sourceId === null,
+    );
     if (nameError) {
       fieldErrors[ingredientFieldKey(ingredient.key, "name")] = nameError;
     }
@@ -270,7 +299,6 @@ export function validateVariantDraft(draft: RecipeVariantDraft): VariantDraftVal
       fieldErrors[ingredientFieldKey(ingredient.key, "unit")] = unitError;
     }
 
-    const ingredientName = normalized(ingredient.ingredientName);
     const quantity = normalized(ingredient.quantity) || null;
     const unit = normalized(ingredient.unit) || null;
     const preparationNotes = normalized(ingredient.preparationNotes) || null;
@@ -284,30 +312,35 @@ export function validateVariantDraft(draft: RecipeVariantDraft): VariantDraftVal
       if (notesError) {
         fieldErrors[ingredientFieldKey(ingredient.key, "preparationNotes")] = notesError;
       }
-      ingredientEdits.push({
-        op: "add",
-        ingredient_name: ingredientName,
-        quantity,
-        unit,
-        preparation_notes: preparationNotes,
-      });
+      if (ingredient.selectedIngredient) {
+        ingredientEdits.push({
+          op: "add",
+          ingredient_id: ingredient.selectedIngredient.ingredientId,
+          display_name: ingredient.selectedIngredient.displayName,
+          quantity,
+          unit,
+          preparation_notes: preparationNotes,
+        });
+      }
       continue;
     }
 
-    if (
-      ingredientName &&
-      ((ingredient.sourceDisplayName && sameName(ingredientName, ingredient.sourceDisplayName)) ||
-        (ingredient.sourceCanonicalName &&
-          sameName(ingredientName, ingredient.sourceCanonicalName)))
-    ) {
-      fieldErrors[ingredientFieldKey(ingredient.key, "name")] =
-        "Choose a different ingredient or leave the replacement blank.";
-    } else if (ingredientName) {
-      ingredientEdits.push({
-        op: "replace",
-        recipe_ingredient_id: ingredient.sourceId,
-        ingredient_name: ingredientName,
-      });
+    if (ingredient.selectedIngredient) {
+      if (
+        ingredient.selectedIngredient.ingredientId === ingredient.sourceIngredientId &&
+        ingredient.sourceDisplayName &&
+        sameName(ingredient.selectedIngredient.displayName, ingredient.sourceDisplayName)
+      ) {
+        fieldErrors[ingredientFieldKey(ingredient.key, "name")] =
+          "Choose a different catalog ingredient or label, or clear the selection.";
+      } else {
+        ingredientEdits.push({
+          op: "replace",
+          recipe_ingredient_id: ingredient.sourceId,
+          ingredient_id: ingredient.selectedIngredient.ingredientId,
+          display_name: ingredient.selectedIngredient.displayName,
+        });
+      }
     }
 
     if (quantity !== ingredient.originalQuantity) {

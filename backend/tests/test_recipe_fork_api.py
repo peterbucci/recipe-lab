@@ -71,6 +71,9 @@ BAKE_INSTRUCTION_ID = seed_uuid(
 PECAN_ID = seed_uuid(DATASET_ID, "ingredient", "pecan")
 ORANGE_ZEST_ID = seed_uuid(DATASET_ID, "ingredient", "orange-zest")
 CHICKPEA_ID = seed_uuid(DATASET_ID, "ingredient", "chickpea")
+WALNUT_ID = seed_uuid(DATASET_ID, "ingredient", "walnut")
+SUGAR_ID = seed_uuid(DATASET_ID, "ingredient", "granulated-sugar")
+UNKNOWN_INGREDIENT_ID = UUID("77000000-0000-4000-8000-000000000099")
 MEMBER_USER_ID = UUID("77000000-0000-4000-8000-000000000002")
 
 
@@ -410,7 +413,8 @@ def test_fork_applies_all_structured_edits_without_mutating_parent(
         {
             "op": "replace",
             "recipe_ingredient_id": str(NUTS_ROW_ID),
-            "ingredient_name": "Pecan",
+            "ingredient_id": str(PECAN_ID),
+            "display_name": "Pecan",
         },
         {
             "op": "remove",
@@ -418,7 +422,8 @@ def test_fork_applies_all_structured_edits_without_mutating_parent(
         },
         {
             "op": "add",
-            "ingredient_name": "Orange zest",
+            "ingredient_id": str(ORANGE_ZEST_ID),
+            "display_name": "Orange zest",
             "quantity": "1",
             "unit": "tbsp",
             "preparation_notes": "finely grated",
@@ -492,7 +497,8 @@ def test_known_alias_preserves_display_text_and_uses_catalog_identity(
     payload["ingredient_edits"] = [
         {
             "op": "add",
-            "ingredient_name": "  garbanzo beans  ",
+            "ingredient_id": str(CHICKPEA_ID),
+            "display_name": "  garbanzo beans  ",
             "quantity": "1",
             "unit": "cup",
         }
@@ -509,11 +515,64 @@ def test_known_alias_preserves_display_text_and_uses_catalog_identity(
     added = cast(list[dict[str, Any]], detail["ingredients"])[-1]
     assert added["ingredient_id"] == str(CHICKPEA_ID)
     assert added["canonical_name"] == "Chickpea"
-    assert added["display_name"] == "garbanzo beans"
+    assert added["display_name"] == "Garbanzo beans"
 
     stored = _snapshot_version(seeded_api_engine, UUID(detail["id"])).ingredients[-1]
     assert stored.ingredient_id == CHICKPEA_ID
-    assert stored.name == "garbanzo beans"
+    assert stored.name == "Garbanzo beans"
+
+
+def test_valid_ingredient_id_with_another_identitys_label_is_rejected(
+    fork_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    payload = _base_payload(title="Tampered ingredient selection")
+    payload["ingredient_edits"] = [
+        {
+            "op": "add",
+            "ingredient_id": str(PECAN_ID),
+            "display_name": "Orange zest",
+        }
+    ]
+
+    response = fork_client.post(
+        f"/api/recipes/{CARROT_ROOT_ID}/variants",
+        json=payload,
+        headers=_action_headers(),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_recipe_edits"
+    assert "not a curated name or alias" in response.json()["error"]["message"]
+    assert _member_fork_count(seeded_api_engine) == 0
+
+
+def test_same_identity_can_select_a_different_curated_display_label(
+    fork_client: TestClient,
+) -> None:
+    payload = _base_payload(title="Canonical sugar label")
+    payload["ingredient_edits"] = [
+        {
+            "op": "replace",
+            "recipe_ingredient_id": str(SUGAR_ROW_ID),
+            "ingredient_id": str(SUGAR_ID),
+            "display_name": "Granulated sugar",
+        }
+    ]
+
+    response = fork_client.post(
+        f"/api/recipes/{CARROT_ROOT_ID}/variants",
+        json=payload,
+        headers=_action_headers(),
+    )
+
+    assert response.status_code == 201
+    sugar = next(
+        item
+        for item in cast(list[dict[str, Any]], response.json()["ingredients"])
+        if item["id"] != str(SUGAR_ROW_ID) and item["ingredient_id"] == str(SUGAR_ID)
+    )
+    assert sugar["display_name"] == "Granulated sugar"
 
 
 @pytest.mark.parametrize(
@@ -616,7 +675,8 @@ def test_invalid_request_shapes_create_no_fork(
             {
                 "op": "replace",
                 "recipe_ingredient_id": str(NUTS_ROW_ID),
-                "ingredient_name": "Walnut",
+                "ingredient_id": str(WALNUT_ID),
+                "display_name": "Walnut",
             }
         ],
     ],
@@ -656,12 +716,14 @@ def test_invalid_or_conflicting_edits_roll_back_without_mutating_parent(
     [
         {
             "op": "add",
-            "ingredient_name": "Not a catalog ingredient",
+            "ingredient_id": str(UNKNOWN_INGREDIENT_ID),
+            "display_name": "Not a catalog ingredient",
         },
         {
             "op": "replace",
             "recipe_ingredient_id": str(NUTS_ROW_ID),
-            "ingredient_name": "Not a catalog ingredient",
+            "ingredient_id": str(UNKNOWN_INGREDIENT_ID),
+            "display_name": "Not a catalog ingredient",
         },
     ],
     ids=["add", "replace"],
@@ -687,7 +749,7 @@ def test_unknown_ingredient_cannot_publish_or_mutate_the_catalog(
         "error": {
             "code": "invalid_recipe_edits",
             "message": (
-                'Ingredient "Not a catalog ingredient" is not in the curated catalog and '
+                f"Ingredient {UNKNOWN_INGREDIENT_ID} is not in the curated catalog and "
                 "cannot be published."
             ),
             "issues": [],
@@ -890,13 +952,11 @@ def test_openapi_documents_recipe_fork_contract(fork_client: TestClient) -> None
     assert instruction_items["discriminator"]["propertyName"] == "op"
     assert "existing curated catalog" in operation["description"]
     assert (
-        "Unknown names cannot"
-        in schemas["AddIngredient"]["properties"]["ingredient_name"]["description"]
+        "Stable curated catalog identity"
+        in schemas["AddIngredient"]["properties"]["ingredient_id"]["description"]
     )
-    assert (
-        "resolved catalog identity"
-        in schemas["ReplaceIngredient"]["properties"]["ingredient_name"]["description"]
-    )
+    assert "verifies" in schemas["ReplaceIngredient"]["properties"]["ingredient_id"]["description"]
+    assert "reviewed alias" in schemas["AddIngredient"]["properties"]["display_name"]["description"]
     ingredient_response = schemas["RecipeIngredientResponse"]["properties"]
     assert (
         "Required curated catalog identity" in ingredient_response["ingredient_id"]["description"]

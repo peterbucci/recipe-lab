@@ -1,4 +1,15 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+async function activateWithKeyboard(page: Page, control: Locator): Promise<void> {
+  for (let step = 0; step < 80; step += 1) {
+    if (await control.evaluate((element) => element === element.ownerDocument.activeElement)) {
+      await page.keyboard.press("Enter");
+      return;
+    }
+    await page.keyboard.press("Tab");
+  }
+  throw new Error("The expected control was not reachable through keyboard navigation.");
+}
 
 async function openCarrotRoot(page: Page): Promise<string> {
   await page.goto("/recipes?q=carrot");
@@ -234,6 +245,113 @@ test("keeps the anonymous recipe detail gate usable at a phone viewport", async 
   expect(gateBox).not.toBeNull();
   expect(gateBox!.x).toBeGreaterThanOrEqual(0);
   expect(gateBox!.x + gateBox!.width).toBeLessThanOrEqual(390);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
+});
+
+test("selects a stable catalog ingredient with the keyboard on a phone", async ({ page }) => {
+  const pecanId = "77777777-7777-4777-8777-777777777777";
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.context().addCookies([
+    {
+      name: "recipe_lab_csrf",
+      value: "csrf-value",
+      domain: "127.0.0.1",
+      path: "/",
+      sameSite: "Lax",
+    },
+  ]);
+  await page.route("**/api/auth/session", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "authenticated",
+        user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
+      }),
+    });
+  });
+  await page.route("**/api/ingredients?*", async (route) => {
+    expect(route.request().method()).toBe("GET");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: [{ id: pecanId, canonical_name: "Pecan", aliases: ["Pecan nut"] }],
+        page: 1,
+        page_size: 20,
+        total: 1,
+        total_pages: 1,
+      }),
+    });
+  });
+  await page.route("**/api/recipes/*/variants", async (route) => {
+    await route.fulfill({
+      status: 422,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: {
+          code: "invalid_recipe_edits",
+          message: "Test submission captured.",
+          issues: [],
+        },
+      }),
+    });
+  });
+
+  const recipeVersionId = await openCarrotRoot(page);
+  await page.goto(`/recipes/${recipeVersionId}/fork`);
+  const walnutRow = page.getByRole("group", { name: /^Ingredient \d+: Walnuts?$/ });
+  const changeIngredient = walnutRow.getByRole("button", { name: /^Change Walnuts?$/ });
+  await changeIngredient.focus();
+  await page.keyboard.press("Enter");
+
+  const search = walnutRow.getByRole("searchbox", {
+    name: "Swap ingredient (optional)",
+    exact: true,
+  });
+  await search.focus();
+  await search.fill("Pecan");
+  await page.keyboard.press("Enter");
+  const result = walnutRow
+    .getByRole("list", { name: "Swap ingredient (optional) catalog results" })
+    .getByRole("button", { name: /pecan/i });
+  await expect(result).toBeVisible();
+  await activateWithKeyboard(page, result);
+  await expect(walnutRow.getByText("Selected catalog ingredient")).toBeVisible();
+
+  const variantRequest = page.waitForRequest(
+    (request) => request.method() === "POST" && request.url().endsWith("/variants"),
+  );
+  await activateWithKeyboard(
+    page,
+    page.getByRole("button", { name: "Create my version", exact: true }),
+  );
+  const payload = (await variantRequest).postDataJSON() as {
+    ingredient_edits: Array<Record<string, unknown>>;
+  };
+  const replacement = payload.ingredient_edits.find((edit) => edit.op === "replace");
+  expect(replacement).toMatchObject({
+    ingredient_id: pecanId,
+    display_name: "Pecan",
+  });
+  expect(replacement).not.toHaveProperty("ingredient_name");
+  await expect(page.locator(".variant-error-summary")).toContainText(
+    "Test submission captured.",
+  );
+
+  const picker = walnutRow.locator(".ingredient-picker");
+  const pickerBox = await picker.boundingBox();
+  expect(pickerBox).not.toBeNull();
+  expect(pickerBox!.x).toBeGreaterThanOrEqual(0);
+  expect(pickerBox!.x + pickerBox!.width).toBeLessThanOrEqual(390);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,

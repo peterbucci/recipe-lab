@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.api.errors import ApiError
 from app.models import ACCOUNT_KIND_MEMBER, USER_STATUS_ACTIVE
+from app.repositories.catalog_requests import is_catalog_curator
 from app.repositories.interactions import (
     get_recipe_viewer_state,
     get_user,
@@ -37,6 +38,22 @@ def lock_active_member_actor(
             message="Finish account setup to continue.",
         )
     return user.id
+
+
+def lock_catalog_curator_actor(
+    session: Session,
+    authenticated: AuthenticatedSession,
+) -> UUID:
+    """Require an active, onboarded member with the narrow catalog-curator grant."""
+
+    actor_id = lock_active_member_actor(session, authenticated)
+    if not is_catalog_curator(session, actor_id):
+        raise ApiError(
+            status_code=403,
+            code="catalog_curator_required",
+            message="Catalog curator access is required.",
+        )
+    return actor_id
 
 
 def ensure_recipe_exists(session: Session, recipe_version_id: UUID) -> None:

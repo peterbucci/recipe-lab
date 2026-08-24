@@ -16,11 +16,13 @@ export type IngredientEdit =
   | {
       op: "replace";
       recipe_ingredient_id: string;
-      ingredient_name: string;
+      ingredient_id: string;
+      display_name: string;
     }
   | {
       op: "add";
-      ingredient_name: string;
+      ingredient_id: string;
+      display_name: string;
       quantity: string | null;
       unit: string | null;
       preparation_notes: string | null;
