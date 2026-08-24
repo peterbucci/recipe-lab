@@ -4,6 +4,10 @@ export interface AccountUser {
   display_name: string;
 }
 
+export interface AccountCapabilities {
+  review_ingredient_requests: boolean;
+}
+
 export interface AnonymousAuthSession {
   status: "anonymous";
 }
@@ -11,11 +15,13 @@ export interface AnonymousAuthSession {
 export interface OnboardingAuthSession {
   status: "onboarding_required";
   user: AccountUser;
+  capabilities?: AccountCapabilities;
 }
 
 export interface AuthenticatedAuthSession {
   status: "authenticated";
   user: AccountUser & { handle: string };
+  capabilities?: AccountCapabilities;
 }
 
 export type AuthSession =
@@ -90,6 +96,16 @@ function parseUser(value: unknown): AccountUser | null {
   };
 }
 
+function parseCapabilities(value: unknown): AccountCapabilities | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isRecord(value) || typeof value.review_ingredient_requests !== "boolean") {
+    return null;
+  }
+  return { review_ingredient_requests: value.review_ingredient_requests };
+}
+
 export function parseAuthSession(value: unknown): AuthSession {
   if (!isRecord(value) || typeof value.status !== "string") {
     throw new AuthApiError(
@@ -104,13 +120,26 @@ export function parseAuthSession(value: unknown): AuthSession {
   }
 
   const user = parseUser(value.user);
+  const capabilities = parseCapabilities(value.capabilities);
+  if (capabilities === null) {
+    throw new AuthApiError(
+      "Recipe Lab received an invalid account response.",
+      502,
+      "invalid_auth_response",
+    );
+  }
   if (value.status === "onboarding_required" && user) {
-    return { status: value.status, user };
+    return {
+      status: value.status,
+      user,
+      ...(capabilities ? { capabilities } : {}),
+    };
   }
   if (value.status === "authenticated" && user?.handle) {
     return {
       status: value.status,
       user: { ...user, handle: user.handle },
+      ...(capabilities ? { capabilities } : {}),
     };
   }
 
