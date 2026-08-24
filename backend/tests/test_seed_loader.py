@@ -534,7 +534,7 @@ def test_seed_and_runtime_review_serialize_the_normalized_name_namespace(
             for alias in session.scalars(select(IngredientAlias)).all()
             if normalize_catalog_name(alias.alias) == "garbanzo beans"
         ]
-        request = session.get(IngredientCatalogRequest, request_id)
+        stored_request = session.get(IngredientCatalogRequest, request_id)
         events = list(
             session.scalars(
                 select(IngredientCatalogAuditEvent)
@@ -546,14 +546,14 @@ def test_seed_and_runtime_review_serialize_the_normalized_name_namespace(
         assert len(chickpeas) == 1
         assert len(garbanzo_aliases) == 1
         assert garbanzo_aliases[0].ingredient_id == chickpeas[0].id
-        assert request is not None
+        assert stored_request is not None
         if "approved" in outcomes:
-            assert request.status == CATALOG_REQUEST_APPROVED
-            assert request.resolved_ingredient_id == chickpeas[0].id
+            assert stored_request.status == CATALOG_REQUEST_APPROVED
+            assert stored_request.resolved_ingredient_id == chickpeas[0].id
             assert [event.event_type for event in events] == ["submitted", "approved"]
         else:
-            assert request.status == CATALOG_REQUEST_PENDING
-            assert request.resolved_ingredient_id is None
+            assert stored_request.status == CATALOG_REQUEST_PENDING
+            assert stored_request.resolved_ingredient_id is None
             assert [event.event_type for event in events] == ["submitted"]
 
 
