@@ -862,15 +862,18 @@ def test_member_request_history_is_private_filterable_and_returns_trusted_resolu
         params={"status": "duplicate", "q": "alias track leaf"},
     )
     assert resolved_search.status_code == 200
-    assert [
-        item["id"] for item in _json_object(resolved_search.json())["items"]
-    ] == [duplicate_request["id"]]
-    assert _json_object(
-        catalog_api.member.get(
-            "/api/ingredient-requests/mine",
-            params={"q": "%", "page_size": 100},
-        ).json()
-    )["items"] == []
+    assert [item["id"] for item in _json_object(resolved_search.json())["items"]] == [
+        duplicate_request["id"]
+    ]
+    assert (
+        _json_object(
+            catalog_api.member.get(
+                "/api/ingredient-requests/mine",
+                params={"q": "%", "page_size": 100},
+            ).json()
+        )["items"]
+        == []
+    )
     for invalid_params in ({"status": "unknown"}, {"q": ""}, {"q": "x" * 101}):
         assert (
             catalog_api.member.get(
@@ -931,9 +934,7 @@ def test_member_history_search_does_not_probe_curator_only_approval_snapshots(
         params={"status": "approved", "q": "Retired private snapshot alias"},
     )
     assert curator_search.status_code == 200
-    assert [
-        item["id"] for item in _json_object(curator_search.json())["items"]
-    ] == [request["id"]]
+    assert [item["id"] for item in _json_object(curator_search.json())["items"]] == [request["id"]]
 
     member_detail = catalog_api.member.get(f"/api/ingredient-requests/{request['id']}")
     assert member_detail.status_code == 200
