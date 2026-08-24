@@ -70,7 +70,9 @@ Detail reads eager-load the scalar parent and select-load ordered ingredients,
 instructions, and direct children. This keeps the query count bounded without
 creating a Cartesian product between collections. API schemas preserve exact
 decimal values as JSON strings and expose the authored ingredient name beside
-its canonical identity. A separate aggregate query returns only rating count
+its nullable canonical identity. Exact canonical-name and alias matches link a
+recipe row to the curated catalog; unmatched authored text remains valid without
+creating catalog metadata. A separate aggregate query returns only rating count
 and average, never individual interaction records. Validation and not-found
 failures share one documented error envelope while retaining their semantic
 HTTP status codes.
@@ -80,7 +82,9 @@ detail loader. A target compares to its direct parent by default, while an
 explicit base may select any version in the same lineage. The pure diff engine
 ignores display order as content, matches exact canonical ingredient
 occurrences first, and classifies a replacement only when the catalog contains
-the corresponding directed substitution edge. Instruction changes are kept in
+the corresponding directed substitution edge. Equal unlinked snapshots cancel
+deterministically, while a changed unlinked row is an addition plus a removal
+because authored text is not treated as ingredient identity. Instruction changes are kept in
 a separate group. Stable sorting and fixed changed-field order make equivalent
 stored comparisons byte-for-byte repeatable, and the read never loads ratings,
 saves, or users.
@@ -137,13 +141,17 @@ Recommendation reads are a separate, read-only application service exposed by
 and saves with distinct-user view and fork support, applies the documented
 Bayesian and candidate-wide normalization rules, and optionally adds a bounded
 canonical-ingredient Jaccard match against positive history belonging only to
-the signed-in member. Signed-out requests have no private history and use the
+the signed-in member. Null ingredient identities are omitted from that feature,
+so unresolved text cannot acquire inferred similarity or metadata. Signed-out requests have no private history and use the
 deterministic global ranking. It excludes the current member's exact interacted
 versions, rounds scores to six decimal places, and
 uses fixed component/title/version/ID tie-breaks. The response exposes a recipe
 summary, score, components, and short reason, never raw events or user
 identifiers. The full formula is recorded in
 [baseline recommendations](recommendations.md).
+
+The complete linked/unlinked ingredient boundary is documented in
+[authored ingredient identity](ingredient-identity.md).
 
 ### Database
 
@@ -166,7 +174,7 @@ only one root per lineage. Ingredients and instructions belong to a specific
 snapshot and have stable display positions.
 
 Each recipe ingredient retains the cook-facing name from that snapshot and
-also references one canonical ingredient. The catalog normalizes canonical
+optionally references one canonical ingredient. The catalog normalizes canonical
 names and exact aliases for lookup, uses data-backed vocabularies for one broad
 category plus dietary and allergen assignments, and avoids fixed database
 enums. An absent dietary or allergen assignment means the metadata is unknown;
@@ -258,7 +266,7 @@ point-in-time preference state, and compares every registered approach with
 same database-free baseline scorer; SQL loading remains outside that core.
 
 The built-in `content-v1` adapter fits only in memory from the catalog and
-training prefix. It represents each version with canonical ingredient IDs,
+training prefix. It represents each version with its non-null canonical ingredient IDs,
 case-folded title tokens, and version metadata, then combines exact content
 similarity with signed save, rating, view, and fork signals. A signed global
 prior and fixed metadata/UUID tie-breaks define cold start. The CLI supplies

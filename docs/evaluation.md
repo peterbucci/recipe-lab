@@ -31,7 +31,7 @@ The `recipe-lab-evaluation-snapshot-v1` format contains:
 
 - a dataset ID, one explicit UTC cutoff, and stated limitations;
 - recipe-version IDs, creation times, titles, version numbers, and distinct
-  canonical ingredient IDs; and
+  non-null canonical ingredient IDs; and
 - typed view, save, rating, and fork events with opaque event and profile IDs.
 
 The extractor reads a repeatable PostgreSQL snapshot and omits names, email
@@ -39,6 +39,12 @@ addresses, IP addresses, user agents, referrers, search text, fork request
 fingerprints, and free-form event context. Recipe and event arrays are
 canonicalized before hashing, so equivalent ordering and JSON formatting yield
 the same snapshot fingerprint.
+
+An authored recipe-ingredient row with no catalog link remains part of the
+product recipe but is omitted from the snapshot's `ingredient_ids`; it is never
+encoded as a shared sentinel identity. A recipe can therefore have an empty
+`ingredient_ids` array. See [authored ingredient identity](ingredient-identity.md)
+for the product boundary.
 
 The evaluator never reads the mutable `recipe_saves` or `recipe_ratings` tables
 for a historical run. Their present state cannot describe what was known at an
@@ -286,6 +292,9 @@ The full candidate, ordering, caution, and metric definitions are documented in
   simpler model.
 - Exact-version relevance does not yet measure lineage quality, substitution
   usefulness, nutrition, safety, or cooking outcomes.
+- Ingredient similarity covers only catalog-linked rows. Unlinked authored
+  ingredients are omitted rather than matched by display text, so overlap can
+  understate similarity when identity coverage is incomplete.
 - The substitution benchmark is synthetic, and the live demo catalog currently
   has only one outgoing candidate per substitution source; its perfect fixture
   metrics do not establish ranking quality or usefulness.

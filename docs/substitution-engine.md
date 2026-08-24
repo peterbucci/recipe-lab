@@ -22,9 +22,17 @@ for the requested source ingredient. Relationships are directional: an edge
 from A to B does not imply B to A. The engine never invents a reverse edge,
 walks a transitive path, or generates a candidate from ingredient similarity.
 
+Every source, replacement, and recipe-context member must be a UUID identity in
+the curated ingredient catalog. An unlinked authored ingredient cannot be a
+substitution source or candidate, and unresolved surrounding rows are omitted
+from context rather than represented by a sentinel. The engine never resolves
+authored display text by spelling. See
+[authored ingredient identity](ingredient-identity.md).
+
 The catalog validator requires:
 
-- unique ingredient, taxonomy, relationship, and recipe-context identifiers;
+- UUID catalog identities and unique ingredient, taxonomy, relationship, and
+  recipe-context identifiers;
 - known ingredient and taxonomy references;
 - one unique directed source/replacement pair with no self-replacement;
 - either a positive quantity ratio or nonblank written guidance;

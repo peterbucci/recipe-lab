@@ -50,6 +50,11 @@ metadata term. The model does not inspect held-out events, relevance labels,
 descriptions, instructions, quantities, dietary flags, allergens, or
 substitution edges.
 
+Only non-null catalog links enter `ingredient_ids`. Unlinked authored text is
+omitted rather than converted into a sentinel or matched by spelling. A recipe
+with no linked ingredients therefore receives zero ingredient similarity, even
+against another recipe with unresolved text that happens to look the same.
+
 ## Signed preference profiles
 
 Training events are ordered by UTC occurrence time and then event UUID. The
@@ -128,6 +133,8 @@ Important limitations include:
   only a weak positive proxy without impression data;
 - exact ingredient overlap and title tokens do not capture culinary semantics,
   quantities, preparation, dietary suitability, safety, or cooking outcomes;
+- incomplete catalog linking can understate ingredient similarity because
+  unresolved authored rows do not participate in overlap;
 - version-number proximity is a transparent heuristic, not semantic lineage
   similarity; and
 - the current catalog and event history are too small for significance,

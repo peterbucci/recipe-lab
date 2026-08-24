@@ -104,6 +104,11 @@ J(c, h) = |ingredients(c) intersection ingredients(h)|
           / |ingredients(c) union ingredients(h)|
 ```
 
+Only non-null catalog links participate. Unlinked authored ingredient text is
+not promoted, token-matched, or represented by a shared sentinel; it contributes
+no overlap. Similarity is zero when either recipe has no linked ingredient IDs,
+so incomplete catalog coverage can understate otherwise related recipes.
+
 The personal score is the best strength-adjusted match:
 
 ```text

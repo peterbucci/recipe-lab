@@ -11,7 +11,7 @@ The first schema milestone intentionally covers only the MVP foundation:
 - recipe lineages that group an original recipe with all of its variants;
 - append-only recipe-version snapshots with one optional parent;
 - ordered ingredient and instruction rows stored with each snapshot, with the
-  ingredient's authored display text preserved alongside its canonical ID;
+  ingredient's authored display text preserved alongside an optional canonical ID;
 - one save and one rating per user and recipe version;
 - append-only, typed preference events for explicit views, save-state actions,
   ratings, and forks.
@@ -74,8 +74,9 @@ with AND semantics. Results use a fixed title/version/ID order, and pages after
 the final page return an empty `items` list while preserving the total count.
 
 Ingredient responses preserve the authored display name alongside the
-canonical ingredient name and ID. Decimal quantities and servings serialize as
-JSON strings so PostgreSQL precision is not lost. Parent and child summaries
+nullable canonical ingredient name and ID. An unlinked authored ingredient has
+null catalog fields and receives no inferred catalog metadata. Decimal quantities
+and servings serialize as JSON strings so PostgreSQL precision is not lost. Parent and child summaries
 are immediate relationships, not a recursively expanded lineage tree. Detail
 responses also include a read-only rating count and average. An unrated recipe
 returns a count of zero and a null average; individual users and ratings are not
@@ -104,9 +105,11 @@ rows does not create a content change. Exact decimals remain JSON strings.
 
 Recipe snapshots do not persist the edit operation or copied-row ancestry.
 The engine therefore documents a canonical snapshot comparison rather than
-claiming to replay author intent: it matches equal canonical ingredient
-occurrences first, recognizes replacements only through curated directed
-substitution edges, and uses stable occurrence matching for remaining rows.
+claiming to replay author intent: it pairs linked occurrences by equal non-null
+catalog ID, cancels unlinked occurrences only when their complete authored
+snapshots are equal, and recognizes replacements only through curated directed
+substitution edges between linked IDs. Changed unlinked rows remain a removal
+plus an addition because authored text is not treated as identity.
 It never infers reverse or transitive substitutions. A root without an
 implicit base and a cross-lineage explicit comparison return documented 422
 errors; a missing version returns 404. Diff reads do not depend on the shared
@@ -238,7 +241,9 @@ with HTTP 201 and a `Location` header for its detail resource.
 Ingredient edits target row IDs from the direct source snapshot so recipes may
 use the same canonical ingredient more than once. Supported operations set a
 quantity, set or clear a unit, replace an ingredient through exact
-canonical-or-alias lookup, append an ingredient, or remove an ingredient.
+canonical-or-alias lookup when possible, append an ingredient, or remove an ingredient.
+Unknown names remain valid authored text with a null catalog identity; these writes
+never create or change trusted ingredient or alias rows.
 Instruction edits update, append, or remove a source instruction. Replacements
 preserve the source amount, unit, and preparation notes unless companion edits
 change them; they do not infer a conversion or require a curated substitution
@@ -247,7 +252,7 @@ order, and the final positions are compact.
 
 The service copies every retained ingredient and instruction into fresh rows
 and never updates the source snapshot. It rejects unknown or cross-recipe row
-IDs, conflicting edits, unknown catalog ingredients, no-op replacements, and a
+IDs, conflicting edits, true no-op replacements, and a
 result with no ingredients or instructions. PostgreSQL serializes version
 allocation on the lineage row, so simultaneous forks receive distinct,
 lineage-wide version numbers. The route owns one transaction containing the
@@ -261,6 +266,9 @@ action keys intentionally create distinct sibling versions. Client interfaces
 still disable duplicate submission, but the server-side contract protects
 network retries. Automatic substitutions, unit conversion, edit-operation
 storage, and original-recipe creation remain outside this MVP endpoint.
+
+See [authored ingredient identity](../docs/ingredient-identity.md) for the nullable
+catalog-link, comparison, recommendation, and metadata-safety contract.
 
 ## Migrations
 

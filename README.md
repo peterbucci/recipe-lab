@@ -129,6 +129,8 @@ The repository currently provides:
   ratings plus their separate interaction history;
 - a canonical ingredient catalog with normalized aliases, category and
   dietary/allergen metadata, and explainable directed substitution edges;
+- recipe ingredient snapshots that always preserve authored text and optionally
+  link to that catalog without promoting unknown text into trusted metadata;
 - Alembic migrations and database-level lineage, ordering, rating, event
   privacy, and uniqueness constraints;
 - PostgreSQL and local development services through Docker Compose.
@@ -388,4 +390,7 @@ the signed-neighborhood experiment is documented in the
 offline rank-fusion and model-adoption policy are documented in the
 [offline hybrid recommender](docs/hybrid-recommender.md). The deterministic
 substitution baseline, declared-tag filtering, and non-safety boundary are documented in
-the [offline substitution rules engine](docs/substitution-engine.md).
+the [offline substitution rules engine](docs/substitution-engine.md). The storage,
+authoring, comparison, recommendation, and substitution behavior for linked and
+unlinked recipe ingredients is defined in
+[authored ingredient identity](docs/ingredient-identity.md).
