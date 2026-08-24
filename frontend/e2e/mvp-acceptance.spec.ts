@@ -121,6 +121,12 @@ test.describe("MVP acceptance", () => {
       page.getByRole("heading", { name: "Make this recipe your own.", level: 1 }),
     ).toBeVisible();
     await expect(page.getByRole("group", { name: "About your version" })).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      ),
+    ).toBe(false);
     await expectNoAccessibilityViolations(page);
 
     const sugarRow = page.getByRole("group", {
@@ -139,10 +145,29 @@ test.describe("MVP acceptance", () => {
       page,
       walnutRow.getByRole("button", { name: "Change Walnut", exact: true }),
     );
-    await walnutRow
-      .getByLabel("Swap ingredient (optional)", { exact: true })
-      .fill("Pecan");
+    const replacementSearch = walnutRow.getByRole("searchbox", {
+      name: "Swap ingredient (optional)",
+      exact: true,
+    });
+    await replacementSearch.focus();
+    await replacementSearch.fill("Pecan");
+    await page.keyboard.press("Enter");
+    const pecanResult = walnutRow
+      .getByRole("list", { name: "Swap ingredient (optional) catalog results" })
+      .getByRole("button", { name: /pecan/i })
+      .first();
+    await expect(pecanResult).toBeVisible();
+    await expectNoAccessibilityViolations(page);
+    await activateWithKeyboard(page, pecanResult);
+    await expect(walnutRow.getByText("Selected catalog ingredient")).toBeVisible();
 
+    const createRequest = page.waitForRequest(
+      (request) =>
+        request.method() === "POST" &&
+        request.url().endsWith(
+          `/api/recipes/${encodeURIComponent(sourceRecipeVersionId)}/variants`,
+        ),
+    );
     const createResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
@@ -154,6 +179,17 @@ test.describe("MVP acceptance", () => {
       page,
       page.getByRole("button", { name: "Create my version", exact: true }),
     );
+    const submittedVariant = (await createRequest).postDataJSON() as {
+      ingredient_edits: Array<Record<string, unknown>>;
+    };
+    const replacement = submittedVariant.ingredient_edits.find(
+      (edit) => edit.op === "replace",
+    );
+    expect(replacement).toMatchObject({ display_name: "Pecan" });
+    expect(replacement?.ingredient_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    expect(replacement).not.toHaveProperty("ingredient_name");
     expect((await createResponse).status()).toBe(201);
 
     await expect(page).toHaveURL(/\/recipes\/[^/]+$/);

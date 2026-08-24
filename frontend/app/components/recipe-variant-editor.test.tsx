@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { CatalogIngredientPage } from "../../lib/ingredient-catalog-api";
 import type { RecipeDetail } from "../../lib/recipe-api";
 import { createRecipeVariant, VariantApiError } from "../../lib/variant-api";
 import { RecipeVariantEditor } from "./recipe-variant-editor";
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   createIdempotencyKey: vi.fn(),
   createRecipeVariant: vi.fn(),
   replace: vi.fn(),
+  searchCatalogIngredients: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -34,10 +36,23 @@ vi.mock("../../lib/idempotency-key", () => ({
   createIdempotencyKey: mocks.createIdempotencyKey,
 }));
 
+vi.mock("../../lib/ingredient-catalog-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/ingredient-catalog-api")>();
+  return {
+    ...actual,
+    searchCatalogIngredients: mocks.searchCatalogIngredients,
+  };
+});
+
 const SOURCE_ID = "11111111-1111-4111-8111-111111111111";
 const CHILD_ID = "22222222-2222-4222-8222-222222222222";
 const FIRST_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
 const SECOND_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2";
+const SUGAR_ID = "44444444-4444-4444-8444-444444444444";
+const WALNUT_ID = "55555555-5555-4555-8555-555555555555";
+const SALT_ID = "66666666-6666-4666-8666-666666666666";
+const PECAN_ID = "77777777-7777-4777-8777-777777777777";
+const ORANGE_ZEST_ID = "88888888-8888-4888-8888-888888888888";
 
 function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
   return {
@@ -61,7 +76,7 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     ingredients: [
       {
         id: "sugar-row",
-        ingredient_id: "sugar",
+        ingredient_id: SUGAR_ID,
         canonical_name: "Granulated sugar",
         display_name: "White sugar",
         quantity: "180.0000",
@@ -71,7 +86,7 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
       },
       {
         id: "walnut-row",
-        ingredient_id: "walnut",
+        ingredient_id: WALNUT_ID,
         canonical_name: "Walnut",
         display_name: "Walnuts",
         quantity: "100.0000",
@@ -81,7 +96,7 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
       },
       {
         id: "salt-row",
-        ingredient_id: "salt",
+        ingredient_id: SALT_ID,
         canonical_name: "Salt",
         display_name: "Salt",
         quantity: null,
@@ -151,6 +166,33 @@ function expandIngredientRow(row: HTMLElement, name: string): void {
   }
 }
 
+function catalogPage(
+  id: string,
+  canonicalName: string,
+  aliases: string[] = [],
+): CatalogIngredientPage {
+  return {
+    items: [{ id, canonical_name: canonicalName, aliases }],
+    page: 1,
+    page_size: 20,
+    total: 1,
+    total_pages: 1,
+  };
+}
+
+async function chooseCatalogIngredient(
+  row: HTMLElement,
+  inputName: RegExp,
+  query: string,
+  resultName: RegExp,
+) {
+  const search = within(row).getByRole("searchbox", { name: inputName });
+  fireEvent.change(search, { target: { value: query } });
+  fireEvent.click(within(row).getByRole("button", { name: "Search catalog" }));
+  const result = await within(row).findByRole("button", { name: resultName });
+  fireEvent.click(result);
+}
+
 function expandInstructionRow(stepNumber: number): HTMLElement {
   const row = instructionRow(stepNumber);
   const editButton = within(row).queryByRole("button", {
@@ -172,6 +214,15 @@ beforeEach(() => {
   mocks.replace.mockReset();
   mocks.createRecipeVariant.mockReset();
   mocks.createIdempotencyKey.mockReset();
+  mocks.searchCatalogIngredients.mockReset();
+  mocks.searchCatalogIngredients.mockImplementation(
+    async ({ query }: { query?: string }) => {
+      if (query?.trim().toLocaleLowerCase() === "orange zest") {
+        return catalogPage(ORANGE_ZEST_ID, "Orange zest");
+      }
+      return catalogPage(PECAN_ID, "Pecan", ["Pecan nut"]);
+    },
+  );
   mocks.createIdempotencyKey
     .mockReturnValueOnce(FIRST_KEY)
     .mockReturnValueOnce(SECOND_KEY);
@@ -190,7 +241,7 @@ describe("RecipeVariantEditor", () => {
     expect(within(form).getByRole("group", { name: /^ingredients$/i })).toBeInTheDocument();
     expect(within(form).getByRole("group", { name: /^instructions$/i })).toBeInTheDocument();
     expect(
-      within(form).getByText(/every published ingredient must match an existing catalog/i),
+      within(form).getByText(/choose every added or swapped ingredient from the curated catalog/i),
     ).toBeInTheDocument();
     expect(within(form).getByLabelText(/^title$/i)).toHaveValue(
       "Carrot Walnut Snack Cake variation",
@@ -221,7 +272,7 @@ describe("RecipeVariantEditor", () => {
         name: "Done editing White sugar",
       }),
     ).toHaveAttribute("aria-expanded", "true");
-    expect(within(sugar).getByLabelText(/swap ingredient/i)).toHaveValue("");
+    expect(within(sugar).getByRole("searchbox", { name: /swap ingredient/i })).toHaveValue("");
     expect(within(sugar).getByLabelText(/^quantity$/i)).toHaveValue("180.0000");
     expect(within(sugar).getByLabelText(/^quantity$/i)).toHaveAttribute(
       "inputmode",
@@ -262,7 +313,7 @@ describe("RecipeVariantEditor", () => {
     const addedIngredient = screen.getByRole("group", {
       name: "New ingredient 4",
     });
-    expect(within(addedIngredient).getByLabelText(/ingredient name/i)).toHaveFocus();
+    expect(within(addedIngredient).getByRole("searchbox", { name: /^ingredient$/i })).toHaveFocus();
     expect(within(addedIngredient).getByText("New")).toBeInTheDocument();
 
     fireEvent.click(
@@ -359,9 +410,12 @@ describe("RecipeVariantEditor", () => {
 
     const walnuts = screen.getByRole("group", { name: /ingredient 2/i });
     expandIngredientRow(walnuts, "Walnuts");
-    fireEvent.change(within(walnuts).getByLabelText(/swap ingredient/i), {
-      target: { value: "  Pecan  " },
-    });
+    await chooseCatalogIngredient(
+      walnuts,
+      /swap ingredient/i,
+      "Pecan",
+      /pecan.*also known as/i,
+    );
     expect(within(walnuts).getByText("Changed")).toBeInTheDocument();
     expect(within(walnuts).getByText("Pecan · 100 g")).toBeInTheDocument();
     expect(
@@ -388,9 +442,12 @@ describe("RecipeVariantEditor", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /add ingredient/i }));
     const addedIngredient = screen.getByRole("group", { name: /ingredient 4/i });
-    fireEvent.change(within(addedIngredient).getByLabelText(/ingredient name/i), {
-      target: { value: "  Orange zest  " },
-    });
+    await chooseCatalogIngredient(
+      addedIngredient,
+      /^ingredient$/i,
+      "Orange zest",
+      /^orange zest.*choose$/i,
+    );
     fireEvent.change(within(addedIngredient).getByLabelText(/^quantity$/i), {
       target: { value: " 1.25 " },
     });
@@ -435,12 +492,14 @@ describe("RecipeVariantEditor", () => {
           {
             op: "replace",
             recipe_ingredient_id: "walnut-row",
-            ingredient_name: "Pecan",
+            ingredient_id: PECAN_ID,
+            display_name: "Pecan",
           },
           { op: "remove", recipe_ingredient_id: "salt-row" },
           {
             op: "add",
-            ingredient_name: "Orange zest",
+            ingredient_id: ORANGE_ZEST_ID,
+            display_name: "Orange zest",
             quantity: "1.25",
             unit: "tbsp",
             preparation_notes: "finely grated",
@@ -500,7 +559,7 @@ describe("RecipeVariantEditor", () => {
   it("preserves the draft and stays on the editor after a backend 422", async () => {
     vi.mocked(createRecipeVariant).mockRejectedValue(
       new VariantApiError(
-        'Ingredient "Dragon fruit" is not in the curated catalog and cannot be published.',
+        "That catalog ingredient selection is no longer available.",
         422,
         "invalid_recipe_edits",
       ),
@@ -510,19 +569,27 @@ describe("RecipeVariantEditor", () => {
     const title = screen.getByLabelText(/^title$/i);
     const walnuts = screen.getByRole("group", { name: /ingredient 2/i });
     expandIngredientRow(walnuts, "Walnuts");
-    const replacement = within(walnuts).getByLabelText(/swap ingredient/i);
     fireEvent.change(title, { target: { value: "Tropical carrot cake" } });
-    fireEvent.change(replacement, { target: { value: "Dragon fruit" } });
+    await chooseCatalogIngredient(
+      walnuts,
+      /swap ingredient/i,
+      "Pecan",
+      /pecan.*also known as/i,
+    );
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
 
     const alert = await screen.findByRole("alert");
     expect(
       within(alert).getByText(
-        'Ingredient "Dragon fruit" is not in the curated catalog and cannot be published.',
+        "That catalog ingredient selection is no longer available.",
       ),
     ).toBeInTheDocument();
     expect(title).toHaveValue("Tropical carrot cake");
-    expect(replacement).toHaveValue("Dragon fruit");
+    const selectedIngredient = within(walnuts)
+      .getByText("Selected catalog ingredient")
+      .closest(".ingredient-picker__selection");
+    expect(selectedIngredient).not.toBeNull();
+    expect(within(selectedIngredient as HTMLElement).getByText("Pecan")).toBeInTheDocument();
     expect(screen.getByRole("form")).toHaveAttribute("aria-busy", "false");
     expect(screen.getByRole("button", { name: /^create my version$/i })).toBeEnabled();
     expect(createRecipeVariant).toHaveBeenCalledOnce();

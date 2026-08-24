@@ -10,6 +10,12 @@ import {
   validateVariantDraft,
 } from "./variant-draft";
 
+const SUGAR_ID = "11111111-1111-4111-8111-111111111111";
+const WALNUT_ID = "22222222-2222-4222-8222-222222222222";
+const PECAN_ID = "33333333-3333-4333-8333-333333333333";
+const ALMOND_ID = "44444444-4444-4444-8444-444444444444";
+const ORANGE_ZEST_ID = "55555555-5555-4555-8555-555555555555";
+
 function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
   return {
     id: "carrot-v1",
@@ -32,7 +38,7 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     ingredients: [
       {
         id: "sugar-row",
-        ingredient_id: "sugar",
+        ingredient_id: SUGAR_ID,
         canonical_name: "Granulated sugar",
         display_name: "White sugar",
         quantity: "140.0000",
@@ -42,7 +48,7 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
       },
       {
         id: "walnut-row",
-        ingredient_id: "walnut",
+        ingredient_id: WALNUT_ID,
         canonical_name: "Walnut",
         display_name: "Walnuts",
         quantity: "100.0000",
@@ -74,9 +80,10 @@ describe("variant draft", () => {
         {
           key: "source-sugar-row",
           sourceId: "sugar-row",
+          sourceIngredientId: SUGAR_ID,
           sourceDisplayName: "White sugar",
           sourceCanonicalName: "Granulated sugar",
-          ingredientName: "",
+          selectedIngredient: null,
           quantity: "140.0000",
           originalQuantity: "140.0000",
           unit: "g",
@@ -87,9 +94,10 @@ describe("variant draft", () => {
         {
           key: "source-walnut-row",
           sourceId: "walnut-row",
+          sourceIngredientId: WALNUT_ID,
           sourceDisplayName: "Walnuts",
           sourceCanonicalName: "Walnut",
-          ingredientName: "",
+          selectedIngredient: null,
           quantity: "100.0000",
           originalQuantity: "100.0000",
           unit: "g",
@@ -124,16 +132,28 @@ describe("variant draft", () => {
     draft.description = "   ";
     draft.servings = " 10.00 ";
 
-    draft.ingredients[0].ingredientName = "  Pecan  ";
+    draft.ingredients[0].selectedIngredient = {
+      ingredientId: PECAN_ID,
+      canonicalName: "Pecan",
+      displayName: "Pecan",
+    };
     draft.ingredients[0].quantity = " 125.5000 ";
     draft.ingredients[0].unit = "";
 
     draft.ingredients[1].removed = true;
-    draft.ingredients[1].ingredientName = "Almond";
+    draft.ingredients[1].selectedIngredient = {
+      ingredientId: ALMOND_ID,
+      canonicalName: "Almond",
+      displayName: "Almond",
+    };
     draft.ingredients[1].quantity = "90";
 
     const addedIngredient = createAddedIngredientDraft("new-orange-zest");
-    addedIngredient.ingredientName = "  Orange zest ";
+    addedIngredient.selectedIngredient = {
+      ingredientId: ORANGE_ZEST_ID,
+      canonicalName: "Orange zest",
+      displayName: "Orange zest",
+    };
     addedIngredient.quantity = " 1.25 ";
     addedIngredient.unit = " tbsp ";
     addedIngredient.preparationNotes = " finely grated ";
@@ -157,7 +177,8 @@ describe("variant draft", () => {
           {
             op: "replace",
             recipe_ingredient_id: "sugar-row",
-            ingredient_name: "Pecan",
+            ingredient_id: PECAN_ID,
+            display_name: "Pecan",
           },
           {
             op: "set_quantity",
@@ -172,7 +193,8 @@ describe("variant draft", () => {
           { op: "remove", recipe_ingredient_id: "walnut-row" },
           {
             op: "add",
-            ingredient_name: "Orange zest",
+            ingredient_id: ORANGE_ZEST_ID,
+            display_name: "Orange zest",
             quantity: "1.25",
             unit: "tbsp",
             preparation_notes: "finely grated",
@@ -239,11 +261,14 @@ describe("variant draft", () => {
     draft.title = "   ";
     draft.description = "contains\0nul";
     draft.servings = "0.00";
-    draft.ingredients[0].ingredientName = " granulated SUGAR ";
+    draft.ingredients[0].selectedIngredient = {
+      ingredientId: SUGAR_ID,
+      canonicalName: "Granulated sugar",
+      displayName: "White sugar",
+    };
     draft.ingredients[0].quantity = "1.00001";
 
     const addedIngredient = createAddedIngredientDraft("new-invalid");
-    addedIngredient.ingredientName = "   ";
     addedIngredient.quantity = "-2";
     draft.ingredients.push(addedIngredient);
 
@@ -259,10 +284,11 @@ describe("variant draft", () => {
       description: "Description contains an unsupported character.",
       servings: "Servings must be greater than zero.",
       [ingredientFieldKey("source-sugar-row", "name")]:
-        "Choose a different ingredient or leave the replacement blank.",
+        "Choose a different catalog ingredient or label, or clear the selection.",
       [ingredientFieldKey("source-sugar-row", "quantity")]:
         "Quantity can have at most 4 decimal places.",
-      [ingredientFieldKey("new-invalid", "name")]: "Ingredient name is required.",
+      [ingredientFieldKey("new-invalid", "name")]:
+        "Choose an ingredient from the catalog.",
       [ingredientFieldKey("new-invalid", "quantity")]:
         "Quantity must be a positive decimal number.",
       [instructionFieldKey("source-mix-step")]: "Instruction is required.",
@@ -294,7 +320,11 @@ describe("variant draft", () => {
   it("ignores newly added rows that users remove before submission", () => {
     const draft = createVariantDraft(sourceRecipe());
     const ingredient = createAddedIngredientDraft("discarded-ingredient");
-    ingredient.ingredientName = "Orange zest";
+    ingredient.selectedIngredient = {
+      ingredientId: ORANGE_ZEST_ID,
+      canonicalName: "Orange zest",
+      displayName: "Orange zest",
+    };
     ingredient.removed = true;
     draft.ingredients.push(ingredient);
     const instruction = createAddedInstructionDraft("discarded-instruction");
