@@ -495,7 +495,6 @@ jobs:
       NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
       NEXT_TELEMETRY_DISABLED: "1"
       ACCEPTANCE_DATABASE_ISOLATED: "1"
-      ACCEPTANCE_SESSION_FIXTURE: ${{ runner.temp }}/recipe-lab-acceptance-sessions.json
       MVP_ACCEPTANCE: "1"
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
       PLAYWRIGHT_WEB_SERVER_COMMAND: npm run start -- --hostname 127.0.0.1 --port 3000
@@ -515,6 +514,12 @@ jobs:
           --health-retries 10
 
     steps:
+      - name: Configure acceptance fixture path
+        shell: bash
+        run: |
+          echo "ACCEPTANCE_SESSION_FIXTURE=$RUNNER_TEMP/recipe-lab-acceptance-sessions.json" \
+            >> "$GITHUB_ENV"
+
       - name: Require backend and frontend quality gates
         env:
           BACKEND_RESULT: ${{ needs.backend.result }}
