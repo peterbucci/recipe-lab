@@ -84,6 +84,29 @@ class IngredientCatalogRequestResponse(CatalogSchema):
     resolved_ingredient_id: UUID | None
 
 
+class MemberIngredientCatalogRequestResponse(IngredientCatalogRequestResponse):
+    resolved_ingredient: IngredientCatalogItem | None = Field(
+        description=(
+            "Trusted current catalog identity for an approved or duplicate request. "
+            "Pending and rejected request text never becomes selectable."
+        )
+    )
+
+    @model_validator(mode="after")
+    def resolution_matches_status(self) -> Self:
+        resolved_status = self.status in {"approved", "duplicate"}
+        if resolved_status:
+            if self.resolved_ingredient_id is None or self.resolved_ingredient is None:
+                raise ValueError(
+                    "Approved and duplicate requests require a resolved catalog ingredient."
+                )
+            if self.resolved_ingredient.id != self.resolved_ingredient_id:
+                raise ValueError("The resolved catalog ingredient must match its stable ID.")
+        elif self.resolved_ingredient_id is not None or self.resolved_ingredient is not None:
+            raise ValueError("Pending and rejected requests cannot resolve to an ingredient.")
+        return self
+
+
 class IngredientCatalogRequestReviewResponse(IngredientCatalogRequestResponse):
     updated_at: datetime
     requester_user_id: UUID
@@ -97,7 +120,7 @@ class IngredientCatalogRequestReviewResponse(IngredientCatalogRequestResponse):
 class IngredientCatalogRequestPage(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    items: list[IngredientCatalogRequestResponse]
+    items: list[MemberIngredientCatalogRequestResponse]
     page: int = Field(ge=1)
     page_size: int = Field(ge=1)
     total: int = Field(ge=0)
