@@ -1,7 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { formatIngredientAmount, formatServings } from "../../lib/format";
+import {
+  catalogNameForDisplay,
+  formatIngredientAmount,
+  formatServings,
+} from "../../lib/format";
 import type {
   RecipeDiff,
   RecipeFieldChange,
@@ -59,9 +63,10 @@ function IngredientValue({
   ingredient: RecipeIngredient;
   showName?: boolean;
 }) {
-  const authoredAlias =
-    ingredient.display_name.trim().toLowerCase() !==
-    ingredient.canonical_name.trim().toLowerCase();
+  const catalogName = catalogNameForDisplay(
+    ingredient.display_name,
+    ingredient.canonical_name,
+  );
 
   return (
     <span className="recipe-diff-ingredient">
@@ -70,7 +75,7 @@ function IngredientValue({
       {ingredient.preparation_notes ? (
         <small>Preparation: {ingredient.preparation_notes}</small>
       ) : null}
-      {authoredAlias ? <small>Catalog name: {ingredient.canonical_name}</small> : null}
+      {catalogName ? <small>Catalog name: {catalogName}</small> : null}
     </span>
   );
 }

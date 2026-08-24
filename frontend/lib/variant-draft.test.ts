@@ -207,6 +207,50 @@ describe("variant draft", () => {
     });
   });
 
+  it("accepts authored ingredient names without requiring a catalog match", () => {
+    const draft = createVariantDraft(sourceRecipe());
+    draft.ingredients[0].ingredientName = "Black lime powder (house blend)";
+    const addedIngredient = createAddedIngredientDraft("new-spruce-tip-jam");
+    addedIngredient.ingredientName = "Fermented Spruce-Tip Jam #2";
+    draft.ingredients.push(addedIngredient);
+
+    const result = validateVariantDraft(draft);
+
+    expect(result.fieldErrors).toEqual({});
+    expect(result.formErrors).toEqual([]);
+    expect(result.payload?.ingredient_edits).toEqual([
+      {
+        op: "replace",
+        recipe_ingredient_id: "sugar-row",
+        ingredient_name: "Black lime powder (house blend)",
+      },
+      {
+        op: "add",
+        ingredient_name: "Fermented Spruce-Tip Jam #2",
+        quantity: null,
+        unit: null,
+        preparation_notes: null,
+      },
+    ]);
+  });
+
+  it("allows a linked alias to be replaced with its canonical catalog name", () => {
+    const draft = createVariantDraft(sourceRecipe());
+    draft.ingredients[0].ingredientName = "  Granulated sugar  ";
+
+    const result = validateVariantDraft(draft);
+
+    expect(result.fieldErrors).toEqual({});
+    expect(result.formErrors).toEqual([]);
+    expect(result.payload?.ingredient_edits).toEqual([
+      {
+        op: "replace",
+        recipe_ingredient_id: "sugar-row",
+        ingredient_name: "Granulated sugar",
+      },
+    ]);
+  });
+
   it("does not reject source-only fields that the editor cannot change", () => {
     const source = sourceRecipe({
       ingredients: [
@@ -239,7 +283,7 @@ describe("variant draft", () => {
     draft.title = "   ";
     draft.description = "contains\0nul";
     draft.servings = "0.00";
-    draft.ingredients[0].ingredientName = " granulated SUGAR ";
+    draft.ingredients[0].ingredientName = " White sugar ";
     draft.ingredients[0].quantity = "1.00001";
 
     const addedIngredient = createAddedIngredientDraft("new-invalid");

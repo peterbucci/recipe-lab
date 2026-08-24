@@ -52,6 +52,7 @@ test.describe("MVP acceptance", () => {
     page,
   }) => {
     const variantTitle = "MVP Lower-Sugar Pecan Carrot Cake";
+    const authoredIngredient = "Black lime powder (house blend)";
 
     await useAcceptanceMember(page, "alice");
     await page.goto("/");
@@ -142,6 +143,15 @@ test.describe("MVP acceptance", () => {
     await walnutRow
       .getByLabel("Swap ingredient (optional)", { exact: true })
       .fill("Pecan");
+    await page.getByRole("button", { name: "Add ingredient", exact: true }).click();
+    const authoredIngredientRow = page
+      .getByRole("group", { name: /^New ingredient \d+$/ })
+      .last();
+    await authoredIngredientRow
+      .getByLabel("Ingredient name", { exact: true })
+      .fill(authoredIngredient);
+    await authoredIngredientRow.getByLabel("Quantity", { exact: true }).fill("1");
+    await authoredIngredientRow.getByLabel("Unit", { exact: true }).fill("tsp");
 
     const createResponse = page.waitForResponse(
       (response) =>
@@ -169,15 +179,20 @@ test.describe("MVP acceptance", () => {
     ).toBeVisible();
 
     const ingredients = page.getByRole("region", { name: "Ingredients" });
-    await expect(
-      ingredients.getByRole("listitem").filter({ hasText: "White sugar" }),
-    ).toContainText("140 g");
+    const whiteSugar = ingredients.getByRole("listitem").filter({ hasText: "White sugar" });
+    await expect(whiteSugar).toContainText("140 g");
+    await expect(whiteSugar).toContainText("Catalog name: Granulated sugar");
     await expect(
       ingredients.getByRole("listitem").filter({ hasText: "Pecan" }),
     ).toContainText("100 g");
     await expect(
       ingredients.getByRole("listitem").filter({ hasText: "Walnut" }),
     ).toHaveCount(0);
+    const authoredIngredientDetail = ingredients
+      .getByRole("listitem")
+      .filter({ hasText: authoredIngredient });
+    await expect(authoredIngredientDetail).toContainText("1 tsp");
+    await expect(authoredIngredientDetail.getByText(/catalog name:/i)).toHaveCount(0);
     await expectNoAccessibilityViolations(page);
 
     await activateWithKeyboard(
@@ -226,6 +241,14 @@ test.describe("MVP acceptance", () => {
     ).toBeVisible();
     await expect(substitution.getByText("Walnut", { exact: true })).toBeVisible();
     await expect(substitution.getByText("Pecan", { exact: true })).toBeVisible();
+
+    const authoredAddition = page.getByRole("article", {
+      name: authoredIngredient,
+      exact: true,
+    });
+    await expect(authoredAddition.getByText("Added", { exact: true })).toBeVisible();
+    await expect(authoredAddition.getByText("1 tsp", { exact: true })).toBeVisible();
+    await expect(authoredAddition.getByText(/catalog name:/i)).toHaveCount(0);
     await expectNoAccessibilityViolations(page);
   });
 

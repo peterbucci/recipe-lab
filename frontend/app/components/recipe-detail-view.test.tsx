@@ -66,6 +66,16 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
         preparation_notes: null,
         display_order: 1,
       },
+      {
+        id: "black-lime-line",
+        ingredient_id: null,
+        canonical_name: null,
+        display_name: "Black lime powder (house blend)",
+        quantity: "1.0000",
+        unit: "tsp",
+        preparation_notes: "added at the table",
+        display_order: 2,
+      },
     ],
     instructions: [
       { id: "step-one", text: "Heat the oven and prepare the pan.", display_order: 0 },
@@ -117,6 +127,13 @@ describe("RecipeDetailView", () => {
     );
     expect(screen.getByText("140 g")).toBeInTheDocument();
     expect(screen.getByText(/catalog name: granulated sugar/i)).toBeInTheDocument();
+    const authoredIngredient = screen
+      .getByText("Black lime powder (house blend)", { exact: true })
+      .closest("li");
+    expect(authoredIngredient).not.toBeNull();
+    expect(within(authoredIngredient!).getByText("1 tsp", { exact: true })).toBeInTheDocument();
+    expect(within(authoredIngredient!).getByText("added at the table")).toBeInTheDocument();
+    expect(within(authoredIngredient!).queryByText(/catalog name:/i)).not.toBeInTheDocument();
 
     const instructions = screen.getByRole("heading", { name: /instructions/i }).closest("section");
     expect(instructions).not.toBeNull();

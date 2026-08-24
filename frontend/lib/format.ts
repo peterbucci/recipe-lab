@@ -26,3 +26,15 @@ export function formatIngredientAmount(quantity: string | null, unit: string | n
   }
   return `${amount} ${unit}`;
 }
+
+export function catalogNameForDisplay(
+  displayName: string | null,
+  canonicalName: string | null,
+): string | null {
+  const display = displayName?.trim();
+  const canonical = canonicalName?.trim();
+  if (!display || !canonical || display.toLowerCase() === canonical.toLowerCase()) {
+    return null;
+  }
+  return canonical;
+}

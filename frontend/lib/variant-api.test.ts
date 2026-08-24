@@ -58,7 +58,28 @@ function createdRecipe(): RecipeDetail {
       title: "Carrot Walnut Snack Cake",
     },
     children: [],
-    ingredients: [],
+    ingredients: [
+      {
+        id: "sugar-row",
+        ingredient_id: "granulated-sugar",
+        canonical_name: "Granulated sugar",
+        display_name: "White sugar",
+        quantity: "140.0000",
+        unit: "g",
+        preparation_notes: null,
+        display_order: 0,
+      },
+      {
+        id: "black-lime-row",
+        ingredient_id: null,
+        canonical_name: null,
+        display_name: "Black lime powder (house blend)",
+        quantity: "1.0000",
+        unit: "tsp",
+        preparation_notes: "added at the table",
+        display_order: 1,
+      },
+    ],
     instructions: [],
   };
 }
@@ -83,9 +104,23 @@ describe("variant API client", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      createRecipeVariant(sourceRecipeVersionId, payload, idempotencyKey),
-    ).resolves.toEqual(created);
+    const result = await createRecipeVariant(
+      sourceRecipeVersionId,
+      payload,
+      idempotencyKey,
+    );
+
+    expect(result).toEqual(created);
+    expect(result.ingredients[0]).toMatchObject({
+      ingredient_id: "granulated-sugar",
+      canonical_name: "Granulated sugar",
+      display_name: "White sugar",
+    });
+    expect(result.ingredients[1]).toMatchObject({
+      ingredient_id: null,
+      canonical_name: null,
+      display_name: "Black lime powder (house blend)",
+    });
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledWith(
@@ -113,6 +148,48 @@ describe("variant API client", () => {
     expect(submitted).not.toHaveProperty("version_number");
   });
 
+  it("keeps a canonical-name replacement linked in the created response", async () => {
+    const canonicalReplacementPayload: RecipeVariantCreateRequest = {
+      ...payload,
+      ingredient_edits: [
+        {
+          op: "replace",
+          recipe_ingredient_id: "sugar-row",
+          ingredient_name: "Granulated sugar",
+        },
+      ],
+    };
+    const created = createdRecipe();
+    created.ingredients[0] = {
+      ...created.ingredients[0],
+      ingredient_id: "granulated-sugar",
+      canonical_name: "Granulated sugar",
+      display_name: "Granulated sugar",
+    };
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(created), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await createRecipeVariant(
+      sourceRecipeVersionId,
+      canonicalReplacementPayload,
+      idempotencyKey,
+    );
+
+    expect(result.ingredients[0]).toMatchObject({
+      ingredient_id: "granulated-sugar",
+      canonical_name: "Granulated sugar",
+      display_name: "Granulated sugar",
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual(
+      canonicalReplacementPayload,
+    );
+  });
+
   it("preserves the backend error status, code, and safe message", async () => {
     vi.stubGlobal(
       "fetch",
@@ -121,7 +198,7 @@ describe("variant API client", () => {
           JSON.stringify({
             error: {
               code: "invalid_recipe_edits",
-              message: 'Ingredient "Dragon fruit" is not in the catalog.',
+              message: "Recipe ingredient edits conflict with the source version.",
               issues: [],
             },
           }),
@@ -138,7 +215,7 @@ describe("variant API client", () => {
     expect(error).toMatchObject({
       status: 422,
       code: "invalid_recipe_edits",
-      message: 'Ingredient "Dragon fruit" is not in the catalog.',
+      message: "Recipe ingredient edits conflict with the source version.",
     });
   });
 

@@ -1,6 +1,10 @@
 import Link from "next/link";
 
-import { formatIngredientAmount, formatServings } from "../../lib/format";
+import {
+  catalogNameForDisplay,
+  formatIngredientAmount,
+  formatServings,
+} from "../../lib/format";
 import type { RecipeDetail, RecipeVersionReference } from "../../lib/recipe-api";
 import { RatingSummary } from "./rating-summary";
 import { RecipeArtwork } from "./recipe-artwork";
@@ -66,9 +70,10 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
           </div>
           <ul className="ingredient-list">
             {recipe.ingredients.map((ingredient) => {
-              const authoredAlias =
-                ingredient.display_name.trim().toLowerCase() !==
-                ingredient.canonical_name.trim().toLowerCase();
+              const catalogName = catalogNameForDisplay(
+                ingredient.display_name,
+                ingredient.canonical_name,
+              );
               return (
                 <li key={ingredient.id}>
                   <span className="ingredient-list__amount">
@@ -77,7 +82,7 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
                   <span className="ingredient-list__name">
                     <strong>{ingredient.display_name}</strong>
                     {ingredient.preparation_notes ? <small>{ingredient.preparation_notes}</small> : null}
-                    {authoredAlias ? <small>Catalog name: {ingredient.canonical_name}</small> : null}
+                    {catalogName ? <small>Catalog name: {catalogName}</small> : null}
                   </span>
                 </li>
               );

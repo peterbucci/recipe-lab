@@ -52,10 +52,6 @@ function normalized(value: string): string {
   return value.trim();
 }
 
-function sameName(left: string, right: string): boolean {
-  return normalized(left).toLocaleLowerCase() === normalized(right).toLocaleLowerCase();
-}
-
 function initialVariantTitle(sourceTitle: string): string {
   const suffix = " variation";
   const source = normalized(sourceTitle);
@@ -294,12 +290,7 @@ export function validateVariantDraft(draft: RecipeVariantDraft): VariantDraftVal
       continue;
     }
 
-    if (
-      ingredientName &&
-      ((ingredient.sourceDisplayName && sameName(ingredientName, ingredient.sourceDisplayName)) ||
-        (ingredient.sourceCanonicalName &&
-          sameName(ingredientName, ingredient.sourceCanonicalName)))
-    ) {
+    if (ingredientName && ingredientName === ingredient.sourceDisplayName) {
       fieldErrors[ingredientFieldKey(ingredient.key, "name")] =
         "Choose a different ingredient or leave the replacement blank.";
     } else if (ingredientName) {

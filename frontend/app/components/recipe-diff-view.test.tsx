@@ -244,6 +244,9 @@ describe("RecipeDiffView", () => {
     expect(within(amountChange).getByText("180 g")).toBeInTheDocument();
     expect(within(amountChange).getByText("140 g")).toBeInTheDocument();
     expect(within(amountChange).getByText(/preparation: divided/i)).toBeInTheDocument();
+    expect(
+      within(amountChange).getAllByText(/catalog name: granulated sugar/i),
+    ).toHaveLength(2);
 
     const addition = within(ingredients).getByRole("article", { name: "Orange zest" });
     expect(within(addition).getByText("Added")).toBeInTheDocument();
@@ -257,6 +260,39 @@ describe("RecipeDiffView", () => {
     expect(within(removal).getByText("Removed ingredient")).toBeInTheDocument();
     expect(within(removal).getByText("Baking soda").closest("del")).not.toBeNull();
     expect(within(removal).getByText("0.5 tsp").closest("del")).not.toBeNull();
+  });
+
+  it("preserves an authored ingredient that has no catalog link", () => {
+    const diff = mixedDiff();
+    diff.ingredients.added = [
+      ingredient(
+        "black-lime-row",
+        "Black lime powder (house blend)",
+        "1.0000",
+        "tsp",
+        {
+          ingredient_id: null,
+          canonical_name: null,
+          preparation_notes: "added at the table",
+        },
+      ),
+    ];
+
+    render(<RecipeDiffView diff={diff} />);
+
+    const authoredIngredient = screen.getByRole("article", {
+      name: "Black lime powder (house blend)",
+    });
+    expect(
+      within(authoredIngredient).getByText("Black lime powder (house blend)", {
+        exact: true,
+      }),
+    ).toBeInTheDocument();
+    expect(within(authoredIngredient).getByText("1 tsp", { exact: true })).toBeInTheDocument();
+    expect(
+      within(authoredIngredient).getByText(/preparation: added at the table/i),
+    ).toBeInTheDocument();
+    expect(within(authoredIngredient).queryByText(/catalog name:/i)).not.toBeInTheDocument();
   });
 
   it("distinguishes added, removed, and modified instructions", () => {

@@ -19,8 +19,8 @@ export interface RecipeVersionReference {
 
 export interface RecipeIngredient {
   id: string;
-  ingredient_id: string;
-  canonical_name: string;
+  ingredient_id: string | null;
+  canonical_name: string | null;
   display_name: string;
   quantity: string | null;
   unit: string | null;

@@ -252,6 +252,42 @@ describe("RecipeVariantEditor", () => {
     );
   });
 
+  it("renders an authored ingredient without requiring catalog metadata", () => {
+    render(
+      <RecipeVariantEditor
+        sourceRecipe={sourceRecipe({
+          ingredients: [
+            {
+              id: "black-lime-row",
+              ingredient_id: null,
+              canonical_name: null,
+              display_name: "Black lime powder (house blend)",
+              quantity: "1.0000",
+              unit: "tsp",
+              preparation_notes: "added at the table",
+              display_order: 0,
+            },
+          ],
+        })}
+      />,
+    );
+
+    const ingredient = screen.getByRole("group", {
+      name: "Ingredient 1: Black lime powder (house blend)",
+    });
+    expect(
+      within(ingredient).getByText("Black lime powder (house blend) · 1 tsp"),
+    ).toBeInTheDocument();
+    expect(within(ingredient).queryByText(/catalog name:/i)).not.toBeInTheDocument();
+
+    expandIngredientRow(ingredient, "Black lime powder (house blend)");
+    expect(
+      within(ingredient).getByText(
+        "Leave blank to keep it, or enter any replacement ingredient name.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("moves focus into added rows and preserves it across remove and undo", () => {
     render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
 
@@ -386,7 +422,7 @@ describe("RecipeVariantEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: /add ingredient/i }));
     const addedIngredient = screen.getByRole("group", { name: /ingredient 4/i });
     fireEvent.change(within(addedIngredient).getByLabelText(/ingredient name/i), {
-      target: { value: "  Orange zest  " },
+      target: { value: "  Black lime powder (house blend)  " },
     });
     fireEvent.change(within(addedIngredient).getByLabelText(/^quantity$/i), {
       target: { value: " 1.25 " },
@@ -437,7 +473,7 @@ describe("RecipeVariantEditor", () => {
           { op: "remove", recipe_ingredient_id: "salt-row" },
           {
             op: "add",
-            ingredient_name: "Orange zest",
+            ingredient_name: "Black lime powder (house blend)",
             quantity: "1.25",
             unit: "tbsp",
             preparation_notes: "finely grated",
@@ -497,7 +533,7 @@ describe("RecipeVariantEditor", () => {
   it("preserves the draft and stays on the editor after a backend 422", async () => {
     vi.mocked(createRecipeVariant).mockRejectedValue(
       new VariantApiError(
-        'Ingredient "Dragon fruit" is not in the catalog.',
+        "Recipe ingredient edits conflict with the source version.",
         422,
         "invalid_recipe_edits",
       ),
@@ -509,15 +545,19 @@ describe("RecipeVariantEditor", () => {
     expandIngredientRow(walnuts, "Walnuts");
     const replacement = within(walnuts).getByLabelText(/swap ingredient/i);
     fireEvent.change(title, { target: { value: "Tropical carrot cake" } });
-    fireEvent.change(replacement, { target: { value: "Dragon fruit" } });
+    fireEvent.change(replacement, {
+      target: { value: "Black lime powder (house blend)" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
 
     const alert = await screen.findByRole("alert");
     expect(
-      within(alert).getByText('Ingredient "Dragon fruit" is not in the catalog.'),
+      within(alert).getByText(
+        "Recipe ingredient edits conflict with the source version.",
+      ),
     ).toBeInTheDocument();
     expect(title).toHaveValue("Tropical carrot cake");
-    expect(replacement).toHaveValue("Dragon fruit");
+    expect(replacement).toHaveValue("Black lime powder (house blend)");
     expect(screen.getByRole("form")).toHaveAttribute("aria-busy", "false");
     expect(screen.getByRole("button", { name: /^create my version$/i })).toBeEnabled();
     expect(createRecipeVariant).toHaveBeenCalledOnce();

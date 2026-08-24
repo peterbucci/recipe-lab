@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { createIdempotencyKey } from "../../lib/idempotency-key";
-import { formatIngredientAmount } from "../../lib/format";
+import { catalogNameForDisplay, formatIngredientAmount } from "../../lib/format";
 import type { RecipeDetail } from "../../lib/recipe-api";
 import { isRecipeVersionId } from "../../lib/recipe-api";
 import {
@@ -404,8 +404,9 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
       >
         <legend>Ingredients</legend>
         <p id={`${formId}-ingredients-help`} className="variant-editor__help">
-          Keep what works, or change an ingredient, amount, or unit. Use an exact catalog name
-          when swapping an ingredient. Blank amounts and units mean unspecified.
+          Keep what works, or change an ingredient, amount, or unit. Use the ingredient name you
+          cook with; known catalog names and aliases link automatically. Blank amounts and units
+          mean unspecified.
         </p>
         <div className="variant-editor__rows">
           {draft.ingredients.map((ingredient, index) => {
@@ -421,6 +422,13 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
             const removeToggleId = `${rowId}-remove-toggle`;
             const status = ingredientStatus(ingredient);
             const isExpanded = expandedIngredientKeys.has(ingredient.key);
+            const sourceCatalogName =
+              optionalValue(ingredient.ingredientName) === null
+                ? catalogNameForDisplay(
+                    ingredient.sourceDisplayName,
+                    ingredient.sourceCanonicalName,
+                  )
+                : null;
 
             return (
               <fieldset
@@ -462,9 +470,8 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
                             {ingredientSummary(ingredient)}
                           </small>
                         ) : null}
-                        {optionalValue(ingredient.ingredientName) === null &&
-                        ingredient.sourceCanonicalName !== ingredient.sourceDisplayName ? (
-                          <small>Catalog name: {ingredient.sourceCanonicalName}</small>
+                        {sourceCatalogName ? (
+                          <small>Catalog name: {sourceCatalogName}</small>
                         ) : null}
                         {ingredient.preparationNotes ? (
                           <small>Preparation: {ingredient.preparationNotes}</small>
@@ -521,8 +528,8 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
                         />
                         <small id={`${rowId}-name-help`}>
                           {ingredient.sourceId
-                            ? "Leave blank to keep the starting ingredient."
-                            : "Use an exact catalog name or alias."}
+                            ? "Leave blank to keep it, or enter any replacement ingredient name."
+                            : "Known catalog names and aliases link automatically; other names stay as entered."}
                         </small>
                         <FieldError id={`${rowId}-name-error`} message={fieldErrors[nameKey]} />
                       </div>

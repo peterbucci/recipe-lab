@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDecimal, formatIngredientAmount, formatServings } from "./format";
+import {
+  catalogNameForDisplay,
+  formatDecimal,
+  formatIngredientAmount,
+  formatServings,
+} from "./format";
 
 describe("recipe value formatting", () => {
   it("removes only insignificant fractional zeroes", () => {
@@ -15,5 +20,13 @@ describe("recipe value formatting", () => {
     expect(formatIngredientAmount("2.0000", "count")).toBe("2");
     expect(formatIngredientAmount("3.0000", "clove")).toBe("3 cloves");
     expect(formatIngredientAmount(null, null)).toBe("Amount not specified");
+  });
+
+  it("labels linked aliases without inventing catalog metadata for authored ingredients", () => {
+    expect(catalogNameForDisplay("White sugar", "Granulated sugar")).toBe(
+      "Granulated sugar",
+    );
+    expect(catalogNameForDisplay(" salt ", "Salt")).toBeNull();
+    expect(catalogNameForDisplay("Black lime powder", null)).toBeNull();
   });
 });
