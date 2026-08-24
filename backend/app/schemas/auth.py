@@ -30,11 +30,18 @@ class AnonymousSessionResponse(BaseModel):
     status: Literal["anonymous"] = "anonymous"
 
 
+class AccountCapabilitiesResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    review_ingredient_requests: bool = False
+
+
 class MemberSessionResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: Literal["onboarding_required", "authenticated"]
     user: AccountUserResponse
+    capabilities: AccountCapabilitiesResponse = Field(default_factory=AccountCapabilitiesResponse)
 
 
 AccountSessionResponse = Annotated[

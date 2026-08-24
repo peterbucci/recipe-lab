@@ -60,6 +60,50 @@ def browse_ingredients(
     return IngredientCatalogBrowseResult(items=list(session.scalars(statement)), total=total)
 
 
+def find_ingredient_candidates(
+    session: Session,
+    *,
+    search_terms: list[str],
+    limit: int,
+) -> list[Ingredient]:
+    """Return bounded deterministic catalog candidates without inferring identity."""
+
+    matches = []
+    for term in search_terms:
+        if not term:
+            continue
+        pattern = f"%{_escape_like(term)}%"
+        alias_matches = (
+            select(IngredientAlias.id)
+            .where(
+                IngredientAlias.ingredient_id == Ingredient.id,
+                IngredientAlias.alias.ilike(pattern, escape="\\"),
+            )
+            .exists()
+        )
+        matches.append(
+            or_(
+                Ingredient.canonical_name.ilike(pattern, escape="\\"),
+                alias_matches,
+            )
+        )
+    if not matches:
+        return []
+
+    statement = (
+        select(Ingredient)
+        .options(selectinload(Ingredient.aliases))
+        .where(or_(*matches))
+        .order_by(
+            func.lower(func.btrim(Ingredient.canonical_name)),
+            func.btrim(Ingredient.canonical_name),
+            Ingredient.id,
+        )
+        .limit(limit)
+    )
+    return list(session.scalars(statement))
+
+
 def get_ingredient(session: Session, ingredient_id: UUID) -> Ingredient | None:
     statement = (
         select(Ingredient)

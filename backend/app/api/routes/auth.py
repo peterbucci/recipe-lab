@@ -25,7 +25,9 @@ from app.repositories.auth import (
     consume_oidc_login_transaction,
     delete_oidc_login_transaction,
 )
+from app.repositories.catalog_requests import is_catalog_curator
 from app.schemas.auth import (
+    AccountCapabilitiesResponse,
     AccountProfileUpdateRequest,
     AccountSessionResponse,
     AccountUserResponse,
@@ -77,13 +79,22 @@ def _invalid_login(error: Exception | None = None) -> ApiError:
     )
 
 
-def _member_response(authenticated: AuthenticatedSession) -> MemberSessionResponse:
+def _member_response(
+    session: SessionDependency,
+    authenticated: AuthenticatedSession,
+) -> MemberSessionResponse:
     return MemberSessionResponse(
         status="authenticated" if authenticated.handle is not None else "onboarding_required",
         user=AccountUserResponse(
             id=authenticated.user_id,
             handle=authenticated.handle,
             display_name=authenticated.display_name,
+        ),
+        capabilities=AccountCapabilitiesResponse(
+            review_ingredient_requests=(
+                authenticated.handle is not None
+                and is_catalog_curator(session, authenticated.user_id)
+            )
         ),
     )
 
@@ -291,7 +302,7 @@ def account_session(
             _clear_auth_cookies(response, settings)
         return AnonymousSessionResponse()
     session.commit()
-    return _member_response(authenticated)
+    return _member_response(session, authenticated)
 
 
 @router.patch(
@@ -329,7 +340,7 @@ def update_account_profile(
             message="Sign in to continue.",
         ) from error
     _set_no_store(response)
-    return _member_response(updated)
+    return _member_response(session, updated)
 
 
 @router.post(

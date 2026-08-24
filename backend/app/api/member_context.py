@@ -43,11 +43,13 @@ def lock_active_member_actor(
 def lock_catalog_curator_actor(
     session: Session,
     authenticated: AuthenticatedSession,
+    *,
+    lock_grant: bool = False,
 ) -> UUID:
     """Require an active, onboarded member with the narrow catalog-curator grant."""
 
     actor_id = lock_active_member_actor(session, authenticated)
-    if not is_catalog_curator(session, actor_id):
+    if not is_catalog_curator(session, actor_id, for_update=lock_grant):
         raise ApiError(
             status_code=403,
             code="catalog_curator_required",
