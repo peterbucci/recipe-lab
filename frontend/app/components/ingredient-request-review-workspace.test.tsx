@@ -210,6 +210,9 @@ describe("IngredientRequestReviewWorkspace", () => {
     renderWorkspace();
 
     await screen.findByRole("heading", { name: "Dragon fruit", level: 2 });
+    expect(
+      screen.getByText(/shown to the requesting member.*do not include private reviewer notes/i),
+    ).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Save approve decision" }));
     await waitFor(() => expect(screen.getByLabelText("Decision reason")).toHaveFocus());
     expect(screen.getByText("Enter a reason for this catalog decision.")).toBeVisible();

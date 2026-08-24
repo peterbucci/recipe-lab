@@ -9,6 +9,7 @@ import pytest
 from alembic import command
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from sqlalchemy import Engine, delete, func, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
@@ -24,6 +25,7 @@ from app.models import (
     IngredientCatalogRequest,
     RecipeVersion,
 )
+from app.schemas.ingredient_catalog import MemberIngredientCatalogRequestResponse
 from app.seeds import load_bundled_catalog, seed_catalog
 from app.seeds.identifiers import seed_uuid
 from tests.conftest import make_alembic_config
@@ -181,6 +183,48 @@ def _approve(
     return _json_object(response.json())
 
 
+@pytest.mark.parametrize(
+    ("request_status", "resolved_ingredient_id", "resolved_ingredient"),
+    [
+        (
+            "pending",
+            CHICKPEA_ID,
+            {"id": CHICKPEA_ID, "canonical_name": "Chickpea", "aliases": []},
+        ),
+        (
+            "rejected",
+            None,
+            {"id": CHICKPEA_ID, "canonical_name": "Chickpea", "aliases": []},
+        ),
+        ("approved", None, None),
+        (
+            "duplicate",
+            MEMBER_ID,
+            {"id": CHICKPEA_ID, "canonical_name": "Chickpea", "aliases": []},
+        ),
+    ],
+)
+def test_member_request_schema_rejects_inconsistent_catalog_resolutions(
+    request_status: str,
+    resolved_ingredient_id: UUID | None,
+    resolved_ingredient: dict[str, object] | None,
+) -> None:
+    with pytest.raises(ValidationError):
+        MemberIngredientCatalogRequestResponse.model_validate(
+            {
+                "id": uuid4(),
+                "proposed_name": "Untrusted request text",
+                "context": None,
+                "status": request_status,
+                "created_at": "2026-08-24T12:00:00Z",
+                "reviewed_at": None,
+                "decision_reason": None,
+                "resolved_ingredient_id": resolved_ingredient_id,
+                "resolved_ingredient": resolved_ingredient,
+            }
+        )
+
+
 def test_public_catalog_search_is_literal_paginated_and_deduplicates_alias_matches(
     catalog_api: CatalogApi,
 ) -> None:
@@ -268,9 +312,14 @@ def test_request_submission_requires_member_csrf_and_stays_out_of_catalog(
         "reviewed_at": None,
         "decision_reason": None,
         "resolved_ingredient_id": None,
+        "resolved_ingredient": None,
     }
     assert created.headers["location"] == f"/api/ingredient-requests/{body['id']}"
     assert created.headers["cache-control"] == "private, no-store"
+    assert {value.strip() for value in created.headers["vary"].split(",")} >= {
+        "Cookie",
+        "Origin",
+    }
     detail = catalog_api.member.get(created.headers["location"])
     hidden_from_other_member = catalog_api.other_member.get(created.headers["location"])
     assert detail.status_code == 200
@@ -703,6 +752,200 @@ def test_reject_and_duplicate_decisions_are_terminal_and_resolve_safely(
     assert "not an approved request" in invalid_response.text
 
 
+def test_member_request_history_is_private_filterable_and_returns_trusted_resolutions(
+    catalog_api: CatalogApi,
+) -> None:
+    approved_request = _submit(catalog_api.member, "Trackable approval herb")
+    approved = _approve(
+        catalog_api,
+        approved_request["id"],
+        canonical_name="Trackable herb",
+        aliases=["Zesty track leaf", "Alias track leaf"],
+    )
+    duplicate_request = _submit(catalog_api.member, "Trackable herb duplicate request")
+    duplicate_response = catalog_api.curator.post(
+        f"/api/ingredient-requests/{duplicate_request['id']}/review",
+        json={
+            "decision": "duplicate",
+            "reason": "The curated trackable herb already covers this request.",
+            "ingredient_id": approved["resolved_ingredient_id"],
+            "request_id": None,
+        },
+    )
+    rejected_request = _submit(catalog_api.member, "Unclear tracking ingredient")
+    rejected_response = catalog_api.curator.post(
+        f"/api/ingredient-requests/{rejected_request['id']}/review",
+        json={"decision": "reject", "reason": "The proposed ingredient is too vague."},
+    )
+    pending_request = _submit(catalog_api.member, "Pending tracking herb")
+    other_request = _submit(catalog_api.other_member, "Other member private herb")
+    assert duplicate_response.status_code == 200
+    assert rejected_response.status_code == 200
+
+    assert catalog_api.anonymous.get("/api/ingredient-requests/mine").status_code == 401
+    incomplete = catalog_api.incomplete.get("/api/ingredient-requests/mine")
+    assert incomplete.status_code == 403
+    assert _json_object(incomplete.json())["error"]["code"] == "account_setup_required"
+
+    history_response = catalog_api.member.get(
+        "/api/ingredient-requests/mine",
+        params={"page": 1, "page_size": 100},
+    )
+    assert history_response.status_code == 200
+    assert history_response.headers["cache-control"] == "private, no-store"
+    assert {value.strip() for value in history_response.headers["vary"].split(",")} >= {
+        "Cookie",
+        "Origin",
+    }
+    history = _json_object(history_response.json())
+    assert history["total"] == 4
+    assert history["total_pages"] == 1
+    assert history["page"] == 1
+    assert history["page_size"] == 100
+    assert other_request["id"] not in {item["id"] for item in history["items"]}
+    assert "@" not in history_response.text
+
+    items = {item["status"]: item for item in history["items"]}
+    assert set(items) == {"pending", "approved", "rejected", "duplicate"}
+    safe_member_fields = {
+        "id",
+        "proposed_name",
+        "context",
+        "status",
+        "created_at",
+        "reviewed_at",
+        "decision_reason",
+        "resolved_ingredient_id",
+        "resolved_ingredient",
+    }
+    assert all(set(item) == safe_member_fields for item in history["items"])
+
+    expected_resolution = {
+        "id": approved["resolved_ingredient_id"],
+        "canonical_name": "Trackable herb",
+        "aliases": ["Alias track leaf", "Zesty track leaf"],
+    }
+    for request_status in ("approved", "duplicate"):
+        assert items[request_status]["resolved_ingredient_id"] == expected_resolution["id"]
+        assert items[request_status]["resolved_ingredient"] == expected_resolution
+    for request_status in ("pending", "rejected"):
+        assert items[request_status]["resolved_ingredient_id"] is None
+        assert items[request_status]["resolved_ingredient"] is None
+
+    first_page = catalog_api.member.get(
+        "/api/ingredient-requests/mine",
+        params={"page": 1, "page_size": 1},
+    )
+    first_page_body = _json_object(first_page.json())
+    assert first_page_body["total"] == 4
+    assert first_page_body["total_pages"] == 4
+    assert first_page_body["items"][0]["id"] == pending_request["id"]
+
+    expected_ids = {
+        "pending": pending_request["id"],
+        "approved": approved_request["id"],
+        "rejected": rejected_request["id"],
+        "duplicate": duplicate_request["id"],
+    }
+    for request_status, expected_id in expected_ids.items():
+        filtered = catalog_api.member.get(
+            "/api/ingredient-requests/mine",
+            params={"status": request_status, "page": 1, "page_size": 1},
+        )
+        filtered_body = _json_object(filtered.json())
+        assert filtered.status_code == 200
+        assert filtered_body["total"] == 1
+        assert filtered_body["items"][0]["id"] == expected_id
+
+    resolved_search = catalog_api.member.get(
+        "/api/ingredient-requests/mine",
+        params={"status": "duplicate", "q": "alias track leaf"},
+    )
+    assert resolved_search.status_code == 200
+    assert [item["id"] for item in _json_object(resolved_search.json())["items"]] == [
+        duplicate_request["id"]
+    ]
+    assert (
+        _json_object(
+            catalog_api.member.get(
+                "/api/ingredient-requests/mine",
+                params={"q": "%", "page_size": 100},
+            ).json()
+        )["items"]
+        == []
+    )
+    for invalid_params in ({"status": "unknown"}, {"q": ""}, {"q": "x" * 101}):
+        assert (
+            catalog_api.member.get(
+                "/api/ingredient-requests/mine",
+                params=invalid_params,
+            ).status_code
+            == 422
+        )
+
+    other_history = _json_object(
+        catalog_api.other_member.get("/api/ingredient-requests/mine").json()
+    )
+    assert other_history["total"] == 1
+    assert [item["id"] for item in other_history["items"]] == [other_request["id"]]
+    approved_detail_path = f"/api/ingredient-requests/{approved_request['id']}"
+    approved_detail = catalog_api.member.get(approved_detail_path)
+    assert approved_detail.status_code == 200
+    assert approved_detail.headers["cache-control"] == "private, no-store"
+    assert {value.strip() for value in approved_detail.headers["vary"].split(",")} >= {
+        "Cookie",
+        "Origin",
+    }
+    assert _json_object(approved_detail.json())["resolved_ingredient"] == expected_resolution
+    hidden_detail = catalog_api.other_member.get(approved_detail_path)
+    assert hidden_detail.status_code == 404
+    assert _json_object(hidden_detail.json())["error"]["code"] == "ingredient_request_not_found"
+
+
+def test_member_history_search_does_not_probe_curator_only_approval_snapshots(
+    catalog_api: CatalogApi,
+) -> None:
+    request = _submit(catalog_api.member, "Snapshot privacy herb")
+    approved = _approve(
+        catalog_api,
+        request["id"],
+        canonical_name="Current privacy herb",
+        aliases=["Retired private snapshot alias"],
+    )
+    with Session(bind=catalog_api.engine) as session, session.begin():
+        retired_alias = session.scalar(
+            select(IngredientAlias).where(
+                IngredientAlias.ingredient_id == UUID(approved["resolved_ingredient_id"]),
+                IngredientAlias.alias == "Retired private snapshot alias",
+            )
+        )
+        assert retired_alias is not None
+        session.delete(retired_alias)
+
+    member_search = catalog_api.member.get(
+        "/api/ingredient-requests/mine",
+        params={"status": "approved", "q": "Retired private snapshot alias"},
+    )
+    assert member_search.status_code == 200
+    assert _json_object(member_search.json())["items"] == []
+
+    curator_search = catalog_api.curator.get(
+        "/api/ingredient-requests",
+        params={"status": "approved", "q": "Retired private snapshot alias"},
+    )
+    assert curator_search.status_code == 200
+    assert [item["id"] for item in _json_object(curator_search.json())["items"]] == [request["id"]]
+
+    member_detail = catalog_api.member.get(f"/api/ingredient-requests/{request['id']}")
+    assert member_detail.status_code == 200
+    assert _json_object(member_detail.json())["resolved_ingredient"] == {
+        "id": approved["resolved_ingredient_id"],
+        "canonical_name": "Current privacy herb",
+        "aliases": [],
+    }
+    assert "approved_aliases" not in _json_object(member_detail.json())
+
+
 def test_curator_session_capability_tracks_the_narrow_database_grant(
     catalog_api: CatalogApi,
 ) -> None:
@@ -882,6 +1125,7 @@ def test_catalog_openapi_documents_stable_ids_requests_and_curator_review(
 
     assert set(paths["/api/ingredients"]) == {"get"}
     assert set(paths["/api/ingredient-requests"]) == {"get", "post"}
+    assert set(paths["/api/ingredient-requests/mine"]) == {"get"}
     assert set(paths["/api/ingredient-requests/{request_id}"]) == {"get"}
     assert set(paths["/api/ingredient-requests/{request_id}/review"]) == {"get", "post"}
     queue_parameters = {
@@ -891,7 +1135,33 @@ def test_catalog_openapi_documents_stable_ids_requests_and_curator_review(
     query_variants = queue_parameters["q"]["schema"]["anyOf"]
     query_schema = next(variant for variant in query_variants if variant.get("type") == "string")
     assert query_schema["maxLength"] == 100
+    mine_parameters = {
+        parameter["name"]: parameter
+        for parameter in paths["/api/ingredient-requests/mine"]["get"]["parameters"]
+    }
+    mine_query_variants = mine_parameters["q"]["schema"]["anyOf"]
+    mine_query_schema = next(
+        variant for variant in mine_query_variants if variant.get("type") == "string"
+    )
+    assert mine_query_schema["maxLength"] == 100
+    mine_status_variants = mine_parameters["status"]["schema"]["anyOf"]
+    mine_status_schema = next(variant for variant in mine_status_variants if "enum" in variant)
+    assert set(mine_status_schema["enum"]) == {
+        "pending",
+        "approved",
+        "rejected",
+        "duplicate",
+    }
+    assert mine_parameters["page_size"]["schema"]["maximum"] == 100
     catalog_item = schemas["IngredientCatalogItem"]["properties"]
     assert "Stable curated ingredient identity" in catalog_item["id"]["description"]
-    request_status = schemas["IngredientCatalogRequestResponse"]["properties"]["status"]
-    assert set(request_status["enum"]) == {"pending", "approved", "rejected", "duplicate"}
+    member_request = schemas["MemberIngredientCatalogRequestResponse"]["properties"]
+    assert set(member_request["status"]["enum"]) == {
+        "pending",
+        "approved",
+        "rejected",
+        "duplicate",
+    }
+    resolution_variants = member_request["resolved_ingredient"]["anyOf"]
+    assert {"$ref": "#/components/schemas/IngredientCatalogItem"} in resolution_variants
+    assert "never becomes selectable" in member_request["resolved_ingredient"]["description"]

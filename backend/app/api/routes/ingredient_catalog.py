@@ -12,7 +12,7 @@ from app.api.dependencies import (
 )
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor, lock_catalog_curator_actor
-from app.models import Ingredient
+from app.models import Ingredient, IngredientCatalogRequest
 from app.repositories.catalog_requests import (
     browse_catalog_requests,
     find_catalog_request_candidates,
@@ -34,6 +34,7 @@ from app.schemas.ingredient_catalog import (
     IngredientCatalogReviewDetail,
     IngredientCatalogReviewPage,
     IngredientCatalogReviewRequest,
+    MemberIngredientCatalogRequestResponse,
 )
 from app.services.catalog_requests import (
     CatalogRequestAlreadyReviewedError,
@@ -86,6 +87,21 @@ def _catalog_item(item: Ingredient) -> IngredientCatalogItem:
     )
 
 
+def _member_request_response(
+    request: IngredientCatalogRequest,
+) -> MemberIngredientCatalogRequestResponse:
+    base = IngredientCatalogRequestResponse.model_validate(request)
+    resolved_ingredient = None
+    if request.resolved_ingredient_id is not None:
+        if request.resolved_ingredient is None:
+            raise RuntimeError("A resolved catalog request has no ingredient relationship.")
+        resolved_ingredient = _catalog_item(request.resolved_ingredient)
+    return MemberIngredientCatalogRequestResponse(
+        **base.model_dump(),
+        resolved_ingredient=resolved_ingredient,
+    )
+
+
 @router.get(
     "/ingredients",
     response_model=IngredientCatalogPage,
@@ -118,7 +134,7 @@ def ingredient_catalog(
 
 @router.post(
     "/ingredient-requests",
-    response_model=IngredientCatalogRequestResponse,
+    response_model=MemberIngredientCatalogRequestResponse,
     status_code=status.HTTP_201_CREATED,
     responses=CATALOG_ERROR_RESPONSES,
     summary="Request a missing curated ingredient",
@@ -132,7 +148,7 @@ def create_ingredient_request(
     response: Response,
     session: SessionDependency,
     authenticated: CsrfProtectedSessionDependency,
-) -> IngredientCatalogRequestResponse:
+) -> MemberIngredientCatalogRequestResponse:
     actor_id = lock_active_member_actor(session, authenticated)
     try:
         request = submit_catalog_request(
@@ -140,7 +156,7 @@ def create_ingredient_request(
             requester_user_id=actor_id,
             payload=payload,
         )
-        result = IngredientCatalogRequestResponse.model_validate(request)
+        result = _member_request_response(request)
         session.commit()
     except CatalogRequestConflictError as error:
         session.rollback()
@@ -167,6 +183,12 @@ def create_ingredient_request(
     response_model=IngredientCatalogRequestPage,
     responses=CATALOG_ERROR_RESPONSES,
     summary="List the current member's ingredient requests",
+    description=(
+        "Returns only requests submitted by the active member. Optional status and literal "
+        "text filters remain inside that member scope. Approved and duplicate requests carry "
+        "a trusted current catalog identity; pending and rejected request text is never "
+        "selectable."
+    ),
 )
 def my_ingredient_requests(
     response: Response,
@@ -174,18 +196,22 @@ def my_ingredient_requests(
     authenticated: RequiredAuthenticatedSessionDependency,
     page: Annotated[int, Query(ge=1, le=1_000_000)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+    request_status: Annotated[CatalogRequestStatus | None, Query(alias="status")] = None,
+    q: Annotated[SearchTerm | None, Query()] = None,
 ) -> IngredientCatalogRequestPage:
     actor_id = lock_active_member_actor(session, authenticated)
     result = browse_catalog_requests(
         session,
         requester_user_id=actor_id,
-        status=None,
-        search=None,
+        status=request_status,
+        search=q,
         offset=(page - 1) * page_size,
         limit=page_size,
+        include_resolved_ingredient=True,
+        include_approval_snapshot_matches=False,
     )
     page_response = IngredientCatalogRequestPage(
-        items=[IngredientCatalogRequestResponse.model_validate(item) for item in result.items],
+        items=[_member_request_response(item) for item in result.items],
         page=page,
         page_size=page_size,
         total=result.total,
@@ -198,7 +224,7 @@ def my_ingredient_requests(
 
 @router.get(
     "/ingredient-requests/{request_id}",
-    response_model=IngredientCatalogRequestResponse,
+    response_model=MemberIngredientCatalogRequestResponse,
     responses=CATALOG_ERROR_RESPONSES,
     summary="Read an ingredient request status",
 )
@@ -207,9 +233,13 @@ def ingredient_request_detail(
     response: Response,
     session: SessionDependency,
     authenticated: RequiredAuthenticatedSessionDependency,
-) -> IngredientCatalogRequestResponse:
+) -> MemberIngredientCatalogRequestResponse:
     actor_id = lock_active_member_actor(session, authenticated)
-    request = get_catalog_request(session, request_id)
+    request = get_catalog_request(
+        session,
+        request_id,
+        include_resolved_ingredient=True,
+    )
     if request is None or (
         request.requester_user_id != actor_id and not is_catalog_curator(session, actor_id)
     ):
@@ -219,7 +249,7 @@ def ingredient_request_detail(
             code="ingredient_request_not_found",
             message=f"Ingredient request {request_id} was not found.",
         )
-    result = IngredientCatalogRequestResponse.model_validate(request)
+    result = _member_request_response(request)
     session.commit()
     _private_no_store(response)
     return result
@@ -248,6 +278,7 @@ def review_queue(
         search=q,
         offset=(page - 1) * page_size,
         limit=page_size,
+        include_approval_snapshot_matches=True,
     )
     page_response = IngredientCatalogReviewPage(
         items=[

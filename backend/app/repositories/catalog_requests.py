@@ -2,10 +2,16 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import case, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.catalog_names import normalize_catalog_name
-from app.models import CatalogCurator, IngredientCatalogAuditEvent, IngredientCatalogRequest
+from app.models import (
+    CatalogCurator,
+    Ingredient,
+    IngredientAlias,
+    IngredientCatalogAuditEvent,
+    IngredientCatalogRequest,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,8 +51,15 @@ def get_catalog_request(
     request_id: UUID,
     *,
     for_update: bool = False,
+    include_resolved_ingredient: bool = False,
 ) -> IngredientCatalogRequest | None:
     statement = select(IngredientCatalogRequest).where(IngredientCatalogRequest.id == request_id)
+    if include_resolved_ingredient:
+        statement = statement.options(
+            selectinload(IngredientCatalogRequest.resolved_ingredient).selectinload(
+                Ingredient.aliases
+            )
+        )
     if for_update:
         statement = statement.with_for_update()
     return session.scalar(statement)
@@ -60,6 +73,8 @@ def browse_catalog_requests(
     search: str | None,
     offset: int,
     limit: int,
+    include_resolved_ingredient: bool = False,
+    include_approval_snapshot_matches: bool = False,
 ) -> IngredientRequestBrowseResult:
     filters = []
     if requester_user_id is not None:
@@ -69,28 +84,52 @@ def browse_catalog_requests(
     if search is not None:
         literal_pattern = f"%{_escape_like(search)}%"
         normalized_pattern = f"%{_escape_like(normalize_catalog_name(search))}%"
-        approved_alias = func.jsonb_array_elements_text(
-            IngredientCatalogRequest.approved_aliases
-        ).table_valued("value")
-        approved_alias_match = (
-            select(approved_alias.c.value)
-            .where(approved_alias.c.value.ilike(literal_pattern, escape="\\"))
+        resolved_alias_match = (
+            select(IngredientAlias.id)
+            .where(
+                IngredientAlias.ingredient_id == Ingredient.id,
+                IngredientAlias.alias.ilike(literal_pattern, escape="\\"),
+            )
             .exists()
         )
-        filters.append(
-            or_(
-                IngredientCatalogRequest.proposed_name.ilike(literal_pattern, escape="\\"),
-                IngredientCatalogRequest.normalized_name.ilike(
-                    normalized_pattern,
-                    escape="\\",
+        resolved_ingredient_match = (
+            select(Ingredient.id)
+            .where(
+                Ingredient.id == IngredientCatalogRequest.resolved_ingredient_id,
+                or_(
+                    Ingredient.canonical_name.ilike(literal_pattern, escape="\\"),
+                    resolved_alias_match,
                 ),
-                IngredientCatalogRequest.approved_canonical_name.ilike(
-                    literal_pattern,
-                    escape="\\",
-                ),
-                approved_alias_match,
             )
+            .exists()
         )
+        search_matches = [
+            IngredientCatalogRequest.proposed_name.ilike(literal_pattern, escape="\\"),
+            IngredientCatalogRequest.normalized_name.ilike(
+                normalized_pattern,
+                escape="\\",
+            ),
+            resolved_ingredient_match,
+        ]
+        if include_approval_snapshot_matches:
+            approved_alias = func.jsonb_array_elements_text(
+                IngredientCatalogRequest.approved_aliases
+            ).table_valued("value")
+            approved_alias_match = (
+                select(approved_alias.c.value)
+                .where(approved_alias.c.value.ilike(literal_pattern, escape="\\"))
+                .exists()
+            )
+            search_matches.extend(
+                (
+                    IngredientCatalogRequest.approved_canonical_name.ilike(
+                        literal_pattern,
+                        escape="\\",
+                    ),
+                    approved_alias_match,
+                )
+            )
+        filters.append(or_(*search_matches))
 
     total = (
         session.scalar(select(func.count()).select_from(IngredientCatalogRequest).where(*filters))
@@ -110,6 +149,12 @@ def browse_catalog_requests(
         .offset(offset)
         .limit(limit)
     )
+    if include_resolved_ingredient:
+        statement = statement.options(
+            selectinload(IngredientCatalogRequest.resolved_ingredient).selectinload(
+                Ingredient.aliases
+            )
+        )
     return IngredientRequestBrowseResult(items=list(session.scalars(statement)), total=total)
 
 

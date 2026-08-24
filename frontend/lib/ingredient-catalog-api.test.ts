@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AUTH_SESSION_EXPIRED_EVENT } from "./auth-api";
 import {
   browseIngredientCatalogReviewRequests,
+  browseMyIngredientRequests,
   fetchIngredientCatalogReviewDetail,
+  fetchMyIngredientRequest,
   IngredientCatalogApiError,
   reviewIngredientCatalogRequest,
   searchCatalogIngredients,
@@ -188,6 +190,145 @@ describe("ingredient catalog API client", () => {
     ).rejects.toBeInstanceOf(IngredientCatalogApiError);
     expect(expired).toHaveBeenCalledOnce();
     window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
+  });
+
+  it("loads a member's filtered request history and its trusted resolution detail", async () => {
+    const approvedRequest = {
+      id: REQUEST_ID,
+      proposed_name: "Dragon fruit",
+      context: "Fresh pink fruit",
+      status: "approved",
+      created_at: "2026-08-24T18:00:00Z",
+      reviewed_at: "2026-08-24T19:00:00Z",
+      decision_reason: "Added as pitaya.",
+      resolved_ingredient_id: PECAN_ID,
+      resolved_ingredient: {
+        id: PECAN_ID,
+        canonical_name: "Pitaya",
+        aliases: ["Dragon fruit"],
+      },
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          items: [approvedRequest],
+          page: 2,
+          page_size: 10,
+          total: 11,
+          total_pages: 2,
+        }),
+      )
+      .mockResolvedValueOnce(Response.json(approvedRequest));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      browseMyIngredientRequests({
+        status: "approved",
+        page: 2,
+        pageSize: 10,
+        query: "  dragon & fruit  ",
+      }),
+    ).resolves.toMatchObject({
+      page: 2,
+      items: [{ resolved_ingredient: { canonical_name: "Pitaya" } }],
+    });
+    await expect(fetchMyIngredientRequest(REQUEST_ID)).resolves.toMatchObject({
+      id: REQUEST_ID,
+      status: "approved",
+      resolved_ingredient_id: PECAN_ID,
+    });
+
+    expect(fetchMock.mock.calls[0]).toEqual([
+      "/api/ingredient-requests/mine?page=2&page_size=10&status=approved&q=dragon+%26+fruit",
+      expect.objectContaining({ method: "GET", credentials: "same-origin" }),
+    ]);
+    expect(fetchMock.mock.calls[1]).toEqual([
+      `/api/ingredient-requests/${REQUEST_ID}`,
+      expect.objectContaining({ method: "GET", credentials: "same-origin" }),
+    ]);
+  });
+
+  it("keeps history authorization errors local so an unsaved editor stays mounted", async () => {
+    const expired = vi.fn();
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation(async () =>
+        new Response(
+          JSON.stringify({
+            error: { code: "authentication_required", message: "Sign in again." },
+          }),
+          { status: 401, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    await expect(browseMyIngredientRequests()).rejects.toMatchObject({
+      status: 401,
+      code: "authentication_required",
+    });
+    await expect(fetchMyIngredientRequest(REQUEST_ID)).rejects.toMatchObject({
+      status: 401,
+      code: "authentication_required",
+    });
+    expect(expired).not.toHaveBeenCalled();
+    window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
+  });
+
+  it.each([
+    {
+      name: "pending request with a catalog resolution",
+      value: {
+        status: "pending",
+        resolved_ingredient_id: PECAN_ID,
+        resolved_ingredient: {
+          id: PECAN_ID,
+          canonical_name: "Pitaya",
+          aliases: [],
+        },
+      },
+    },
+    {
+      name: "approved request without a catalog resolution",
+      value: {
+        status: "approved",
+        resolved_ingredient_id: null,
+        resolved_ingredient: null,
+      },
+    },
+    {
+      name: "resolution whose identity does not match",
+      value: {
+        status: "duplicate",
+        resolved_ingredient_id: REQUESTER_ID,
+        resolved_ingredient: {
+          id: PECAN_ID,
+          canonical_name: "Pitaya",
+          aliases: [],
+        },
+      },
+    },
+  ])("rejects a $name", async ({ value }) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          id: REQUEST_ID,
+          proposed_name: "Dragon fruit",
+          context: null,
+          created_at: "2026-08-24T18:00:00Z",
+          reviewed_at: null,
+          decision_reason: null,
+          ...value,
+        }),
+      ),
+    );
+
+    await expect(fetchMyIngredientRequest(REQUEST_ID)).rejects.toMatchObject({
+      status: 502,
+      code: "invalid_ingredient_request_response",
+    });
   });
 });
 

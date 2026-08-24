@@ -5,15 +5,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   CatalogIngredientPage,
   CatalogIngredientSelection,
+  MemberIngredientRequest,
+  MemberIngredientRequestPage,
   MissingIngredientRequest,
 } from "../../lib/ingredient-catalog-api";
 import {
+  fetchMyIngredientRequest,
   searchCatalogIngredients,
   submitMissingIngredientRequest,
 } from "../../lib/ingredient-catalog-api";
 import { IngredientCatalogPicker } from "./ingredient-catalog-picker";
 
 const mocks = vi.hoisted(() => ({
+  browseMyIngredientRequests: vi.fn(),
+  fetchMyIngredientRequest: vi.fn(),
   searchCatalogIngredients: vi.fn(),
   submitMissingIngredientRequest: vi.fn(),
 }));
@@ -22,6 +27,8 @@ vi.mock("../../lib/ingredient-catalog-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/ingredient-catalog-api")>();
   return {
     ...actual,
+    browseMyIngredientRequests: mocks.browseMyIngredientRequests,
+    fetchMyIngredientRequest: mocks.fetchMyIngredientRequest,
     searchCatalogIngredients: mocks.searchCatalogIngredients,
     submitMissingIngredientRequest: mocks.submitMissingIngredientRequest,
   };
@@ -30,6 +37,34 @@ vi.mock("../../lib/ingredient-catalog-api", async (importOriginal) => {
 const SUGAR_ID = "11111111-1111-4111-8111-111111111111";
 const PECAN_ID = "33333333-3333-4333-8333-333333333333";
 const REQUEST_ID = "66666666-6666-4666-8666-666666666666";
+
+function approvedRequest(): MemberIngredientRequest {
+  return {
+    id: REQUEST_ID,
+    proposed_name: "Dragon fruit request text",
+    context: "Fresh pink fruit",
+    status: "approved",
+    created_at: "2026-08-24T18:00:00Z",
+    reviewed_at: "2026-08-24T19:00:00Z",
+    decision_reason: "Added as Pitaya.",
+    resolved_ingredient_id: SUGAR_ID,
+    resolved_ingredient: {
+      id: SUGAR_ID,
+      canonical_name: "Pitaya",
+      aliases: ["Dragon fruit"],
+    },
+  };
+}
+
+function requestHistoryPage(): MemberIngredientRequestPage {
+  return {
+    items: [approvedRequest()],
+    page: 1,
+    page_size: 10,
+    total: 1,
+    total_pages: 1,
+  };
+}
 
 function page(
   overrides: Partial<CatalogIngredientPage> = {},
@@ -98,8 +133,12 @@ function PickerHarness({
 }
 
 beforeEach(() => {
+  mocks.browseMyIngredientRequests.mockReset();
+  mocks.fetchMyIngredientRequest.mockReset();
   mocks.searchCatalogIngredients.mockReset();
   mocks.submitMissingIngredientRequest.mockReset();
+  mocks.browseMyIngredientRequests.mockResolvedValue(requestHistoryPage());
+  mocks.fetchMyIngredientRequest.mockResolvedValue(approvedRequest());
 });
 
 describe("IngredientCatalogPicker", () => {
@@ -287,5 +326,157 @@ describe("IngredientCatalogPicker", () => {
     );
     expect(screen.getByLabelText("Proposed ingredient name")).toHaveValue("Dragon fruit");
     expect(screen.getByLabelText("Short context (optional)")).toHaveValue("Fresh fruit");
+  });
+
+  it("selects a freshly confirmed request resolution and returns focus to this picker", async () => {
+    const onSelection = vi.fn();
+    render(<PickerHarness onSelection={onSelection} />);
+
+    const trigger = screen.getByRole("button", {
+      name: "Choose from my ingredient requests for test ingredient",
+    });
+    fireEvent.click(trigger);
+    const region = await screen.findByRole("region", {
+      name: "Choose from my ingredient requests for test ingredient",
+    });
+    fireEvent.click(
+      await within(region).findByRole("button", {
+        name: "Use Pitaya for test ingredient",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(onSelection).toHaveBeenCalledWith({
+        ingredientId: SUGAR_ID,
+        canonicalName: "Pitaya",
+        displayName: "Pitaya",
+      }),
+    );
+    expect(fetchMyIngredientRequest).toHaveBeenCalledWith(REQUEST_ID, expect.any(AbortSignal));
+    expect(screen.queryByRole("region", { name: /choose from my ingredient requests/i })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(
+      screen.getByText(
+        "Pitaya was selected from your resolved ingredient requests for test ingredient.",
+        { selector: ".ingredient-picker__request-status" },
+      ),
+    ).toHaveAttribute("role", "status");
+    expect(screen.getByText("Pitaya", { selector: ".ingredient-picker__selection strong" })).toBeVisible();
+  });
+
+  it("keeps the current picker value and query when resolution confirmation fails", async () => {
+    mocks.fetchMyIngredientRequest.mockRejectedValue(new Error("offline"));
+    const onSelection = vi.fn();
+    render(
+      <PickerHarness
+        initialValue={{
+          ingredientId: PECAN_ID,
+          canonicalName: "Pecan",
+          displayName: "Pecan",
+        }}
+        onSelection={onSelection}
+      />,
+    );
+
+    const search = screen.getByRole("searchbox", { name: "Ingredient" });
+    fireEvent.change(search, { target: { value: "almond" } });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Choose from my ingredient requests for test ingredient",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Use Pitaya for test ingredient" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your recipe was not changed",
+    );
+    expect(onSelection).not.toHaveBeenCalled();
+    expect(search).toHaveValue("almond");
+    expect(screen.getByText("Pecan", { selector: ".ingredient-picker__selection strong" })).toBeVisible();
+  });
+
+  it("does not let an older resolution check overwrite a newer catalog choice", async () => {
+    const detail = deferred<MemberIngredientRequest>();
+    mocks.fetchMyIngredientRequest.mockReturnValue(detail.promise);
+    mocks.searchCatalogIngredients.mockResolvedValue(page());
+    const onSelection = vi.fn();
+    render(<PickerHarness onSelection={onSelection} />);
+
+    const search = screen.getByRole("searchbox", { name: "Ingredient" });
+    fireEvent.change(search, { target: { value: "White sugar" } });
+    fireEvent.keyDown(search, { key: "Enter" });
+    const catalogResults = await screen.findByRole("list", {
+      name: "Ingredient catalog results",
+    });
+    const catalogChoice = within(catalogResults).getByRole("button", {
+      name: /white sugar/i,
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Choose from my ingredient requests for test ingredient",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Use Pitaya for test ingredient" }),
+    );
+    fireEvent.click(catalogChoice);
+
+    await act(async () => {
+      detail.resolve(approvedRequest());
+      await detail.promise;
+    });
+
+    expect(onSelection).toHaveBeenCalledTimes(1);
+    expect(onSelection).toHaveBeenCalledWith({
+      ingredientId: SUGAR_ID,
+      canonicalName: "Granulated sugar",
+      displayName: "White sugar",
+    });
+    expect(
+      screen.getByText("White sugar", { selector: ".ingredient-picker__selection strong" }),
+    ).toBeVisible();
+    expect(screen.queryByText("Pitaya", { selector: ".ingredient-picker__selection strong" })).not.toBeInTheDocument();
+  });
+
+  it("preserves an unfinished missing-ingredient request while checking history", async () => {
+    mocks.searchCatalogIngredients.mockResolvedValue(
+      page({ items: [], total: 0, total_pages: 0 }),
+    );
+    render(<PickerHarness />);
+
+    const search = screen.getByRole("searchbox", { name: "Ingredient" });
+    fireEvent.change(search, { target: { value: "Dragon fruit" } });
+    fireEvent.keyDown(search, { key: "Enter" });
+    await screen.findByText(/no catalog ingredients match/i);
+    fireEvent.click(screen.getByRole("button", { name: "Request a missing ingredient" }));
+    fireEvent.change(screen.getByLabelText("Short context (optional)"), {
+      target: { value: "Pink flesh with tiny black seeds" },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Choose from my ingredient requests for test ingredient",
+      }),
+    );
+    await screen.findByRole("region", {
+      name: "Choose from my ingredient requests for test ingredient",
+    });
+    expect(screen.getByLabelText("Proposed ingredient name")).toHaveValue("Dragon fruit");
+    expect(screen.getByLabelText("Short context (optional)")).toHaveValue(
+      "Pink flesh with tiny black seeds",
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Hide my ingredient requests for test ingredient",
+      }),
+    );
+    expect(screen.getByLabelText("Proposed ingredient name")).toHaveValue("Dragon fruit");
+    expect(screen.getByLabelText("Short context (optional)")).toHaveValue(
+      "Pink flesh with tiny black seeds",
+    );
   });
 });
