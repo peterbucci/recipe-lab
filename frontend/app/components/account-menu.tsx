@@ -83,6 +83,11 @@ export function AccountMenu() {
             Finish account setup
           </Link>
         ) : null}
+        {state.session.status === "authenticated" ? (
+          <Link className="account-menu__link" href="/account/ingredient-requests">
+            My ingredient requests
+          </Link>
+        ) : null}
         {state.session.status === "authenticated" &&
         state.session.capabilities?.review_ingredient_requests ? (
           <Link className="account-menu__link" href="/catalog/ingredient-requests">

@@ -78,6 +78,9 @@ describe("AccountMenu", () => {
 
     fireEvent.click(screen.getByLabelText("Account menu for Alice Cook"));
     expect(
+      screen.getByRole("link", { name: "My ingredient requests" }),
+    ).toHaveAttribute("href", "/account/ingredient-requests");
+    expect(
       screen.queryByRole("link", { name: "Review ingredient requests" }),
     ).not.toBeInTheDocument();
 
@@ -95,6 +98,9 @@ describe("AccountMenu", () => {
     );
 
     fireEvent.click(screen.getByLabelText("Account menu for Casey Curator"));
+    expect(
+      screen.getByRole("link", { name: "My ingredient requests" }),
+    ).toHaveAttribute("href", "/account/ingredient-requests");
     expect(
       screen.getByRole("link", { name: "Review ingredient requests" }),
     ).toHaveAttribute("href", "/catalog/ingredient-requests");

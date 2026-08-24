@@ -41,6 +41,18 @@ export interface MissingIngredientRequest {
   resolved_ingredient_id: string | null;
 }
 
+export interface MemberIngredientRequest extends MissingIngredientRequest {
+  resolved_ingredient: CatalogIngredient | null;
+}
+
+export interface MemberIngredientRequestPage {
+  items: MemberIngredientRequest[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+}
+
 export interface IngredientCatalogReviewItem extends MissingIngredientRequest {
   updated_at: string;
   requester_user_id: string;
@@ -256,6 +268,75 @@ function parseMissingIngredientRequest(value: unknown): MissingIngredientRequest
     reviewed_at: value.reviewed_at,
     decision_reason: value.decision_reason,
     resolved_ingredient_id: value.resolved_ingredient_id,
+  };
+}
+
+function invalidMemberIngredientRequestResponse(): IngredientCatalogApiError {
+  return new IngredientCatalogApiError(
+    "Recipe Lab received an invalid ingredient request response.",
+    502,
+    "invalid_ingredient_request_response",
+  );
+}
+
+function parseMemberIngredientRequest(value: unknown): MemberIngredientRequest {
+  const request = parseMissingIngredientRequest(value);
+  if (!isRecord(value)) {
+    throw invalidMemberIngredientRequestResponse();
+  }
+
+  const resolvedIngredient =
+    value.resolved_ingredient === null
+      ? null
+      : parseCatalogIngredient(value.resolved_ingredient);
+  const resolvedStatus = request.status === "approved" || request.status === "duplicate";
+
+  if (
+    (resolvedStatus &&
+      (request.resolved_ingredient_id === null ||
+        resolvedIngredient === null ||
+        resolvedIngredient.id !== request.resolved_ingredient_id)) ||
+    (!resolvedStatus &&
+      (request.resolved_ingredient_id !== null || value.resolved_ingredient !== null))
+  ) {
+    throw invalidMemberIngredientRequestResponse();
+  }
+
+  return {
+    ...request,
+    resolved_ingredient: resolvedIngredient,
+  };
+}
+
+function parseMemberIngredientRequestPage(value: unknown): MemberIngredientRequestPage {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.items) ||
+    !Number.isInteger(value.page) ||
+    !Number.isInteger(value.page_size) ||
+    !Number.isInteger(value.total) ||
+    !Number.isInteger(value.total_pages)
+  ) {
+    throw invalidMemberIngredientRequestResponse();
+  }
+
+  const items = value.items.map(parseMemberIngredientRequest);
+  if (
+    (value.page as number) < 1 ||
+    (value.page_size as number) < 1 ||
+    (value.page_size as number) > 100 ||
+    (value.total as number) < 0 ||
+    (value.total_pages as number) < 0
+  ) {
+    throw invalidMemberIngredientRequestResponse();
+  }
+
+  return {
+    items,
+    page: value.page as number,
+    page_size: value.page_size as number,
+    total: value.total as number,
+    total_pages: value.total_pages as number,
   };
 }
 
@@ -512,6 +593,64 @@ export async function submitMissingIngredientRequest(
     throw await apiError(response, "The ingredient request could not be submitted.");
   }
   return parseMissingIngredientRequest(await response.json());
+}
+
+export async function browseMyIngredientRequests({
+  status,
+  page = 1,
+  pageSize = 20,
+  query = "",
+  signal,
+}: {
+  status?: IngredientCatalogRequestStatus;
+  page?: number;
+  pageSize?: number;
+  query?: string;
+  signal?: AbortSignal;
+} = {}): Promise<MemberIngredientRequestPage> {
+  const search = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  if (status) {
+    search.set("status", status);
+  }
+  const normalizedQuery = query.trim();
+  if (normalizedQuery) {
+    search.set("q", normalizedQuery);
+  }
+
+  const response = await fetch(`/api/ingredient-requests/mine?${search.toString()}`, {
+    method: "GET",
+    cache: "no-store",
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  if (!response.ok) {
+    throw await apiError(response, "Your ingredient requests could not be loaded.");
+  }
+  return parseMemberIngredientRequestPage(await response.json());
+}
+
+export async function fetchMyIngredientRequest(
+  requestId: string,
+  signal?: AbortSignal,
+): Promise<MemberIngredientRequest> {
+  const response = await fetch(
+    `/api/ingredient-requests/${encodeURIComponent(requestId)}`,
+    {
+      method: "GET",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal,
+    },
+  );
+  if (!response.ok) {
+    throw await apiError(response, "The ingredient request could not be loaded.");
+  }
+  return parseMemberIngredientRequest(await response.json());
 }
 
 export async function browseIngredientCatalogReviewRequests({

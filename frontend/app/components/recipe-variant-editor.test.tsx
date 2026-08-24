@@ -8,14 +8,20 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CatalogIngredientPage } from "../../lib/ingredient-catalog-api";
+import type {
+  CatalogIngredientPage,
+  MemberIngredientRequest,
+  MemberIngredientRequestPage,
+} from "../../lib/ingredient-catalog-api";
 import type { RecipeDetail } from "../../lib/recipe-api";
 import { createRecipeVariant, VariantApiError } from "../../lib/variant-api";
 import { RecipeVariantEditor } from "./recipe-variant-editor";
 
 const mocks = vi.hoisted(() => ({
+  browseMyIngredientRequests: vi.fn(),
   createIdempotencyKey: vi.fn(),
   createRecipeVariant: vi.fn(),
+  fetchMyIngredientRequest: vi.fn(),
   replace: vi.fn(),
   searchCatalogIngredients: vi.fn(),
 }));
@@ -40,6 +46,8 @@ vi.mock("../../lib/ingredient-catalog-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/ingredient-catalog-api")>();
   return {
     ...actual,
+    browseMyIngredientRequests: mocks.browseMyIngredientRequests,
+    fetchMyIngredientRequest: mocks.fetchMyIngredientRequest,
     searchCatalogIngredients: mocks.searchCatalogIngredients,
   };
 });
@@ -53,6 +61,35 @@ const WALNUT_ID = "55555555-5555-4555-8555-555555555555";
 const SALT_ID = "66666666-6666-4666-8666-666666666666";
 const PECAN_ID = "77777777-7777-4777-8777-777777777777";
 const ORANGE_ZEST_ID = "88888888-8888-4888-8888-888888888888";
+const REQUEST_ID = "99999999-9999-4999-8999-999999999999";
+
+function resolvedRequest(): MemberIngredientRequest {
+  return {
+    id: REQUEST_ID,
+    proposed_name: "Pecan nut request text",
+    context: "For carrot cake",
+    status: "duplicate",
+    created_at: "2026-08-24T18:00:00Z",
+    reviewed_at: "2026-08-24T19:00:00Z",
+    decision_reason: "Already cataloged as Pecan.",
+    resolved_ingredient_id: PECAN_ID,
+    resolved_ingredient: {
+      id: PECAN_ID,
+      canonical_name: "Pecan",
+      aliases: ["Pecan nut"],
+    },
+  };
+}
+
+function resolvedRequestPage(): MemberIngredientRequestPage {
+  return {
+    items: [resolvedRequest()],
+    page: 1,
+    page_size: 10,
+    total: 1,
+    total_pages: 1,
+  };
+}
 
 function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
   return {
@@ -211,10 +248,14 @@ function instructionInput(stepNumber: number): HTMLTextAreaElement {
 }
 
 beforeEach(() => {
+  mocks.browseMyIngredientRequests.mockReset();
   mocks.replace.mockReset();
   mocks.createRecipeVariant.mockReset();
   mocks.createIdempotencyKey.mockReset();
   mocks.searchCatalogIngredients.mockReset();
+  mocks.fetchMyIngredientRequest.mockReset();
+  mocks.browseMyIngredientRequests.mockResolvedValue(resolvedRequestPage());
+  mocks.fetchMyIngredientRequest.mockResolvedValue(resolvedRequest());
   mocks.searchCatalogIngredients.mockImplementation(
     async ({ query }: { query?: string }) => {
       if (query?.trim().toLocaleLowerCase() === "orange zest") {
@@ -513,6 +554,81 @@ describe("RecipeVariantEditor", () => {
           },
           { op: "remove", recipe_instruction_id: "fold-step" },
           { op: "add", text: "Cool completely before serving." },
+        ],
+      },
+      FIRST_KEY,
+    );
+  });
+
+  it("applies a confirmed request resolution only to its ingredient row without losing draft work", async () => {
+    vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
+    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+
+    const title = screen.getByLabelText(/^title$/i);
+    fireEvent.change(title, { target: { value: "Request-resolved carrot cake" } });
+
+    const sugar = screen.getByRole("group", { name: /ingredient 1/i });
+    expandIngredientRow(sugar, "White sugar");
+    const sugarQuantity = within(sugar).getByLabelText(/^quantity$/i);
+    fireEvent.change(sugarQuantity, { target: { value: "150.0000" } });
+
+    const firstInstruction = instructionInput(1);
+    fireEvent.change(firstInstruction, {
+      target: { value: "Whisk the dry ingredients very thoroughly." },
+    });
+
+    const walnuts = screen.getByRole("group", { name: /ingredient 2/i });
+    expandIngredientRow(walnuts, "Walnuts");
+    fireEvent.click(
+      within(walnuts).getByRole("button", {
+        name: "Choose from my ingredient requests for Ingredient 2: Walnuts",
+      }),
+    );
+    fireEvent.click(
+      await within(walnuts).findByRole("button", {
+        name: "Use Pecan for Ingredient 2: Walnuts",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(within(walnuts).getByText("Pecan · 100 g")).toBeVisible(),
+    );
+    expect(mocks.fetchMyIngredientRequest).toHaveBeenCalledWith(
+      REQUEST_ID,
+      expect.any(AbortSignal),
+    );
+    expect(title).toHaveValue("Request-resolved carrot cake");
+    expect(sugarQuantity).toHaveValue("150.0000");
+    expect(firstInstruction).toHaveValue("Whisk the dry ingredients very thoroughly.");
+    expect(within(sugar).getByText("White sugar · 150 g")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
+    expect(createRecipeVariant).toHaveBeenCalledWith(
+      SOURCE_ID,
+      {
+        title: "Request-resolved carrot cake",
+        description: "A softly spiced snack cake.",
+        servings: "8.00",
+        ingredient_edits: [
+          {
+            op: "set_quantity",
+            recipe_ingredient_id: "sugar-row",
+            quantity: "150.0000",
+          },
+          {
+            op: "replace",
+            recipe_ingredient_id: "walnut-row",
+            ingredient_id: PECAN_ID,
+            display_name: "Pecan",
+          },
+        ],
+        instruction_edits: [
+          {
+            op: "update",
+            recipe_instruction_id: "mix-step",
+            text: "Whisk the dry ingredients very thoroughly.",
+          },
         ],
       },
       FIRST_KEY,

@@ -14,6 +14,7 @@ import {
   searchCatalogIngredients,
   selectionForCatalogIngredient,
 } from "../../lib/ingredient-catalog-api";
+import { MemberIngredientRequestHistory } from "./member-ingredient-request-history";
 import { MissingIngredientRequestPanel } from "./missing-ingredient-request-panel";
 
 interface IngredientCatalogPickerProps {
@@ -37,6 +38,7 @@ export function IngredientCatalogPicker({
   onChange,
   value,
 }: IngredientCatalogPickerProps) {
+  const historyTriggerRef = useRef<HTMLButtonElement>(null);
   const requestTriggerRef = useRef<HTMLButtonElement>(null);
   const searchControllerRef = useRef<AbortController | null>(null);
   const searchSequenceRef = useRef(0);
@@ -47,7 +49,9 @@ export function IngredientCatalogPicker({
   const [searchStatus, setSearchStatus] = useState("");
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
+  const [requestSelectionStatus, setRequestSelectionStatus] = useState("");
 
   useEffect(
     () => () => {
@@ -122,6 +126,20 @@ export function IngredientCatalogPicker({
     window.setTimeout(() => requestTriggerRef.current?.focus(), 0);
   }
 
+  function closeHistory() {
+    setHistoryOpen(false);
+    window.setTimeout(() => historyTriggerRef.current?.focus(), 0);
+  }
+
+  function selectRequestResolution(selection: CatalogIngredientSelection) {
+    onChange(selection);
+    setHistoryOpen(false);
+    setRequestSelectionStatus(
+      `${selection.canonicalName} was selected from your resolved ingredient requests for ${contextLabel}.`,
+    );
+    window.setTimeout(() => historyTriggerRef.current?.focus(), 0);
+  }
+
   const helpId = `${idPrefix}-search-help`;
   const statusId = `${idPrefix}-search-status`;
   const inputDescription = [helpId, statusId, describedBy].filter(Boolean).join(" ");
@@ -147,7 +165,11 @@ export function IngredientCatalogPicker({
             className="button button--quiet"
             type="button"
             disabled={disabled}
-            onClick={() => onChange(null)}
+            onClick={() => {
+              setRequestSelectionStatus("");
+              setHistoryOpen(false);
+              onChange(null);
+            }}
           >
             Clear selection
           </button>
@@ -222,7 +244,11 @@ export function IngredientCatalogPicker({
                     type="button"
                     disabled={disabled}
                     aria-pressed={selected}
-                    onClick={() => onChange(selection)}
+                    onClick={() => {
+                      setRequestSelectionStatus("");
+                      setHistoryOpen(false);
+                      onChange(selection);
+                    }}
                   >
                     <span>
                       <strong>{selection.displayName}</strong>
@@ -269,6 +295,47 @@ export function IngredientCatalogPicker({
         </>
       ) : null}
 
+      <div className="ingredient-picker__history">
+        <p>Already submitted a missing-ingredient request?</p>
+        <button
+          ref={historyTriggerRef}
+          className="button button--quiet"
+          type="button"
+          aria-expanded={historyOpen}
+          aria-controls={`${idPrefix}-history-panel`}
+          aria-label={
+            historyOpen
+              ? `Hide my ingredient requests for ${contextLabel}`
+              : `Choose from my ingredient requests for ${contextLabel}`
+          }
+          disabled={disabled}
+          onClick={() => {
+            setRequestSelectionStatus("");
+            setHistoryOpen((current) => !current);
+          }}
+        >
+          {historyOpen ? "Hide my ingredient requests" : "Choose from my requests"}
+        </button>
+      </div>
+
+      {requestSelectionStatus ? (
+        <p className="ingredient-picker__request-status" role="status" aria-live="polite">
+          {requestSelectionStatus}
+        </p>
+      ) : null}
+
+      {historyOpen ? (
+        <div id={`${idPrefix}-history-panel`}>
+          <MemberIngredientRequestHistory
+            idPrefix={`${idPrefix}-history`}
+            contextLabel={contextLabel}
+            pageSize={10}
+            onClose={closeHistory}
+            onSelectResolution={selectRequestResolution}
+          />
+        </div>
+      ) : null}
+
       {hasSearched && query.trim() ? (
         <div className="ingredient-picker__missing">
           <p>Can’t find the right catalog ingredient?</p>
@@ -279,7 +346,9 @@ export function IngredientCatalogPicker({
             aria-expanded={requestOpen}
             aria-controls={`${idPrefix}-request-panel`}
             disabled={disabled}
-            onClick={() => setRequestOpen((current) => !current)}
+            onClick={() => {
+              setRequestOpen((current) => !current);
+            }}
           >
             {requestOpen ? "Hide missing ingredient request" : "Request a missing ingredient"}
           </button>

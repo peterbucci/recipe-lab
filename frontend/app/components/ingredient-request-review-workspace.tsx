@@ -1281,12 +1281,18 @@ function IngredientRequestDecisionForm({
             value={reason}
             disabled={formDisabled}
             aria-invalid={Boolean(fieldErrors.reason)}
-            aria-describedby={fieldErrors.reason ? fieldId("reason-error") : undefined}
+            aria-describedby={`${fieldId("reason-help")}${
+              fieldErrors.reason ? ` ${fieldId("reason-error")}` : ""
+            }`}
             onChange={(event) => {
               clearError("reason");
               setReason(event.target.value);
             }}
           />
+          <small id={fieldId("reason-help")}>
+            Shown to the requesting member. Do not include private reviewer notes or personal
+            information.
+          </small>
           {fieldErrors.reason ? (
             <p id={fieldId("reason-error")} className="curation-field-error">
               {fieldErrors.reason}
