@@ -30,8 +30,21 @@ recipe, substitution, or recommendation.
 Members can read only their own request history and status through
 `GET /api/ingredient-requests/mine` and
 `GET /api/ingredient-requests/{request_id}`. These responses are private and
-not cacheable. A lookup or request failure leaves the in-browser recipe editor
-unchanged. Cross-session private draft persistence remains a separate feature.
+not cacheable. History is paginated with a maximum page size of 100 and accepts
+optional `status` and literal `q` filters; counts and results remain scoped to
+the signed-in member. Member search covers their proposed names and current
+resolved catalog names or aliases, never curator-only approval snapshots.
+Requests owned by another member are omitted from history and indistinguishable
+from a missing request by ID.
+
+Approved and duplicate responses include `resolved_ingredient`, using the same
+stable ID, canonical name, and reviewed-alias contract as catalog search. That
+nested catalog object is the trusted value an editor may select. The original
+`proposed_name` remains untrusted even after review. Pending and rejected
+responses have no resolved ingredient, so their text can never silently become
+a recipe ingredient. A lookup or request failure leaves the in-browser recipe
+editor unchanged. Cross-session private draft persistence remains a separate
+feature.
 
 Requests move once from `pending` to one of these terminal states:
 
@@ -117,7 +130,9 @@ curator access.
 Curators use the private, paginated `GET /api/ingredient-requests` queue and
 `POST /api/ingredient-requests/{request_id}/review`. Approval accepts only a
 bounded canonical name, a bounded alias list, a decision reason, and
-provenance. Rejection and duplicate decisions require a bounded reason.
+provenance. Rejection and duplicate decisions require a bounded reason. The
+decision reason is member-visible and must not contain private reviewer notes
+or personal information; approval provenance remains curator-only audit data.
 
 This workflow does not let members create aliases, infer synonyms, bulk-import
 catalog data, attach nutrition or safety claims, or moderate recipes generally.
