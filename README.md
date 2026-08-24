@@ -77,9 +77,13 @@ The repository currently provides:
   recipe detail pages with loading, empty, error, rating, and immediate
   parent/current/direct-child lineage states;
 - a dedicated `/recipes/{id}/fork` workflow with controlled structured edits
-  for recipe details, ingredients, and instructions; validation failures keep
-  the entered draft intact, while a successful `201 Created` response opens
-  the new child version;
+  for recipe details, ingredients, and instructions; a keyboard-accessible
+  catalog picker submits stable ingredient IDs with reviewed display labels,
+  and validation failures keep the entered draft intact while a successful
+  `201 Created` response opens the new child version;
+- a bounded canonical-and-alias ingredient lookup plus a separate member
+  missing-item request queue, narrow curator authorization, transactional
+  approval with provenance, and append-only catalog audit evidence;
 - a dedicated `/recipes/{id}/compare` view for variants, with accessible
   before/after values and distinct treatments for additions, removals,
   substitutions, amount changes, metadata changes, and instruction changes;
@@ -128,7 +132,8 @@ The repository currently provides:
   immutable recipe-version snapshots, ingredients, instructions, saves, and
   ratings plus their separate interaction history;
 - a canonical ingredient catalog with normalized aliases, category and
-  dietary/allergen metadata, and explainable directed substitution edges;
+  dietary/allergen metadata, explainable directed substitution edges, and a
+  reviewed intake boundary that never treats member text as catalog identity;
 - Alembic migrations and database-level lineage, ordering, rating, event
   privacy, and uniqueness constraints;
 - PostgreSQL and local development services through Docker Compose.

@@ -87,10 +87,19 @@ envelope. The response schemas and query constraints are available through
 OpenAPI at `/docs` and `/openapi.json`.
 
 Every stored recipe version is a published immutable snapshot, so each of its
-ingredient rows must reference the curated catalog. Recipe APIs resolve exact
-canonical names and aliases without creating catalog metadata; unknown names
-fail atomically. The identity/display boundary and future draft workflow are
-documented in [ingredient identity](../docs/ingredient-identity.md).
+ingredient rows must reference the curated catalog. Recipe-writing APIs verify
+that each submitted stable ingredient ID exists and that its display label is
+that ingredient's canonical name or a reviewed alias; stale or mismatched
+selections fail atomically without creating catalog metadata. The
+identity/display boundary and future draft workflow are documented in
+[ingredient identity](../docs/ingredient-identity.md).
+
+`GET /api/ingredients` provides bounded, paginated canonical-and-alias search
+for the editor. Signed-in members may submit missing-item requests without
+making that text selectable; separately granted catalog curators own the
+terminal review decision. The request states, duplicate controls, transactional
+approval, audit evidence, and operator-managed curator grant are documented in
+[catalog intake](../docs/catalog-intake.md).
 
 ## Recipe diff API
 
@@ -243,8 +252,8 @@ with HTTP 201 and a `Location` header for its detail resource.
 
 Ingredient edits target row IDs from the direct source snapshot so recipes may
 use the same canonical ingredient more than once. Supported operations set a
-quantity, set or clear a unit, replace an ingredient through exact
-canonical-or-alias lookup, append an ingredient, or remove an ingredient.
+quantity, set or clear a unit, replace or append an ingredient through a stable
+catalog ID plus a server-verified canonical-or-alias display label, or remove an ingredient.
 Instruction edits update, append, or remove a source instruction. Replacements
 preserve the source amount, unit, and preparation notes unless companion edits
 change them; they do not infer a conversion or require a curated substitution
