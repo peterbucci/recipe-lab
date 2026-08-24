@@ -110,22 +110,27 @@ class ReplaceIngredient(ForkSchema):
     recipe_ingredient_id: UUID = Field(
         description="Ingredient-row identifier from the direct source snapshot."
     )
-    ingredient_name: IngredientName = Field(
+    ingredient_id: UUID = Field(
         description=(
-            "Existing curated catalog name or exact alias to use as the replacement. "
-            "When the catalog identity changes, the submitted wording is preserved for "
-            "display while the published row uses the resolved catalog identity."
+            "Stable curated catalog identity selected as the replacement. The server also "
+            "verifies that display_name belongs to this exact identity."
         )
+    )
+    display_name: IngredientName = Field(
+        description="Selected canonical name or reviewed alias to preserve for display."
     )
 
 
 class AddIngredient(ForkSchema):
     op: Literal["add"]
-    ingredient_name: IngredientName = Field(
+    ingredient_id: UUID = Field(
         description=(
-            "Existing curated catalog name or exact alias to append. Unknown names cannot "
-            "be published and never create catalog records."
+            "Stable curated catalog identity to append. Pending or rejected requests are "
+            "not identities and cannot be submitted here."
         )
+    )
+    display_name: IngredientName = Field(
+        description="Selected canonical name or reviewed alias for this identity."
     )
     quantity: Quantity | None = Field(
         default=None,

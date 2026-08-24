@@ -330,6 +330,22 @@ def test_catalog_rejects_an_unknown_recipe_ingredient(seed_catalog: SeedCatalog)
         SeedCatalog.model_validate(raw_catalog)
 
 
+def test_catalog_does_not_infer_recipe_display_label_identity_from_nfkc(
+    seed_catalog: SeedCatalog,
+) -> None:
+    raw_catalog = _raw_catalog(seed_catalog)
+    recipes = _record_list(raw_catalog, "recipes")
+    recipe_ingredients = cast(list[dict[str, Any]], recipes[0]["ingredients"])
+    original_name = cast(str, recipe_ingredients[0]["name"])
+    recipe_ingredients[0]["name"] = "".join(
+        chr(ord(character) + 0xFEE0) if "!" <= character <= "~" else character
+        for character in original_name
+    )
+
+    with pytest.raises(ValidationError, match="is not a canonical name or alias"):
+        SeedCatalog.model_validate(raw_catalog)
+
+
 def test_catalog_rejects_a_canonical_alias_collision(seed_catalog: SeedCatalog) -> None:
     raw_catalog = _raw_catalog(seed_catalog)
     ingredients = _record_list(raw_catalog, "ingredients")

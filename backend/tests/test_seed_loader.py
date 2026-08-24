@@ -1,5 +1,7 @@
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
+from threading import Barrier
 from uuid import uuid4
 
 import pytest
@@ -8,6 +10,7 @@ from alembic.config import Config
 from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session
 
+from app.catalog_names import normalize_catalog_name
 from app.core.demo_identity import (
     DEMO_USER_DISPLAY_NAME,
     DEMO_USER_EMAIL,
@@ -16,9 +19,14 @@ from app.core.demo_identity import (
 from app.db.base import Base
 from app.models import (
     ACCOUNT_KIND_DEMO,
+    ACCOUNT_KIND_MEMBER,
     ACCOUNT_KIND_SYSTEM,
+    CATALOG_REQUEST_APPROVED,
+    CATALOG_REQUEST_PENDING,
     Ingredient,
     IngredientAlias,
+    IngredientCatalogAuditEvent,
+    IngredientCatalogRequest,
     IngredientSubstitution,
     PreferenceEvent,
     RecipeIngredient,
@@ -31,9 +39,18 @@ from app.repositories.ingredients import (
     list_direct_substitutions,
     resolve_ingredient_name,
 )
+from app.schemas.ingredient_catalog import (
+    ApproveIngredientCatalogRequest,
+    IngredientCatalogRequestCreate,
+)
 from app.seeds import SeedConflictError, load_bundled_catalog, seed_catalog
 from app.seeds.identifiers import seed_uuid
 from app.seeds.loader import CATALOG_USER_KEY
+from app.services.catalog_requests import (
+    CatalogRequestConflictError,
+    review_catalog_request,
+    submit_catalog_request,
+)
 
 SEEDED_TABLE_COUNTS = {
     "allergens": 8,
@@ -359,6 +376,185 @@ def test_seed_reuses_and_enriches_preexisting_canonical_ingredient(
     assert report.created["ingredients"] == SEEDED_TABLE_COUNTS["ingredients"] - 1
     assert report.reused["ingredients"] == 1
     assert report.created["ingredient_category_assignments"] == 1
+
+
+def test_seed_canonical_name_collision_with_runtime_alias_is_atomic(
+    seed_engine: Engine,
+) -> None:
+    catalog = load_bundled_catalog()
+    with Session(seed_engine) as session, session.begin():
+        runtime_ingredient = Ingredient(canonical_name="Runtime bean")
+        session.add(runtime_ingredient)
+        session.flush()
+        session.add(
+            IngredientAlias(
+                ingredient_id=runtime_ingredient.id,
+                alias="ＣＨＩＣＫＰＥＡ",
+            )
+        )
+
+    with Session(seed_engine) as session:
+        before = database_snapshot(session)
+
+    with Session(seed_engine) as session:
+        with pytest.raises(
+            SeedConflictError,
+            match="canonical name collides with an existing ingredient alias",
+        ):
+            with session.begin():
+                seed_catalog(session, catalog)
+
+    with Session(seed_engine) as session:
+        assert database_snapshot(session) == before
+        assert session.scalar(select(func.count()).select_from(Ingredient)) == 1
+        assert session.scalar(select(func.count()).select_from(IngredientAlias)) == 1
+
+
+@pytest.mark.parametrize(
+    "runtime_name",
+    ["ＣＨＩＣＫＰＥＡ", "Granulated   sugar"],
+)
+def test_seed_normalized_canonical_candidate_is_not_silently_reused(
+    seed_engine: Engine,
+    runtime_name: str,
+) -> None:
+    catalog = load_bundled_catalog()
+    runtime_ingredient_id = uuid4()
+    with Session(seed_engine) as session, session.begin():
+        session.add(
+            Ingredient(
+                id=runtime_ingredient_id,
+                canonical_name=runtime_name,
+            )
+        )
+
+    with Session(seed_engine) as session:
+        before = database_snapshot(session)
+
+    with Session(seed_engine) as session:
+        with pytest.raises(
+            SeedConflictError,
+            match="normalized catalog candidate that cannot establish identity",
+        ):
+            with session.begin():
+                seed_catalog(session, catalog)
+
+    with Session(seed_engine) as session:
+        assert database_snapshot(session) == before
+        assert session.get(Ingredient, runtime_ingredient_id) is not None
+        assert session.scalar(select(func.count()).select_from(Ingredient)) == 1
+
+
+def test_seed_and_runtime_review_serialize_the_normalized_name_namespace(
+    seed_engine: Engine,
+) -> None:
+    catalog = load_bundled_catalog()
+    requester_id = uuid4()
+    reviewer_id = uuid4()
+    with Session(seed_engine) as session, session.begin():
+        session.add_all(
+            [
+                User(
+                    id=requester_id,
+                    email=f"{requester_id}@example.test",
+                    display_name="Seed Race Requester",
+                    account_kind=ACCOUNT_KIND_MEMBER,
+                ),
+                User(
+                    id=reviewer_id,
+                    email=f"{reviewer_id}@example.test",
+                    display_name="Seed Race Curator",
+                    account_kind=ACCOUNT_KIND_MEMBER,
+                ),
+            ]
+        )
+        session.flush()
+        request = submit_catalog_request(
+            session,
+            requester_user_id=requester_id,
+            payload=IngredientCatalogRequestCreate(
+                proposed_name="Seed concurrency proposal",
+                context=None,
+            ),
+        )
+        request_id = request.id
+
+    barrier = Barrier(2)
+    approval_payload = ApproveIngredientCatalogRequest(
+        decision="approve",
+        canonical_name="Ｃｈｉｃｋｐｅａ",
+        aliases=["Ｇａｒｂａｎｚｏ   beans"],
+        reason="Approved during the seed concurrency regression.",
+        provenance="RCP-25A seed/runtime serialization test.",
+    )
+
+    def run_review() -> str:
+        try:
+            with Session(seed_engine) as session:
+                barrier.wait()
+                with session.begin():
+                    reviewed = review_catalog_request(
+                        session,
+                        request_id=request_id,
+                        reviewer_user_id=reviewer_id,
+                        payload=approval_payload,
+                    )
+                    assert reviewed is not None
+            return "approved"
+        except CatalogRequestConflictError:
+            return "review-conflict"
+
+    def run_seed() -> str:
+        try:
+            with Session(seed_engine) as session:
+                barrier.wait()
+                with session.begin():
+                    seed_catalog(session, catalog)
+            return "seeded"
+        except SeedConflictError:
+            return "seed-conflict"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(run_review), executor.submit(run_seed)]
+        outcomes = {future.result() for future in futures}
+
+    assert outcomes in (
+        {"approved", "seed-conflict"},
+        {"review-conflict", "seeded"},
+    )
+
+    with Session(seed_engine) as session:
+        chickpeas = [
+            ingredient
+            for ingredient in session.scalars(select(Ingredient)).all()
+            if normalize_catalog_name(ingredient.canonical_name) == "chickpea"
+        ]
+        garbanzo_aliases = [
+            alias
+            for alias in session.scalars(select(IngredientAlias)).all()
+            if normalize_catalog_name(alias.alias) == "garbanzo beans"
+        ]
+        request = session.get(IngredientCatalogRequest, request_id)
+        events = list(
+            session.scalars(
+                select(IngredientCatalogAuditEvent)
+                .where(IngredientCatalogAuditEvent.request_id == request_id)
+                .order_by(IngredientCatalogAuditEvent.created_at)
+            )
+        )
+
+        assert len(chickpeas) == 1
+        assert len(garbanzo_aliases) == 1
+        assert garbanzo_aliases[0].ingredient_id == chickpeas[0].id
+        assert request is not None
+        if "approved" in outcomes:
+            assert request.status == CATALOG_REQUEST_APPROVED
+            assert request.resolved_ingredient_id == chickpeas[0].id
+            assert [event.event_type for event in events] == ["submitted", "approved"]
+        else:
+            assert request.status == CATALOG_REQUEST_PENDING
+            assert request.resolved_ingredient_id is None
+            assert [event.event_type for event in events] == ["submitted"]
 
 
 def test_existing_substitution_explanation_conflict_is_atomic(

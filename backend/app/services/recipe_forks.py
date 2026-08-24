@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, raiseload, selectinload
 
 from app.models import RecipeIngredient, RecipeInstruction, RecipeLineage, RecipeVersion
-from app.repositories.ingredients import resolve_ingredient_name
+from app.repositories.ingredients import curated_display_label, get_ingredient
 from app.schemas.recipe_forks import (
     AddIngredient,
     AddInstruction,
@@ -115,15 +115,25 @@ def _validate_ingredient_targets(
     return drafts
 
 
-def _resolve_required_catalog_ingredient_id(session: Session, submitted_name: str) -> UUID:
-    """Resolve publication identity without creating or inferring catalog metadata."""
+def _resolve_required_catalog_selection(
+    session: Session,
+    ingredient_id: UUID,
+    submitted_display_name: str,
+) -> tuple[UUID, str]:
+    """Verify a stable identity/label pair without creating or inferring metadata."""
 
-    ingredient = resolve_ingredient_name(session, submitted_name)
+    ingredient = get_ingredient(session, ingredient_id)
     if ingredient is None:
         raise _invalid(
-            f'Ingredient "{submitted_name}" is not in the curated catalog and cannot be published.'
+            f"Ingredient {ingredient_id} is not in the curated catalog and cannot be published."
         )
-    return ingredient.id
+    display_name = curated_display_label(ingredient, submitted_display_name)
+    if display_name is None:
+        raise _invalid(
+            f'"{submitted_display_name}" is not a curated name or alias for '
+            f"ingredient {ingredient_id}."
+        )
+    return ingredient.id, display_name
 
 
 def _apply_ingredient_edits(
@@ -137,13 +147,16 @@ def _apply_ingredient_edits(
 
     for edit in payload.ingredient_edits:
         if isinstance(edit, AddIngredient):
+            ingredient_id, display_name = _resolve_required_catalog_selection(
+                session,
+                edit.ingredient_id,
+                edit.display_name,
+            )
             additions.append(
                 _IngredientDraft(
                     source_id=None,
-                    ingredient_id=_resolve_required_catalog_ingredient_id(
-                        session, edit.ingredient_name
-                    ),
-                    name=edit.ingredient_name,
+                    ingredient_id=ingredient_id,
+                    name=display_name,
                     quantity=edit.quantity,
                     unit=edit.unit,
                     preparation_notes=edit.preparation_notes,
@@ -157,14 +170,20 @@ def _apply_ingredient_edits(
         elif isinstance(edit, SetIngredientUnit):
             draft.unit = edit.unit
         elif isinstance(edit, ReplaceIngredient):
-            replacement_id = _resolve_required_catalog_ingredient_id(session, edit.ingredient_name)
-            if replacement_id == draft.ingredient_id:
+            replacement_id, display_name = _resolve_required_catalog_selection(
+                session,
+                edit.ingredient_id,
+                edit.display_name,
+            )
+            if (
+                replacement_id == draft.ingredient_id
+                and display_name.strip().lower() == draft.name.strip().lower()
+            ):
                 raise _invalid(
-                    f"Ingredient row {edit.recipe_ingredient_id} already uses "
-                    f'"{edit.ingredient_name}".'
+                    f'Ingredient row {edit.recipe_ingredient_id} already uses "{display_name}".'
                 )
             draft.ingredient_id = replacement_id
-            draft.name = edit.ingredient_name
+            draft.name = display_name
         elif isinstance(edit, RemoveIngredient):
             removed_ids.add(edit.recipe_ingredient_id)
 

@@ -12,8 +12,11 @@ from sqlalchemy.exc import IntegrityError
 
 DOMAIN_TABLES = {
     "allergens",
+    "catalog_curators",
     "dietary_flags",
     "ingredient_aliases",
+    "ingredient_catalog_audit_events",
+    "ingredient_catalog_requests",
     "ingredient_allergens",
     "ingredient_categories",
     "ingredient_dietary_flags",

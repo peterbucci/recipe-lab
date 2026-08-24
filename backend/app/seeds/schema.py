@@ -11,6 +11,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.catalog_names import normalize_catalog_name
+
 NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 SeedKey = Annotated[
     str,
@@ -34,7 +36,7 @@ Confidence = Annotated[
 
 
 def normalize_name(value: str) -> str:
-    """Mirror the catalog's PostgreSQL lower/btrim lookup convention."""
+    """Mirror exact catalog label lookup (case-insensitive, outer trim only)."""
 
     return value.strip().lower()
 
@@ -223,7 +225,7 @@ class SeedCatalog(SeedModel):
         canonical_names: dict[str, str] = {}
         alias_names: dict[str, str] = {}
         for ingredient in self.ingredients:
-            normalized_canonical = normalize_name(ingredient.canonical_name)
+            normalized_canonical = normalize_catalog_name(ingredient.canonical_name)
             if normalized_canonical in canonical_names:
                 raise ValueError("canonical ingredient names must be unique")
             canonical_names[normalized_canonical] = ingredient.key
@@ -232,7 +234,7 @@ class SeedCatalog(SeedModel):
             if len(alias_keys) != len(set(alias_keys)):
                 raise ValueError(f"ingredient {ingredient.key!r} alias keys must be unique")
             for alias in ingredient.aliases:
-                normalized_alias = normalize_name(alias.name)
+                normalized_alias = normalize_catalog_name(alias.name)
                 if normalized_alias in alias_names:
                     raise ValueError("ingredient aliases must be globally unique")
                 alias_names[normalized_alias] = ingredient.key

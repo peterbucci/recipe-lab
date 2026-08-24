@@ -352,8 +352,9 @@ def recipe_diff(
     description=(
         "Copies the source version's structured ingredients and instructions, applies the "
         "requested edits, and stores a new immutable child in the same lineage. Every "
-        "published ingredient must resolve to an existing curated catalog name or alias; "
-        "unknown names fail without creating a child or catalog record."
+        "published ingredient selection must pair an existing curated catalog ID with one "
+        "of that identity's canonical or alias labels; unknown IDs or mismatched labels "
+        "fail without creating a child or catalog record."
     ),
 )
 def create_recipe_variant(

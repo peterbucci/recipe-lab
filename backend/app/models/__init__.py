@@ -1,4 +1,14 @@
 from app.models.auth import OIDCIdentity, OIDCLoginTransaction, UserSession
+from app.models.catalog import (
+    CATALOG_REQUEST_APPROVED,
+    CATALOG_REQUEST_DUPLICATE,
+    CATALOG_REQUEST_PENDING,
+    CATALOG_REQUEST_REJECTED,
+    CATALOG_REQUEST_STATUSES,
+    CatalogCurator,
+    IngredientCatalogAuditEvent,
+    IngredientCatalogRequest,
+)
 from app.models.engagement import MAX_RATING, MIN_RATING, RecipeRating, RecipeSave
 from app.models.ingredient import (
     Allergen,
@@ -32,10 +42,18 @@ __all__ = [
     "ACCOUNT_KIND_DEMO",
     "ACCOUNT_KIND_MEMBER",
     "ACCOUNT_KIND_SYSTEM",
+    "CATALOG_REQUEST_APPROVED",
+    "CATALOG_REQUEST_DUPLICATE",
+    "CATALOG_REQUEST_PENDING",
+    "CATALOG_REQUEST_REJECTED",
+    "CATALOG_REQUEST_STATUSES",
+    "CatalogCurator",
     "DietaryFlag",
     "Ingredient",
     "IngredientAlias",
     "IngredientCategory",
+    "IngredientCatalogAuditEvent",
+    "IngredientCatalogRequest",
     "IngredientSubstitution",
     "MAX_RATING",
     "MIN_RATING",

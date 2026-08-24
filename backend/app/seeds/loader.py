@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, func, select, text
 from sqlalchemy.orm import InstrumentedAttribute, Session
 
+from app.catalog_names import lock_catalog_names, normalize_catalog_name
 from app.core.demo_identity import (
     DEMO_USER_CREATED_AT,
     DEMO_USER_DISPLAY_NAME,
@@ -72,6 +73,24 @@ def _normalized_match(
     value: str,
 ) -> ColumnElement[bool]:
     return func.lower(func.btrim(column)) == func.lower(value)
+
+
+def _ingredients_in_catalog_namespace(session: Session, value: str) -> list[Ingredient]:
+    normalized_name = normalize_catalog_name(value)
+    return [
+        ingredient
+        for ingredient in session.scalars(select(Ingredient)).all()
+        if normalize_catalog_name(ingredient.canonical_name) == normalized_name
+    ]
+
+
+def _aliases_in_catalog_namespace(session: Session, value: str) -> list[IngredientAlias]:
+    normalized_name = normalize_catalog_name(value)
+    return [
+        alias
+        for alias in session.scalars(select(IngredientAlias)).all()
+        if normalize_catalog_name(alias.alias) == normalized_name
+    ]
 
 
 def _get_or_create_category(
@@ -250,9 +269,29 @@ def _get_or_create_ingredient(
     allergens: dict[str, Allergen],
     report: SeedReport,
 ) -> Ingredient:
+    alias_collisions = _aliases_in_catalog_namespace(session, seed.canonical_name)
+    if alias_collisions:
+        raise _conflict(
+            "ingredient",
+            seed.key,
+            "canonical name collides with an existing ingredient alias",
+        )
+
     existing = session.scalars(
         select(Ingredient).where(_normalized_match(Ingredient.canonical_name, seed.canonical_name))
     ).one_or_none()
+    canonical_candidates = _ingredients_in_catalog_namespace(session, seed.canonical_name)
+    conflicting_candidates = [
+        candidate
+        for candidate in canonical_candidates
+        if existing is None or candidate.id != existing.id
+    ]
+    if conflicting_candidates:
+        raise _conflict(
+            "ingredient",
+            seed.key,
+            "canonical name has a normalized catalog candidate that cannot establish identity",
+        )
     expected_id = seed_uuid(catalog.metadata.dataset_id, "ingredient", seed.key)
     category_id = categories[seed.category].id if seed.category is not None else None
 
@@ -312,19 +351,29 @@ def _load_aliases(
     report: SeedReport,
 ) -> None:
     for alias_seed in seed.aliases:
-        canonical_collision = session.scalars(
-            select(Ingredient).where(_normalized_match(Ingredient.canonical_name, alias_seed.name))
-        ).one_or_none()
-        if canonical_collision is not None and canonical_collision.id != ingredient.id:
+        canonical_collisions = _ingredients_in_catalog_namespace(session, alias_seed.name)
+        if canonical_collisions:
             raise _conflict(
                 "ingredient alias",
                 alias_seed.key,
-                "alias collides with another canonical ingredient name",
+                "alias collides with a canonical ingredient name",
             )
 
         existing = session.scalars(
             select(IngredientAlias).where(_normalized_match(IngredientAlias.alias, alias_seed.name))
         ).one_or_none()
+        alias_candidates = _aliases_in_catalog_namespace(session, alias_seed.name)
+        conflicting_candidates = [
+            candidate
+            for candidate in alias_candidates
+            if existing is None or candidate.id != existing.id
+        ]
+        if conflicting_candidates:
+            raise _conflict(
+                "ingredient alias",
+                alias_seed.key,
+                "alias has a normalized catalog candidate that cannot establish identity",
+            )
         expected_id = seed_uuid(
             catalog.metadata.dataset_id,
             "ingredient-alias",
@@ -665,6 +714,17 @@ def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
     session.execute(
         text("SELECT pg_advisory_xact_lock(:lock_id)"),
         {"lock_id": SEED_ADVISORY_LOCK_ID},
+    )
+    lock_catalog_names(
+        session,
+        {
+            normalize_catalog_name(name)
+            for ingredient in catalog.ingredients
+            for name in [
+                ingredient.canonical_name,
+                *(alias.name for alias in ingredient.aliases),
+            ]
+        },
     )
     report = SeedReport()
     user = _get_or_create_catalog_user(session, catalog, report)
