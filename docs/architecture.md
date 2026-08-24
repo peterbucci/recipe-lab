@@ -227,16 +227,18 @@ The `MVP acceptance` CI job is a full-stack completion gate rather than a
 mocked frontend test. Each run receives a new PostgreSQL service database,
 applies the complete migration history, and loads the deterministic catalog
 before starting a non-reloading API process and a production Next.js build.
-The guarded job provisions two synthetic onboarded members and stores only
-session/CSRF digests in PostgreSQL. Raw acceptance tokens live in a private
+The guarded job provisions three synthetic onboarded members, including one
+narrow catalog curator, and stores only session/CSRF digests in PostgreSQL.
+Raw acceptance tokens live in a private
 temporary file, Playwright traces are disabled for the guarded run, and the
 file is deleted before diagnostics are uploaded. Playwright runs with one
 worker because real member activity and fork writes are intentionally stateful
 within that disposable run.
 
 The canonical tests prove anonymous read-only access, isolated Alice/Bob save
-and rating state, and one uninterrupted authenticated browse, save, fork,
-structured edit, and parent-comparison journey. They never intercept the real
+and rating state, curator-only ingredient review, and one uninterrupted
+authenticated browse, save, fork, structured edit, and parent-comparison
+journey. They never intercept the real
 write path and therefore verify the session, CSRF, browser-to-database path,
 member attribution, lineage persistence, and diff result together. Keyboard
 activation and automated WCAG A/AA checks cover the basic accessibility gate.

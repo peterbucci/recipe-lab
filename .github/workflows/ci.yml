@@ -568,7 +568,7 @@ jobs:
           python -m alembic upgrade head
           python -m app.seeds load
 
-      - name: Provision isolated acceptance member sessions
+      - name: Provision isolated acceptance member and curator sessions
         working-directory: backend
         run: python -m app.testing.acceptance_sessions
 

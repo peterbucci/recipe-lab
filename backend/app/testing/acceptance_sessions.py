@@ -1,4 +1,4 @@
-"""Provision two member sessions in an explicitly disposable acceptance database.
+"""Provision member and curator sessions in a disposable acceptance database.
 
 This module is a command-line test harness, not an HTTP route. It deliberately
 keeps raw bearer and CSRF tokens out of PostgreSQL and stdout; the caller-owned
@@ -25,11 +25,12 @@ from app.core.security import generate_opaque_token, token_digest
 from app.models import (
     ACCOUNT_KIND_MEMBER,
     USER_STATUS_ACTIVE,
+    CatalogCurator,
     User,
     UserSession,
 )
 
-ACCEPTANCE_FIXTURE_VERSION = 1
+ACCEPTANCE_FIXTURE_VERSION = 2
 ACCEPTANCE_DATABASE_NAMES = frozenset(
     {
         "recipe_lab_acceptance",
@@ -61,6 +62,7 @@ class AcceptanceMemberDefinition:
     email: str
     handle: str
     display_name: str
+    catalog_curator: bool = False
 
 
 ACCEPTANCE_MEMBERS = (
@@ -77,6 +79,14 @@ ACCEPTANCE_MEMBERS = (
         email="bob@acceptance.recipe-lab.invalid",
         handle="acceptance_bob",
         display_name="Bob Cook",
+    ),
+    AcceptanceMemberDefinition(
+        key="curator",
+        user_id=uuid5(_MEMBER_NAMESPACE, "curator"),
+        email="curator@acceptance.recipe-lab.invalid",
+        handle="acceptance_curator",
+        display_name="Casey Curator",
+        catalog_curator=True,
     ),
 )
 
@@ -159,11 +169,12 @@ def provision_acceptance_sessions(
     *,
     now: datetime | None = None,
 ) -> AcceptanceFixture:
-    """Stage two active, onboarded members and fresh digest-only sessions."""
+    """Stage active members, one narrow curator grant, and fresh sessions."""
 
     issued_at = now or datetime.now(UTC)
     member_ids = [definition.user_id for definition in ACCEPTANCE_MEMBERS]
     session.execute(delete(UserSession).where(UserSession.user_id.in_(member_ids)))
+    session.execute(delete(CatalogCurator).where(CatalogCurator.user_id.in_(member_ids)))
 
     members: dict[str, AcceptanceMemberFixture] = {}
     for definition in ACCEPTANCE_MEMBERS:
@@ -185,6 +196,8 @@ def provision_acceptance_sessions(
             "session_token": raw_session_token,
             "csrf_token": raw_csrf_token,
         }
+        if definition.catalog_curator:
+            session.add(CatalogCurator(user_id=user.id))
 
     session.flush()
     return {
@@ -263,7 +276,7 @@ def validate_output_path(path: Path, environment: Mapping[str, str]) -> Path:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Provision two opaque member sessions for an isolated acceptance run."
+        description="Provision opaque member and curator sessions for an isolated acceptance run."
     )
     parser.add_argument(
         "--output",
@@ -287,7 +300,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except AcceptanceHarnessError as error:
         raise SystemExit(f"Acceptance session provisioning refused: {error}") from error
 
-    print("Provisioned two isolated acceptance member sessions.")
+    print("Provisioned isolated acceptance member and curator sessions.")
     return 0
 
 

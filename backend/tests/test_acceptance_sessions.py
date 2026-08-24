@@ -9,7 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.security import token_digest
-from app.models import ACCOUNT_KIND_MEMBER, USER_STATUS_ACTIVE, User, UserSession
+from app.models import (
+    ACCOUNT_KIND_MEMBER,
+    USER_STATUS_ACTIVE,
+    CatalogCurator,
+    User,
+    UserSession,
+)
 from app.testing.acceptance_sessions import (
     ACCEPTANCE_MEMBERS,
     ACCEPTANCE_SESSION_TTL,
@@ -73,15 +79,15 @@ def test_acceptance_guard_refuses_unsafe_environments(
         validate_acceptance_environment(environment)
 
 
-def test_provisioner_creates_two_onboarded_members_with_digest_only_sessions(
+def test_provisioner_creates_members_and_one_curator_with_digest_only_sessions(
     db_session: Session,
 ) -> None:
     issued_at = datetime(2026, 8, 23, 16, 0, tzinfo=UTC)
 
     fixture = provision_acceptance_sessions(db_session, now=issued_at)
 
-    assert fixture["version"] == 1
-    assert set(fixture["members"]) == {"alice", "bob"}
+    assert fixture["version"] == 2
+    assert set(fixture["members"]) == {"alice", "bob", "curator"}
     assert all(
         set(member_fixture) == {"user_id", "session_token", "csrf_token"}
         for member_fixture in fixture["members"].values()
@@ -108,6 +114,9 @@ def test_provisioner_creates_two_onboarded_members_with_digest_only_sessions(
         assert stored_session.created_at == issued_at
         assert stored_session.expires_at == issued_at + ACCEPTANCE_SESSION_TTL
 
+        grant = db_session.get(CatalogCurator, definition.user_id)
+        assert (grant is not None) is definition.catalog_curator
+
 
 def test_reprovisioner_replaces_only_fixture_member_sessions(db_session: Session) -> None:
     first = provision_acceptance_sessions(db_session)
@@ -125,7 +134,7 @@ def test_reprovisioner_replaces_only_fixture_member_sessions(db_session: Session
 
 def test_fixture_file_is_private_exclusive_and_contains_no_identity_data(tmp_path: Path) -> None:
     fixture: AcceptanceFixture = {
-        "version": 1,
+        "version": 2,
         "members": {
             "alice": {
                 "user_id": "alice-id",
@@ -136,6 +145,11 @@ def test_fixture_file_is_private_exclusive_and_contains_no_identity_data(tmp_pat
                 "user_id": "bob-id",
                 "session_token": "bob-session",
                 "csrf_token": "bob-csrf",
+            },
+            "curator": {
+                "user_id": "curator-id",
+                "session_token": "curator-session",
+                "csrf_token": "curator-csrf",
             },
         },
     }
