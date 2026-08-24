@@ -246,6 +246,9 @@ function AuthorizedReviewWorkspace({
   }
 
   function selectRequest(requestId: string | null) {
+    if (selectedRequestIdRef.current === requestId) {
+      return;
+    }
     selectedRequestIdRef.current = requestId;
     setSelectedRequestId(requestId);
     setDetail(null);

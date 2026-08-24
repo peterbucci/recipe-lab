@@ -173,6 +173,22 @@ describe("IngredientRequestReviewWorkspace", () => {
     expect(rejected).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("keeps the loaded detail when the selected queue item is clicked again", async () => {
+    mocks.browse.mockResolvedValue(reviewPage());
+    mocks.detail.mockResolvedValue(reviewDetail());
+    renderWorkspace();
+
+    await screen.findByLabelText("Reviewed canonical name");
+    const queue = screen.getByRole("list", { name: "Pending requests" });
+    const selectedItem = within(queue).getByRole("button");
+    expect(selectedItem).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(selectedItem);
+
+    expect(screen.getByLabelText("Reviewed canonical name")).toBeVisible();
+    expect(mocks.detail).toHaveBeenCalledTimes(1);
+  });
+
   it("validates and saves an approval, then focuses a visible success summary", async () => {
     mocks.browse
       .mockResolvedValueOnce(reviewPage())

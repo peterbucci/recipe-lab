@@ -169,7 +169,12 @@ test.describe("ingredient curator acceptance", () => {
       page.getByText(`${duplicateName} is now duplicate.`, { exact: true }),
     ).toBeVisible();
 
-    await queueItemFor(staleRequest.proposed_name).click();
+    const staleQueueItem = queueItemFor(staleRequest.proposed_name);
+    await expect(staleQueueItem).toHaveAttribute("aria-pressed", "true");
+    await staleQueueItem.click();
+    await expect(
+      page.getByRole("heading", { name: staleName, level: 2 }),
+    ).toBeVisible();
     const staleCanonical = page.getByLabel("Reviewed canonical name");
     const staleReason = page.getByLabel("Decision reason");
     const staleProvenance = page.getByLabel("Approval provenance");
