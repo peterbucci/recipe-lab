@@ -111,14 +111,20 @@ class ReplaceIngredient(ForkSchema):
         description="Ingredient-row identifier from the direct source snapshot."
     )
     ingredient_name: IngredientName = Field(
-        description="Exact canonical ingredient name or alias to use as the replacement."
+        description=(
+            "Authored replacement name to preserve; an exact catalog name or alias links "
+            "when available."
+        )
     )
 
 
 class AddIngredient(ForkSchema):
     op: Literal["add"]
     ingredient_name: IngredientName = Field(
-        description="Exact canonical ingredient name or alias to append."
+        description=(
+            "Authored ingredient name to preserve; an exact catalog name or alias links "
+            "when available."
+        )
     )
     quantity: Quantity | None = Field(
         default=None,

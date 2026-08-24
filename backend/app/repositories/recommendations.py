@@ -114,7 +114,9 @@ def load_recommendation_data(
     candidates = tuple(
         RecommendationCandidateData(
             recipe=recipe,
-            ingredient_ids=frozenset(item.ingredient_id for item in recipe.ingredients),
+            ingredient_ids=frozenset(
+                item.ingredient_id for item in recipe.ingredients if item.ingredient_id is not None
+            ),
             rating_sum=int(rating_sum),
             rating_count=int(rating_count),
             save_count=int(save_count),

@@ -373,6 +373,78 @@ def test_active_save_personalizes_by_canonical_ingredient_similarity(
     assert "you saved" in pecan["reason"].casefold()
 
 
+def test_unlinked_ingredient_candidate_ignores_null_identity_but_remains_rankable(
+    recommendation_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    (supporter_id,) = _create_test_users(seeded_api_engine, 1)
+    candidate_id = uuid4()
+    with Session(bind=seeded_api_engine) as session, session.begin():
+        source = session.get(RecipeVersion, CARROT_ROOT_ID)
+        assert source is not None
+        candidate = RecipeVersion(
+            id=candidate_id,
+            lineage_id=source.lineage_id,
+            parent_version_id=source.id,
+            created_by_user_id=MEMBER_USER_ID,
+            version_number=99,
+            title="Unlinked Pantry Candidate",
+            description="Uses authored free text without a catalog identity.",
+            servings=Decimal("4.00"),
+        )
+        candidate.ingredients.append(
+            RecipeIngredient(
+                ingredient_id=None,
+                name="Grandma's spice blend",
+                quantity=Decimal("2.0000"),
+                unit="tsp",
+                preparation_notes=None,
+                display_order=0,
+            )
+        )
+        candidate.instructions.append(
+            RecipeInstruction(
+                instruction="Stir in the spice blend.",
+                display_order=0,
+            )
+        )
+        session.add_all(
+            [
+                candidate,
+                RecipeRating(
+                    user_id=supporter_id,
+                    recipe_version_id=candidate_id,
+                    rating=5,
+                ),
+                RecipeSave(
+                    user_id=supporter_id,
+                    recipe_version_id=candidate_id,
+                ),
+                RecipeSave(
+                    user_id=MEMBER_USER_ID,
+                    recipe_version_id=CARROT_ROOT_ID,
+                ),
+                _event(
+                    user_id=MEMBER_USER_ID,
+                    recipe_version_id=CARROT_ROOT_ID,
+                    event_type="save",
+                    saved_value=True,
+                ),
+            ]
+        )
+
+    response = recommendation_client.get("/api/recommendations", params={"limit": 50})
+
+    assert response.status_code == 200
+    body = _json_object(response.json())
+    assert body["personalized"] is True
+    candidate_item = _item_for(body, candidate_id)
+    components = _json_object(candidate_item["components"])
+    assert components["ingredient_similarity"] == "0.000000"
+    assert Decimal(components["global_score"]) > 0
+    assert Decimal(candidate_item["score"]) > 0
+
+
 def test_stale_save_and_rating_events_do_not_become_positive_profile_sources(
     recommendation_client: TestClient,
     seeded_api_engine: Engine,

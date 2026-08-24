@@ -37,11 +37,13 @@ class RecipeVersionReference(RecipeSchema):
 
 class RecipeIngredientResponse(RecipeSchema):
     id: UUID
-    ingredient_id: UUID
-    canonical_name: str = Field(
+    ingredient_id: UUID | None = Field(
+        description="Canonical catalog identifier, or null for authored free text."
+    )
+    canonical_name: str | None = Field(
         min_length=1,
         max_length=200,
-        description="Current canonical catalog name.",
+        description="Current canonical catalog name, or null when the row is unlinked.",
     )
     display_name: str = Field(
         min_length=1,

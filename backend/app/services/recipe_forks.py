@@ -27,7 +27,7 @@ class InvalidRecipeEditsError(ValueError):
 @dataclass(slots=True)
 class _IngredientDraft:
     source_id: UUID | None
-    ingredient_id: UUID
+    ingredient_id: UUID | None
     name: str
     quantity: Decimal | None
     unit: str | None
@@ -115,11 +115,9 @@ def _validate_ingredient_targets(
     return drafts
 
 
-def _resolve_ingredient_id(session: Session, submitted_name: str) -> UUID:
+def _resolve_ingredient_id(session: Session, submitted_name: str) -> UUID | None:
     ingredient = resolve_ingredient_name(session, submitted_name)
-    if ingredient is None:
-        raise _invalid(f'Ingredient "{submitted_name}" is not in the catalog.')
-    return ingredient.id
+    return ingredient.id if ingredient is not None else None
 
 
 def _apply_ingredient_edits(
@@ -152,7 +150,7 @@ def _apply_ingredient_edits(
             draft.unit = edit.unit
         elif isinstance(edit, ReplaceIngredient):
             replacement_id = _resolve_ingredient_id(session, edit.ingredient_name)
-            if replacement_id == draft.ingredient_id:
+            if replacement_id == draft.ingredient_id and edit.ingredient_name == draft.name:
                 raise _invalid(
                     f"Ingredient row {edit.recipe_ingredient_id} already uses "
                     f'"{edit.ingredient_name}".'

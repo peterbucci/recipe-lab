@@ -41,6 +41,29 @@ def _ingredient(
     )
 
 
+def _unlinked_ingredient(
+    *,
+    row_id: int,
+    version_id: UUID,
+    display_order: int,
+    name: str,
+    quantity: Decimal | None = None,
+    unit: str | None = None,
+    preparation_notes: str | None = None,
+) -> RecipeIngredient:
+    return RecipeIngredient(
+        id=_id(row_id),
+        recipe_version_id=version_id,
+        ingredient_id=None,
+        ingredient=None,
+        name=name,
+        quantity=quantity,
+        unit=unit,
+        preparation_notes=preparation_notes,
+        display_order=display_order,
+    )
+
+
 def _instruction(
     *,
     row_id: int,
@@ -149,6 +172,164 @@ def test_copied_snapshots_with_fresh_row_ids_have_no_changes() -> None:
     assert diff.metadata_changes == []
     _assert_no_content_changes(diff)
     assert diff.has_changes is False
+
+
+def test_equal_unlinked_content_cancels_without_inferred_catalog_identity() -> None:
+    base_id = _id(120)
+    target_id = _id(121)
+    base = _version(
+        version_id=base_id.int,
+        version_number=1,
+        ingredients=[
+            _unlinked_ingredient(
+                row_id=1_200,
+                version_id=base_id,
+                display_order=0,
+                name="Grandma's spice blend",
+                quantity=Decimal("2"),
+                unit="tsp",
+                preparation_notes="heaped",
+            )
+        ],
+        instructions=[],
+    )
+    target = _version(
+        version_id=target_id.int,
+        version_number=2,
+        parent_version_id=base_id,
+        ingredients=[
+            _unlinked_ingredient(
+                row_id=1_210,
+                version_id=target_id,
+                display_order=4,
+                name="Grandma's spice blend",
+                quantity=Decimal("2.0000"),
+                unit="tsp",
+                preparation_notes="heaped",
+            )
+        ],
+        instructions=[],
+    )
+
+    diff = build_recipe_diff(base, target, set())
+
+    _assert_no_content_changes(diff)
+    assert diff.has_changes is False
+
+
+def test_changed_unlinked_duplicates_are_deterministic_removed_and_added() -> None:
+    base_id = _id(130)
+    target_id = _id(131)
+    base = _version(
+        version_id=base_id.int,
+        version_number=1,
+        ingredients=[
+            _unlinked_ingredient(
+                row_id=1_300,
+                version_id=base_id,
+                display_order=0,
+                name="House seasoning",
+                quantity=Decimal("1"),
+                unit="tsp",
+            ),
+            _unlinked_ingredient(
+                row_id=1_301,
+                version_id=base_id,
+                display_order=1,
+                name="House seasoning",
+                quantity=Decimal("2"),
+                unit="tsp",
+            ),
+        ],
+        instructions=[],
+    )
+    target = _version(
+        version_id=target_id.int,
+        version_number=2,
+        parent_version_id=base_id,
+        ingredients=[
+            _unlinked_ingredient(
+                row_id=1_310,
+                version_id=target_id,
+                display_order=0,
+                name="House seasoning",
+                quantity=Decimal("2.0000"),
+                unit="tsp",
+            ),
+            _unlinked_ingredient(
+                row_id=1_311,
+                version_id=target_id,
+                display_order=1,
+                name="House seasoning",
+                quantity=Decimal("3"),
+                unit="tsp",
+            ),
+        ],
+        instructions=[],
+    )
+
+    expected = build_recipe_diff(base, target, set()).model_dump(mode="json")
+    base.ingredients.reverse()
+    target.ingredients.reverse()
+    actual = build_recipe_diff(base, target, set()).model_dump(mode="json")
+
+    assert actual == expected
+    diff = build_recipe_diff(base, target, set())
+    assert diff.ingredients.modified == []
+    assert diff.ingredients.replaced == []
+    assert [item.quantity for item in diff.ingredients.removed] == [Decimal("1")]
+    assert [item.quantity for item in diff.ingredients.added] == [Decimal("3")]
+    assert diff.ingredients.removed[0].ingredient_id is None
+    assert diff.ingredients.removed[0].canonical_name is None
+    assert diff.ingredients.added[0].ingredient_id is None
+    assert diff.ingredients.added[0].canonical_name is None
+
+
+def test_linked_to_unlinked_transition_is_not_paired_by_authored_text() -> None:
+    seasoning = _catalog_ingredient(14, "House seasoning")
+    base_id = _id(140)
+    target_id = _id(141)
+    base = _version(
+        version_id=base_id.int,
+        version_number=1,
+        ingredients=[
+            _ingredient(
+                row_id=1_400,
+                version_id=base_id,
+                catalog=seasoning,
+                display_order=0,
+                name="Secret blend",
+                quantity=Decimal("1"),
+                unit="tsp",
+            )
+        ],
+        instructions=[],
+    )
+    target = _version(
+        version_id=target_id.int,
+        version_number=2,
+        parent_version_id=base_id,
+        ingredients=[
+            _unlinked_ingredient(
+                row_id=1_410,
+                version_id=target_id,
+                display_order=0,
+                name="Secret blend",
+                quantity=Decimal("1"),
+                unit="tsp",
+            )
+        ],
+        instructions=[],
+    )
+
+    diff = build_recipe_diff(base, target, set())
+
+    assert diff.ingredients.modified == []
+    assert diff.ingredients.replaced == []
+    assert [item.ingredient_id for item in diff.ingredients.removed] == [seasoning.id]
+    assert [item.ingredient_id for item in diff.ingredients.added] == [None]
+    assert diff.ingredients.removed[0].display_name == "Secret blend"
+    assert diff.ingredients.added[0].display_name == "Secret blend"
 
 
 def test_reorder_only_is_ignored_for_ingredients_and_instructions() -> None:

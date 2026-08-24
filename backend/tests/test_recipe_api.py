@@ -341,6 +341,20 @@ def test_openapi_documents_recipe_and_error_schemas(api_client: TestClient) -> N
     assert detail_properties["average_rating"]["anyOf"][0]["maximum"] == 5
     assert detail_properties["rating_count"]["minimum"] == 0
     assert {"average_rating", "rating_count"} <= set(schemas["RecipeDetailResponse"]["required"])
+    ingredient_schema = schemas["RecipeIngredientResponse"]
+    assert {"ingredient_id", "canonical_name", "display_name"} <= set(ingredient_schema["required"])
+    assert {
+        option.get("type") for option in ingredient_schema["properties"]["ingredient_id"]["anyOf"]
+    } == {
+        "string",
+        "null",
+    }
+    assert {
+        option.get("type") for option in ingredient_schema["properties"]["canonical_name"]["anyOf"]
+    } == {
+        "string",
+        "null",
+    }
 
     browse_responses = paths["/api/recipes"]["get"]["responses"]
     detail_responses = paths["/api/recipes/{recipe_version_id}"]["get"]["responses"]

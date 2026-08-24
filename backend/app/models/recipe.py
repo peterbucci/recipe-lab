@@ -142,10 +142,10 @@ class RecipeIngredient(UUIDPrimaryKeyMixin, Base):
         ForeignKey("recipe_versions.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    ingredient_id: Mapped[UUID] = mapped_column(
+    ingredient_id: Mapped[UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("ingredients.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -155,7 +155,7 @@ class RecipeIngredient(UUIDPrimaryKeyMixin, Base):
     display_order: Mapped[int] = mapped_column(Integer, nullable=False)
 
     recipe_version: Mapped[RecipeVersion] = relationship(back_populates="ingredients")
-    ingredient: Mapped["Ingredient"] = relationship(back_populates="recipe_ingredients")
+    ingredient: Mapped["Ingredient | None"] = relationship(back_populates="recipe_ingredients")
 
 
 class RecipeInstruction(UUIDPrimaryKeyMixin, Base):

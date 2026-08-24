@@ -74,6 +74,108 @@ def test_migrations_round_trip_on_empty_postgres_schema(
     assert DOMAIN_TABLES <= set(inspect(empty_postgres_engine).get_table_names())
 
 
+def test_unlinked_ingredient_migration_preserves_required_authored_text(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    user_id = uuid4()
+    lineage_id = uuid4()
+    version_id = uuid4()
+    recipe_ingredient_id = uuid4()
+
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "head")
+
+        ingredient_columns = {
+            column["name"]: column
+            for column in inspect(connection).get_columns("recipe_version_ingredients")
+        }
+        assert ingredient_columns["ingredient_id"]["nullable"] is True
+        assert ingredient_columns["name"]["nullable"] is False
+
+        metadata = sa.MetaData()
+        users = sa.Table("users", metadata, autoload_with=connection)
+        lineages = sa.Table("recipe_lineages", metadata, autoload_with=connection)
+        versions = sa.Table("recipe_versions", metadata, autoload_with=connection)
+        recipe_ingredients = sa.Table(
+            "recipe_version_ingredients",
+            metadata,
+            autoload_with=connection,
+        )
+        ingredients = sa.Table("ingredients", metadata, autoload_with=connection)
+
+        connection.execute(
+            users.insert().values(
+                id=user_id,
+                email="unlinked-migration@example.com",
+                display_name="Unlinked Migration",
+            )
+        )
+        connection.execute(lineages.insert().values(id=lineage_id, created_by_user_id=user_id))
+        connection.execute(
+            versions.insert().values(
+                id=version_id,
+                lineage_id=lineage_id,
+                parent_version_id=None,
+                created_by_user_id=user_id,
+                version_number=1,
+                title="Migration pantry recipe",
+                description=None,
+                servings=Decimal("4.00"),
+            )
+        )
+        catalog_count_before = connection.scalar(
+            sa.select(sa.func.count()).select_from(ingredients)
+        )
+        connection.execute(
+            recipe_ingredients.insert().values(
+                id=recipe_ingredient_id,
+                recipe_version_id=version_id,
+                ingredient_id=None,
+                name="Grandma's spice blend",
+                quantity=None,
+                unit=None,
+                preparation_notes=None,
+                display_order=0,
+            )
+        )
+
+        migrated = connection.execute(
+            sa.select(
+                recipe_ingredients.c.ingredient_id,
+                recipe_ingredients.c.name,
+            ).where(recipe_ingredients.c.id == recipe_ingredient_id)
+        ).one()
+        assert migrated.ingredient_id is None
+        assert migrated.name == "Grandma's spice blend"
+        assert connection.scalar(sa.select(sa.func.count()).select_from(ingredients)) == (
+            catalog_count_before
+        )
+
+        with pytest.raises(IntegrityError) as error:
+            with connection.begin_nested():
+                connection.execute(
+                    recipe_ingredients.insert().values(
+                        id=uuid4(),
+                        recipe_version_id=version_id,
+                        ingredient_id=None,
+                        name="   ",
+                        quantity=None,
+                        unit=None,
+                        preparation_notes=None,
+                        display_order=1,
+                    )
+                )
+        diagnostic = getattr(error.value.orig, "diag", None)
+        assert getattr(diagnostic, "constraint_name", None) == (
+            "ck_recipe_version_ingredients_name_not_blank"
+        )
+
+        with pytest.raises(sa.exc.DBAPIError, match="Cannot downgrade while unlinked"):
+            command.downgrade(alembic_config, "20260823_0006")
+
+
 def test_ingredient_migration_backfills_legacy_recipe_rows(
     empty_postgres_engine: Engine,
     alembic_config: Config,

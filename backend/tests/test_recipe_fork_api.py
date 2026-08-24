@@ -15,6 +15,7 @@ import app.api.routes.recipes as recipe_routes
 from app.api.dependencies import get_session
 from app.main import create_app
 from app.models import (
+    Ingredient,
     PreferenceEvent,
     RecipeIngredient,
     RecipeInstruction,
@@ -68,13 +69,15 @@ BAKE_INSTRUCTION_ID = seed_uuid(
 )
 PECAN_ID = seed_uuid(DATASET_ID, "ingredient", "pecan")
 ORANGE_ZEST_ID = seed_uuid(DATASET_ID, "ingredient", "orange-zest")
+ALL_PURPOSE_FLOUR_ID = seed_uuid(DATASET_ID, "ingredient", "all-purpose-flour")
+GRANULATED_SUGAR_ID = seed_uuid(DATASET_ID, "ingredient", "granulated-sugar")
 MEMBER_USER_ID = UUID("77000000-0000-4000-8000-000000000002")
 
 
 @dataclass(frozen=True, slots=True)
 class IngredientSnapshot:
     id: UUID
-    ingredient_id: UUID
+    ingredient_id: UUID | None
     name: str
     quantity: Decimal | None
     unit: str | None
@@ -445,6 +448,77 @@ def test_fork_applies_all_structured_edits_without_mutating_parent(
     assert _snapshot_version(seeded_api_engine, CARROT_ROOT_ID) == parent_before
 
 
+def test_fork_preserves_authored_names_and_links_only_catalog_matches(
+    fork_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    with Session(bind=seeded_api_engine) as session:
+        catalog_count_before = session.scalar(select(func.count()).select_from(Ingredient))
+
+    payload = _base_payload(title="Carrot Cake with Pantry Notes")
+    payload["ingredient_edits"] = [
+        {
+            "op": "replace",
+            "recipe_ingredient_id": str(SUGAR_ROW_ID),
+            "ingredient_name": "Granulated sugar",
+        },
+        {
+            "op": "replace",
+            "recipe_ingredient_id": str(NUTS_ROW_ID),
+            "ingredient_name": "Grandma's toasted crunch",
+        },
+        {
+            "op": "add",
+            "ingredient_name": "Plain flour",
+            "quantity": "2",
+            "unit": "tbsp",
+        },
+        {
+            "op": "add",
+            "ingredient_name": "A pinch of moon dust",
+        },
+    ]
+
+    response = fork_client.post(
+        f"/api/recipes/{CARROT_ROOT_ID}/variants",
+        json=payload,
+        headers=_action_headers(),
+    )
+
+    assert response.status_code == 201
+    ingredients = cast(list[dict[str, Any]], _json_object(response.json())["ingredients"])
+    by_display_name = {item["display_name"]: item for item in ingredients}
+
+    # Canonical names and aliases retain the submitted authored text while
+    # linking to the existing catalog row.
+    sugar = by_display_name["Granulated sugar"]
+    assert sugar["ingredient_id"] == str(GRANULATED_SUGAR_ID)
+    assert sugar["canonical_name"] == "Granulated sugar"
+    flour = by_display_name["Plain flour"]
+    assert flour["ingredient_id"] == str(ALL_PURPOSE_FLOUR_ID)
+    assert flour["canonical_name"] == "All-purpose flour"
+
+    # Unknown authored text remains valid recipe data without inventing a
+    # canonical identity or name.
+    for authored_name in ("Grandma's toasted crunch", "A pinch of moon dust"):
+        unlinked = by_display_name[authored_name]
+        assert unlinked["ingredient_id"] is None
+        assert unlinked["canonical_name"] is None
+
+    with Session(bind=seeded_api_engine) as session:
+        assert session.scalar(select(func.count()).select_from(Ingredient)) == catalog_count_before
+        unknown_catalog_rows = session.scalar(
+            select(func.count())
+            .select_from(Ingredient)
+            .where(
+                func.lower(Ingredient.canonical_name).in_(
+                    ("grandma's toasted crunch", "a pinch of moon dust")
+                )
+            )
+        )
+        assert unknown_catalog_rows == 0
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -480,6 +554,10 @@ def test_fork_applies_all_structured_edits_without_mutating_parent(
                 }
             ],
         },
+        {
+            **_base_payload(),
+            "ingredient_edits": [{"op": "add", "ingredient_name": "   "}],
+        },
         {**_base_payload(), "ingredient_edits": [{"op": "unknown"}]},
         {**_base_payload(), "created_by_user_id": str(uuid4())},
     ],
@@ -489,6 +567,7 @@ def test_fork_applies_all_structured_edits_without_mutating_parent(
         "boolean-quantity",
         "overprecise-quantity",
         "blank-unit",
+        "blank-authored-ingredient-name",
         "unknown-operation",
         "client-author",
     ],
@@ -523,13 +602,6 @@ def test_invalid_request_shapes_create_no_fork(
         ],
         [
             {
-                "op": "replace",
-                "recipe_ingredient_id": str(NUTS_ROW_ID),
-                "ingredient_name": "Not a catalog ingredient",
-            }
-        ],
-        [
-            {
                 "op": "set_quantity",
                 "recipe_ingredient_id": str(SUGAR_ROW_ID),
                 "quantity": "150",
@@ -558,7 +630,6 @@ def test_invalid_request_shapes_create_no_fork(
     ],
     ids=[
         "target-from-other-version",
-        "unknown-catalog-ingredient",
         "duplicate-operation",
         "remove-and-edit",
         "replacement-is-no-op",
@@ -777,3 +848,7 @@ def test_openapi_documents_recipe_fork_contract(fork_client: TestClient) -> None
     instruction_items = request_schema["properties"]["instruction_edits"]["items"]
     assert ingredient_items["discriminator"]["propertyName"] == "op"
     assert instruction_items["discriminator"]["propertyName"] == "op"
+    for schema_name in ("AddIngredient", "ReplaceIngredient"):
+        description = schemas[schema_name]["properties"]["ingredient_name"]["description"]
+        assert "Authored" in description
+        assert "links when available" in description

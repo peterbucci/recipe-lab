@@ -137,7 +137,7 @@ def _ingredient(item: RecipeIngredient) -> RecipeIngredientResponse:
     return RecipeIngredientResponse(
         id=item.id,
         ingredient_id=item.ingredient_id,
-        canonical_name=item.ingredient.canonical_name,
+        canonical_name=(item.ingredient.canonical_name if item.ingredient is not None else None),
         display_name=item.name,
         quantity=item.quantity,
         unit=item.unit,
@@ -333,7 +333,10 @@ def recipe_diff(
         )
 
     ingredient_ids = {
-        item.ingredient_id for version in (base, target) for item in version.ingredients
+        item.ingredient_id
+        for version in (base, target)
+        for item in version.ingredients
+        if item.ingredient_id is not None
     }
     substitution_pairs = get_direct_substitution_pairs(session, ingredient_ids)
     return build_recipe_diff(

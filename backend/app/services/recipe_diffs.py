@@ -109,10 +109,18 @@ def _pair_same_ingredients(
 ]:
     before_by_ingredient: dict[UUID, list[RecipeIngredient]] = defaultdict(list)
     after_by_ingredient: dict[UUID, list[RecipeIngredient]] = defaultdict(list)
+    unlinked_before: list[RecipeIngredient] = []
+    unlinked_after: list[RecipeIngredient] = []
     for item in before_items:
-        before_by_ingredient[item.ingredient_id].append(item)
+        if item.ingredient_id is None:
+            unlinked_before.append(item)
+        else:
+            before_by_ingredient[item.ingredient_id].append(item)
     for item in after_items:
-        after_by_ingredient[item.ingredient_id].append(item)
+        if item.ingredient_id is None:
+            unlinked_after.append(item)
+        else:
+            after_by_ingredient[item.ingredient_id].append(item)
 
     pairs: list[tuple[RecipeIngredient, RecipeIngredient]] = []
     unmatched_before: list[RecipeIngredient] = []
@@ -142,6 +150,18 @@ def _pair_same_ingredients(
         unmatched_before.extend(remaining_before[shared_count:])
         unmatched_after.extend(remaining_after[shared_count:])
 
+    # Free text has no identity to carry between immutable snapshots. Cancel
+    # only byte-for-byte equal authored content; a changed unlinked occurrence
+    # remains removed plus added instead of being inferred as a modification.
+    exact_unlinked, remaining_unlinked_before, remaining_unlinked_after = _pair_exact_occurrences(
+        sorted(unlinked_before, key=_ingredient_order),
+        sorted(unlinked_after, key=_ingredient_order),
+        signature=_ingredient_signature,
+    )
+    pairs.extend(exact_unlinked)
+    unmatched_before.extend(remaining_unlinked_before)
+    unmatched_after.extend(remaining_unlinked_after)
+
     return pairs, unmatched_before, unmatched_after
 
 
@@ -163,7 +183,9 @@ def _pair_direct_substitutions(
             (
                 after
                 for after in ordered_after
-                if (before.ingredient_id, after.ingredient_id) in substitution_pairs
+                if before.ingredient_id is not None
+                and after.ingredient_id is not None
+                and (before.ingredient_id, after.ingredient_id) in substitution_pairs
             ),
             key=lambda after: _replacement_candidate_order(before, after),
         )
@@ -207,7 +229,7 @@ def _ingredient_snapshot(item: RecipeIngredient) -> RecipeIngredientResponse:
     return RecipeIngredientResponse(
         id=item.id,
         ingredient_id=item.ingredient_id,
-        canonical_name=item.ingredient.canonical_name,
+        canonical_name=(item.ingredient.canonical_name if item.ingredient is not None else None),
         display_name=item.name,
         quantity=item.quantity,
         unit=item.unit,
@@ -346,9 +368,10 @@ def build_recipe_diff(
     """Build a canonical content diff from two immutable recipe snapshots.
 
     The database does not retain copied-row ancestry, so this function does not
-    claim to replay authored fork operations. It matches equal ingredient
-    identities first, recognizes only curated directed substitutions as
-    replacements, and uses stable relative order for otherwise-unmatched
+    claim to replay authored fork operations. It matches equal non-null catalog
+    identities first, cancels only exact unlinked content without inferring an
+    identity from authored text, recognizes only curated directed substitutions
+    as replacements, and uses stable relative order for otherwise-unmatched
     instruction text.
     """
 

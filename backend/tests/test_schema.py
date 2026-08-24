@@ -277,6 +277,7 @@ def test_ingredient_fields_and_display_order_round_trip(db_session: Session) -> 
     first, second = version.ingredients
     assert first.name == "Walnuts"
     assert first.ingredient_id == walnuts.id
+    assert first.ingredient is not None
     assert first.ingredient.canonical_name == "Walnuts"
     assert first.quantity == Decimal("0.1250")
     assert first.unit == "cup"
@@ -293,6 +294,36 @@ def test_ingredient_fields_and_display_order_round_trip(db_session: Session) -> 
         error.value,
         "fk_recipe_version_ingredients_ingredient_id_ingredients",
     )
+
+
+def test_recipe_ingredient_preserves_required_authored_text_without_catalog_link(
+    db_session: Session,
+) -> None:
+    creator = create_user(db_session, "unlinked-ingredient@example.com")
+    _, version = create_lineage_with_root(
+        db_session,
+        creator,
+        title="Unlinked Ingredient",
+    )
+    catalog_count_before = db_session.scalar(select(func.count()).select_from(Ingredient))
+    version.ingredients.append(
+        RecipeIngredient(
+            ingredient_id=None,
+            name="Grandma's spice blend",
+            quantity=Decimal("2.0000"),
+            unit="tsp",
+            preparation_notes="heaped",
+            display_order=0,
+        )
+    )
+    db_session.flush()
+    db_session.expire(version, ["ingredients"])
+
+    [authored] = version.ingredients
+    assert authored.name == "Grandma's spice blend"
+    assert authored.ingredient_id is None
+    assert authored.ingredient is None
+    assert db_session.scalar(select(func.count()).select_from(Ingredient)) == catalog_count_before
 
 
 def test_ingredient_constraints_reject_invalid_rows(db_session: Session) -> None:
