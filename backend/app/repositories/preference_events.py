@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import PreferenceEvent
@@ -7,11 +8,20 @@ from app.models import PreferenceEvent
 
 def get_preference_event(
     session: Session,
+    *,
+    user_id: UUID,
+    event_type: str,
     action_id: UUID,
 ) -> PreferenceEvent | None:
-    """Load the immutable event associated with a caller-provided action ID."""
+    """Load an immutable event from one member-and-operation action namespace."""
 
-    return session.get(PreferenceEvent, action_id)
+    return session.scalar(
+        select(PreferenceEvent).where(
+            PreferenceEvent.user_id == user_id,
+            PreferenceEvent.event_type == event_type,
+            PreferenceEvent.action_id == action_id,
+        )
+    )
 
 
 def add_preference_event(
@@ -29,7 +39,7 @@ def add_preference_event(
     """Stage and flush one server-authored event without committing the transaction."""
 
     event = PreferenceEvent(
-        id=action_id,
+        action_id=action_id,
         user_id=user_id,
         recipe_version_id=recipe_version_id,
         event_type=event_type,

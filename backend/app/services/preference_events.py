@@ -52,7 +52,12 @@ def find_preference_event_replay(
 ) -> PreferenceEvent | None:
     """Return an exact prior action or reject conflicting action-ID reuse."""
 
-    event = get_preference_event(session, intent.action_id)
+    event = get_preference_event(
+        session,
+        user_id=intent.user_id,
+        event_type=intent.event_type,
+        action_id=intent.action_id,
+    )
     if event is None:
         return None
     if not _matches_intent(event, intent):

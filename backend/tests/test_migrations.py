@@ -1,12 +1,14 @@
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import Engine, inspect
+from sqlalchemy.exc import IntegrityError
 
 DOMAIN_TABLES = {
     "allergens",
@@ -241,3 +243,148 @@ def test_secure_account_migration_classifies_seed_users_without_rekeying(
                 display_name="Same Email, Different Identity",
             )
         )
+
+
+def test_activity_migration_preserves_legacy_actor_and_scopes_action_keys(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    legacy_demo_id = UUID("1fc5b3b8-cf73-54ce-b5d6-ed3c30df9fd9")
+    member_a_id = uuid4()
+    member_b_id = uuid4()
+    lineage_id = uuid4()
+    recipe_version_id = uuid4()
+    legacy_event_id = uuid4()
+    shared_action_id = uuid4()
+
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260823_0005")
+
+        metadata = sa.MetaData()
+        users = sa.Table("users", metadata, autoload_with=connection)
+        lineages = sa.Table("recipe_lineages", metadata, autoload_with=connection)
+        versions = sa.Table("recipe_versions", metadata, autoload_with=connection)
+        legacy_events = sa.Table("preference_events", metadata, autoload_with=connection)
+        connection.execute(
+            users.insert(),
+            [
+                {
+                    "id": legacy_demo_id,
+                    "email": "demo-cook@recipe-lab.invalid",
+                    "display_name": "Legacy Demo Cook",
+                    "account_kind": "demo",
+                    "status": "active",
+                },
+                {
+                    "id": member_a_id,
+                    "email": "migration-a@example.test",
+                    "display_name": "Migration Member A",
+                    "handle": "migration_member_a",
+                    "account_kind": "member",
+                    "status": "active",
+                },
+                {
+                    "id": member_b_id,
+                    "email": "migration-b@example.test",
+                    "display_name": "Migration Member B",
+                    "handle": "migration_member_b",
+                    "account_kind": "member",
+                    "status": "active",
+                },
+            ],
+        )
+        connection.execute(
+            lineages.insert().values(id=lineage_id, created_by_user_id=legacy_demo_id)
+        )
+        connection.execute(
+            versions.insert().values(
+                id=recipe_version_id,
+                lineage_id=lineage_id,
+                parent_version_id=None,
+                created_by_user_id=legacy_demo_id,
+                version_number=1,
+                title="Legacy activity recipe",
+                description=None,
+                servings=Decimal("4.00"),
+            )
+        )
+        connection.execute(
+            legacy_events.insert().values(
+                id=legacy_event_id,
+                user_id=legacy_demo_id,
+                recipe_version_id=recipe_version_id,
+                event_type="view",
+            )
+        )
+
+        command.upgrade(alembic_config, "20260823_0006")
+        migrated_events = sa.Table(
+            "preference_events",
+            sa.MetaData(),
+            autoload_with=connection,
+        )
+        legacy_row = connection.execute(
+            sa.select(
+                migrated_events.c.id,
+                migrated_events.c.action_id,
+                migrated_events.c.user_id,
+                migrated_events.c.event_type,
+            ).where(migrated_events.c.id == legacy_event_id)
+        ).one()
+        assert legacy_row.id == legacy_event_id
+        assert legacy_row.action_id == legacy_event_id
+        assert legacy_row.user_id == legacy_demo_id
+        assert legacy_row.event_type == "view"
+        assert (
+            connection.scalar(sa.select(users.c.account_kind).where(users.c.id == legacy_demo_id))
+            == "demo"
+        )
+
+        connection.execute(
+            migrated_events.insert(),
+            [
+                {
+                    "id": uuid4(),
+                    "action_id": shared_action_id,
+                    "user_id": member_a_id,
+                    "recipe_version_id": recipe_version_id,
+                    "event_type": "view",
+                    "saved_value": None,
+                },
+                {
+                    "id": uuid4(),
+                    "action_id": shared_action_id,
+                    "user_id": member_b_id,
+                    "recipe_version_id": recipe_version_id,
+                    "event_type": "view",
+                    "saved_value": None,
+                },
+                {
+                    "id": uuid4(),
+                    "action_id": shared_action_id,
+                    "user_id": member_a_id,
+                    "recipe_version_id": recipe_version_id,
+                    "event_type": "save",
+                    "saved_value": True,
+                },
+            ],
+        )
+        with pytest.raises(IntegrityError):
+            with connection.begin_nested():
+                connection.execute(
+                    migrated_events.insert().values(
+                        id=uuid4(),
+                        action_id=shared_action_id,
+                        user_id=member_a_id,
+                        recipe_version_id=recipe_version_id,
+                        event_type="view",
+                    )
+                )
+
+        scoped_rows = connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(migrated_events)
+            .where(migrated_events.c.action_id == shared_action_id)
+        )
+        assert scoped_rows == 3

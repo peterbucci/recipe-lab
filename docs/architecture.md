@@ -104,26 +104,31 @@ mutations. Provider tokens, provider subject, and private email do not cross the
 public session boundary. See [account authentication and
 sessions](authentication.md).
 
-RCP-23 deliberately does not change recipe-action ownership. A signed-in member
-can manage only the account session and onboarding profile in this slice; the
-following demo interaction path remains in place until RCP-24.
+RCP-24 selects every recipe-action principal from the opaque application
+session. Public browse, detail, and diff reads remain anonymous. A signed-out
+detail has `viewer_state: null`; after the client resolves an authenticated,
+onboarded session, it loads private state through the same-origin proxy and only
+then enables actions. Private state is never embedded in an anonymous
+server-rendered page.
 
-The API, not the client, selects a deterministic interaction-only demo user.
-View, save, rating, and fork actions require an opaque UUID key but never accept
-a user ID, event type, timestamp, or context body from the browser. The API
-locks the demo-user row before resolving that key, making concurrent exact
-retries serialize. Exact replays skip both state mutation and event insertion;
-conflicting reuse returns 409. Save and rating endpoints still return current
-authoritative state. This shared profile is explicitly identified as demo mode
-and is not presented as authentication.
+View, save, rating, and fork actions require an active onboarded member, an
+exact trusted Origin, the session-bound CSRF token, and an opaque UUID action
+key. They never accept a user ID, author ID, event type, or timestamp from the
+browser. The API locks the member row before resolving the key, making
+concurrent exact retries serialize. Exact replays skip both state mutation and
+event insertion; conflicting reuse within the same member and operation
+returns 409. Another member or operation has an independent key namespace.
+Anonymous/expired writes return 401 and invalid CSRF/Origin or incomplete
+onboarding returns 403 without creating state.
 
 Recipe forking is an application service behind a single transactional route.
 It locks the lineage row before assigning the next lineage-wide version number,
 copies the source ingredients and instructions into draft values, validates and
 applies structured edits, and then inserts a fresh child snapshot with new row
 identifiers. The API controls lineage, direct parent, version number, display
-order, and demo-user attribution. The fork action fingerprints the canonical
-validated request, then creates the child and its event in one transaction.
+order, and session-member attribution. The fork action fingerprints the
+canonical validated request, then creates the child and its event in one
+transaction.
 An exact action-key retry returns that child; a changed source or payload with
 the same key is rejected. Different action keys remain distinct authored forks.
 
@@ -131,8 +136,10 @@ Recommendation reads are a separate, read-only application service exposed by
 `GET /api/recommendations`. The `baseline-v1` service aggregates current ratings
 and saves with distinct-user view and fork support, applies the documented
 Bayesian and candidate-wide normalization rules, and optionally adds a bounded
-canonical-ingredient Jaccard match against positive shared-demo history. It
-excludes exact interacted versions, rounds scores to six decimal places, and
+canonical-ingredient Jaccard match against positive history belonging only to
+the signed-in member. Signed-out requests have no private history and use the
+deterministic global ranking. It excludes the current member's exact interacted
+versions, rounds scores to six decimal places, and
 uses fixed component/title/version/ID tie-breaks. The response exposes a recipe
 summary, score, components, and short reason, never raw events or user
 identifiers. The full formula is recorded in
@@ -197,12 +204,15 @@ on `(lineage_id, version_number)` remains a database backstop.
 Saves and ratings reference exact versions rather than a mutable recipe record.
 Their composite keys allow only one of each interaction per user and version,
 and a rating constraint enforces the one-to-five scale. The bundled loader also
-ensures a fixed interaction-only demo user exists without deleting or changing
-that user's saves, ratings, or events on a later seed run.
+preserves the fixed, non-login Demo Cook identity and its historical activity
+for compatibility, but the runtime no longer selects it as an action principal
+or personal recommendation profile.
 
-`preference_events` is separate append-only history. Its UUID primary key is
-the action idempotency key; PostgreSQL checks restrict types to view, save,
-rating, and fork and require the exact typed context shape for each. Ratings
+`preference_events` is separate append-only history. Its UUID primary key is an
+internal event identity, while `action_id` is the caller's idempotency key.
+PostgreSQL uniquely scopes that key by member and operation. Checks restrict
+types to view, save, rating, and fork and require the exact typed context shape
+for each. Ratings
 remain one to five, fork events identify a distinct related child and require a
 lowercase SHA-256 fingerprint, and a child can belong to only one fork event.
 The server supplies timezone-aware timestamps. User deletion cascades event
@@ -217,14 +227,20 @@ The `MVP acceptance` CI job is a full-stack completion gate rather than a
 mocked frontend test. Each run receives a new PostgreSQL service database,
 applies the complete migration history, and loads the deterministic catalog
 before starting a non-reloading API process and a production Next.js build.
-Playwright then runs with one worker because the shared demo identity and real
-fork write are intentionally stateful within that disposable run.
+The guarded job provisions two synthetic onboarded members and stores only
+session/CSRF digests in PostgreSQL. Raw acceptance tokens live in a private
+temporary file, Playwright traces are disabled for the guarded run, and the
+file is deleted before diagnostics are uploaded. Playwright runs with one
+worker because real member activity and fork writes are intentionally stateful
+within that disposable run.
 
-The canonical test performs one uninterrupted browse, save, fork, structured
-edit, and parent-comparison journey. It never intercepts the fork request and
-therefore verifies the browser-to-database path, lineage persistence, and diff
-result together. Keyboard activation and automated WCAG A/AA checks cover the
-basic accessibility gate. The test is disabled unless both
+The canonical tests prove anonymous read-only access, isolated Alice/Bob save
+and rating state, and one uninterrupted authenticated browse, save, fork,
+structured edit, and parent-comparison journey. They never intercept the real
+write path and therefore verify the session, CSRF, browser-to-database path,
+member attribution, lineage persistence, and diff result together. Keyboard
+activation and automated WCAG A/AA checks cover the basic accessibility gate.
+The test is disabled unless both
 `MVP_ACCEPTANCE=1` and `ACCEPTANCE_DATABASE_ISOLATED=1` are explicitly set, and
 guarded local runs require explicit frontend and backend URLs on ports other
 than the normal 3000 and 8000. The flags attest that the caller provisioned an

@@ -24,11 +24,6 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     rating_count: 2,
     viewer_state: {
       recipe_version_id: "carrot-v1",
-      user: {
-        id: "demo-cook",
-        display_name: "Demo Cook",
-        identity_mode: "shared_demo",
-      },
       saved: false,
       rating: null,
     },

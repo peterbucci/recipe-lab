@@ -1,5 +1,5 @@
 from datetime import datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import (
     Boolean,
@@ -76,6 +76,12 @@ class PreferenceEvent(Base):
             "related_recipe_version_id",
             name="uq_preference_events_related_recipe_version_id",
         ),
+        UniqueConstraint(
+            "user_id",
+            "event_type",
+            "action_id",
+            name="uq_preference_events_user_operation_action",
+        ),
         Index(
             "ix_preference_events_user_type_occurred_id",
             "user_id",
@@ -92,7 +98,8 @@ class PreferenceEvent(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    action_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),

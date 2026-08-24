@@ -31,11 +31,6 @@ vi.mock("../../lib/idempotency-key", () => ({
 function viewerState(overrides: Partial<RecipeViewerState> = {}): RecipeViewerState {
   return {
     recipe_version_id: "29454eba-3a4e-5380-b48c-c49dc3697b17",
-    user: {
-      id: "1fc5b3b8-cf73-54ce-b5d6-ed3c30df9fd9",
-      display_name: "Demo Cook",
-      identity_mode: "shared_demo",
-    },
     saved: false,
     rating: null,
     ...overrides,
@@ -50,7 +45,7 @@ beforeEach(() => {
 });
 
 describe("RecipeInteractionPanel", () => {
-  it("keeps shared-demo context available without repeating a visible notice", () => {
+  it("describes account-private controls with member-neutral copy", () => {
     render(
       <RecipeInteractionPanel initialViewerState={viewerState({ saved: true, rating: 4 })} />,
     );
@@ -60,15 +55,14 @@ describe("RecipeInteractionPanel", () => {
         name: /save and rate this recipe/i,
       }),
     ).toBeInTheDocument();
-    const context = screen.getByText(/public demo.*shared demo cook profile/i);
+    const context = screen.getByText(/saves and ratings are specific to your account/i);
     expect(context).toHaveClass("visually-hidden");
-    expect(screen.queryByRole("heading", { name: /demo activity/i })).not.toBeInTheDocument();
     const removeSaveButton = screen.getByRole("button", { name: /remove saved recipe/i });
     expect(removeSaveButton).toHaveAttribute("aria-pressed", "true");
-    expect(removeSaveButton).toHaveAccessibleDescription(/public demo.*shared demo cook profile/i);
+    expect(removeSaveButton).toHaveAccessibleDescription(/specific to your account/i);
     expect(removeSaveButton).toHaveTextContent("Remove saved recipe");
     expect(screen.getByRole("radio", { name: /4 stars/i })).toBeChecked();
-    expect(screen.getByText(/demo cook’s current rating is 4 out of 5/i)).toBeInTheDocument();
+    expect(screen.getByText(/your current rating is 4 out of 5/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /update rating/i })).toBeDisabled();
   });
 
@@ -86,7 +80,7 @@ describe("RecipeInteractionPanel", () => {
       true,
       FIRST_KEY,
     );
-    expect(await screen.findByText(/saved to demo cook/i)).toBeInTheDocument();
+    expect(await screen.findByText(/saved to your account/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /remove saved recipe/i })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -99,7 +93,7 @@ describe("RecipeInteractionPanel", () => {
       false,
       SECOND_KEY,
     );
-    expect(await screen.findByText(/removed from demo cook's saved recipes/i)).toBeInTheDocument();
+    expect(await screen.findByText(/removed from your saved recipes/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^save recipe$/i })).toHaveAttribute(
       "aria-pressed",
       "false",
@@ -146,8 +140,8 @@ describe("RecipeInteractionPanel", () => {
       4,
       FIRST_KEY,
     );
-    expect(await screen.findByText(/demo cook’s rating is now 4 out of 5/i)).toBeInTheDocument();
-    expect(screen.getByText(/demo cook’s current rating is 4 out of 5/i)).toBeInTheDocument();
+    expect(await screen.findByText(/your rating is now 4 out of 5/i)).toBeInTheDocument();
+    expect(screen.getByText(/your current rating is 4 out of 5/i)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /4 stars/i })).toBeChecked();
     expect(screen.getByRole("button", { name: /update rating/i })).toBeDisabled();
     expect(mocks.refresh).toHaveBeenCalledOnce();
@@ -174,7 +168,7 @@ describe("RecipeInteractionPanel", () => {
     });
     expect(screen.getAllByRole("alert")).toHaveLength(2);
     expect(screen.getByText(/previous state is unchanged/i)).toBeInTheDocument();
-    expect(screen.getByText(/demo cook hasn’t rated this recipe yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/you haven’t rated this recipe yet/i)).toBeInTheDocument();
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
@@ -189,9 +183,9 @@ describe("RecipeInteractionPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /^save recipe$/i }));
     await screen.findByRole("alert");
     fireEvent.click(screen.getByRole("button", { name: /^save recipe$/i }));
-    await screen.findByText(/saved to demo cook/i);
+    await screen.findByText(/saved to your account/i);
     fireEvent.click(screen.getByRole("button", { name: /remove saved recipe/i }));
-    await screen.findByText(/removed from demo cook's saved recipes/i);
+    await screen.findByText(/removed from your saved recipes/i);
 
     expect(mocks.setRecipeSaved.mock.calls).toEqual([
       [initialState.recipe_version_id, true, FIRST_KEY],

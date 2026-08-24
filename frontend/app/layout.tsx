@@ -24,14 +24,6 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           Skip to content
         </a>
         <AuthSessionProvider>
-          <aside className="public-demo-notice" aria-label="Public demo notice">
-            <div className="public-demo-notice__inner">
-              <strong>Public demo</strong>
-              <span>
-                Saves, ratings, views, and versions created here are shared between visitors.
-              </span>
-            </div>
-          </aside>
           <SessionRecoveryNotice />
           <SiteHeader />
           {children}

@@ -11,12 +11,6 @@ from sqlalchemy import Engine, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_session
-from app.core.demo_identity import (
-    DEMO_USER_CREATED_AT,
-    DEMO_USER_DISPLAY_NAME,
-    DEMO_USER_EMAIL,
-    DEMO_USER_ID,
-)
 from app.main import create_app
 from app.models import (
     PreferenceEvent,
@@ -28,6 +22,11 @@ from app.models import (
     User,
 )
 from app.seeds.identifiers import seed_uuid
+from tests.member_session import (
+    MemberCredentials,
+    authenticate_client,
+    create_member_credentials,
+)
 
 DATASET_ID = "recipe-lab-demo-v1"
 CARROT_ROOT_ID = seed_uuid(
@@ -62,6 +61,7 @@ TUNA_SALAD_ID = seed_uuid(
 )
 TEST_USER_EMAIL_PATTERN = "rcp15-%@test.invalid"
 SIX_DECIMAL_PATTERN = re.compile(r"^[0-9]+\.[0-9]{6}$")
+MEMBER_USER_ID = UUID("77000000-0000-4000-8000-000000000004")
 
 
 def _clear_recommendation_activity(engine: Engine) -> None:
@@ -72,40 +72,40 @@ def _clear_recommendation_activity(engine: Engine) -> None:
         if synthetic_user_ids:
             session.execute(delete(User).where(User.id.in_(synthetic_user_ids)))
 
-        demo_fork_ids = list(
+        member_fork_ids = list(
             session.scalars(
-                select(RecipeVersion.id).where(RecipeVersion.created_by_user_id == DEMO_USER_ID)
+                select(RecipeVersion.id).where(RecipeVersion.created_by_user_id == MEMBER_USER_ID)
             )
         )
-        event_filter = PreferenceEvent.user_id == DEMO_USER_ID
-        if demo_fork_ids:
+        event_filter = PreferenceEvent.user_id == MEMBER_USER_ID
+        if member_fork_ids:
             event_filter = or_(
                 event_filter,
-                PreferenceEvent.recipe_version_id.in_(demo_fork_ids),
-                PreferenceEvent.related_recipe_version_id.in_(demo_fork_ids),
+                PreferenceEvent.recipe_version_id.in_(member_fork_ids),
+                PreferenceEvent.related_recipe_version_id.in_(member_fork_ids),
             )
         session.execute(delete(PreferenceEvent).where(event_filter))
-        session.execute(delete(RecipeRating).where(RecipeRating.user_id == DEMO_USER_ID))
-        session.execute(delete(RecipeSave).where(RecipeSave.user_id == DEMO_USER_ID))
+        session.execute(delete(RecipeRating).where(RecipeRating.user_id == MEMBER_USER_ID))
+        session.execute(delete(RecipeSave).where(RecipeSave.user_id == MEMBER_USER_ID))
 
-        if demo_fork_ids:
+        if member_fork_ids:
             session.execute(
-                delete(RecipeRating).where(RecipeRating.recipe_version_id.in_(demo_fork_ids))
+                delete(RecipeRating).where(RecipeRating.recipe_version_id.in_(member_fork_ids))
             )
             session.execute(
-                delete(RecipeSave).where(RecipeSave.recipe_version_id.in_(demo_fork_ids))
+                delete(RecipeSave).where(RecipeSave.recipe_version_id.in_(member_fork_ids))
             )
             session.execute(
                 delete(RecipeIngredient).where(
-                    RecipeIngredient.recipe_version_id.in_(demo_fork_ids)
+                    RecipeIngredient.recipe_version_id.in_(member_fork_ids)
                 )
             )
             session.execute(
                 delete(RecipeInstruction).where(
-                    RecipeInstruction.recipe_version_id.in_(demo_fork_ids)
+                    RecipeInstruction.recipe_version_id.in_(member_fork_ids)
                 )
             )
-            session.execute(delete(RecipeVersion).where(RecipeVersion.id.in_(demo_fork_ids)))
+            session.execute(delete(RecipeVersion).where(RecipeVersion.id.in_(member_fork_ids)))
 
 
 @pytest.fixture(autouse=True)
@@ -117,8 +117,25 @@ def clean_recommendation_activity(seeded_api_engine: Engine) -> Iterator[None]:
         _clear_recommendation_activity(seeded_api_engine)
 
 
+@pytest.fixture(autouse=True)
+def test_member_credentials(
+    seeded_api_engine: Engine,
+    clean_recommendation_activity: None,
+) -> Iterator[MemberCredentials]:
+    credentials = create_member_credentials(seeded_api_engine, user_id=MEMBER_USER_ID)
+    try:
+        yield credentials
+    finally:
+        _clear_recommendation_activity(seeded_api_engine)
+        with Session(bind=seeded_api_engine) as session, session.begin():
+            session.execute(delete(User).where(User.id == MEMBER_USER_ID))
+
+
 @pytest.fixture
-def recommendation_client(seeded_api_engine: Engine) -> Iterator[TestClient]:
+def recommendation_client(
+    seeded_api_engine: Engine,
+    test_member_credentials: MemberCredentials,
+) -> Iterator[TestClient]:
     application = create_app()
 
     def override_session() -> Iterator[Session]:
@@ -128,6 +145,7 @@ def recommendation_client(seeded_api_engine: Engine) -> Iterator[TestClient]:
     application.dependency_overrides[get_session] = override_session
     try:
         with TestClient(application) as client:
+            authenticate_client(client, test_member_credentials)
             yield client
     finally:
         application.dependency_overrides.clear()
@@ -320,13 +338,13 @@ def test_active_save_personalizes_by_canonical_ingredient_similarity(
     with Session(bind=seeded_api_engine) as session, session.begin():
         session.add(
             RecipeSave(
-                user_id=DEMO_USER_ID,
+                user_id=MEMBER_USER_ID,
                 recipe_version_id=CARROT_ROOT_ID,
             )
         )
         session.add(
             _event(
-                user_id=DEMO_USER_ID,
+                user_id=MEMBER_USER_ID,
                 recipe_version_id=CARROT_ROOT_ID,
                 event_type="save",
                 saved_value=True,
@@ -352,7 +370,7 @@ def test_active_save_personalizes_by_canonical_ingredient_similarity(
     assert pecan["components"]["ingredient_similarity"] == "0.800000"
     assert orange["score"] == "0.455909"
     assert orange["components"]["ingredient_similarity"] == "0.727273"
-    assert "shared demo profile" in pecan["reason"].casefold()
+    assert "you saved" in pecan["reason"].casefold()
 
 
 def test_stale_save_and_rating_events_do_not_become_positive_profile_sources(
@@ -363,31 +381,31 @@ def test_stale_save_and_rating_events_do_not_become_positive_profile_sources(
         session.add_all(
             [
                 _event(
-                    user_id=DEMO_USER_ID,
+                    user_id=MEMBER_USER_ID,
                     recipe_version_id=CARROT_ROOT_ID,
                     event_type="save",
                     saved_value=True,
                 ),
                 _event(
-                    user_id=DEMO_USER_ID,
+                    user_id=MEMBER_USER_ID,
                     recipe_version_id=CARROT_ROOT_ID,
                     event_type="save",
                     saved_value=False,
                 ),
                 _event(
-                    user_id=DEMO_USER_ID,
+                    user_id=MEMBER_USER_ID,
                     recipe_version_id=PASTA_ROOT_ID,
                     event_type="rating",
                     rating_value=5,
                 ),
                 _event(
-                    user_id=DEMO_USER_ID,
+                    user_id=MEMBER_USER_ID,
                     recipe_version_id=PASTA_ROOT_ID,
                     event_type="rating",
                     rating_value=3,
                 ),
                 RecipeRating(
-                    user_id=DEMO_USER_ID,
+                    user_id=MEMBER_USER_ID,
                     recipe_version_id=PASTA_ROOT_ID,
                     rating=3,
                 ),
@@ -413,15 +431,15 @@ def test_recommendation_reads_do_not_mutate_or_expose_profile_data(
     seeded_api_engine: Engine,
 ) -> None:
     (other_user_id,) = _create_test_users(seeded_api_engine, 1)
-    demo_action_id = uuid4()
+    member_action_id = uuid4()
     other_action_id = uuid4()
     private_fingerprint = "b" * 64
     with Session(bind=seeded_api_engine) as session, session.begin():
         session.add_all(
             [
                 PreferenceEvent(
-                    id=demo_action_id,
-                    user_id=DEMO_USER_ID,
+                    id=member_action_id,
+                    user_id=MEMBER_USER_ID,
                     recipe_version_id=CARROT_ROOT_ID,
                     event_type="view",
                 ),
@@ -455,9 +473,9 @@ def test_recommendation_reads_do_not_mutate_or_expose_profile_data(
 
     serialized = json.dumps(normal.json())
     for private_value in (
-        str(DEMO_USER_ID),
+        str(MEMBER_USER_ID),
         str(other_user_id),
-        str(demo_action_id),
+        str(member_action_id),
         str(other_action_id),
         private_fingerprint,
         f"rcp15-{other_user_id}@test.invalid",
@@ -489,35 +507,16 @@ def test_limit_validation_uses_the_standard_error_envelope(
     assert error["issues"]
 
 
-def test_missing_demo_identity_returns_a_stable_service_error(
+def test_missing_session_member_falls_back_to_public_cold_start(
     recommendation_client: TestClient,
     seeded_api_engine: Engine,
 ) -> None:
     with Session(bind=seeded_api_engine) as session, session.begin():
-        session.execute(delete(User).where(User.id == DEMO_USER_ID))
+        session.execute(delete(User).where(User.id == MEMBER_USER_ID))
 
-    try:
-        response = recommendation_client.get("/api/recommendations")
-        assert response.status_code == 503
-        assert response.json() == {
-            "error": {
-                "code": "demo_user_unavailable",
-                "message": (
-                    "The demo user is unavailable. Load the bundled seed data and try again."
-                ),
-                "issues": [],
-            }
-        }
-    finally:
-        with Session(bind=seeded_api_engine) as session, session.begin():
-            session.add(
-                User(
-                    id=DEMO_USER_ID,
-                    email=DEMO_USER_EMAIL,
-                    display_name=DEMO_USER_DISPLAY_NAME,
-                    created_at=DEMO_USER_CREATED_AT,
-                )
-            )
+    response = recommendation_client.get("/api/recommendations")
+    assert response.status_code == 200
+    assert _json_object(response.json())["personalized"] is False
 
 
 def test_openapi_documents_the_bounded_read_only_recommendation_contract(
@@ -535,10 +534,6 @@ def test_openapi_documents_the_bounded_read_only_recommendation_contract(
     assert responses["422"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/ErrorResponse"
     )
-    assert responses["503"]["content"]["application/json"]["schema"]["$ref"].endswith(
-        "/ErrorResponse"
-    )
-
     parameters = {parameter["name"]: parameter for parameter in operation["parameters"]}
     assert set(parameters) == {"limit"}
     assert parameters["limit"]["in"] == "query"

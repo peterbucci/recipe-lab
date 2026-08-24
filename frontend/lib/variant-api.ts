@@ -1,4 +1,6 @@
 import type { RecipeDetail } from "./recipe-api";
+import { memberMutationHeaders, notifySessionExpired } from "./auth-api";
+import { parseRecipeViewerState } from "./recipe-viewer-state";
 
 export type IngredientEdit =
   | {
@@ -111,13 +113,31 @@ export async function createRecipeVariant(
       Accept: "application/json",
       "Content-Type": "application/json",
       "Idempotency-Key": idempotencyKey,
+      ...memberMutationHeaders(),
     },
     body: JSON.stringify(payload),
+    credentials: "same-origin",
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      notifySessionExpired();
+    }
     throw await apiError(response);
   }
 
-  return (await response.json()) as RecipeDetail;
+  try {
+    const payload = (await response.json()) as RecipeDetail;
+    const viewerState = parseRecipeViewerState(payload.viewer_state);
+    if (viewerState !== null && viewerState.recipe_version_id !== payload.id) {
+      throw new TypeError("Private state belongs to a different recipe.");
+    }
+    return { ...payload, viewer_state: viewerState };
+  } catch {
+    throw new VariantApiError(
+      "Recipe Lab received an invalid recipe response.",
+      502,
+      "invalid_variant_response",
+    );
+  }
 }

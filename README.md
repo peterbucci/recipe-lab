@@ -32,8 +32,9 @@ and directed substitution relationships. A curated, deterministic demo catalog
 now exercises that structure. The product also records privacy-bounded,
 timestamped view, save, rating, and fork events with retry-safe action IDs.
 Those signals now feed a deterministic, documented `baseline-v1` recommendation
-read for the shared demo profile. The baseline is request-time scoring, not a
-trained ML system.
+read. Signed-in requests use only that member's private history; signed-out
+requests use the deterministic global cold-start ranking. The baseline is
+request-time scoring, not a trained ML system.
 
 ### ML after useful signals exist
 
@@ -88,18 +89,20 @@ The repository currently provides:
   ingredients, and instructions while preserving exact decimal values;
 - a transactional recipe-forking endpoint that copies a complete snapshot,
   applies validated structured edits, and preserves direct parentage;
-- a clearly labeled shared demo identity with persistent, retry-safe save,
-  unsave, rating, and rating-update actions on exact recipe versions;
 - configurable hosted OIDC sign-in with Authorization Code plus PKCE,
   server-managed opaque sessions, CSRF-protected account mutations, and an
-  accessible onboarding/account UI; RCP-23 deliberately leaves recipe actions
-  on Demo Cook until the account-scope cutover;
+  accessible onboarding/account UI;
+- anonymous public recipe browsing and comparison, with member-specific save,
+  unsave, rating, and recorded-view activity plus authenticated fork creation
+  bound exclusively to the signed-in, onboarded member selected by the session;
 - append-only, server-timestamped preference events for explicit detail views,
   saves, ratings, and forks, with typed context and UUID action-key replay
-  protection rather than free-form tracking data;
+  protection scoped by member and operation rather than free-form tracking
+  data;
 - a read-only `baseline-v1` recommendation API with documented Bayesian quality,
   normalized support, and bounded canonical-ingredient similarity signals,
-  deterministic cold-start ordering, and a short reason for every result;
+  isolated signed-in history, deterministic anonymous cold-start ordering, and
+  a short reason for every result;
 - a versioned, leakage-safe offline evaluation harness with mandatory baseline
   comparison, Precision@K, Recall@K, NDCG@K, coverage, popularity-bias metrics,
   deterministic reports, and an explicitly synthetic verification fixture;
@@ -155,7 +158,6 @@ Open:
 - API health check: <http://localhost:8000/api/health>
 - Recipe browse API: <http://localhost:8000/api/recipes>
 - Baseline recommendation API: <http://localhost:8000/api/recommendations>
-- Scoped demo identity: <http://localhost:8000/api/me>
 - Account session status: <http://localhost:3000/api/auth/session>
 - Interactive API docs: <http://localhost:8000/docs>
 
@@ -289,21 +291,42 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Browser flows now exercise the real preference-event contract, including
-invisible detail views, so even the ordinary suite appends demo event history.
-Use a disposable local database whenever that history matters; rerunning the
-seed loader intentionally does not erase it.
+Ordinary browser flows stay anonymous: they can browse, inspect, and compare
+recipes without creating private activity. Authenticated activity is covered by
+the guarded acceptance run below.
 
-The canonical MVP journey intentionally writes a real save and an immutable
-recipe variant, so it is skipped during ordinary local browser runs. CI enables
-both acceptance guards only after creating a disposable PostgreSQL database.
-If you reproduce that test locally, point both applications at a fresh,
-disposable database and use dedicated ports before setting both
-`MVP_ACCEPTANCE=1` and `ACCEPTANCE_DATABASE_ISOLATED=1`; never run it against a
-database whose history you want to keep. Those flags are an explicit safety
-acknowledgment, not a database provisioner. The Playwright configuration also
-requires explicit application URLs and refuses the normal ports 3000 and 8000
-for a guarded local run.
+The canonical MVP journey intentionally writes real member activity and an
+immutable recipe variant, so it is skipped during ordinary local browser runs.
+CI provisions short-lived sessions for two synthetic, onboarded members directly
+in its isolated database. This is a command-line test fixture, not a production
+HTTP authentication route: PostgreSQL receives only session and CSRF digests,
+while the raw tokens exist only in a private temporary JSON file consumed by
+Playwright.
+
+To reproduce the authenticated run locally, create a fresh PostgreSQL database
+named exactly `recipe_lab_acceptance_local`. Point both applications at that
+database, use dedicated frontend/backend ports such as 3100 and 8100, and set:
+
+```powershell
+$env:DATABASE_URL = "postgresql+psycopg://recipe_lab:recipe_lab@127.0.0.1:5432/recipe_lab_acceptance_local"
+$env:MVP_ACCEPTANCE = "1"
+$env:ACCEPTANCE_DATABASE_ISOLATED = "1"
+$env:ACCEPTANCE_SESSION_FIXTURE = Join-Path ([System.IO.Path]::GetTempPath()) "recipe-lab-acceptance-sessions.json"
+$env:CORS_ORIGINS = "http://127.0.0.1:3100"
+$env:AUTH_ALLOWED_ORIGINS = "http://127.0.0.1:3100"
+$env:RECIPE_API_URL = "http://127.0.0.1:8100"
+$env:NEXT_PUBLIC_API_URL = "http://127.0.0.1:8100"
+$env:PLAYWRIGHT_BASE_URL = "http://127.0.0.1:3100"
+$env:PLAYWRIGHT_WEB_SERVER_COMMAND = "npm run start -- --hostname 127.0.0.1 --port 3100"
+```
+
+After migrating and seeding from `backend`, run
+`python -m app.testing.acceptance_sessions`, start the backend on port 8100,
+build the frontend, and run `npm run test:e2e`. The provisioner refuses every
+database name except `recipe_lab_acceptance` (CI) and
+`recipe_lab_acceptance_local` (local), refuses a non-temporary fixture path, and
+will not overwrite an existing token file. Delete that file after the run. The
+two guard flags acknowledge a disposable target; they do not create one.
 
 ## Continuous integration
 
@@ -329,11 +352,15 @@ the backend/frontend dependency chain and never starts a product service.
 
 After the backend and frontend quality jobs pass, the stable `MVP acceptance`
 job creates a fresh PostgreSQL 17 database, applies every migration, loads the
-deterministic seed catalog, builds the production frontend, and runs the full
-Playwright suite with one worker. Its canonical test uses the real API and
-database for browse → save → fork → edit → compare, including the 180 g to
+deterministic seed catalog, provisions Alice and Bob through the isolated
+session harness, builds the production frontend, and runs the full Playwright
+suite with one worker. Its canonical tests use the real session, CSRF, API, and
+database paths to prove anonymous read-only access and two-member activity
+isolation across browse → save → fork → edit → compare, including the 180 g to
 140 g sugar change, Walnut-to-Pecan substitution, keyboard navigation, and
-WCAG A/AA checks. M1 is not considered complete unless this job passes.
+WCAG A/AA checks. The temporary raw-token fixture is deleted after the suite
+and is never uploaded with diagnostics. M1 is not considered complete unless
+this job passes.
 
 ## Working agreements
 

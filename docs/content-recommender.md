@@ -122,7 +122,8 @@ it is not evidence that the content model improves recommendation quality.
 
 Important limitations include:
 
-- the shared demo identity can combine unrelated visitors into one profile;
+- historical Demo Cook activity can combine unrelated visitors into one
+  profile and must not be interpreted as member-level evidence;
 - an inactive save may mean list cleanup rather than dislike, and a view is
   only a weak positive proxy without impression data;
 - exact ingredient overlap and title tokens do not capture culinary semantics,
@@ -133,8 +134,9 @@ Important limitations include:
   generalization, or deployment claims.
 
 No offline result promotes `content-v1` into the request path automatically.
-Online serving, authenticated profiles, a frontend recommendation surface, and
-model-artifact lifecycle remain separate product and architecture decisions.
+Online learned serving, a frontend recommendation surface, and model-artifact
+lifecycle remain separate product and architecture decisions. Account-scoped
+product activity does not by itself validate this offline model.
 Its additional role as the
 [`collaborative-v1` sparse fallback](collaborative-recommender.md#sparse-data-and-fallback)
 is likewise evaluator-only and adds no serving dependency. Its rank-fusion role

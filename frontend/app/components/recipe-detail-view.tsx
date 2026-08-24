@@ -4,8 +4,7 @@ import { formatIngredientAmount, formatServings } from "../../lib/format";
 import type { RecipeDetail, RecipeVersionReference } from "../../lib/recipe-api";
 import { RatingSummary } from "./rating-summary";
 import { RecipeArtwork } from "./recipe-artwork";
-import { RecipeInteractionPanel } from "./recipe-interaction-panel";
-import { RecipeViewTracker } from "./recipe-view-tracker";
+import { RecipeMemberActions } from "./recipe-member-actions";
 
 interface RecipeDetailViewProps {
   recipe: RecipeDetail;
@@ -26,7 +25,6 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
 
   return (
     <article className="recipe-detail">
-      <RecipeViewTracker recipeVersionId={recipe.id} />
       <header className="recipe-detail__header">
         <div className="recipe-detail__hero">
           <RecipeArtwork className="recipe-detail__artwork" lineageKey={recipe.lineage_id} />
@@ -49,23 +47,11 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
               </dl>
               <RatingSummary average={recipe.average_rating} count={recipe.rating_count} />
             </div>
-            <div className="button-row recipe-detail__actions">
-              <Link
-                className="button button--primary"
-                href={`/recipes/${encodeURIComponent(recipe.id)}/fork`}
-              >
-                Make your own version
-              </Link>
-              {recipe.parent ? (
-                <Link
-                  className="button button--secondary"
-                  href={`/recipes/${encodeURIComponent(recipe.id)}/compare`}
-                >
-                  See what changed
-                </Link>
-              ) : null}
-            </div>
-            <RecipeInteractionPanel key={recipe.id} initialViewerState={recipe.viewer_state} />
+            <RecipeMemberActions
+              key={recipe.id}
+              comparison={recipe.parent}
+              recipeVersionId={recipe.id}
+            />
           </div>
         </div>
       </header>

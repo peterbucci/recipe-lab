@@ -1,10 +1,10 @@
 # Account authentication and sessions
 
-RCP-23 adds the account and session foundation for later private activity and
-recipe publishing. It does not move the existing save, rating, view, fork, or
-recommendation routes away from the shared Demo Cook; that principal cutover is
-RCP-24. A signed-in account and the demo interaction profile are therefore
-separate concepts in this release.
+RCP-23 adds the account and session foundation. RCP-24 uses that foundation for
+private member activity: save, rating, recorded-view, fork, and personalized
+recommendation history now derive their principal exclusively from the active
+application session. Anonymous visitors retain public recipe browsing, details,
+comparisons, and deterministic global recommendations.
 
 ## Public contract
 
@@ -104,16 +104,27 @@ logger and the Next.js development request logger. Production CDNs, reverse
 proxies, load balancers, and observability tools must likewise drop or redact
 the query string for `/api/auth/callback`; it must never be sent to analytics.
 
-RCP-23 intentionally does not add password storage, social-account linking,
-custom MFA, recipe publishing, public cook profiles, or account-scoped recipe
-activity. Those capabilities build on this boundary in later stories.
+Recipe Lab does not transfer or attribute legacy Demo Cook saves, ratings,
+events, or forks to a member. Catalog Author and Demo Cook remain seeded,
+non-login identities for catalog provenance and historical compatibility, but
+public reads and anonymous recommendations do not require the Demo identity to
+exist. The legacy `/api/me` demo route is removed; `/api/auth/session` is the
+only browser identity/session contract.
+
+RCP-23 and RCP-24 intentionally do not add password storage, social-account
+linking, custom MFA, original recipe publishing, public cook profiles, recipe
+visibility, or moderation. Those capabilities build on this boundary in later
+stories.
 
 ## Verification
 
 Backend tests cover migration round trips, exact issuer/subject reuse, session
 digest storage, callback validation failures, return-path safety, cookie
-attributes, Origin/CSRF enforcement, revocation, expiry, and account status.
+attributes, Origin/CSRF enforcement, revocation, expiry, account status,
+member-scoped idempotency, and two-member activity/recommendation isolation.
 Frontend tests cover the same-origin proxy, sign-in, onboarding, account menu,
-session expiry, sign-out, keyboard operation, mobile layout, and accessibility.
-Provider behavior is tested with a local fake; CI does not require a real OIDC
-tenant or secrets.
+session expiry, signed-out action gates, member interactions, keyboard
+operation, mobile layout, and accessibility. The guarded full-stack acceptance
+run provisions two digest-only member sessions in an isolated database; OIDC
+provider behavior remains covered by a local fake, so CI needs no real tenant
+or secrets.

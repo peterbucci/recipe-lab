@@ -1,16 +1,34 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AuthSession } from "../../lib/auth-api";
 import type { RecipeDetail } from "../../lib/recipe-api";
+import { AuthSessionProvider } from "./auth-session-provider";
 import { RecipeDetailView } from "./recipe-detail-view";
+
+const mocks = vi.hoisted(() => ({
+  fetchRecipeViewerState: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
+vi.mock("../../lib/interaction-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/interaction-api")>();
+  return { ...actual, fetchRecipeViewerState: mocks.fetchRecipeViewerState };
+});
+
 vi.mock("./recipe-view-tracker", () => ({
-  RecipeViewTracker: () => null,
+  RecipeViewTracker: ({ recipeVersionId }: { recipeVersionId: string }) => (
+    <span data-testid="view-tracker">{recipeVersionId}</span>
+  ),
 }));
+
+const member: AuthSession = {
+  status: "authenticated",
+  user: { id: "member-one", display_name: "First Cook", handle: "first-cook" },
+};
 
 function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
   return {
@@ -24,16 +42,7 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     created_at: "2026-08-20T00:00:00Z",
     average_rating: 4.5,
     rating_count: 2,
-    viewer_state: {
-      recipe_version_id: "carrot-v2",
-      user: {
-        id: "demo-cook",
-        display_name: "Demo Cook",
-        identity_mode: "shared_demo",
-      },
-      saved: false,
-      rating: null,
-    },
+    viewer_state: null,
     parent: { id: "carrot-v1", version_number: 1, title: "Carrot Walnut Snack Cake" },
     children: [{ id: "carrot-v3", version_number: 3, title: "Orange Raisin Carrot Cake" }],
     ingredients: [
@@ -66,9 +75,26 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
   };
 }
 
+function renderDetail(recipe: RecipeDetail, session: AuthSession = { status: "anonymous" }) {
+  return render(
+    <AuthSessionProvider initialSession={session}>
+      <RecipeDetailView recipe={recipe} />
+    </AuthSessionProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.fetchRecipeViewerState.mockResolvedValue({
+    recipe_version_id: "carrot-v2",
+    saved: false,
+    rating: null,
+  });
+});
+
 describe("RecipeDetailView", () => {
-  it("leads with the recipe, cooking actions, and immediate family links", () => {
-    const { container } = render(<RecipeDetailView recipe={detail()} />);
+  it("keeps anonymous browsing, detail, lineage, and comparison public", () => {
+    const { container } = renderDetail(detail());
 
     expect(
       screen.getByRole("heading", { name: /lower-sugar pecan carrot cake/i, level: 1 }),
@@ -79,10 +105,37 @@ describe("RecipeDetailView", () => {
       "true",
     );
     expect(screen.getByLabelText(/4\.5 out of 5 from 2 ratings/i)).toBeInTheDocument();
-    expect(
-      screen.getByRole("region", { name: /save and rate this recipe/i }),
-    ).toHaveTextContent(/public demo.*shared demo cook profile/i);
-    expect(screen.queryByRole("heading", { name: /demo activity/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: /member recipe actions/i })).toHaveTextContent(
+      /sign in to save or rate/i,
+    );
+    expect(screen.queryByRole("region", { name: /save and rate this recipe/i })).toBeNull();
+    expect(screen.queryByTestId("view-tracker")).toBeNull();
+    expect(mocks.fetchRecipeViewerState).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: /see what changed/i })).toHaveAttribute(
+      "href",
+      "/recipes/carrot-v2/compare",
+    );
+    expect(screen.getByText("140 g")).toBeInTheDocument();
+    expect(screen.getByText(/catalog name: granulated sugar/i)).toBeInTheDocument();
+
+    const instructions = screen.getByRole("heading", { name: /instructions/i }).closest("section");
+    expect(instructions).not.toBeNull();
+    expect(within(instructions!).getAllByRole("listitem")).toHaveLength(2);
+    const lineage = screen.getByRole("list", { name: /more versions of this recipe/i });
+    expect(within(lineage).getAllByRole("listitem")).toHaveLength(3);
+  });
+
+  it("hydrates private controls only after the authenticated member state loads", async () => {
+    renderDetail(detail(), member);
+
+    expect(screen.getByRole("region", { name: /member recipe actions/i })).toHaveTextContent(
+      /loading your saved and rating state/i,
+    );
+    expect(await screen.findByRole("region", { name: /save and rate this recipe/i })).toBeVisible();
+    expect(mocks.fetchRecipeViewerState).toHaveBeenCalledWith(
+      "carrot-v2",
+      expect.any(AbortSignal),
+    );
     expect(screen.getByRole("button", { name: /save recipe/i })).toHaveAttribute(
       "aria-pressed",
       "false",
@@ -91,95 +144,25 @@ describe("RecipeDetailView", () => {
       "href",
       "/recipes/carrot-v2/fork",
     );
-    expect(screen.getByRole("link", { name: /see what changed/i })).toHaveAttribute(
-      "href",
-      "/recipes/carrot-v2/compare",
-    );
-    expect(screen.getByText("140 g")).toBeInTheDocument();
-    expect(screen.getByText("White sugar")).toBeInTheDocument();
-    expect(screen.getByText(/catalog name: granulated sugar/i)).toBeInTheDocument();
-    expect(screen.getByText("divided")).toBeInTheDocument();
-    expect(screen.getByText(/amount not specified/i)).toBeInTheDocument();
-    expect(screen.queryByText("Mise en place", { selector: ".eyebrow" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Method", { selector: ".eyebrow" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Recipe family", { selector: ".eyebrow" })).not.toBeInTheDocument();
-
-    const instructions = screen.getByRole("heading", { name: /instructions/i }).closest("section");
-    expect(instructions).not.toBeNull();
-    expect(within(instructions!).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      "Heat the oven and prepare the pan.",
-      "Fold the dry ingredients into the wet mixture.",
-    ]);
-
-    const lineage = screen.getByRole("list", { name: /more versions of this recipe/i });
-    expect(within(lineage).getAllByRole("listitem")).toHaveLength(3);
-    expect(
-      within(lineage).getByRole("link", { name: /based on.*carrot walnut snack cake/i }),
-    ).toHaveAttribute("href", "/recipes/carrot-v1");
-    expect(
-      within(lineage).getByRole("link", {
-        name: /another version.*orange raisin carrot cake/i,
-      }),
-    ).toHaveAttribute("href", "/recipes/carrot-v3");
-    expect(within(lineage).getByLabelText(/current recipe version/i)).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    expect(screen.getByTestId("view-tracker")).toHaveTextContent("carrot-v2");
   });
 
-  it("renders honest empty rating and lineage states", () => {
-    render(
-      <RecipeDetailView
-        recipe={detail({
-          average_rating: null,
-          rating_count: 0,
-          parent_version_id: null,
-          parent: null,
-          children: [],
-          version_number: 1,
-        })}
-      />,
+  it("renders honest empty aggregate and lineage states without exposing private controls", () => {
+    renderDetail(
+      detail({
+        average_rating: null,
+        rating_count: 0,
+        parent_version_id: null,
+        parent: null,
+        children: [],
+        version_number: 1,
+      }),
     );
 
     expect(screen.getByLabelText(/no ratings yet/i)).toBeInTheDocument();
     expect(screen.getByText("Original", { selector: ".eyebrow" })).toBeInTheDocument();
     expect(screen.getByText(/does not have another version yet/i)).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /see what changed/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /based on/i })).not.toBeInTheDocument();
-    const lineage = screen.getByRole("list", { name: /more versions of this recipe/i });
-    expect(within(lineage).getAllByRole("listitem")).toHaveLength(1);
-    expect(within(lineage).getByLabelText(/current recipe version/i)).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-  });
-
-  it("resets demo interaction state when navigation changes the recipe version", () => {
-    const initialRecipe = detail();
-    const { rerender } = render(<RecipeDetailView recipe={initialRecipe} />);
-
-    fireEvent.click(screen.getByRole("radio", { name: /5 stars/i }));
-    expect(screen.getByRole("radio", { name: /5 stars/i })).toBeChecked();
-
-    rerender(
-      <RecipeDetailView
-        recipe={detail({
-          id: "carrot-v3",
-          viewer_state: {
-            ...initialRecipe.viewer_state,
-            recipe_version_id: "carrot-v3",
-            saved: true,
-            rating: 3,
-          },
-        })}
-      />,
-    );
-
-    expect(screen.getByRole("button", { name: /remove saved recipe/i })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getByRole("radio", { name: /3 stars/i })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /5 stars/i })).not.toBeChecked();
+    expect(screen.queryByRole("link", { name: /see what changed/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /based on/i })).toBeNull();
   });
 });

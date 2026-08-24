@@ -178,28 +178,6 @@ h3 {
   text-wrap: balance;
 }
 
-.public-demo-notice {
-  border-bottom: 1px solid #d3bba6;
-  background: #f3dfcc;
-  color: #593e2e;
-}
-
-.public-demo-notice__inner {
-  display: flex;
-  width: min(76rem, calc(100% - 2rem));
-  min-height: 2.25rem;
-  align-items: center;
-  margin: 0 auto;
-  gap: 0.5rem;
-  font-size: 0.73rem;
-  line-height: 1.4;
-}
-
-.public-demo-notice__inner strong {
-  min-width: max-content;
-  color: var(--clay-dark);
-}
-
 .session-recovery {
   border-bottom: 1px solid #c89786;
   background: var(--clay-soft);
@@ -393,20 +371,6 @@ h3 {
 .auth-card .lede {
   margin-bottom: 1.5rem;
   font-size: 1rem;
-}
-
-.auth-card__notice {
-  margin-bottom: 1.5rem;
-  border-left: 0.3rem solid var(--mustard);
-  border-radius: 0.4rem;
-  background: #fff5dc;
-  padding: 0.9rem 1rem;
-  color: #614d24;
-}
-
-.auth-card__notice p {
-  margin: 0.25rem 0 0;
-  font-size: 0.82rem;
 }
 
 .auth-card__actions {
@@ -1264,6 +1228,20 @@ h3 {
   border-radius: 1rem;
   background: rgb(255 253 249 / 0.72);
   padding: 1rem;
+}
+
+.recipe-member-gate {
+  margin-top: 1rem;
+  border-left: 0.22rem solid var(--sage);
+  border-radius: 0.35rem;
+  background: var(--leaf-soft);
+  padding: 0.75rem 0.9rem;
+  color: var(--leaf-dark);
+}
+
+.recipe-member-gate p {
+  margin: 0;
+  font-size: 0.8rem;
 }
 
 .recipe-interactions__toolbar {
@@ -2460,13 +2438,6 @@ a.lineage-card:hover {
 }
 
 @media (max-width: 30rem) {
-  .public-demo-notice__inner {
-    align-items: flex-start;
-    flex-direction: column;
-    padding: 0.5rem 0;
-    gap: 0.1rem;
-  }
-
   .site-header__inner {
     min-height: 3.75rem;
   }

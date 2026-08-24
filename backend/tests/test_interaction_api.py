@@ -11,16 +11,11 @@ from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_session
-from app.core.demo_identity import (
-    DEMO_USER_CREATED_AT,
-    DEMO_USER_DISPLAY_NAME,
-    DEMO_USER_EMAIL,
-    DEMO_USER_ID,
-)
 from app.main import create_app
 from app.models import PreferenceEvent, RecipeRating, RecipeSave, User
 from app.repositories.interactions import save_recipe
 from app.seeds.identifiers import seed_uuid
+from tests.member_session import authenticate_client, create_member_credentials
 
 DATASET_ID = "recipe-lab-demo-v1"
 CARROT_ROOT_ID = seed_uuid(
@@ -33,18 +28,20 @@ CARROT_PECAN_ID = seed_uuid(
     "recipe-version",
     "lower-sugar-pecan-carrot-cake-v2",
 )
+MEMBER_USER_ID = UUID("77000000-0000-4000-8000-000000000001")
 
 
-def _clear_demo_interactions(engine: Engine) -> None:
+def _clear_member_interactions(engine: Engine) -> None:
     with Session(bind=engine) as session, session.begin():
-        session.execute(delete(PreferenceEvent).where(PreferenceEvent.user_id == DEMO_USER_ID))
-        session.execute(delete(RecipeRating).where(RecipeRating.user_id == DEMO_USER_ID))
-        session.execute(delete(RecipeSave).where(RecipeSave.user_id == DEMO_USER_ID))
+        session.execute(delete(PreferenceEvent).where(PreferenceEvent.user_id == MEMBER_USER_ID))
+        session.execute(delete(RecipeRating).where(RecipeRating.user_id == MEMBER_USER_ID))
+        session.execute(delete(RecipeSave).where(RecipeSave.user_id == MEMBER_USER_ID))
 
 
 @pytest.fixture
 def interaction_client(seeded_api_engine: Engine) -> Iterator[TestClient]:
-    _clear_demo_interactions(seeded_api_engine)
+    _clear_member_interactions(seeded_api_engine)
+    credentials = create_member_credentials(seeded_api_engine, user_id=MEMBER_USER_ID)
     application = create_app()
 
     def override_session() -> Iterator[Session]:
@@ -54,10 +51,13 @@ def interaction_client(seeded_api_engine: Engine) -> Iterator[TestClient]:
     application.dependency_overrides[get_session] = override_session
     try:
         with TestClient(application) as client:
+            authenticate_client(client, credentials)
             yield client
     finally:
         application.dependency_overrides.clear()
-        _clear_demo_interactions(seeded_api_engine)
+        _clear_member_interactions(seeded_api_engine)
+        with Session(bind=seeded_api_engine) as session, session.begin():
+            session.execute(delete(User).where(User.id == MEMBER_USER_ID))
 
 
 def _json_object(response_json: object) -> dict[str, Any]:
@@ -76,11 +76,6 @@ def _expected_state(
 ) -> dict[str, object]:
     return {
         "recipe_version_id": str(recipe_version_id),
-        "user": {
-            "id": str(DEMO_USER_ID),
-            "display_name": DEMO_USER_DISPLAY_NAME,
-            "identity_mode": "shared_demo",
-        },
         "saved": saved,
         "rating": rating,
     }
@@ -98,7 +93,7 @@ def _interaction_count(
                 select(func.count())
                 .select_from(model)
                 .where(
-                    model.user_id == DEMO_USER_ID,
+                    model.user_id == MEMBER_USER_ID,
                     model.recipe_version_id == recipe_version_id,
                 )
             )
@@ -106,18 +101,12 @@ def _interaction_count(
         )
 
 
-def test_current_demo_identity_and_recipe_viewer_state_are_explicit(
+def test_signed_in_member_gets_private_viewer_state_without_legacy_identity_route(
     interaction_client: TestClient,
 ) -> None:
     identity_response = interaction_client.get("/api/me")
 
-    assert identity_response.status_code == 200
-    assert identity_response.json() == {
-        "id": str(DEMO_USER_ID),
-        "display_name": DEMO_USER_DISPLAY_NAME,
-        "identity_mode": "shared_demo",
-    }
-    assert "email" not in _json_object(identity_response.json())
+    assert identity_response.status_code == 404
 
     detail_response = interaction_client.get(f"/api/recipes/{CARROT_ROOT_ID}")
 
@@ -128,6 +117,8 @@ def test_current_demo_identity_and_recipe_viewer_state_are_explicit(
         saved=False,
         rating=None,
     )
+    assert detail_response.headers["cache-control"] == "private, no-store"
+    assert "Cookie" in detail_response.headers["vary"]
 
 
 def test_save_and_unsave_are_retry_safe_and_database_unique(
@@ -146,7 +137,7 @@ def test_save_and_unsave_are_retry_safe_and_database_unique(
         saved_row = session.get(
             RecipeSave,
             {
-                "user_id": DEMO_USER_ID,
+                "user_id": MEMBER_USER_ID,
                 "recipe_version_id": CARROT_ROOT_ID,
             },
         )
@@ -171,7 +162,7 @@ def test_save_and_unsave_are_retry_safe_and_database_unique(
         saved_row = session.get(
             RecipeSave,
             {
-                "user_id": DEMO_USER_ID,
+                "user_id": MEMBER_USER_ID,
                 "recipe_version_id": CARROT_ROOT_ID,
             },
         )
@@ -213,7 +204,7 @@ def test_concurrent_saves_from_separate_sessions_leave_one_row(
             start.wait(timeout=5)
             save_recipe(
                 session,
-                user_id=DEMO_USER_ID,
+                user_id=MEMBER_USER_ID,
                 recipe_version_id=CARROT_ROOT_ID,
             )
 
@@ -256,7 +247,7 @@ def test_rating_create_retry_and_update_keep_one_current_state_row(
         rating_row = session.get(
             RecipeRating,
             {
-                "user_id": DEMO_USER_ID,
+                "user_id": MEMBER_USER_ID,
                 "recipe_version_id": CARROT_ROOT_ID,
             },
         )
@@ -290,7 +281,7 @@ def test_rating_create_retry_and_update_keep_one_current_state_row(
         rating_row = session.get(
             RecipeRating,
             {
-                "user_id": DEMO_USER_ID,
+                "user_id": MEMBER_USER_ID,
                 "recipe_version_id": CARROT_ROOT_ID,
             },
         )
@@ -341,7 +332,7 @@ def test_rating_rejects_non_strict_or_out_of_range_values_without_changing_state
         rating_row = session.get(
             RecipeRating,
             {
-                "user_id": DEMO_USER_ID,
+                "user_id": MEMBER_USER_ID,
                 "recipe_version_id": CARROT_ROOT_ID,
             },
         )
@@ -516,44 +507,25 @@ def test_viewer_state_is_isolated_by_user_and_recipe_version(
             session.execute(delete(User).where(User.id == other_user_id))
 
 
-def test_missing_demo_user_returns_a_stable_service_error(
+def test_missing_session_member_leaves_public_reads_available_and_rejects_writes(
     interaction_client: TestClient,
     seeded_api_engine: Engine,
 ) -> None:
     with Session(bind=seeded_api_engine) as session, session.begin():
-        session.execute(delete(User).where(User.id == DEMO_USER_ID))
+        session.execute(delete(User).where(User.id == MEMBER_USER_ID))
 
-    expected_error = {
-        "error": {
-            "code": "demo_user_unavailable",
-            "message": "The demo user is unavailable. Load the bundled seed data and try again.",
-            "issues": [],
-        }
-    }
-    try:
-        identity_response = interaction_client.get("/api/me")
-        detail_response = interaction_client.get(f"/api/recipes/{CARROT_ROOT_ID}")
-        save_response = interaction_client.put(
-            f"/api/recipes/{CARROT_ROOT_ID}/save",
-            headers=_action_headers(),
-        )
+    identity_response = interaction_client.get("/api/me")
+    detail_response = interaction_client.get(f"/api/recipes/{CARROT_ROOT_ID}")
+    save_response = interaction_client.put(
+        f"/api/recipes/{CARROT_ROOT_ID}/save",
+        headers=_action_headers(),
+    )
 
-        assert identity_response.status_code == 503
-        assert identity_response.json() == expected_error
-        assert detail_response.status_code == 503
-        assert detail_response.json() == expected_error
-        assert save_response.status_code == 503
-        assert save_response.json() == expected_error
-    finally:
-        with Session(bind=seeded_api_engine) as session, session.begin():
-            session.add(
-                User(
-                    id=DEMO_USER_ID,
-                    email=DEMO_USER_EMAIL,
-                    display_name=DEMO_USER_DISPLAY_NAME,
-                    created_at=DEMO_USER_CREATED_AT,
-                )
-            )
+    assert identity_response.status_code == 404
+    assert detail_response.status_code == 200
+    assert _json_object(detail_response.json())["viewer_state"] is None
+    assert save_response.status_code == 401
+    assert _json_object(save_response.json())["error"]["code"] == "authentication_required"
 
 
 @pytest.mark.parametrize(
@@ -584,7 +556,7 @@ def test_direct_browser_interaction_writes_allow_the_loopback_frontend_origin(
     assert "content-type" in response.headers["access-control-allow-headers"].casefold()
 
 
-def test_openapi_documents_demo_identity_viewer_state_and_interactions(
+def test_openapi_documents_member_viewer_state_and_interactions(
     interaction_client: TestClient,
 ) -> None:
     document = _json_object(interaction_client.get("/openapi.json").json())
@@ -592,24 +564,19 @@ def test_openapi_documents_demo_identity_viewer_state_and_interactions(
     schemas = cast(dict[str, Any], cast(dict[str, Any], document["components"])["schemas"])
 
     assert {
-        "/api/me",
         "/api/recipes/{recipe_version_id}",
         "/api/recipes/{recipe_version_id}/save",
         "/api/recipes/{recipe_version_id}/rating",
     } <= set(paths)
+    assert "/api/me" not in paths
     assert {
-        "DemoUserResponse",
         "RecipeViewerStateResponse",
         "RatingUpdateRequest",
     } <= set(schemas)
 
-    demo_user_schema = schemas["DemoUserResponse"]
-    assert {"id", "display_name", "identity_mode"} == set(demo_user_schema["required"])
-    assert "email" not in demo_user_schema["properties"]
-    assert demo_user_schema["properties"]["identity_mode"]["const"] == "shared_demo"
-
     viewer_state_schema = schemas["RecipeViewerStateResponse"]
-    assert {"recipe_version_id", "user", "saved", "rating"} == set(viewer_state_schema["required"])
+    assert {"recipe_version_id", "saved", "rating"} == set(viewer_state_schema["required"])
+    assert "user" not in viewer_state_schema["properties"]
     assert "viewer_state" in schemas["RecipeDetailResponse"]["required"]
 
     rating_schema = schemas["RatingUpdateRequest"]["properties"]["rating"]
@@ -621,15 +588,14 @@ def test_openapi_documents_demo_identity_viewer_state_and_interactions(
     assert {"put", "delete"} <= set(paths["/api/recipes/{recipe_version_id}/save"])
     assert "put" in paths["/api/recipes/{recipe_version_id}/rating"]
     for path, method in [
-        ("/api/me", "get"),
-        ("/api/recipes/{recipe_version_id}", "get"),
         ("/api/recipes/{recipe_version_id}/save", "put"),
         ("/api/recipes/{recipe_version_id}/save", "delete"),
         ("/api/recipes/{recipe_version_id}/rating", "put"),
     ]:
         responses = paths[path][method]["responses"]
-        assert responses["503"]["content"]["application/json"]["schema"]["$ref"].endswith(
-            "/ErrorResponse"
-        )
+        for status_code in ("401", "403", "422"):
+            assert responses[status_code]["content"]["application/json"]["schema"]["$ref"].endswith(
+                "/ErrorResponse"
+            )
 
     assert '"user_id"' not in json.dumps(document)

@@ -137,23 +137,22 @@ and the session-bound CSRF token sent in `X-CSRF-Token`. Expired or revoked
 sessions and sessions belonging to suspended/deleted members do not
 authenticate.
 
-Catalog Author and Demo Cook are explicitly non-login system/demo users. This
-story establishes accounts without silently changing existing recipe actions:
-`/api/me`, saves, ratings, views, forks, and online recommendations still use
-Demo Cook until RCP-24. See
+Catalog Author and Demo Cook are explicitly non-login system/demo users.
+RCP-24 binds recipe activity and personalized recommendation history to the
+active, fully onboarded member selected by this session. It does not transfer
+or claim any legacy Demo Cook activity. See
 [account authentication and sessions](../docs/authentication.md) for setup,
 privacy, failure, and testing details.
 
-## Shared demo interactions
+## Member-scoped interactions
 
-The original MVP interaction routes still use one fixed, clearly identified
-shared demo profile. `GET /api/me` returns its public ID, display name, and
-`shared_demo` identity mode; its internal seed email is never exposed. Recipe
-detail responses include that profile's current saved state and rating for the
-exact version. A signed-in RCP-23 member does not own this state.
+Recipe browsing, details, and comparisons remain public. A signed-out recipe
+detail contains `viewer_state: null`. With a valid member session, the same
+detail contains only the exact version ID, that member's saved state, and that
+member's rating; it never includes account identity fields.
 
-Interaction writes are state-setting and require an opaque UUID
-`Idempotency-Key` header:
+Interaction writes require a valid onboarded member session, the bound CSRF
+token and trusted `Origin`, plus an opaque UUID `Idempotency-Key` header:
 
 - `POST /api/recipes/{recipe_version_id}/view` records an explicit detail-page
   view without changing recipe state;
@@ -162,13 +161,16 @@ Interaction writes are state-setting and require an opaque UUID
 - `PUT /api/recipes/{recipe_version_id}/rating` creates or replaces the
   profile's one-to-five rating.
 
-The API selects the demo identity on the server and never accepts a user ID
-from the browser. PostgreSQL upserts plus the existing composite primary keys
-keep current state unique. Repeating the same action key with the same meaning
-returns the current authoritative state without writing a second event;
-reusing it for different semantics returns HTTP 409. A missing recipe returns
-404, invalid input returns 422, and a database without the bundled demo
-identity returns a documented 503 response.
+The API selects the actor exclusively from the session and never accepts a user
+or author ID from the browser. PostgreSQL upserts plus the existing composite
+primary keys keep each member's current state unique. Action keys are scoped by
+member and operation: an exact replay returns the current authoritative state
+without writing a second event, while conflicting reuse inside that scope
+returns HTTP 409. The same raw UUID may be used independently by another
+member or another operation. Anonymous or expired sessions return 401, invalid
+Origin/CSRF evidence or incomplete onboarding returns 403, a missing recipe
+returns 404, and invalid input returns 422; every rejected write leaves state
+and event history unchanged.
 
 ## Preference events
 
@@ -192,13 +194,14 @@ an exact retry must reuse the original UUID.
 ## Baseline recommendation API
 
 `GET /api/recommendations?limit=10` returns deterministic recommendations for
-the shared demo profile. The response names the strategy `baseline-v1`; each
+the current request. The response names the strategy `baseline-v1`; each
 item includes a recipe-version summary, six-decimal score and components, and a
 short reason. The response also publishes the weights and whether positive
-history personalized the ranking. Exact recipe versions already present in the
-profile's activity are not returned. The limit defaults to 10, accepts 1 through
-50, and uses the standard 422 response when invalid; a missing demo identity
-returns 503.
+member history personalized the ranking. Signed-out requests have no personal
+history and use the deterministic global cold-start order. Signed-in requests
+read only that member's saves, ratings, and events, and exact interacted
+versions are not returned. The limit defaults to 10, accepts 1 through 50, and
+uses the standard 422 response when invalid.
 
 The global component gives 55% weight to Bayesian-smoothed rating quality, 20%
 to normalized distinct active savers, 15% to normalized distinct users who
@@ -207,7 +210,7 @@ normalized independently by the candidate-wide maximum. Rating quality uses a
 mean-3, strength-5 prior before mapping the one-to-five result onto zero through
 one.
 
-When positive demo history exists, the final score gives 60% to that global
+When positive member history exists, the final score gives 60% to that global
 component and 40% to the strongest canonical-ingredient Jaccard match. History
 strength is 1.0 for an active save, rating of 5, fork source, or fork child; 0.5
 for a rating of 4; and 0.25 for a view. Cold-start requests use the global score
@@ -225,8 +228,9 @@ metrics, reproducibility, and data-limitations contract.
 ## Recipe variant creation
 
 `POST /api/recipes/{recipe_version_id}/variants` creates a new child of an
-existing recipe version for the shared demo user. It requires the same UUID
-`Idempotency-Key` header used by other product actions. The request supplies
+existing recipe version for the signed-in, onboarded member. It requires the
+same session, Origin, CSRF, and UUID `Idempotency-Key` evidence used by other
+product actions. The request supplies
 the new title, nullable description, exact serving yield, and zero or more
 structured edits. A successful request returns the complete child snapshot
 with HTTP 201 and a `Location` header for its detail resource.

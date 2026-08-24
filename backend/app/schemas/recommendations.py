@@ -30,12 +30,12 @@ class RecommendationWeightsResponse(BaseModel):
     personalized_global: Decimal = Field(
         ge=0,
         le=1,
-        description="Global-score weight when positive demo-profile history exists.",
+        description="Global-score weight when positive signed-in member history exists.",
     )
     personalized_similarity: Decimal = Field(
         ge=0,
         le=1,
-        description="Ingredient-similarity weight when positive demo-profile history exists.",
+        description="Ingredient-similarity weight when positive signed-in member history exists.",
     )
     quality_prior_mean: Decimal = Field(
         ge=1,
@@ -108,7 +108,7 @@ class RecipeRecommendationsResponse(BaseModel):
         description="Versioned recommendation strategy used for every returned item."
     )
     personalized: bool = Field(
-        description="Whether positive shared-demo history contributed to this ranking."
+        description="Whether positive history from the signed-in member affected this ranking."
     )
     weights: RecommendationWeightsResponse
     items: list[RecipeRecommendationResponse]

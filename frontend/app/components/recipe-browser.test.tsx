@@ -116,7 +116,7 @@ describe("RecipeBrowser", () => {
       />,
     );
     expect(screen.getByRole("heading", { name: /no recipes are available yet/i })).toBeInTheDocument();
-    expect(screen.getByText(/when they are added to the public demo/i)).toBeInTheDocument();
+    expect(screen.getByText(/when they are added/i)).toBeInTheDocument();
   });
 
   it("preserves the active filter across search controls, pagination, and stale-page recovery", () => {

@@ -53,11 +53,6 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     rating_count: 2,
     viewer_state: {
       recipe_version_id: SOURCE_ID,
-      user: {
-        id: "44444444-4444-4444-8444-444444444444",
-        display_name: "Demo Cook",
-        identity_mode: "shared_demo",
-      },
       saved: false,
       rating: null,
     },
@@ -112,8 +107,9 @@ function createdRecipe(): RecipeDetail {
     version_number: 2,
     title: "Orange Pecan Carrot Cake",
     viewer_state: {
-      ...sourceRecipe().viewer_state,
       recipe_version_id: CHILD_ID,
+      saved: false,
+      rating: null,
     },
     parent: {
       id: SOURCE_ID,

@@ -28,12 +28,10 @@ _SOURCE_KIND_ORDER: dict[RecommendationSourceKind, int] = {
     "view": 3,
 }
 _PERSONAL_REASONS: dict[RecommendationSourceKind, str] = {
-    "save": "Similar ingredients to a recipe saved by the shared demo profile.",
-    "rating": "Similar ingredients to a recipe highly rated by the shared demo profile.",
-    "fork": (
-        "Similar ingredients to a recipe involved in an adaptation by the shared demo profile."
-    ),
-    "view": "Similar ingredients to a recipe viewed by the shared demo profile.",
+    "save": "Similar ingredients to a recipe you saved.",
+    "rating": "Similar ingredients to a recipe you rated highly.",
+    "fork": "Similar ingredients to a recipe you adapted.",
+    "view": "Similar ingredients to a recipe you viewed.",
 }
 _GLOBAL_QUALITY_REASON = "Current ratings informed this baseline pick."
 _GLOBAL_SAVE_REASON = "Active saves support this baseline pick."

@@ -79,7 +79,9 @@ class RecipeDetailResponse(RecipeSummary):
         ge=0,
         description="Number of ratings included in the aggregate.",
     )
-    viewer_state: RecipeViewerStateResponse
+    viewer_state: RecipeViewerStateResponse | None = Field(
+        description="Private member state, or null when the request is signed out."
+    )
     parent: RecipeVersionReference | None
     children: list[RecipeVersionReference]
     ingredients: list[RecipeIngredientResponse]

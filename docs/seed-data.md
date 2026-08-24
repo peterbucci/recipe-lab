@@ -27,10 +27,12 @@ deletes user data. If a deterministic recipe snapshot or substitution already
 exists with different content, the loader stops instead of silently changing
 history. The caller's transaction then rolls back the attempted load.
 
-Loading also ensures that the application-level `Demo Cook` profile used for
-shared MVP interactions exists. That identity is separate from the catalog
-author, has a fixed application-owned ID, and is not part of the CC0 recipe
-assets. Rerunning the loader preserves its saves and ratings.
+Loading also preserves the legacy application-level `Demo Cook` profile used by
+the original shared MVP interactions. That identity is separate from the
+catalog author, has a fixed application-owned ID, and is not part of the CC0
+recipe assets. Rerunning the loader preserves its saves, ratings, and events,
+but the current runtime does not select Demo Cook for member actions or
+personal recommendation history.
 
 RCP-23 classifies Catalog Author as a non-login `system` account and Demo Cook
 as a non-login `demo` account. Neither can be linked to an OIDC identity or

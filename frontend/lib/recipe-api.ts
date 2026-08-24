@@ -1,4 +1,4 @@
-import type { RecipeViewerState } from "./interaction-api";
+import type { RecipeViewerState } from "./recipe-viewer-state";
 
 export interface RecipeSummary {
   id: string;
@@ -37,7 +37,7 @@ export interface RecipeInstruction {
 export interface RecipeDetail extends RecipeSummary {
   average_rating: number | null;
   rating_count: number;
-  viewer_state: RecipeViewerState;
+  viewer_state: RecipeViewerState | null;
   parent: RecipeVersionReference | null;
   children: RecipeVersionReference[];
   ingredients: RecipeIngredient[];
@@ -174,7 +174,9 @@ async function apiError(response: Response): Promise<RecipeApiError> {
 async function apiFetch(url: URL): Promise<Response> {
   return fetch(url, {
     cache: "no-store",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+    },
   });
 }
 
@@ -202,14 +204,17 @@ export async function fetchRecipePage({
 }
 
 export async function fetchRecipe(recipeVersionId: string): Promise<RecipeDetail | null> {
-  const response = await apiFetch(apiUrl(`/api/recipes/${encodeURIComponent(recipeVersionId)}`));
+  const response = await apiFetch(
+    apiUrl(`/api/recipes/${encodeURIComponent(recipeVersionId)}`),
+  );
   if (response.status === 404) {
     return null;
   }
   if (!response.ok) {
     throw await apiError(response);
   }
-  return (await response.json()) as RecipeDetail;
+  const payload = (await response.json()) as RecipeDetail;
+  return { ...payload, viewer_state: null };
 }
 
 export async function fetchRecipeDiff(recipeVersionId: string): Promise<RecipeDiff | null> {
