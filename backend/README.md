@@ -86,6 +86,12 @@ that is not present returns HTTP 404. Both use the documented `ErrorResponse`
 envelope. The response schemas and query constraints are available through
 OpenAPI at `/docs` and `/openapi.json`.
 
+Every stored recipe version is a published immutable snapshot, so each of its
+ingredient rows must reference the curated catalog. Recipe APIs resolve exact
+canonical names and aliases without creating catalog metadata; unknown names
+fail atomically. The identity/display boundary and future draft workflow are
+documented in [ingredient identity](../docs/ingredient-identity.md).
+
 ## Recipe diff API
 
 `GET /api/recipes/{recipe_version_id}/diff` returns a deterministic,
