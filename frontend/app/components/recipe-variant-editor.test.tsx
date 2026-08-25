@@ -653,6 +653,69 @@ describe("RecipeVariantEditor", () => {
     expect(beforeUnload.defaultPrevented).toBe(true);
   });
 
+  it("keeps the leave warning through preflight, decision, and creation until navigation", async () => {
+    const preflightRequest = deferred<RecipeDuplicatePreflight>();
+    const decisionRequest = deferred<{
+      preflight_id: string;
+      decision: "continue";
+      recorded_at: string;
+    }>();
+    const variantRequest = deferred<RecipeDetail>();
+    vi.mocked(createRecipeDuplicatePreflight).mockReturnValue(preflightRequest.promise);
+    vi.mocked(recordRecipeDuplicateDecision).mockReturnValue(decisionRequest.promise);
+    vi.mocked(createRecipeVariant).mockReturnValue(variantRequest.promise);
+    renderEditor();
+
+    fireEvent.change(screen.getByLabelText(/^title$/i), {
+      target: { value: "Protect this draft while requests are pending" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+    await waitFor(() => expect(createRecipeDuplicatePreflight).toHaveBeenCalledOnce());
+
+    const duringPreflight = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(duringPreflight);
+    expect(duringPreflight.defaultPrevented).toBe(true);
+
+    await act(async () => {
+      preflightRequest.resolve(duplicatePreflight("probable_duplicate"));
+      await preflightRequest.promise;
+    });
+    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /reviewed these advisory results/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Create my version anyway" }));
+    await waitFor(() => expect(recordRecipeDuplicateDecision).toHaveBeenCalledOnce());
+
+    const duringDecision = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(duringDecision);
+    expect(duringDecision.defaultPrevented).toBe(true);
+
+    await act(async () => {
+      decisionRequest.resolve({
+        preflight_id: PREFLIGHT_ID,
+        decision: "continue",
+        recorded_at: "2026-08-25T12:00:00Z",
+      });
+      await decisionRequest.promise;
+    });
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
+
+    const duringCreation = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(duringCreation);
+    expect(duringCreation.defaultPrevented).toBe(true);
+
+    await act(async () => {
+      variantRequest.resolve(createdRecipe());
+      await variantRequest.promise;
+    });
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledOnce());
+
+    const afterSuccessfulCreation = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(afterSuccessfulCreation);
+    expect(afterSuccessfulCreation.defaultPrevented).toBe(false);
+  });
+
   it("clears the leave warning when only inactive measurement fields differ", () => {
     renderEditor();
 
@@ -1351,6 +1414,14 @@ describe("RecipeVariantEditor", () => {
       ),
     },
     { name: "network failure", error: new TypeError("fetch failed") },
+    {
+      name: "malformed successful response",
+      error: new RecipeDuplicateApiError(
+        "Recipe Lab received an invalid similarity review response.",
+        502,
+        "invalid_recipe_duplicate_response",
+      ),
+    },
   ])(
     "requires an explicit create choice after a $name",
     async ({ error }) => {
@@ -1426,14 +1497,6 @@ describe("RecipeVariantEditor", () => {
   });
 
   it.each([
-    {
-      name: "malformed response",
-      error: new RecipeDuplicateApiError(
-        "Recipe Lab received an invalid similarity review response.",
-        502,
-        "invalid_recipe_duplicate_response",
-      ),
-    },
     {
       name: "expired session",
       error: new RecipeDuplicateApiError(
@@ -1527,17 +1590,30 @@ describe("RecipeVariantEditor", () => {
     ).toEqual([SECOND_KEY, FOURTH_KEY]);
   });
 
-  it("retries an unavailable continue decision with the same key, then creates", async () => {
+  it.each([
+    {
+      name: "unavailable response",
+      error: new RecipeDuplicateApiError(
+        "Recipe Lab could not check this version right now. Your draft is still here; please try again.",
+        503,
+      ),
+    },
+    {
+      name: "malformed successful response",
+      error: new RecipeDuplicateApiError(
+        "Recipe Lab received an invalid similarity decision response.",
+        502,
+        "invalid_recipe_duplicate_decision_response",
+      ),
+    },
+  ])("retries a commit-ambiguous $name with the same decision key, then creates", async ({
+    error,
+  }) => {
     vi.mocked(createRecipeDuplicatePreflight).mockResolvedValue(
       duplicatePreflight("probable_duplicate"),
     );
     vi.mocked(recordRecipeDuplicateDecision)
-      .mockRejectedValueOnce(
-        new RecipeDuplicateApiError(
-          "Recipe Lab could not check this version right now. Your draft is still here; please try again.",
-          503,
-        ),
-      )
+      .mockRejectedValueOnce(error)
       .mockResolvedValueOnce({
         preflight_id: PREFLIGHT_ID,
         decision: "continue",

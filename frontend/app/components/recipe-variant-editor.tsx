@@ -228,10 +228,12 @@ export function RecipeVariantEditor({
   const router = useRouter();
   const formId = useId().replace(/:/g, "");
   const errorSummaryRef = useRef<HTMLDivElement>(null);
+  const errorSummaryFocusRequestedRef = useRef(false);
   const ingredientCounter = useRef(0);
   const instructionCounter = useRef(0);
   const pendingFocusId = useRef<string | null>(null);
   const submittingRef = useRef(false);
+  const successfulCreationRef = useRef(false);
   const draftRevisionRef = useRef(0);
   const preflightAttemptRef = useRef<ForkAttempt | null>(null);
   const decisionAttemptRef = useRef<ForkAttempt | null>(null);
@@ -276,21 +278,24 @@ export function RecipeVariantEditor({
   }, [draft]);
 
   useEffect(() => {
-    if (!hasUnsavedChanges || pending) {
+    if (!hasUnsavedChanges) {
       return;
     }
 
     function warnBeforeLeaving(event: BeforeUnloadEvent) {
+      if (successfulCreationRef.current) {
+        return;
+      }
       event.preventDefault();
       event.returnValue = "";
     }
 
     window.addEventListener("beforeunload", warnBeforeLeaving);
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
-  }, [hasUnsavedChanges, pending]);
+  }, [hasUnsavedChanges]);
 
   function focusErrorSummary() {
-    window.setTimeout(() => errorSummaryRef.current?.focus(), 0);
+    errorSummaryFocusRequestedRef.current = true;
   }
 
   function clearErrors(fieldKey?: string) {
@@ -466,11 +471,7 @@ export function RecipeVariantEditor({
     if (error instanceof TypeError) {
       return true;
     }
-    return (
-      error instanceof RecipeDuplicateApiError &&
-      error.status >= 500 &&
-      !error.code.startsWith("invalid_")
-    );
+    return error instanceof RecipeDuplicateApiError && error.status >= 500;
   }
 
   function resetDuplicateAttemptsAfterConflict(error: unknown) {
@@ -552,6 +553,7 @@ export function RecipeVariantEditor({
         );
       }
       setStatusMessage("Your version is ready. Opening the recipe…");
+      successfulCreationRef.current = true;
       router.replace(`/recipes/${encodeURIComponent(created.id)}`);
     } catch (error) {
       finishWithError(error, "variant");
@@ -816,6 +818,14 @@ export function RecipeVariantEditor({
     ...Array.from(new Set(Object.values(fieldErrors))),
   ];
   const hasErrors = Boolean(apiError || validationMessages.length > 0);
+
+  useEffect(() => {
+    if (!hasErrors || !errorSummaryFocusRequestedRef.current) {
+      return;
+    }
+    errorSummaryRef.current?.focus();
+    errorSummaryFocusRequestedRef.current = false;
+  }, [apiError, fieldErrors, formErrors, hasErrors]);
 
   return (
     <form
