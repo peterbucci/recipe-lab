@@ -51,7 +51,77 @@ test.describe("MVP acceptance", () => {
     "The canonical journey requires the isolated, freshly seeded acceptance database.",
   );
 
-  test("browses, saves, forks, edits, and compares a recipe using the real stack", async ({
+  test("browses, saves, creates, and resumes a private fork draft using the real stack", async ({ page }) => {
+    const draftTitle = "MVP Private Pecan Carrot Draft";
+    await useAcceptanceMember(page, "alice");
+    await page.goto("/recipes?q=carrot");
+    await Promise.all([
+      page.waitForURL((url) => recipePathPattern.test(url.pathname)),
+      page
+        .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
+        .click(),
+    ]);
+    await expect(
+      page.getByRole("heading", { name: "Carrot Walnut Snack Cake", level: 1 }),
+    ).toBeVisible();
+    const sourceRecipeVersionId = recipeVersionId(page);
+
+    const saveButton = page.getByRole("button", { name: "Save recipe", exact: true });
+    await expect(saveButton).toHaveAttribute("aria-pressed", "false");
+    await activateWithKeyboard(page, saveButton);
+    await expect(page.getByText("Saved to your account.", { exact: true })).toBeVisible();
+
+    await activateWithKeyboard(page, page.getByRole("link", { name: "Make your own version", exact: true }));
+    await expect(page.getByRole("heading", { name: /make carrot walnut snack cake your own/i })).toBeVisible();
+    await page.getByRole("button", { name: "Create private draft", exact: true }).click();
+    await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectNoAccessibilityViolations(page);
+
+    await page.getByLabel("Title", { exact: true }).fill(draftTitle);
+    const sugarRow = page.getByRole("group", { name: "Ingredient 3", exact: true });
+    const walnutRow = page.getByRole("group", { name: "Ingredient 6", exact: true });
+    await sugarRow.getByRole("textbox", { name: "Amount", exact: true }).fill("140");
+    const selectedSugarUnitId = await sugarRow.getByRole("combobox", { name: "Unit", exact: true }).inputValue();
+    const replacementSearch = walnutRow.getByRole("searchbox", { name: "Catalog ingredient", exact: true });
+    await replacementSearch.fill("Pecan");
+    await replacementSearch.press("Enter");
+    const pecanResult = walnutRow
+      .getByRole("list", { name: "Catalog ingredient catalog results" })
+      .getByRole("button", { name: /pecan/i })
+      .first();
+    await expect(pecanResult).toBeVisible();
+    await activateWithKeyboard(page, pecanResult);
+
+    const updateRequest = page.waitForRequest(
+      (request) => request.method() === "PUT" && /\/api\/recipe-drafts\/[0-9a-f-]+$/i.test(new URL(request.url()).pathname),
+    );
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    const payload = (await updateRequest).postDataJSON() as {
+      ingredients: Array<{ selection: Record<string, unknown>; measure: Record<string, unknown> }>;
+      source_version_id?: string;
+      title: string;
+    };
+    expect(payload.title).toBe(draftTitle);
+    expect(payload).not.toHaveProperty("source_version_id");
+    expect(payload.ingredients[2]?.measure).toMatchObject({
+      kind: "exact",
+      value: "140",
+      unit_id: selectedSugarUnitId,
+    });
+    expect(payload.ingredients[5]?.selection).toMatchObject({
+      kind: "catalog",
+      display_name: "Pecan",
+    });
+    await expect(page.getByText("Draft saved privately.", { exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel("Title", { exact: true })).toHaveValue(draftTitle);
+    await expect(walnutRow.getByText("Pecan", { exact: true })).toBeVisible();
+    await expect(page.getByText(/private fork draft/i)).toBeVisible();
+    expect(sourceRecipeVersionId).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  test.skip("publishes and compares a fork after the RCP-28 publication workflow lands", async ({
     page,
   }) => {
     const variantTitle = "MVP Lower-Sugar Pecan Carrot Cake";

@@ -8,7 +8,6 @@ import {
 } from "@playwright/test";
 
 import {
-  continueRecipeDuplicateReviewIfRequired,
   type MemberName,
   useAcceptanceMember as applyAcceptanceMember,
 } from "./acceptance-session";
@@ -487,8 +486,10 @@ test.describe("member ingredient-request acceptance", () => {
       .getByRole("link", { name: "Make your own version", exact: true })
       .click();
     await expect(
-      page.getByRole("heading", { name: "Make this recipe your own.", level: 1 }),
+      page.getByRole("heading", { name: /make carrot walnut snack cake your own/i, level: 1 }),
     ).toBeVisible();
+    await page.getByRole("button", { name: "Create private draft", exact: true }).click();
+    await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
 
     const draftTitle = `Acceptance trusted-request carrot cake ${runId}`;
     const draftDescription = "A carefully preserved draft around a reviewed ingredient.";
@@ -498,23 +499,20 @@ test.describe("member ingredient-request acceptance", () => {
     await page.getByLabel("Description", { exact: true }).fill(draftDescription);
     await page.getByLabel("Servings", { exact: true }).fill("6");
 
-    const sugarLabel = "Ingredient 3: White sugar";
-    const walnutLabel = "Ingredient 6: Walnut";
-    const sugarRow = page.getByRole("group", { name: sugarLabel });
-    const walnutRow = page.getByRole("group", { name: walnutLabel });
-    const eggRow = page.getByRole("group", { name: "Ingredient 4: Egg" });
-    await sugarRow.getByRole("button", { name: "Change White sugar" }).click();
+    const sugarLabel = "Ingredient 3";
+    const walnutLabel = "Ingredient 6";
+    const sugarRow = page.getByRole("group", { name: sugarLabel, exact: true });
+    const walnutRow = page.getByRole("group", { name: walnutLabel, exact: true });
+    const eggRow = page.getByRole("group", { name: "Ingredient 4", exact: true });
     await sugarRow.getByRole("textbox", { name: "Amount", exact: true }).fill("135");
     const selectedSugarUnitId = await sugarRow
       .getByRole("combobox", { name: "Unit", exact: true })
       .inputValue();
-    await walnutRow.getByRole("button", { name: "Change Walnut" }).click();
     await walnutRow.getByRole("textbox", { name: "Amount", exact: true }).fill("95");
     const selectedWalnutUnitId = await walnutRow
       .getByRole("combobox", { name: "Unit", exact: true })
       .inputValue();
-    await page.getByRole("button", { name: "Edit step 1" }).click();
-    await page.getByLabel("Instruction", { exact: true }).first().fill(draftInstruction);
+    await page.getByLabel("Human-readable direction", { exact: true }).first().fill(draftInstruction);
 
     const expectDraftPreserved = async (): Promise<void> => {
       await expect(page.getByLabel("Title", { exact: true })).toHaveValue(draftTitle);
@@ -536,10 +534,11 @@ test.describe("member ingredient-request acceptance", () => {
           .getByRole("combobox", { name: "Unit", exact: true })
           .locator("option:checked"),
       ).toHaveText("gram (g)");
-      await expect(page.getByLabel("Instruction", { exact: true }).first()).toHaveValue(
+      await expect(page.getByLabel("Human-readable direction", { exact: true }).first()).toHaveValue(
         draftInstruction,
       );
-      await expect(eggRow.getByText("Egg · 2", { exact: true })).toBeVisible();
+      await expect(eggRow.getByText("Egg", { exact: true })).toBeVisible();
+      await expect(eggRow.getByRole("textbox", { name: "Amount", exact: true })).toHaveValue("2");
     };
 
     const walnutTrigger = walnutRow.getByRole("button", {
@@ -636,7 +635,7 @@ test.describe("member ingredient-request acceptance", () => {
       walnutRequests.getByRole("link", { name: "Sign in in a new tab" }),
     ).toHaveAttribute("target", "_blank");
     await expect(
-      page.getByRole("heading", { name: "Make this recipe your own.", level: 1 }),
+      page.getByRole("heading", { name: draftTitle, level: 1 }),
     ).toBeVisible();
     await expectDraftPreserved();
 
@@ -700,28 +699,22 @@ test.describe("member ingredient-request acceptance", () => {
     await expect(sugarSelection.getByText("Pecan", { exact: true })).toBeVisible();
     await expectDraftPreserved();
 
-    const variantRequest = page.waitForRequest(
+    const draftRequest = page.waitForRequest(
       (request) =>
-        request.method() === "POST" && request.url().endsWith("/variants"),
+        request.method() === "PUT" && /\/api\/recipe-drafts\/[0-9a-f-]+$/i.test(new URL(request.url()).pathname),
     );
-    const variantResponse = page.waitForResponse(
+    const draftResponse = page.waitForResponse(
       (response) =>
-        response.request().method() === "POST" && response.url().endsWith("/variants"),
+        response.request().method() === "PUT" && /\/api\/recipe-drafts\/[0-9a-f-]+$/i.test(new URL(response.url()).pathname),
     );
-    const duplicatePreflightResponse = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        response.url().endsWith("/duplicate-preflights"),
-    );
-    await page.getByRole("button", { name: "Create my version", exact: true }).click();
-    await continueRecipeDuplicateReviewIfRequired(
-      page,
-      await duplicatePreflightResponse,
-    );
-    const payload = (await variantRequest).postDataJSON() as {
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    const payload = (await draftRequest).postDataJSON() as {
       description: string | null;
-      ingredient_edits: Array<Record<string, unknown>>;
-      instruction_edits: Array<Record<string, unknown>>;
+      ingredients: Array<{
+        selection: { kind: string; ingredient_id?: string; display_name?: string };
+        measure: Record<string, unknown>;
+      }>;
+      instructions: Array<{ text: string }>;
       servings: string;
       title: string;
     };
@@ -730,46 +723,28 @@ test.describe("member ingredient-request acceptance", () => {
       servings: "6",
       title: draftTitle,
     });
-    expect(payload.ingredient_edits).toHaveLength(4);
-    const approvedReplacement = payload.ingredient_edits.find(
-      (edit) => edit.op === "replace" && edit.display_name === approvedCanonical,
+    expect(payload.ingredients).toHaveLength(9);
+    const approvedReplacement = payload.ingredients.find(
+      (item) => item.selection.display_name === approvedCanonical,
     );
-    const duplicateReplacement = payload.ingredient_edits.find(
-      (edit) => edit.op === "replace" && edit.display_name === "Pecan",
+    const duplicateReplacement = payload.ingredients.find(
+      (item) => item.selection.display_name === "Pecan",
     );
-    expect(approvedReplacement).toMatchObject({
+    expect(approvedReplacement?.selection).toMatchObject({
       ingredient_id: approvedReview.resolved_ingredient_id,
-      op: "replace",
+      kind: "catalog",
     });
-    expect(duplicateReplacement).toMatchObject({
+    expect(duplicateReplacement?.selection).toMatchObject({
       ingredient_id: pecan.id,
-      op: "replace",
+      kind: "catalog",
     });
-    expect(payload.ingredient_edits).toEqual(
-      expect.arrayContaining([
-        {
-          op: "set_measure",
-          measure: {
-            kind: "exact",
-            unit_id: selectedWalnutUnitId,
-            value: "95",
-          },
-          recipe_ingredient_id: approvedReplacement?.recipe_ingredient_id,
-        },
-        {
-          op: "set_measure",
-          measure: {
-            kind: "exact",
-            unit_id: selectedSugarUnitId,
-            value: "135",
-          },
-          recipe_ingredient_id: duplicateReplacement?.recipe_ingredient_id,
-        },
-      ]),
-    );
-    expect(payload.instruction_edits).toEqual([
-      expect.objectContaining({ op: "update", text: draftInstruction }),
-    ]);
+    expect(approvedReplacement?.measure).toMatchObject({
+      kind: "exact", unit_id: selectedWalnutUnitId, value: "95",
+    });
+    expect(duplicateReplacement?.measure).toMatchObject({
+      kind: "exact", unit_id: selectedSugarUnitId, value: "135",
+    });
+    expect(payload.instructions[0]).toMatchObject({ text: draftInstruction });
     const serializedPayload = JSON.stringify(payload);
     for (const unsafeValue of [
       approved.id,
@@ -782,15 +757,11 @@ test.describe("member ingredient-request acceptance", () => {
     ]) {
       expect(serializedPayload).not.toContain(unsafeValue);
     }
-    expect((await variantResponse).status()).toBe(201);
-    await expect(page).toHaveURL(/\/recipes\/[^/]+$/);
-    await expect(page.getByRole("heading", { name: draftTitle, level: 1 })).toBeVisible();
-    const ingredients = page.getByRole("region", { name: "Ingredients" });
-    await expect(
-      ingredients.getByRole("listitem").filter({ hasText: approvedCanonical }),
-    ).toContainText("95 g");
-    await expect(
-      ingredients.getByRole("listitem").filter({ hasText: "Pecan" }),
-    ).toContainText("135 g");
+    expect((await draftResponse).status()).toBe(200);
+    await expect(page.getByText("Draft saved privately.", { exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel("Title", { exact: true })).toHaveValue(draftTitle);
+    await expect(page.getByRole("group", { name: walnutLabel, exact: true }).getByText(approvedCanonical, { exact: true })).toBeVisible();
+    await expect(page.getByRole("group", { name: sugarLabel, exact: true }).getByText("Pecan", { exact: true })).toBeVisible();
   });
 });

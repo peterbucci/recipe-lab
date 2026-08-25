@@ -90,7 +90,7 @@ function exactDraft(value = "1.5", unit = gram): StructuredMeasureDraft {
 }
 
 describe("structured measure domain", () => {
-  it("hydrates structured read shapes while retaining raw branch state", () => {
+  it("hydrates persisted decimals as human-friendly editor values", () => {
     expect(
       createStructuredMeasureDraft({
         kind: "range",
@@ -104,11 +104,21 @@ describe("structured measure domain", () => {
     ).toEqual({
       mode: "range",
       exactValue: "",
-      rangeMinimum: "1.0000",
-      rangeMaximum: "2.5000",
+      rangeMinimum: "1",
+      rangeMaximum: "2.5",
       unit: gram,
       packageSizeId: PACKAGE_SIZE_ID,
     });
+    expect(
+      createStructuredMeasureDraft({
+        kind: "exact",
+        value: "2.0000",
+        unit: gram,
+        package_size_id: null,
+        display_unit: "g",
+        display: "2 g",
+      }).exactValue,
+    ).toBe("2");
   });
 
   it("preserves package-size identity in exact and range payloads", () => {

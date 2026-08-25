@@ -93,8 +93,9 @@ ingredient rows must reference the curated catalog. Recipe-writing APIs verify
 that each submitted stable ingredient ID exists and that its display label is
 that ingredient's canonical name or a reviewed alias; stale or mismatched
 selections fail atomically without creating catalog metadata. The
-identity/display boundary and future draft workflow are documented in
-[ingredient identity](../docs/ingredient-identity.md).
+identity/display boundary and separate private draft workflow are documented
+in [ingredient identity](../docs/ingredient-identity.md) and
+[private recipe drafts](../docs/private-recipe-drafts.md).
 
 `GET /api/ingredients` provides bounded, paginated canonical-and-alias search
 for the editor. Signed-in members may submit missing-item requests without
@@ -311,6 +312,33 @@ action keys intentionally create distinct sibling versions. Client interfaces
 still disable duplicate submission, but the server-side contract protects
 network retries. Automatic substitutions, unit conversion, edit-operation
 storage, and original-recipe creation remain outside this MVP endpoint.
+
+## Private recipe drafts
+
+RCP-26 stores private authoring state outside `recipe_versions`. The endpoints
+are:
+
+- `POST /api/recipe-drafts` for a blank original or a server-side copy of one
+  exact public source snapshot;
+- `GET /api/recipe-drafts` and `GET /api/recipe-drafts/{draft_id}` for the
+  current member's active drafts;
+- `PUT /api/recipe-drafts/{draft_id}` for a complete atomic save whose body
+  includes the expected optimistic revision; and
+- `DELETE /api/recipe-drafts/{draft_id}?revision={expected}` for immediate,
+  irreversible discard from the live database.
+
+The session supplies authorship. Another member receives `404`, stale saves or
+discards return `409`, and all responses are private and non-cacheable. Catalog
+slots use verified ingredient labels and structured measures. Request slots
+retain only owner-scoped unresolved selection identity, never a fabricated
+canonical ID, and cannot be structured-action inputs.
+
+Draft lifecycle operations create no lineage, immutable version, fingerprint,
+duplicate evidence, save, rating, or preference event. They are structurally
+absent from browse, detail, diff, profile, recommendation, duplicate-candidate,
+and evaluation-export queries. RCP-27 and RCP-28 own publication. See
+[private recipe drafts](../docs/private-recipe-drafts.md) for retention,
+request-resolution, editor, and publication boundaries.
 
 ## Recipe duplicate preflight
 

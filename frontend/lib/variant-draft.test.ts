@@ -168,7 +168,7 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
 }
 
 describe("variant draft", () => {
-  it("creates an editable measure copy without changing the immutable source snapshot", () => {
+  it("creates a human-friendly editable measure without changing the fixed-scale source snapshot", () => {
     const source = sourceRecipe({ description: null });
     const sourceBefore = structuredClone(source);
 
@@ -181,7 +181,7 @@ describe("variant draft", () => {
       selectedIngredient: null,
       measure: {
         mode: "exact",
-        exactValue: "140.0000",
+        exactValue: "140",
         rangeMinimum: "",
         rangeMaximum: "",
         unit: gramSummary,
@@ -189,6 +189,10 @@ describe("variant draft", () => {
       originalMeasure: source.ingredients[0].measure,
       preparationNotes: "",
       removed: false,
+    });
+    expect(source.ingredients[0]?.measure).toMatchObject({
+      kind: "exact",
+      value: "140.0000",
     });
     draft.ingredients[0].measure.exactValue = "125";
     expect(source).toEqual(sourceBefore);

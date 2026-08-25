@@ -5,6 +5,7 @@ import {
   AuthSessionProvider,
   SessionRecoveryNotice,
 } from "./components/auth-session-provider";
+import { NavigationBlockerProvider } from "./components/navigation-blocker-provider";
 import { SiteHeader } from "./components/site-header";
 import "./globals.css";
 
@@ -23,11 +24,13 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <a className="skip-link" href="#main-content">
           Skip to content
         </a>
-        <AuthSessionProvider>
-          <SessionRecoveryNotice />
-          <SiteHeader />
-          {children}
-        </AuthSessionProvider>
+        <NavigationBlockerProvider>
+          <AuthSessionProvider>
+            <SessionRecoveryNotice />
+            <SiteHeader />
+            {children}
+          </AuthSessionProvider>
+        </NavigationBlockerProvider>
         <footer className="site-footer">
           <p>Recipe Lab · Explore recipes and compare versions.</p>
         </footer>

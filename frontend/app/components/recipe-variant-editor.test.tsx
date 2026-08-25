@@ -521,7 +521,7 @@ beforeEach(() => {
 });
 
 describe("RecipeVariantEditor", () => {
-  it("prefills accessible exact and qualitative structured amounts", () => {
+  it("prefills accessible structured amounts with human-friendly decimals", () => {
     renderEditor();
 
     const form = screen.getByRole("form", {
@@ -571,7 +571,7 @@ describe("RecipeVariantEditor", () => {
       }),
     ).toBeInTheDocument();
     expect(within(sugar).getByRole("radio", { name: "Exact" })).toBeChecked();
-    expect(within(sugar).getByLabelText(/^amount$/i)).toHaveValue("180.0000");
+    expect(within(sugar).getByLabelText(/^amount$/i)).toHaveValue("180");
     expect(within(sugar).getByLabelText(/^amount$/i)).toHaveAttribute(
       "inputmode",
       "decimal",
@@ -811,7 +811,7 @@ describe("RecipeVariantEditor", () => {
             recipe_ingredient_id: "sugar-row",
             measure: {
               kind: "exact",
-              value: "2.0000",
+              value: "2",
               unit_id: CAN_ID,
             },
           },

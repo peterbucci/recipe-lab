@@ -11,6 +11,7 @@ import {
   type CatalogIngredientPage,
   type CatalogIngredientSelection,
   IngredientCatalogApiError,
+  type MissingIngredientRequest,
   searchCatalogIngredients,
   selectionForCatalogIngredient,
 } from "../../lib/ingredient-catalog-api";
@@ -25,6 +26,7 @@ interface IngredientCatalogPickerProps {
   invalid?: boolean;
   label: string;
   onChange: (selection: CatalogIngredientSelection | null) => void;
+  onRequestSubmitted?: (request: MissingIngredientRequest) => void;
   value: CatalogIngredientSelection | null;
 }
 
@@ -36,6 +38,7 @@ export function IngredientCatalogPicker({
   invalid = false,
   label,
   onChange,
+  onRequestSubmitted,
   value,
 }: IngredientCatalogPickerProps) {
   const historyTriggerRef = useRef<HTMLButtonElement>(null);
@@ -362,6 +365,7 @@ export function IngredientCatalogPicker({
             idPrefix={idPrefix}
             initialName={query.trim()}
             onClose={closeRequest}
+            onSubmitted={onRequestSubmitted}
           />
         </div>
       ) : null}

@@ -1,0 +1,599 @@
+import {
+  type ApiValidationIssue,
+  memberMutationHeaders,
+  notifySessionExpired,
+} from "./auth-api";
+import type { CatalogActionTypeSummary } from "./cooking-action-api";
+import type { CatalogIngredient } from "./ingredient-catalog-api";
+import type { CatalogUnitSummary } from "./measurement-unit-api";
+import type { RecipeNumericMeasure } from "./structured-action";
+import type { RecipeIngredientMeasure, VariantMeasureInput } from "./structured-measure";
+
+export type RecipeDraftStatus = "active";
+
+export interface RecipeDraftListItem {
+  id: string;
+  source_version_id: string | null;
+  status: RecipeDraftStatus;
+  revision: number;
+  title: string;
+  ingredient_count: number;
+  instruction_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecipeDraftPage {
+  items: RecipeDraftListItem[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+}
+
+export interface RecipeDraftRequestSelection {
+  kind: "request";
+  request: {
+    id: string;
+    proposed_name: string;
+    status: "pending" | "approved" | "rejected" | "duplicate";
+    resolved_ingredient: CatalogIngredient | null;
+  };
+}
+
+export interface RecipeDraftCatalogSelection {
+  kind: "catalog";
+  ingredient: CatalogIngredient;
+  display_name: string;
+}
+
+export interface RecipeDraftIngredient {
+  id: string;
+  display_order: number;
+  selection: RecipeDraftCatalogSelection | RecipeDraftRequestSelection;
+  measure: RecipeIngredientMeasure;
+  preparation_notes: string | null;
+}
+
+export interface RecipeDraftAction {
+  id: string;
+  display_order: number;
+  action_type: CatalogActionTypeSummary;
+  ingredient_occurrence_ids: string[];
+  duration: RecipeNumericMeasure | null;
+  temperature: RecipeNumericMeasure | null;
+}
+
+export interface RecipeDraftInstruction {
+  id: string;
+  display_order: number;
+  text: string;
+  actions: RecipeDraftAction[];
+}
+
+export interface RecipeDraftDetail {
+  id: string;
+  source_version_id: string | null;
+  status: RecipeDraftStatus;
+  revision: number;
+  title: string;
+  description: string | null;
+  servings: string | null;
+  ingredients: RecipeDraftIngredient[];
+  instructions: RecipeDraftInstruction[];
+  created_at: string;
+  updated_at: string;
+}
+
+export type RecipeDraftIngredientInput =
+  | {
+      ref: string;
+      selection: {
+        kind: "catalog";
+        ingredient_id: string;
+        display_name: string;
+      };
+      measure: VariantMeasureInput;
+      preparation_notes: string | null;
+    }
+  | {
+      ref: string;
+      selection: {
+        kind: "request";
+        ingredient_request_id: string;
+      };
+      measure: VariantMeasureInput;
+      preparation_notes: string | null;
+    };
+
+export interface RecipeDraftActionInput {
+  action_type_id: string;
+  ingredient_refs: string[];
+  duration: Exclude<VariantMeasureInput, { kind: "qualitative" }> | null;
+  temperature: Exclude<VariantMeasureInput, { kind: "qualitative" }> | null;
+}
+
+export interface RecipeDraftInstructionInput {
+  ref: string;
+  text: string;
+  actions: RecipeDraftActionInput[];
+}
+
+export interface RecipeDraftUpdateRequest {
+  revision: number;
+  title: string;
+  description: string | null;
+  servings: string | null;
+  ingredients: RecipeDraftIngredientInput[];
+  instructions: RecipeDraftInstructionInput[];
+}
+
+interface ApiErrorPayload {
+  error?: { code?: unknown; message?: unknown; issues?: unknown };
+}
+
+export class RecipeDraftApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly issues: ApiValidationIssue[];
+
+  constructor(
+    message: string,
+    status: number,
+    code = "recipe_draft_api_error",
+    issues: ApiValidationIssue[] = [],
+  ) {
+    super(message);
+    this.name = "RecipeDraftApiError";
+    this.status = status;
+    this.code = code;
+    this.issues = issues;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isUuid(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  );
+}
+
+function isTimestamp(value: unknown): value is string {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
+}
+
+function boundedText(value: unknown, max: number, allowBlank = false): value is string {
+  return (
+    typeof value === "string" &&
+    value.length <= max &&
+    (allowBlank || value.trim().length > 0)
+  );
+}
+
+function invalidResponse(): RecipeDraftApiError {
+  return new RecipeDraftApiError(
+    "Recipe Lab received an invalid private draft response.",
+    502,
+    "invalid_recipe_draft_response",
+  );
+}
+
+function parseUnit(value: unknown): CatalogUnitSummary | null {
+  if (
+    !isRecord(value) ||
+    !isUuid(value.id) ||
+    !boundedText(value.key, 64) ||
+    !boundedText(value.canonical_label, 64) ||
+    !boundedText(value.plural_label, 64) ||
+    (value.symbol !== null && !boundedText(value.symbol, 16)) ||
+    !["mass", "volume", "count", "time", "temperature", "package"].includes(
+      String(value.dimension),
+    ) ||
+    !["symbol", "word", "hidden"].includes(String(value.display_style)) ||
+    typeof value.active !== "boolean"
+  ) {
+    return null;
+  }
+  return value as unknown as CatalogUnitSummary;
+}
+
+function parseMeasure(value: unknown): RecipeIngredientMeasure | null {
+  if (!isRecord(value) || typeof value.kind !== "string") {
+    return null;
+  }
+  if (
+    value.kind === "qualitative" &&
+    (value.value === "to_taste" || value.value === "as_needed" || value.value === "unspecified") &&
+    value.unit === null &&
+    value.display_unit === null &&
+    typeof value.display === "string"
+  ) {
+    return value as unknown as RecipeIngredientMeasure;
+  }
+  const unit = parseUnit(value.unit);
+  const commonValid =
+    unit !== null &&
+    (value.package_size_id === undefined ||
+      value.package_size_id === null ||
+      isUuid(value.package_size_id)) &&
+    (value.display_unit === null || typeof value.display_unit === "string") &&
+    typeof value.display === "string";
+  if (value.kind === "exact" && boundedText(value.value, 64) && commonValid) {
+    return { ...value, unit } as RecipeIngredientMeasure;
+  }
+  if (
+    value.kind === "range" &&
+    boundedText(value.minimum, 64) &&
+    boundedText(value.maximum, 64) &&
+    commonValid
+  ) {
+    return { ...value, unit } as RecipeIngredientMeasure;
+  }
+  return null;
+}
+
+function parseNumericMeasure(value: unknown): RecipeNumericMeasure | null {
+  const measure = parseMeasure(value);
+  return measure && measure.kind !== "qualitative" ? measure : null;
+}
+
+function parseCatalogIngredient(value: unknown): CatalogIngredient | null {
+  if (
+    !isRecord(value) ||
+    !isUuid(value.id) ||
+    !boundedText(value.canonical_name, 200) ||
+    !Array.isArray(value.aliases) ||
+    !value.aliases.every((alias) => boundedText(alias, 200))
+  ) {
+    return null;
+  }
+  return value as unknown as CatalogIngredient;
+}
+
+function parseActionType(value: unknown): CatalogActionTypeSummary | null {
+  if (
+    !isRecord(value) ||
+    !isUuid(value.id) ||
+    !boundedText(value.key, 64) ||
+    !boundedText(value.canonical_verb, 64) ||
+    typeof value.active !== "boolean"
+  ) {
+    return null;
+  }
+  return value as unknown as CatalogActionTypeSummary;
+}
+
+function parseIngredient(value: unknown): RecipeDraftIngredient | null {
+  if (
+    !isRecord(value) ||
+    !isUuid(value.id) ||
+    !Number.isInteger(value.display_order) ||
+    (value.display_order as number) < 0 ||
+    !isRecord(value.selection)
+  ) {
+    return null;
+  }
+  const measure = parseMeasure(value.measure);
+  if (!measure || (value.preparation_notes !== null && typeof value.preparation_notes !== "string")) {
+    return null;
+  }
+  let selection: RecipeDraftIngredient["selection"];
+  if (value.selection.kind === "catalog") {
+    const ingredient = parseCatalogIngredient(value.selection.ingredient);
+    if (!ingredient || !boundedText(value.selection.display_name, 200)) {
+      return null;
+    }
+    selection = { kind: "catalog", ingredient, display_name: value.selection.display_name };
+  } else if (value.selection.kind === "request" && isRecord(value.selection.request)) {
+    const request = value.selection.request;
+    const resolved = request.resolved_ingredient === null
+      ? null
+      : parseCatalogIngredient(request.resolved_ingredient);
+    if (
+      !isUuid(request.id) ||
+      !boundedText(request.proposed_name, 200) ||
+      !["pending", "approved", "rejected", "duplicate"].includes(String(request.status)) ||
+      (request.resolved_ingredient !== null && resolved === null)
+    ) {
+      return null;
+    }
+    selection = {
+      kind: "request",
+      request: {
+        id: request.id,
+        proposed_name: request.proposed_name,
+        status: request.status as RecipeDraftRequestSelection["request"]["status"],
+        resolved_ingredient: resolved,
+      },
+    };
+  } else {
+    return null;
+  }
+  return {
+    id: value.id,
+    display_order: value.display_order as number,
+    selection,
+    measure,
+    preparation_notes: value.preparation_notes as string | null,
+  };
+}
+
+function parseAction(value: unknown): RecipeDraftAction | null {
+  if (
+    !isRecord(value) ||
+    !isUuid(value.id) ||
+    !Number.isInteger(value.display_order) ||
+    (value.display_order as number) < 0 ||
+    !Array.isArray(value.ingredient_occurrence_ids) ||
+    !value.ingredient_occurrence_ids.every(isUuid)
+  ) {
+    return null;
+  }
+  const actionType = parseActionType(value.action_type);
+  const duration = value.duration === null ? null : parseNumericMeasure(value.duration);
+  const temperature = value.temperature === null ? null : parseNumericMeasure(value.temperature);
+  if (
+    !actionType ||
+    (value.duration !== null && !duration) ||
+    (value.temperature !== null && !temperature)
+  ) {
+    return null;
+  }
+  return {
+    id: value.id,
+    display_order: value.display_order as number,
+    action_type: actionType,
+    ingredient_occurrence_ids: value.ingredient_occurrence_ids as string[],
+    duration,
+    temperature,
+  };
+}
+
+function parseInstruction(value: unknown): RecipeDraftInstruction | null {
+  if (
+    !isRecord(value) ||
+    !isUuid(value.id) ||
+    !Number.isInteger(value.display_order) ||
+    (value.display_order as number) < 0 ||
+    !boundedText(value.text, 5_000) ||
+    !Array.isArray(value.actions)
+  ) {
+    return null;
+  }
+  const actions = value.actions.map(parseAction);
+  if (actions.some((action) => action === null)) {
+    return null;
+  }
+  return {
+    id: value.id,
+    display_order: value.display_order as number,
+    text: value.text,
+    actions: actions as RecipeDraftAction[],
+  };
+}
+
+function ordered<T extends { display_order: number }>(items: T[]): boolean {
+  return items.every((item, index) => item.display_order === index);
+}
+
+export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
+  if (
+    !isRecord(value) ||
+    !isUuid(value.id) ||
+    (value.source_version_id !== null && !isUuid(value.source_version_id)) ||
+    value.status !== "active" ||
+    !Number.isInteger(value.revision) ||
+    (value.revision as number) < 1 ||
+    !boundedText(value.title, 200, true) ||
+    (value.description !== null && !boundedText(value.description, 2_000)) ||
+    (value.servings !== null && !boundedText(value.servings, 64)) ||
+    !Array.isArray(value.ingredients) ||
+    !Array.isArray(value.instructions) ||
+    !isTimestamp(value.created_at) ||
+    !isTimestamp(value.updated_at)
+  ) {
+    throw invalidResponse();
+  }
+  const ingredients = value.ingredients.map(parseIngredient);
+  const instructions = value.instructions.map(parseInstruction);
+  if (
+    ingredients.some((item) => item === null) ||
+    instructions.some((item) => item === null) ||
+    !ordered(ingredients as RecipeDraftIngredient[]) ||
+    !ordered(instructions as RecipeDraftInstruction[]) ||
+    !(instructions as RecipeDraftInstruction[]).every((instruction) => ordered(instruction.actions))
+  ) {
+    throw invalidResponse();
+  }
+  const occurrenceIds = new Set((ingredients as RecipeDraftIngredient[]).map((item) => item.id));
+  if (
+    !(instructions as RecipeDraftInstruction[]).every((instruction) =>
+      instruction.actions.every((action) =>
+        action.ingredient_occurrence_ids.every((id) => occurrenceIds.has(id)),
+      ),
+    )
+  ) {
+    throw invalidResponse();
+  }
+  return {
+    id: value.id,
+    source_version_id: value.source_version_id as string | null,
+    status: "active",
+    revision: value.revision as number,
+    title: value.title,
+    description: value.description as string | null,
+    servings: value.servings as string | null,
+    ingredients: ingredients as RecipeDraftIngredient[],
+    instructions: instructions as RecipeDraftInstruction[],
+    created_at: value.created_at,
+    updated_at: value.updated_at,
+  };
+}
+
+function parseListItem(value: unknown): RecipeDraftListItem | null {
+  if (
+    !isRecord(value) ||
+    !isUuid(value.id) ||
+    (value.source_version_id !== null && !isUuid(value.source_version_id)) ||
+    value.status !== "active" ||
+    !Number.isInteger(value.revision) ||
+    (value.revision as number) < 1 ||
+    !boundedText(value.title, 200, true) ||
+    !Number.isInteger(value.ingredient_count) ||
+    !Number.isInteger(value.instruction_count) ||
+    (value.ingredient_count as number) < 0 ||
+    (value.instruction_count as number) < 0 ||
+    !isTimestamp(value.created_at) ||
+    !isTimestamp(value.updated_at)
+  ) {
+    return null;
+  }
+  return value as unknown as RecipeDraftListItem;
+}
+
+export function parseRecipeDraftPage(value: unknown): RecipeDraftPage {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.items) ||
+    !Number.isInteger(value.page) ||
+    !Number.isInteger(value.page_size) ||
+    !Number.isInteger(value.total) ||
+    !Number.isInteger(value.total_pages)
+  ) {
+    throw invalidResponse();
+  }
+  const items = value.items.map(parseListItem);
+  if (
+    items.some((item) => item === null) ||
+    (value.page as number) < 1 ||
+    (value.page_size as number) < 1 ||
+    (value.page_size as number) > 100 ||
+    (value.total as number) < 0 ||
+    (value.total_pages as number) < 0
+  ) {
+    throw invalidResponse();
+  }
+  return {
+    items: items as RecipeDraftListItem[],
+    page: value.page as number,
+    page_size: value.page_size as number,
+    total: value.total as number,
+    total_pages: value.total_pages as number,
+  };
+}
+
+function parseIssues(value: unknown): ApiValidationIssue[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((issue) =>
+    isRecord(issue) &&
+    Array.isArray(issue.location) &&
+    issue.location.every((part) => typeof part === "string" || typeof part === "number") &&
+    typeof issue.message === "string" &&
+    typeof issue.type === "string"
+      ? [{ location: issue.location as Array<string | number>, message: issue.message, type: issue.type }]
+      : [],
+  );
+}
+
+async function apiError(response: Response): Promise<RecipeDraftApiError> {
+  let message = "Recipe Lab could not complete the private draft request.";
+  let code = "recipe_draft_api_error";
+  let issues: ApiValidationIssue[] = [];
+  try {
+    const payload: unknown = await response.json();
+    if (isRecord(payload) && isRecord((payload as ApiErrorPayload).error)) {
+      const error = (payload as ApiErrorPayload).error!;
+      if (typeof error.message === "string") message = error.message;
+      if (typeof error.code === "string") code = error.code;
+      issues = parseIssues(error.issues);
+    }
+  } catch {
+    // Keep the stable private-draft fallback.
+  }
+  return new RecipeDraftApiError(message, response.status, code, issues);
+}
+
+async function draftFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const response = await fetch(path, {
+    ...init,
+    cache: "no-store",
+    credentials: "same-origin",
+    headers: { Accept: "application/json", ...init.headers },
+  });
+  if (!response.ok) {
+    if (response.status === 401) notifySessionExpired();
+    throw await apiError(response);
+  }
+  return response;
+}
+
+function mutationHeaders(idempotencyKey: string): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "Idempotency-Key": idempotencyKey,
+    ...memberMutationHeaders(),
+  };
+}
+
+export async function createRecipeDraft(
+  sourceVersionId: string | null,
+): Promise<RecipeDraftDetail> {
+  const response = await draftFetch("/api/recipe-drafts", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...memberMutationHeaders(),
+    },
+    body: JSON.stringify({ source_version_id: sourceVersionId }),
+  });
+  return parseRecipeDraftDetail(await response.json());
+}
+
+export async function browseRecipeDrafts({
+  page = 1,
+  pageSize = 20,
+  signal,
+}: { page?: number; pageSize?: number; signal?: AbortSignal } = {}): Promise<RecipeDraftPage> {
+  const query = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  const response = await draftFetch(`/api/recipe-drafts?${query.toString()}`, { signal });
+  return parseRecipeDraftPage(await response.json());
+}
+
+export async function fetchRecipeDraft(
+  draftId: string,
+  signal?: AbortSignal,
+): Promise<RecipeDraftDetail> {
+  const response = await draftFetch(`/api/recipe-drafts/${encodeURIComponent(draftId)}`, {
+    signal,
+  });
+  return parseRecipeDraftDetail(await response.json());
+}
+
+export async function updateRecipeDraft(
+  draftId: string,
+  payload: RecipeDraftUpdateRequest,
+  idempotencyKey: string,
+): Promise<RecipeDraftDetail> {
+  const response = await draftFetch(`/api/recipe-drafts/${encodeURIComponent(draftId)}`, {
+    method: "PUT",
+    headers: mutationHeaders(idempotencyKey),
+    body: JSON.stringify(payload),
+  });
+  return parseRecipeDraftDetail(await response.json());
+}
+
+export async function discardRecipeDraft(
+  draftId: string,
+  revision: number,
+  idempotencyKey: string,
+): Promise<void> {
+  const query = new URLSearchParams({ revision: String(revision) });
+  await draftFetch(
+    `/api/recipe-drafts/${encodeURIComponent(draftId)}?${query.toString()}`,
+    { method: "DELETE", headers: mutationHeaders(idempotencyKey) },
+  );
+}
