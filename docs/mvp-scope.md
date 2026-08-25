@@ -62,6 +62,15 @@ route is removed. RCP-23 and RCP-24 add no original recipe publishing, public
 cook profile, password database, social linking, or deployment gate. See
 [account authentication and sessions](authentication.md).
 
+RCP-26 adds private persistent original and fork drafts after the account and
+curated-authoring foundations. Draft ownership comes only from the active
+member session; revisions reject stale saves, unresolved ingredient requests
+remain outside canonical selections, and discard removes the aggregate from
+the live database. Drafts are absent from public reads, recommendations,
+events, and evaluation exports. Original and fork publication remain RCP-27
+and RCP-28 responsibilities. See
+[private recipe drafts](private-recipe-drafts.md).
+
 ## Post-MVP signal baseline
 
 RCP-15 adds a read-only, explainable recommendation API after the M1 boundary.

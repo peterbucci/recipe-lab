@@ -42,9 +42,12 @@ stable ID, canonical name, and reviewed-alias contract as catalog search. That
 nested catalog object is the trusted value an editor may select. The original
 `proposed_name` remains untrusted even after review. Pending and rejected
 responses have no resolved ingredient, so their text can never silently become
-a recipe ingredient. A lookup or request failure leaves the in-browser recipe
-editor unchanged. Cross-session private draft persistence remains a separate
-feature.
+a recipe ingredient. A lookup or request failure leaves the recipe editor
+unchanged. Private drafts retain an owner-scoped request reference outside
+their catalog-backed ingredient selections. A later approval or duplicate
+decision does not change that draft until the author explicitly selects the
+trusted resolution, and that revision preserves every unrelated field. See
+[private recipe drafts](private-recipe-drafts.md).
 
 Requests move once from `pending` to one of these terminal states:
 

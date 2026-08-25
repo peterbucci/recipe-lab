@@ -13,13 +13,12 @@ Catalog search and pagination live in the URL, so standard links and a GET form
 work without shipping client-side state. Recipe reads use `no-store` because
 catalog membership, lineage children, and rating aggregates may change even
 though a single recipe-version snapshot is immutable. Client code is reserved
-for retrying error boundaries, a narrow save/rating panel, the structured
-variant editor, and an invisible detail-view tracker. Server components read
-through `RECIPE_API_URL`; client actions write directly to FastAPI through
-the same-origin Next.js `/api` proxy, which forwards to `RECIPE_API_URL`.
-Rating writes refresh the server-rendered aggregate after success. Local CORS
-configuration permits the exact `localhost` and `127.0.0.1` development
-origins.
+for retrying error boundaries, member actions, the private structured-draft
+workspace, and an invisible detail-view tracker. Server components read through
+`RECIPE_API_URL`; client actions write directly to FastAPI through the
+same-origin Next.js `/api` proxy, which forwards to `RECIPE_API_URL`. Rating
+writes refresh the server-rendered aggregate after success. Local CORS
+configuration permits the exact `localhost` and `127.0.0.1` development origins.
 
 Each event-producing browser action generates an opaque UUID and retains it
 while retrying the same desired save state, rating value, or validated fork
@@ -28,22 +27,19 @@ once after a detail component mounts and renders no UI; failures never hide the
 recipe. This makes browser navigation the view boundary instead of counting
 server rendering, prefetching, or unrelated recipe reads.
 
-The dedicated `/recipes/{recipeVersionId}/fork` server route loads the immutable
-source snapshot and passes it to a controlled client form. The editor keeps raw
-entered values in local state, validates them without resetting the draft, and
-derives atomic `set_measure`, replacement, addition, removal, and instruction
-operations only at submission. A `set_measure` contains the complete exact,
-range, or qualitative amount; the client never emits independent quantity and
-unit patches. API validation errors leave draft values in place. A `201
-Created` response supplies the child identifier, which the router uses to
-replace the editor route with the new recipe detail page. The source snapshot
-remains unchanged, while the API retains control of lineage, version number,
-display order, and member attribution.
+The dedicated `/recipes/{recipeVersionId}/fork` server route verifies the public
+source and presents an explicit private-draft starter. Its POST asks the backend
+to copy that exact immutable snapshot, then routes to
+`/account/recipe-drafts/{draftId}`. The unified editor keeps raw entered values
+in local state, validates them without resetting the form, and saves one full
+ordered snapshot under an optimistic revision. API validation and revision
+errors leave browser values in place. Saving never creates a public version,
+lineage, fingerprint, or event; RCP-27 and RCP-28 own publication.
 
 Recipe detail pages render the available parent, current version, and direct
 children as an accessible semantic list. This intentionally communicates one
-generation at a time; a full graph, ingredient and instruction row reordering,
-autosave, and ML-assisted editing are outside the current workflow.
+generation at a time; a full lineage graph, autosave, and ML-assisted editing
+are outside the current workflow.
 
 Variants expose a dedicated `/recipes/{recipeVersionId}/compare` server route.
 It requests the API's direct-parent diff and passes that response to a pure
@@ -284,6 +280,30 @@ duplicate review is not a recommendation signal. RCP-27 and RCP-28 must
 recompute and validate the result digest inside their publication transactions.
 See [recipe duplicate-candidate preflight](duplicate-detection.md).
 
+Private recipe authoring uses a separate `recipe_drafts` aggregate rather than
+a status on `recipe_versions`. Draft children store ordered ingredient slots,
+instructions, actions, inputs, and measures with same-draft composite foreign
+keys. A catalog ingredient slot has a curated identity and typed measure; an
+unresolved slot instead has an owner-scoped ingredient-request reference and no
+canonical identity. This permits incomplete private work without weakening any
+published-snapshot constraint.
+
+Draft reads are scoped by both stable ID and the session-selected active member;
+another member and a nonexistent draft both return `404`. Full saves and
+discards require the expected optimistic revision. A successful save replaces
+the aggregate atomically and increments its revision once, while a stale write
+returns `409` without merging or partially persisting fields. Discard hard
+deletes the aggregate and its children from the live database; there is no
+product trash or restore surface.
+
+Because drafts never occupy `recipe_versions`, they are absent by construction
+from public browse, detail, lineage, diff, profile, fingerprint, duplicate,
+interaction, recommendation, and evaluation-export queries. Draft lifecycle
+operations create no preference event. RCP-27 owns atomic source-less original
+publication and duplicate review; RCP-28 owns source visibility revalidation,
+lineage allocation, and the single fork event. See
+[private recipe drafts](private-recipe-drafts.md).
+
 The lineage-wide version number is allocated while holding a row lock on the
 lineage itself. Locking only the selected parent would not serialize siblings
 created concurrently from different branches. The existing unique constraint
@@ -456,6 +476,7 @@ and limitations.
 ```text
 Server-rendered read: Browser -> Next.js ---------> FastAPI -> PostgreSQL
 Browser API action:   Browser -> Next.js /api ----> FastAPI -> PostgreSQL
+Private draft action: Browser -> Next.js /api ----> FastAPI -> draft tables
 Account login:        Browser -> Next.js /api ----> FastAPI <-> OIDC provider
                                                     |
                                                     +-------> PostgreSQL
@@ -479,7 +500,7 @@ recommendation reads.
 ## Early design decisions to record
 
 - Measurement-catalog evolution, unit deactivation, and storage-snapshot retention.
-- Original-recipe creation and content-update enforcement.
+- Original- and fork-draft publication plus immutable content enforcement.
 - Preference-event retention and migration from demo to authenticated users.
 - Recipe and metadata provenance.
 - Authenticated-profile and impression semantics for later evaluation data.

@@ -76,11 +76,10 @@ The repository currently provides:
 - a responsive Next.js landing page, searchable recipe catalog, and structured
   recipe detail pages with loading, empty, error, rating, and immediate
   parent/current/direct-child lineage states;
-- a dedicated `/recipes/{id}/fork` workflow with controlled structured edits
-  for recipe details, ingredients, and instructions; a keyboard-accessible
-  catalog picker submits stable ingredient IDs with reviewed display labels,
-  and validation failures keep the entered draft intact while a successful
-  `201 Created` response opens the new child version;
+- a dedicated `/recipes/{id}/fork` workflow that copies the exact immutable
+  source into a private draft; the unified editor supports reviewed ingredient,
+  quantity, unit, instruction, and action controls, preserves entered values
+  after errors, and keeps publishing separate from private saving;
 - a bounded canonical-and-alias ingredient lookup plus a separate member
   missing-item request queue, narrow curator authorization, transactional
   approval with provenance, and append-only catalog audit evidence;
@@ -143,18 +142,22 @@ The repository currently provides:
   reviewed safe conversions, preserve repeated occurrences and ordered action
   graphs, and confirm digest candidates against exact canonical JSON;
 - a public-only, advisory duplicate preflight with versioned explainable
-  similarity, direct-parent no-change warnings, immutable acknowledgements, and
-  an explicit continue-or-revise review step in the variant editor;
+  similarity, direct-parent no-change warnings, and immutable acknowledgements,
+  ready for the RCP-27/RCP-28 publication workflows;
+- private persistent original and fork drafts with session-owned authorship,
+  optimistic revisions, catalog-backed structured content, separate unresolved
+  ingredient-request state, and immediate irreversible discard;
 - Alembic migrations and database-level lineage, ordering, rating, event
   privacy, and uniqueness constraints;
 - PostgreSQL and local development services through Docker Compose.
 
 The repository also includes a deterministic demo catalog with 25 recipe
 lineages, useful variants, ingredient aliases, and directed substitutions.
-Original-recipe creation remains a separate milestone. The variant workflow
-deliberately omits arbitrary version comparison, graph visualization,
-ingredient and instruction row reordering, autosave, and ML so the core fork,
-compare, and navigate path stays focused on the MVP.
+Publishing an original or fork draft remains a separate milestone. Draft
+authoring deliberately creates no lineage, recipe version, fingerprint,
+preference event, or recommendation signal. The complete private boundary and
+RCP-27/RCP-28 handoff are documented in
+[private recipe drafts](docs/private-recipe-drafts.md).
 
 ## Quick start with Docker
 
@@ -185,6 +188,7 @@ Open:
 - Recipe browse API: <http://localhost:8000/api/recipes>
 - Baseline recommendation API: <http://localhost:8000/api/recommendations>
 - Duplicate preflight API: `POST /api/recipes/{id}/duplicate-preflights`
+- Private draft API: `POST` or `GET /api/recipe-drafts`
 - Account session status: <http://localhost:3000/api/auth/session>
 - Interactive API docs: <http://localhost:8000/docs>
 

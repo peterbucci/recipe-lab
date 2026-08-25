@@ -34,15 +34,19 @@ remains a no-op and is rejected.
 
 ## Draft and catalog boundaries
 
-The current application has no separate private draft model: every stored
-`RecipeVersion` is immediately a published snapshot. Free text may therefore
-exist only in browser state until it resolves to a catalog ingredient.
+Private authoring uses a separate draft aggregate; every stored
+`RecipeVersion` remains an immutable public snapshot. A draft catalog slot
+still references one real curated ingredient and verified canonical-or-alias
+label. An unresolved slot instead references one ingredient request belonging
+to that draft's author and contains no canonical ingredient ID.
 
 Catalog search, selection, and the separate missing-ingredient request/review
-workflow are documented in [catalog intake](catalog-intake.md). A pending,
-rejected, or duplicate request is not a catalog identity and cannot be
-published. Future private draft storage may preserve unresolved author text,
-but it must not weaken the published snapshot foreign key.
+workflow are documented in [catalog intake](catalog-intake.md). Pending or
+rejected request text is not a catalog identity. Approval or duplicate
+resolution exposes a trusted catalog choice, but the author must explicitly
+select it; status changes never rewrite the draft automatically. The storage,
+privacy, discard, and future publication boundary is documented in
+[private recipe drafts](private-recipe-drafts.md).
 
 Curated measurement units and typed amount semantics belong to RCP-25B.
 Human-readable instructions plus controlled step actions belong to RCP-25C.
