@@ -229,5 +229,7 @@ V1 provides exact structural candidates only. It does not:
 - delete or rewrite existing duplicates; or
 - make copyright, originality, authorship, or culinary-equivalence claims.
 
-Those policy and approximate-similarity decisions remain separate from the exact,
-collision-confirmed fingerprint contract.
+Those policy and approximate-similarity decisions remain separate from the
+exact, collision-confirmed fingerprint contract. The advisory, versioned
+consumer of this identity is documented in
+[recipe duplicate-candidate preflight](duplicate-detection.md).

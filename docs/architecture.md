@@ -256,6 +256,34 @@ bounded UUID order without updating recipe content; incomplete legacy versions
 receive no row. New forks and seeded snapshots write their fingerprint in the
 same transaction as the immutable version.
 
+RCP-25E consumes those fingerprints through a separate public-only advisory
+preflight. A source-optional structural core accepts a completed fingerprint;
+the current fork adapter first prepares and validates a proposed child in memory
+without taking a long-lived lineage lock, while RCP-27 can later pass a
+source-less original draft. No temporary recipe row is inserted. Fork
+persistence takes the lineage lock later and verifies that the stored
+fingerprint is byte-identical to the prepared fingerprint before the
+transaction can commit. `recipe-duplicate-preflight-policy-v1` pins candidate
+selection, public visibility, ordering, work limits, direct-parent semantics,
+and the exact `duplicate-candidate-similarity-v1` scorer parameters. Exact
+digest candidates are confirmed against canonical JSON, while non-exact public
+candidates are scored from curated ingredient multisets, one-scale normalized
+quantities, and ordered structured actions. The response is capped at five
+candidates and three fixed reasons per candidate. Current browse, detail,
+replay, decision, and candidate reads share an explicit public-read predicate
+so future draft visibility cannot be filtered only after scoring.
+
+`recipe_duplicate_preflights`, `recipe_duplicate_candidates`, and
+`recipe_duplicate_decisions` retain only bounded versioned evidence and the
+author's acknowledged continue-or-revise choice. Database triggers reject
+mutation; composite foreign keys bind candidate policy/fingerprint versions and
+decision actor/policy/digest to their preflight; and bounded JSON checks enforce
+the explanation families. No prose or canonical payload is copied into the
+audit trail. These records are intentionally outside `preference_events`;
+duplicate review is not a recommendation signal. RCP-27 and RCP-28 must
+recompute and validate the result digest inside their publication transactions.
+See [recipe duplicate-candidate preflight](duplicate-detection.md).
+
 The lineage-wide version number is allocated while holding a row lock on the
 lineage itself. Locking only the selected parent would not serialize siblings
 created concurrently from different branches. The existing unique constraint

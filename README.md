@@ -142,6 +142,9 @@ The repository currently provides:
 - versioned, deterministic structural recipe fingerprints that normalize only
   reviewed safe conversions, preserve repeated occurrences and ordered action
   graphs, and confirm digest candidates against exact canonical JSON;
+- a public-only, advisory duplicate preflight with versioned explainable
+  similarity, direct-parent no-change warnings, immutable acknowledgements, and
+  an explicit continue-or-revise review step in the variant editor;
 - Alembic migrations and database-level lineage, ordering, rating, event
   privacy, and uniqueness constraints;
 - PostgreSQL and local development services through Docker Compose.
@@ -181,6 +184,7 @@ Open:
 - API health check: <http://localhost:8000/api/health>
 - Recipe browse API: <http://localhost:8000/api/recipes>
 - Baseline recommendation API: <http://localhost:8000/api/recommendations>
+- Duplicate preflight API: `POST /api/recipes/{id}/duplicate-preflights`
 - Account session status: <http://localhost:3000/api/auth/session>
 - Interactive API docs: <http://localhost:8000/docs>
 

@@ -11,6 +11,11 @@ from pathlib import Path
 from sqlalchemy.exc import SQLAlchemyError
 
 from .dataset import SnapshotValidationError, load_snapshot, snapshot_to_json
+from .duplicate_dataset import DuplicateBenchmarkError, load_duplicate_benchmark
+from .duplicate_evaluation import (
+    duplicate_evaluation_report_to_json,
+    evaluate_duplicate_candidates,
+)
 from .models import CollaborativeV1Model, ContentBasedV1Model, HybridV1Model
 from .protocol import EvaluationModel
 from .readiness import assess_readiness, readiness_report_to_json
@@ -88,8 +93,8 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="recipe-lab-eval",
         description=(
-            "Build snapshots and run deterministic offline recommendation or substitution "
-            "evaluation."
+            "Build snapshots and run deterministic offline recommendation, substitution, "
+            "or duplicate-candidate evaluation."
         ),
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -188,6 +193,22 @@ def _parser() -> argparse.ArgumentParser:
         help="write the aggregate report here instead of stdout",
     )
     substitution_run.add_argument(
+        "--strict",
+        action="store_true",
+        help="return a nonzero status unless engineering validation passes",
+    )
+
+    duplicate_run = subparsers.add_parser(
+        "duplicate-run",
+        help="evaluate deterministic explainable duplicate-candidate scoring",
+    )
+    duplicate_run.add_argument("--benchmark", required=True, type=Path)
+    duplicate_run.add_argument(
+        "--output",
+        type=Path,
+        help="write the aggregate report here instead of stdout",
+    )
+    duplicate_run.add_argument(
         "--strict",
         action="store_true",
         help="return a nonzero status unless engineering validation passes",
@@ -397,6 +418,39 @@ def _substitution_run_command(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _duplicate_run_command(arguments: argparse.Namespace) -> int:
+    if arguments.output is not None and _same_path(arguments.benchmark, arguments.output):
+        print(
+            "error: duplicate evaluation report must not overwrite the benchmark",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        benchmark = load_duplicate_benchmark(arguments.benchmark)
+        report = evaluate_duplicate_candidates(benchmark)
+        report_json = duplicate_evaluation_report_to_json(report)
+        if arguments.output is None:
+            _write_stdout(report_json)
+        else:
+            _atomic_write(arguments.output, report_json)
+    except DuplicateBenchmarkError as error:
+        print(f"error: invalid duplicate benchmark: {error}", file=sys.stderr)
+        return 2
+    except ValueError:
+        print("error: duplicate evaluation configuration is invalid", file=sys.stderr)
+        return 2
+    except OSError:
+        print(
+            "error: could not read the duplicate benchmark or write the report",
+            file=sys.stderr,
+        )
+        return 1
+
+    if arguments.strict and report.status != "engineering_validated":
+        return STRICT_INSUFFICIENT_DATA_EXIT_CODE
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the command-line interface and return a process exit code."""
 
@@ -411,4 +465,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_command(arguments)
     if arguments.command == "substitution-run":
         return _substitution_run_command(arguments)
+    if arguments.command == "duplicate-run":
+        return _duplicate_run_command(arguments)
     raise AssertionError(f"unhandled command: {arguments.command}")

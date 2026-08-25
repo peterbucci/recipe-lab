@@ -8,6 +8,7 @@ import {
 } from "@playwright/test";
 
 import {
+  continueRecipeDuplicateReviewIfRequired,
   type MemberName,
   useAcceptanceMember as applyAcceptanceMember,
 } from "./acceptance-session";
@@ -707,7 +708,16 @@ test.describe("member ingredient-request acceptance", () => {
       (response) =>
         response.request().method() === "POST" && response.url().endsWith("/variants"),
     );
+    const duplicatePreflightResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/duplicate-preflights"),
+    );
     await page.getByRole("button", { name: "Create my version", exact: true }).click();
+    await continueRecipeDuplicateReviewIfRequired(
+      page,
+      await duplicatePreflightResponse,
+    );
     const payload = (await variantRequest).postDataJSON() as {
       description: string | null;
       ingredient_edits: Array<Record<string, unknown>>;

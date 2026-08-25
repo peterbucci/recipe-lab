@@ -3,9 +3,11 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, raiseload, selectinload
+from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
 from app.models import (
+    CookingActionType,
+    MeasurementConversionRule,
     MeasurementUnit,
     RecipeIngredient,
     RecipeInstruction,
@@ -48,10 +50,47 @@ from app.services.measurements import MeasurementError, validate_measure_input
 from app.services.recipe_fingerprint_persistence import (
     fingerprint_and_store_recipe_version,
 )
+from app.services.recipe_fingerprints import (
+    CanonicalUnit,
+    RecipeStructure,
+    ReviewedAffineConversion,
+    StructuralAction,
+    StructuralFingerprint,
+    StructuralIngredient,
+    StructuralInstruction,
+    StructuralMeasure,
+    build_structural_fingerprint,
+)
 
 
 class InvalidRecipeEditsError(ValueError):
     """Raised when structurally valid edits cannot be applied to the source snapshot."""
+
+
+class PreparedRecipeFingerprintMismatchError(RuntimeError):
+    """Raised when persisted rows differ from the structure validated during preparation."""
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedRecipeFork:
+    """Validated fork content that can be inspected before it is persisted.
+
+    A prepared fork is valid only inside the transaction in which it was created.
+    Preparation reads the immutable source without taking its lineage write lock
+    and does not insert a child recipe or dependent rows. Persistence takes the
+    lineage lock before allocating a version number. The public ``structure`` and
+    ``structural_fingerprint`` fields are safe inputs to publication preflight services.
+    """
+
+    source_version_id: UUID
+    lineage_id: UUID
+    title: str
+    description: str | None
+    servings: Decimal
+    structure: RecipeStructure
+    structural_fingerprint: StructuralFingerprint
+    _ingredient_drafts: tuple["_IngredientDraft", ...]
+    _instruction_drafts: tuple["_InstructionDraft", ...]
 
 
 @dataclass(slots=True)
@@ -171,22 +210,10 @@ def _set_draft_measure(
     ) = fields
 
 
-def _load_source_after_lineage_lock(
+def _load_source_for_preparation(
     session: Session,
     source_version_id: UUID,
 ) -> RecipeVersion | None:
-    lineage_id = session.scalar(
-        select(RecipeVersion.lineage_id).where(RecipeVersion.id == source_version_id)
-    )
-    if lineage_id is None:
-        return None
-
-    locked_lineage_id = session.scalar(
-        select(RecipeLineage.id).where(RecipeLineage.id == lineage_id).with_for_update()
-    )
-    if locked_lineage_id is None:
-        return None
-
     statement = (
         select(RecipeVersion)
         .options(
@@ -553,6 +580,181 @@ def _validate_action_references(
                     )
 
 
+def _canonical_unit(unit: MeasurementUnit) -> CanonicalUnit:
+    rule = unit.conversion_rule
+    conversion = None
+    if rule is not None:
+        conversion = ReviewedAffineConversion(
+            base_unit_key=rule.base_unit.key,
+            base_dimension=rule.base_unit.dimension,
+            base_conversion_family=rule.base_unit.conversion_family,
+            scale_numerator=rule.scale_numerator,
+            scale_denominator=rule.scale_denominator,
+            offset_numerator=rule.offset_numerator,
+            offset_denominator=rule.offset_denominator,
+            reviewed=True,
+            active=rule.active,
+        )
+    return CanonicalUnit(
+        key=unit.key,
+        dimension=unit.dimension,
+        conversion_family=unit.conversion_family,
+        conversion=conversion,
+    )
+
+
+def _load_structural_units(
+    session: Session,
+    unit_ids: set[UUID],
+) -> dict[UUID, CanonicalUnit]:
+    if not unit_ids:
+        return {}
+    statement = (
+        select(MeasurementUnit)
+        .options(
+            joinedload(MeasurementUnit.conversion_rule).joinedload(
+                MeasurementConversionRule.base_unit
+            )
+        )
+        .where(MeasurementUnit.id.in_(unit_ids))
+    )
+    units = {unit.id: _canonical_unit(unit) for unit in session.scalars(statement).unique()}
+    missing = unit_ids - units.keys()
+    if missing:
+        raise RuntimeError(f"Validated recipe structure references missing units: {missing}.")
+    return units
+
+
+def _load_structural_action_keys(
+    session: Session,
+    action_type_ids: set[UUID],
+) -> dict[UUID, str]:
+    if not action_type_ids:
+        return {}
+    rows = session.execute(
+        select(CookingActionType.id, CookingActionType.key).where(
+            CookingActionType.id.in_(action_type_ids)
+        )
+    )
+    keys = {action_type_id: key for action_type_id, key in rows}
+    missing = action_type_ids - keys.keys()
+    if missing:
+        raise RuntimeError(
+            f"Validated recipe structure references missing action types: {missing}."
+        )
+    return keys
+
+
+def _structural_measure(
+    *,
+    mode: str,
+    quantity_min: Decimal | None,
+    quantity_max: Decimal | None,
+    measurement_unit_id: UUID | None,
+    package_size_id: UUID | None,
+    units: dict[UUID, CanonicalUnit],
+) -> StructuralMeasure:
+    unit = units.get(measurement_unit_id) if measurement_unit_id is not None else None
+    return StructuralMeasure(
+        mode=mode,
+        quantity_min=quantity_min,
+        quantity_max=quantity_max,
+        unit=unit,
+        package_size_identity=(str(package_size_id) if package_size_id is not None else None),
+    )
+
+
+def _action_reference_key(
+    reference: IngredientOccurrenceReference,
+) -> tuple[str, UUID | str]:
+    if isinstance(reference, ExistingIngredientOccurrenceReference):
+        return ("existing", reference.recipe_ingredient_id)
+    if isinstance(reference, AddedIngredientOccurrenceReference):
+        return ("added", reference.ingredient_edit_ref)
+    raise AssertionError("Unsupported ingredient occurrence reference.")
+
+
+def _structural_action_measure(
+    measure: ValidatedActionMeasure | None,
+    units: dict[UUID, CanonicalUnit],
+) -> StructuralMeasure | None:
+    if measure is None:
+        return None
+    return _structural_measure(
+        mode=measure.measure_mode,
+        quantity_min=measure.quantity_min,
+        quantity_max=measure.quantity_max,
+        measurement_unit_id=measure.measurement_unit_id,
+        package_size_id=None,
+        units=units,
+    )
+
+
+def _build_prepared_structure(
+    session: Session,
+    ingredient_drafts: list[_IngredientDraft],
+    instruction_drafts: list[_InstructionDraft],
+) -> RecipeStructure:
+    unit_ids = {
+        draft.measurement_unit_id
+        for draft in ingredient_drafts
+        if draft.measurement_unit_id is not None
+    }
+    action_type_ids: set[UUID] = set()
+    for instruction in instruction_drafts:
+        for action in instruction.actions:
+            action_type_ids.add(action.action_type_id)
+            unit_ids.update(measure.measurement_unit_id for measure in action.measures)
+
+    units = _load_structural_units(session, unit_ids)
+    action_keys = _load_structural_action_keys(session, action_type_ids)
+    occurrence_keys: dict[tuple[str, UUID | str], str] = {}
+    structural_ingredients: list[StructuralIngredient] = []
+    for index, draft in enumerate(ingredient_drafts):
+        occurrence_key = f"prepared-ingredient:{index:04d}"
+        if draft.source_id is not None:
+            occurrence_keys[("existing", draft.source_id)] = occurrence_key
+        if draft.edit_ref is not None:
+            occurrence_keys[("added", draft.edit_ref)] = occurrence_key
+        structural_ingredients.append(
+            StructuralIngredient(
+                occurrence_key=occurrence_key,
+                ingredient_identity=str(draft.ingredient_id),
+                measure=_structural_measure(
+                    mode=draft.measure_mode,
+                    quantity_min=draft.quantity_min,
+                    quantity_max=draft.quantity_max,
+                    measurement_unit_id=draft.measurement_unit_id,
+                    package_size_id=draft.package_size_id,
+                    units=units,
+                ),
+            )
+        )
+
+    structural_instructions: list[StructuralInstruction] = []
+    for instruction in instruction_drafts:
+        structural_actions: list[StructuralAction] = []
+        for action in instruction.actions:
+            measures = {measure.semantic: measure for measure in action.measures}
+            structural_actions.append(
+                StructuralAction(
+                    action_type_key=action_keys[action.action_type_id],
+                    ingredient_occurrence_keys=tuple(
+                        occurrence_keys[_action_reference_key(reference)]
+                        for reference in action.ingredient_refs
+                    ),
+                    duration=_structural_action_measure(measures.get("duration"), units),
+                    temperature=_structural_action_measure(measures.get("temperature"), units),
+                )
+            )
+        structural_instructions.append(StructuralInstruction(actions=tuple(structural_actions)))
+
+    return RecipeStructure(
+        ingredients=tuple(structural_ingredients),
+        instructions=tuple(structural_instructions),
+    )
+
+
 def _persist_instructions(
     session: Session,
     *,
@@ -609,6 +811,109 @@ def _persist_instructions(
     session.flush()
 
 
+def prepare_recipe_fork(
+    session: Session,
+    *,
+    source_version_id: UUID,
+    payload: RecipeForkRequest,
+) -> PreparedRecipeFork | None:
+    """Validate and materialize fork structure without inserting a child snapshot."""
+
+    source = _load_source_for_preparation(session, source_version_id)
+    if source is None:
+        return None
+
+    ingredient_drafts = _apply_ingredient_edits(session, source, payload)
+    instruction_drafts = _apply_instruction_edits(session, source, payload)
+    _validate_action_references(ingredient_drafts, instruction_drafts)
+    structure = _build_prepared_structure(session, ingredient_drafts, instruction_drafts)
+    structural_fingerprint = build_structural_fingerprint(structure)
+    if structural_fingerprint is None:
+        raise RuntimeError(
+            "A validated complete recipe fork did not produce a structural fingerprint."
+        )
+
+    return PreparedRecipeFork(
+        source_version_id=source.id,
+        lineage_id=source.lineage_id,
+        title=payload.title,
+        description=payload.description,
+        servings=payload.servings,
+        structure=structure,
+        structural_fingerprint=structural_fingerprint,
+        _ingredient_drafts=tuple(ingredient_drafts),
+        _instruction_drafts=tuple(instruction_drafts),
+    )
+
+
+def persist_prepared_recipe_fork(
+    session: Session,
+    *,
+    prepared: PreparedRecipeFork,
+    author_user_id: UUID,
+) -> UUID:
+    """Lock the prepared lineage, revalidate its source, and persist the child."""
+
+    locked_lineage_id = session.scalar(
+        select(RecipeLineage.id).where(RecipeLineage.id == prepared.lineage_id).with_for_update()
+    )
+    if locked_lineage_id is None:
+        raise RuntimeError("Prepared recipe lineage is no longer available.")
+    source_lineage_id = session.scalar(
+        select(RecipeVersion.lineage_id).where(RecipeVersion.id == prepared.source_version_id)
+    )
+    if source_lineage_id != prepared.lineage_id:
+        raise RuntimeError("Prepared recipe source is no longer available in its lineage.")
+
+    highest_version = session.scalar(
+        select(func.max(RecipeVersion.version_number)).where(
+            RecipeVersion.lineage_id == prepared.lineage_id
+        )
+    )
+    next_version_number = (highest_version or 0) + 1
+
+    child = RecipeVersion(
+        lineage_id=prepared.lineage_id,
+        parent_version_id=prepared.source_version_id,
+        created_by_user_id=author_user_id,
+        version_number=next_version_number,
+        title=prepared.title,
+        description=prepared.description,
+        servings=prepared.servings,
+    )
+    session.add(child)
+    session.flush()
+
+    occurrence_ids = _persist_ingredients(
+        session,
+        child_id=child.id,
+        drafts=list(prepared._ingredient_drafts),
+    )
+    _persist_instructions(
+        session,
+        child_id=child.id,
+        drafts=list(prepared._instruction_drafts),
+        occurrence_ids=occurrence_ids,
+    )
+    fingerprint_result = fingerprint_and_store_recipe_version(session, child.id)
+    if fingerprint_result.state == "incomplete":
+        raise RuntimeError(
+            "A validated complete child recipe did not produce a structural fingerprint."
+        )
+    stored_fingerprint = fingerprint_result.fingerprint
+    expected_fingerprint = prepared.structural_fingerprint
+    if (
+        stored_fingerprint is None
+        or stored_fingerprint.algorithm_version != expected_fingerprint.algorithm_version
+        or stored_fingerprint.digest != expected_fingerprint.digest
+        or stored_fingerprint.canonical_payload != expected_fingerprint.canonical_json
+    ):
+        raise PreparedRecipeFingerprintMismatchError(
+            "Persisted recipe structure does not match its prepared structural fingerprint."
+        )
+    return child.id
+
+
 def fork_recipe_version(
     session: Session,
     *,
@@ -618,47 +923,15 @@ def fork_recipe_version(
 ) -> UUID | None:
     """Clone one snapshot and apply edits without committing the caller's transaction."""
 
-    source = _load_source_after_lineage_lock(session, source_version_id)
-    if source is None:
+    prepared = prepare_recipe_fork(
+        session,
+        source_version_id=source_version_id,
+        payload=payload,
+    )
+    if prepared is None:
         return None
-
-    ingredient_drafts = _apply_ingredient_edits(session, source, payload)
-    instruction_drafts = _apply_instruction_edits(session, source, payload)
-    _validate_action_references(ingredient_drafts, instruction_drafts)
-
-    highest_version = session.scalar(
-        select(func.max(RecipeVersion.version_number)).where(
-            RecipeVersion.lineage_id == source.lineage_id
-        )
-    )
-    next_version_number = (highest_version or 0) + 1
-
-    child = RecipeVersion(
-        lineage_id=source.lineage_id,
-        parent_version_id=source.id,
-        created_by_user_id=author_user_id,
-        version_number=next_version_number,
-        title=payload.title,
-        description=payload.description,
-        servings=payload.servings,
-    )
-    session.add(child)
-    session.flush()
-
-    occurrence_ids = _persist_ingredients(
+    return persist_prepared_recipe_fork(
         session,
-        child_id=child.id,
-        drafts=ingredient_drafts,
+        prepared=prepared,
+        author_user_id=author_user_id,
     )
-    _persist_instructions(
-        session,
-        child_id=child.id,
-        drafts=instruction_drafts,
-        occurrence_ids=occurrence_ids,
-    )
-    fingerprint_result = fingerprint_and_store_recipe_version(session, child.id)
-    if fingerprint_result.state == "incomplete":
-        raise RuntimeError(
-            "A validated complete child recipe did not produce a structural fingerprint."
-        )
-    return child.id

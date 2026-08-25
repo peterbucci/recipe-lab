@@ -312,6 +312,44 @@ still disable duplicate submission, but the server-side contract protects
 network retries. Automatic substitutions, unit conversion, edit-operation
 storage, and original-recipe creation remain outside this MVP endpoint.
 
+## Recipe duplicate preflight
+
+`POST /api/recipes/{recipe_version_id}/duplicate-preflights` accepts the same
+variant payload without inserting a child. It requires an onboarded member,
+Origin/CSRF evidence, and a UUID `Idempotency-Key`. The service builds the
+proposed `recipe-structure-v1` fingerprint and compares it only with publicly
+readable stored fingerprints. It returns `exact_duplicate`,
+`probable_duplicate`, or `distinct`, at most five public candidates, at most
+three fixed explanation reasons per candidate, and a stable acknowledgement.
+The endpoint is an adapter over a reusable structural core that accepts a
+completed fingerprint and an optional direct source, so RCP-27 can integrate a
+source-less original draft without copying the scoring or evidence policy.
+
+Exact candidates require both the digest and canonical payload to match.
+Probable candidates use the versioned deterministic ingredient, normalized
+quantity, and structured-action scorer. A proposed child that is structurally
+identical to its direct source also receives `same_lineage_no_change`. Titles,
+descriptions, instruction prose, display aliases, authors, and lineage metadata
+do not affect either classification.
+
+The separately versioned preflight policy pins the scorer parameters,
+public-only candidate selection and ordering, direct-parent warning semantics,
+and fixed work budgets: 500 public comparisons, 200 ingredient occurrences,
+500 actions, 2,000 flattened inputs, and 10,000,000 conservative aggregate
+non-exact work units. Budget overflow fails closed with one generic `503`
+response; the service never returns partial candidate evidence.
+
+`POST /api/recipe-duplicate-preflights/{preflight_id}/decision` records the
+actor's explicit `continue` or `revise` choice against the returned policy
+version and result digest. It does not create, publish, merge, or delete a
+recipe. Preflights, bounded candidate evidence, and decisions are append-only,
+actor-scoped, and idempotent; they are not recommendation events. Replays and
+decisions recheck public availability and return one generic stale conflict
+when prior evidence is no longer current. See
+[recipe duplicate-candidate preflight](../docs/duplicate-detection.md) for the
+formula, privacy boundary, future publication integration, and evaluation
+limitations.
+
 ## Migrations
 
 Before upgrading an existing database that still has legacy `quantity` and

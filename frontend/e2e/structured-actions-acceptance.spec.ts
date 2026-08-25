@@ -1,7 +1,10 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-import { useAcceptanceMember } from "./acceptance-session";
+import {
+  continueRecipeDuplicateReviewIfRequired,
+  useAcceptanceMember,
+} from "./acceptance-session";
 
 const recipePathPattern = /^\/recipes\/([^/]+)$/;
 
@@ -151,7 +154,16 @@ test.describe("structured cooking action acceptance", () => {
           `/api/recipes/${encodeURIComponent(sourceRecipeVersionId)}/variants`,
         ),
     );
+    const duplicatePreflightResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/duplicate-preflights"),
+    );
     await page.getByRole("button", { name: "Create my version", exact: true }).click();
+    await continueRecipeDuplicateReviewIfRequired(
+      page,
+      await duplicatePreflightResponse,
+    );
 
     const submitted = (await createRequest).postDataJSON() as {
       instruction_edits: Array<Record<string, unknown>>;

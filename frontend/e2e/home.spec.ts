@@ -305,6 +305,26 @@ test("selects a stable catalog ingredient with the keyboard on a phone", async (
       }),
     });
   });
+  await page.route("**/api/recipes/*/duplicate-preflights", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({
+        classification: "distinct",
+        same_lineage_no_change: false,
+        candidates: [],
+        warnings: [],
+        acknowledgement: {
+          preflight_id: "99999999-9999-4999-8999-999999999998",
+          policy_version: "recipe-duplicate-preflight-policy-v1",
+          result_digest: "a".repeat(64),
+          required: false,
+          allowed_decisions: [],
+        },
+      }),
+    });
+  });
 
   const recipeVersionId = await openCarrotRoot(page);
   await page.goto(`/recipes/${recipeVersionId}/fork`);

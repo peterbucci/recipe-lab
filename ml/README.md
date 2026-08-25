@@ -6,10 +6,11 @@ This Python package fits and evaluates Recipe Lab's deterministic offline
 a versioned synthetic cohort, a structural readiness gate, and a conservative
 hybrid-adoption scorecard. The package separately evaluates the deterministic
 `substitution-rules-v1` engine against a versioned direct-edge benchmark before
-any learned substitution ranking is attempted. It is deliberately separate
-from the FastAPI request path, persists no serving model, and has no serving
-responsibility. Canonical reports carry aggregate evaluation and provenance
-only.
+any learned substitution ranking is attempted. It also evaluates the production,
+explainable duplicate-candidate scorer without training a classifier. The package
+is deliberately separate from the FastAPI request path, persists no serving model,
+and has no serving responsibility. Canonical reports carry aggregate evaluation
+and provenance only.
 
 ## Install
 
@@ -158,6 +159,45 @@ validated report exits zero. See the
 [offline substitution rules engine](../docs/substitution-engine.md) for hard
 constraints, exact ordering, output explanations, caution text, metrics, and
 scope.
+
+## Run the duplicate-candidate benchmark
+
+Evaluate the production structural scorer against the committed labeled pair
+fixture without a database:
+
+```powershell
+recipe-lab-eval duplicate-run `
+  --benchmark tests/fixtures/duplicate_candidates_v1.json `
+  --output reports/duplicate-candidates-v1.json `
+  --strict
+```
+
+The `recipe-lab-duplicate-evaluation-fixture-v1` contract keeps synthetic
+instruction prose and authored ingredient source labels outside each recipe's
+fingerprint structure. Its paraphrase case uses two different recipe records with
+genuinely different instructions but identical curated structure. Its alias case
+uses different source labels that map to the same canonical ingredient identities.
+Category-specific validation rejects label-only coverage: the unit, reorder,
+proportional quantity, action-type, action-order, duration, temperature, and
+adversarial cases must each contain their claimed source perturbation. Every case
+also declares its expected scorer-component relations and ordered reason codes,
+which are checked against fingerprints and results produced by the production
+builder and scorer. Prose, source labels, and recipe, user, or profile identifiers
+are absent from the aggregate report.
+
+The byte-deterministic `recipe-lab-duplicate-evaluation-report-v1` records the
+production algorithm version, parameter SHA-256, capacity/work budget, threshold,
+feature weights,
+three-class confusion matrix, positive-class precision and recall (where exact
+and probable are positive), accuracy,
+category, component-expectation, and explanation coverage, plus aggregate
+classification, component, explanation, false-positive, and false-negative error
+categories. Its fixed
+limitations make clear that `engineering_validated` is small synthetic contract
+evidence only. Duplicate suggestions remain advisory: the report does not authorize
+blocking publication, merging or deleting recipes, plagiarism claims, or a learned
+classifier. `--strict` writes the report and exits 3 unless engineering validation
+passes.
 
 ## Capture an evaluation snapshot
 

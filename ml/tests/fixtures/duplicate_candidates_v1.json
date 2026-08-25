@@ -1,0 +1,361 @@
+{
+  "schema_version": "recipe-lab-duplicate-evaluation-fixture-v1",
+  "benchmark_id": "duplicate-candidates-synthetic-v1",
+  "structure_version": "recipe-structure-v1",
+  "scoring_algorithm_version": "duplicate-candidate-similarity-v1",
+  "recipes": [
+    {
+      "id": "base",
+      "ingredient_source_labels": ["Flour", "Water", "Salt", "Yeast", "Oil", "Sugar"],
+      "instruction_prose": ["Combine the ingredients until smooth, then bake the mixture until set."],
+      "structure": {
+        "ingredients": [
+          {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "water", "canonical_ingredient": "ingredient:water", "measure": {"mode": "exact", "value": "80", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "salt", "canonical_ingredient": "ingredient:salt", "measure": {"mode": "exact", "value": "2", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "yeast", "canonical_ingredient": "ingredient:yeast", "measure": {"mode": "exact", "value": "1", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "oil", "canonical_ingredient": "ingredient:oil", "measure": {"mode": "exact", "value": "10", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "sugar", "canonical_ingredient": "ingredient:sugar", "measure": {"mode": "exact", "value": "5", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+        ],
+        "instructions": [
+          {"actions": [
+            {"action": "mix", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "2", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": null},
+            {"action": "bake", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "25", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": {"mode": "exact", "value": "220", "unit": {"key": "celsius", "dimension": "temperature", "family": "metric-temperature", "base_key": "celsius", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+          ]}
+        ]
+      }
+    },
+    {
+      "id": "paraphrased-prose",
+      "ingredient_source_labels": ["Flour", "Water", "Salt", "Yeast", "Oil", "Sugar"],
+      "instruction_prose": ["Stir everything into a smooth mixture; cook it in the oven until firm."],
+      "structure": {
+        "ingredients": [
+          {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "water", "canonical_ingredient": "ingredient:water", "measure": {"mode": "exact", "value": "80", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "salt", "canonical_ingredient": "ingredient:salt", "measure": {"mode": "exact", "value": "2", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "yeast", "canonical_ingredient": "ingredient:yeast", "measure": {"mode": "exact", "value": "1", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "oil", "canonical_ingredient": "ingredient:oil", "measure": {"mode": "exact", "value": "10", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "sugar", "canonical_ingredient": "ingredient:sugar", "measure": {"mode": "exact", "value": "5", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+        ],
+        "instructions": [
+          {"actions": [
+            {"action": "mix", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "2", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": null},
+            {"action": "bake", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "25", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": {"mode": "exact", "value": "220", "unit": {"key": "celsius", "dimension": "temperature", "family": "metric-temperature", "base_key": "celsius", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+          ]}
+        ]
+      }
+    },
+    {
+      "id": "unit-equivalent",
+      "ingredient_source_labels": ["Flour", "Water", "Salt", "Yeast", "Oil", "Sugar"],
+      "instruction_prose": ["Combine the ingredients until smooth, then bake the mixture until set."],
+      "structure": {
+        "ingredients": [
+          {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "0.12", "unit": {"key": "kg", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1000, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "water", "canonical_ingredient": "ingredient:water", "measure": {"mode": "exact", "value": "80", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "salt", "canonical_ingredient": "ingredient:salt", "measure": {"mode": "exact", "value": "2", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "yeast", "canonical_ingredient": "ingredient:yeast", "measure": {"mode": "exact", "value": "1", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "oil", "canonical_ingredient": "ingredient:oil", "measure": {"mode": "exact", "value": "10", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "sugar", "canonical_ingredient": "ingredient:sugar", "measure": {"mode": "exact", "value": "5", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+        ],
+        "instructions": [
+          {"actions": [
+            {"action": "mix", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "2", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": null},
+            {"action": "bake", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "25", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": {"mode": "exact", "value": "220", "unit": {"key": "celsius", "dimension": "temperature", "family": "metric-temperature", "base_key": "celsius", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+          ]}
+        ]
+      }
+    },
+    {
+      "id": "alias-equivalent",
+      "ingredient_source_labels": ["All-purpose flour", "Spring water", "Sea salt", "Dry yeast", "Olive oil", "White sugar"],
+      "instruction_prose": ["Combine the ingredients until smooth, then bake the mixture until set."],
+      "structure": {
+        "ingredients": [
+          {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "water", "canonical_ingredient": "ingredient:water", "measure": {"mode": "exact", "value": "80", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "salt", "canonical_ingredient": "ingredient:salt", "measure": {"mode": "exact", "value": "2", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "yeast", "canonical_ingredient": "ingredient:yeast", "measure": {"mode": "exact", "value": "1", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "oil", "canonical_ingredient": "ingredient:oil", "measure": {"mode": "exact", "value": "10", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "sugar", "canonical_ingredient": "ingredient:sugar", "measure": {"mode": "exact", "value": "5", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+        ],
+        "instructions": [
+          {"actions": [
+            {"action": "mix", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "2", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": null},
+            {"action": "bake", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "25", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": {"mode": "exact", "value": "220", "unit": {"key": "celsius", "dimension": "temperature", "family": "metric-temperature", "base_key": "celsius", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+          ]}
+        ]
+      }
+    },
+    {
+      "id": "ingredient-reordered",
+      "ingredient_source_labels": ["Sugar", "Oil", "Yeast", "Salt", "Water", "Flour"],
+      "instruction_prose": ["Combine the ingredients until smooth, then bake the mixture until set."],
+      "structure": {
+        "ingredients": [
+          {"occurrence": "sugar", "canonical_ingredient": "ingredient:sugar", "measure": {"mode": "exact", "value": "5", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "oil", "canonical_ingredient": "ingredient:oil", "measure": {"mode": "exact", "value": "10", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "yeast", "canonical_ingredient": "ingredient:yeast", "measure": {"mode": "exact", "value": "1", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "salt", "canonical_ingredient": "ingredient:salt", "measure": {"mode": "exact", "value": "2", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "water", "canonical_ingredient": "ingredient:water", "measure": {"mode": "exact", "value": "80", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+        ],
+        "instructions": [
+          {"actions": [
+            {"action": "mix", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "2", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": null},
+            {"action": "bake", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "25", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": {"mode": "exact", "value": "220", "unit": {"key": "celsius", "dimension": "temperature", "family": "metric-temperature", "base_key": "celsius", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+          ]}
+        ]
+      }
+    },
+    {
+      "id": "scaled",
+      "ingredient_source_labels": ["Flour", "Water", "Salt", "Yeast", "Oil", "Sugar"],
+      "instruction_prose": ["Combine the ingredients until smooth, then bake the mixture until set."],
+      "structure": {
+        "ingredients": [
+          {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "240", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "water", "canonical_ingredient": "ingredient:water", "measure": {"mode": "exact", "value": "160", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "salt", "canonical_ingredient": "ingredient:salt", "measure": {"mode": "exact", "value": "4", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "yeast", "canonical_ingredient": "ingredient:yeast", "measure": {"mode": "exact", "value": "2", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "oil", "canonical_ingredient": "ingredient:oil", "measure": {"mode": "exact", "value": "20", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "sugar", "canonical_ingredient": "ingredient:sugar", "measure": {"mode": "exact", "value": "10", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+        ],
+        "instructions": [
+          {"actions": [
+            {"action": "mix", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "2", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": null},
+            {"action": "bake", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "25", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": {"mode": "exact", "value": "220", "unit": {"key": "celsius", "dimension": "temperature", "family": "metric-temperature", "base_key": "celsius", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+          ]}
+        ]
+      }
+    },
+    {
+      "id": "quantity-changed",
+      "ingredient_source_labels": ["Flour", "Water", "Salt", "Yeast", "Oil", "Sugar"],
+      "instruction_prose": ["Combine the ingredients until smooth, then bake the mixture until set."],
+      "structure": {
+        "ingredients": [
+          {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "121", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "water", "canonical_ingredient": "ingredient:water", "measure": {"mode": "exact", "value": "83", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "salt", "canonical_ingredient": "ingredient:salt", "measure": {"mode": "exact", "value": "4", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "yeast", "canonical_ingredient": "ingredient:yeast", "measure": {"mode": "exact", "value": "0.5", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "oil", "canonical_ingredient": "ingredient:oil", "measure": {"mode": "exact", "value": "11", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "sugar", "canonical_ingredient": "ingredient:sugar", "measure": {"mode": "exact", "value": "7", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+        ],
+        "instructions": [
+          {"actions": [
+            {"action": "mix", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "2", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": null},
+            {"action": "bake", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "25", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": {"mode": "exact", "value": "220", "unit": {"key": "celsius", "dimension": "temperature", "family": "metric-temperature", "base_key": "celsius", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+          ]}
+        ]
+      }
+    },
+    {
+      "id": "action-changed",
+      "ingredient_source_labels": ["Flour", "Water", "Salt", "Yeast", "Oil", "Sugar"],
+      "instruction_prose": ["Whisk the ingredients together, then bake the mixture until set."],
+      "structure": {
+        "ingredients": [
+          {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "water", "canonical_ingredient": "ingredient:water", "measure": {"mode": "exact", "value": "80", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "salt", "canonical_ingredient": "ingredient:salt", "measure": {"mode": "exact", "value": "2", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "yeast", "canonical_ingredient": "ingredient:yeast", "measure": {"mode": "exact", "value": "1", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "oil", "canonical_ingredient": "ingredient:oil", "measure": {"mode": "exact", "value": "10", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "sugar", "canonical_ingredient": "ingredient:sugar", "measure": {"mode": "exact", "value": "5", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+        ],
+        "instructions": [
+          {"actions": [
+            {"action": "whisk", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "2", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": null},
+            {"action": "bake", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "25", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": {"mode": "exact", "value": "220", "unit": {"key": "celsius", "dimension": "temperature", "family": "metric-temperature", "base_key": "celsius", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+          ]}
+        ]
+      }
+    },
+    {
+      "id": "action-reordered",
+      "ingredient_source_labels": ["Flour", "Water", "Salt", "Yeast", "Oil", "Sugar"],
+      "instruction_prose": ["Bake the combined ingredients, then mix them thoroughly."],
+      "structure": {
+        "ingredients": [
+          {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "water", "canonical_ingredient": "ingredient:water", "measure": {"mode": "exact", "value": "80", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "salt", "canonical_ingredient": "ingredient:salt", "measure": {"mode": "exact", "value": "2", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "yeast", "canonical_ingredient": "ingredient:yeast", "measure": {"mode": "exact", "value": "1", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "oil", "canonical_ingredient": "ingredient:oil", "measure": {"mode": "exact", "value": "10", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "sugar", "canonical_ingredient": "ingredient:sugar", "measure": {"mode": "exact", "value": "5", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+        ],
+        "instructions": [
+          {"actions": [
+            {"action": "bake", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "25", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": {"mode": "exact", "value": "220", "unit": {"key": "celsius", "dimension": "temperature", "family": "metric-temperature", "base_key": "celsius", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+            {"action": "mix", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "2", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": null}
+          ]}
+        ]
+      }
+    },
+    {
+      "id": "duration-changed",
+      "ingredient_source_labels": ["Flour", "Water", "Salt", "Yeast", "Oil", "Sugar"],
+      "instruction_prose": ["Mix the ingredients a little longer, then bake them for half an hour."],
+      "structure": {
+        "ingredients": [
+          {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "water", "canonical_ingredient": "ingredient:water", "measure": {"mode": "exact", "value": "80", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "salt", "canonical_ingredient": "ingredient:salt", "measure": {"mode": "exact", "value": "2", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "yeast", "canonical_ingredient": "ingredient:yeast", "measure": {"mode": "exact", "value": "1", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "oil", "canonical_ingredient": "ingredient:oil", "measure": {"mode": "exact", "value": "10", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "sugar", "canonical_ingredient": "ingredient:sugar", "measure": {"mode": "exact", "value": "5", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+        ],
+        "instructions": [
+          {"actions": [
+            {"action": "mix", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "3", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": null},
+            {"action": "bake", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "30", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": {"mode": "exact", "value": "220", "unit": {"key": "celsius", "dimension": "temperature", "family": "metric-temperature", "base_key": "celsius", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+          ]}
+        ]
+      }
+    },
+    {
+      "id": "temperature-changed",
+      "ingredient_source_labels": ["Flour", "Water", "Salt", "Yeast", "Oil", "Sugar"],
+      "instruction_prose": ["Mix the ingredients, then bake the mixture at a lower temperature."],
+      "structure": {
+        "ingredients": [
+          {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "water", "canonical_ingredient": "ingredient:water", "measure": {"mode": "exact", "value": "80", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "salt", "canonical_ingredient": "ingredient:salt", "measure": {"mode": "exact", "value": "2", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "yeast", "canonical_ingredient": "ingredient:yeast", "measure": {"mode": "exact", "value": "1", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "oil", "canonical_ingredient": "ingredient:oil", "measure": {"mode": "exact", "value": "10", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "sugar", "canonical_ingredient": "ingredient:sugar", "measure": {"mode": "exact", "value": "5", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+        ],
+        "instructions": [
+          {"actions": [
+            {"action": "mix", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "2", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": null},
+            {"action": "bake", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "25", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": {"mode": "exact", "value": "200", "unit": {"key": "celsius", "dimension": "temperature", "family": "metric-temperature", "base_key": "celsius", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+          ]}
+        ]
+      }
+    },
+    {
+      "id": "adversarial",
+      "ingredient_source_labels": ["Flour", "Water", "Salt", "Yeast", "Oil", "Sugar"],
+      "instruction_prose": ["Chop the ingredients and freeze the result until solid."],
+      "structure": {
+        "ingredients": [
+          {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "121", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "water", "canonical_ingredient": "ingredient:water", "measure": {"mode": "exact", "value": "83", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "salt", "canonical_ingredient": "ingredient:salt", "measure": {"mode": "exact", "value": "4", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "yeast", "canonical_ingredient": "ingredient:yeast", "measure": {"mode": "exact", "value": "0.5", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "oil", "canonical_ingredient": "ingredient:oil", "measure": {"mode": "exact", "value": "11", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "sugar", "canonical_ingredient": "ingredient:sugar", "measure": {"mode": "exact", "value": "7", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+        ],
+        "instructions": [
+          {"actions": [
+            {"action": "chop", "inputs": ["sugar", "oil", "yeast", "salt", "water", "flour"], "duration": {"mode": "exact", "value": "9", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": null},
+            {"action": "freeze", "inputs": ["sugar", "oil", "yeast", "salt", "water", "flour"], "duration": {"mode": "exact", "value": "120", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": {"mode": "exact", "value": "-18", "unit": {"key": "celsius", "dimension": "temperature", "family": "metric-temperature", "base_key": "celsius", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+          ]}
+        ]
+      }
+    }
+  ],
+  "cases": [
+    {
+      "id": "unit-equivalence",
+      "category": "unit_equivalence",
+      "left_recipe_id": "base",
+      "right_recipe_id": "unit-equivalent",
+      "expected_classification": "exact_duplicate",
+      "expected_components": {"ingredient_multiset": "one", "normalized_quantities": "one", "action_order": "one", "ordered_inputs": "one", "duration_temperature": "one", "structured_actions": "one"},
+      "expected_reason_codes": ["exact_structural_match"]
+    },
+    {
+      "id": "alias-equivalence",
+      "category": "alias_equivalence",
+      "left_recipe_id": "base",
+      "right_recipe_id": "alias-equivalent",
+      "expected_classification": "exact_duplicate",
+      "expected_components": {"ingredient_multiset": "one", "normalized_quantities": "one", "action_order": "one", "ordered_inputs": "one", "duration_temperature": "one", "structured_actions": "one"},
+      "expected_reason_codes": ["exact_structural_match"]
+    },
+    {
+      "id": "ingredient-reorder",
+      "category": "ingredient_reorder",
+      "left_recipe_id": "base",
+      "right_recipe_id": "ingredient-reordered",
+      "expected_classification": "exact_duplicate",
+      "expected_components": {"ingredient_multiset": "one", "normalized_quantities": "one", "action_order": "one", "ordered_inputs": "one", "duration_temperature": "one", "structured_actions": "one"},
+      "expected_reason_codes": ["exact_structural_match"]
+    },
+    {
+      "id": "prose-paraphrase",
+      "category": "prose_paraphrase",
+      "left_recipe_id": "base",
+      "right_recipe_id": "paraphrased-prose",
+      "expected_classification": "exact_duplicate",
+      "expected_components": {"ingredient_multiset": "one", "normalized_quantities": "one", "action_order": "one", "ordered_inputs": "one", "duration_temperature": "one", "structured_actions": "one"},
+      "expected_reason_codes": ["exact_structural_match"]
+    },
+    {
+      "id": "proportional-scaling",
+      "category": "proportional_scaling",
+      "left_recipe_id": "base",
+      "right_recipe_id": "scaled",
+      "expected_classification": "probable_duplicate",
+      "expected_components": {"ingredient_multiset": "one", "normalized_quantities": "one", "action_order": "one", "ordered_inputs": "one", "duration_temperature": "one", "structured_actions": "one"},
+      "expected_reason_codes": ["same_ingredient_multiset", "proportionally_scaled_quantities", "matching_structured_actions"]
+    },
+    {
+      "id": "quantity-change",
+      "category": "quantity_change",
+      "left_recipe_id": "base",
+      "right_recipe_id": "quantity-changed",
+      "expected_classification": "distinct",
+      "expected_components": {"ingredient_multiset": "one", "normalized_quantities": "below_one", "action_order": "one", "ordered_inputs": "one", "duration_temperature": "one", "structured_actions": "one"},
+      "expected_reason_codes": ["same_ingredient_multiset", "partially_matching_quantities", "matching_structured_actions"]
+    },
+    {
+      "id": "action-change",
+      "category": "action_change",
+      "left_recipe_id": "base",
+      "right_recipe_id": "action-changed",
+      "expected_classification": "probable_duplicate",
+      "expected_components": {"ingredient_multiset": "one", "normalized_quantities": "one", "action_order": "below_one", "ordered_inputs": "below_one", "duration_temperature": "below_one", "structured_actions": "below_one"},
+      "expected_reason_codes": ["same_ingredient_multiset", "matching_quantities", "different_action_types"]
+    },
+    {
+      "id": "action-order-change",
+      "category": "action_order_change",
+      "left_recipe_id": "base",
+      "right_recipe_id": "action-reordered",
+      "expected_classification": "probable_duplicate",
+      "expected_components": {"ingredient_multiset": "one", "normalized_quantities": "one", "action_order": "below_one", "ordered_inputs": "below_one", "duration_temperature": "below_one", "structured_actions": "below_one"},
+      "expected_reason_codes": ["same_ingredient_multiset", "matching_quantities", "different_action_order"]
+    },
+    {
+      "id": "duration-change",
+      "category": "duration_change",
+      "left_recipe_id": "base",
+      "right_recipe_id": "duration-changed",
+      "expected_classification": "probable_duplicate",
+      "expected_components": {"ingredient_multiset": "one", "normalized_quantities": "one", "action_order": "one", "ordered_inputs": "one", "duration_temperature": "below_one", "structured_actions": "below_one"},
+      "expected_reason_codes": ["same_ingredient_multiset", "matching_quantities", "different_duration_or_temperature"]
+    },
+    {
+      "id": "temperature-change",
+      "category": "temperature_change",
+      "left_recipe_id": "base",
+      "right_recipe_id": "temperature-changed",
+      "expected_classification": "probable_duplicate",
+      "expected_components": {"ingredient_multiset": "one", "normalized_quantities": "one", "action_order": "one", "ordered_inputs": "one", "duration_temperature": "below_one", "structured_actions": "below_one"},
+      "expected_reason_codes": ["same_ingredient_multiset", "matching_quantities", "different_duration_or_temperature"]
+    },
+    {
+      "id": "adversarial-near-match",
+      "category": "adversarial_near_match",
+      "left_recipe_id": "base",
+      "right_recipe_id": "adversarial",
+      "expected_classification": "distinct",
+      "expected_components": {"ingredient_multiset": "one", "normalized_quantities": "below_one", "action_order": "below_one", "ordered_inputs": "below_one", "duration_temperature": "below_one", "structured_actions": "below_one"},
+      "expected_reason_codes": ["same_ingredient_multiset", "partially_matching_quantities", "different_action_types"]
+    }
+  ]
+}
