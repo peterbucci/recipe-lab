@@ -38,6 +38,23 @@ const payload: RecipeVariantCreateRequest = {
       recipe_instruction_id: "mix-step",
       text: "Fold until just combined.",
     },
+    {
+      op: "set_actions",
+      recipe_instruction_id: "mix-step",
+      actions: [
+        {
+          action_type_id: "44444444-4444-4444-8444-444444444444",
+          ingredient_refs: [
+            { kind: "existing", recipe_ingredient_id: "sugar-row" },
+          ],
+          duration: {
+            kind: "exact",
+            value: "5.0000",
+            unit_id: "55555555-5555-4555-8555-555555555555",
+          },
+        },
+      ],
+    },
   ],
 };
 

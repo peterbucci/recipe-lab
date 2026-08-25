@@ -1,3 +1,4 @@
+import json
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -11,8 +12,10 @@ from pydantic import ValidationError
 from app.core.demo_identity import DEMO_USER_ID, DEMO_USER_KEY
 from app.seeds.catalog import load_bundled_catalog
 from app.seeds.identifiers import (
+    ACTION_NAMESPACE,
     MEASUREMENT_NAMESPACE,
     SEED_NAMESPACE,
+    action_uuid,
     measurement_uuid,
     seed_uuid,
 )
@@ -69,6 +72,10 @@ def _all_seed_ids(catalog: SeedCatalog) -> list[UUID]:
         for alias in unit.aliases
     )
     identifiers.extend(
+        action_uuid("action-type", action_type.key)
+        for action_type in catalog.action_catalog.action_types
+    )
+    identifiers.extend(
         seed_uuid(dataset_id, "ingredient-category", category.key)
         for category in catalog.categories
     )
@@ -122,6 +129,27 @@ def _all_seed_ids(catalog: SeedCatalog) -> list[UUID]:
         )
         for recipe in catalog.recipes
         for instruction in recipe.instructions
+    )
+    identifiers.extend(
+        seed_uuid(
+            dataset_id,
+            "recipe-instruction-action",
+            f"{recipe.key}:{instruction.key}:{action.key}",
+        )
+        for recipe in catalog.recipes
+        for instruction in recipe.instructions
+        for action in instruction.actions
+    )
+    identifiers.extend(
+        seed_uuid(
+            dataset_id,
+            "recipe-instruction-action-input",
+            f"{recipe.key}:{instruction.key}:{action.key}:{input_key}",
+        )
+        for recipe in catalog.recipes
+        for instruction in recipe.instructions
+        for action in instruction.actions
+        for input_key in action.inputs
     )
     return identifiers
 
@@ -218,6 +246,55 @@ def test_measurement_catalog_is_complete_and_legacy_mapping_is_exact(
     }
     assert None not in distribution
     assert sum(distribution.values()) == 281
+
+
+def test_action_catalog_has_explicit_complete_reviewed_instruction_mappings(
+    seed_catalog: SeedCatalog,
+) -> None:
+    action_catalog = seed_catalog.action_catalog
+    action_types = {action_type.key: action_type for action_type in action_catalog.action_types}
+    instructions = [
+        instruction for recipe in seed_catalog.recipes for instruction in recipe.instructions
+    ]
+    actions = [action for instruction in instructions for action in instruction.actions]
+
+    assert action_catalog.metadata.version == 1
+    assert action_catalog.metadata.namespace_url == (
+        "https://github.com/peterbucci/recipe-lab/action-catalog/v1"
+    )
+    assert len(action_types) == 54
+    assert {"mix", "knead", "chop", "slice", "dice", "mince"} <= action_types.keys()
+    assert all(action_type.active for action_type in action_types.values())
+    assert all(action_type.provenance for action_type in action_types.values())
+    assert len(instructions) == 116
+    assert len(actions) == 252
+    assert all(instruction.actions for instruction in instructions)
+    assert any(len(instruction.actions) > 1 for instruction in instructions)
+    assert any(not action.inputs for action in actions)
+    assert sum(len(action.inputs) for action in actions) == 815
+    assert (
+        sum(
+            int(action.duration is not None) + int(action.temperature is not None)
+            for action in actions
+        )
+        == 24
+    )
+
+    raw_actions = json.loads(
+        resources.files("app.seeds.data").joinpath("actions-v1.json").read_text(encoding="utf-8")
+    )
+    mappings = cast(list[dict[str, Any]], raw_actions["instruction_mappings"])
+    assert len(mappings) == len(instructions)
+    assert len({(item["recipe"], item["instruction"]) for item in mappings}) == len(mappings)
+
+    for recipe in seed_catalog.recipes:
+        ingredient_keys = {ingredient.key for ingredient in recipe.ingredients}
+        for instruction in recipe.instructions:
+            assert len({action.key for action in instruction.actions}) == len(instruction.actions)
+            for action in instruction.actions:
+                assert action.action_type in action_types
+                assert set(action.inputs) <= ingredient_keys
+                assert len(action.inputs) == len(set(action.inputs))
 
 
 def test_recipe_graph_has_branching_depth_and_the_carrot_cake_demo(
@@ -364,6 +441,7 @@ def test_all_seed_owned_ids_are_unique_uuid5_values_with_stable_sentinels(
 
     assert SEED_NAMESPACE == UUID("f3d73e68-808e-501b-bd50-2ec5181abd92")
     assert MEASUREMENT_NAMESPACE == UUID("3f63d3c0-bb27-5540-92aa-c8b23cf95a13")
+    assert ACTION_NAMESPACE == UUID("50a2e3b3-dab9-5076-8998-3513f206182b")
     assert identifiers == _all_seed_ids(seed_catalog)
     assert all(identifier.version == 5 for identifier in identifiers)
     assert len(identifiers) == len(set(identifiers))
@@ -389,6 +467,47 @@ def test_all_seed_owned_ids_are_unique_uuid5_values_with_stable_sentinels(
     )
     assert measurement_uuid("unit", "g") == UUID("4a4df044-7982-5ad0-9afd-96ca25b2691f")
     assert measurement_uuid("unit-alias", "g:grams") == UUID("224daafa-bb7b-5f4d-aa17-198efafdf264")
+    assert action_uuid("action-type", "mix") == UUID("24d11ddf-d76e-524a-a458-20ff4852b5bc")
+
+
+def test_catalog_rejects_untrusted_or_invalid_action_mappings(
+    seed_catalog: SeedCatalog,
+) -> None:
+    unknown_action = _raw_catalog(seed_catalog)
+    recipes = _record_list(unknown_action, "recipes")
+    instructions = cast(list[dict[str, Any]], recipes[0]["instructions"])
+    actions = cast(list[dict[str, Any]], instructions[0]["actions"])
+    actions[0]["action_type"] = "invented-from-prose"
+    with pytest.raises(ValidationError, match="unknown cooking action"):
+        SeedCatalog.model_validate(unknown_action)
+
+    unknown_input = _raw_catalog(seed_catalog)
+    recipes = _record_list(unknown_input, "recipes")
+    instructions = cast(list[dict[str, Any]], recipes[0]["instructions"])
+    actions = cast(list[dict[str, Any]], instructions[0]["actions"])
+    cast(list[str], actions[0]["inputs"]).append("missing-occurrence")
+    with pytest.raises(ValidationError, match="unknown ingredient rows"):
+        SeedCatalog.model_validate(unknown_input)
+
+    wrong_duration_unit = _raw_catalog(seed_catalog)
+    recipes = _record_list(wrong_duration_unit, "recipes")
+    action = next(
+        action
+        for recipe in recipes
+        for instruction in cast(list[dict[str, Any]], recipe["instructions"])
+        for action in cast(list[dict[str, Any]], instruction["actions"])
+        if action["duration"] is not None
+    )
+    cast(dict[str, Any], action["duration"])["unit"] = "celsius"
+    with pytest.raises(ValidationError, match="invalid duration unit"):
+        SeedCatalog.model_validate(wrong_duration_unit)
+
+    missing_mapping = _raw_catalog(seed_catalog)
+    recipes = _record_list(missing_mapping, "recipes")
+    instructions = cast(list[dict[str, Any]], recipes[0]["instructions"])
+    instructions[0]["actions"] = []
+    with pytest.raises(ValidationError):
+        SeedCatalog.model_validate(missing_mapping)
 
 
 def test_catalog_rejects_unknown_and_ambiguous_measurement_references(

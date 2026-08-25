@@ -106,6 +106,65 @@ class MeasurementCatalogSeed(SeedModel):
     units: Annotated[list[MeasurementUnitSeed], Field(min_length=1)]
 
 
+class ActionCatalogMetadata(SeedModel):
+    version: Literal[1]
+    namespace_url: NonBlank
+    title: NonBlank
+    provenance: NonBlank
+    published_at: AwareDatetime
+
+
+class ActionTypeSeed(SeedModel):
+    key: SeedKey
+    canonical_verb: NonBlank
+    active: bool
+    provenance: NonBlank
+
+
+class ActionCatalogSeed(SeedModel):
+    metadata: ActionCatalogMetadata
+    action_types: Annotated[list[ActionTypeSeed], Field(min_length=1)]
+
+
+ActionMeasurementDecimal = Annotated[
+    Decimal,
+    Field(max_digits=18, decimal_places=6),
+]
+
+
+class ExactActionMeasureSeed(SeedModel):
+    kind: Literal["exact"]
+    value: ActionMeasurementDecimal
+    unit: SeedKey
+
+
+class RangeActionMeasureSeed(SeedModel):
+    kind: Literal["range"]
+    minimum: ActionMeasurementDecimal
+    maximum: ActionMeasurementDecimal
+    unit: SeedKey
+
+    @model_validator(mode="after")
+    def ordered_range(self) -> Self:
+        if self.minimum >= self.maximum:
+            raise ValueError("action measurement range minimum must be less than maximum")
+        return self
+
+
+ActionMeasureSeed = Annotated[
+    ExactActionMeasureSeed | RangeActionMeasureSeed,
+    Field(discriminator="kind"),
+]
+
+
+class RecipeActionSeed(SeedModel):
+    key: SeedKey
+    action_type: SeedKey
+    inputs: list[SeedKey] = Field(default_factory=list, max_length=200)
+    duration: ActionMeasureSeed | None = None
+    temperature: ActionMeasureSeed | None = None
+
+
 class IngredientSeed(SeedModel):
     key: SeedKey
     canonical_name: NonBlank
@@ -137,6 +196,7 @@ class RecipeIngredientSeed(SeedModel):
 class RecipeInstructionSeed(SeedModel):
     key: SeedKey
     text: NonBlank
+    actions: Annotated[list[RecipeActionSeed], Field(min_length=1, max_length=20)]
 
 
 class RecipeSeed(SeedModel):
@@ -153,12 +213,92 @@ class RecipeSeed(SeedModel):
 class SeedCatalog(SeedModel):
     metadata: CatalogMetadata
     measurement_catalog: MeasurementCatalogSeed
+    action_catalog: ActionCatalogSeed
     categories: list[NamedSeed]
     dietary_flags: list[NamedSeed]
     allergens: list[NamedSeed]
     ingredients: Annotated[list[IngredientSeed], Field(min_length=1)]
     substitutions: list[SubstitutionSeed]
     recipes: Annotated[list[RecipeSeed], Field(min_length=1)]
+
+    def _validate_action_catalog(
+        self,
+        measurement_units_by_key: dict[str, MeasurementUnitSeed],
+    ) -> None:
+        expected_namespace = "https://github.com/peterbucci/recipe-lab/action-catalog/v1"
+        if self.action_catalog.metadata.namespace_url != expected_namespace:
+            raise ValueError("action catalog namespace URL must remain fixed for v1")
+
+        action_types_by_key = {
+            action_type.key: action_type for action_type in self.action_catalog.action_types
+        }
+        if len(action_types_by_key) != len(self.action_catalog.action_types):
+            raise ValueError("cooking action type keys must be unique")
+        normalized_verbs = [
+            normalize_name(action_type.canonical_verb)
+            for action_type in self.action_catalog.action_types
+        ]
+        if len(normalized_verbs) != len(set(normalized_verbs)):
+            raise ValueError("cooking action canonical verbs must be unique")
+
+        for recipe in self.recipes:
+            ingredient_keys = {ingredient.key for ingredient in recipe.ingredients}
+            for instruction in recipe.instructions:
+                action_keys = [action.key for action in instruction.actions]
+                if len(action_keys) != len(set(action_keys)):
+                    raise ValueError(
+                        f"recipe {recipe.key!r} instruction {instruction.key!r} "
+                        "action keys must be unique"
+                    )
+                for action in instruction.actions:
+                    action_type = action_types_by_key.get(action.action_type)
+                    if action_type is None:
+                        raise ValueError(
+                            f"recipe {recipe.key!r} references unknown cooking action "
+                            f"{action.action_type!r}"
+                        )
+                    if not action_type.active:
+                        raise ValueError(
+                            f"recipe {recipe.key!r} references inactive cooking action "
+                            f"{action.action_type!r}"
+                        )
+                    if len(action.inputs) != len(set(action.inputs)):
+                        raise ValueError(
+                            f"recipe {recipe.key!r} instruction {instruction.key!r} "
+                            f"action {action.key!r} repeats an input"
+                        )
+                    unknown_inputs = set(action.inputs) - ingredient_keys
+                    if unknown_inputs:
+                        raise ValueError(
+                            f"recipe {recipe.key!r} instruction {instruction.key!r} "
+                            f"action {action.key!r} references unknown ingredient rows "
+                            f"{sorted(unknown_inputs)!r}"
+                        )
+                    for semantic, measure, expected_dimension in (
+                        ("duration", action.duration, "time"),
+                        ("temperature", action.temperature, "temperature"),
+                    ):
+                        if measure is None:
+                            continue
+                        unit = measurement_units_by_key.get(measure.unit)
+                        if unit is None:
+                            raise ValueError(
+                                f"recipe {recipe.key!r} action {action.key!r} references "
+                                f"unknown {semantic} unit {measure.unit!r}"
+                            )
+                        if not unit.active or unit.dimension != expected_dimension:
+                            raise ValueError(
+                                f"recipe {recipe.key!r} action {action.key!r} uses an "
+                                f"invalid {semantic} unit"
+                            )
+                        if semantic == "duration":
+                            values = (
+                                (measure.value,)
+                                if isinstance(measure, ExactActionMeasureSeed)
+                                else (measure.minimum, measure.maximum)
+                            )
+                            if any(value <= 0 for value in values):
+                                raise ValueError("action duration values must be positive")
 
     def _validate_measurement_catalog(self) -> dict[str, MeasurementUnitSeed]:
         measurement_catalog = self.measurement_catalog
@@ -432,6 +572,7 @@ class SeedCatalog(SeedModel):
         """Validate references and invariants that span multiple records."""
 
         measurement_units_by_key = self._validate_measurement_catalog()
+        self._validate_action_catalog(measurement_units_by_key)
         self._require_unique_keys(self.categories, "category")
         self._require_unique_keys(self.dietary_flags, "dietary flag")
         self._require_unique_keys(self.allergens, "allergen")

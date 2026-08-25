@@ -27,6 +27,15 @@ An exact or ranged package amount may retain `package_size_id` only when that
 active reviewed record belongs to the selected ingredient and package unit.
 Changing either identity clears or invalidates that metadata.
 
+Structured cooking-action parameters reuse the same catalog and serialization
+rules without being ingredient amounts. Duration accepts only active `time`
+units and positive exact/range values; temperature accepts only active
+`temperature` units and exact/range values. Action parameters do not accept
+qualitative modes or package-size metadata. They store a reviewed display
+snapshot but public reads serialize the referenced curated unit. See
+[structured cooking actions](cooking-actions.md) for the instruction-graph
+contract.
+
 ## Pre-migration audit
 
 Before deploying the structured-measure migration, run the read-only audit

@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
 
+import type { CatalogActionType } from "./cooking-action-api";
 import type { CatalogUnit } from "./measurement-unit-api";
 import type { RecipeDetail } from "./recipe-api";
+import {
+  createStructuredActionDraft,
+  structuredActionFieldKey,
+} from "./structured-action";
 import {
   createAddedIngredientDraft,
   createAddedInstructionDraft,
   createVariantDraft,
   ingredientFieldKey,
   ingredientMeasureFieldKey,
+  instructionActionsFieldKey,
   instructionFieldKey,
   validateVariantDraft,
 } from "./variant-draft";
@@ -18,6 +24,41 @@ const PECAN_ID = "33333333-3333-4333-8333-333333333333";
 const ORANGE_ZEST_ID = "55555555-5555-4555-8555-555555555555";
 const GRAM_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TABLESPOON_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const MIX_ACTION_ID = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
+const BAKE_ACTION_ID = "cccccccc-cccc-4ccc-8ccc-ccccccccccc2";
+
+const actionTypes: CatalogActionType[] = [
+  {
+    id: MIX_ACTION_ID,
+    key: "mix",
+    canonical_verb: "mix",
+    active: true,
+    provenance: "Test fixture",
+  },
+  {
+    id: BAKE_ACTION_ID,
+    key: "bake",
+    canonical_verb: "bake",
+    active: true,
+    provenance: "Test fixture",
+  },
+];
+
+function action(id: string, type: CatalogActionType, ingredientIds: string[] = []) {
+  return {
+    id,
+    action_type: {
+      id: type.id,
+      key: type.key,
+      canonical_verb: type.canonical_verb,
+      active: type.active,
+    },
+    display_order: 0,
+    ingredient_occurrence_ids: ingredientIds,
+    duration: null,
+    temperature: null,
+  };
+}
 
 const units: CatalogUnit[] = [
   {
@@ -109,8 +150,18 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
       },
     ],
     instructions: [
-      { id: "mix-step", text: "Fold until just combined.", display_order: 0 },
-      { id: "bake-step", text: "Bake until springy.", display_order: 1 },
+      {
+        id: "mix-step",
+        text: "Fold until just combined.",
+        display_order: 0,
+        actions: [action("mix-action", actionTypes[0], ["sugar-row"])],
+      },
+      {
+        id: "bake-step",
+        text: "Bake until springy.",
+        display_order: 1,
+        actions: [action("bake-action", actionTypes[1])],
+      },
     ],
     ...overrides,
   };
@@ -184,9 +235,17 @@ describe("variant draft", () => {
     draft.instructions[1].removed = true;
     const addedInstruction = createAddedInstructionDraft("new-cool-step");
     addedInstruction.text = "  Cool completely before serving. ";
+    const coolAction = createStructuredActionDraft("new-cool-action");
+    coolAction.actionType = {
+      id: BAKE_ACTION_ID,
+      key: "bake",
+      canonical_verb: "bake",
+      active: true,
+    };
+    addedInstruction.actions = [coolAction];
     draft.instructions.push(addedInstruction);
 
-    expect(validateVariantDraft(draft, units)).toEqual({
+    expect(validateVariantDraft(draft, units, actionTypes)).toEqual({
       fieldErrors: {},
       formErrors: [],
       payload: {
@@ -208,6 +267,7 @@ describe("variant draft", () => {
           { op: "remove", recipe_ingredient_id: "walnut-row" },
           {
             op: "add",
+            edit_ref: "new-orange-zest",
             ingredient_id: ORANGE_ZEST_ID,
             display_name: "Orange zest",
             measure: { kind: "exact", value: "1.25", unit_id: TABLESPOON_ID },
@@ -221,7 +281,16 @@ describe("variant draft", () => {
             text: "Fold gently until just combined.",
           },
           { op: "remove", recipe_instruction_id: "bake-step" },
-          { op: "add", text: "Cool completely before serving." },
+          {
+            op: "add",
+            text: "Cool completely before serving.",
+            actions: [
+              {
+                action_type_id: BAKE_ACTION_ID,
+                ingredient_refs: [],
+              },
+            ],
+          },
         ],
       },
     });
@@ -232,9 +301,143 @@ describe("variant draft", () => {
     draft.ingredients[0].measure.exactValue = " 140.0000 ";
     draft.instructions[0].text = "  Fold until just combined.  ";
 
-    expect(validateVariantDraft(draft, units).payload).toMatchObject({
+    expect(validateVariantDraft(draft, units, actionTypes).payload).toMatchObject({
       ingredient_edits: [],
       instruction_edits: [],
+    });
+  });
+
+  it("copies an unchanged inherited inactive action without making it selectable again", () => {
+    const source = sourceRecipe();
+    source.instructions[0].actions[0].action_type = {
+      id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc9",
+      key: "retired",
+      canonical_verb: "retired",
+      active: false,
+    };
+    const draft = createVariantDraft(source);
+
+    expect(validateVariantDraft(draft, units, actionTypes)).toMatchObject({
+      fieldErrors: {},
+      formErrors: [],
+      payload: { ingredient_edits: [], instruction_edits: [] },
+    });
+    expect(draft.instructions[0].actions[0].actionType).toMatchObject({
+      canonical_verb: "retired",
+      active: false,
+    });
+  });
+
+  it("preserves an unchanged action while reporting its removed ingredient input inline", () => {
+    const draft = createVariantDraft(sourceRecipe());
+    draft.ingredients[0].removed = true;
+    const beforeValidation = structuredClone(draft.instructions[0].actions);
+
+    const result = validateVariantDraft(draft, units, actionTypes);
+
+    expect(result.payload).toBeNull();
+    expect(result.fieldErrors).toMatchObject({
+      [`instruction.source-mix-step.action.${structuredActionFieldKey(
+        "source-action-mix-action",
+        "inputs",
+      )}`]: expect.stringContaining("restore the removed ingredient"),
+    });
+    expect(draft.instructions[0].actions).toEqual(beforeValidation);
+
+    draft.ingredients[0].removed = false;
+    expect(validateVariantDraft(draft, units, actionTypes).payload).toMatchObject({
+      ingredient_edits: [],
+      instruction_edits: [],
+    });
+  });
+
+  it("emits set_actions when only authored action order changes", () => {
+    const source = sourceRecipe();
+    const second = action("second-mix-action", actionTypes[0], ["sugar-row"]);
+    second.display_order = 1;
+    source.instructions[0].actions.push(second);
+    const draft = createVariantDraft(source);
+    draft.instructions[0].actions.reverse();
+
+    expect(validateVariantDraft(draft, units, actionTypes).payload?.instruction_edits).toEqual([
+      {
+        op: "set_actions",
+        recipe_instruction_id: "mix-step",
+        actions: [
+          {
+            action_type_id: MIX_ACTION_ID,
+            ingredient_refs: [
+              { kind: "existing", recipe_ingredient_id: "sugar-row" },
+            ],
+          },
+          {
+            action_type_id: MIX_ACTION_ID,
+            ingredient_refs: [
+              { kind: "existing", recipe_ingredient_id: "sugar-row" },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("links actions to same-request added ingredient occurrences by stable edit reference", () => {
+    const draft = createVariantDraft(sourceRecipe());
+    const addedIngredient = createAddedIngredientDraft("new-orange-zest");
+    addedIngredient.selectedIngredient = {
+      ingredientId: ORANGE_ZEST_ID,
+      canonicalName: "Orange zest",
+      displayName: "Orange zest",
+    };
+    draft.ingredients.push(addedIngredient);
+    const addedInstruction = createAddedInstructionDraft("new-zest-step");
+    addedInstruction.text = "Mix in the zest.";
+    const mixAction = createStructuredActionDraft("new-zest-action");
+    mixAction.actionType = {
+      id: MIX_ACTION_ID,
+      key: "mix",
+      canonical_verb: "mix",
+      active: true,
+    };
+    mixAction.ingredientKeys = [addedIngredient.key];
+    addedInstruction.actions = [mixAction];
+    draft.instructions.push(addedInstruction);
+
+    expect(validateVariantDraft(draft, units, actionTypes).payload).toMatchObject({
+      ingredient_edits: [
+        {
+          op: "add",
+          edit_ref: "new-orange-zest",
+          ingredient_id: ORANGE_ZEST_ID,
+        },
+      ],
+      instruction_edits: [
+        {
+          op: "add",
+          text: "Mix in the zest.",
+          actions: [
+            {
+              action_type_id: MIX_ACTION_ID,
+              ingredient_refs: [
+                { kind: "added", ingredient_edit_ref: "new-orange-zest" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("blocks publication of structurally incomplete legacy steps until actions are mapped", () => {
+    const source = sourceRecipe();
+    source.instructions[0].actions = [];
+
+    const result = validateVariantDraft(createVariantDraft(source), units, actionTypes);
+
+    expect(result.payload).toBeNull();
+    expect(result.fieldErrors).toEqual({
+      [instructionActionsFieldKey("source-mix-step")]:
+        "Add at least one cooking action.",
     });
   });
 
@@ -254,7 +457,9 @@ describe("variant draft", () => {
       ],
     });
 
-    expect(validateVariantDraft(createVariantDraft(source), units)).toMatchObject({
+    expect(
+      validateVariantDraft(createVariantDraft(source), units, actionTypes),
+    ).toMatchObject({
       fieldErrors: {},
       formErrors: [],
       payload: { ingredient_edits: [], instruction_edits: [] },
@@ -283,7 +488,7 @@ describe("variant draft", () => {
     draft.instructions[0].text = "   ";
     const beforeValidation = structuredClone(draft);
 
-    const result = validateVariantDraft(draft, units);
+    const result = validateVariantDraft(draft, units, actionTypes);
 
     expect(result.payload).toBeNull();
     expect(result.fieldErrors).toMatchObject({
@@ -317,6 +522,7 @@ describe("variant draft", () => {
     const result = validateVariantDraft(
       draft,
       units.filter((unit) => unit.id !== GRAM_ID),
+      actionTypes,
     );
 
     expect(result.payload).toBeNull();
@@ -337,7 +543,7 @@ describe("variant draft", () => {
     });
     const beforeValidation = structuredClone(draft);
 
-    const result = validateVariantDraft(draft, units);
+    const result = validateVariantDraft(draft, units, actionTypes);
 
     expect(result.payload).toBeNull();
     expect(result.formErrors).toEqual([
@@ -356,7 +562,7 @@ describe("variant draft", () => {
     instruction.removed = true;
     draft.instructions.push(instruction);
 
-    expect(validateVariantDraft(draft, units).payload).toMatchObject({
+    expect(validateVariantDraft(draft, units, actionTypes).payload).toMatchObject({
       ingredient_edits: [],
       instruction_edits: [],
     });

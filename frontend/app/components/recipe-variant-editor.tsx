@@ -6,9 +6,15 @@ import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { createIdempotencyKey } from "../../lib/idempotency-key";
 import { formatIngredientMeasure } from "../../lib/format";
+import type { CatalogActionType } from "../../lib/cooking-action-api";
 import type { CatalogUnit } from "../../lib/measurement-unit-api";
 import type { RecipeDetail } from "../../lib/recipe-api";
 import { isRecipeVersionId } from "../../lib/recipe-api";
+import {
+  effectiveStructuredActionState,
+  structuredActionFieldKey,
+  structuredActionDraftsMatchRecipe,
+} from "../../lib/structured-action";
 import {
   formatStructuredMeasureDraft,
   structuredMeasureDraftMatchesRecipe,
@@ -19,7 +25,9 @@ import {
   createAddedInstructionDraft,
   createVariantDraft,
   ingredientFieldKey,
+  ingredientOccurrenceOptions,
   ingredientMeasureFieldKey,
+  instructionActionsFieldKey,
   instructionFieldKey,
   type RecipeVariantDraft,
   type VariantIngredientDraft,
@@ -28,11 +36,13 @@ import {
 } from "../../lib/variant-draft";
 import { createRecipeVariant, VariantApiError } from "../../lib/variant-api";
 import { IngredientCatalogPicker } from "./ingredient-catalog-picker";
+import { StructuredActionEditor } from "./structured-action-editor";
 import { IngredientAmountControl } from "./structured-measure-control";
 
 interface RecipeVariantEditorProps {
   sourceRecipe: RecipeDetail;
   measurementUnits: readonly CatalogUnit[];
+  actionTypes: readonly CatalogActionType[];
 }
 
 interface ForkAttempt {
@@ -67,11 +77,19 @@ function ingredientStatus(ingredient: VariantIngredientDraft): "New" | "Changed"
   return "Starting ingredient";
 }
 
-function instructionStatus(instruction: VariantInstructionDraft): "New" | "Changed" | "Starting step" {
+function instructionStatus(
+  instruction: VariantInstructionDraft,
+  ingredientKeyByOccurrenceId: ReadonlyMap<string, string>,
+): "New" | "Changed" | "Starting step" {
   if (instruction.sourceId === null) {
     return "New";
   }
-  return instruction.text.trim() === instruction.originalText?.trim()
+  return instruction.text.trim() === instruction.originalText?.trim() &&
+    structuredActionDraftsMatchRecipe(
+      instruction.actions,
+      instruction.originalActions,
+      ingredientKeyByOccurrenceId,
+    )
     ? "Starting step"
     : "Changed";
 }
@@ -125,11 +143,24 @@ function effectiveMeasureState(
 }
 
 function draftFingerprint(draft: RecipeVariantDraft): string {
+  const ingredientKeyByOccurrenceId = new Map(
+    draft.ingredients.flatMap((ingredient) =>
+      ingredient.sourceId ? [[ingredient.sourceId, ingredient.key] as const] : [],
+    ),
+  );
   return JSON.stringify({
     ...draft,
     ingredients: draft.ingredients.map((ingredient) => ({
       ...ingredient,
       measure: effectiveMeasureState(ingredient.measure, ingredient.originalMeasure),
+    })),
+    instructions: draft.instructions.map((instruction) => ({
+      ...instruction,
+      actions: effectiveStructuredActionState(
+        instruction.actions,
+        instruction.originalActions,
+        ingredientKeyByOccurrenceId,
+      ),
     })),
   });
 }
@@ -157,6 +188,7 @@ function packageSizeForEffectiveIdentity(
 export function RecipeVariantEditor({
   sourceRecipe,
   measurementUnits,
+  actionTypes,
 }: RecipeVariantEditorProps) {
   const router = useRouter();
   const formId = useId().replace(/:/g, "");
@@ -237,6 +269,31 @@ export function RecipeVariantEditor({
     );
   }
 
+  function clearActionInputErrorsForIngredient(ingredientKey: string) {
+    const affectedFields = new Set(
+      draft.instructions.flatMap((instruction) =>
+        instruction.actions.flatMap((action) =>
+          action.ingredientKeys.includes(ingredientKey)
+            ? [
+                `instruction.${instruction.key}.action.${structuredActionFieldKey(
+                  action.key,
+                  "inputs",
+                )}`,
+              ]
+            : [],
+        ),
+      ),
+    );
+    if (affectedFields.size === 0) {
+      return;
+    }
+    setFieldErrors((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([fieldKey]) => !affectedFields.has(fieldKey)),
+      ),
+    );
+  }
+
   function focusAfterDraftUpdate(elementId: string) {
     pendingFocusId.current = elementId;
   }
@@ -263,8 +320,23 @@ export function RecipeVariantEditor({
   function updateInstruction(
     key: string,
     changes: Partial<VariantInstructionDraft>,
+    changedField: "text" | "actions" = "text",
   ) {
-    clearErrors(instructionFieldKey(key));
+    if (changedField === "actions") {
+      setApiError("");
+      setFormErrors([]);
+      setFieldErrors((current) =>
+        Object.fromEntries(
+          Object.entries(current).filter(
+            ([fieldKey]) =>
+              fieldKey !== instructionActionsFieldKey(key) &&
+              !fieldKey.startsWith(`instruction.${key}.action.`),
+          ),
+        ),
+      );
+    } else {
+      clearErrors(instructionFieldKey(key));
+    }
     setDraft((current) => ({
       ...current,
       instructions: current.instructions.map((instruction) =>
@@ -309,7 +381,7 @@ export function RecipeVariantEditor({
       return;
     }
 
-    const validation = validateVariantDraft(draft, measurementUnits);
+    const validation = validateVariantDraft(draft, measurementUnits, actionTypes);
     if (validation.payload === null) {
       const invalidIngredientKeys = Object.keys(validation.fieldErrors)
         .filter((key) => key.startsWith("ingredient."))
@@ -514,6 +586,7 @@ export function RecipeVariantEditor({
                       type="button"
                       onClick={() => {
                         clearRowErrors(`ingredient.${ingredient.key}.`);
+                        clearActionInputErrorsForIngredient(ingredient.key);
                         focusAfterDraftUpdate(removeToggleId);
                         updateIngredient(ingredient.key, { removed: false });
                       }}
@@ -689,8 +762,24 @@ export function RecipeVariantEditor({
             const errorKey = instructionFieldKey(instruction.key);
             const rowId = `${formId}-${instruction.key}`;
             const removeToggleId = `${rowId}-remove-toggle`;
-            const status = instructionStatus(instruction);
+            const ingredientKeyByOccurrenceId = new Map(
+              draft.ingredients.flatMap((ingredient) =>
+                ingredient.sourceId
+                  ? [[ingredient.sourceId, ingredient.key] as const]
+                  : [],
+              ),
+            );
+            const status = instructionStatus(instruction, ingredientKeyByOccurrenceId);
             const isExpanded = expandedInstructionKeys.has(instruction.key);
+            const actionErrorPrefix = `instruction.${instruction.key}.action.`;
+            const actionErrors = Object.fromEntries([
+              ...(fieldErrors[`instruction.${instruction.key}.actions`]
+                ? [["actions", fieldErrors[`instruction.${instruction.key}.actions`]]]
+                : []),
+              ...Object.entries(fieldErrors)
+                .filter(([key]) => key.startsWith(actionErrorPrefix))
+                .map(([key, message]) => [key.slice(actionErrorPrefix.length), message]),
+            ]);
             return (
               <li
                 key={instruction.key}
@@ -725,7 +814,16 @@ export function RecipeVariantEditor({
                           {status}
                         </span>
                         {!isExpanded ? (
-                          <p className="variant-instruction__summary">{instruction.text}</p>
+                          <div className="variant-instruction__summary">
+                            <p>{instruction.text}</p>
+                            <small>
+                              {instruction.actions.length > 0
+                                ? instruction.actions
+                                    .map((action) => action.actionType?.canonical_verb ?? "Action needed")
+                                    .join(" → ")
+                                : "No structured actions mapped"}
+                            </small>
+                          </div>
                         ) : null}
                       </div>
                       <button
@@ -764,7 +862,11 @@ export function RecipeVariantEditor({
                           fieldErrors[errorKey] ? `${rowId}-text-error` : undefined
                         }
                         onChange={(event) =>
-                          updateInstruction(instruction.key, { text: event.target.value })
+                          updateInstruction(
+                            instruction.key,
+                            { text: event.target.value },
+                            "text",
+                          )
                         }
                       />
                       <FieldError
@@ -772,6 +874,19 @@ export function RecipeVariantEditor({
                         message={fieldErrors[errorKey]}
                       />
                     </div>
+                    <StructuredActionEditor
+                      idPrefix={`${rowId}-actions`}
+                      stepLabel={`step ${index + 1}`}
+                      value={instruction.actions}
+                      actionTypes={actionTypes}
+                      ingredientOccurrences={ingredientOccurrenceOptions(draft.ingredients)}
+                      measurementUnits={measurementUnits}
+                      errors={actionErrors}
+                      disabled={pending}
+                      onChange={(actions) =>
+                        updateInstruction(instruction.key, { actions }, "actions")
+                      }
+                    />
                     <button
                       id={removeToggleId}
                       className="button button--quiet variant-row__remove"

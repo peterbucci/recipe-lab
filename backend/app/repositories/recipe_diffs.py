@@ -4,7 +4,14 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
-from app.models import IngredientSubstitution, RecipeIngredient, RecipeVersion
+from app.models import (
+    IngredientSubstitution,
+    RecipeIngredient,
+    RecipeInstruction,
+    RecipeInstructionAction,
+    RecipeInstructionActionMeasure,
+    RecipeVersion,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +54,15 @@ def get_recipe_versions_for_diff(
                 joinedload(RecipeIngredient.ingredient),
                 joinedload(RecipeIngredient.measurement_unit),
             ),
-            selectinload(RecipeVersion.instructions),
+            selectinload(RecipeVersion.instructions).options(
+                selectinload(RecipeInstruction.actions).options(
+                    joinedload(RecipeInstructionAction.action_type),
+                    selectinload(RecipeInstructionAction.inputs),
+                    selectinload(RecipeInstructionAction.measures).joinedload(
+                        RecipeInstructionActionMeasure.measurement_unit
+                    ),
+                )
+            ),
             raiseload("*"),
         )
         .where(RecipeVersion.id.in_(recipe_version_ids))

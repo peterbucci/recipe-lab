@@ -18,7 +18,14 @@ type RecipeIngredientChangedField = Literal[
     "measure",
     "preparation_notes",
 ]
-type RecipeInstructionChangedField = Literal["text"]
+type RecipeInstructionChangedField = Literal[
+    "text",
+    "actions",
+    "inputs",
+    "action_order",
+    "duration",
+    "temperature",
+]
 
 
 class RecipeFieldChange(BaseModel):
@@ -40,6 +47,13 @@ class RecipeIngredientDiff(BaseModel):
     modified: list[RecipeIngredientPairChange] = Field(default_factory=list)
 
 
+class RecipeIngredientContext(BaseModel):
+    """Complete ingredient snapshots used to resolve structured-action inputs."""
+
+    base: list[RecipeIngredientResponse] = Field(default_factory=list)
+    target: list[RecipeIngredientResponse] = Field(default_factory=list)
+
+
 class RecipeInstructionPairChange(BaseModel):
     before: RecipeInstructionResponse
     after: RecipeInstructionResponse
@@ -58,5 +72,6 @@ class RecipeDiffResponse(BaseModel):
     target_version: RecipeVersionReference
     metadata_changes: list[RecipeFieldChange] = Field(default_factory=list)
     ingredients: RecipeIngredientDiff
+    ingredient_context: RecipeIngredientContext
     instructions: RecipeInstructionDiff
     has_changes: bool

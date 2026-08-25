@@ -1,9 +1,19 @@
 import type { RecipeDetail } from "./recipe-api";
+import type { CatalogActionType } from "./cooking-action-api";
 import type { CatalogIngredientSelection } from "./ingredient-catalog-api";
 import type { CatalogUnit } from "./measurement-unit-api";
 import {
+  hydrateStructuredActionDrafts,
+  structuredActionDraftsMatchRecipe,
+  validateStructuredActionDrafts,
+  type IngredientOccurrenceOption,
+  type RecipeInstructionAction,
+  type StructuredActionDraft,
+} from "./structured-action";
+import {
   createStructuredMeasureDraft,
   createUnspecifiedMeasureDraft,
+  formatStructuredMeasureDraft,
   ingredientAmountPolicy,
   structuredMeasureDraftMatchesRecipe,
   type RecipeIngredientMeasure,
@@ -35,6 +45,8 @@ export interface VariantInstructionDraft {
   sourceId: string | null;
   text: string;
   originalText: string | null;
+  actions: StructuredActionDraft[];
+  originalActions: RecipeInstructionAction[];
   removed: boolean;
 }
 
@@ -76,27 +88,38 @@ function initialVariantTitle(sourceTitle: string): string {
 }
 
 export function createVariantDraft(source: RecipeDetail): RecipeVariantDraft {
+  const ingredients: VariantIngredientDraft[] = source.ingredients.map((ingredient) => ({
+    key: `source-${ingredient.id}`,
+    sourceId: ingredient.id,
+    sourceIngredientId: ingredient.ingredient_id,
+    sourceDisplayName: ingredient.display_name,
+    sourceCanonicalName: ingredient.canonical_name,
+    selectedIngredient: null,
+    measure: createStructuredMeasureDraft(ingredient.measure),
+    originalMeasure: ingredient.measure,
+    preparationNotes: ingredient.preparation_notes ?? "",
+    removed: false,
+  }));
+  const ingredientKeyByOccurrenceId = new Map(
+    ingredients.flatMap((ingredient) =>
+      ingredient.sourceId ? [[ingredient.sourceId, ingredient.key] as const] : [],
+    ),
+  );
   return {
     title: initialVariantTitle(source.title),
     description: source.description ?? "",
     servings: source.servings,
-    ingredients: source.ingredients.map((ingredient) => ({
-      key: `source-${ingredient.id}`,
-      sourceId: ingredient.id,
-      sourceIngredientId: ingredient.ingredient_id,
-      sourceDisplayName: ingredient.display_name,
-      sourceCanonicalName: ingredient.canonical_name,
-      selectedIngredient: null,
-      measure: createStructuredMeasureDraft(ingredient.measure),
-      originalMeasure: ingredient.measure,
-      preparationNotes: ingredient.preparation_notes ?? "",
-      removed: false,
-    })),
+    ingredients,
     instructions: source.instructions.map((instruction) => ({
       key: `source-${instruction.id}`,
       sourceId: instruction.id,
       text: instruction.text,
       originalText: instruction.text,
+      actions: hydrateStructuredActionDrafts(
+        instruction.actions,
+        ingredientKeyByOccurrenceId,
+      ),
+      originalActions: instruction.actions,
       removed: false,
     })),
   };
@@ -123,8 +146,30 @@ export function createAddedInstructionDraft(key: string): VariantInstructionDraf
     sourceId: null,
     text: "",
     originalText: null,
+    actions: [],
+    originalActions: [],
     removed: false,
   };
+}
+
+export function ingredientOccurrenceOptions(
+  ingredients: readonly VariantIngredientDraft[],
+): IngredientOccurrenceOption[] {
+  return ingredients.map((ingredient, index) => {
+    const displayName =
+      ingredient.selectedIngredient?.displayName ??
+      ingredient.sourceDisplayName ??
+      ingredient.sourceCanonicalName ??
+      "Unselected ingredient";
+    return {
+      key: ingredient.key,
+      label: `Ingredient ${index + 1}: ${displayName}, ${formatStructuredMeasureDraft(ingredient.measure)}`,
+      ref: ingredient.sourceId
+        ? { kind: "existing", recipe_ingredient_id: ingredient.sourceId }
+        : { kind: "added", ingredient_edit_ref: ingredient.key },
+      removed: ingredient.removed,
+    };
+  });
 }
 
 export function ingredientFieldKey(
@@ -143,6 +188,10 @@ export function ingredientMeasureFieldKey(
 
 export function instructionFieldKey(instructionKey: string): string {
   return `instruction.${instructionKey}.text`;
+}
+
+export function instructionActionsFieldKey(instructionKey: string): string {
+  return `instruction.${instructionKey}.actions`;
 }
 
 function decimalError(
@@ -236,6 +285,7 @@ function selectionError(
 export function validateVariantDraft(
   draft: RecipeVariantDraft,
   measurementUnits: readonly CatalogUnit[],
+  actionTypes: readonly CatalogActionType[],
 ): VariantDraftValidation {
   const fieldErrors: Record<string, string> = {};
   const formErrors: string[] = [];
@@ -321,6 +371,7 @@ export function validateVariantDraft(
       if (ingredient.selectedIngredient && measureValidation.measure) {
         ingredientEdits.push({
           op: "add",
+          edit_ref: ingredient.key,
           ingredient_id: ingredient.selectedIngredient.ingredientId,
           display_name: ingredient.selectedIngredient.displayName,
           measure: measureValidation.measure,
@@ -366,6 +417,13 @@ export function validateVariantDraft(
     formErrors.push("Keep or add at least one instruction.");
   }
 
+  const occurrences = ingredientOccurrenceOptions(draft.ingredients);
+  const ingredientKeyByOccurrenceId = new Map(
+    draft.ingredients.flatMap((ingredient) =>
+      ingredient.sourceId ? [[ingredient.sourceId, ingredient.key] as const] : [],
+    ),
+  );
+
   for (const instruction of draft.instructions) {
     if (instruction.removed) {
       if (instruction.sourceId) {
@@ -378,8 +436,8 @@ export function validateVariantDraft(
     }
 
     const text = normalized(instruction.text);
-    const changed = instruction.sourceId === null || text !== instruction.originalText;
-    if (changed) {
+    const textChanged = instruction.sourceId === null || text !== instruction.originalText;
+    if (textChanged) {
       const instructionError = textError(instruction.text, {
         label: "Instruction",
         maxLength: INSTRUCTION_MAX_LENGTH,
@@ -390,13 +448,64 @@ export function validateVariantDraft(
       }
     }
 
+    const actionsChanged = !structuredActionDraftsMatchRecipe(
+      instruction.actions,
+      instruction.originalActions,
+      ingredientKeyByOccurrenceId,
+    );
+    const occurrenceByKey = new Map(occurrences.map((occurrence) => [occurrence.key, occurrence]));
+    const hasUnavailableInput = instruction.actions.some((action) =>
+      action.ingredientKeys.some((key) => {
+        const occurrence = occurrenceByKey.get(key);
+        return !occurrence || occurrence.removed;
+      }),
+    );
+    const requiresActionValidation =
+      instruction.sourceId === null ||
+      actionsChanged ||
+      instruction.originalActions.length === 0 ||
+      hasUnavailableInput;
+    const actionValidation = requiresActionValidation
+      ? validateStructuredActionDrafts(
+          instruction.actions,
+          actionTypes,
+          occurrences,
+          measurementUnits,
+          actionsChanged
+            ? new Set()
+            : new Set(
+                instruction.originalActions.map((action) => action.action_type.id),
+              ),
+        )
+      : { fieldErrors: {}, actions: null };
+    for (const [key, message] of Object.entries(actionValidation.fieldErrors)) {
+      fieldErrors[
+        key === "actions"
+          ? instructionActionsFieldKey(instruction.key)
+          : `instruction.${instruction.key}.action.${key}`
+      ] = message;
+    }
+
     if (instruction.sourceId === null) {
-      instructionEdits.push({ op: "add", text });
+      if (actionValidation.actions) {
+        instructionEdits.push({ op: "add", text, actions: actionValidation.actions });
+      }
     } else if (text !== instruction.originalText) {
       instructionEdits.push({
         op: "update",
         recipe_instruction_id: instruction.sourceId,
         text,
+      });
+    }
+    if (
+      instruction.sourceId !== null &&
+      actionsChanged &&
+      actionValidation.actions
+    ) {
+      instructionEdits.push({
+        op: "set_actions",
+        recipe_instruction_id: instruction.sourceId,
+        actions: actionValidation.actions,
       });
     }
   }

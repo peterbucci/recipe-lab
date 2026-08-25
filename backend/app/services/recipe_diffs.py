@@ -1,20 +1,29 @@
 from __future__ import annotations
 
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
 from collections.abc import Callable, Hashable, Iterable, Sequence
 from decimal import Decimal
 from typing import Protocol
 from uuid import UUID
 
-from app.models import RecipeIngredient, RecipeInstruction, RecipeVersion
+from app.models import (
+    ACTION_PARAMETER_DURATION,
+    ACTION_PARAMETER_TEMPERATURE,
+    RecipeIngredient,
+    RecipeInstruction,
+    RecipeInstructionAction,
+    RecipeVersion,
+)
 from app.schemas.recipe_diffs import (
     RecipeDiffResponse,
     RecipeFieldChange,
     RecipeFieldName,
     RecipeFieldValue,
     RecipeIngredientChangedField,
+    RecipeIngredientContext,
     RecipeIngredientDiff,
     RecipeIngredientPairChange,
+    RecipeInstructionChangedField,
     RecipeInstructionDiff,
     RecipeInstructionPairChange,
 )
@@ -23,11 +32,13 @@ from app.schemas.recipes import (
     RecipeInstructionResponse,
     RecipeVersionReference,
 )
+from app.services.actions import serialize_instruction_action
 from app.services.measurements import serialize_measure
 
 
-class _Identified(Protocol):
+class _OrderedIdentified(Protocol):
     id: UUID
+    display_order: int
 
 
 _INGREDIENT_FIELD_ORDER: tuple[RecipeIngredientChangedField, ...] = (
@@ -36,6 +47,23 @@ _INGREDIENT_FIELD_ORDER: tuple[RecipeIngredientChangedField, ...] = (
     "measure",
     "preparation_notes",
 )
+_INSTRUCTION_FIELD_ORDER: tuple[RecipeInstructionChangedField, ...] = (
+    "text",
+    "actions",
+    "inputs",
+    "action_order",
+    "duration",
+    "temperature",
+)
+
+type _IngredientReferenceToken = tuple[str, int]
+type _ActionMeasureSignature = tuple[str, Decimal, Decimal | None, UUID] | None
+type _ActionSignature = tuple[
+    UUID,
+    tuple[_IngredientReferenceToken, ...],
+    _ActionMeasureSignature,
+    _ActionMeasureSignature,
+]
 
 
 def _ingredient_order(item: RecipeIngredient) -> tuple[int, int]:
@@ -86,7 +114,7 @@ def _replacement_candidate_order(
     )
 
 
-def _pair_exact_occurrences[Item: _Identified, Signature: Hashable](
+def _pair_exact_occurrences[Item: _OrderedIdentified, Signature: Hashable](
     before_items: list[Item],
     after_items: list[Item],
     *,
@@ -94,7 +122,7 @@ def _pair_exact_occurrences[Item: _Identified, Signature: Hashable](
 ) -> tuple[list[tuple[Item, Item]], list[Item], list[Item]]:
     """Pair equal duplicate occurrences without depending on collection order."""
 
-    after_by_signature: dict[Signature, deque[Item]] = defaultdict(deque)
+    after_by_signature: dict[Signature, list[Item]] = defaultdict(list)
     for item in after_items:
         after_by_signature[signature(item)].append(item)
 
@@ -106,7 +134,15 @@ def _pair_exact_occurrences[Item: _Identified, Signature: Hashable](
         if not candidates:
             remaining_before.append(item)
             continue
-        matched = candidates.popleft()
+        matched_index = min(
+            range(len(candidates)),
+            key=lambda index: (
+                abs(item.display_order - candidates[index].display_order),
+                candidates[index].display_order,
+                candidates[index].id.int,
+            ),
+        )
+        matched = candidates.pop(matched_index)
         pairs.append((item, matched))
         matched_after_ids.add(matched.id)
 
@@ -241,7 +277,200 @@ def _instruction_snapshot(item: RecipeInstruction) -> RecipeInstructionResponse:
         id=item.id,
         text=item.instruction,
         display_order=item.display_order,
+        actions=[
+            serialize_instruction_action(action)
+            for action in sorted(
+                item.actions, key=lambda value: (value.display_order, value.id.int)
+            )
+        ],
     )
+
+
+def _ingredient_reference_tokens(
+    base: RecipeVersion,
+    target: RecipeVersion,
+) -> tuple[
+    dict[UUID, _IngredientReferenceToken],
+    dict[UUID, _IngredientReferenceToken],
+]:
+    """Map copied occurrences to shared comparison-local identities.
+
+    Occurrence UUIDs are regenerated for every immutable fork. Pairing only the
+    same curated ingredient identity keeps a copied graph equal while ensuring
+    an action input that changes to a substituted ingredient remains visible.
+    """
+
+    same_pairs, unmatched_before, unmatched_after = _pair_same_ingredients(
+        sorted(base.ingredients, key=_ingredient_order),
+        sorted(target.ingredients, key=_ingredient_order),
+    )
+    base_tokens: dict[UUID, _IngredientReferenceToken] = {}
+    target_tokens: dict[UUID, _IngredientReferenceToken] = {}
+    for index, (before, after) in enumerate(
+        sorted(
+            same_pairs,
+            key=lambda pair: (*_ingredient_order(pair[0]), *_ingredient_order(pair[1])),
+        )
+    ):
+        token = ("paired", index)
+        base_tokens[before.id] = token
+        target_tokens[after.id] = token
+    for index, item in enumerate(sorted(unmatched_before, key=_ingredient_order)):
+        base_tokens[item.id] = ("base", index)
+    for index, item in enumerate(sorted(unmatched_after, key=_ingredient_order)):
+        target_tokens[item.id] = ("target", index)
+    return base_tokens, target_tokens
+
+
+def _action_order(item: RecipeInstructionAction) -> tuple[int, int]:
+    return item.display_order, item.id.int
+
+
+def _action_measure_signature(
+    item: RecipeInstructionAction,
+    semantic: str,
+) -> _ActionMeasureSignature:
+    matching = [measure for measure in item.measures if measure.semantic == semantic]
+    if not matching:
+        return None
+    if len(matching) != 1:
+        raise RuntimeError(f"Action {item.id} contains duplicate {semantic} measures.")
+    measure = matching[0]
+    return (
+        measure.measure_mode,
+        measure.quantity_min,
+        measure.quantity_max,
+        measure.measurement_unit_id,
+    )
+
+
+def _action_input_signature(
+    item: RecipeInstructionAction,
+    tokens: dict[UUID, _IngredientReferenceToken],
+) -> tuple[_IngredientReferenceToken, ...]:
+    values: list[_IngredientReferenceToken] = []
+    for action_input in sorted(
+        item.inputs,
+        key=lambda value: (value.display_order, value.id.int),
+    ):
+        try:
+            values.append(tokens[action_input.recipe_ingredient_id])
+        except KeyError as error:
+            raise RuntimeError(
+                f"Action {item.id} references ingredient occurrence "
+                f"{action_input.recipe_ingredient_id} outside its recipe snapshot."
+            ) from error
+    return tuple(values)
+
+
+def _action_signature(
+    item: RecipeInstructionAction,
+    tokens: dict[UUID, _IngredientReferenceToken],
+) -> _ActionSignature:
+    return (
+        item.action_type_id,
+        _action_input_signature(item, tokens),
+        _action_measure_signature(item, ACTION_PARAMETER_DURATION),
+        _action_measure_signature(item, ACTION_PARAMETER_TEMPERATURE),
+    )
+
+
+def _pair_actions(
+    before_items: list[RecipeInstructionAction],
+    after_items: list[RecipeInstructionAction],
+    *,
+    before_tokens: dict[UUID, _IngredientReferenceToken],
+    after_tokens: dict[UUID, _IngredientReferenceToken],
+) -> tuple[list[tuple[RecipeInstructionAction, RecipeInstructionAction]], bool]:
+    """Pair action instances without treating freshly generated row IDs as edits."""
+
+    after_by_signature: dict[_ActionSignature, list[RecipeInstructionAction]] = defaultdict(list)
+    for item in after_items:
+        after_by_signature[_action_signature(item, after_tokens)].append(item)
+
+    pairs: list[tuple[RecipeInstructionAction, RecipeInstructionAction]] = []
+    remaining_before: list[RecipeInstructionAction] = []
+    matched_after_ids: set[UUID] = set()
+    for item in before_items:
+        candidates = after_by_signature.get(_action_signature(item, before_tokens))
+        if not candidates:
+            remaining_before.append(item)
+            continue
+        matched_index = min(
+            range(len(candidates)),
+            key=lambda index: (
+                abs(item.display_order - candidates[index].display_order),
+                *_action_order(candidates[index]),
+            ),
+        )
+        matched = candidates.pop(matched_index)
+        pairs.append((item, matched))
+        matched_after_ids.add(matched.id)
+
+    remaining_after = [item for item in after_items if item.id not in matched_after_ids]
+    before_by_type: dict[UUID, deque[RecipeInstructionAction]] = defaultdict(deque)
+    after_by_type: dict[UUID, deque[RecipeInstructionAction]] = defaultdict(deque)
+    for item in remaining_before:
+        before_by_type[item.action_type_id].append(item)
+    for item in remaining_after:
+        after_by_type[item.action_type_id].append(item)
+    for action_type_id in sorted(
+        before_by_type.keys() & after_by_type.keys(), key=lambda value: value.int
+    ):
+        before_group = before_by_type[action_type_id]
+        after_group = after_by_type[action_type_id]
+        while before_group and after_group:
+            pairs.append((before_group.popleft(), after_group.popleft()))
+
+    before_type_counts = Counter(item.action_type_id for item in before_items)
+    after_type_counts = Counter(item.action_type_id for item in after_items)
+    return pairs, before_type_counts != after_type_counts
+
+
+def _instruction_changed_fields(
+    before: RecipeInstruction,
+    after: RecipeInstruction,
+    *,
+    before_tokens: dict[UUID, _IngredientReferenceToken],
+    after_tokens: dict[UUID, _IngredientReferenceToken],
+) -> list[RecipeInstructionChangedField]:
+    before_actions = sorted(before.actions, key=_action_order)
+    after_actions = sorted(after.actions, key=_action_order)
+    action_pairs, actions_changed = _pair_actions(
+        before_actions,
+        after_actions,
+        before_tokens=before_tokens,
+        after_tokens=after_tokens,
+    )
+    action_order_changed = not actions_changed and any(
+        before_action.display_order != after_action.display_order
+        for before_action, after_action in action_pairs
+    )
+
+    inputs_changed = any(
+        _action_input_signature(before_action, before_tokens)
+        != _action_input_signature(after_action, after_tokens)
+        for before_action, after_action in action_pairs
+    )
+    duration_changed = any(
+        _action_measure_signature(before_action, ACTION_PARAMETER_DURATION)
+        != _action_measure_signature(after_action, ACTION_PARAMETER_DURATION)
+        for before_action, after_action in action_pairs
+    )
+    temperature_changed = any(
+        _action_measure_signature(before_action, ACTION_PARAMETER_TEMPERATURE)
+        != _action_measure_signature(after_action, ACTION_PARAMETER_TEMPERATURE)
+        for before_action, after_action in action_pairs
+    )
+    changed = {
+        "text": before.instruction != after.instruction,
+        "actions": actions_changed,
+        "inputs": inputs_changed,
+        "action_order": action_order_changed,
+        "duration": duration_changed,
+        "temperature": temperature_changed,
+    }
+    return [field for field in _INSTRUCTION_FIELD_ORDER if changed[field]]
 
 
 def _ingredient_changed_fields(
@@ -324,28 +553,46 @@ def _ingredient_diff(
 def _instruction_diff(
     base: RecipeVersion,
     target: RecipeVersion,
+    *,
+    before_tokens: dict[UUID, _IngredientReferenceToken],
+    after_tokens: dict[UUID, _IngredientReferenceToken],
 ) -> RecipeInstructionDiff:
     before_items = sorted(base.instructions, key=_instruction_order)
     after_items = sorted(target.instructions, key=_instruction_order)
+    all_tokens = {**before_tokens, **after_tokens}
     _exact, remaining_before, remaining_after = _pair_exact_occurrences(
         before_items,
         after_items,
-        signature=lambda item: item.instruction,
+        signature=lambda item: (
+            item.instruction,
+            tuple(
+                _action_signature(action, all_tokens)
+                for action in sorted(item.actions, key=_action_order)
+            ),
+        ),
     )
 
     shared_count = min(len(remaining_before), len(remaining_after))
-    modified = [
-        RecipeInstructionPairChange(
-            before=_instruction_snapshot(before),
-            after=_instruction_snapshot(after),
-            changed_fields=["text"],
+    modified = []
+    for before, after in zip(
+        remaining_before[:shared_count],
+        remaining_after[:shared_count],
+        strict=True,
+    ):
+        changed_fields = _instruction_changed_fields(
+            before,
+            after,
+            before_tokens=before_tokens,
+            after_tokens=after_tokens,
         )
-        for before, after in zip(
-            remaining_before[:shared_count],
-            remaining_after[:shared_count],
-            strict=True,
-        )
-    ]
+        if changed_fields:
+            modified.append(
+                RecipeInstructionPairChange(
+                    before=_instruction_snapshot(before),
+                    after=_instruction_snapshot(after),
+                    changed_fields=changed_fields,
+                )
+            )
     return RecipeInstructionDiff(
         added=[_instruction_snapshot(item) for item in remaining_after[shared_count:]],
         removed=[_instruction_snapshot(item) for item in remaining_before[shared_count:]],
@@ -373,7 +620,13 @@ def build_recipe_diff(
 
     metadata_changes = _metadata_changes(base, target)
     ingredients = _ingredient_diff(base, target, substitution_pairs)
-    instructions = _instruction_diff(base, target)
+    before_tokens, after_tokens = _ingredient_reference_tokens(base, target)
+    instructions = _instruction_diff(
+        base,
+        target,
+        before_tokens=before_tokens,
+        after_tokens=after_tokens,
+    )
     has_changes = bool(metadata_changes) or _has_items(
         (
             ingredients.added,
@@ -391,6 +644,16 @@ def build_recipe_diff(
         target_version=RecipeVersionReference.model_validate(target),
         metadata_changes=metadata_changes,
         ingredients=ingredients,
+        ingredient_context=RecipeIngredientContext(
+            base=[
+                _ingredient_snapshot(item)
+                for item in sorted(base.ingredients, key=_ingredient_order)
+            ],
+            target=[
+                _ingredient_snapshot(item)
+                for item in sorted(target.ingredients, key=_ingredient_order)
+            ],
+        ),
         instructions=instructions,
         has_changes=has_changes,
     )

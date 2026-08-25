@@ -32,6 +32,7 @@ const noChangeDiff: RecipeDiff = {
   },
   metadata_changes: [],
   ingredients: { added: [], removed: [], replaced: [], modified: [] },
+  ingredient_context: { base: [], target: [] },
   instructions: { added: [], removed: [], modified: [] },
   has_changes: false,
 };

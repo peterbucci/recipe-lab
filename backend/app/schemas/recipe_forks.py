@@ -11,6 +11,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.schemas.actions import IngredientEditReference, StructuredActionInput
 from app.schemas.measurements import ExactMeasureInput, RangeMeasureInput, StructuredMeasureInput
 
 
@@ -114,6 +115,13 @@ class ReplaceIngredient(ForkSchema):
 
 class AddIngredient(ForkSchema):
     op: Literal["add"]
+    edit_ref: IngredientEditReference | None = Field(
+        default=None,
+        description=(
+            "Request-scoped reference used when a structured action targets this newly "
+            "added ingredient occurrence. It is not persisted as the child row identifier."
+        ),
+    )
     ingredient_id: UUID = Field(
         description=(
             "Stable curated catalog identity to append. Pending or rejected requests are "
@@ -155,6 +163,19 @@ class UpdateInstruction(ForkSchema):
 class AddInstruction(ForkSchema):
     op: Literal["add"]
     text: InstructionText
+    actions: list[StructuredActionInput] = Field(min_length=1, max_length=50)
+
+
+class SetInstructionActions(ForkSchema):
+    op: Literal["set_actions"]
+    recipe_instruction_id: UUID = Field(
+        description="Instruction-row identifier from the direct source snapshot."
+    )
+    actions: list[StructuredActionInput] = Field(
+        min_length=1,
+        max_length=50,
+        description="Complete ordered replacement for this instruction's action sequence.",
+    )
 
 
 class RemoveInstruction(ForkSchema):
@@ -165,7 +186,7 @@ class RemoveInstruction(ForkSchema):
 
 
 InstructionEdit = Annotated[
-    UpdateInstruction | AddInstruction | RemoveInstruction,
+    UpdateInstruction | SetInstructionActions | AddInstruction | RemoveInstruction,
     Field(discriminator="op"),
 ]
 
@@ -200,4 +221,11 @@ class RecipeForkRequest(ForkSchema):
             elif isinstance(measure, RangeMeasureInput):
                 _validate_recipe_quantity_precision(measure.minimum)
                 _validate_recipe_quantity_precision(measure.maximum)
+        edit_refs = [
+            edit.edit_ref
+            for edit in self.ingredient_edits
+            if isinstance(edit, AddIngredient) and edit.edit_ref is not None
+        ]
+        if len(edit_refs) != len(set(edit_refs)):
+            raise ValueError("added ingredient edit_ref values must be unique within a request")
         return self

@@ -10,6 +10,7 @@ import type {
   RecipeInstruction,
   RecipeInstructionPairChange,
 } from "../../lib/recipe-api";
+import { RecipeInstructionActions } from "./recipe-instruction-actions";
 
 interface RecipeDiffViewProps {
   diff: RecipeDiff;
@@ -199,9 +200,11 @@ function MetadataChange({ change }: { change: RecipeFieldChange }) {
 function SingleInstructionChange({
   instruction,
   kind,
+  ingredients,
 }: {
   instruction: RecipeInstruction;
   kind: "added" | "removed";
+  ingredients: readonly RecipeIngredient[];
 }) {
   const added = kind === "added";
   const step = instruction.display_order + 1;
@@ -213,21 +216,85 @@ function SingleInstructionChange({
         <h3 id={headingId}>Step {step}</h3>
         <div className={`recipe-diff-single-value recipe-diff-single-value--${kind}`}>
           <span>{added ? "New instruction" : "Removed instruction"}</span>
-          {added ? <ins>{instruction.text}</ins> : <del>{instruction.text}</del>}
+          {added ? (
+            <ins>
+              <InstructionValue instruction={instruction} ingredients={ingredients} />
+            </ins>
+          ) : (
+            <del>
+              <InstructionValue instruction={instruction} ingredients={ingredients} />
+            </del>
+          )}
         </div>
       </article>
     </li>
   );
 }
 
-function ModifiedInstruction({ change }: { change: RecipeInstructionPairChange }) {
+function InstructionValue({
+  instruction,
+  ingredients,
+}: {
+  instruction: RecipeInstruction;
+  ingredients: readonly RecipeIngredient[];
+}) {
+  return (
+    <div className="recipe-diff-instruction">
+      <span>{instruction.text}</span>
+      <RecipeInstructionActions
+        actions={instruction.actions}
+        ingredients={ingredients}
+        label="Structured cooking actions"
+      />
+    </div>
+  );
+}
+
+function instructionChangeLabels(change: RecipeInstructionPairChange): string[] {
+  const labels = new Map<RecipeInstructionPairChange["changed_fields"][number], string>([
+    ["text", "Prose changed"],
+    ["actions", "Actions changed"],
+    ["inputs", "Ingredient inputs changed"],
+    ["action_order", "Action order changed"],
+    ["duration", "Duration changed"],
+    ["temperature", "Temperature changed"],
+  ]);
+  return change.changed_fields.map((field) => labels.get(field) ?? "Instruction changed");
+}
+
+function ModifiedInstruction({
+  change,
+  beforeIngredients,
+  afterIngredients,
+}: {
+  change: RecipeInstructionPairChange;
+  beforeIngredients: readonly RecipeIngredient[];
+  afterIngredients: readonly RecipeIngredient[];
+}) {
   const headingId = `instruction-change-modified-${change.before.id}-${change.after.id}`;
+  const labels = instructionChangeLabels(change);
   return (
     <li className="recipe-diff-entry recipe-diff-entry--modified">
       <article aria-labelledby={headingId}>
-        <p className="recipe-diff-kind">Instruction changed</p>
+        <div className="recipe-diff-kinds" role="group" aria-label="Change type">
+          {labels.map((label, index) => (
+            <span
+              key={label}
+              className={`recipe-diff-kind${index > 0 ? " recipe-diff-kind--secondary" : ""}`}
+            >
+              {label}
+            </span>
+          ))}
+        </div>
         <h3 id={headingId}>Updated instruction</h3>
-        <ValuePair before={change.before.text} after={change.after.text} />
+        <ValuePair
+          before={
+            <InstructionValue instruction={change.before} ingredients={beforeIngredients} />
+          }
+          after={
+            <InstructionValue instruction={change.after} ingredients={afterIngredients} />
+          }
+        />
       </article>
     </li>
   );
@@ -374,6 +441,8 @@ export function RecipeDiffView({ diff }: RecipeDiffViewProps) {
                   <ModifiedInstruction
                     key={`${change.before.id}:${change.after.id}`}
                     change={change}
+                    beforeIngredients={diff.ingredient_context.base}
+                    afterIngredients={diff.ingredient_context.target}
                   />
                 ))}
                 {diff.instructions.added.map((instruction) => (
@@ -381,6 +450,7 @@ export function RecipeDiffView({ diff }: RecipeDiffViewProps) {
                     key={instruction.id}
                     instruction={instruction}
                     kind="added"
+                    ingredients={diff.ingredient_context.target}
                   />
                 ))}
                 {diff.instructions.removed.map((instruction) => (
@@ -388,6 +458,7 @@ export function RecipeDiffView({ diff }: RecipeDiffViewProps) {
                     key={instruction.id}
                     instruction={instruction}
                     kind="removed"
+                    ingredients={diff.ingredient_context.base}
                   />
                 ))}
               </ul>

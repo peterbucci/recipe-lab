@@ -12,9 +12,11 @@ The catalog deliberately includes:
 - a branched carrot-cake lineage, including a child with less sugar and pecans
   in place of walnuts;
 - authored ingredient aliases that still reference canonical ingredient IDs;
-- directed substitutions with ratios or written guidance and provenance.
+- directed substitutions with ratios or written guidance and provenance;
 - a separately versioned curated measurement vocabulary with deterministic
-  unit and alias identities.
+  unit and alias identities; and
+- a separately versioned catalog of 54 curated cooking-action types plus explicit,
+  reviewed structured-action mappings for all 116 bundled instructions.
 
 ## Reproducibility
 
@@ -22,6 +24,12 @@ Every seed-owned row uses a UUIDv5 derived from the dataset ID, entity type,
 and an immutable stable key. The catalog also uses one fixed UTC publication
 timestamp. As a result, loading the same version into independent empty
 databases produces the same IDs and content.
+
+Action-type UUIDs use their own versioned namespace. Action instance and input
+UUIDs derive from the recipe, instruction, action, and ingredient stable keys.
+The action asset maps seed keys directly; validation and loading never infer
+verbs, inputs, durations, or temperatures from prose. A missing mapping or an
+unknown/cross-recipe reference fails before the database is written.
 
 The loader runs inside one database transaction and is safe to rerun. It
 reuses compatible catalog rows, adds only missing seed metadata, and never
@@ -67,3 +75,5 @@ provenance, licensing, interpretation, and food-safety notes live alongside
 the data in the [catalog provenance](../backend/app/seeds/data/PROVENANCE.md).
 Measurement identity, conversion limits, and deployment audit behavior are
 documented in [measurement catalog and legacy migration](measurements.md).
+The complete action vocabulary, instruction-graph, fork, and diff contract is
+documented in [structured cooking actions](cooking-actions.md).
