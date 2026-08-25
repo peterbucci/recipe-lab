@@ -195,7 +195,7 @@ test("requires sign-in for save, rate, recorded-view, and fork actions", async (
 
   await page.goto(`/recipes/${recipeVersionId}/fork`);
   await expect(
-    page.getByRole("heading", { name: "Sign in to make this recipe your own", level: 1 }),
+    page.getByRole("heading", { name: "Sign in to work on private recipes", level: 1 }),
   ).toBeVisible();
   await expect(page.getByRole("form", { name: /make .* your own/i })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Sign in to continue", exact: true })).toHaveAttribute(
@@ -252,8 +252,9 @@ test("keeps the anonymous recipe detail gate usable at a phone viewport", async 
   ).toBe(false);
 });
 
-test("selects a stable catalog ingredient with the keyboard on a phone", async ({ page }) => {
+test("selects a stable catalog ingredient in a private draft with the keyboard on a phone", async ({ page }) => {
   const pecanId = "77777777-7777-4777-8777-777777777777";
+  const draftId = "99999999-9999-4999-8999-999999999997";
   await page.setViewportSize({ width: 390, height: 844 });
   await page.context().addCookies([
     {
@@ -292,82 +293,93 @@ test("selects a stable catalog ingredient with the keyboard on a phone", async (
       }),
     });
   });
-  await page.route("**/api/recipes/*/variants", async (route) => {
+
+  const draftResponse = (sourceVersionId: string) => ({
+    id: draftId,
+    source_version_id: sourceVersionId,
+    status: "active",
+    revision: 1,
+    title: "",
+    description: null,
+    servings: null,
+    ingredients: [],
+    instructions: [],
+    created_at: "2026-08-25T12:00:00Z",
+    updated_at: "2026-08-25T12:00:00Z",
+  });
+
+  const recipeVersionId = await openCarrotRoot(page);
+  await page.route("**/api/recipe-drafts", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    expect(route.request().postDataJSON()).toEqual({ source_version_id: recipeVersionId });
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify(draftResponse(recipeVersionId)),
+    });
+  });
+  await page.route(`**/api/recipe-drafts/${draftId}`, async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(draftResponse(recipeVersionId)),
+      });
+      return;
+    }
     await route.fulfill({
       status: 422,
       contentType: "application/json",
       body: JSON.stringify({
         error: {
-          code: "invalid_recipe_edits",
+          code: "invalid_recipe_draft",
           message: "Test submission captured.",
           issues: [],
         },
       }),
     });
   });
-  await page.route("**/api/recipes/*/duplicate-preflights", async (route) => {
-    expect(route.request().method()).toBe("POST");
-    await route.fulfill({
-      status: 201,
-      contentType: "application/json",
-      body: JSON.stringify({
-        classification: "distinct",
-        same_lineage_no_change: false,
-        candidates: [],
-        warnings: [],
-        acknowledgement: {
-          preflight_id: "99999999-9999-4999-8999-999999999998",
-          policy_version: "recipe-duplicate-preflight-policy-v1",
-          result_digest: "a".repeat(64),
-          required: false,
-          allowed_decisions: [],
-        },
-      }),
-    });
-  });
 
-  const recipeVersionId = await openCarrotRoot(page);
   await page.goto(`/recipes/${recipeVersionId}/fork`);
-  const walnutRow = page.getByRole("group", { name: /^Ingredient \d+: Walnuts?$/ });
-  const changeIngredient = walnutRow.getByRole("button", { name: /^Change Walnuts?$/ });
-  await changeIngredient.focus();
+  await page.getByRole("button", { name: "Create private draft", exact: true }).click();
+  await expect(page).toHaveURL(`/account/recipe-drafts/${draftId}`);
+  await page.getByRole("button", { name: "Add ingredient", exact: true }).focus();
   await page.keyboard.press("Enter");
 
-  const search = walnutRow.getByRole("searchbox", {
-    name: "Swap ingredient (optional)",
-    exact: true,
-  });
+  const ingredientRow = page.getByRole("group", { name: "Ingredient 1", exact: true });
+  const search = ingredientRow.getByRole("searchbox", { name: "Catalog ingredient", exact: true });
   await search.focus();
   await search.fill("Pecan");
   await page.keyboard.press("Enter");
-  const result = walnutRow
-    .getByRole("list", { name: "Swap ingredient (optional) catalog results" })
+  const result = ingredientRow
+    .getByRole("list", { name: "Catalog ingredient catalog results" })
     .getByRole("button", { name: /pecan/i });
   await expect(result).toBeVisible();
   await activateWithKeyboard(page, result);
-  await expect(walnutRow.getByText("Selected catalog ingredient")).toBeVisible();
+  await expect(ingredientRow.getByText("Selected catalog ingredient")).toBeVisible();
 
-  const variantRequest = page.waitForRequest(
-    (request) => request.method() === "POST" && request.url().endsWith("/variants"),
+  const updateRequest = page.waitForRequest(
+    (request) => request.method() === "PUT" && request.url().endsWith(`/recipe-drafts/${draftId}`),
   );
   await activateWithKeyboard(
     page,
-    page.getByRole("button", { name: "Create my version", exact: true }),
+    page.getByRole("button", { name: "Save draft", exact: true }),
   );
-  const payload = (await variantRequest).postDataJSON() as {
-    ingredient_edits: Array<Record<string, unknown>>;
+  const payload = (await updateRequest).postDataJSON() as {
+    ingredients: Array<Record<string, unknown>>;
   };
-  const replacement = payload.ingredient_edits.find((edit) => edit.op === "replace");
-  expect(replacement).toMatchObject({
-    ingredient_id: pecanId,
-    display_name: "Pecan",
+  expect(payload.ingredients[0]).toMatchObject({
+    selection: {
+      kind: "catalog",
+      ingredient_id: pecanId,
+      display_name: "Pecan",
+    },
   });
-  expect(replacement).not.toHaveProperty("ingredient_name");
   await expect(page.locator(".variant-error-summary")).toContainText(
     "Test submission captured.",
   );
 
-  const picker = walnutRow.locator(".ingredient-picker");
+  const picker = ingredientRow.locator(".ingredient-picker");
   const pickerBox = await picker.boundingBox();
   expect(pickerBox).not.toBeNull();
   expect(pickerBox!.x).toBeGreaterThanOrEqual(0);
