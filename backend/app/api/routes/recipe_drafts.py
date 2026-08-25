@@ -1,0 +1,272 @@
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import APIRouter, Body, Query, Response, status
+
+from app.api.dependencies import (
+    CsrfProtectedSessionDependency,
+    RequiredAuthenticatedSessionDependency,
+    SessionDependency,
+)
+from app.api.errors import ApiError
+from app.api.member_context import lock_active_member_actor
+from app.repositories.recipe_drafts import browse_owned_recipe_drafts, get_owned_recipe_draft
+from app.schemas.errors import ErrorResponse
+from app.schemas.recipe_drafts import (
+    RecipeDraftCreateRequest,
+    RecipeDraftDetailResponse,
+    RecipeDraftPageResponse,
+    RecipeDraftSummaryResponse,
+    RecipeDraftUpdateRequest,
+)
+from app.services.recipe_drafts import (
+    InvalidRecipeDraftError,
+    RecipeDraftRevisionConflictError,
+    create_recipe_draft,
+    discard_recipe_draft,
+    recipe_draft_detail_response,
+    replace_recipe_draft,
+)
+
+router = APIRouter()
+
+DRAFT_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
+    401: {"model": ErrorResponse, "description": "A valid member session is required."},
+    403: {"model": ErrorResponse, "description": "CSRF or onboarding validation failed."},
+    404: {"model": ErrorResponse, "description": "The private draft or source was not found."},
+    409: {"model": ErrorResponse, "description": "The submitted revision is stale."},
+    422: {"model": ErrorResponse, "description": "The private draft content is invalid."},
+}
+
+
+def _private_no_store(response: Response) -> None:
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Vary"] = "Cookie"
+
+
+def _draft_not_found(draft_id: UUID) -> ApiError:
+    return ApiError(
+        status_code=404,
+        code="recipe_draft_not_found",
+        message=f"Recipe draft {draft_id} was not found.",
+    )
+
+
+def _revision_conflict() -> ApiError:
+    return ApiError(
+        status_code=409,
+        code="recipe_draft_revision_conflict",
+        message="This draft has a newer saved revision. Reload it before trying again.",
+    )
+
+
+@router.post(
+    "/recipe-drafts",
+    response_model=RecipeDraftDetailResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses=DRAFT_ERROR_RESPONSES,
+    summary="Create a private recipe draft",
+    description=(
+        "Creates a blank original draft or copies one exact public immutable recipe "
+        "snapshot. Authorship always comes from the active member session."
+    ),
+)
+def create_private_recipe_draft(
+    payload: Annotated[RecipeDraftCreateRequest, Body()],
+    response: Response,
+    session: SessionDependency,
+    authenticated: CsrfProtectedSessionDependency,
+) -> RecipeDraftDetailResponse:
+    actor_id = lock_active_member_actor(session, authenticated)
+    draft = create_recipe_draft(
+        session,
+        author_user_id=actor_id,
+        source_version_id=payload.source_version_id,
+    )
+    if draft is None:
+        session.rollback()
+        raise ApiError(
+            status_code=404,
+            code="recipe_source_not_found",
+            message="The source recipe is not publicly available.",
+        )
+
+    draft_id = draft.id
+    session.flush()
+    session.expire_all()
+    stored = get_owned_recipe_draft(
+        session,
+        author_user_id=actor_id,
+        draft_id=draft_id,
+    )
+    if stored is None:
+        raise RuntimeError("The newly created private draft could not be reloaded.")
+    result = recipe_draft_detail_response(stored)
+    session.commit()
+    response.headers["Location"] = f"/api/recipe-drafts/{draft_id}"
+    _private_no_store(response)
+    return result
+
+
+@router.get(
+    "/recipe-drafts",
+    response_model=RecipeDraftPageResponse,
+    responses=DRAFT_ERROR_RESPONSES,
+    summary="List my private recipe drafts",
+)
+def my_private_recipe_drafts(
+    response: Response,
+    session: SessionDependency,
+    authenticated: RequiredAuthenticatedSessionDependency,
+    page: Annotated[int, Query(ge=1, le=1_000_000)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> RecipeDraftPageResponse:
+    actor_id = lock_active_member_actor(session, authenticated)
+    stored = browse_owned_recipe_drafts(
+        session,
+        author_user_id=actor_id,
+        offset=(page - 1) * page_size,
+        limit=page_size,
+    )
+    result = RecipeDraftPageResponse(
+        items=[
+            RecipeDraftSummaryResponse(
+                id=item.draft.id,
+                source_version_id=item.draft.source_version_id,
+                status="active",
+                revision=item.draft.revision,
+                title=item.draft.title,
+                ingredient_count=item.ingredient_count,
+                instruction_count=item.instruction_count,
+                created_at=item.draft.created_at,
+                updated_at=item.draft.updated_at,
+            )
+            for item in stored.items
+        ],
+        page=page,
+        page_size=page_size,
+        total=stored.total,
+        total_pages=(stored.total + page_size - 1) // page_size,
+    )
+    session.commit()
+    _private_no_store(response)
+    return result
+
+
+@router.get(
+    "/recipe-drafts/{draft_id}",
+    response_model=RecipeDraftDetailResponse,
+    responses=DRAFT_ERROR_RESPONSES,
+    summary="Read my private recipe draft",
+)
+def private_recipe_draft_detail(
+    draft_id: UUID,
+    response: Response,
+    session: SessionDependency,
+    authenticated: RequiredAuthenticatedSessionDependency,
+) -> RecipeDraftDetailResponse:
+    actor_id = lock_active_member_actor(session, authenticated)
+    draft = get_owned_recipe_draft(
+        session,
+        author_user_id=actor_id,
+        draft_id=draft_id,
+    )
+    if draft is None:
+        session.rollback()
+        raise _draft_not_found(draft_id)
+    result = recipe_draft_detail_response(draft)
+    session.commit()
+    _private_no_store(response)
+    return result
+
+
+@router.put(
+    "/recipe-drafts/{draft_id}",
+    response_model=RecipeDraftDetailResponse,
+    responses=DRAFT_ERROR_RESPONSES,
+    summary="Save a complete private recipe draft revision",
+    description=(
+        "Atomically replaces the member-owned draft document when the submitted revision "
+        "matches. The source, author, status, and server-controlled ordering remain outside "
+        "the client contract."
+    ),
+)
+def save_private_recipe_draft(
+    draft_id: UUID,
+    payload: Annotated[RecipeDraftUpdateRequest, Body()],
+    response: Response,
+    session: SessionDependency,
+    authenticated: CsrfProtectedSessionDependency,
+) -> RecipeDraftDetailResponse:
+    actor_id = lock_active_member_actor(session, authenticated)
+    try:
+        draft = replace_recipe_draft(
+            session,
+            author_user_id=actor_id,
+            draft_id=draft_id,
+            payload=payload,
+        )
+    except RecipeDraftRevisionConflictError as error:
+        session.rollback()
+        raise _revision_conflict() from error
+    except InvalidRecipeDraftError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=422,
+            code="invalid_recipe_draft",
+            message=str(error),
+        ) from error
+
+    if draft is None:
+        session.rollback()
+        raise _draft_not_found(draft_id)
+
+    session.flush()
+    session.expire_all()
+    stored = get_owned_recipe_draft(
+        session,
+        author_user_id=actor_id,
+        draft_id=draft_id,
+    )
+    if stored is None:
+        raise RuntimeError("The saved private draft could not be reloaded.")
+    result = recipe_draft_detail_response(stored)
+    session.commit()
+    _private_no_store(response)
+    return result
+
+
+@router.delete(
+    "/recipe-drafts/{draft_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=DRAFT_ERROR_RESPONSES,
+    summary="Permanently discard my private recipe draft",
+    description=(
+        "Immediately and irreversibly deletes the draft and all private draft content when "
+        "the submitted revision is current. No application-level tombstone is retained."
+    ),
+)
+def delete_private_recipe_draft(
+    draft_id: UUID,
+    revision: Annotated[int, Query(ge=1)],
+    session: SessionDependency,
+    authenticated: CsrfProtectedSessionDependency,
+) -> Response:
+    actor_id = lock_active_member_actor(session, authenticated)
+    try:
+        discarded = discard_recipe_draft(
+            session,
+            author_user_id=actor_id,
+            draft_id=draft_id,
+            expected_revision=revision,
+        )
+    except RecipeDraftRevisionConflictError as error:
+        session.rollback()
+        raise _revision_conflict() from error
+    if not discarded:
+        session.rollback()
+        raise _draft_not_found(draft_id)
+    session.commit()
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    _private_no_store(response)
+    return response

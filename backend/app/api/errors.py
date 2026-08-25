@@ -65,7 +65,15 @@ async def request_validation_error_handler(
     identifier_error = any(
         issue.type.startswith("uuid_")
         and any(
-            part in {"recipe_version_id", "lineage_id", "base_version_id"}
+            part
+            in {
+                "recipe_version_id",
+                "lineage_id",
+                "base_version_id",
+                "source_version_id",
+                "draft_id",
+                "ingredient_request_id",
+            }
             for part in issue.location
         )
         for issue in issues
