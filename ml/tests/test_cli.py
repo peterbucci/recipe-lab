@@ -21,7 +21,7 @@ from recipe_lab_evaluation.dataset import (
 )
 from recipe_lab_evaluation.split import split_snapshot
 
-READINESS_CATALOG = Path(__file__).parent / "fixtures" / "readiness_catalog_v1.json"
+READINESS_CATALOG = Path(__file__).parent / "fixtures" / "readiness_catalog_v2.json"
 
 
 def test_run_command_writes_the_same_report_for_reordered_k_values(

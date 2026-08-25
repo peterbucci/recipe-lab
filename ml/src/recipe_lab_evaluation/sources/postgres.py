@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Literal, cast
 from uuid import UUID
 
@@ -17,7 +18,10 @@ from sqlalchemy.orm import Session
 
 from ..dataset import (
     EvaluationSnapshot,
+    MeasureKind,
+    QualitativeMeasure,
     SnapshotEvent,
+    SnapshotIngredientMeasure,
     SnapshotRecipe,
     create_snapshot,
 )
@@ -42,14 +46,47 @@ def _event_type(value: str) -> EventType:
     return cast(EventType, value)
 
 
+def _ingredient_measure(
+    *,
+    ingredient_id: UUID,
+    measure_mode: str,
+    quantity_min: Decimal | None,
+    quantity_max: Decimal | None,
+    measurement_unit_id: UUID | None,
+    package_size_id: UUID | None,
+) -> SnapshotIngredientMeasure:
+    if measure_mode in {"exact", "range"}:
+        return SnapshotIngredientMeasure(
+            ingredient_id=ingredient_id,
+            kind=cast(MeasureKind, measure_mode),
+            quantity_min=quantity_min,
+            quantity_max=quantity_max,
+            measurement_unit_id=measurement_unit_id,
+            package_size_id=package_size_id,
+            qualitative_value=None,
+        )
+    if measure_mode in {"to_taste", "as_needed", "unspecified"}:
+        return SnapshotIngredientMeasure(
+            ingredient_id=ingredient_id,
+            kind="qualitative",
+            quantity_min=None,
+            quantity_max=None,
+            measurement_unit_id=None,
+            package_size_id=None,
+            qualitative_value=cast(QualitativeMeasure, measure_mode),
+        )
+    raise SnapshotExportError("database returned an unsupported ingredient measure mode")
+
+
 def _extract(engine: Engine) -> tuple[tuple[SnapshotRecipe, ...], tuple[SnapshotEvent, ...]]:
     if engine.dialect.name != "postgresql":
         raise SnapshotExportError("snapshot export requires PostgreSQL")
 
-    # Both queries run in one point-in-time PostgreSQL snapshot. Only the columns in
-    # the public evaluation contract are selected; request fingerprints, user profile
-    # data, recipe descriptions, instructions, and ingredient display text never leave
-    # the database.
+    # Both queries run in one point-in-time PostgreSQL snapshot. Only contract fields and
+    # the two non-exported ingredient ordering keys are selected; request fingerprints,
+    # user profile data, recipe descriptions, instructions, and ingredient display text
+    # never leave the database. Ingredient rows remain occurrence-preserving and are
+    # ordered by their authored position before the versioned measure fields are projected.
     with engine.connect().execution_options(isolation_level="REPEATABLE READ") as connection:
         with connection.begin(), Session(bind=connection) as session:
             recipe_rows = session.execute(
@@ -64,9 +101,17 @@ def _extract(engine: Engine) -> tuple[tuple[SnapshotRecipe, ...], tuple[Snapshot
                 select(
                     RecipeIngredient.recipe_version_id,
                     RecipeIngredient.ingredient_id,
+                    RecipeIngredient.measure_mode,
+                    RecipeIngredient.quantity_min,
+                    RecipeIngredient.quantity_max,
+                    RecipeIngredient.measurement_unit_id,
+                    RecipeIngredient.package_size_id,
+                    RecipeIngredient.display_order,
+                    RecipeIngredient.id,
                 ).order_by(
                     RecipeIngredient.recipe_version_id,
-                    RecipeIngredient.ingredient_id,
+                    RecipeIngredient.display_order,
+                    RecipeIngredient.id,
                 )
             ).all()
             event_rows = session.execute(
@@ -82,9 +127,28 @@ def _extract(engine: Engine) -> tuple[tuple[SnapshotRecipe, ...], tuple[Snapshot
                 ).order_by(PreferenceEvent.occurred_at, PreferenceEvent.id)
             ).all()
 
-    ingredients_by_recipe: defaultdict[UUID, set[UUID]] = defaultdict(set)
-    for recipe_version_id, ingredient_id in ingredient_rows:
-        ingredients_by_recipe[recipe_version_id].add(ingredient_id)
+    measures_by_recipe: defaultdict[UUID, list[SnapshotIngredientMeasure]] = defaultdict(list)
+    for (
+        recipe_version_id,
+        ingredient_id,
+        measure_mode,
+        quantity_min,
+        quantity_max,
+        measurement_unit_id,
+        package_size_id,
+        _display_order,
+        _recipe_ingredient_id,
+    ) in ingredient_rows:
+        measures_by_recipe[recipe_version_id].append(
+            _ingredient_measure(
+                ingredient_id=ingredient_id,
+                measure_mode=measure_mode,
+                quantity_min=quantity_min,
+                quantity_max=quantity_max,
+                measurement_unit_id=measurement_unit_id,
+                package_size_id=package_size_id,
+            )
+        )
 
     recipes = tuple(
         SnapshotRecipe(
@@ -92,12 +156,7 @@ def _extract(engine: Engine) -> tuple[tuple[SnapshotRecipe, ...], tuple[Snapshot
             created_at=_utc(created_at, field="recipe created_at"),
             title=title,
             version_number=version_number,
-            ingredient_ids=tuple(
-                sorted(
-                    ingredients_by_recipe[recipe_id],
-                    key=lambda ingredient_id: ingredient_id.int,
-                )
-            ),
+            ingredient_measures=tuple(measures_by_recipe[recipe_id]),
         )
         for recipe_id, created_at, title, version_number in recipe_rows
     )

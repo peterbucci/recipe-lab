@@ -1,6 +1,6 @@
 {
-  "schema_version": "recipe-lab-evaluation-snapshot-v1",
-  "dataset_id": "recipe-lab-synthetic-offline-v1",
+  "schema_version": "recipe-lab-evaluation-snapshot-v2",
+  "dataset_id": "recipe-lab-synthetic-offline-v2",
   "cutoff": "2026-06-01T00:00:00Z",
   "limitations": [
     "This versioned snapshot is synthetic and does not describe real people or observed product behavior.",
@@ -13,10 +13,34 @@
       "created_at": "2026-01-01T00:00:00Z",
       "title": "Fixture Alpha",
       "version_number": 1,
-      "ingredient_ids": [
-        "6de72b10-016a-468e-8ee7-1fbcf0739468",
-        "644a55b7-0d28-477d-96b1-35b21c2dcc2e",
-        "41962b7c-de93-4e7c-b8db-1327aaded5de"
+      "ingredient_measures": [
+        {
+          "ingredient_id": "6de72b10-016a-468e-8ee7-1fbcf0739468",
+          "kind": "exact",
+          "quantity_min": "1.5",
+          "quantity_max": null,
+          "measurement_unit_id": "11111111-1111-4111-8111-111111111111",
+          "package_size_id": "22222222-2222-4222-8222-222222222222",
+          "qualitative_value": null
+        },
+        {
+          "ingredient_id": "644a55b7-0d28-477d-96b1-35b21c2dcc2e",
+          "kind": "range",
+          "quantity_min": "2",
+          "quantity_max": "3",
+          "measurement_unit_id": "33333333-3333-4333-8333-333333333333",
+          "package_size_id": null,
+          "qualitative_value": null
+        },
+        {
+          "ingredient_id": "41962b7c-de93-4e7c-b8db-1327aaded5de",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "to_taste"
+        }
       ]
     },
     {
@@ -24,10 +48,34 @@
       "created_at": "2026-01-02T00:00:00Z",
       "title": "Fixture Beta",
       "version_number": 1,
-      "ingredient_ids": [
-        "6de72b10-016a-468e-8ee7-1fbcf0739468",
-        "644a55b7-0d28-477d-96b1-35b21c2dcc2e",
-        "404ab1fa-88db-4e5b-a8c9-e378e2d80914"
+      "ingredient_measures": [
+        {
+          "ingredient_id": "6de72b10-016a-468e-8ee7-1fbcf0739468",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "unspecified"
+        },
+        {
+          "ingredient_id": "644a55b7-0d28-477d-96b1-35b21c2dcc2e",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "unspecified"
+        },
+        {
+          "ingredient_id": "404ab1fa-88db-4e5b-a8c9-e378e2d80914",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "as_needed"
+        }
       ]
     },
     {
@@ -35,9 +83,25 @@
       "created_at": "2026-01-03T00:00:00Z",
       "title": "Fixture Gamma",
       "version_number": 1,
-      "ingredient_ids": [
-        "ec486b61-c86e-4f6e-a991-9f710a15d7a7",
-        "9a2e8856-65c0-4b14-9bda-db39793fd96a"
+      "ingredient_measures": [
+        {
+          "ingredient_id": "ec486b61-c86e-4f6e-a991-9f710a15d7a7",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "unspecified"
+        },
+        {
+          "ingredient_id": "9a2e8856-65c0-4b14-9bda-db39793fd96a",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "unspecified"
+        }
       ]
     },
     {
@@ -45,9 +109,25 @@
       "created_at": "2026-01-04T00:00:00Z",
       "title": "Fixture Delta",
       "version_number": 1,
-      "ingredient_ids": [
-        "ec486b61-c86e-4f6e-a991-9f710a15d7a7",
-        "fbc908d6-c0a1-4a32-b7f3-d84f74500ba4"
+      "ingredient_measures": [
+        {
+          "ingredient_id": "ec486b61-c86e-4f6e-a991-9f710a15d7a7",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "unspecified"
+        },
+        {
+          "ingredient_id": "fbc908d6-c0a1-4a32-b7f3-d84f74500ba4",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "unspecified"
+        }
       ]
     },
     {
@@ -55,9 +135,25 @@
       "created_at": "2026-01-05T00:00:00Z",
       "title": "Fixture Epsilon",
       "version_number": 1,
-      "ingredient_ids": [
-        "1d2075b2-ed64-463f-99e8-8ec7fc07edb7",
-        "fd486c4e-1b13-4b18-9986-44468859b073"
+      "ingredient_measures": [
+        {
+          "ingredient_id": "1d2075b2-ed64-463f-99e8-8ec7fc07edb7",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "unspecified"
+        },
+        {
+          "ingredient_id": "fd486c4e-1b13-4b18-9986-44468859b073",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "unspecified"
+        }
       ]
     },
     {
@@ -65,8 +161,16 @@
       "created_at": "2026-01-06T00:00:00Z",
       "title": "Fixture Zeta",
       "version_number": 1,
-      "ingredient_ids": [
-        "30f3b011-e72a-4d48-a361-d70e868b665c"
+      "ingredient_measures": [
+        {
+          "ingredient_id": "30f3b011-e72a-4d48-a361-d70e868b665c",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "unspecified"
+        }
       ]
     },
     {
@@ -74,10 +178,34 @@
       "created_at": "2026-01-07T00:00:00Z",
       "title": "Fixture Eta",
       "version_number": 1,
-      "ingredient_ids": [
-        "ec486b61-c86e-4f6e-a991-9f710a15d7a7",
-        "9a2e8856-65c0-4b14-9bda-db39793fd96a",
-        "bd016a88-e0dc-4dcc-9e56-d4c8c1232602"
+      "ingredient_measures": [
+        {
+          "ingredient_id": "ec486b61-c86e-4f6e-a991-9f710a15d7a7",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "unspecified"
+        },
+        {
+          "ingredient_id": "9a2e8856-65c0-4b14-9bda-db39793fd96a",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "unspecified"
+        },
+        {
+          "ingredient_id": "bd016a88-e0dc-4dcc-9e56-d4c8c1232602",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "unspecified"
+        }
       ]
     },
     {
@@ -85,8 +213,16 @@
       "created_at": "2026-06-02T00:00:00Z",
       "title": "Fixture Future",
       "version_number": 1,
-      "ingredient_ids": [
-        "a85f6961-8767-4bb1-b84e-5da8d8c4be17"
+      "ingredient_measures": [
+        {
+          "ingredient_id": "a85f6961-8767-4bb1-b84e-5da8d8c4be17",
+          "kind": "qualitative",
+          "quantity_min": null,
+          "quantity_max": null,
+          "measurement_unit_id": null,
+          "package_size_id": null,
+          "qualitative_value": "unspecified"
+        }
       ]
     }
   ],

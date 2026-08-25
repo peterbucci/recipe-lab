@@ -8,7 +8,7 @@ from recipe_lab_evaluation.substitution_dataset import (
     load_substitution_benchmark,
 )
 
-FIXTURE_PATH = Path(__file__).parent / "fixtures" / "synthetic_snapshot_v1.json"
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "synthetic_snapshot_v2.json"
 SUBSTITUTION_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "substitution_benchmark_v1.json"
 
 

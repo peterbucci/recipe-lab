@@ -5,6 +5,7 @@ from uuid import UUID
 from recipe_lab_evaluation.dataset import (
     EvaluationSnapshot,
     SnapshotEvent,
+    SnapshotIngredientMeasure,
     SnapshotRecipe,
 )
 from recipe_lab_evaluation.split import split_snapshot
@@ -45,7 +46,17 @@ def test_post_cutoff_events_and_recipes_cannot_change_training_data(
         created_at=synthetic_snapshot.cutoff + timedelta(seconds=1),
         title="Unseen Future Fixture",
         version_number=1,
-        ingredient_ids=(UUID("399b690a-9325-4b67-98c0-5760ff332a02"),),
+        ingredient_measures=(
+            SnapshotIngredientMeasure(
+                ingredient_id=UUID("399b690a-9325-4b67-98c0-5760ff332a02"),
+                kind="qualitative",
+                quantity_min=None,
+                quantity_max=None,
+                measurement_unit_id=None,
+                package_size_id=None,
+                qualitative_value="unspecified",
+            ),
+        ),
     )
     future_event = SnapshotEvent(
         id=UUID("b7718271-2cc6-4058-bfbb-750ae3cce47a"),

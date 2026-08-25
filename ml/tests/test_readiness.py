@@ -9,6 +9,7 @@ import pytest
 from recipe_lab_evaluation.dataset import (
     EvaluationSnapshot,
     SnapshotEvent,
+    SnapshotIngredientMeasure,
     SnapshotRecipe,
     SnapshotValidationError,
     canonical_json,
@@ -40,6 +41,18 @@ PROFILE_IDS = (
     UUID("20000000-0000-4000-8000-000000000003"),
     UUID("20000000-0000-4000-8000-000000000004"),
 )
+
+
+def _unspecified_measure(ingredient_id: UUID) -> SnapshotIngredientMeasure:
+    return SnapshotIngredientMeasure(
+        ingredient_id=ingredient_id,
+        kind="qualitative",
+        quantity_min=None,
+        quantity_max=None,
+        measurement_unit_id=None,
+        package_size_id=None,
+        qualitative_value="unspecified",
+    )
 
 
 def _event(
@@ -81,7 +94,9 @@ def _boundary_snapshot() -> EvaluationSnapshot:
             created_at=CUTOFF - timedelta(days=10),
             title=f"Private fixture title {index}",
             version_number=1,
-            ingredient_ids=(UUID(f"40000000-0000-4000-8000-{index:012d}"),),
+            ingredient_measures=(
+                _unspecified_measure(UUID(f"40000000-0000-4000-8000-{index:012d}")),
+            ),
         )
         for index, recipe_id in enumerate(RECIPE_IDS, start=1)
     )
@@ -273,7 +288,7 @@ def test_holdout_only_profiles_and_items_cannot_inflate_training_readiness() -> 
         created_at=CUTOFF,
         title="Future private fixture title",
         version_number=1,
-        ingredient_ids=(UUID("40000000-0000-4000-8000-000000000007"),),
+        ingredient_measures=(_unspecified_measure(UUID("40000000-0000-4000-8000-000000000007")),),
     )
     holdout_event = _event(
         101,
@@ -315,7 +330,7 @@ def test_signed_state_cancellation_cannot_pass_effective_readiness() -> None:
             created_at=CUTOFF - timedelta(days=10),
             title=f"Cancellation fixture {index}",
             version_number=1,
-            ingredient_ids=(UUID(int=200 + index),),
+            ingredient_measures=(_unspecified_measure(UUID(int=200 + index)),),
         )
         for index in range(8)
     )
@@ -430,7 +445,9 @@ def test_dense_nonoverlapping_profiles_cannot_pass_on_content_fallback() -> None
                 created_at=CUTOFF - timedelta(days=10),
                 title=f"Linear overlap fixture {copy_index}-{index}",
                 version_number=1,
-                ingredient_ids=(UUID(int=20_000 + copy_index * 100 + index),),
+                ingredient_measures=(
+                    _unspecified_measure(UUID(int=20_000 + copy_index * 100 + index)),
+                ),
             )
             for index, recipe_id in enumerate(recipe_ids)
         )
