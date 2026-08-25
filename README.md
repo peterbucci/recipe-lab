@@ -139,6 +139,9 @@ The repository currently provides:
 - a curated cooking-action vocabulary and dual prose/structured instruction
   model with ordered occurrence inputs plus exact/range duration and
   temperature parameters using curated units;
+- versioned, deterministic structural recipe fingerprints that normalize only
+  reviewed safe conversions, preserve repeated occurrences and ordered action
+  graphs, and confirm digest candidates against exact canonical JSON;
 - Alembic migrations and database-level lineage, ordering, rating, event
   privacy, and uniqueness constraints;
 - PostgreSQL and local development services through Docker Compose.

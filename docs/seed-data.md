@@ -31,6 +31,13 @@ The action asset maps seed keys directly; validation and loading never infer
 verbs, inputs, durations, or temperatures from prose. A missing mapping or an
 unknown/cross-recipe reference fails before the database is written.
 
+After the structural-fingerprint migration, every complete seeded snapshot also
+receives `recipe-structure-v1` canonical JSON and its lowercase SHA-256 in the
+same transaction. The result depends on reviewed identities and structure, not
+seed insertion order or recipe prose. It therefore agrees with migration
+backfill and independent reruns; see [structural recipe
+fingerprints](recipe-fingerprints.md).
+
 The loader runs inside one database transaction and is safe to rerun. It
 reuses compatible catalog rows, adds only missing seed metadata, and never
 deletes user data. If a deterministic recipe snapshot or substitution already
@@ -77,3 +84,5 @@ Measurement identity, conversion limits, and deployment audit behavior are
 documented in [measurement catalog and legacy migration](measurements.md).
 The complete action vocabulary, instruction-graph, fork, and diff contract is
 documented in [structured cooking actions](cooking-actions.md).
+The exact multiset, conversion, action-order, persistence, and collision contract
+is documented in [structural recipe fingerprints](recipe-fingerprints.md).

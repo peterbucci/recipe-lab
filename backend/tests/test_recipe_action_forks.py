@@ -6,11 +6,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.demo_identity import DEMO_USER_ID
-from app.models import RecipeVersion
+from app.models import RecipeStructuralFingerprint, RecipeVersion
 from app.repositories.recipes import get_recipe_version
 from app.schemas.recipe_forks import RecipeForkRequest
 from app.seeds import load_bundled_catalog, seed_catalog
 from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
+from app.services.recipe_fingerprints import STRUCTURAL_FINGERPRINT_STORAGE_VERSION
 from app.services.recipe_forks import InvalidRecipeEditsError, fork_recipe_version
 
 DATASET_ID = "recipe-lab-demo-v1"
@@ -92,6 +93,18 @@ def test_fork_copies_actions_and_remaps_inputs_to_fresh_child_occurrences(
     db_session.expire_all()
     child = get_recipe_version(db_session, child_id)
     assert child is not None
+    source_fingerprint = db_session.get(
+        RecipeStructuralFingerprint,
+        (source.id, STRUCTURAL_FINGERPRINT_STORAGE_VERSION),
+    )
+    child_fingerprint = db_session.get(
+        RecipeStructuralFingerprint,
+        (child.id, STRUCTURAL_FINGERPRINT_STORAGE_VERSION),
+    )
+    assert source_fingerprint is not None
+    assert child_fingerprint is not None
+    assert child_fingerprint.digest == source_fingerprint.digest
+    assert child_fingerprint.canonical_payload == source_fingerprint.canonical_payload
     child_ingredient_ids = {ingredient.id for ingredient in child.ingredients}
     child_action_ids = {
         action.id for instruction in child.instructions for action in instruction.actions

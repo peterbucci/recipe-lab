@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from app.models.engagement import RecipeRating, RecipeSave
     from app.models.ingredient import Ingredient
     from app.models.measurement import IngredientPackageSize, MeasurementUnit
+    from app.models.recipe_fingerprint import RecipeStructuralFingerprint
 
 
 class RecipeLineage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
@@ -122,6 +123,11 @@ class RecipeVersion(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     )
     ratings: Mapped[list["RecipeRating"]] = relationship(
         back_populates="recipe_version",
+        passive_deletes="all",
+    )
+    structural_fingerprints: Mapped[list["RecipeStructuralFingerprint"]] = relationship(
+        back_populates="recipe_version",
+        order_by="RecipeStructuralFingerprint.algorithm_version",
         passive_deletes="all",
     )
 

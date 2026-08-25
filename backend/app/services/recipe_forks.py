@@ -45,6 +45,9 @@ from app.services.actions import (
     validate_structured_actions,
 )
 from app.services.measurements import MeasurementError, validate_measure_input
+from app.services.recipe_fingerprint_persistence import (
+    fingerprint_and_store_recipe_version,
+)
 
 
 class InvalidRecipeEditsError(ValueError):
@@ -653,4 +656,9 @@ def fork_recipe_version(
         drafts=instruction_drafts,
         occurrence_ids=occurrence_ids,
     )
+    fingerprint_result = fingerprint_and_store_recipe_version(session, child.id)
+    if fingerprint_result.state == "incomplete":
+        raise RuntimeError(
+            "A validated complete child recipe did not produce a structural fingerprint."
+        )
     return child.id

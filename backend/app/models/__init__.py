@@ -52,6 +52,7 @@ from app.models.recipe import (
     RecipeLineage,
     RecipeVersion,
 )
+from app.models.recipe_fingerprint import RecipeStructuralFingerprint
 from app.models.user import (
     ACCOUNT_KIND_DEMO,
     ACCOUNT_KIND_MEMBER,
@@ -116,6 +117,7 @@ __all__ = [
     "RecipeLineage",
     "RecipeRating",
     "RecipeSave",
+    "RecipeStructuralFingerprint",
     "RecipeVersion",
     "USER_ACCOUNT_KINDS",
     "USER_STATUS_ACTIVE",

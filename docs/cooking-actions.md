@@ -122,7 +122,9 @@ Structured actions are intentionally not consumed by the current production
 Evaluation snapshot schema v2 also has no action graph. Existing model IDs,
 weights, fingerprints, and reports therefore retain their published meaning.
 
-A future model may use action features only behind a new versioned export and
-model contract. That work must define canonical ordering, repeated-action and
-occurrence semantics, snapshot fingerprint changes, leakage rules, evaluation
-comparators, and user-facing explanation limits before claiming an improvement.
+The exact `recipe-structure-v1` identity does include the ordered action graph;
+its canonical occurrence and ordering semantics are documented in [structural
+recipe fingerprints](recipe-fingerprints.md). That identity is a duplicate/data
+contract, not a recommendation feature. A future model may use action features
+only behind a new versioned export and model contract with explicit leakage
+rules, evaluation comparators, and user-facing explanation limits.

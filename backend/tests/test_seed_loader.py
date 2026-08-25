@@ -38,6 +38,7 @@ from app.models import (
     RecipeInstructionActionMeasure,
     RecipeRating,
     RecipeSave,
+    RecipeStructuralFingerprint,
     RecipeVersion,
     User,
 )
@@ -80,6 +81,7 @@ SEEDED_TABLE_COUNTS = {
     "recipe_instruction_actions": 252,
     "recipe_instruction_action_inputs": 815,
     "recipe_instruction_action_measures": 24,
+    "recipe_structural_fingerprints": 34,
     "recipe_versions": 34,
     "users": 2,
 }
@@ -203,11 +205,18 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
         catalog_user = session.get(User, catalog_user_id)
         demo_user = session.get(User, DEMO_USER_ID)
         carrot_root = session.get(RecipeVersion, carrot_root_id)
+        carrot_fingerprint = session.get(
+            RecipeStructuralFingerprint,
+            (carrot_root_id, "recipe-structure-v1"),
+        )
         lower_sugar = session.get(RecipeVersion, lower_sugar_id)
         orange_raisin = session.get(RecipeVersion, orange_raisin_id)
         pasta_v2 = session.get(RecipeVersion, pasta_v2_id)
         pasta_v3 = session.get(RecipeVersion, pasta_v3_id)
         assert carrot_root is not None
+        assert carrot_fingerprint is not None
+        assert len(carrot_fingerprint.digest) == 64
+        assert carrot_fingerprint.canonical_payload.startswith('{"ingredients":')
         assert catalog_user is not None
         assert catalog_user.account_kind == ACCOUNT_KIND_SYSTEM
         assert demo_user is not None

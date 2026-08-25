@@ -36,6 +36,14 @@ snapshot but public reads serialize the referenced curated unit. See
 [structured cooking actions](cooking-actions.md) for the instruction-graph
 contract.
 
+Exact structural fingerprints use a narrower, versioned conversion contract.
+`recipe-structure-v1` converts only through the selected unit's reviewed affine
+same-dimension, same-family rule and retains exact rational values without
+rounding. A later catalog deactivation does not reinterpret that immutable v1
+relationship. Units without such a rule, explicit package-size identities, and
+all density/package-content semantics remain distinct instead of being guessed.
+See [structural recipe fingerprints](recipe-fingerprints.md).
+
 ## Pre-migration audit
 
 Before deploying the structured-measure migration, run the read-only audit
