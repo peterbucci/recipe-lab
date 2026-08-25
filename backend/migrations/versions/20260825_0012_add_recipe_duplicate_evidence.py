@@ -132,8 +132,16 @@ def upgrade() -> None:
         ),
         sa.UniqueConstraint(
             "id",
+            "policy_version",
+            "subject_fingerprint_algorithm",
+            name="uq_recipe_duplicate_preflights_id_policy_algorithm",
+        ),
+        sa.UniqueConstraint(
+            "id",
             "actor_user_id",
-            name="uq_recipe_duplicate_preflights_id_actor",
+            "policy_version",
+            "result_digest",
+            name="uq_recipe_duplicate_preflights_id_actor_policy_result",
         ),
     )
     op.create_index(
@@ -182,6 +190,22 @@ def upgrade() -> None:
             name=op.f("ck_recipe_duplicate_candidates_reason_codes_bounded_array"),
         ),
         sa.CheckConstraint(
+            "(classification = 'exact_duplicate' "
+            "AND reason_codes = '[\"exact_structural_match\"]'::jsonb) "
+            "OR (classification = 'probable_duplicate' "
+            "AND jsonb_array_length(reason_codes) = 3 "
+            "AND (reason_codes ->> 0) IN "
+            "('same_ingredient_multiset', 'overlapping_ingredient_multisets', "
+            "'different_ingredient_multisets') "
+            "AND (reason_codes ->> 1) IN "
+            "('proportionally_scaled_quantities', 'matching_quantities', "
+            "'partially_matching_quantities', 'different_quantities') "
+            "AND (reason_codes ->> 2) IN "
+            "('matching_structured_actions', 'different_action_order', "
+            "'different_ordered_inputs', 'different_duration_or_temperature'))",
+            name=op.f("ck_recipe_duplicate_candidates_reason_codes_supported_ordered"),
+        ),
+        sa.CheckConstraint(
             "fingerprint_algorithm_version ~ '^[a-z0-9]+(?:[._-][a-z0-9]+)*$'",
             name=op.f("ck_recipe_duplicate_candidates_fingerprint_version_format"),
         ),
@@ -197,9 +221,13 @@ def upgrade() -> None:
             name=op.f("ck_recipe_duplicate_candidates_exact_evidence_consistent"),
         ),
         sa.ForeignKeyConstraint(
-            ["preflight_id"],
-            ["recipe_duplicate_preflights.id"],
-            name=op.f("fk_recipe_duplicate_candidates_preflight_id_recipe_duplicate_preflights"),
+            ["preflight_id", "policy_version", "fingerprint_algorithm_version"],
+            [
+                "recipe_duplicate_preflights.id",
+                "recipe_duplicate_preflights.policy_version",
+                "recipe_duplicate_preflights.subject_fingerprint_algorithm",
+            ],
+            name="fk_recipe_duplicate_candidates_preflight_policy_algorithm",
             ondelete="RESTRICT",
         ),
         sa.ForeignKeyConstraint(
@@ -260,9 +288,19 @@ def upgrade() -> None:
             ondelete="RESTRICT",
         ),
         sa.ForeignKeyConstraint(
-            ["preflight_id", "actor_user_id"],
-            ["recipe_duplicate_preflights.id", "recipe_duplicate_preflights.actor_user_id"],
-            name="fk_recipe_duplicate_decisions_preflight_actor",
+            [
+                "preflight_id",
+                "actor_user_id",
+                "acknowledged_policy_version",
+                "acknowledged_result_digest",
+            ],
+            [
+                "recipe_duplicate_preflights.id",
+                "recipe_duplicate_preflights.actor_user_id",
+                "recipe_duplicate_preflights.policy_version",
+                "recipe_duplicate_preflights.result_digest",
+            ],
+            name="fk_recipe_duplicate_decisions_preflight_actor_acknowledgement",
             ondelete="RESTRICT",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_recipe_duplicate_decisions")),

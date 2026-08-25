@@ -86,8 +86,16 @@ class RecipeDuplicatePreflight(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
         ),
         UniqueConstraint(
             "id",
+            "policy_version",
+            "subject_fingerprint_algorithm",
+            name="uq_recipe_duplicate_preflights_id_policy_algorithm",
+        ),
+        UniqueConstraint(
+            "id",
             "actor_user_id",
-            name="uq_recipe_duplicate_preflights_id_actor",
+            "policy_version",
+            "result_digest",
+            name="uq_recipe_duplicate_preflights_id_actor_policy_result",
         ),
         Index(
             "ix_recipe_duplicate_preflights_actor_created_id",
@@ -141,6 +149,16 @@ class RecipeDuplicateCandidate(Base):
 
     __tablename__ = "recipe_duplicate_candidates"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["preflight_id", "policy_version", "fingerprint_algorithm_version"],
+            [
+                "recipe_duplicate_preflights.id",
+                "recipe_duplicate_preflights.policy_version",
+                "recipe_duplicate_preflights.subject_fingerprint_algorithm",
+            ],
+            name="fk_recipe_duplicate_candidates_preflight_policy_algorithm",
+            ondelete="RESTRICT",
+        ),
         CheckConstraint("rank BETWEEN 1 AND 5", name="rank_bounded"),
         CheckConstraint(
             f"classification IN {RECIPE_DUPLICATE_CANDIDATE_CLASSIFICATIONS!r}",
@@ -154,6 +172,22 @@ class RecipeDuplicateCandidate(Base):
             "jsonb_typeof(reason_codes) = 'array' "
             "AND jsonb_array_length(reason_codes) BETWEEN 1 AND 3",
             name="reason_codes_bounded_array",
+        ),
+        CheckConstraint(
+            "(classification = 'exact_duplicate' "
+            "AND reason_codes = '[\"exact_structural_match\"]'::jsonb) "
+            "OR (classification = 'probable_duplicate' "
+            "AND jsonb_array_length(reason_codes) = 3 "
+            "AND (reason_codes ->> 0) IN "
+            "('same_ingredient_multiset', 'overlapping_ingredient_multisets', "
+            "'different_ingredient_multisets') "
+            "AND (reason_codes ->> 1) IN "
+            "('proportionally_scaled_quantities', 'matching_quantities', "
+            "'partially_matching_quantities', 'different_quantities') "
+            "AND (reason_codes ->> 2) IN "
+            "('matching_structured_actions', 'different_action_order', "
+            "'different_ordered_inputs', 'different_duration_or_temperature'))",
+            name="reason_codes_supported_ordered",
         ),
         CheckConstraint(
             "fingerprint_algorithm_version ~ '^[a-z0-9]+(?:[._-][a-z0-9]+)*$'",
@@ -183,7 +217,6 @@ class RecipeDuplicateCandidate(Base):
 
     preflight_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("recipe_duplicate_preflights.id", ondelete="RESTRICT"),
         primary_key=True,
     )
     public_recipe_version_id: Mapped[UUID] = mapped_column(
@@ -209,9 +242,19 @@ class RecipeDuplicateDecision(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     __tablename__ = "recipe_duplicate_decisions"
     __table_args__ = (
         ForeignKeyConstraint(
-            ["preflight_id", "actor_user_id"],
-            ["recipe_duplicate_preflights.id", "recipe_duplicate_preflights.actor_user_id"],
-            name="fk_recipe_duplicate_decisions_preflight_actor",
+            [
+                "preflight_id",
+                "actor_user_id",
+                "acknowledged_policy_version",
+                "acknowledged_result_digest",
+            ],
+            [
+                "recipe_duplicate_preflights.id",
+                "recipe_duplicate_preflights.actor_user_id",
+                "recipe_duplicate_preflights.policy_version",
+                "recipe_duplicate_preflights.result_digest",
+            ],
+            name="fk_recipe_duplicate_decisions_preflight_actor_acknowledgement",
             ondelete="RESTRICT",
         ),
         CheckConstraint(

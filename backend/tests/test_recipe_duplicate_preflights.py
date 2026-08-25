@@ -223,7 +223,13 @@ def test_preflight_policy_contract_versions_selection_and_work_limits() -> None:
             "descending_exact_rational_score",
             "ascending_public_recipe_version_uuid",
         ],
-        "source_recipe_version": "excluded_from_candidate_results",
+        "source_recipe_version": {
+            "optional": True,
+            "when_absent": "no_candidate_is_excluded_as_source",
+            "when_present": (
+                "publicly_rechecked_excluded_from_results_and_scored_as_direct_parent"
+            ),
+        },
         "visibility": "publicly_readable_recipe_versions_only",
     }
     assert payload["work_budget"] == {
@@ -485,6 +491,157 @@ def test_preflight_classifies_probable_and_confirms_payload_before_exact(
         assert result.response.candidates == []
         assert result.response.acknowledgement.required is False
         assert result.response.acknowledgement.allowed_decisions == []
+
+
+@pytest.mark.parametrize(
+    ("candidate_fingerprint", "expected"),
+    [
+        (_required(build_structural_fingerprint(_structure())), "exact_duplicate"),
+        (
+            _required(build_structural_fingerprint(_structure(amount="200"))),
+            "probable_duplicate",
+        ),
+        (
+            _required(
+                build_structural_fingerprint(
+                    _structure(ingredient="ingredient-water", action="boil")
+                )
+            ),
+            "distinct",
+        ),
+    ],
+)
+def test_source_optional_core_classifies_without_excluding_a_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+    candidate_fingerprint: StructuralFingerprint,
+    expected: str,
+) -> None:
+    actor_id = uuid4()
+    candidate_id = uuid4()
+    subject = _required(build_structural_fingerprint(_structure()))
+    candidate = _public_candidate(
+        candidate_id,
+        title="Public source-less candidate",
+        fingerprint=candidate_fingerprint,
+    )
+    captured_exclusions: list[UUID | None] = []
+
+    monkeypatch.setattr(
+        preflight_service,
+        "get_recipe_duplicate_preflight_by_action",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        preflight_service,
+        "get_recipe_structural_fingerprint",
+        lambda *_args, **_kwargs: pytest.fail(
+            "a source-less preflight must not load a direct-parent fingerprint"
+        ),
+    )
+
+    def fake_candidates(_session: Session, **kwargs: Any) -> list[PublicRecipeDuplicateCandidate]:
+        captured_exclusions.append(cast(UUID | None, kwargs["exclude_recipe_version_id"]))
+        return [candidate]
+
+    monkeypatch.setattr(
+        preflight_service,
+        "list_public_recipe_duplicate_candidates",
+        fake_candidates,
+    )
+    capture: list[RecipeDuplicatePreflight] = []
+    _install_store(
+        monkeypatch,
+        titles={candidate_id: candidate.title},
+        capture=capture,
+    )
+
+    result = preflight_service.run_structural_recipe_duplicate_preflight(
+        cast(Session, object()),
+        subject_fingerprint=subject,
+        source_version_id=None,
+        actor_user_id=actor_id,
+        action_id=uuid4(),
+        request_fingerprint="1" * 64,
+    )
+
+    assert result.response.classification == expected
+    assert result.response.same_lineage_no_change is False
+    assert captured_exclusions == [None]
+    assert capture[0].source_version_id is None
+    assert [candidate.public_recipe_version_id for candidate in result.response.candidates] == (
+        [candidate_id] if expected != "distinct" else []
+    )
+
+
+def test_source_optional_core_replays_idempotently_and_rejects_key_reuse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor_id = uuid4()
+    action_id = uuid4()
+    candidate_id = uuid4()
+    fingerprint = _required(build_structural_fingerprint(_structure()))
+    candidate = _public_candidate(
+        candidate_id,
+        title="Public source-less candidate",
+        fingerprint=fingerprint,
+    )
+    monkeypatch.setattr(
+        preflight_service,
+        "get_recipe_duplicate_preflight_by_action",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        preflight_service,
+        "list_public_recipe_duplicate_candidates",
+        lambda *_args, **_kwargs: [candidate],
+    )
+    capture: list[RecipeDuplicatePreflight] = []
+    _install_store(
+        monkeypatch,
+        titles={candidate_id: candidate.title},
+        capture=capture,
+    )
+
+    first = preflight_service.run_structural_recipe_duplicate_preflight(
+        cast(Session, object()),
+        subject_fingerprint=fingerprint,
+        source_version_id=None,
+        actor_user_id=actor_id,
+        action_id=action_id,
+        request_fingerprint="2" * 64,
+    )
+    stored = capture[0]
+    monkeypatch.setattr(
+        preflight_service,
+        "get_recipe_duplicate_preflight_by_action",
+        lambda *_args, **_kwargs: stored,
+    )
+    monkeypatch.setattr(
+        preflight_service,
+        "list_public_recipe_duplicate_candidates",
+        lambda *_args, **_kwargs: pytest.fail("an idempotent replay must not rescore"),
+    )
+
+    replay = preflight_service.run_structural_recipe_duplicate_preflight(
+        cast(Session, object()),
+        subject_fingerprint=fingerprint,
+        source_version_id=None,
+        actor_user_id=actor_id,
+        action_id=action_id,
+        request_fingerprint="2" * 64,
+    )
+    assert replay.state == "reused"
+    assert replay.response == first.response
+
+    with pytest.raises(RecipeDuplicateStorageConflictError, match="another request"):
+        preflight_service.run_structural_recipe_duplicate_preflight(
+            cast(Session, object()),
+            subject_fingerprint=fingerprint,
+            source_version_id=None,
+            actor_user_id=actor_id,
+            action_id=action_id,
+            request_fingerprint="3" * 64,
+        )
 
 
 def test_preflight_replay_is_stable_and_conflicting_key_reuse_is_rejected(

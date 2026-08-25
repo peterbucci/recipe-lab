@@ -74,8 +74,11 @@ from app.services.recipe_duplicate_scoring import (
     recipe_duplicate_fingerprints_are_exact,
     score_recipe_duplicate_candidates,
 )
-from app.services.recipe_fingerprints import STRUCTURAL_FINGERPRINT_ALGORITHM_VERSION
-from app.services.recipe_forks import PreparedRecipeFork, prepare_recipe_fork
+from app.services.recipe_fingerprints import (
+    STRUCTURAL_FINGERPRINT_ALGORITHM_VERSION,
+    StructuralFingerprint,
+)
+from app.services.recipe_forks import prepare_recipe_fork
 
 RECIPE_DUPLICATE_POLICY_VERSION = "recipe-duplicate-preflight-policy-v1"
 RECIPE_DUPLICATE_RESULT_SCHEMA = "recipe-lab.recipe-duplicate-preflight-result"
@@ -95,7 +98,13 @@ _POLICY_PARAMETER_PAYLOAD: dict[str, object] = {
             "descending_exact_rational_score",
             "ascending_public_recipe_version_uuid",
         ],
-        "source_recipe_version": "excluded_from_candidate_results",
+        "source_recipe_version": {
+            "optional": True,
+            "when_absent": "no_candidate_is_excluded_as_source",
+            "when_present": (
+                "publicly_rechecked_excluded_from_results_and_scored_as_direct_parent"
+            ),
+        },
         "visibility": "publicly_readable_recipe_versions_only",
     },
     "classification_priority": [
@@ -225,14 +234,18 @@ def _score_text(score_basis_points: int) -> str:
 def _rank_candidates(
     session: Session,
     *,
-    prepared: PreparedRecipeFork,
+    subject: StructuralFingerprint,
+    source_version_id: UUID | None,
 ) -> tuple[list[_RankedCandidate], bool]:
-    subject = prepared.structural_fingerprint
     same_parent_no_change = False
-    source_fingerprint = get_recipe_structural_fingerprint(
-        session,
-        recipe_version_id=prepared.source_version_id,
-        algorithm_version=subject.algorithm_version,
+    source_fingerprint = (
+        get_recipe_structural_fingerprint(
+            session,
+            recipe_version_id=source_version_id,
+            algorithm_version=subject.algorithm_version,
+        )
+        if source_version_id is not None
+        else None
     )
     try:
         subject_input = DuplicateCandidateFingerprint.from_structural_fingerprint(subject)
@@ -241,7 +254,7 @@ def _rank_candidates(
             session,
             algorithm_version=subject.algorithm_version,
             comparison_limit=MAX_PUBLIC_DUPLICATE_COMPARISONS + 1,
-            exclude_recipe_version_id=prepared.source_version_id,
+            exclude_recipe_version_id=source_version_id,
         )
         if len(public_candidates) > MAX_PUBLIC_DUPLICATE_COMPARISONS:
             raise RecipeDuplicatePreflightCapacityError(
@@ -459,17 +472,13 @@ def _response_from_stored(
     )
 
 
-def run_recipe_duplicate_preflight(
+def _replay_recipe_duplicate_preflight(
     session: Session,
     *,
-    source_version_id: UUID,
     actor_user_id: UUID,
     action_id: UUID,
-    payload: RecipeForkRequest,
-) -> RecipeDuplicatePreflightServiceResult:
-    """Prepare, score, and persist one bounded advisory duplicate result."""
-
-    request_fingerprint = recipe_fork_request_fingerprint(source_version_id, payload)
+    request_fingerprint: str,
+) -> RecipeDuplicatePreflightServiceResult | None:
     replay = get_recipe_duplicate_preflight_by_action(
         session,
         actor_user_id=actor_user_id,
@@ -484,6 +493,110 @@ def run_recipe_duplicate_preflight(
             response=_response_from_stored(session, replay),
             state="reused",
         )
+    return None
+
+
+def run_structural_recipe_duplicate_preflight(
+    session: Session,
+    *,
+    subject_fingerprint: StructuralFingerprint,
+    source_version_id: UUID | None,
+    actor_user_id: UUID,
+    action_id: UUID,
+    request_fingerprint: str,
+) -> RecipeDuplicatePreflightServiceResult:
+    """Rank and persist one source-optional structural duplicate preflight.
+
+    Original-recipe creation passes no source. Fork publication passes the direct
+    parent so the same core also enforces public visibility, source exclusion, and
+    the lineage no-change warning.
+    """
+
+    replay = _replay_recipe_duplicate_preflight(
+        session,
+        actor_user_id=actor_user_id,
+        action_id=action_id,
+        request_fingerprint=request_fingerprint,
+    )
+    if replay is not None:
+        return replay
+
+    if source_version_id is not None and source_version_id not in (
+        get_public_recipe_version_titles(session, {source_version_id})
+    ):
+        raise RecipeDuplicatePreflightUnavailableError("Public recipe not found.")
+
+    candidates, same_parent_no_change = _rank_candidates(
+        session,
+        subject=subject_fingerprint,
+        source_version_id=source_version_id,
+    )
+    classification = _classification(
+        candidates,
+        same_parent_no_change=same_parent_no_change,
+    )
+    candidate_document = [_computed_candidate_document(candidate) for candidate in candidates]
+    result_digest = _result_digest(
+        _result_document(
+            source_version_id=source_version_id,
+            subject_algorithm=subject_fingerprint.algorithm_version,
+            subject_digest=subject_fingerprint.digest,
+            classification=classification,
+            same_parent_no_change=same_parent_no_change,
+            candidates=candidate_document,
+        )
+    )
+    stored: RecipeDuplicatePreflightStoreResult = store_recipe_duplicate_preflight(
+        session,
+        actor_user_id=actor_user_id,
+        action_id=action_id,
+        request_fingerprint=request_fingerprint,
+        source_version_id=source_version_id,
+        subject_fingerprint_algorithm=subject_fingerprint.algorithm_version,
+        subject_fingerprint_digest=subject_fingerprint.digest,
+        policy_version=RECIPE_DUPLICATE_POLICY_VERSION,
+        classification=classification,
+        same_parent_no_change=same_parent_no_change,
+        result_digest=result_digest,
+        candidates=[
+            RecipeDuplicateCandidateWrite(
+                public_recipe_version_id=candidate.recipe_version_id,
+                rank=rank,
+                classification=candidate.classification,
+                score_basis_points=candidate.score_basis_points,
+                reason_codes=tuple(reason.code for reason in candidate.reasons),
+                fingerprint_algorithm_version=subject_fingerprint.algorithm_version,
+                policy_version=RECIPE_DUPLICATE_POLICY_VERSION,
+                exact_payload_confirmed=candidate.exact_payload_confirmed,
+            )
+            for rank, candidate in enumerate(candidates, start=1)
+        ],
+    )
+    return RecipeDuplicatePreflightServiceResult(
+        response=_response_from_stored(session, stored.preflight),
+        state=stored.state,
+    )
+
+
+def run_recipe_duplicate_preflight(
+    session: Session,
+    *,
+    source_version_id: UUID,
+    actor_user_id: UUID,
+    action_id: UUID,
+    payload: RecipeForkRequest,
+) -> RecipeDuplicatePreflightServiceResult:
+    """Adapt a proposed fork into the source-optional structural preflight core."""
+
+    request_fingerprint = recipe_fork_request_fingerprint(source_version_id, payload)
+    replay = _replay_recipe_duplicate_preflight(
+        session,
+        actor_user_id=actor_user_id,
+        action_id=action_id,
+        request_fingerprint=request_fingerprint,
+    )
+    if replay is not None:
+        return replay
 
     if source_version_id not in get_public_recipe_version_titles(
         session,
@@ -499,51 +612,13 @@ def run_recipe_duplicate_preflight(
     if prepared is None:
         raise RecipeDuplicatePreflightUnavailableError("Public recipe not found.")
 
-    candidates, same_parent_no_change = _rank_candidates(session, prepared=prepared)
-    classification = _classification(
-        candidates,
-        same_parent_no_change=same_parent_no_change,
-    )
-    candidate_document = [_computed_candidate_document(candidate) for candidate in candidates]
-    result_digest = _result_digest(
-        _result_document(
-            source_version_id=source_version_id,
-            subject_algorithm=prepared.structural_fingerprint.algorithm_version,
-            subject_digest=prepared.structural_fingerprint.digest,
-            classification=classification,
-            same_parent_no_change=same_parent_no_change,
-            candidates=candidate_document,
-        )
-    )
-    stored: RecipeDuplicatePreflightStoreResult = store_recipe_duplicate_preflight(
+    return run_structural_recipe_duplicate_preflight(
         session,
+        subject_fingerprint=prepared.structural_fingerprint,
+        source_version_id=source_version_id,
         actor_user_id=actor_user_id,
         action_id=action_id,
         request_fingerprint=request_fingerprint,
-        source_version_id=source_version_id,
-        subject_fingerprint_algorithm=prepared.structural_fingerprint.algorithm_version,
-        subject_fingerprint_digest=prepared.structural_fingerprint.digest,
-        policy_version=RECIPE_DUPLICATE_POLICY_VERSION,
-        classification=classification,
-        same_parent_no_change=same_parent_no_change,
-        result_digest=result_digest,
-        candidates=[
-            RecipeDuplicateCandidateWrite(
-                public_recipe_version_id=candidate.recipe_version_id,
-                rank=rank,
-                classification=candidate.classification,
-                score_basis_points=candidate.score_basis_points,
-                reason_codes=tuple(reason.code for reason in candidate.reasons),
-                fingerprint_algorithm_version=prepared.structural_fingerprint.algorithm_version,
-                policy_version=RECIPE_DUPLICATE_POLICY_VERSION,
-                exact_payload_confirmed=candidate.exact_payload_confirmed,
-            )
-            for rank, candidate in enumerate(candidates, start=1)
-        ],
-    )
-    return RecipeDuplicatePreflightServiceResult(
-        response=_response_from_stored(session, stored.preflight),
-        state=stored.state,
     )
 
 

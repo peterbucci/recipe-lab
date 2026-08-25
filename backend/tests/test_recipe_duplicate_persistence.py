@@ -460,6 +460,30 @@ def test_repository_refuses_below_threshold_or_unsupported_reason_evidence(
         )
 
 
+def test_repository_accepts_a_nonexact_probable_score_of_one(
+    db_session: Session,
+) -> None:
+    actor, _, source, candidate = _create_fixture(db_session)
+
+    result = store_recipe_duplicate_preflight(
+        db_session,
+        actor_user_id=actor.id,
+        action_id=uuid4(),
+        request_fingerprint=REQUEST_FINGERPRINT,
+        source_version_id=source.id,
+        subject_fingerprint_algorithm=FINGERPRINT_VERSION,
+        subject_fingerprint_digest=SUBJECT_DIGEST,
+        policy_version=POLICY_VERSION,
+        classification=RECIPE_DUPLICATE_PROBABLE,
+        same_parent_no_change=False,
+        result_digest=RESULT_DIGEST,
+        candidates=[_probable_candidate(candidate, score_basis_points=10_000)],
+    )
+
+    assert result.preflight.candidates[0].score_basis_points == 10_000
+    assert result.preflight.candidates[0].exact_payload_confirmed is False
+
+
 def test_database_rejects_probable_evidence_below_the_versioned_threshold(
     db_session: Session,
 ) -> None:
@@ -503,6 +527,122 @@ def test_database_rejects_probable_evidence_below_the_versioned_threshold(
     diagnostic = getattr(error.value.orig, "diag", None)
     assert getattr(diagnostic, "constraint_name", None) == (
         "ck_recipe_duplicate_candidates_exact_evidence_consistent"
+    )
+
+
+@pytest.mark.parametrize(
+    ("classification", "reason_codes", "exact_payload_confirmed"),
+    [
+        (RECIPE_DUPLICATE_EXACT, ["matching_quantities"], True),
+        (
+            RECIPE_DUPLICATE_PROBABLE,
+            ["invented_reason", "matching_quantities", "different_action_order"],
+            False,
+        ),
+        (
+            RECIPE_DUPLICATE_PROBABLE,
+            [
+                "different_action_order",
+                "matching_quantities",
+                "same_ingredient_multiset",
+            ],
+            False,
+        ),
+    ],
+)
+def test_database_rejects_unsupported_or_misordered_reason_evidence(
+    db_session: Session,
+    classification: str,
+    reason_codes: list[str],
+    exact_payload_confirmed: bool,
+) -> None:
+    actor, _, source, candidate = _create_fixture(db_session)
+    preflight = RecipeDuplicatePreflight(
+        actor_user_id=actor.id,
+        action_id=uuid4(),
+        request_fingerprint=REQUEST_FINGERPRINT,
+        source_version_id=source.id,
+        subject_fingerprint_algorithm=FINGERPRINT_VERSION,
+        subject_fingerprint_digest=SUBJECT_DIGEST,
+        policy_version=POLICY_VERSION,
+        classification=classification,
+        same_parent_no_change=False,
+        result_digest=RESULT_DIGEST,
+    )
+    db_session.add(preflight)
+    db_session.flush()
+
+    with pytest.raises(IntegrityError) as error:
+        with db_session.begin_nested():
+            db_session.add(
+                RecipeDuplicateCandidate(
+                    preflight_id=preflight.id,
+                    public_recipe_version_id=candidate.id,
+                    rank=1,
+                    classification=classification,
+                    score_basis_points=10_000 if exact_payload_confirmed else 8_000,
+                    reason_codes=reason_codes,
+                    fingerprint_algorithm_version=FINGERPRINT_VERSION,
+                    policy_version=POLICY_VERSION,
+                    exact_payload_confirmed=exact_payload_confirmed,
+                )
+            )
+            db_session.flush()
+
+    diagnostic = getattr(error.value.orig, "diag", None)
+    assert getattr(diagnostic, "constraint_name", None) == (
+        "ck_recipe_duplicate_candidates_reason_codes_supported_ordered"
+    )
+
+
+@pytest.mark.parametrize(
+    ("policy_version", "fingerprint_algorithm_version"),
+    [
+        ("different-policy-v1", FINGERPRINT_VERSION),
+        (POLICY_VERSION, "recipe-structure-v2"),
+    ],
+)
+def test_database_ties_candidate_policy_and_algorithm_to_its_preflight(
+    db_session: Session,
+    policy_version: str,
+    fingerprint_algorithm_version: str,
+) -> None:
+    actor, _, source, candidate = _create_fixture(db_session)
+    preflight = RecipeDuplicatePreflight(
+        actor_user_id=actor.id,
+        action_id=uuid4(),
+        request_fingerprint=REQUEST_FINGERPRINT,
+        source_version_id=source.id,
+        subject_fingerprint_algorithm=FINGERPRINT_VERSION,
+        subject_fingerprint_digest=SUBJECT_DIGEST,
+        policy_version=POLICY_VERSION,
+        classification=RECIPE_DUPLICATE_EXACT,
+        same_parent_no_change=False,
+        result_digest=RESULT_DIGEST,
+    )
+    db_session.add(preflight)
+    db_session.flush()
+
+    with pytest.raises(IntegrityError) as error:
+        with db_session.begin_nested():
+            db_session.add(
+                RecipeDuplicateCandidate(
+                    preflight_id=preflight.id,
+                    public_recipe_version_id=candidate.id,
+                    rank=1,
+                    classification=RECIPE_DUPLICATE_EXACT,
+                    score_basis_points=10_000,
+                    reason_codes=["exact_structural_match"],
+                    fingerprint_algorithm_version=fingerprint_algorithm_version,
+                    policy_version=policy_version,
+                    exact_payload_confirmed=True,
+                )
+            )
+            db_session.flush()
+
+    diagnostic = getattr(error.value.orig, "diag", None)
+    assert getattr(diagnostic, "constraint_name", None) == (
+        "fk_recipe_duplicate_candidates_preflight_policy_algorithm"
     )
 
 
@@ -571,8 +711,10 @@ def test_decision_requires_actor_owned_current_acknowledgement_and_is_idempotent
     )
 
 
-def test_database_rejects_decision_with_a_different_preflight_actor(
+@pytest.mark.parametrize("mismatch", ["actor", "policy", "result"])
+def test_database_ties_decision_actor_and_acknowledgement_to_its_preflight(
     db_session: Session,
+    mismatch: str,
 ) -> None:
     actor, other, source, candidate = _create_fixture(db_session)
     preflight = _store_exact_preflight(
@@ -587,18 +729,22 @@ def test_database_rejects_decision_with_a_different_preflight_actor(
             db_session.add(
                 RecipeDuplicateDecision(
                     preflight_id=preflight.id,
-                    actor_user_id=other.id,
+                    actor_user_id=other.id if mismatch == "actor" else actor.id,
                     action_id=uuid4(),
                     decision=RECIPE_DUPLICATE_DECISION_CONTINUE,
-                    acknowledged_policy_version=POLICY_VERSION,
-                    acknowledged_result_digest=RESULT_DIGEST,
+                    acknowledged_policy_version=(
+                        "different-policy-v1" if mismatch == "policy" else POLICY_VERSION
+                    ),
+                    acknowledged_result_digest=(
+                        "d" * 64 if mismatch == "result" else RESULT_DIGEST
+                    ),
                 )
             )
             db_session.flush()
 
     diagnostic = getattr(error.value.orig, "diag", None)
     assert getattr(diagnostic, "constraint_name", None) == (
-        "fk_recipe_duplicate_decisions_preflight_actor"
+        "fk_recipe_duplicate_decisions_preflight_actor_acknowledgement"
     )
 
 
