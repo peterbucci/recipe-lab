@@ -41,6 +41,7 @@ DOMAIN_TABLES = {
     "recipe_instruction_actions",
     "recipe_ratings",
     "recipe_saves",
+    "recipe_structural_fingerprints",
     "recipe_version_ingredients",
     "recipe_version_instructions",
     "recipe_versions",

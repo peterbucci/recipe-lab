@@ -37,6 +37,9 @@ from app.models import (
     RecipeVersion,
     User,
 )
+from app.repositories.recipe_fingerprints import (
+    StructuralFingerprintStorageConflictError,
+)
 from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
 from app.seeds.schema import (
     ActionTypeSeed,
@@ -50,6 +53,9 @@ from app.seeds.schema import (
     RecipeSeed,
     SeedCatalog,
     SubstitutionSeed,
+)
+from app.services.recipe_fingerprint_persistence import (
+    fingerprint_and_store_recipe_version,
 )
 
 CATALOG_USER_KEY = "catalog-author"
@@ -1219,6 +1225,36 @@ def _load_recipe(
     return created
 
 
+def _record_recipe_structural_fingerprint(
+    session: Session,
+    *,
+    seed: RecipeSeed,
+    version: RecipeVersion,
+    report: SeedReport,
+) -> None:
+    """Persist one exact identity alongside the deterministic seed snapshot."""
+
+    try:
+        result = fingerprint_and_store_recipe_version(session, version.id)
+    except StructuralFingerprintStorageConflictError as error:
+        raise _conflict(
+            "recipe structural fingerprint",
+            seed.key,
+            str(error),
+        ) from error
+    if result.state == "incomplete":
+        raise _conflict(
+            "recipe structural fingerprint",
+            seed.key,
+            "the reviewed seed snapshot did not produce an exact identity",
+        )
+    entity = "recipe_structural_fingerprints"
+    if result.state == "created":
+        report.created[entity] += 1
+    else:
+        report.reused[entity] += 1
+
+
 def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
     """Load a validated catalog into the caller's transaction without committing."""
 
@@ -1289,7 +1325,7 @@ def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
                 user,
                 report,
             )
-        _load_recipe(
+        version = _load_recipe(
             session,
             catalog,
             recipe_seed,
@@ -1299,6 +1335,12 @@ def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
             measurement_units,
             action_types,
             report,
+        )
+        _record_recipe_structural_fingerprint(
+            session,
+            seed=recipe_seed,
+            version=version,
+            report=report,
         )
 
     session.flush()

@@ -46,5 +46,6 @@ but it must not weaken the published snapshot foreign key.
 
 Curated measurement units and typed amount semantics belong to RCP-25B.
 Human-readable instructions plus controlled step actions belong to RCP-25C.
-Versioned structural fingerprints and duplicate-candidate policy belong to
-RCP-25D and RCP-25E.
+The implemented [versioned structural fingerprint](recipe-fingerprints.md)
+belongs to RCP-25D. Duplicate-candidate publication policy remains RCP-25E; an
+exact fingerprint match does not currently block or merge anything.

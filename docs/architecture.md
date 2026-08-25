@@ -195,6 +195,17 @@ the same occurrence from being referenced twice by one action. Curated action
 types are deactivated rather than deleted or reinterpreted. The full contract is
 documented in [structured cooking actions](cooking-actions.md).
 
+Every complete immutable version also receives a `recipe-structure-v1`
+fingerprint over canonical ingredient identities, typed measures, multiplicity,
+and the ordered instruction-action-input graph. Ingredient display order and
+database occurrence UUIDs are replaced with deterministic multiset groups and
+use-path-derived local tokens. Titles, authorship, display wording, preparation
+notes, and instruction prose remain outside exact structural identity. Reviewed
+same-family affine measurement rules normalize to exact rational base values;
+unsupported conversions and explicit package-size identities remain distinct.
+The byte-level contract is documented in [structural recipe
+fingerprints](recipe-fingerprints.md).
+
 Each recipe ingredient retains the cook-facing name from that snapshot and
 also references one canonical ingredient. The catalog normalizes canonical
 names and exact aliases for lookup, uses data-backed vocabularies for one broad
@@ -234,6 +245,16 @@ foreign keys also protect referenced history from deletion. Blanket database
 triggers that reject every content update are deferred until the recipe
 creation lifecycle is defined, so seed corrections and future migrations are
 not made unnecessarily difficult.
+
+`recipe_structural_fingerprints` stores one immutable result per recipe version
+and algorithm version. It retains both a lowercase SHA-256 digest and the exact
+compact canonical JSON. The non-unique algorithm/digest index finds candidates;
+payload equality is confirmed before structural equality is declared. This
+permits exact duplicates and hash-collision safety while allowing later
+algorithms to coexist. Migration `20260825_0011` backfills complete versions in
+bounded UUID order without updating recipe content; incomplete legacy versions
+receive no row. New forks and seeded snapshots write their fingerprint in the
+same transaction as the immutable version.
 
 The lineage-wide version number is allocated while holding a row lock on the
 lineage itself. Locking only the selected parent would not serialize siblings
