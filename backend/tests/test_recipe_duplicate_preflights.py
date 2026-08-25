@@ -579,6 +579,7 @@ def test_source_optional_core_replays_idempotently_and_rejects_key_reuse(
     actor_id = uuid4()
     action_id = uuid4()
     candidate_id = uuid4()
+    alternate_source_id = uuid4()
     fingerprint = _required(build_structural_fingerprint(_structure()))
     candidate = _public_candidate(
         candidate_id,
@@ -598,7 +599,10 @@ def test_source_optional_core_replays_idempotently_and_rejects_key_reuse(
     capture: list[RecipeDuplicatePreflight] = []
     _install_store(
         monkeypatch,
-        titles={candidate_id: candidate.title},
+        titles={
+            candidate_id: candidate.title,
+            alternate_source_id: "Public alternate source",
+        },
         capture=capture,
     )
 
@@ -632,6 +636,27 @@ def test_source_optional_core_replays_idempotently_and_rejects_key_reuse(
     )
     assert replay.state == "reused"
     assert replay.response == first.response
+
+    changed_subject = _required(build_structural_fingerprint(_structure(amount="200")))
+    with pytest.raises(RecipeDuplicateStorageConflictError, match="another request"):
+        preflight_service.run_structural_recipe_duplicate_preflight(
+            cast(Session, object()),
+            subject_fingerprint=changed_subject,
+            source_version_id=None,
+            actor_user_id=actor_id,
+            action_id=action_id,
+            request_fingerprint="2" * 64,
+        )
+
+    with pytest.raises(RecipeDuplicateStorageConflictError, match="another request"):
+        preflight_service.run_structural_recipe_duplicate_preflight(
+            cast(Session, object()),
+            subject_fingerprint=fingerprint,
+            source_version_id=alternate_source_id,
+            actor_user_id=actor_id,
+            action_id=action_id,
+            request_fingerprint="2" * 64,
+        )
 
     with pytest.raises(RecipeDuplicateStorageConflictError, match="another request"):
         preflight_service.run_structural_recipe_duplicate_preflight(

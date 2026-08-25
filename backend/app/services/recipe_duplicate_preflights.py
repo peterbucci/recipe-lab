@@ -479,6 +479,8 @@ def _replay_recipe_duplicate_preflight(
     actor_user_id: UUID,
     action_id: UUID,
     request_fingerprint: str,
+    subject_fingerprint: StructuralFingerprint | None = None,
+    source_version_id: UUID | None = None,
 ) -> RecipeDuplicatePreflightServiceResult | None:
     replay = get_recipe_duplicate_preflight_by_action(
         session,
@@ -486,7 +488,14 @@ def _replay_recipe_duplicate_preflight(
         action_id=action_id,
     )
     if replay is not None:
-        if replay.request_fingerprint != request_fingerprint:
+        if replay.request_fingerprint != request_fingerprint or (
+            subject_fingerprint is not None
+            and (
+                replay.source_version_id != source_version_id
+                or replay.subject_fingerprint_algorithm != subject_fingerprint.algorithm_version
+                or replay.subject_fingerprint_digest != subject_fingerprint.digest
+            )
+        ):
             raise RecipeDuplicateStorageConflictError(
                 "The preflight action identifier is already bound to another request."
             )
@@ -518,6 +527,8 @@ def run_structural_recipe_duplicate_preflight(
         actor_user_id=actor_user_id,
         action_id=action_id,
         request_fingerprint=request_fingerprint,
+        subject_fingerprint=subject_fingerprint,
+        source_version_id=source_version_id,
     )
     if replay is not None:
         return replay
