@@ -140,7 +140,10 @@ test.describe("MVP acceptance", () => {
       page,
       sugarRow.getByRole("button", { name: "Change White sugar", exact: true }),
     );
-    await sugarRow.getByLabel("Quantity", { exact: true }).fill("140");
+    await sugarRow.getByRole("textbox", { name: "Amount", exact: true }).fill("140");
+    const selectedSugarUnitId = await sugarRow
+      .getByRole("combobox", { name: "Unit", exact: true })
+      .inputValue();
     await activateWithKeyboard(
       page,
       walnutRow.getByRole("button", { name: "Change Walnut", exact: true }),
@@ -190,6 +193,18 @@ test.describe("MVP acceptance", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
     expect(replacement).not.toHaveProperty("ingredient_name");
+    expect(submittedVariant.ingredient_edits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          op: "set_measure",
+          measure: expect.objectContaining({
+            kind: "exact",
+            value: "140",
+            unit_id: selectedSugarUnitId,
+          }),
+        }),
+      ]),
+    );
     expect((await createResponse).status()).toBe(201);
 
     await expect(page).toHaveURL(/\/recipes\/[^/]+$/);

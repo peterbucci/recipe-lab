@@ -27,7 +27,7 @@ from recipe_lab_evaluation.report import report_to_json
 from recipe_lab_evaluation.runner import EvaluationConfig, EvaluationError, evaluate
 from recipe_lab_evaluation.simulator import CohortSimulationConfig, simulate_preference_cohort
 
-_READINESS_CATALOG = Path(__file__).parent / "fixtures" / "readiness_catalog_v1.json"
+_READINESS_CATALOG = Path(__file__).parent / "fixtures" / "readiness_catalog_v2.json"
 
 
 @pytest.fixture(scope="module")
@@ -209,18 +209,18 @@ def test_ready_hybrid_cli_report_is_complete_private_and_explicitly_not_adopted(
         "candidate_model_id": "hybrid-v1",
         "comparisons": [
             {
-                "coverage_delta": "-0.125000",
+                "coverage_delta": "0.250000",
                 "evaluated_users": 64,
                 "k": 1,
-                "ndcg_delta": "-0.015625",
-                "recall_delta": "-0.007813",
-                "reference_model_id": "content-v1",
+                "ndcg_delta": "0.015625",
+                "recall_delta": "0.007812",
+                "reference_model_id": "baseline-v1",
             },
             {
                 "coverage_delta": "0.000000",
                 "evaluated_users": 64,
                 "k": 3,
-                "ndcg_delta": "0.001481",
+                "ndcg_delta": "0.001028",
                 "recall_delta": "0.000000",
                 "reference_model_id": "content-v1",
             },
@@ -235,32 +235,29 @@ def test_ready_hybrid_cli_report_is_complete_private_and_explicitly_not_adopted(
         },
         "policy_version": "hybrid-adoption-policy-v1",
         "primary_k": 3,
-        "primary_ndcg_lift": "0.001481",
+        "primary_ndcg_lift": "0.001028",
         "reason_codes": [
             "synthetic_evidence_only",
             "primary_ndcg_lift_below_minimum",
-            "ndcg_regression",
-            "recall_regression",
-            "coverage_regression",
         ],
         "reference_model_id": "content-v1",
         "status": "retain_simpler",
-        "worst_coverage_delta": "-0.125000",
-        "worst_ndcg_delta": "-0.015625",
-        "worst_recall_delta": "-0.007813",
+        "worst_coverage_delta": "0.000000",
+        "worst_ndcg_delta": "0.001028",
+        "worst_recall_delta": "0.000000",
     }
     hybrid = report["models"][3]
     assert hybrid["artifact"] is None
     assert hybrid["metrics"] == [
         {
-            "coverage": "0.750000",
+            "coverage": "0.875000",
             "k": 1,
             "mean_candidate_popularity": "1.000000",
             "mean_recommended_popularity": "1.000000",
-            "ndcg": "0.625000",
+            "ndcg": "0.718750",
             "popularity_bias": "0.000000",
-            "precision": "0.625000",
-            "recall": "0.312500",
+            "precision": "0.718750",
+            "recall": "0.359375",
             "support": {"evaluated_users": 64, "relevant_items": 128},
         },
         {
@@ -268,7 +265,7 @@ def test_ready_hybrid_cli_report_is_complete_private_and_explicitly_not_adopted(
             "k": 3,
             "mean_candidate_popularity": "1.000000",
             "mean_recommended_popularity": "1.000000",
-            "ndcg": "0.866219",
+            "ndcg": "0.887435",
             "popularity_bias": "0.000000",
             "precision": "0.666667",
             "recall": "1.000000",

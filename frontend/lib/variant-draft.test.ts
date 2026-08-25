@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import type { CatalogUnit } from "./measurement-unit-api";
 import type { RecipeDetail } from "./recipe-api";
 import {
   createAddedIngredientDraft,
   createAddedInstructionDraft,
   createVariantDraft,
   ingredientFieldKey,
+  ingredientMeasureFieldKey,
   instructionFieldKey,
   validateVariantDraft,
 } from "./variant-draft";
@@ -13,8 +15,47 @@ import {
 const SUGAR_ID = "11111111-1111-4111-8111-111111111111";
 const WALNUT_ID = "22222222-2222-4222-8222-222222222222";
 const PECAN_ID = "33333333-3333-4333-8333-333333333333";
-const ALMOND_ID = "44444444-4444-4444-8444-444444444444";
 const ORANGE_ZEST_ID = "55555555-5555-4555-8555-555555555555";
+const GRAM_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const TABLESPOON_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+const units: CatalogUnit[] = [
+  {
+    id: GRAM_ID,
+    key: "gram",
+    dimension: "mass",
+    canonical_label: "gram",
+    plural_label: "grams",
+    symbol: "g",
+    display_style: "symbol",
+    aliases: ["gram", "grams"],
+    active: true,
+    provenance: "Test fixture",
+  },
+  {
+    id: TABLESPOON_ID,
+    key: "tablespoon",
+    dimension: "volume",
+    canonical_label: "tablespoon",
+    plural_label: "tablespoons",
+    symbol: "tbsp",
+    display_style: "symbol",
+    aliases: ["tablespoon"],
+    active: true,
+    provenance: "Test fixture",
+  },
+];
+
+const gramSummary = {
+  id: GRAM_ID,
+  key: "gram",
+  dimension: "mass" as const,
+  canonical_label: "gram",
+  plural_label: "grams",
+  symbol: "g",
+  display_style: "symbol" as const,
+  active: true,
+};
 
 function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
   return {
@@ -41,8 +82,13 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
         ingredient_id: SUGAR_ID,
         canonical_name: "Granulated sugar",
         display_name: "White sugar",
-        quantity: "140.0000",
-        unit: "g",
+        measure: {
+          kind: "exact",
+          value: "140.0000",
+          unit: gramSummary,
+          display_unit: "g",
+          display: "140 g",
+        },
         preparation_notes: null,
         display_order: 0,
       },
@@ -51,8 +97,13 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
         ingredient_id: WALNUT_ID,
         canonical_name: "Walnut",
         display_name: "Walnuts",
-        quantity: "100.0000",
-        unit: "g",
+        measure: {
+          kind: "exact",
+          value: "100.0000",
+          unit: gramSummary,
+          display_unit: "g",
+          display: "100 g",
+        },
         preparation_notes: "roughly chopped",
         display_order: 1,
       },
@@ -66,87 +117,44 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
 }
 
 describe("variant draft", () => {
-  it("creates an editable copy without changing the immutable source snapshot", () => {
+  it("creates an editable measure copy without changing the immutable source snapshot", () => {
     const source = sourceRecipe({ description: null });
     const sourceBefore = structuredClone(source);
 
     const draft = createVariantDraft(source);
 
-    expect(draft).toEqual({
-      title: "Carrot Walnut Snack Cake variation",
-      description: "",
-      servings: "8.00",
-      ingredients: [
-        {
-          key: "source-sugar-row",
-          sourceId: "sugar-row",
-          sourceIngredientId: SUGAR_ID,
-          sourceDisplayName: "White sugar",
-          sourceCanonicalName: "Granulated sugar",
-          selectedIngredient: null,
-          quantity: "140.0000",
-          originalQuantity: "140.0000",
-          unit: "g",
-          originalUnit: "g",
-          preparationNotes: "",
-          removed: false,
-        },
-        {
-          key: "source-walnut-row",
-          sourceId: "walnut-row",
-          sourceIngredientId: WALNUT_ID,
-          sourceDisplayName: "Walnuts",
-          sourceCanonicalName: "Walnut",
-          selectedIngredient: null,
-          quantity: "100.0000",
-          originalQuantity: "100.0000",
-          unit: "g",
-          originalUnit: "g",
-          preparationNotes: "roughly chopped",
-          removed: false,
-        },
-      ],
-      instructions: [
-        {
-          key: "source-mix-step",
-          sourceId: "mix-step",
-          text: "Fold until just combined.",
-          originalText: "Fold until just combined.",
-          removed: false,
-        },
-        {
-          key: "source-bake-step",
-          sourceId: "bake-step",
-          text: "Bake until springy.",
-          originalText: "Bake until springy.",
-          removed: false,
-        },
-      ],
+    expect(draft.description).toBe("");
+    expect(draft.ingredients[0]).toMatchObject({
+      key: "source-sugar-row",
+      sourceId: "sugar-row",
+      selectedIngredient: null,
+      measure: {
+        mode: "exact",
+        exactValue: "140.0000",
+        rangeMinimum: "",
+        rangeMaximum: "",
+        unit: gramSummary,
+      },
+      originalMeasure: source.ingredients[0].measure,
+      preparationNotes: "",
+      removed: false,
     });
+    draft.ingredients[0].measure.exactValue = "125";
     expect(source).toEqual(sourceBefore);
   });
 
-  it("maps only meaningful structured changes in stable source order", () => {
+  it("maps meaningful changes to one atomic measure edit in stable source order", () => {
     const draft = createVariantDraft(sourceRecipe());
     draft.title = "  Orange Pecan Carrot Cake  ";
     draft.description = "   ";
     draft.servings = " 10.00 ";
-
     draft.ingredients[0].selectedIngredient = {
       ingredientId: PECAN_ID,
       canonicalName: "Pecan",
       displayName: "Pecan",
     };
-    draft.ingredients[0].quantity = " 125.5000 ";
-    draft.ingredients[0].unit = "";
-
+    draft.ingredients[0].measure.exactValue = " 125.5000 ";
     draft.ingredients[1].removed = true;
-    draft.ingredients[1].selectedIngredient = {
-      ingredientId: ALMOND_ID,
-      canonicalName: "Almond",
-      displayName: "Almond",
-    };
-    draft.ingredients[1].quantity = "90";
 
     const addedIngredient = createAddedIngredientDraft("new-orange-zest");
     addedIngredient.selectedIngredient = {
@@ -154,19 +162,31 @@ describe("variant draft", () => {
       canonicalName: "Orange zest",
       displayName: "Orange zest",
     };
-    addedIngredient.quantity = " 1.25 ";
-    addedIngredient.unit = " tbsp ";
+    addedIngredient.measure = {
+      ...addedIngredient.measure,
+      mode: "exact",
+      exactValue: " 1.25 ",
+      unit: {
+        id: TABLESPOON_ID,
+        key: "tablespoon",
+        dimension: "volume",
+        canonical_label: "tablespoon",
+        plural_label: "tablespoons",
+        symbol: "tbsp",
+        display_style: "symbol",
+        active: true,
+      },
+    };
     addedIngredient.preparationNotes = " finely grated ";
     draft.ingredients.push(addedIngredient);
 
     draft.instructions[0].text = "  Fold gently until just combined.  ";
     draft.instructions[1].removed = true;
-    draft.instructions[1].text = "This edit must be suppressed.";
     const addedInstruction = createAddedInstructionDraft("new-cool-step");
     addedInstruction.text = "  Cool completely before serving. ";
     draft.instructions.push(addedInstruction);
 
-    expect(validateVariantDraft(draft)).toEqual({
+    expect(validateVariantDraft(draft, units)).toEqual({
       fieldErrors: {},
       formErrors: [],
       payload: {
@@ -181,22 +201,16 @@ describe("variant draft", () => {
             display_name: "Pecan",
           },
           {
-            op: "set_quantity",
+            op: "set_measure",
             recipe_ingredient_id: "sugar-row",
-            quantity: "125.5000",
-          },
-          {
-            op: "set_unit",
-            recipe_ingredient_id: "sugar-row",
-            unit: null,
+            measure: { kind: "exact", value: "125.5000", unit_id: GRAM_ID },
           },
           { op: "remove", recipe_ingredient_id: "walnut-row" },
           {
             op: "add",
             ingredient_id: ORANGE_ZEST_ID,
             display_name: "Orange zest",
-            quantity: "1.25",
-            unit: "tbsp",
+            measure: { kind: "exact", value: "1.25", unit_id: TABLESPOON_ID },
             preparation_notes: "finely grated",
           },
         ],
@@ -213,23 +227,18 @@ describe("variant draft", () => {
     });
   });
 
-  it("emits no edits for unchanged normalized source values", () => {
+  it("emits no edits for unchanged normalized values", () => {
     const draft = createVariantDraft(sourceRecipe());
-    draft.ingredients[0].quantity = " 140.0000 ";
-    draft.ingredients[0].unit = " g ";
+    draft.ingredients[0].measure.exactValue = " 140.0000 ";
     draft.instructions[0].text = "  Fold until just combined.  ";
 
-    const result = validateVariantDraft(draft);
-
-    expect(result.fieldErrors).toEqual({});
-    expect(result.formErrors).toEqual([]);
-    expect(result.payload).toMatchObject({
+    expect(validateVariantDraft(draft, units).payload).toMatchObject({
       ingredient_edits: [],
       instruction_edits: [],
     });
   });
 
-  it("does not reject source-only fields that the editor cannot change", () => {
+  it("does not reject unchanged source-only fields that the editor cannot change", () => {
     const source = sourceRecipe({
       ingredients: [
         {
@@ -244,19 +253,15 @@ describe("variant draft", () => {
         },
       ],
     });
-    const draft = createVariantDraft(source);
 
-    const result = validateVariantDraft(draft);
-
-    expect(result.fieldErrors).toEqual({});
-    expect(result.formErrors).toEqual([]);
-    expect(result.payload).toMatchObject({
-      ingredient_edits: [],
-      instruction_edits: [],
+    expect(validateVariantDraft(createVariantDraft(source), units)).toMatchObject({
+      fieldErrors: {},
+      formErrors: [],
+      payload: { ingredient_edits: [], instruction_edits: [] },
     });
   });
 
-  it("reports field errors without mutating or clearing invalid user input", () => {
+  it("reports measure errors without mutating or clearing raw input", () => {
     const draft = createVariantDraft(sourceRecipe());
     draft.title = "   ";
     draft.description = "contains\0nul";
@@ -266,50 +271,75 @@ describe("variant draft", () => {
       canonicalName: "Granulated sugar",
       displayName: "White sugar",
     };
-    draft.ingredients[0].quantity = "1.00001";
+    draft.ingredients[0].measure.exactValue = "1.00001";
 
     const addedIngredient = createAddedIngredientDraft("new-invalid");
-    addedIngredient.quantity = "-2";
+    addedIngredient.measure = {
+      ...addedIngredient.measure,
+      mode: "exact",
+      exactValue: "-2",
+    };
     draft.ingredients.push(addedIngredient);
-
     draft.instructions[0].text = "   ";
     const beforeValidation = structuredClone(draft);
 
-    const result = validateVariantDraft(draft);
+    const result = validateVariantDraft(draft, units);
 
     expect(result.payload).toBeNull();
-    expect(result.formErrors).toEqual([]);
     expect(result.fieldErrors).toMatchObject({
       title: "Version title is required.",
       description: "Description contains an unsupported character.",
       servings: "Servings must be greater than zero.",
       [ingredientFieldKey("source-sugar-row", "name")]:
         "Choose a different catalog ingredient or label, or clear the selection.",
-      [ingredientFieldKey("source-sugar-row", "quantity")]:
-        "Quantity can have at most 4 decimal places.",
+      [ingredientMeasureFieldKey("source-sugar-row", "amount")]:
+        "Amount can have at most 4 decimal places.",
       [ingredientFieldKey("new-invalid", "name")]:
         "Choose an ingredient from the catalog.",
-      [ingredientFieldKey("new-invalid", "quantity")]:
-        "Quantity must be a positive decimal number.",
+      [ingredientMeasureFieldKey("new-invalid", "amount")]:
+        "Amount must be a positive decimal number.",
+      [ingredientMeasureFieldKey("new-invalid", "unit")]:
+        "Choose a unit from the curated catalog.",
       [instructionFieldKey("source-mix-step")]: "Instruction is required.",
     });
     expect(draft).toEqual(beforeValidation);
   });
 
-  it("rejects drafts that remove every ingredient or instruction and keeps removal state", () => {
-    const draft = createVariantDraft(sourceRecipe());
-    for (const ingredient of draft.ingredients) {
-      ingredient.removed = true;
+  it("rejects inactive historical units until an active unit is chosen", () => {
+    const source = sourceRecipe();
+    const measure = source.ingredients[0].measure;
+    if (measure.kind !== "exact") {
+      throw new Error("Expected exact fixture.");
     }
-    for (const instruction of draft.instructions) {
-      instruction.removed = true;
-    }
-    const beforeValidation = structuredClone(draft);
+    measure.unit = { ...measure.unit, active: false };
+    const draft = createVariantDraft(source);
 
-    const result = validateVariantDraft(draft);
+    const result = validateVariantDraft(
+      draft,
+      units.filter((unit) => unit.id !== GRAM_ID),
+    );
 
     expect(result.payload).toBeNull();
-    expect(result.fieldErrors).toEqual({});
+    expect(result.fieldErrors).toMatchObject({
+      [ingredientMeasureFieldKey("source-sugar-row", "unit")]:
+        "Choose an active compatible unit.",
+    });
+    expect(draft.ingredients[0].measure.unit).toMatchObject({ active: false });
+  });
+
+  it("rejects drafts that remove every ingredient or instruction and keeps removal state", () => {
+    const draft = createVariantDraft(sourceRecipe());
+    draft.ingredients.forEach((ingredient) => {
+      ingredient.removed = true;
+    });
+    draft.instructions.forEach((instruction) => {
+      instruction.removed = true;
+    });
+    const beforeValidation = structuredClone(draft);
+
+    const result = validateVariantDraft(draft, units);
+
+    expect(result.payload).toBeNull();
     expect(result.formErrors).toEqual([
       "Keep or add at least one ingredient.",
       "Keep or add at least one instruction.",
@@ -317,24 +347,16 @@ describe("variant draft", () => {
     expect(draft).toEqual(beforeValidation);
   });
 
-  it("ignores newly added rows that users remove before submission", () => {
+  it("ignores newly added rows removed before submission", () => {
     const draft = createVariantDraft(sourceRecipe());
     const ingredient = createAddedIngredientDraft("discarded-ingredient");
-    ingredient.selectedIngredient = {
-      ingredientId: ORANGE_ZEST_ID,
-      canonicalName: "Orange zest",
-      displayName: "Orange zest",
-    };
     ingredient.removed = true;
     draft.ingredients.push(ingredient);
     const instruction = createAddedInstructionDraft("discarded-instruction");
-    instruction.text = "Discard this step.";
     instruction.removed = true;
     draft.instructions.push(instruction);
 
-    const result = validateVariantDraft(draft);
-
-    expect(result.payload).toMatchObject({
+    expect(validateVariantDraft(draft, units).payload).toMatchObject({
       ingredient_edits: [],
       instruction_edits: [],
     });

@@ -30,7 +30,7 @@ and assess it without touching a live database:
 
 ```powershell
 recipe-lab-eval simulate `
-  --catalog tests/fixtures/readiness_catalog_v1.json `
+  --catalog tests/fixtures/readiness_catalog_v2.json `
   --profiles 64 --seed 20260822 `
   --output snapshots/readiness-simulated-v1.json
 
@@ -61,7 +61,7 @@ the exact thresholds, assumptions, privacy rules, and proceed condition.
 
 ```powershell
 recipe-lab-eval run `
-  --snapshot tests/fixtures/synthetic_snapshot_v1.json `
+  --snapshot tests/fixtures/synthetic_snapshot_v2.json `
   --k 5 --k 10 `
   --seed 20260821 `
   --output reports/synthetic-report.json
@@ -124,9 +124,9 @@ Retaining a simpler model is a successful evaluation and returns zero; it does
 not make `--strict` fail.
 
 The generated cohort deterministically retains `content-v1`. Its hybrid NDCG
-is `0.625000` at K=1 and `0.866219` at K=3; the primary-K gain over content is
-only `0.001481`, below the policy's `0.010000` minimum, and other K=1 guardrails
-also regress. Synthetic evidence is independently barred from adoption. See the
+is `0.718750` at K=1 and `0.887435` at K=3; the primary-K gain over content is
+only `0.001028`, below the policy's `0.010000` minimum. Synthetic evidence is
+independently barred from adoption. See the
 [offline hybrid recommender](../docs/hybrid-recommender.md) for the exact
 component formula, cold-start routes, reasons, metrics, and policy.
 
@@ -174,13 +174,16 @@ recipe-lab-eval snapshot `
   --output snapshots/local-2026-08-21.json
 ```
 
-The exporter reads recipe versions, distinct canonical ingredient IDs, and
-typed preference events in one repeatable-read transaction. It excludes user
-names and emails, request fingerprints, network/device metadata, and free-form
-context. Opaque activity IDs remain necessary for state reconstruction, so
-local snapshots are ignored by Git. Reports contain aggregate metrics rather
-than those raw IDs, but are also ignored as generated run artifacts and can
-include caller-supplied dataset labels and limitation text.
+The exporter reads recipe versions, occurrence-preserving structured ingredient
+measures, and typed preference events in one repeatable-read transaction. Each
+measure retains canonical ingredient identity, exact/range/qualitative shape,
+decimal bounds, curated unit identity, and optional reviewed package-size
+identity; display text is omitted. It also excludes user names and emails,
+request fingerprints, network/device metadata, and free-form context. Opaque
+activity IDs remain necessary for state reconstruction, so local snapshots are
+ignored by Git. Reports contain aggregate metrics rather than those raw IDs,
+but are also ignored as generated run artifacts and can include caller-supplied
+dataset labels and limitation text.
 
 The snapshot embeds one UTC cutoff. Training uses only recipes and events
 strictly before it; events at or after it are held out. Changing the file after

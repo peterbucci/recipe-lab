@@ -9,6 +9,7 @@ from recipe_lab_evaluation.dataset import (
     EvaluationSnapshot,
     EventType,
     SnapshotEvent,
+    SnapshotIngredientMeasure,
     SnapshotRecipe,
 )
 from recipe_lab_evaluation.models import CONTENT_MODEL_ID, ContentBasedV1Model
@@ -41,7 +42,18 @@ def _recipe(
         created_at=_CUTOFF - timedelta(days=30),
         title=title,
         version_number=version,
-        ingredient_ids=tuple(UUID(int=value) for value in ingredients),
+        ingredient_measures=tuple(
+            SnapshotIngredientMeasure(
+                ingredient_id=UUID(int=value),
+                kind="qualitative",
+                quantity_min=None,
+                quantity_max=None,
+                measurement_unit_id=None,
+                package_size_id=None,
+                qualitative_value="unspecified",
+            )
+            for value in ingredients
+        ),
     )
 
 

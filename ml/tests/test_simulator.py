@@ -9,6 +9,7 @@ import pytest
 
 from recipe_lab_evaluation.dataset import (
     EvaluationSnapshot,
+    SnapshotIngredientMeasure,
     SnapshotRecipe,
     create_snapshot,
     parse_snapshot_json,
@@ -36,9 +37,25 @@ def _catalog(*, recipe_count: int = 8, future_recipes: int = 0) -> EvaluationSna
             ),
             title=f"Catalog Recipe {index + 1}",
             version_number=1,
-            ingredient_ids=(
-                UUID(int=1_000 + (index % 4)),
-                UUID(int=2_000 + ((index + 1) % 4)),
+            ingredient_measures=(
+                SnapshotIngredientMeasure(
+                    ingredient_id=UUID(int=1_000 + (index % 4)),
+                    kind="qualitative",
+                    quantity_min=None,
+                    quantity_max=None,
+                    measurement_unit_id=None,
+                    package_size_id=None,
+                    qualitative_value="unspecified",
+                ),
+                SnapshotIngredientMeasure(
+                    ingredient_id=UUID(int=2_000 + ((index + 1) % 4)),
+                    kind="qualitative",
+                    quantity_min=None,
+                    quantity_max=None,
+                    measurement_unit_id=None,
+                    package_size_id=None,
+                    qualitative_value="unspecified",
+                ),
             ),
         )
         for index in range(recipe_count)
@@ -271,7 +288,17 @@ def test_simulation_rejects_cutoffs_that_cannot_fit_the_configured_windows(
                 created_at=created_at,
                 title=f"Boundary Recipe {index}",
                 version_number=1,
-                ingredient_ids=(UUID(int=5_000 + index),),
+                ingredient_measures=(
+                    SnapshotIngredientMeasure(
+                        ingredient_id=UUID(int=5_000 + index),
+                        kind="qualitative",
+                        quantity_min=None,
+                        quantity_max=None,
+                        measurement_unit_id=None,
+                        package_size_id=None,
+                        qualitative_value="unspecified",
+                    ),
+                ),
             )
             for index in range(7)
         ),

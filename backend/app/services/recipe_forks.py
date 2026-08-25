@@ -5,8 +5,20 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, raiseload, selectinload
 
-from app.models import RecipeIngredient, RecipeInstruction, RecipeLineage, RecipeVersion
+from app.models import (
+    MeasurementUnit,
+    RecipeIngredient,
+    RecipeInstruction,
+    RecipeLineage,
+    RecipeVersion,
+)
 from app.repositories.ingredients import curated_display_label, get_ingredient
+from app.schemas.measurements import (
+    ExactMeasureInput,
+    QualitativeMeasureInput,
+    RangeMeasureInput,
+    StructuredMeasureInput,
+)
 from app.schemas.recipe_forks import (
     AddIngredient,
     AddInstruction,
@@ -14,10 +26,10 @@ from app.schemas.recipe_forks import (
     RemoveIngredient,
     RemoveInstruction,
     ReplaceIngredient,
-    SetIngredientQuantity,
-    SetIngredientUnit,
+    SetIngredientMeasure,
     UpdateInstruction,
 )
+from app.services.measurements import MeasurementError, validate_measure_input
 
 
 class InvalidRecipeEditsError(ValueError):
@@ -29,8 +41,12 @@ class _IngredientDraft:
     source_id: UUID | None
     ingredient_id: UUID
     name: str
-    quantity: Decimal | None
-    unit: str | None
+    measure_mode: str
+    quantity_min: Decimal | None
+    quantity_max: Decimal | None
+    measurement_unit_id: UUID | None
+    unit_display: str | None
+    package_size_id: UUID | None
     preparation_notes: str | None
 
 
@@ -42,6 +58,90 @@ class _InstructionDraft:
 
 def _invalid(message: str) -> InvalidRecipeEditsError:
     return InvalidRecipeEditsError(message)
+
+
+def _unit_display_snapshot(unit: MeasurementUnit) -> str:
+    return unit.symbol or unit.canonical_label
+
+
+def _validate_recipe_quantity_precision(value: Decimal) -> None:
+    if value.copy_abs() >= Decimal("100000000"):
+        raise _invalid("Recipe quantities may contain at most eight integer digits.")
+    if value != value.quantize(Decimal("0.0001")):
+        raise _invalid("Recipe quantities may contain at most four decimal places.")
+
+
+def _validated_measure_fields(
+    session: Session,
+    measure: StructuredMeasureInput,
+    ingredient_id: UUID,
+) -> tuple[
+    str,
+    Decimal | None,
+    Decimal | None,
+    UUID | None,
+    str | None,
+    UUID | None,
+]:
+    try:
+        unit = validate_measure_input(
+            session,
+            semantic="ingredient_amount",
+            measure=measure,
+            ingredient_id=ingredient_id,
+        )
+    except MeasurementError as error:
+        raise _invalid(f"{error.code}: {error}") from error
+
+    if isinstance(measure, ExactMeasureInput):
+        if unit is None:
+            raise RuntimeError("A validated exact measure has no curated unit.")
+        _validate_recipe_quantity_precision(measure.value)
+        return (
+            "exact",
+            measure.value,
+            None,
+            unit.id,
+            _unit_display_snapshot(unit),
+            measure.package_size_id,
+        )
+    if isinstance(measure, RangeMeasureInput):
+        if unit is None:
+            raise RuntimeError("A validated range measure has no curated unit.")
+        _validate_recipe_quantity_precision(measure.minimum)
+        _validate_recipe_quantity_precision(measure.maximum)
+        return (
+            "range",
+            measure.minimum,
+            measure.maximum,
+            unit.id,
+            _unit_display_snapshot(unit),
+            measure.package_size_id,
+        )
+    if isinstance(measure, QualitativeMeasureInput):
+        return measure.value, None, None, None, None, None
+    raise AssertionError("Unsupported structured measure input.")
+
+
+def _set_draft_measure(
+    draft: _IngredientDraft,
+    fields: tuple[
+        str,
+        Decimal | None,
+        Decimal | None,
+        UUID | None,
+        str | None,
+        UUID | None,
+    ],
+) -> None:
+    (
+        draft.measure_mode,
+        draft.quantity_min,
+        draft.quantity_max,
+        draft.measurement_unit_id,
+        draft.unit_display,
+        draft.package_size_id,
+    ) = fields
 
 
 def _load_source_after_lineage_lock(
@@ -81,8 +181,12 @@ def _validate_ingredient_targets(
             source_id=item.id,
             ingredient_id=item.ingredient_id,
             name=item.name,
-            quantity=item.quantity,
-            unit=item.unit,
+            measure_mode=item.measure_mode,
+            quantity_min=item.quantity_min,
+            quantity_max=item.quantity_max,
+            measurement_unit_id=item.measurement_unit_id,
+            unit_display=item.unit_display,
+            package_size_id=item.package_size_id,
             preparation_notes=item.preparation_notes,
         )
         for item in source.ingredients
@@ -152,23 +256,36 @@ def _apply_ingredient_edits(
                 edit.ingredient_id,
                 edit.display_name,
             )
+            (
+                measure_mode,
+                quantity_min,
+                quantity_max,
+                measurement_unit_id,
+                unit_display,
+                package_size_id,
+            ) = _validated_measure_fields(session, edit.measure, ingredient_id)
             additions.append(
                 _IngredientDraft(
                     source_id=None,
                     ingredient_id=ingredient_id,
                     name=display_name,
-                    quantity=edit.quantity,
-                    unit=edit.unit,
+                    measure_mode=measure_mode,
+                    quantity_min=quantity_min,
+                    quantity_max=quantity_max,
+                    measurement_unit_id=measurement_unit_id,
+                    unit_display=unit_display,
+                    package_size_id=package_size_id,
                     preparation_notes=edit.preparation_notes,
                 )
             )
             continue
 
         draft = drafts[edit.recipe_ingredient_id]
-        if isinstance(edit, SetIngredientQuantity):
-            draft.quantity = edit.quantity
-        elif isinstance(edit, SetIngredientUnit):
-            draft.unit = edit.unit
+        if isinstance(edit, SetIngredientMeasure):
+            _set_draft_measure(
+                draft,
+                _validated_measure_fields(session, edit.measure, draft.ingredient_id),
+            )
         elif isinstance(edit, ReplaceIngredient):
             replacement_id, display_name = _resolve_required_catalog_selection(
                 session,
@@ -184,6 +301,10 @@ def _apply_ingredient_edits(
                 )
             draft.ingredient_id = replacement_id
             draft.name = display_name
+            # Package-size metadata is ingredient-specific. Keep the authored
+            # measure, but never carry another ingredient's reviewed package
+            # relationship across a replacement.
+            draft.package_size_id = None
         elif isinstance(edit, RemoveIngredient):
             removed_ids.add(edit.recipe_ingredient_id)
 
@@ -283,8 +404,12 @@ def fork_recipe_version(
                 recipe_version_id=child.id,
                 ingredient_id=draft.ingredient_id,
                 name=draft.name,
-                quantity=draft.quantity,
-                unit=draft.unit,
+                measure_mode=draft.measure_mode,
+                quantity_min=draft.quantity_min,
+                quantity_max=draft.quantity_max,
+                measurement_unit_id=draft.measurement_unit_id,
+                unit_display=draft.unit_display,
+                package_size_id=draft.package_size_id,
                 preparation_notes=draft.preparation_notes,
                 display_order=display_order,
             )

@@ -7,9 +7,11 @@ from .adoption import (
     decide_hybrid_adoption,
 )
 from .dataset import (
+    LEGACY_SNAPSHOT_SCHEMA_VERSION,
     SNAPSHOT_SCHEMA_VERSION,
     EvaluationSnapshot,
     SnapshotEvent,
+    SnapshotIngredientMeasure,
     SnapshotRecipe,
     SnapshotValidationError,
     create_snapshot,
@@ -79,6 +81,7 @@ __all__ = [
     "HYBRID_ADOPTION_POLICY_VERSION",
     "READINESS_PROTOCOL_VERSION",
     "READINESS_REPORT_SCHEMA_VERSION",
+    "LEGACY_SNAPSHOT_SCHEMA_VERSION",
     "SNAPSHOT_SCHEMA_VERSION",
     "SIMULATION_ASSUMPTIONS",
     "SUBSTITUTION_BENCHMARK_SCHEMA_VERSION",
@@ -104,6 +107,7 @@ __all__ = [
     "ReadinessReport",
     "ReadinessThresholds",
     "SnapshotEvent",
+    "SnapshotIngredientMeasure",
     "SnapshotRecipe",
     "SnapshotValidationError",
     "SubstitutionBenchmark",

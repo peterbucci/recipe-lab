@@ -1,3 +1,5 @@
+import type { RecipeIngredientMeasure } from "./structured-measure";
+
 export function formatDecimal(value: string): string {
   const [whole, fraction] = value.split(".", 2);
   if (fraction === undefined) {
@@ -12,17 +14,6 @@ export function formatServings(value: string): string {
   return `${servings} ${servings === "1" ? "serving" : "servings"}`;
 }
 
-export function formatIngredientAmount(quantity: string | null, unit: string | null): string {
-  if (quantity === null) {
-    return "Amount not specified";
-  }
-
-  const amount = formatDecimal(quantity);
-  if (unit === null || unit === "count") {
-    return amount;
-  }
-  if ((unit === "slice" || unit === "clove") && amount !== "1") {
-    return `${amount} ${unit}s`;
-  }
-  return `${amount} ${unit}`;
+export function formatIngredientMeasure(measure: RecipeIngredientMeasure): string {
+  return measure.display;
 }

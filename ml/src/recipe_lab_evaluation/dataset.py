@@ -4,17 +4,32 @@ import hashlib
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Literal, cast
 from uuid import UUID
 
-SNAPSHOT_SCHEMA_VERSION = "recipe-lab-evaluation-snapshot-v1"
+SNAPSHOT_SCHEMA_VERSION = "recipe-lab-evaluation-snapshot-v2"
+LEGACY_SNAPSHOT_SCHEMA_VERSION = "recipe-lab-evaluation-snapshot-v1"
 
 type EventType = Literal["view", "save", "rating", "fork"]
+type MeasureKind = Literal["exact", "range", "qualitative"]
+type QualitativeMeasure = Literal["to_taste", "as_needed", "unspecified"]
 
 
 class SnapshotValidationError(ValueError):
     """Raised when an evaluation snapshot violates the versioned contract."""
+
+
+@dataclass(frozen=True, slots=True)
+class SnapshotIngredientMeasure:
+    ingredient_id: UUID
+    kind: MeasureKind
+    quantity_min: Decimal | None
+    quantity_max: Decimal | None
+    measurement_unit_id: UUID | None
+    package_size_id: UUID | None
+    qualitative_value: QualitativeMeasure | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,7 +38,16 @@ class SnapshotRecipe:
     created_at: datetime
     title: str
     version_number: int
-    ingredient_ids: tuple[UUID, ...]
+    ingredient_measures: tuple[SnapshotIngredientMeasure, ...]
+    legacy_ingredient_ids: tuple[UUID, ...] = ()
+
+    @property
+    def ingredient_ids(self) -> tuple[UUID, ...]:
+        """Return the distinct canonical identities consumed by identity-only models."""
+
+        ingredient_ids = {measure.ingredient_id for measure in self.ingredient_measures}
+        ingredient_ids.update(self.legacy_ingredient_ids)
+        return tuple(sorted(ingredient_ids, key=lambda ingredient_id: ingredient_id.int))
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +91,31 @@ def _timestamp(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
+def _decimal_text(value: Decimal | None) -> str | None:
+    if value is None:
+        return None
+    normalized = format(value, "f")
+    if "." in normalized:
+        normalized = normalized.rstrip("0").rstrip(".")
+    return normalized or "0"
+
+
+def _measure_document(measure: SnapshotIngredientMeasure) -> dict[str, object]:
+    return {
+        "ingredient_id": str(measure.ingredient_id),
+        "kind": measure.kind,
+        "quantity_min": _decimal_text(measure.quantity_min),
+        "quantity_max": _decimal_text(measure.quantity_max),
+        "measurement_unit_id": (
+            str(measure.measurement_unit_id) if measure.measurement_unit_id is not None else None
+        ),
+        "package_size_id": (
+            str(measure.package_size_id) if measure.package_size_id is not None else None
+        ),
+        "qualitative_value": measure.qualitative_value,
+    }
+
+
 def _normalized_document(
     *,
     schema_version: str,
@@ -76,21 +125,39 @@ def _normalized_document(
     recipes: tuple[SnapshotRecipe, ...],
     events: tuple[SnapshotEvent, ...],
 ) -> dict[str, object]:
-    return {
-        "schema_version": schema_version,
-        "dataset_id": dataset_id,
-        "cutoff": _timestamp(cutoff),
-        "limitations": list(limitations),
-        "recipes": [
+    recipes_document: list[dict[str, object]]
+    if schema_version == LEGACY_SNAPSHOT_SCHEMA_VERSION:
+        recipes_document = [
             {
                 "id": str(recipe.id),
                 "created_at": _timestamp(recipe.created_at),
                 "title": recipe.title,
                 "version_number": recipe.version_number,
-                "ingredient_ids": [str(ingredient_id) for ingredient_id in recipe.ingredient_ids],
+                "ingredient_ids": [
+                    str(ingredient_id) for ingredient_id in recipe.legacy_ingredient_ids
+                ],
             }
             for recipe in recipes
-        ],
+        ]
+    else:
+        recipes_document = [
+            {
+                "id": str(recipe.id),
+                "created_at": _timestamp(recipe.created_at),
+                "title": recipe.title,
+                "version_number": recipe.version_number,
+                "ingredient_measures": [
+                    _measure_document(measure) for measure in recipe.ingredient_measures
+                ],
+            }
+            for recipe in recipes
+        ]
+    return {
+        "schema_version": schema_version,
+        "dataset_id": dataset_id,
+        "cutoff": _timestamp(cutoff),
+        "limitations": list(limitations),
+        "recipes": recipes_document,
         "events": [
             {
                 "id": str(event.id),
@@ -199,10 +266,41 @@ def _optional_rating(value: object, *, path: str) -> int | None:
     return rating
 
 
+def _optional_uuid(value: object, *, path: str) -> UUID | None:
+    return None if value is None else _uuid(value, path=path)
+
+
+def _optional_decimal(value: object, *, path: str) -> Decimal | None:
+    if value is None:
+        return None
+    raw = _string(value, path=path)
+    try:
+        parsed = Decimal(raw)
+    except InvalidOperation as error:
+        raise SnapshotValidationError(f"{path} must be a decimal string or null") from error
+    if not parsed.is_finite():
+        raise SnapshotValidationError(f"{path} must be finite")
+    if parsed <= 0:
+        raise SnapshotValidationError(f"{path} must be greater than zero")
+    return parsed
+
+
 _TOP_LEVEL_KEYS = frozenset(
     {"schema_version", "dataset_id", "cutoff", "limitations", "recipes", "events"}
 )
-_RECIPE_KEYS = frozenset({"id", "created_at", "title", "version_number", "ingredient_ids"})
+_RECIPE_V1_KEYS = frozenset({"id", "created_at", "title", "version_number", "ingredient_ids"})
+_RECIPE_V2_KEYS = frozenset({"id", "created_at", "title", "version_number", "ingredient_measures"})
+_INGREDIENT_MEASURE_KEYS = frozenset(
+    {
+        "ingredient_id",
+        "kind",
+        "quantity_min",
+        "quantity_max",
+        "measurement_unit_id",
+        "package_size_id",
+        "qualitative_value",
+    }
+)
 _EVENT_KEYS = frozenset(
     {
         "id",
@@ -217,23 +315,98 @@ _EVENT_KEYS = frozenset(
 )
 
 
-def _parse_recipe(value: object, index: int) -> SnapshotRecipe:
+def _parse_ingredient_measure(value: object, *, path: str) -> SnapshotIngredientMeasure:
+    item = _object(value, path=path)
+    _exact_keys(item, expected=_INGREDIENT_MEASURE_KEYS, path=path)
+    kind_raw = _string(item["kind"], path=f"{path}.kind")
+    if kind_raw not in {"exact", "range", "qualitative"}:
+        raise SnapshotValidationError(f"{path}.kind is unsupported")
+    kind = cast(MeasureKind, kind_raw)
+    quantity_min = _optional_decimal(item["quantity_min"], path=f"{path}.quantity_min")
+    quantity_max = _optional_decimal(item["quantity_max"], path=f"{path}.quantity_max")
+    measurement_unit_id = _optional_uuid(
+        item["measurement_unit_id"], path=f"{path}.measurement_unit_id"
+    )
+    package_size_id = _optional_uuid(item["package_size_id"], path=f"{path}.package_size_id")
+    qualitative_raw = item["qualitative_value"]
+    if qualitative_raw is None:
+        qualitative_value = None
+    else:
+        qualitative_text = _string(qualitative_raw, path=f"{path}.qualitative_value")
+        if qualitative_text not in {"to_taste", "as_needed", "unspecified"}:
+            raise SnapshotValidationError(f"{path}.qualitative_value is unsupported")
+        qualitative_value = cast(QualitativeMeasure, qualitative_text)
+
+    valid_shape = (
+        (
+            kind == "exact"
+            and quantity_min is not None
+            and quantity_max is None
+            and measurement_unit_id is not None
+            and qualitative_value is None
+        )
+        or (
+            kind == "range"
+            and quantity_min is not None
+            and quantity_max is not None
+            and quantity_max > quantity_min
+            and measurement_unit_id is not None
+            and qualitative_value is None
+        )
+        or (
+            kind == "qualitative"
+            and quantity_min is None
+            and quantity_max is None
+            and measurement_unit_id is None
+            and package_size_id is None
+            and qualitative_value is not None
+        )
+    )
+    if not valid_shape:
+        raise SnapshotValidationError(f"{path} fields do not match its kind")
+    return SnapshotIngredientMeasure(
+        ingredient_id=_uuid(item["ingredient_id"], path=f"{path}.ingredient_id"),
+        kind=kind,
+        quantity_min=quantity_min,
+        quantity_max=quantity_max,
+        measurement_unit_id=measurement_unit_id,
+        package_size_id=package_size_id,
+        qualitative_value=qualitative_value,
+    )
+
+
+def _parse_recipe(value: object, index: int, *, schema_version: str) -> SnapshotRecipe:
     path = f"recipes[{index}]"
     item = _object(value, path=path)
-    _exact_keys(item, expected=_RECIPE_KEYS, path=path)
-    ingredient_values = _array(item["ingredient_ids"], path=f"{path}.ingredient_ids")
-    ingredient_ids = tuple(
-        _uuid(raw, path=f"{path}.ingredient_ids[{ingredient_index}]")
-        for ingredient_index, raw in enumerate(ingredient_values)
-    )
-    if len(ingredient_ids) != len(set(ingredient_ids)):
-        raise SnapshotValidationError(f"{path}.ingredient_ids must not contain duplicates")
+    if schema_version == LEGACY_SNAPSHOT_SCHEMA_VERSION:
+        _exact_keys(item, expected=_RECIPE_V1_KEYS, path=path)
+        ingredient_values = _array(item["ingredient_ids"], path=f"{path}.ingredient_ids")
+        ingredient_ids = tuple(
+            _uuid(raw, path=f"{path}.ingredient_ids[{ingredient_index}]")
+            for ingredient_index, raw in enumerate(ingredient_values)
+        )
+        if len(ingredient_ids) != len(set(ingredient_ids)):
+            raise SnapshotValidationError(f"{path}.ingredient_ids must not contain duplicates")
+        ingredient_measures: tuple[SnapshotIngredientMeasure, ...] = ()
+        legacy_ingredient_ids = tuple(
+            sorted(ingredient_ids, key=lambda ingredient_id: ingredient_id.int)
+        )
+    else:
+        _exact_keys(item, expected=_RECIPE_V2_KEYS, path=path)
+        ingredient_measures = tuple(
+            _parse_ingredient_measure(raw, path=f"{path}.ingredient_measures[{measure_index}]")
+            for measure_index, raw in enumerate(
+                _array(item["ingredient_measures"], path=f"{path}.ingredient_measures")
+            )
+        )
+        legacy_ingredient_ids = ()
     return SnapshotRecipe(
         id=_uuid(item["id"], path=f"{path}.id"),
         created_at=_utc_datetime(item["created_at"], path=f"{path}.created_at"),
         title=_string(item["title"], path=f"{path}.title"),
         version_number=_integer(item["version_number"], path=f"{path}.version_number", minimum=1),
-        ingredient_ids=tuple(sorted(ingredient_ids, key=lambda ingredient_id: ingredient_id.int)),
+        ingredient_measures=ingredient_measures,
+        legacy_ingredient_ids=legacy_ingredient_ids,
     )
 
 
@@ -309,9 +482,10 @@ def parse_snapshot_json(text: str) -> EvaluationSnapshot:
     _exact_keys(document, expected=_TOP_LEVEL_KEYS, path="snapshot")
 
     schema_version = _string(document["schema_version"], path="schema_version")
-    if schema_version != SNAPSHOT_SCHEMA_VERSION:
+    if schema_version not in {SNAPSHOT_SCHEMA_VERSION, LEGACY_SNAPSHOT_SCHEMA_VERSION}:
         raise SnapshotValidationError(
-            f"unsupported schema_version {schema_version!r}; expected {SNAPSHOT_SCHEMA_VERSION!r}"
+            f"unsupported schema_version {schema_version!r}; expected "
+            f"{SNAPSHOT_SCHEMA_VERSION!r} or {LEGACY_SNAPSHOT_SCHEMA_VERSION!r}"
         )
     dataset_id = _string(document["dataset_id"], path="dataset_id")
     cutoff = _utc_datetime(document["cutoff"], path="cutoff")
@@ -329,7 +503,7 @@ def parse_snapshot_json(text: str) -> EvaluationSnapshot:
         raise SnapshotValidationError("limitations must not contain duplicates")
 
     recipes = tuple(
-        _parse_recipe(value, index)
+        _parse_recipe(value, index, schema_version=schema_version)
         for index, value in enumerate(_array(document["recipes"], path="recipes"))
     )
     recipes_by_id = {recipe.id: recipe for recipe in recipes}
@@ -403,6 +577,11 @@ def create_snapshot(
 ) -> EvaluationSnapshot:
     """Create a validated snapshot from trusted extraction records."""
 
+    if any(recipe.legacy_ingredient_ids for recipe in recipes):
+        raise SnapshotValidationError(
+            "cannot create a v2 snapshot from legacy ID-only recipes; recapture the "
+            "source so structured ingredient measures are available"
+        )
     document = _normalized_document(
         schema_version=SNAPSHOT_SCHEMA_VERSION,
         dataset_id=dataset_id,

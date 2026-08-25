@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { formatIngredientAmount, formatServings } from "../../lib/format";
+import { formatIngredientMeasure, formatServings } from "../../lib/format";
 import type {
   RecipeDiff,
   RecipeFieldChange,
@@ -66,7 +66,7 @@ function IngredientValue({
   return (
     <span className="recipe-diff-ingredient">
       {showName ? <strong>{ingredient.display_name}</strong> : null}
-      <span>{formatIngredientAmount(ingredient.quantity, ingredient.unit)}</span>
+      <span>{formatIngredientMeasure(ingredient.measure)}</span>
       {ingredient.preparation_notes ? (
         <small>Preparation: {ingredient.preparation_notes}</small>
       ) : null}
@@ -112,7 +112,7 @@ function ingredientChangeLabels(change: RecipeIngredientPairChange): string[] {
   const labels: string[] = [];
   const fields = new Set(change.changed_fields);
 
-  if (fields.has("quantity") || fields.has("unit")) {
+  if (fields.has("measure")) {
     labels.push("Amount changed");
   }
   if (fields.has("display_name")) {

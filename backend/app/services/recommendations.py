@@ -90,7 +90,7 @@ def recommend_recipe_versions(
                     recipe_version_id=candidate.recipe.id,
                     title=candidate.recipe.title,
                     version_number=candidate.recipe.version_number,
-                    ingredient_ids=candidate.ingredient_ids,
+                    ingredient_measures=candidate.ingredient_measures,
                     rating_sum=candidate.rating_sum,
                     rating_count=candidate.rating_count,
                     save_count=candidate.save_count,

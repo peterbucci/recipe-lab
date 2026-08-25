@@ -17,9 +17,13 @@ const payload: RecipeVariantCreateRequest = {
   servings: "8.00",
   ingredient_edits: [
     {
-      op: "set_quantity",
+      op: "set_measure",
       recipe_ingredient_id: "sugar-row",
-      quantity: "140.0000",
+      measure: {
+        kind: "exact",
+        value: "140.0000",
+        unit_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      },
     },
     {
       op: "replace",

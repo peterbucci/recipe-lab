@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session, raiseload, selectinload
+from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
 from app.models import IngredientSubstitution, RecipeIngredient, RecipeVersion
 
@@ -43,7 +43,10 @@ def get_recipe_versions_for_diff(
     statement = (
         select(RecipeVersion)
         .options(
-            selectinload(RecipeVersion.ingredients).joinedload(RecipeIngredient.ingredient),
+            selectinload(RecipeVersion.ingredients).options(
+                joinedload(RecipeIngredient.ingredient),
+                joinedload(RecipeIngredient.measurement_unit),
+            ),
             selectinload(RecipeVersion.instructions),
             raiseload("*"),
         )

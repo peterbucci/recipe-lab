@@ -8,13 +8,23 @@ from pydantic import (
     ConfigDict,
     Field,
     StringConstraints,
+    model_validator,
 )
+
+from app.schemas.measurements import ExactMeasureInput, RangeMeasureInput, StructuredMeasureInput
 
 
 def _reject_boolean_decimal(value: object) -> object:
     if isinstance(value, bool):
         raise ValueError("boolean values are not valid decimal amounts")
     return value
+
+
+def _validate_recipe_quantity_precision(value: Decimal) -> None:
+    if value.copy_abs() >= Decimal("100000000"):
+        raise ValueError("recipe quantities may contain at most eight integer digits")
+    if value != value.quantize(Decimal("0.0001")):
+        raise ValueError("recipe quantities may contain at most four decimal places")
 
 
 Title = Annotated[
@@ -44,15 +54,6 @@ IngredientName = Annotated[
         pattern=r"^[^\x00]*$",
     ),
 ]
-Unit = Annotated[
-    str,
-    StringConstraints(
-        strip_whitespace=True,
-        min_length=1,
-        max_length=64,
-        pattern=r"^[^\x00]*$",
-    ),
-]
 PreparationNotes = Annotated[
     str,
     StringConstraints(
@@ -76,33 +77,23 @@ Servings = Annotated[
     BeforeValidator(_reject_boolean_decimal),
     Field(gt=0, max_digits=8, decimal_places=2),
 ]
-Quantity = Annotated[
-    Decimal,
-    BeforeValidator(_reject_boolean_decimal),
-    Field(gt=0, max_digits=12, decimal_places=4),
-]
 
 
 class ForkSchema(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class SetIngredientQuantity(ForkSchema):
-    op: Literal["set_quantity"]
+class SetIngredientMeasure(ForkSchema):
+    op: Literal["set_measure"]
     recipe_ingredient_id: UUID = Field(
         description="Ingredient-row identifier from the direct source snapshot."
     )
-    quantity: Quantity | None = Field(
-        description="Exact new quantity, or null to mark the amount unspecified."
+    measure: StructuredMeasureInput = Field(
+        description=(
+            "Complete replacement measure. Quantity and unit cannot be edited as "
+            "independent partial values."
+        )
     )
-
-
-class SetIngredientUnit(ForkSchema):
-    op: Literal["set_unit"]
-    recipe_ingredient_id: UUID = Field(
-        description="Ingredient-row identifier from the direct source snapshot."
-    )
-    unit: Unit | None = Field(description="New unit, or null to clear the unit.")
 
 
 class ReplaceIngredient(ForkSchema):
@@ -132,11 +123,11 @@ class AddIngredient(ForkSchema):
     display_name: IngredientName = Field(
         description="Selected canonical name or reviewed alias for this identity."
     )
-    quantity: Quantity | None = Field(
-        default=None,
-        description="Exact quantity, or null when the amount is unspecified.",
+    measure: StructuredMeasureInput = Field(
+        description=(
+            "Required structured amount using a curated unit or an explicit qualitative value."
+        )
     )
-    unit: Unit | None = Field(default=None)
     preparation_notes: PreparationNotes | None = Field(default=None)
 
 
@@ -148,11 +139,7 @@ class RemoveIngredient(ForkSchema):
 
 
 IngredientEdit = Annotated[
-    SetIngredientQuantity
-    | SetIngredientUnit
-    | ReplaceIngredient
-    | AddIngredient
-    | RemoveIngredient,
+    SetIngredientMeasure | ReplaceIngredient | AddIngredient | RemoveIngredient,
     Field(discriminator="op"),
 ]
 
@@ -201,3 +188,16 @@ class RecipeForkRequest(ForkSchema):
         max_length=100,
         description="Ordered edits applied to a copy of the source instructions.",
     )
+
+    @model_validator(mode="after")
+    def validate_recipe_measure_capacity(self) -> "RecipeForkRequest":
+        for edit in self.ingredient_edits:
+            if not isinstance(edit, (SetIngredientMeasure, AddIngredient)):
+                continue
+            measure = edit.measure
+            if isinstance(measure, ExactMeasureInput):
+                _validate_recipe_quantity_precision(measure.value)
+            elif isinstance(measure, RangeMeasureInput):
+                _validate_recipe_quantity_precision(measure.minimum)
+                _validate_recipe_quantity_precision(measure.maximum)
+        return self

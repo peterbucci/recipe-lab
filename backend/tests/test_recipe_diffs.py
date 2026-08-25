@@ -1,8 +1,16 @@
 from decimal import Decimal
 from uuid import UUID
 
-from app.models import Ingredient, RecipeIngredient, RecipeInstruction, RecipeVersion
+from app.models import (
+    Ingredient,
+    MeasurementUnit,
+    RecipeIngredient,
+    RecipeInstruction,
+    RecipeVersion,
+)
+from app.schemas.measurements import ExactMeasureResponse
 from app.schemas.recipe_diffs import RecipeDiffResponse
+from app.seeds.identifiers import measurement_uuid
 from app.services.recipe_diffs import build_recipe_diff
 
 LINEAGE_ID = UUID(int=1)
@@ -17,6 +25,36 @@ def _catalog_ingredient(value: int, canonical_name: str) -> Ingredient:
     return Ingredient(id=_id(value), canonical_name=canonical_name)
 
 
+def _measurement_unit(key: str) -> MeasurementUnit:
+    dimensions = {
+        "g": "mass",
+        "cup": "volume",
+        "tsp": "volume",
+        "tbsp": "volume",
+        "can": "package",
+    }
+    labels = {
+        "g": ("gram", "grams", "g", "symbol"),
+        "cup": ("cup", "cups", "cup", "word"),
+        "tsp": ("teaspoon", "teaspoons", "tsp", "symbol"),
+        "tbsp": ("tablespoon", "tablespoons", "tbsp", "symbol"),
+        "can": ("can", "cans", None, "word"),
+    }
+    canonical, plural, symbol, display_style = labels[key]
+    return MeasurementUnit(
+        id=measurement_uuid("unit", key),
+        key=key,
+        dimension=dimensions[key],
+        conversion_family=f"test-{key}",
+        canonical_label=canonical,
+        plural_label=plural,
+        symbol=symbol,
+        display_style=display_style,
+        active=True,
+        provenance="Test fixture.",
+    )
+
+
 def _ingredient(
     *,
     row_id: int,
@@ -25,17 +63,29 @@ def _ingredient(
     display_order: int,
     name: str | None = None,
     quantity: Decimal | None = None,
+    quantity_max: Decimal | None = None,
     unit: str | None = None,
+    measure_mode: str | None = None,
+    package_size_id: UUID | None = None,
     preparation_notes: str | None = None,
 ) -> RecipeIngredient:
+    measurement_unit = _measurement_unit(unit) if unit is not None else None
+    resolved_mode = measure_mode or (
+        "range" if quantity_max is not None else "exact" if quantity is not None else "unspecified"
+    )
     return RecipeIngredient(
         id=_id(row_id),
         recipe_version_id=version_id,
         ingredient_id=catalog.id,
         ingredient=catalog,
         name=name or catalog.canonical_name,
-        quantity=quantity,
-        unit=unit,
+        measure_mode=resolved_mode,
+        quantity_min=quantity,
+        quantity_max=quantity_max,
+        measurement_unit_id=measurement_unit.id if measurement_unit is not None else None,
+        measurement_unit=measurement_unit,
+        unit_display=unit,
+        package_size_id=package_size_id,
         preparation_notes=preparation_notes,
         display_order=display_order,
     )
@@ -149,6 +199,57 @@ def test_copied_snapshots_with_fresh_row_ids_have_no_changes() -> None:
     assert diff.metadata_changes == []
     _assert_no_content_changes(diff)
     assert diff.has_changes is False
+
+
+def test_package_size_only_change_is_visible_in_measure_snapshots() -> None:
+    tomatoes = _catalog_ingredient(11, "Tomatoes")
+    base_id = _id(110)
+    target_id = _id(111)
+    base_package_id = _id(112)
+    target_package_id = _id(113)
+    base = _version(
+        version_id=base_id.int,
+        version_number=1,
+        ingredients=[
+            _ingredient(
+                row_id=1_100,
+                version_id=base_id,
+                catalog=tomatoes,
+                display_order=0,
+                quantity=Decimal("2"),
+                unit="can",
+                package_size_id=base_package_id,
+            )
+        ],
+        instructions=[],
+    )
+    target = _version(
+        version_id=target_id.int,
+        version_number=2,
+        parent_version_id=base_id,
+        ingredients=[
+            _ingredient(
+                row_id=1_101,
+                version_id=target_id,
+                catalog=tomatoes,
+                display_order=0,
+                quantity=Decimal("2"),
+                unit="can",
+                package_size_id=target_package_id,
+            )
+        ],
+        instructions=[],
+    )
+
+    diff = build_recipe_diff(base, target, set())
+
+    assert len(diff.ingredients.modified) == 1
+    change = diff.ingredients.modified[0]
+    assert change.changed_fields == ["measure"]
+    assert isinstance(change.before.measure, ExactMeasureResponse)
+    assert isinstance(change.after.measure, ExactMeasureResponse)
+    assert change.before.measure.package_size_id == base_package_id
+    assert change.after.measure.package_size_id == target_package_id
 
 
 def test_reorder_only_is_ignored_for_ingredients_and_instructions() -> None:
@@ -316,7 +417,7 @@ def test_duplicate_ingredients_pair_exact_occurrences_before_modified_ones() -> 
     change = diff.ingredients.modified[0]
     assert change.before.id == base_first_id
     assert change.after.id == changed_target_id
-    assert change.changed_fields == ["quantity"]
+    assert change.changed_fields == ["measure"]
     assert exact_base_id not in {item.before.id for item in diff.ingredients.modified}
     assert exact_target_id not in {item.after.id for item in diff.ingredients.modified}
 
@@ -466,8 +567,7 @@ def test_multiple_changes_are_classified_with_fixed_changed_field_order() -> Non
     assert sugar_change.after.display_name == "Granulated sugar"
     assert sugar_change.changed_fields == [
         "display_name",
-        "quantity",
-        "unit",
+        "measure",
         "preparation_notes",
     ]
 
@@ -478,8 +578,7 @@ def test_multiple_changes_are_classified_with_fixed_changed_field_order() -> Non
     assert nut_change.changed_fields == [
         "ingredient",
         "display_name",
-        "quantity",
-        "unit",
+        "measure",
         "preparation_notes",
     ]
 
@@ -610,31 +709,25 @@ def test_reordered_duplicate_replacements_preserve_equal_nonidentity_content() -
     assert diff.ingredients.modified == []
     assert [
         (
-            change.before.quantity,
-            change.before.unit,
+            change.before.measure.display,
             change.before.preparation_notes,
-            change.after.quantity,
-            change.after.unit,
+            change.after.measure.display,
             change.after.preparation_notes,
             change.changed_fields,
         )
         for change in diff.ingredients.replaced
     ] == [
         (
-            Decimal("1"),
-            "cup",
+            "1 cup",
             "ground",
-            Decimal("1.0000"),
-            "cup",
+            "1 cup",
             "ground",
             ["ingredient", "display_name"],
         ),
         (
-            Decimal("2"),
-            "cup",
+            "2 cups",
             "chopped",
-            Decimal("2.0000"),
-            "cup",
+            "2 cups",
             "chopped",
             ["ingredient", "display_name"],
         ),
@@ -702,11 +795,62 @@ def test_decimal_equivalence_is_unchanged_and_null_transitions_are_explicit() ->
     assert len(diff.ingredients.modified) == 1
     change = diff.ingredients.modified[0]
     assert change.before.canonical_name == "Salt"
-    assert change.before.quantity is None
-    assert change.after.quantity == Decimal("0.5000")
-    assert change.before.unit is None
-    assert change.after.unit == "tsp"
-    assert change.changed_fields == ["quantity", "unit"]
+    assert change.before.measure.kind == "qualitative"
+    assert change.before.measure.value == "unspecified"
+    assert change.after.measure.kind == "exact"
+    assert change.after.measure.value == Decimal("0.5000")
+    assert change.after.measure.unit.key == "tsp"
+    assert change.changed_fields == ["measure"]
+
+
+def test_exact_to_range_transition_is_one_atomic_measure_change() -> None:
+    flour = _catalog_ingredient(65, "Flour")
+    base_id = _id(650)
+    target_id = _id(651)
+    base = _version(
+        version_id=base_id.int,
+        version_number=1,
+        ingredients=[
+            _ingredient(
+                row_id=6_500,
+                version_id=base_id,
+                catalog=flour,
+                display_order=0,
+                quantity=Decimal("1.0000"),
+                unit="cup",
+            )
+        ],
+        instructions=[],
+    )
+    target = _version(
+        version_id=target_id.int,
+        version_number=2,
+        parent_version_id=base_id,
+        ingredients=[
+            _ingredient(
+                row_id=6_501,
+                version_id=target_id,
+                catalog=flour,
+                display_order=0,
+                quantity=Decimal("1.0000"),
+                quantity_max=Decimal("1.5000"),
+                unit="cup",
+            )
+        ],
+        instructions=[],
+    )
+
+    diff = build_recipe_diff(base, target, set())
+
+    assert len(diff.ingredients.modified) == 1
+    change = diff.ingredients.modified[0]
+    assert change.changed_fields == ["measure"]
+    assert change.before.measure.kind == "exact"
+    assert change.before.measure.display == "1 cup"
+    assert change.after.measure.kind == "range"
+    assert change.after.measure.minimum == Decimal("1.0000")
+    assert change.after.measure.maximum == Decimal("1.5000")
+    assert change.after.measure.display == "1–1.5 cups"
 
 
 def test_output_is_deterministic_when_relationship_collections_are_shuffled() -> None:

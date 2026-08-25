@@ -20,7 +20,7 @@ safe to serve.
 
 ## Versioned synthetic cohort
 
-The committed `ml/tests/fixtures/readiness_catalog_v1.json` file is an invented,
+The committed `ml/tests/fixtures/readiness_catalog_v2.json` file is an invented,
 catalog-only evaluation snapshot. It contains eight recipe versions and no
 events. The simulator refuses a catalog that already contains events, so
 recorded and synthetic activity cannot be silently combined.
@@ -29,7 +29,7 @@ Run the default cohort from `ml/`:
 
 ```powershell
 recipe-lab-eval simulate `
-  --catalog tests/fixtures/readiness_catalog_v1.json `
+  --catalog tests/fixtures/readiness_catalog_v2.json `
   --profiles 64 `
   --seed 20260822 `
   --output snapshots/readiness-simulated-v1.json

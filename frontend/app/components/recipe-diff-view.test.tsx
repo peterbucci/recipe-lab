@@ -27,13 +27,37 @@ function ingredient(
   unit: string | null,
   overrides: Partial<RecipeIngredient> = {},
 ): RecipeIngredient {
+  const amount = quantity?.replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1") ?? null;
   return {
     id,
     ingredient_id: `catalog-${id}`,
     canonical_name: displayName,
     display_name: displayName,
-    quantity,
-    unit,
+    measure:
+      amount === null
+        ? {
+            kind: "qualitative",
+            value: "unspecified",
+            unit: null,
+            display_unit: null,
+            display: "Amount not specified",
+          }
+        : {
+            kind: "exact",
+            value: quantity!,
+            unit: {
+              id: `unit-${unit ?? "count"}`,
+              key: unit ?? "count",
+              dimension: unit === "g" ? "mass" : "volume",
+              canonical_label: unit ?? "count",
+              plural_label: unit ?? "count",
+              symbol: unit,
+              display_style: unit ? "symbol" : "hidden",
+              active: true,
+            },
+            display_unit: unit ?? "",
+            display: `${amount}${unit ? ` ${unit}` : ""}`,
+          },
     preparation_notes: null,
     display_order: 0,
     ...overrides,
@@ -91,7 +115,7 @@ function mixedDiff(): RecipeDiff {
           changed_fields: [
             "ingredient",
             "display_name",
-            "quantity",
+            "measure",
             "preparation_notes",
           ],
         },
@@ -107,7 +131,7 @@ function mixedDiff(): RecipeDiff {
             preparation_notes: "divided",
             display_order: 2,
           }),
-          changed_fields: ["quantity", "preparation_notes"],
+          changed_fields: ["measure", "preparation_notes"],
         },
       ],
     },

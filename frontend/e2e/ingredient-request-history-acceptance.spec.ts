@@ -503,10 +503,15 @@ test.describe("member ingredient-request acceptance", () => {
     const walnutRow = page.getByRole("group", { name: walnutLabel });
     const eggRow = page.getByRole("group", { name: "Ingredient 4: Egg" });
     await sugarRow.getByRole("button", { name: "Change White sugar" }).click();
-    await sugarRow.getByLabel("Quantity", { exact: true }).fill("135");
-    await sugarRow.getByLabel("Unit", { exact: true }).fill("grams");
+    await sugarRow.getByRole("textbox", { name: "Amount", exact: true }).fill("135");
+    const selectedSugarUnitId = await sugarRow
+      .getByRole("combobox", { name: "Unit", exact: true })
+      .inputValue();
     await walnutRow.getByRole("button", { name: "Change Walnut" }).click();
-    await walnutRow.getByLabel("Quantity", { exact: true }).fill("95");
+    await walnutRow.getByRole("textbox", { name: "Amount", exact: true }).fill("95");
+    const selectedWalnutUnitId = await walnutRow
+      .getByRole("combobox", { name: "Unit", exact: true })
+      .inputValue();
     await page.getByRole("button", { name: "Edit step 1" }).click();
     await page.getByLabel("Instruction", { exact: true }).first().fill(draftInstruction);
 
@@ -516,10 +521,20 @@ test.describe("member ingredient-request acceptance", () => {
         draftDescription,
       );
       await expect(page.getByLabel("Servings", { exact: true })).toHaveValue("6");
-      await expect(sugarRow.getByLabel("Quantity", { exact: true })).toHaveValue("135");
-      await expect(sugarRow.getByLabel("Unit", { exact: true })).toHaveValue("grams");
-      await expect(walnutRow.getByLabel("Quantity", { exact: true })).toHaveValue("95");
-      await expect(walnutRow.getByLabel("Unit", { exact: true })).toHaveValue("g");
+      await expect(
+        sugarRow.getByRole("textbox", { name: "Amount", exact: true }),
+      ).toHaveValue("135");
+      await expect(
+        sugarRow.getByRole("combobox", { name: "Unit", exact: true }).locator("option:checked"),
+      ).toHaveText("gram (g)");
+      await expect(
+        walnutRow.getByRole("textbox", { name: "Amount", exact: true }),
+      ).toHaveValue("95");
+      await expect(
+        walnutRow
+          .getByRole("combobox", { name: "Unit", exact: true })
+          .locator("option:checked"),
+      ).toHaveText("gram (g)");
       await expect(page.getByLabel("Instruction", { exact: true }).first()).toHaveValue(
         draftInstruction,
       );
@@ -705,7 +720,7 @@ test.describe("member ingredient-request acceptance", () => {
       servings: "6",
       title: draftTitle,
     });
-    expect(payload.ingredient_edits).toHaveLength(5);
+    expect(payload.ingredient_edits).toHaveLength(4);
     const approvedReplacement = payload.ingredient_edits.find(
       (edit) => edit.op === "replace" && edit.display_name === approvedCanonical,
     );
@@ -723,19 +738,22 @@ test.describe("member ingredient-request acceptance", () => {
     expect(payload.ingredient_edits).toEqual(
       expect.arrayContaining([
         {
-          op: "set_quantity",
-          quantity: "95",
+          op: "set_measure",
+          measure: {
+            kind: "exact",
+            unit_id: selectedWalnutUnitId,
+            value: "95",
+          },
           recipe_ingredient_id: approvedReplacement?.recipe_ingredient_id,
         },
         {
-          op: "set_quantity",
-          quantity: "135",
+          op: "set_measure",
+          measure: {
+            kind: "exact",
+            unit_id: selectedSugarUnitId,
+            value: "135",
+          },
           recipe_ingredient_id: duplicateReplacement?.recipe_ingredient_id,
-        },
-        {
-          op: "set_unit",
-          recipe_ingredient_id: duplicateReplacement?.recipe_ingredient_id,
-          unit: "grams",
         },
       ]),
     );
@@ -763,6 +781,6 @@ test.describe("member ingredient-request acceptance", () => {
     ).toContainText("95 g");
     await expect(
       ingredients.getByRole("listitem").filter({ hasText: "Pecan" }),
-    ).toContainText("135 grams");
+    ).toContainText("135 g");
   });
 });

@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import (
     AwareDatetime,
@@ -33,6 +33,10 @@ Confidence = Annotated[
     Decimal,
     Field(ge=0, le=1, max_digits=5, decimal_places=4),
 ]
+PositiveInteger = Annotated[int, Field(strict=True, gt=0)]
+StrictInteger = Annotated[int, Field(strict=True)]
+MeasurementDimension = Literal["mass", "volume", "count", "time", "temperature", "package"]
+MeasurementDisplayStyle = Literal["symbol", "word", "hidden"]
 
 
 def normalize_name(value: str) -> str:
@@ -59,6 +63,47 @@ class CatalogMetadata(SeedModel):
 class NamedSeed(SeedModel):
     key: SeedKey
     name: NonBlank
+
+
+class MeasurementCatalogMetadata(SeedModel):
+    version: Literal[1]
+    namespace_url: NonBlank
+    title: NonBlank
+    provenance: NonBlank
+    published_at: AwareDatetime
+
+
+class MeasurementUnitAliasSeed(SeedModel):
+    key: SeedKey
+    alias: NonBlank
+
+
+class MeasurementConversionSeed(SeedModel):
+    base_unit: SeedKey
+    scale_numerator: PositiveInteger
+    scale_denominator: PositiveInteger
+    offset_numerator: StrictInteger
+    offset_denominator: PositiveInteger
+    provenance: NonBlank
+
+
+class MeasurementUnitSeed(SeedModel):
+    key: SeedKey
+    dimension: MeasurementDimension
+    conversion_family: SeedKey
+    canonical_label: NonBlank
+    plural_label: NonBlank
+    symbol: NonBlank | None = None
+    display_style: MeasurementDisplayStyle
+    active: bool
+    provenance: NonBlank
+    aliases: list[MeasurementUnitAliasSeed] = Field(default_factory=list)
+    conversion: MeasurementConversionSeed | None = None
+
+
+class MeasurementCatalogSeed(SeedModel):
+    metadata: MeasurementCatalogMetadata
+    units: Annotated[list[MeasurementUnitSeed], Field(min_length=1)]
 
 
 class IngredientSeed(SeedModel):
@@ -107,12 +152,67 @@ class RecipeSeed(SeedModel):
 
 class SeedCatalog(SeedModel):
     metadata: CatalogMetadata
+    measurement_catalog: MeasurementCatalogSeed
     categories: list[NamedSeed]
     dietary_flags: list[NamedSeed]
     allergens: list[NamedSeed]
     ingredients: Annotated[list[IngredientSeed], Field(min_length=1)]
     substitutions: list[SubstitutionSeed]
     recipes: Annotated[list[RecipeSeed], Field(min_length=1)]
+
+    def _validate_measurement_catalog(self) -> dict[str, MeasurementUnitSeed]:
+        measurement_catalog = self.measurement_catalog
+        expected_namespace = "https://github.com/peterbucci/recipe-lab/measurement-catalog/v1"
+        if measurement_catalog.metadata.namespace_url != expected_namespace:
+            raise ValueError("measurement catalog namespace URL must remain fixed for v1")
+
+        units_by_key = {unit.key: unit for unit in measurement_catalog.units}
+        if len(units_by_key) != len(measurement_catalog.units):
+            raise ValueError("measurement unit keys must be unique")
+
+        required_dimensions = {"mass", "volume", "count", "time", "temperature", "package"}
+        actual_dimensions = {unit.dimension for unit in measurement_catalog.units}
+        if not required_dimensions <= actual_dimensions:
+            raise ValueError("measurement catalog must cover every supported dimension")
+
+        lookup_owners: dict[str, str] = {}
+        for unit in measurement_catalog.units:
+            alias_keys = [alias.key for alias in unit.aliases]
+            if len(alias_keys) != len(set(alias_keys)):
+                raise ValueError(f"measurement unit {unit.key!r} alias keys must be unique")
+
+            lookup_values = [
+                unit.key,
+                unit.canonical_label,
+                unit.plural_label,
+                *(alias.alias for alias in unit.aliases),
+            ]
+            if unit.symbol is not None:
+                lookup_values.append(unit.symbol)
+            for value in lookup_values:
+                normalized = normalize_name(value)
+                owner = lookup_owners.setdefault(normalized, unit.key)
+                if owner != unit.key:
+                    raise ValueError(
+                        "measurement unit lookup labels must identify exactly one unit"
+                    )
+
+        for unit in measurement_catalog.units:
+            conversion = unit.conversion
+            if conversion is None:
+                continue
+            base = units_by_key.get(conversion.base_unit)
+            if base is None:
+                raise ValueError(
+                    f"measurement unit {unit.key!r} references unknown conversion base "
+                    f"{conversion.base_unit!r}"
+                )
+            if base.dimension != unit.dimension:
+                raise ValueError("measurement conversion base must have the same dimension")
+            if base.conversion_family != unit.conversion_family:
+                raise ValueError("measurement conversion base must have the same family")
+
+        return units_by_key
 
     def _require_unique_keys(self, records: list[NamedSeed], label: str) -> None:
         keys = [record.key for record in records]
@@ -142,7 +242,11 @@ class SeedCatalog(SeedModel):
             active_path | {recipe_key},
         )
 
-    def _validate_ingredient_names(self, ingredients_by_key: dict[str, IngredientSeed]) -> None:
+    def _validate_ingredient_names(
+        self,
+        ingredients_by_key: dict[str, IngredientSeed],
+        measurement_units_by_key: dict[str, MeasurementUnitSeed],
+    ) -> None:
         valid_names_by_key = {
             ingredient.key: {
                 normalize_name(ingredient.canonical_name),
@@ -171,6 +275,31 @@ class SeedCatalog(SeedModel):
                         f"recipe {recipe.key!r} display name {recipe_ingredient.name!r} "
                         f"is not a canonical name or alias for "
                         f"{recipe_ingredient.ingredient!r}"
+                    )
+                has_quantity = recipe_ingredient.quantity is not None
+                has_unit = recipe_ingredient.unit is not None
+                if has_quantity != has_unit:
+                    raise ValueError(
+                        f"recipe {recipe.key!r} ingredient {recipe_ingredient.key!r} must "
+                        "provide both quantity and unit, or neither"
+                    )
+                if recipe_ingredient.unit is None:
+                    continue
+                measurement_unit = measurement_units_by_key.get(recipe_ingredient.unit)
+                if measurement_unit is None:
+                    raise ValueError(
+                        f"recipe {recipe.key!r} references unknown measurement unit "
+                        f"{recipe_ingredient.unit!r}"
+                    )
+                if not measurement_unit.active:
+                    raise ValueError(
+                        f"recipe {recipe.key!r} references inactive measurement unit "
+                        f"{recipe_ingredient.unit!r}"
+                    )
+                if measurement_unit.dimension not in {"mass", "volume", "count", "package"}:
+                    raise ValueError(
+                        f"recipe {recipe.key!r} ingredient amount uses unsupported dimension "
+                        f"{measurement_unit.dimension!r}"
                     )
 
     def _validate_recipe_graph(self) -> None:
@@ -302,6 +431,7 @@ class SeedCatalog(SeedModel):
     def validate_catalog(self) -> Self:
         """Validate references and invariants that span multiple records."""
 
+        measurement_units_by_key = self._validate_measurement_catalog()
         self._require_unique_keys(self.categories, "category")
         self._require_unique_keys(self.dietary_flags, "dietary flag")
         self._require_unique_keys(self.allergens, "allergen")
@@ -311,7 +441,7 @@ class SeedCatalog(SeedModel):
 
         self._validate_name_namespaces()
         self._validate_metadata_references()
-        self._validate_ingredient_names(ingredients_by_key)
+        self._validate_ingredient_names(ingredients_by_key, measurement_units_by_key)
         self._validate_substitutions(ingredients_by_key)
         self._validate_recipe_graph()
         return self

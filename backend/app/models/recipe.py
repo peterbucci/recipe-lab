@@ -23,6 +23,7 @@ from app.models.common import CreatedAtMixin, UUIDPrimaryKeyMixin
 if TYPE_CHECKING:
     from app.models.engagement import RecipeRating, RecipeSave
     from app.models.ingredient import Ingredient
+    from app.models.measurement import IngredientPackageSize, MeasurementUnit
 
 
 class RecipeLineage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
@@ -127,8 +128,34 @@ class RecipeVersion(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
 class RecipeIngredient(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "recipe_version_ingredients"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["package_size_id", "ingredient_id", "measurement_unit_id"],
+            [
+                "ingredient_package_sizes.id",
+                "ingredient_package_sizes.ingredient_id",
+                "ingredient_package_sizes.package_unit_id",
+            ],
+            name="fk_recipe_version_ingredients_package_size_ingredient_unit",
+            ondelete="RESTRICT",
+        ),
         CheckConstraint("btrim(name) <> ''", name="name_not_blank"),
-        CheckConstraint("quantity IS NULL OR quantity > 0", name="quantity_positive"),
+        CheckConstraint(
+            "(measure_mode = 'exact' "
+            "AND quantity_min IS NOT NULL AND quantity_min > 0 "
+            "AND quantity_max IS NULL "
+            "AND measurement_unit_id IS NOT NULL "
+            "AND NULLIF(btrim(unit_display), '') IS NOT NULL) "
+            "OR (measure_mode = 'range' "
+            "AND quantity_min IS NOT NULL AND quantity_min > 0 "
+            "AND quantity_max IS NOT NULL AND quantity_max > quantity_min "
+            "AND measurement_unit_id IS NOT NULL "
+            "AND NULLIF(btrim(unit_display), '') IS NOT NULL) "
+            "OR (measure_mode IN ('to_taste', 'as_needed', 'unspecified') "
+            "AND quantity_min IS NULL AND quantity_max IS NULL "
+            "AND measurement_unit_id IS NULL AND unit_display IS NULL "
+            "AND package_size_id IS NULL)",
+            name="measure_shape_valid",
+        ),
         CheckConstraint("display_order >= 0", name="display_order_nonnegative"),
         UniqueConstraint(
             "recipe_version_id",
@@ -149,13 +176,28 @@ class RecipeIngredient(UUIDPrimaryKeyMixin, Base):
         index=True,
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    quantity: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
-    unit: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    measure_mode: Mapped[str] = mapped_column(String(16), nullable=False)
+    quantity_min: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    quantity_max: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    measurement_unit_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("measurement_units.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
+    unit_display: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    package_size_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+        index=True,
+    )
     preparation_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     display_order: Mapped[int] = mapped_column(Integer, nullable=False)
 
     recipe_version: Mapped[RecipeVersion] = relationship(back_populates="ingredients")
     ingredient: Mapped["Ingredient"] = relationship(back_populates="recipe_ingredients")
+    measurement_unit: Mapped["MeasurementUnit | None"] = relationship()
+    package_size: Mapped["IngredientPackageSize | None"] = relationship(viewonly=True)
 
 
 class RecipeInstruction(UUIDPrimaryKeyMixin, Base):

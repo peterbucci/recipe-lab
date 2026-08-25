@@ -104,6 +104,14 @@ J(c, h) = |ingredients(c) intersection ingredients(h)|
           / |ingredients(c) union ingredients(h)|
 ```
 
+The database adapter retains every ingredient occurrence as a structured
+measure signal before deriving that set. Each signal carries exact, range, or
+qualitative shape, curated unit identity, and any reviewed package-size
+identity without display labels. `baseline-v1` deliberately projects those
+records to distinct ingredient IDs so this catalog change does not alter its
+published score; later recommendation strategies can consume the structured
+amounts without reparsing recipe text or changing the data-loading boundary.
+
 The personal score is the best strength-adjusted match:
 
 ```text

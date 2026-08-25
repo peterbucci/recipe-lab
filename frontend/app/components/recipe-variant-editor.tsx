@@ -5,14 +5,21 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { createIdempotencyKey } from "../../lib/idempotency-key";
-import { formatIngredientAmount } from "../../lib/format";
+import { formatIngredientMeasure } from "../../lib/format";
+import type { CatalogUnit } from "../../lib/measurement-unit-api";
 import type { RecipeDetail } from "../../lib/recipe-api";
 import { isRecipeVersionId } from "../../lib/recipe-api";
+import {
+  formatStructuredMeasureDraft,
+  structuredMeasureDraftMatchesRecipe,
+  type StructuredMeasureField,
+} from "../../lib/structured-measure";
 import {
   createAddedIngredientDraft,
   createAddedInstructionDraft,
   createVariantDraft,
   ingredientFieldKey,
+  ingredientMeasureFieldKey,
   instructionFieldKey,
   type RecipeVariantDraft,
   type VariantIngredientDraft,
@@ -21,9 +28,11 @@ import {
 } from "../../lib/variant-draft";
 import { createRecipeVariant, VariantApiError } from "../../lib/variant-api";
 import { IngredientCatalogPicker } from "./ingredient-catalog-picker";
+import { IngredientAmountControl } from "./structured-measure-control";
 
 interface RecipeVariantEditorProps {
   sourceRecipe: RecipeDetail;
+  measurementUnits: readonly CatalogUnit[];
 }
 
 interface ForkAttempt {
@@ -44,19 +53,14 @@ function FieldError({ id, message }: FieldErrorProps) {
   ) : null;
 }
 
-function optionalValue(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
-}
-
 function ingredientStatus(ingredient: VariantIngredientDraft): "New" | "Changed" | "Starting ingredient" {
   if (ingredient.sourceId === null) {
     return "New";
   }
   if (
     ingredient.selectedIngredient !== null ||
-    optionalValue(ingredient.quantity) !== ingredient.originalQuantity ||
-    optionalValue(ingredient.unit) !== ingredient.originalUnit
+    (ingredient.originalMeasure !== null &&
+      !structuredMeasureDraftMatchesRecipe(ingredient.measure, ingredient.originalMeasure))
   ) {
     return "Changed";
   }
@@ -77,21 +81,83 @@ function ingredientSummary(ingredient: VariantIngredientDraft): string {
     ingredient.selectedIngredient?.displayName ??
     ingredient.sourceDisplayName ??
     "New ingredient";
-  const amount = formatIngredientAmount(
-    optionalValue(ingredient.quantity),
-    optionalValue(ingredient.unit),
-  );
+  const amount = formatStructuredMeasureDraft(ingredient.measure);
   return `${name} · ${amount}`;
 }
 
 function startingIngredientSummary(ingredient: VariantIngredientDraft): string {
   const name =
     ingredient.sourceDisplayName ?? ingredient.sourceCanonicalName ?? "Starting ingredient";
-  const amount = formatIngredientAmount(ingredient.originalQuantity, ingredient.originalUnit);
+  const amount = ingredient.originalMeasure
+    ? formatIngredientMeasure(ingredient.originalMeasure)
+    : "Amount not specified";
   return `${name} · ${amount}`;
 }
 
-export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) {
+function effectiveMeasureState(
+  measure: VariantIngredientDraft["measure"],
+  originalMeasure: VariantIngredientDraft["originalMeasure"],
+) {
+  if (
+    originalMeasure !== null &&
+    structuredMeasureDraftMatchesRecipe(measure, originalMeasure)
+  ) {
+    return { matchesOriginal: true };
+  }
+  if (measure.mode === "exact") {
+    return {
+      mode: measure.mode,
+      exactValue: measure.exactValue,
+      unitId: measure.unit?.id ?? null,
+      packageSizeId: measure.packageSizeId,
+    };
+  }
+  if (measure.mode === "range") {
+    return {
+      mode: measure.mode,
+      rangeMinimum: measure.rangeMinimum,
+      rangeMaximum: measure.rangeMaximum,
+      unitId: measure.unit?.id ?? null,
+      packageSizeId: measure.packageSizeId,
+    };
+  }
+  return { mode: measure.mode };
+}
+
+function draftFingerprint(draft: RecipeVariantDraft): string {
+  return JSON.stringify({
+    ...draft,
+    ingredients: draft.ingredients.map((ingredient) => ({
+      ...ingredient,
+      measure: effectiveMeasureState(ingredient.measure, ingredient.originalMeasure),
+    })),
+  });
+}
+
+function packageSizeForEffectiveIdentity(
+  ingredient: VariantIngredientDraft,
+  selectedIngredient: VariantIngredientDraft["selectedIngredient"],
+  measure: VariantIngredientDraft["measure"],
+): string | null {
+  const originalMeasure = ingredient.originalMeasure;
+  if (originalMeasure === null || originalMeasure.kind === "qualitative") {
+    return null;
+  }
+  const effectiveIngredientId =
+    selectedIngredient?.ingredientId ?? ingredient.sourceIngredientId;
+  if (
+    effectiveIngredientId !== ingredient.sourceIngredientId ||
+    measure.unit?.id !== originalMeasure.unit.id
+  ) {
+    return null;
+  }
+  return originalMeasure.package_size_id ?? null;
+}
+
+export function RecipeVariantEditor({
+  sourceRecipe,
+  measurementUnits,
+}: RecipeVariantEditorProps) {
   const router = useRouter();
   const formId = useId().replace(/:/g, "");
   const errorSummaryRef = useRef<HTMLDivElement>(null);
@@ -101,7 +167,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
   const submittingRef = useRef(false);
   const forkAttemptRef = useRef<ForkAttempt | null>(null);
   const [initialDraftFingerprint] = useState(() =>
-    JSON.stringify(createVariantDraft(sourceRecipe)),
+    draftFingerprint(createVariantDraft(sourceRecipe)),
   );
   const [draft, setDraft] = useState<RecipeVariantDraft>(() =>
     createVariantDraft(sourceRecipe),
@@ -117,7 +183,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
   const [expandedInstructionKeys, setExpandedInstructionKeys] = useState<Set<string>>(
     () => new Set(),
   );
-  const hasUnsavedChanges = JSON.stringify(draft) !== initialDraftFingerprint;
+  const hasUnsavedChanges = draftFingerprint(draft) !== initialDraftFingerprint;
 
   useEffect(() => {
     if (!pendingFocusId.current) {
@@ -183,7 +249,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
   function updateIngredient(
     key: string,
     changes: Partial<VariantIngredientDraft>,
-    changedField?: "name" | "quantity" | "unit" | "preparationNotes",
+    changedField?: "name" | "preparationNotes",
   ) {
     clearErrors(changedField ? ingredientFieldKey(key, changedField) : undefined);
     setDraft((current) => ({
@@ -243,7 +309,7 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
       return;
     }
 
-    const validation = validateVariantDraft(draft);
+    const validation = validateVariantDraft(draft, measurementUnits);
     if (validation.payload === null) {
       const invalidIngredientKeys = Object.keys(validation.fieldErrors)
         .filter((key) => key.startsWith("ingredient."))
@@ -404,17 +470,25 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
       >
         <legend>Ingredients</legend>
         <p id={`${formId}-ingredients-help`} className="variant-editor__help">
-          Keep what works, or change an ingredient, amount, or unit. Choose every added or swapped
-          ingredient from the curated catalog. Catalog aliases can be used for display; blank
-          amounts and units mean unspecified.
+          Keep what works, or change an ingredient or its structured amount. Choose every added or
+          swapped ingredient and every numeric unit from the curated catalog. Exact values, ranges,
+          and qualitative amounts remain distinct.
         </p>
         <div className="variant-editor__rows">
           {draft.ingredients.map((ingredient, index) => {
             const rowLabel = ingredient.sourceDisplayName ?? `New ingredient ${index + 1}`;
             const nameKey = ingredientFieldKey(ingredient.key, "name");
-            const quantityKey = ingredientFieldKey(ingredient.key, "quantity");
-            const unitKey = ingredientFieldKey(ingredient.key, "unit");
             const notesKey = ingredientFieldKey(ingredient.key, "preparationNotes");
+            const measureErrors = Object.fromEntries(
+              (["mode", "amount", "minimum", "maximum", "unit"] as const)
+                .map((field) => [
+                  field,
+                  fieldErrors[ingredientMeasureFieldKey(ingredient.key, field)],
+                ])
+                .filter((entry): entry is [StructuredMeasureField, string] =>
+                  Boolean(entry[1]),
+                ),
+            );
             const rowId = `${formId}-${ingredient.key}`;
             const groupLabel = ingredient.sourceDisplayName
               ? `Ingredient ${index + 1}: ${ingredient.sourceDisplayName}`
@@ -517,55 +591,47 @@ export function RecipeVariantEditor({ sourceRecipe }: RecipeVariantEditorProps) 
                           onChange={(selection) =>
                             updateIngredient(
                               ingredient.key,
-                              { selectedIngredient: selection },
+                              {
+                                selectedIngredient: selection,
+                                measure: {
+                                  ...ingredient.measure,
+                                  packageSizeId: packageSizeForEffectiveIdentity(
+                                    ingredient,
+                                    selection,
+                                    ingredient.measure,
+                                  ),
+                                },
+                              },
                               "name",
                             )
                           }
                         />
                         <FieldError id={`${rowId}-name-error`} message={fieldErrors[nameKey]} />
                       </div>
-                      <div className="variant-field">
-                        <label htmlFor={`${rowId}-quantity`}>Quantity</label>
-                        <input
-                          id={`${rowId}-quantity`}
-                          value={ingredient.quantity}
-                          inputMode="decimal"
-                          aria-invalid={Boolean(fieldErrors[quantityKey])}
-                          aria-describedby={`${formId}-ingredients-help${
-                            fieldErrors[quantityKey] ? ` ${rowId}-quantity-error` : ""
-                          }`}
-                          onChange={(event) =>
-                            updateIngredient(
-                              ingredient.key,
-                              { quantity: event.target.value },
-                              "quantity",
-                            )
-                          }
+                      <div className="variant-field variant-field--measure">
+                        <IngredientAmountControl
+                          idPrefix={`${rowId}-measure`}
+                          label="Amount"
+                          contextLabel={groupLabel}
+                          value={ingredient.measure}
+                          units={measurementUnits}
+                          errors={measureErrors}
+                          disabled={pending}
+                          describedBy={`${formId}-ingredients-help`}
+                          onChange={(measure) => {
+                            clearRowErrors(`ingredient.${ingredient.key}.measure.`);
+                            updateIngredient(ingredient.key, {
+                              measure: {
+                                ...measure,
+                                packageSizeId: packageSizeForEffectiveIdentity(
+                                  ingredient,
+                                  ingredient.selectedIngredient,
+                                  measure,
+                                ),
+                              },
+                            });
+                          }}
                         />
-                        <FieldError
-                          id={`${rowId}-quantity-error`}
-                          message={fieldErrors[quantityKey]}
-                        />
-                      </div>
-                      <div className="variant-field">
-                        <label htmlFor={`${rowId}-unit`}>Unit</label>
-                        <input
-                          id={`${rowId}-unit`}
-                          value={ingredient.unit}
-                          maxLength={64}
-                          aria-invalid={Boolean(fieldErrors[unitKey])}
-                          aria-describedby={`${formId}-ingredients-help${
-                            fieldErrors[unitKey] ? ` ${rowId}-unit-error` : ""
-                          }`}
-                          onChange={(event) =>
-                            updateIngredient(
-                              ingredient.key,
-                              { unit: event.target.value },
-                              "unit",
-                            )
-                          }
-                        />
-                        <FieldError id={`${rowId}-unit-error`} message={fieldErrors[unitKey]} />
                       </div>
                     </div>
                     {ingredient.sourceId === null ? (

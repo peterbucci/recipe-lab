@@ -13,6 +13,8 @@ The catalog deliberately includes:
   in place of walnuts;
 - authored ingredient aliases that still reference canonical ingredient IDs;
 - directed substitutions with ratios or written guidance and provenance.
+- a separately versioned curated measurement vocabulary with deterministic
+  unit and alias identities.
 
 ## Reproducibility
 
@@ -63,3 +65,5 @@ python -m app.seeds load
 Seeding is never run automatically during API startup. The packaged
 provenance, licensing, interpretation, and food-safety notes live alongside
 the data in the [catalog provenance](../backend/app/seeds/data/PROVENANCE.md).
+Measurement identity, conversion limits, and deployment audit behavior are
+documented in [measurement catalog and legacy migration](measurements.md).

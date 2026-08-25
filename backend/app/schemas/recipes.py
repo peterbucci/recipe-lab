@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.interactions import RecipeViewerStateResponse
+from app.schemas.measurements import StructuredMeasureResponse
 
 
 class RecipeSchema(BaseModel):
@@ -56,14 +57,12 @@ class RecipeIngredientResponse(RecipeSchema):
             "does not define ingredient identity."
         ),
     )
-    quantity: Decimal | None = Field(
-        default=None,
-        gt=0,
-        max_digits=12,
-        decimal_places=4,
-        description="Exact amount as a JSON string, or null for an unspecified amount.",
+    measure: StructuredMeasureResponse = Field(
+        description=(
+            "Atomic structured amount. Numeric values always reference a curated unit; "
+            "qualitative values are represented explicitly without a unit."
+        )
     )
-    unit: str | None = Field(default=None, max_length=64)
     preparation_notes: str | None
     display_order: int = Field(ge=0)
 

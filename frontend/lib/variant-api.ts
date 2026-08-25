@@ -1,17 +1,15 @@
 import type { RecipeDetail } from "./recipe-api";
 import { memberMutationHeaders, notifySessionExpired } from "./auth-api";
 import { parseRecipeViewerState } from "./recipe-viewer-state";
+import type { VariantMeasureInput } from "./structured-measure";
+
+export type { VariantMeasureInput } from "./structured-measure";
 
 export type IngredientEdit =
   | {
-      op: "set_quantity";
+      op: "set_measure";
       recipe_ingredient_id: string;
-      quantity: string | null;
-    }
-  | {
-      op: "set_unit";
-      recipe_ingredient_id: string;
-      unit: string | null;
+      measure: VariantMeasureInput;
     }
   | {
       op: "replace";
@@ -23,8 +21,7 @@ export type IngredientEdit =
       op: "add";
       ingredient_id: string;
       display_name: string;
-      quantity: string | null;
-      unit: string | null;
+      measure: VariantMeasureInput;
       preparation_notes: string | null;
     }
   | {

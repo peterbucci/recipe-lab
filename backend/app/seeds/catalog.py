@@ -8,6 +8,7 @@ from app.seeds.schema import SeedCatalog
 CATALOG_PACKAGE = "app.seeds.data"
 CATALOG_FILENAME = "catalog.json"
 RECIPES_FILENAME = "recipes.json"
+MEASUREMENTS_FILENAME = "measurements-v1.json"
 
 
 def _parse_catalog(raw_catalog: object) -> SeedCatalog:
@@ -31,4 +32,8 @@ def load_bundled_catalog() -> SeedCatalog:
     recipes_resource = resources.files(CATALOG_PACKAGE).joinpath(RECIPES_FILENAME)
     with recipes_resource.open("r", encoding="utf-8") as recipes_file:
         raw_catalog["recipes"] = json.load(recipes_file)
+
+    measurements_resource = resources.files(CATALOG_PACKAGE).joinpath(MEASUREMENTS_FILENAME)
+    with measurements_resource.open("r", encoding="utf-8") as measurements_file:
+        raw_catalog["measurement_catalog"] = json.load(measurements_file)
     return _parse_catalog(raw_catalog)

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import distinct, func, select
@@ -6,21 +7,59 @@ from sqlalchemy.orm import Session, raiseload, selectinload
 
 from app.models import (
     PreferenceEvent,
+    RecipeIngredient,
     RecipeRating,
     RecipeSave,
     RecipeVersion,
 )
+from app.services.recommendation_scoring import (
+    QualitativeIngredientMeasure,
+    RecommendationIngredientMeasure,
+)
+
+
+def recommendation_ingredient_measure(item: RecipeIngredient) -> RecommendationIngredientMeasure:
+    """Adapt one validated storage row without using its display label."""
+
+    if item.measure_mode == "exact":
+        return RecommendationIngredientMeasure(
+            ingredient_id=item.ingredient_id,
+            kind="exact",
+            value=item.quantity_min,
+            unit_id=item.measurement_unit_id,
+            package_size_id=item.package_size_id,
+        )
+    if item.measure_mode == "range":
+        return RecommendationIngredientMeasure(
+            ingredient_id=item.ingredient_id,
+            kind="range",
+            minimum=item.quantity_min,
+            maximum=item.quantity_max,
+            unit_id=item.measurement_unit_id,
+            package_size_id=item.package_size_id,
+        )
+    if item.measure_mode in {"to_taste", "as_needed", "unspecified"}:
+        return RecommendationIngredientMeasure(
+            ingredient_id=item.ingredient_id,
+            kind="qualitative",
+            qualitative_value=cast(QualitativeIngredientMeasure, item.measure_mode),
+        )
+    raise RuntimeError(f"Recipe ingredient {item.id} has an unsupported measure mode.")
 
 
 @dataclass(frozen=True, slots=True)
 class RecommendationCandidateData:
     recipe: RecipeVersion
-    ingredient_ids: frozenset[UUID]
+    ingredient_measures: tuple[RecommendationIngredientMeasure, ...]
     rating_sum: int
     rating_count: int
     save_count: int
     fork_count: int
     view_count: int
+
+    @property
+    def ingredient_ids(self) -> frozenset[UUID]:
+        return frozenset(measure.ingredient_id for measure in self.ingredient_measures)
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,7 +153,9 @@ def load_recommendation_data(
     candidates = tuple(
         RecommendationCandidateData(
             recipe=recipe,
-            ingredient_ids=frozenset(item.ingredient_id for item in recipe.ingredients),
+            ingredient_measures=tuple(
+                recommendation_ingredient_measure(item) for item in recipe.ingredients
+            ),
             rating_sum=int(rating_sum),
             rating_count=int(rating_count),
             save_count=int(save_count),

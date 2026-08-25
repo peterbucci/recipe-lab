@@ -54,6 +54,111 @@ def test_baseline_reconstructs_latest_save_and_rating_state(
     assert candidates[ZETA_ID].rating_count == 1
 
 
+def test_offline_adapter_keeps_structured_measures_available_to_the_shared_scorer(
+    synthetic_snapshot: EvaluationSnapshot,
+) -> None:
+    fitted = _fit_fixture_baseline(synthetic_snapshot)
+    source = next(
+        recipe
+        for recipe in synthetic_snapshot.recipes
+        if {measure.kind for measure in recipe.ingredient_measures}
+        == {
+            "exact",
+            "range",
+            "qualitative",
+        }
+    )
+    candidate = next(
+        candidate for candidate in fitted.candidates if candidate.recipe_version_id == source.id
+    )
+
+    assert candidate.legacy_ingredient_ids == frozenset()
+    assert tuple(
+        (
+            measure.ingredient_id,
+            measure.kind,
+            measure.value,
+            measure.minimum,
+            measure.maximum,
+            measure.unit_id,
+            measure.package_size_id,
+            measure.qualitative_value,
+        )
+        for measure in candidate.ingredient_measures
+    ) == tuple(
+        (
+            measure.ingredient_id,
+            measure.kind,
+            measure.quantity_min if measure.kind == "exact" else None,
+            measure.quantity_min if measure.kind == "range" else None,
+            measure.quantity_max if measure.kind == "range" else None,
+            measure.measurement_unit_id,
+            measure.package_size_id,
+            measure.qualitative_value,
+        )
+        for measure in source.ingredient_measures
+    )
+
+
+def test_offline_adapter_uses_only_the_explicit_v1_legacy_id_fallback(
+    synthetic_snapshot: EvaluationSnapshot,
+) -> None:
+    source = synthetic_snapshot.recipes[0]
+    legacy_ids = source.ingredient_ids
+    legacy_recipe = replace(
+        source,
+        ingredient_measures=(),
+        legacy_ingredient_ids=legacy_ids,
+    )
+
+    fitted = BaselineV1Model().fit(
+        ModelTrainingData(
+            cutoff=synthetic_snapshot.cutoff,
+            recipes=(legacy_recipe,),
+            events=(),
+        ),
+        seed=123,
+    )
+    candidate = fitted.candidates[0]
+
+    assert candidate.ingredient_measures == ()
+    assert candidate.legacy_ingredient_ids == frozenset(legacy_ids)
+    assert candidate.ingredient_ids == frozenset(legacy_ids)
+
+
+def test_structured_measures_do_not_change_baseline_v1_rankings(
+    synthetic_snapshot: EvaluationSnapshot,
+) -> None:
+    split = split_snapshot(synthetic_snapshot)
+    structured = _fit_fixture_baseline(synthetic_snapshot)
+    legacy_snapshot = replace(
+        synthetic_snapshot,
+        recipes=tuple(
+            replace(
+                recipe,
+                ingredient_measures=(),
+                legacy_ingredient_ids=recipe.ingredient_ids,
+            )
+            for recipe in synthetic_snapshot.recipes
+        ),
+    )
+    legacy = _fit_fixture_baseline(legacy_snapshot)
+
+    assert tuple(candidate.ingredient_ids for candidate in structured.candidates) == tuple(
+        candidate.ingredient_ids for candidate in legacy.candidates
+    )
+    for case in split.cases:
+        assert structured.rank(
+            user_id=case.user_id,
+            candidate_ids=case.candidate_ids,
+            limit=len(case.candidate_ids),
+        ) == legacy.rank(
+            user_id=case.user_id,
+            candidate_ids=case.candidate_ids,
+            limit=len(case.candidate_ids),
+        )
+
+
 def test_offline_adapter_ranks_with_the_shared_production_scorer(
     synthetic_snapshot: EvaluationSnapshot,
 ) -> None:

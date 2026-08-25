@@ -56,7 +56,9 @@ not run during API startup, delete user data, or repair a changed immutable
 recipe snapshot. Conflicting data causes the transaction to fail. Catalog
 provenance and license notes are documented in the
 [packaged provenance](app/seeds/data/PROVENANCE.md) and repository-level
-[seed-data notes](../docs/seed-data.md).
+[seed-data notes](../docs/seed-data.md). The curated unit vocabulary,
+fail-closed legacy audit, and structured-measure migration are documented in
+[measurement catalog and legacy migration](../docs/measurements.md).
 
 ## Recipe read API
 
@@ -139,10 +141,11 @@ target itself for an explicit no-change comparison.
 The response reports title, description, and serving changes in a fixed order.
 Ingredients are grouped as added, removed, replaced, or modified; paired rows
 include complete before-and-after snapshots plus fixed-order changed fields for
-canonical identity, authored display name, quantity, unit, and preparation
-notes. Instruction additions, removals, and text modifications are reported
-separately. Display order is presentation metadata, so moving otherwise equal
-rows does not create a content change. Exact decimals remain JSON strings.
+canonical identity, authored display name, the atomic structured `measure`, and
+preparation notes. Instruction additions, removals, and text modifications are
+reported separately. Display order is presentation metadata, so moving
+otherwise equal rows does not create a content change. Exact decimals remain
+JSON strings.
 
 Recipe snapshots do not persist the edit operation or copied-row ancestry.
 The engine therefore documents a canonical snapshot comparison rather than
@@ -278,14 +281,19 @@ structured edits. A successful request returns the complete child snapshot
 with HTTP 201 and a `Location` header for its detail resource.
 
 Ingredient edits target row IDs from the direct source snapshot so recipes may
-use the same canonical ingredient more than once. Supported operations set a
-quantity, set or clear a unit, replace or append an ingredient through a stable
-catalog ID plus a server-verified canonical-or-alias display label, or remove an ingredient.
-Instruction edits update, append, or remove a source instruction. Replacements
-preserve the source amount, unit, and preparation notes unless companion edits
-change them; they do not infer a conversion or require a curated substitution
-edge. Retained rows keep their relative order, additions append in request
-order, and the final positions are compact.
+use the same canonical ingredient more than once. `set_measure` replaces the
+complete amount atomically: it supplies either an exact value and curated unit
+ID, a strictly increasing range and curated unit ID, or an explicit
+`to_taste`, `as_needed`, or `unspecified` qualitative value. Quantity and unit
+cannot be submitted as independent partial edits. `add` likewise requires one
+complete structured measure. The remaining operations replace an ingredient
+through a stable catalog ID plus a server-verified canonical-or-alias display
+label, append an ingredient, or remove a row. Instruction edits update, append,
+or remove a source instruction. Replacements preserve the source measure and
+preparation notes unless a companion `set_measure` changes the measure; they do
+not infer a conversion or require a curated substitution edge. Retained rows
+keep their relative order, additions append in request order, and the final
+positions are compact.
 
 The service copies every retained ingredient and instruction into fresh rows
 and never updates the source snapshot. It rejects unknown or cross-recipe row
@@ -306,13 +314,20 @@ storage, and original-recipe creation remain outside this MVP endpoint.
 
 ## Migrations
 
-From this directory, apply all migrations and confirm that the SQLAlchemy
-metadata matches the migration history:
+Before upgrading an existing database that still has legacy `quantity` and
+`unit` columns, run the fail-closed read-only audit and resolve every reported
+row. Then apply all migrations and confirm that the SQLAlchemy metadata matches
+the migration history:
 
 ```powershell
+recipe-lab-measurements audit-legacy --format json
 python -m alembic upgrade head
 python -m alembic check
 ```
+
+The audit is for an existing schema; a fresh empty database can proceed
+directly to `alembic upgrade head`. Start application processes only after the
+migration succeeds.
 
 Create future revisions only after importing the affected models through
 `app.models`:

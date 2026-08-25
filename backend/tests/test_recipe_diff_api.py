@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_session
 from app.main import create_app
-from app.seeds.identifiers import seed_uuid
+from app.seeds.identifiers import measurement_uuid, seed_uuid
 
 DATASET_ID = "recipe-lab-demo-v1"
 
@@ -95,13 +96,31 @@ def _ingredient_snapshot(
     preparation_notes: str | None,
     display_order: int,
 ) -> dict[str, Any]:
+    assert quantity is not None
+    assert unit is not None
+    unit_id = measurement_uuid("unit", unit)
     return {
         "id": str(row_id),
         "ingredient_id": str(ingredient_id),
         "canonical_name": canonical_name,
         "display_name": display_name,
-        "quantity": quantity,
-        "unit": unit,
+        "measure": {
+            "kind": "exact",
+            "value": quantity,
+            "unit": {
+                "id": str(unit_id),
+                "key": unit,
+                "dimension": "mass",
+                "canonical_label": "gram",
+                "plural_label": "grams",
+                "symbol": "g",
+                "display_style": "symbol",
+                "active": True,
+            },
+            "display_unit": "g",
+            "display": f"{format(Decimal(quantity).normalize(), 'f')} g",
+            "package_size_id": None,
+        },
         "preparation_notes": preparation_notes,
         "display_order": display_order,
     }
@@ -188,7 +207,7 @@ def _expected_carrot_pecan_diff() -> dict[str, Any]:
                 {
                     "before": root_sugar,
                     "after": pecan_sugar,
-                    "changed_fields": ["quantity"],
+                    "changed_fields": ["measure"],
                 }
             ],
         },

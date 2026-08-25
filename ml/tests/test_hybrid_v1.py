@@ -11,6 +11,7 @@ from recipe_lab_evaluation.dataset import (
     EvaluationSnapshot,
     EventType,
     SnapshotEvent,
+    SnapshotIngredientMeasure,
     SnapshotRecipe,
     load_snapshot,
 )
@@ -37,7 +38,7 @@ _CUTOFF = datetime(2026, 8, 1, tzinfo=UTC)
 _TRAINING_TIME = _CUTOFF - timedelta(days=1)
 _TARGET_PROFILE = UUID(int=900)
 _UNKNOWN_PROFILE = UUID(int=901)
-_READINESS_CATALOG = Path(__file__).parent / "fixtures" / "readiness_catalog_v1.json"
+_READINESS_CATALOG = Path(__file__).parent / "fixtures" / "readiness_catalog_v2.json"
 
 
 def _recipe(
@@ -51,7 +52,18 @@ def _recipe(
         created_at=_CUTOFF - timedelta(days=30),
         title=title or f"Recipe {identifier}",
         version_number=1,
-        ingredient_ids=tuple(UUID(int=value) for value in ingredients),
+        ingredient_measures=tuple(
+            SnapshotIngredientMeasure(
+                ingredient_id=UUID(int=value),
+                kind="qualitative",
+                quantity_min=None,
+                quantity_max=None,
+                measurement_unit_id=None,
+                package_size_id=None,
+                qualitative_value="unspecified",
+            )
+            for value in ingredients
+        ),
     )
 
 
@@ -745,10 +757,10 @@ def test_ready_cohort_reports_exact_hybrid_metrics() -> None:
         first.ndcg,
         first.coverage,
     ) == (
-        Decimal("0.625000"),
-        Decimal("0.312500"),
-        Decimal("0.625000"),
-        Decimal("0.750000"),
+        Decimal("0.718750"),
+        Decimal("0.359375"),
+        Decimal("0.718750"),
+        Decimal("0.875000"),
     )
     assert (
         third.precision,
@@ -758,6 +770,6 @@ def test_ready_cohort_reports_exact_hybrid_metrics() -> None:
     ) == (
         Decimal("0.666667"),
         Decimal("1.000000"),
-        Decimal("0.866219"),
+        Decimal("0.887435"),
         Decimal("1.000000"),
     )

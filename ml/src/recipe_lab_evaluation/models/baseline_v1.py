@@ -19,10 +19,11 @@ from app.services.recommendation_scoring import (
     BaselineProfileEvent,
     BaselineProfileRating,
     BaselineScoringInput,
+    RecommendationIngredientMeasure,
     score_baseline_recommendations,
 )
 
-from ..dataset import SnapshotEvent
+from ..dataset import SnapshotEvent, SnapshotIngredientMeasure
 from ..protocol import ModelMetadata, ModelTrainingData
 
 
@@ -35,6 +36,21 @@ def _latest_state_events(
         if event.event_type == event_type:
             latest[(event.user_id, event.recipe_version_id)] = event
     return latest
+
+
+def _recommendation_measure(
+    measure: SnapshotIngredientMeasure,
+) -> RecommendationIngredientMeasure:
+    return RecommendationIngredientMeasure(
+        ingredient_id=measure.ingredient_id,
+        kind=measure.kind,
+        value=measure.quantity_min if measure.kind == "exact" else None,
+        minimum=measure.quantity_min if measure.kind == "range" else None,
+        maximum=measure.quantity_max if measure.kind == "range" else None,
+        unit_id=measure.measurement_unit_id,
+        package_size_id=measure.package_size_id,
+        qualitative_value=measure.qualitative_value,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,12 +150,19 @@ class BaselineV1Model:
                 recipe_version_id=recipe.id,
                 title=recipe.title,
                 version_number=recipe.version_number,
-                ingredient_ids=frozenset(recipe.ingredient_ids),
+                ingredient_measures=tuple(
+                    _recommendation_measure(measure) for measure in recipe.ingredient_measures
+                ),
                 rating_sum=sum(ratings_by_recipe.get(recipe.id, ())),
                 rating_count=len(ratings_by_recipe.get(recipe.id, ())),
                 save_count=len(save_users_by_recipe.get(recipe.id, ())),
                 fork_count=len(fork_users_by_recipe.get(recipe.id, ())),
                 view_count=len(view_users_by_recipe.get(recipe.id, ())),
+                legacy_ingredient_ids=(
+                    frozenset(recipe.legacy_ingredient_ids)
+                    if not recipe.ingredient_measures
+                    else frozenset()
+                ),
             )
             for recipe in training.recipes
         )
