@@ -44,6 +44,14 @@ canonicalized before hashing; ingredient occurrences retain authored order.
 Equivalent recipe/event ordering and JSON formatting yield the same snapshot
 fingerprint, while any measure-only change changes it.
 
+Snapshot v2 deliberately does not export instruction prose or structured
+cooking actions. Adding action types, occurrence inputs, order, duration, or
+temperature would change the identifying input and therefore requires a new
+snapshot schema and fingerprint contract. Existing v2 snapshots and reports
+must not be reinterpreted. No current offline model consumes action data; see
+[structured cooking actions](cooking-actions.md) for the future-version
+boundary.
+
 The reader deliberately accepts v1 snapshots for historical evaluation. Their
 distinct ingredient IDs remain available only through an explicit legacy-ID
 fallback; they do not become fabricated qualitative measures. New exports and

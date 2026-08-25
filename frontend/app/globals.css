@@ -1431,16 +1431,60 @@ h3 {
   padding-left: 1.65rem;
 }
 
-.instruction-list li {
+.instruction-list > li {
   border-top: 1px solid var(--line);
   padding: 0.9rem 0 0.9rem 0.65rem;
   line-height: 1.7;
 }
 
-.instruction-list li::marker {
+.instruction-list > li::marker {
   color: var(--leaf);
   font-size: 0.92rem;
   font-weight: 700;
+}
+
+.instruction-list li > p {
+  margin: 0;
+}
+
+.instruction-actions {
+  display: flex;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  list-style: none;
+}
+
+.instruction-actions > li {
+  display: inline-flex;
+  width: fit-content;
+  margin: 0;
+  border: 1px solid var(--control-line);
+  border-radius: 0.55rem;
+  background: var(--surface-soft);
+  padding: 0.45rem 0.6rem;
+  flex-direction: column;
+  gap: 0.12rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.instruction-actions strong {
+  color: var(--leaf-dark);
+  text-transform: capitalize;
+}
+
+.instruction-actions span,
+.instruction-actions small,
+.instruction-actions__unmapped {
+  color: var(--muted);
+}
+
+.instruction-actions__unmapped {
+  margin: 0.55rem 0 0;
+  font-size: 0.72rem;
+  font-style: italic;
 }
 
 .lineage-section {
@@ -1831,6 +1875,15 @@ a.lineage-card:hover {
   color: var(--muted);
   font-size: 0.75rem;
   line-height: 1.45;
+}
+
+.recipe-diff-instruction,
+.recipe-diff-instruction > span {
+  display: block;
+}
+
+.recipe-diff-instruction .instruction-actions {
+  margin-top: 0.65rem;
 }
 
 .recipe-diff-empty {
@@ -2573,6 +2626,174 @@ a.lineage-card:hover {
   font-weight: 650;
 }
 
+.structured-action {
+  min-width: 0;
+  margin: 1.25rem 0 0;
+  border-top: 1px solid var(--line);
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  padding: 1rem 0 0;
+}
+
+.structured-action > legend,
+.structured-action__card > legend,
+.structured-action__inputs > legend {
+  padding: 0;
+  font-weight: 700;
+}
+
+.structured-action > legend {
+  font-size: 1rem;
+}
+
+.structured-action__help {
+  max-width: 48rem;
+  margin: 0.35rem 0 0.9rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.structured-action__list {
+  margin: 0 0 0.85rem;
+  padding: 0;
+  list-style: none;
+}
+
+.structured-action__list > li + li {
+  margin-top: 0.75rem;
+}
+
+.structured-action__card {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface-soft);
+  padding: 0.9rem;
+}
+
+.structured-action__card > legend {
+  padding-inline: 0.3rem;
+  color: var(--leaf);
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.structured-action__toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.structured-action__type {
+  width: min(100%, 22rem);
+}
+
+.structured-action__order {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.structured-action__order .button {
+  min-height: 2.5rem;
+  padding: 0.55rem 0.7rem;
+}
+
+.structured-action__inputs {
+  margin: 0.9rem 0 0;
+  border: 0;
+  padding: 0;
+}
+
+.structured-action__inputs > legend {
+  margin-bottom: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.structured-action__input-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.structured-action__input-options label,
+.structured-action__parameter-toggle {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  gap: 0.38rem;
+  cursor: pointer;
+}
+
+.structured-action__input-options label {
+  border: 1px solid var(--control-line);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 0.38rem 0.55rem;
+  font-size: 0.74rem;
+}
+
+.structured-action__input-options label:has(input:checked) {
+  border-color: var(--leaf);
+  background: var(--leaf-soft);
+  color: var(--leaf-dark);
+}
+
+.structured-action__input-options input,
+.structured-action__parameter-toggle input {
+  width: 1rem;
+  min-width: 1rem;
+  min-height: 1rem;
+  margin: 0;
+  padding: 0;
+}
+
+.structured-action__input--removed {
+  border-color: var(--focus) !important;
+  border-style: dashed !important;
+}
+
+.structured-action__empty-inputs {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.structured-action__parameters {
+  display: grid;
+  margin-top: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.structured-action__parameters > div {
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+}
+
+.structured-action__parameter-toggle {
+  margin-bottom: 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.structured-action__error {
+  margin: 0.35rem 0 0;
+  color: var(--focus);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.structured-action__remove {
+  margin-top: 0.8rem;
+  color: var(--clay-dark);
+}
+
 .variant-row__remove {
   margin-top: 0.75rem;
   color: var(--clay-dark);
@@ -2633,6 +2854,18 @@ a.lineage-card:hover {
   font-size: 0.88rem;
   line-height: 1.55;
   -webkit-line-clamp: 2;
+}
+
+.variant-instruction__summary p,
+.variant-instruction__summary small {
+  display: block;
+  margin: 0;
+}
+
+.variant-instruction__summary small {
+  margin-top: 0.25rem;
+  color: var(--leaf-dark);
+  font-weight: 700;
 }
 
 .variant-editor__section:disabled {
@@ -3641,6 +3874,23 @@ a.lineage-card:hover {
     grid-template-columns: 1fr;
   }
 
+  .structured-action__parameters {
+    grid-template-columns: 1fr;
+  }
+
+  .structured-action__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .structured-action__type {
+    width: 100%;
+  }
+
+  .structured-action__order .button {
+    flex: 1;
+  }
+
   .ingredient-picker__search,
   .ingredient-picker__selection,
   .ingredient-picker__pagination,
@@ -3869,7 +4119,10 @@ a.lineage-card:hover {
   .recipe-diff-single-value,
   .recipe-diff-versions,
   .recipe-diff-versions li + li,
-  .recipe-diff-value + .recipe-diff-value {
+  .recipe-diff-value + .recipe-diff-value,
+  .instruction-actions > li,
+  .structured-action__card,
+  .structured-action__input-options label {
     border-color: CanvasText;
   }
 

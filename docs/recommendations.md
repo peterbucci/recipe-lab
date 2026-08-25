@@ -112,6 +112,13 @@ records to distinct ingredient IDs so this catalog change does not alter its
 published score; later recommendation strategies can consume the structured
 amounts without reparsing recipe text or changing the data-loading boundary.
 
+Recipe instruction action graphs are available to product reads but are not a
+`baseline-v1` feature. Action types, input order, duration, and temperature do
+not affect its candidate loading, component values, ordering, reasons, or model
+identity. Consuming those fields would require a separately versioned strategy
+and evaluation rather than silently changing this published baseline. See
+[structured cooking actions](cooking-actions.md).
+
 The personal score is the best strength-adjusted match:
 
 ```text

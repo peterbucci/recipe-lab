@@ -42,8 +42,8 @@ display order, and member attribution.
 
 Recipe detail pages render the available parent, current version, and direct
 children as an accessible semantic list. This intentionally communicates one
-generation at a time; a full graph, row reordering, autosave, and ML-assisted
-editing are outside the current workflow.
+generation at a time; a full graph, ingredient and instruction row reordering,
+autosave, and ML-assisted editing are outside the current workflow.
 
 Variants expose a dedicated `/recipes/{recipeVersionId}/compare` server route.
 It requests the API's direct-parent diff and passes that response to a pure
@@ -69,9 +69,10 @@ tested with `EXISTS` so matching rows cannot duplicate recipes or inflate the
 count.
 
 Detail reads eager-load the scalar parent and select-load ordered ingredients,
-their curated measurement units, instructions, and direct children. This keeps
-the query count bounded without creating a Cartesian product between
-collections. API schemas preserve exact decimal values as JSON strings, expose
+their curated measurement units, instructions, nested structured actions,
+action inputs and parameters, and direct children. This keeps the query count
+bounded without creating a Cartesian product between collections. API schemas
+preserve exact decimal values as JSON strings, expose
 the authored ingredient name beside its canonical identity, and return one
 discriminated `measure` union. Exact and range measures reference a curated unit
 identity; qualitative measures contain neither numeric fields nor a unit. A
@@ -79,15 +80,24 @@ separate aggregate query returns only rating count and average, never individual
 interaction records. Validation and not-found failures share one documented
 error envelope while retaining their semantic HTTP status codes.
 
+The read-only cooking-action catalog exposes active reviewed verbs for
+authoring. Recipe instruction responses retain the human-readable prose and
+return the ordered action graph with occurrence-level ingredient inputs plus
+optional structured duration and temperature. Historical inactive action types
+remain readable through their immutable recipe versions.
+
 Recipe diffs use dedicated bounded snapshot queries rather than the broader
 detail loader. A target compares to its direct parent by default, while an
 explicit base may select any version in the same lineage. The pure diff engine
 ignores display order as content, matches exact canonical ingredient
 occurrences first, and classifies a replacement only when the catalog contains
 the corresponding directed substitution edge. Instruction changes are kept in
-a separate group. Stable sorting and fixed changed-field order make equivalent
-stored comparisons byte-for-byte repeatable, and the read never loads ratings,
-saves, or users.
+a separate group and distinguish prose, action membership, occurrence inputs,
+action order, duration, and temperature. Fresh child row IDs alone are ignored.
+The response includes complete base/target ingredient context so every action
+input UUID can be rendered even when its ingredient is otherwise unchanged.
+Stable sorting and fixed changed-field order make equivalent stored comparisons
+byte-for-byte repeatable, and the read never loads ratings, saves, or users.
 
 Forked ingredient and instruction rows receive fresh identifiers, and the
 schema deliberately does not persist edit events or copied-row ancestry. A
@@ -128,13 +138,18 @@ onboarding returns 403 without creating state.
 Recipe forking is an application service behind a single transactional route.
 It locks the lineage row before assigning the next lineage-wide version number,
 copies the source ingredients and instructions into draft values, validates and
-applies structured edits, and then inserts a fresh child snapshot with new row
-identifiers. Amount changes use only the atomic `set_measure` operation; the
+applies structured edits, copies each instruction's ordered action graph, remaps
+its inputs to fresh child ingredient occurrences, and then inserts a fresh child
+snapshot with new row identifiers. Same-request ingredient additions use a
+request-scoped edit reference until their child row IDs exist. Amount changes
+use only the atomic `set_measure` operation; the
 service validates the complete exact, range, or qualitative shape and any
 curated unit before changing the draft row. The API controls lineage, direct
 parent, version number, display order, and session-member attribution. The fork
 action fingerprints the canonical validated request, then creates the child and
-its event in one transaction.
+its event in one transaction. The fingerprint includes action type, order,
+inputs, duration, and temperature, with equivalent decimal spellings
+canonicalized.
 An exact action-key retry returns that child; a changed source or payload with
 the same key is rejected. Different action keys remain distinct authored forks.
 
@@ -170,6 +185,15 @@ or, for the original, no parent. A composite foreign key prevents a version
 from naming a parent in another lineage, while a partial unique index permits
 only one root per lineage. Ingredients and instructions belong to a specific
 snapshot and have stable display positions.
+
+Every instruction may own an ordered set of structured action instances. Each
+action references one curated cooking-action type, zero or more ordered
+ingredient occurrences from the same recipe version, and at most one duration
+and one temperature measure. Composite foreign keys enforce same-version graph
+integrity; unique constraints enforce stable action/input positions and prevent
+the same occurrence from being referenced twice by one action. Curated action
+types are deactivated rather than deleted or reinterpreted. The full contract is
+documented in [structured cooking actions](cooking-actions.md).
 
 Each recipe ingredient retains the cook-facing name from that snapshot and
 also references one canonical ingredient. The catalog normalizes canonical
@@ -282,6 +306,11 @@ prior and fixed metadata/UUID tie-breaks define cold start. The CLI supplies
 this adapter on every run and the evaluator adds `baseline-v1`, so their
 metrics and deltas share one snapshot and protocol. See
 [offline content recommender](content-recommender.md) for the exact formulas.
+
+Structured actions are not present in evaluation snapshot v2 and are not
+consumed by `baseline-v1`, `content-v1`, `collaborative-v1`, or `hybrid-v1`.
+Adding them as recommendation features requires a new snapshot/model version so
+existing fingerprints, metrics, and published model meanings remain stable.
 
 The same distribution owns the RCP-18A data-readiness boundary. A versioned
 simulator accepts only an event-free catalog snapshot, retains its recipes

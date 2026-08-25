@@ -1,6 +1,7 @@
 import type { RecipeDetail } from "./recipe-api";
 import { memberMutationHeaders, notifySessionExpired } from "./auth-api";
 import { parseRecipeViewerState } from "./recipe-viewer-state";
+import type { StructuredActionInput } from "./structured-action";
 import type { VariantMeasureInput } from "./structured-measure";
 
 export type { VariantMeasureInput } from "./structured-measure";
@@ -19,6 +20,7 @@ export type IngredientEdit =
     }
   | {
       op: "add";
+      edit_ref: string;
       ingredient_id: string;
       display_name: string;
       measure: VariantMeasureInput;
@@ -38,6 +40,12 @@ export type InstructionEdit =
   | {
       op: "add";
       text: string;
+      actions: StructuredActionInput[];
+    }
+  | {
+      op: "set_actions";
+      recipe_instruction_id: string;
+      actions: StructuredActionInput[];
     }
   | {
       op: "remove";

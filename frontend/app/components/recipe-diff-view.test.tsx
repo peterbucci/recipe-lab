@@ -6,6 +6,7 @@ import type {
   RecipeIngredient,
   RecipeInstruction,
 } from "../../lib/recipe-api";
+import type { RecipeInstructionAction } from "../../lib/structured-action";
 import { RecipeDiffView } from "./recipe-diff-view";
 
 const baseVersion = {
@@ -68,8 +69,30 @@ function instruction(
   id: string,
   text: string,
   displayOrder: number,
+  actions: RecipeInstructionAction[] = [],
 ): RecipeInstruction {
-  return { id, text, display_order: displayOrder };
+  return { id, text, display_order: displayOrder, actions };
+}
+
+function structuredAction(
+  id: string,
+  verb: string,
+  displayOrder: number,
+  ingredientOccurrenceIds: string[] = [],
+): RecipeInstructionAction {
+  return {
+    id,
+    action_type: {
+      id: `type-${id}`,
+      key: verb,
+      canonical_verb: verb,
+      active: true,
+    },
+    display_order: displayOrder,
+    ingredient_occurrence_ids: ingredientOccurrenceIds,
+    duration: null,
+    temperature: null,
+  };
 }
 
 function mixedDiff(): RecipeDiff {
@@ -135,6 +158,7 @@ function mixedDiff(): RecipeDiff {
         },
       ],
     },
+    ingredient_context: { base: [], target: [] },
     instructions: {
       added: [instruction("serve-step", "Serve with yogurt.", 3)],
       removed: [instruction("cool-step", "Cool completely before slicing.", 2)],
@@ -290,7 +314,7 @@ describe("RecipeDiffView", () => {
     const changed = within(instructions).getByRole("article", {
       name: "Updated instruction",
     });
-    expect(within(changed).getByText("Instruction changed")).toBeInTheDocument();
+    expect(within(changed).getByText("Prose changed")).toBeInTheDocument();
     expect(within(changed).getByText("Before")).toBeInTheDocument();
     expect(within(changed).getByText("After")).toBeInTheDocument();
     expect(
@@ -311,6 +335,86 @@ describe("RecipeDiffView", () => {
     expect(
       within(removed).getByText("Cool completely before slicing.").closest("del"),
     ).not.toBeNull();
+  });
+
+  it("renders every structural action change against full base and target ingredient context", () => {
+    const diff = mixedDiff();
+    const baseSugar = ingredient("base-sugar-row", "White sugar", "180.0000", "g", {
+      display_order: 2,
+    });
+    const targetZest = ingredient("target-zest-row", "Orange zest", "1.0000", "tbsp", {
+      display_order: 4,
+    });
+    diff.ingredient_context = { base: [baseSugar], target: [targetZest] };
+    const beforeAction = structuredAction("before-mix", "mix", 0, [baseSugar.id]);
+    beforeAction.duration = {
+      kind: "exact",
+      value: "5.0000",
+      unit: {
+        id: "minute-unit",
+        key: "minute",
+        dimension: "time",
+        canonical_label: "minute",
+        plural_label: "minutes",
+        symbol: "min",
+        display_style: "word",
+        active: true,
+      },
+      display_unit: "minutes",
+      display: "5 minutes",
+    };
+    const afterAction = structuredAction("after-fold", "fold", 0, [targetZest.id]);
+    afterAction.temperature = {
+      kind: "exact",
+      value: "180.0000",
+      unit: {
+        id: "celsius-unit",
+        key: "celsius",
+        dimension: "temperature",
+        canonical_label: "degree Celsius",
+        plural_label: "degrees Celsius",
+        symbol: "°C",
+        display_style: "symbol",
+        active: true,
+      },
+      display_unit: "°C",
+      display: "180 °C",
+    };
+    diff.instructions.modified = [
+      {
+        before: instruction("before-step", "Mix the batter.", 0, [beforeAction]),
+        after: instruction("after-step", "Fold in the zest.", 0, [afterAction]),
+        changed_fields: [
+          "text",
+          "actions",
+          "inputs",
+          "action_order",
+          "duration",
+          "temperature",
+        ],
+      },
+    ];
+
+    render(<RecipeDiffView diff={diff} />);
+
+    const changed = screen.getByRole("article", { name: "Updated instruction" });
+    for (const label of [
+      "Prose changed",
+      "Actions changed",
+      "Ingredient inputs changed",
+      "Action order changed",
+      "Duration changed",
+      "Temperature changed",
+    ]) {
+      expect(within(changed).getByText(label)).toBeInTheDocument();
+    }
+    expect(within(changed).getByText("Inputs: Ingredient 3: White sugar")).toBeInTheDocument();
+    expect(within(changed).getByText("Duration: 5 minutes")).toBeInTheDocument();
+    expect(within(changed).getByText("Inputs: Ingredient 5: Orange zest")).toBeInTheDocument();
+    expect(within(changed).getByText("Temperature: 180 °C")).toBeInTheDocument();
+    expect(within(changed).queryByText("Unavailable ingredient occurrence")).toBeNull();
+    expect(within(changed).getByText("Mix the batter.").closest(".recipe-diff-instruction"))
+      .toHaveProperty("tagName", "DIV");
   });
 
   it("labels every comparison article with its visible heading", () => {

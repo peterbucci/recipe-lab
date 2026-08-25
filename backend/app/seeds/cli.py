@@ -35,7 +35,8 @@ def _print_validation_summary(catalog: SeedCatalog) -> None:
         f"{len(catalog.recipes)} recipe versions, {variant_count} variants, "
         f"{len(catalog.ingredients)} ingredients, "
         f"{len(catalog.substitutions)} substitutions, "
-        f"{len(catalog.measurement_catalog.units)} measurement units."
+        f"{len(catalog.measurement_catalog.units)} measurement units, "
+        f"{len(catalog.action_catalog.action_types)} cooking action types."
     )
 
 

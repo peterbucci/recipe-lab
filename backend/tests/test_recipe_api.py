@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_session
 from app.main import create_app
-from app.models import RecipeRating, User
-from app.seeds.identifiers import seed_uuid
+from app.models import CookingActionType, RecipeRating, User
+from app.seeds.identifiers import action_uuid, seed_uuid
 
 DATASET_ID = "recipe-lab-demo-v1"
 CARROT_ROOT_ID = seed_uuid(
@@ -206,6 +206,63 @@ def test_recipe_detail_returns_ordered_snapshot_and_direct_children(
     assert "quantity" not in sugar
     assert "unit" not in sugar
     assert instructions[0]["text"].startswith("Heat the oven")
+    first_actions = cast(list[dict[str, Any]], instructions[0]["actions"])
+    assert [action["display_order"] for action in first_actions] == [0, 1, 2]
+    assert [action["action_type"]["key"] for action in first_actions] == [
+        "preheat",
+        "grease",
+        "line",
+    ]
+    assert first_actions[0]["duration"] is None
+    assert first_actions[0]["temperature"]["value"] == "180.000000"
+    assert first_actions[0]["temperature"]["unit"]["key"] == "celsius"
+    oil_occurrence = next(
+        item["id"] for item in ingredients if item["display_name"] == "Vegetable oil"
+    )
+    assert first_actions[1]["ingredient_occurrence_ids"] == [oil_occurrence]
+
+
+def test_inactive_action_type_remains_readable_but_is_not_selectable(
+    api_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    action_type_id = action_uuid("action-type", "preheat")
+    try:
+        with Session(bind=seeded_api_engine) as session, session.begin():
+            action_type = session.get(CookingActionType, action_type_id)
+            assert action_type is not None
+            action_type.active = False
+
+        detail_response = api_client.get(f"/api/recipes/{CARROT_ROOT_ID}")
+        catalog_response = api_client.get(
+            "/api/cooking-action-types",
+            params={"limit": 100},
+        )
+
+        assert detail_response.status_code == 200
+        instructions = cast(
+            list[dict[str, Any]],
+            _json_object(detail_response.json())["instructions"],
+        )
+        preheat = cast(list[dict[str, Any]], instructions[0]["actions"])[0]
+        assert preheat["action_type"] == {
+            "id": str(action_type_id),
+            "key": "preheat",
+            "canonical_verb": "preheat",
+            "active": False,
+        }
+
+        assert catalog_response.status_code == 200
+        catalog_items = cast(
+            list[dict[str, Any]],
+            _json_object(catalog_response.json())["items"],
+        )
+        assert str(action_type_id) not in {item["id"] for item in catalog_items}
+    finally:
+        with Session(bind=seeded_api_engine) as session, session.begin():
+            action_type = session.get(CookingActionType, action_type_id)
+            assert action_type is not None
+            action_type.active = True
 
 
 def test_recipe_detail_summarizes_ratings_without_exposing_users(

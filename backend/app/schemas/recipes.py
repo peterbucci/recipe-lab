@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.actions import RecipeInstructionActionResponse
 from app.schemas.interactions import RecipeViewerStateResponse
 from app.schemas.measurements import StructuredMeasureResponse
 
@@ -71,6 +72,12 @@ class RecipeInstructionResponse(RecipeSchema):
     id: UUID
     text: str = Field(min_length=1)
     display_order: int = Field(ge=0)
+    actions: list[RecipeInstructionActionResponse] = Field(
+        description=(
+            "Ordered reviewed actions attached to the prose. An empty list identifies an "
+            "unmapped historical instruction; newly published versions require at least one."
+        )
+    )
 
 
 class RecipeDetailResponse(RecipeSummary):

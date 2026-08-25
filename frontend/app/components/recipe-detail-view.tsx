@@ -4,6 +4,7 @@ import { formatIngredientMeasure, formatServings } from "../../lib/format";
 import type { RecipeDetail, RecipeVersionReference } from "../../lib/recipe-api";
 import { RatingSummary } from "./rating-summary";
 import { RecipeArtwork } from "./recipe-artwork";
+import { RecipeInstructionActions } from "./recipe-instruction-actions";
 import { RecipeMemberActions } from "./recipe-member-actions";
 
 interface RecipeDetailViewProps {
@@ -93,8 +94,15 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
             <span>{recipe.instructions.length} steps</span>
           </div>
           <ol className="instruction-list">
-            {recipe.instructions.map((instruction) => (
-              <li key={instruction.id}>{instruction.text}</li>
+            {recipe.instructions.map((instruction, index) => (
+              <li key={instruction.id}>
+                <p>{instruction.text}</p>
+                <RecipeInstructionActions
+                  actions={instruction.actions}
+                  ingredients={recipe.ingredients}
+                  label={`Structured actions for step ${index + 1}`}
+                />
+              </li>
             ))}
           </ol>
         </section>

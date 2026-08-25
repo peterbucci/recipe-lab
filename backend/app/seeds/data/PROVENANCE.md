@@ -2,8 +2,8 @@
 
 ## Scope and origin
 
-`catalog.json`, `recipes.json`, and `measurements-v1.json` are the Recipe Lab
-demo data assets. Their
+`catalog.json`, `recipes.json`, `measurements-v1.json`, and `actions-v1.json`
+are the Recipe Lab demo data assets. Their
 recipe titles, descriptions, quantities, instructions, ingredient metadata,
 aliases, and substitution notes were written independently for this project.
 They are not copied or adapted from published recipes.
@@ -15,7 +15,7 @@ recipe-version key and parent link rather than editing the published snapshot.
 
 ## License
 
-The three data assets named above are dedicated to the public domain under
+The four data assets named above are dedicated to the public domain under
 [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/).
 This dedication applies to the catalog content, not automatically to the
 Recipe Lab source code or other repository files.
@@ -33,6 +33,22 @@ rules. Culinary teaspoon, tablespoon, and cup labels retain their authored
 meaning but have no conversion rule because regional definitions differ.
 Count labels and package labels such as can and bunch are likewise not treated
 as interchangeable without reviewed ingredient-specific metadata.
+
+## Cooking-action vocabulary
+
+`actions-v1.json` uses its own immutable UUIDv5 namespace and contains both the
+reviewed cooking-action vocabulary and an explicit action mapping for every
+bundled instruction. The mapping was authored against the recipe and ingredient
+row keys in `recipes.json`; the seed loader never extracts or guesses actions
+from natural-language instruction text. Stable action-type keys and identifiers
+must not be reinterpreted. A superseded type becomes inactive so historical
+recipes remain readable while new recipes select only active vocabulary.
+
+Ingredient inputs in an action mapping reference specific ingredient-row keys
+from the same recipe snapshot. Optional duration and temperature parameters use
+the curated units and typed quantity shapes from `measurements-v1.json`. The
+mapping intentionally does not model equipment, intermediate products, or a
+general cooking knowledge graph.
 
 ## Interpretation and safety
 

@@ -90,8 +90,10 @@ The repository currently provides:
 - FastAPI health, paginated recipe-browse, and structured recipe-detail
   endpoints with documented response and error schemas;
 - a deterministic structured-diff endpoint that compares recipe metadata,
-  ingredients, and instructions while preserving exact decimal values;
+  ingredients, instruction prose, and reviewed action graphs while preserving
+  exact decimal values and resolving every action input on both sides;
 - a transactional recipe-forking endpoint that copies a complete snapshot,
+  remaps structured action inputs to fresh child ingredient occurrences,
   applies validated structured edits, and preserves direct parentage;
 - configurable hosted OIDC sign-in with Authorization Code plus PKCE,
   server-managed opaque sessions, CSRF-protected account mutations, and an
@@ -134,6 +136,9 @@ The repository currently provides:
 - a canonical ingredient catalog with normalized aliases, category and
   dietary/allergen metadata, explainable directed substitution edges, and a
   reviewed intake boundary that never treats member text as catalog identity;
+- a curated cooking-action vocabulary and dual prose/structured instruction
+  model with ordered occurrence inputs plus exact/range duration and
+  temperature parameters using curated units;
 - Alembic migrations and database-level lineage, ordering, rating, event
   privacy, and uniqueness constraints;
 - PostgreSQL and local development services through Docker Compose.
@@ -141,9 +146,9 @@ The repository currently provides:
 The repository also includes a deterministic demo catalog with 25 recipe
 lineages, useful variants, ingredient aliases, and directed substitutions.
 Original-recipe creation remains a separate milestone. The variant workflow
-deliberately omits arbitrary version comparison, graph visualization, row
-reordering, autosave, and ML so the core fork, compare, and navigate path stays
-focused on the MVP.
+deliberately omits arbitrary version comparison, graph visualization,
+ingredient and instruction row reordering, autosave, and ML so the core fork,
+compare, and navigate path stays focused on the MVP.
 
 ## Quick start with Docker
 
@@ -224,6 +229,9 @@ Validate the bundled catalog without writing to the database with
 `python -m app.seeds validate`. Seed loading is explicit, transactional, and
 safe to rerun; it is never coupled to API startup. See
 [seed data](docs/seed-data.md) for its reproducibility and provenance contract.
+The reviewed vocabulary, authoring, fork, diff, and recommendation boundaries
+for instruction graphs are documented in
+[structured cooking actions](docs/cooking-actions.md).
 Hosted account setup and the boundary between signed-in members and the shared
 demo interaction profile are documented in
 [account authentication and sessions](docs/authentication.md).

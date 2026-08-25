@@ -9,10 +9,19 @@ from app.models import (
     MeasurementUnit,
     RecipeIngredient,
     RecipeInstruction,
+    RecipeInstructionAction,
+    RecipeInstructionActionInput,
+    RecipeInstructionActionMeasure,
     RecipeLineage,
     RecipeVersion,
 )
 from app.repositories.ingredients import curated_display_label, get_ingredient
+from app.schemas.actions import (
+    AddedIngredientOccurrenceReference,
+    ExistingIngredientOccurrenceReference,
+    IngredientOccurrenceReference,
+    StructuredActionInput,
+)
 from app.schemas.measurements import (
     ExactMeasureInput,
     QualitativeMeasureInput,
@@ -27,7 +36,13 @@ from app.schemas.recipe_forks import (
     RemoveInstruction,
     ReplaceIngredient,
     SetIngredientMeasure,
+    SetInstructionActions,
     UpdateInstruction,
+)
+from app.services.actions import (
+    ActionContractError,
+    ValidatedActionMeasure,
+    validate_structured_actions,
 )
 from app.services.measurements import MeasurementError, validate_measure_input
 
@@ -39,6 +54,7 @@ class InvalidRecipeEditsError(ValueError):
 @dataclass(slots=True)
 class _IngredientDraft:
     source_id: UUID | None
+    edit_ref: str | None
     ingredient_id: UUID
     name: str
     measure_mode: str
@@ -51,9 +67,17 @@ class _IngredientDraft:
 
 
 @dataclass(slots=True)
+class _ActionDraft:
+    action_type_id: UUID
+    ingredient_refs: tuple[IngredientOccurrenceReference, ...]
+    measures: tuple[ValidatedActionMeasure, ...]
+
+
+@dataclass(slots=True)
 class _InstructionDraft:
     source_id: UUID | None
     text: str
+    actions: list[_ActionDraft]
 
 
 def _invalid(message: str) -> InvalidRecipeEditsError:
@@ -164,7 +188,12 @@ def _load_source_after_lineage_lock(
         select(RecipeVersion)
         .options(
             selectinload(RecipeVersion.ingredients),
-            selectinload(RecipeVersion.instructions),
+            selectinload(RecipeVersion.instructions)
+            .selectinload(RecipeInstruction.actions)
+            .options(
+                selectinload(RecipeInstructionAction.inputs),
+                selectinload(RecipeInstructionAction.measures),
+            ),
             raiseload("*"),
         )
         .where(RecipeVersion.id == source_version_id)
@@ -179,6 +208,7 @@ def _validate_ingredient_targets(
     drafts = {
         item.id: _IngredientDraft(
             source_id=item.id,
+            edit_ref=None,
             ingredient_id=item.ingredient_id,
             name=item.name,
             measure_mode=item.measure_mode,
@@ -267,6 +297,7 @@ def _apply_ingredient_edits(
             additions.append(
                 _IngredientDraft(
                     source_id=None,
+                    edit_ref=edit.edit_ref,
                     ingredient_id=ingredient_id,
                     name=display_name,
                     measure_mode=measure_mode,
@@ -320,10 +351,37 @@ def _validate_instruction_targets(
     payload: RecipeForkRequest,
 ) -> dict[UUID, _InstructionDraft]:
     drafts = {
-        item.id: _InstructionDraft(source_id=item.id, text=item.instruction)
+        item.id: _InstructionDraft(
+            source_id=item.id,
+            text=item.instruction,
+            actions=[
+                _ActionDraft(
+                    action_type_id=action.action_type_id,
+                    ingredient_refs=tuple(
+                        ExistingIngredientOccurrenceReference(
+                            kind="existing",
+                            recipe_ingredient_id=action_input.recipe_ingredient_id,
+                        )
+                        for action_input in action.inputs
+                    ),
+                    measures=tuple(
+                        ValidatedActionMeasure(
+                            semantic=measure.semantic,
+                            measure_mode=measure.measure_mode,
+                            quantity_min=measure.quantity_min,
+                            quantity_max=measure.quantity_max,
+                            measurement_unit_id=measure.measurement_unit_id,
+                            unit_display=measure.unit_display,
+                        )
+                        for measure in action.measures
+                    ),
+                )
+                for action in item.actions
+            ],
+        )
         for item in source.instructions
     }
-    edited_targets: set[UUID] = set()
+    operations_by_target: dict[UUID, set[str]] = {}
 
     for edit in payload.instruction_edits:
         if isinstance(edit, AddInstruction):
@@ -333,14 +391,42 @@ def _validate_instruction_targets(
             raise _invalid(
                 f"Instruction row {target_id} does not belong to the source recipe version."
             )
-        if target_id in edited_targets:
-            raise _invalid(f"Instruction row {target_id} has conflicting or duplicate edits.")
-        edited_targets.add(target_id)
+        prior_operations = operations_by_target.setdefault(target_id, set())
+        if edit.op in prior_operations:
+            raise _invalid(f"Instruction row {target_id} has more than one {edit.op} edit.")
+        if edit.op == "remove" and prior_operations:
+            raise _invalid(
+                f"Instruction row {target_id} cannot be removed and edited in the same fork."
+            )
+        if "remove" in prior_operations:
+            raise _invalid(
+                f"Instruction row {target_id} cannot be removed and edited in the same fork."
+            )
+        prior_operations.add(edit.op)
 
     return drafts
 
 
+def _validated_action_drafts(
+    session: Session,
+    actions: list[StructuredActionInput],
+) -> list[_ActionDraft]:
+    try:
+        validated = validate_structured_actions(session, actions)
+    except ActionContractError as error:
+        raise _invalid(str(error)) from error
+    return [
+        _ActionDraft(
+            action_type_id=action.action_type_id,
+            ingredient_refs=action.inputs,
+            measures=action.measures,
+        )
+        for action in validated
+    ]
+
+
 def _apply_instruction_edits(
+    session: Session,
     source: RecipeVersion,
     payload: RecipeForkRequest,
 ) -> list[_InstructionDraft]:
@@ -350,9 +436,20 @@ def _apply_instruction_edits(
 
     for edit in payload.instruction_edits:
         if isinstance(edit, AddInstruction):
-            additions.append(_InstructionDraft(source_id=None, text=edit.text))
+            additions.append(
+                _InstructionDraft(
+                    source_id=None,
+                    text=edit.text,
+                    actions=_validated_action_drafts(session, edit.actions),
+                )
+            )
         elif isinstance(edit, UpdateInstruction):
             drafts[edit.recipe_instruction_id].text = edit.text
+        elif isinstance(edit, SetInstructionActions):
+            drafts[edit.recipe_instruction_id].actions = _validated_action_drafts(
+                session,
+                edit.actions,
+            )
         elif isinstance(edit, RemoveInstruction):
             removed_ids.add(edit.recipe_instruction_id)
 
@@ -360,7 +457,153 @@ def _apply_instruction_edits(
     result.extend(additions)
     if not result:
         raise _invalid("A recipe version must contain at least one instruction.")
+    incomplete = [draft.source_id for draft in result if not draft.actions]
+    if incomplete:
+        raise _invalid(
+            "Every published instruction requires at least one structured cooking action; "
+            f"unmapped instruction rows={incomplete}."
+        )
     return result
+
+
+def _persist_ingredients(
+    session: Session,
+    *,
+    child_id: UUID,
+    drafts: list[_IngredientDraft],
+) -> dict[tuple[str, UUID | str], UUID]:
+    rows = [
+        RecipeIngredient(
+            recipe_version_id=child_id,
+            ingredient_id=draft.ingredient_id,
+            name=draft.name,
+            measure_mode=draft.measure_mode,
+            quantity_min=draft.quantity_min,
+            quantity_max=draft.quantity_max,
+            measurement_unit_id=draft.measurement_unit_id,
+            unit_display=draft.unit_display,
+            package_size_id=draft.package_size_id,
+            preparation_notes=draft.preparation_notes,
+            display_order=display_order,
+        )
+        for display_order, draft in enumerate(drafts)
+    ]
+    session.add_all(rows)
+    session.flush()
+
+    occurrence_ids: dict[tuple[str, UUID | str], UUID] = {}
+    for draft, row in zip(drafts, rows, strict=True):
+        if draft.source_id is not None:
+            occurrence_ids[("existing", draft.source_id)] = row.id
+        if draft.edit_ref is not None:
+            occurrence_ids[("added", draft.edit_ref)] = row.id
+    return occurrence_ids
+
+
+def _resolve_action_input(
+    reference: IngredientOccurrenceReference,
+    occurrence_ids: dict[tuple[str, UUID | str], UUID],
+) -> UUID:
+    key: tuple[str, UUID | str]
+    if isinstance(reference, ExistingIngredientOccurrenceReference):
+        key = ("existing", reference.recipe_ingredient_id)
+    elif isinstance(reference, AddedIngredientOccurrenceReference):
+        key = ("added", reference.ingredient_edit_ref)
+    else:
+        raise AssertionError("Unsupported ingredient occurrence reference.")
+    resolved = occurrence_ids.get(key)
+    if resolved is None:
+        raise _invalid(
+            "A structured action references an ingredient occurrence that is not present "
+            f"in the child recipe: {reference.model_dump(mode='json')}."
+        )
+    return resolved
+
+
+def _validate_action_references(
+    ingredient_drafts: list[_IngredientDraft],
+    instruction_drafts: list[_InstructionDraft],
+) -> None:
+    available: set[tuple[str, UUID | str]] = set()
+    for draft in ingredient_drafts:
+        if draft.source_id is not None:
+            available.add(("existing", draft.source_id))
+        if draft.edit_ref is not None:
+            available.add(("added", draft.edit_ref))
+
+    for instruction in instruction_drafts:
+        for action in instruction.actions:
+            for reference in action.ingredient_refs:
+                if isinstance(reference, ExistingIngredientOccurrenceReference):
+                    key: tuple[str, UUID | str] = (
+                        "existing",
+                        reference.recipe_ingredient_id,
+                    )
+                elif isinstance(reference, AddedIngredientOccurrenceReference):
+                    key = ("added", reference.ingredient_edit_ref)
+                else:
+                    raise AssertionError("Unsupported ingredient occurrence reference.")
+                if key not in available:
+                    raise _invalid(
+                        "A structured action references an ingredient occurrence that is not "
+                        f"present in the child recipe: {reference.model_dump(mode='json')}."
+                    )
+
+
+def _persist_instructions(
+    session: Session,
+    *,
+    child_id: UUID,
+    drafts: list[_InstructionDraft],
+    occurrence_ids: dict[tuple[str, UUID | str], UUID],
+) -> None:
+    instruction_rows = [
+        RecipeInstruction(
+            recipe_version_id=child_id,
+            instruction=draft.text,
+            display_order=display_order,
+        )
+        for display_order, draft in enumerate(drafts)
+    ]
+    session.add_all(instruction_rows)
+    session.flush()
+
+    action_pairs: list[tuple[_ActionDraft, RecipeInstructionAction]] = []
+    for instruction_draft, instruction_row in zip(drafts, instruction_rows, strict=True):
+        for display_order, action_draft in enumerate(instruction_draft.actions):
+            action_row = RecipeInstructionAction(
+                recipe_version_id=child_id,
+                recipe_instruction_id=instruction_row.id,
+                action_type_id=action_draft.action_type_id,
+                display_order=display_order,
+            )
+            session.add(action_row)
+            action_pairs.append((action_draft, action_row))
+    session.flush()
+
+    for action_draft, action_row in action_pairs:
+        for display_order, reference in enumerate(action_draft.ingredient_refs):
+            session.add(
+                RecipeInstructionActionInput(
+                    recipe_version_id=child_id,
+                    recipe_instruction_action_id=action_row.id,
+                    recipe_ingredient_id=_resolve_action_input(reference, occurrence_ids),
+                    display_order=display_order,
+                )
+            )
+        for measure in action_draft.measures:
+            session.add(
+                RecipeInstructionActionMeasure(
+                    recipe_instruction_action_id=action_row.id,
+                    semantic=measure.semantic,
+                    measure_mode=measure.measure_mode,
+                    quantity_min=measure.quantity_min,
+                    quantity_max=measure.quantity_max,
+                    measurement_unit_id=measure.measurement_unit_id,
+                    unit_display=measure.unit_display,
+                )
+            )
+    session.flush()
 
 
 def fork_recipe_version(
@@ -377,7 +620,8 @@ def fork_recipe_version(
         return None
 
     ingredient_drafts = _apply_ingredient_edits(session, source, payload)
-    instruction_drafts = _apply_instruction_edits(source, payload)
+    instruction_drafts = _apply_instruction_edits(session, source, payload)
+    _validate_action_references(ingredient_drafts, instruction_drafts)
 
     highest_version = session.scalar(
         select(func.max(RecipeVersion.version_number)).where(
@@ -398,33 +642,15 @@ def fork_recipe_version(
     session.add(child)
     session.flush()
 
-    session.add_all(
-        [
-            RecipeIngredient(
-                recipe_version_id=child.id,
-                ingredient_id=draft.ingredient_id,
-                name=draft.name,
-                measure_mode=draft.measure_mode,
-                quantity_min=draft.quantity_min,
-                quantity_max=draft.quantity_max,
-                measurement_unit_id=draft.measurement_unit_id,
-                unit_display=draft.unit_display,
-                package_size_id=draft.package_size_id,
-                preparation_notes=draft.preparation_notes,
-                display_order=display_order,
-            )
-            for display_order, draft in enumerate(ingredient_drafts)
-        ]
+    occurrence_ids = _persist_ingredients(
+        session,
+        child_id=child.id,
+        drafts=ingredient_drafts,
     )
-    session.add_all(
-        [
-            RecipeInstruction(
-                recipe_version_id=child.id,
-                instruction=draft.text,
-                display_order=display_order,
-            )
-            for display_order, draft in enumerate(instruction_drafts)
-        ]
+    _persist_instructions(
+        session,
+        child_id=child.id,
+        drafts=instruction_drafts,
+        occurrence_ids=occurrence_ids,
     )
-    session.flush()
     return child.id

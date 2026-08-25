@@ -222,7 +222,35 @@ def test_seeded_carrot_diff_uses_parent_by_default_and_matches_golden_contract(
     response = diff_client.get(f"/api/recipes/{CARROT_PECAN_ID}/diff")
 
     assert response.status_code == 200
-    assert response.json() == _expected_carrot_pecan_diff()
+    body = _json_object(response.json())
+    ingredient_context = _json_object(body.pop("ingredient_context"))
+    instruction_diff = _json_object(body.pop("instructions"))
+    expected = _expected_carrot_pecan_diff()
+    expected.pop("instructions")
+    assert body == expected
+    assert ROOT_NUTS_ROW_ID in {UUID(item["id"]) for item in ingredient_context["base"]}
+    assert ROOT_SUGAR_ROW_ID in {UUID(item["id"]) for item in ingredient_context["base"]}
+    assert PECAN_NUTS_ROW_ID in {UUID(item["id"]) for item in ingredient_context["target"]}
+    assert PECAN_SUGAR_ROW_ID in {UUID(item["id"]) for item in ingredient_context["target"]}
+    assert instruction_diff["added"] == []
+    assert instruction_diff["removed"] == []
+    assert [item["changed_fields"] for item in instruction_diff["modified"]] == [
+        ["inputs"],
+        ["inputs"],
+    ]
+    base_occurrence_ids = {item["id"] for item in ingredient_context["base"]}
+    target_occurrence_ids = {item["id"] for item in ingredient_context["target"]}
+    for change in instruction_diff["modified"]:
+        assert {
+            ingredient_id
+            for action in change["before"]["actions"]
+            for ingredient_id in action["ingredient_occurrence_ids"]
+        } <= base_occurrence_ids
+        assert {
+            ingredient_id
+            for action in change["after"]["actions"]
+            for ingredient_id in action["ingredient_occurrence_ids"]
+        } <= target_occurrence_ids
 
 
 def test_explicit_parent_produces_the_same_seeded_carrot_diff(
@@ -236,7 +264,16 @@ def test_explicit_parent_produces_the_same_seeded_carrot_diff(
 
     assert implicit.status_code == 200
     assert explicit.status_code == 200
-    assert explicit.json() == _expected_carrot_pecan_diff()
+    explicit_body = _json_object(explicit.json())
+    explicit_body.pop("ingredient_context")
+    explicit_instructions = _json_object(explicit_body.pop("instructions"))
+    expected = _expected_carrot_pecan_diff()
+    expected.pop("instructions")
+    assert explicit_body == expected
+    assert [item["changed_fields"] for item in explicit_instructions["modified"]] == [
+        ["inputs"],
+        ["inputs"],
+    ]
     assert explicit.json() == implicit.json()
 
 
@@ -249,7 +286,9 @@ def test_same_version_comparison_returns_a_machine_readable_no_change_result(
     )
 
     assert response.status_code == 200
-    assert response.json() == {
+    body = _json_object(response.json())
+    ingredient_context = _json_object(body.pop("ingredient_context"))
+    assert body == {
         "lineage_id": str(CARROT_LINEAGE_ID),
         "base_version": _version_reference(
             CARROT_PECAN_ID,
@@ -266,6 +305,7 @@ def test_same_version_comparison_returns_a_machine_readable_no_change_result(
         "instructions": {"added": [], "removed": [], "modified": []},
         "has_changes": False,
     }
+    assert ingredient_context["base"] == ingredient_context["target"]
 
 
 @pytest.mark.parametrize(
@@ -417,9 +457,12 @@ def test_diff_reads_use_bounded_queries_and_do_not_load_interactions_or_users(
         event.remove(seeded_api_engine, "before_cursor_execute", capture_statement)
 
     assert response.status_code == 200
-    assert len(statements) == 5
+    assert len(statements) == 8
     assert any("recipe_version_ingredients" in statement for statement in statements)
     assert any("recipe_version_instructions" in statement for statement in statements)
+    assert any("recipe_instruction_actions" in statement for statement in statements)
+    assert any("recipe_instruction_action_inputs" in statement for statement in statements)
+    assert any("recipe_instruction_action_measures" in statement for statement in statements)
     assert any("ingredient_substitutions" in statement for statement in statements)
     for excluded_table in ("recipe_ratings", "recipe_saves", "users"):
         assert all(excluded_table not in statement for statement in statements)
@@ -452,6 +495,7 @@ def test_openapi_documents_recipe_diff_contract(diff_client: TestClient) -> None
         "RecipeDiffResponse",
         "RecipeFieldChange",
         "RecipeIngredientDiff",
+        "RecipeIngredientContext",
         "RecipeIngredientPairChange",
         "RecipeInstructionDiff",
         "RecipeInstructionPairChange",
@@ -463,9 +507,22 @@ def test_openapi_documents_recipe_diff_contract(diff_client: TestClient) -> None
         "target_version",
         "metadata_changes",
         "ingredients",
+        "ingredient_context",
         "instructions",
         "has_changes",
     } == set(response_schema["properties"])
     assert response_schema["properties"]["lineage_id"]["format"] == "uuid"
     assert schemas["RecipeIngredientPairChange"]["properties"]["changed_fields"]["minItems"] == 1
     assert schemas["RecipeInstructionPairChange"]["properties"]["changed_fields"]["minItems"] == 1
+    changed_field_items = schemas["RecipeInstructionPairChange"]["properties"]["changed_fields"][
+        "items"
+    ]
+    assert changed_field_items["$ref"].endswith("/RecipeInstructionChangedField")
+    assert schemas["RecipeInstructionChangedField"]["enum"] == [
+        "text",
+        "actions",
+        "inputs",
+        "action_order",
+        "duration",
+        "temperature",
+    ]

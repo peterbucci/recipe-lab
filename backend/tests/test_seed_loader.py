@@ -23,6 +23,7 @@ from app.models import (
     ACCOUNT_KIND_SYSTEM,
     CATALOG_REQUEST_APPROVED,
     CATALOG_REQUEST_PENDING,
+    CookingActionType,
     Ingredient,
     IngredientAlias,
     IngredientCatalogAuditEvent,
@@ -33,6 +34,8 @@ from app.models import (
     MeasurementUnitAlias,
     PreferenceEvent,
     RecipeIngredient,
+    RecipeInstructionAction,
+    RecipeInstructionActionMeasure,
     RecipeRating,
     RecipeSave,
     RecipeVersion,
@@ -47,7 +50,7 @@ from app.schemas.ingredient_catalog import (
     IngredientCatalogRequestCreate,
 )
 from app.seeds import SeedConflictError, load_bundled_catalog, seed_catalog
-from app.seeds.identifiers import measurement_uuid, seed_uuid
+from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
 from app.seeds.loader import CATALOG_USER_KEY
 from app.services.catalog_requests import (
     CatalogRequestConflictError,
@@ -57,6 +60,7 @@ from app.services.catalog_requests import (
 
 SEEDED_TABLE_COUNTS = {
     "allergens": 8,
+    "cooking_action_types": 54,
     "dietary_flags": 3,
     "ingredient_aliases": 15,
     "ingredient_allergens": 26,
@@ -73,6 +77,9 @@ SEEDED_TABLE_COUNTS = {
     "recipe_lineages": 25,
     "recipe_version_ingredients": 281,
     "recipe_version_instructions": 116,
+    "recipe_instruction_actions": 252,
+    "recipe_instruction_action_inputs": 815,
+    "recipe_instruction_action_measures": 24,
     "recipe_versions": 34,
     "users": 2,
 }
@@ -117,9 +124,9 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
     with Session(seed_engine) as session, session.begin():
         report = seed_catalog(session, catalog)
 
-    migration_seeded_measurements = 19 + 21 + 10
-    assert report.created_total == sum(SEEDED_TABLE_COUNTS.values()) - migration_seeded_measurements
-    assert report.reused_total == migration_seeded_measurements
+    migration_seeded_catalog_rows = 19 + 21 + 10 + 54
+    assert report.created_total == sum(SEEDED_TABLE_COUNTS.values()) - migration_seeded_catalog_rows
+    assert report.reused_total == migration_seeded_catalog_rows
 
     dataset_id = catalog.metadata.dataset_id
     carrot_root_id = seed_uuid(
@@ -170,6 +177,27 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
         assert fahrenheit_rule.offset_numerator == -32
         assert fahrenheit_rule.scale_numerator == 5
         assert fahrenheit_rule.scale_denominator == 9
+
+        mix_action_type = session.get(CookingActionType, action_uuid("action-type", "mix"))
+        assert mix_action_type is not None
+        assert mix_action_type.canonical_verb == "mix"
+        assert mix_action_type.active is True
+
+        carrot_bake_action_id = seed_uuid(
+            dataset_id,
+            "recipe-instruction-action",
+            "carrot-walnut-snack-cake-v1:bake:bake-cake",
+        )
+        carrot_bake_action = session.get(RecipeInstructionAction, carrot_bake_action_id)
+        carrot_bake_temperature = session.get(
+            RecipeInstructionActionMeasure,
+            (carrot_bake_action_id, "temperature"),
+        )
+        assert carrot_bake_action is not None
+        assert carrot_bake_action.action_type_id == action_uuid("action-type", "bake")
+        assert carrot_bake_temperature is not None
+        assert carrot_bake_temperature.quantity_min == Decimal("180")
+        assert carrot_bake_temperature.measurement_unit_id == measurement_uuid("unit", "celsius")
 
         catalog_user_id = seed_uuid(dataset_id, "user", CATALOG_USER_KEY)
         catalog_user = session.get(User, catalog_user_id)

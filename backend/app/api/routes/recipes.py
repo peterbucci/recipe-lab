@@ -34,6 +34,7 @@ from app.schemas.recipes import (
     RecipeSummary,
     RecipeVersionReference,
 )
+from app.services.actions import serialize_instruction_action
 from app.services.measurements import serialize_measure
 from app.services.preference_events import (
     IdempotencyKeyConflictError,
@@ -157,6 +158,7 @@ def _instruction(item: RecipeInstruction) -> RecipeInstructionResponse:
         id=item.id,
         text=item.instruction,
         display_order=item.display_order,
+        actions=[serialize_instruction_action(action) for action in item.actions],
     )
 
 

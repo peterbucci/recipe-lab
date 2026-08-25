@@ -1,4 +1,5 @@
 import type { RecipeViewerState } from "./recipe-viewer-state";
+import type { RecipeInstructionAction } from "./structured-action";
 import type { RecipeIngredientMeasure } from "./structured-measure";
 
 export type { RecipeIngredientMeasure } from "./structured-measure";
@@ -34,6 +35,7 @@ export interface RecipeInstruction {
   id: string;
   text: string;
   display_order: number;
+  actions: RecipeInstructionAction[];
 }
 
 export interface RecipeDetail extends RecipeSummary {
@@ -54,7 +56,13 @@ export type RecipeIngredientChangedField =
   | "measure"
   | "preparation_notes";
 
-export type RecipeInstructionChangedField = "text";
+export type RecipeInstructionChangedField =
+  | "text"
+  | "actions"
+  | "inputs"
+  | "action_order"
+  | "duration"
+  | "temperature";
 
 export interface RecipeFieldChange {
   field: RecipeFieldName;
@@ -93,6 +101,10 @@ export interface RecipeDiff {
   target_version: RecipeVersionReference;
   metadata_changes: RecipeFieldChange[];
   ingredients: RecipeIngredientDiff;
+  ingredient_context: {
+    base: RecipeIngredient[];
+    target: RecipeIngredient[];
+  };
   instructions: RecipeInstructionDiff;
   has_changes: boolean;
 }

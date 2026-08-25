@@ -5,7 +5,14 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, Numeric, cast, exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
-from app.models import RecipeIngredient, RecipeRating, RecipeVersion
+from app.models import (
+    RecipeIngredient,
+    RecipeInstruction,
+    RecipeInstructionAction,
+    RecipeInstructionActionMeasure,
+    RecipeRating,
+    RecipeVersion,
+)
 from app.repositories.ingredients import resolve_ingredient_name
 
 
@@ -97,7 +104,15 @@ def get_recipe_version(
                 joinedload(RecipeIngredient.ingredient),
                 joinedload(RecipeIngredient.measurement_unit),
             ),
-            selectinload(RecipeVersion.instructions),
+            selectinload(RecipeVersion.instructions)
+            .selectinload(RecipeInstruction.actions)
+            .options(
+                joinedload(RecipeInstructionAction.action_type),
+                selectinload(RecipeInstructionAction.inputs),
+                selectinload(RecipeInstructionAction.measures).joinedload(
+                    RecipeInstructionActionMeasure.measurement_unit
+                ),
+            ),
             raiseload("*"),
         )
         .where(RecipeVersion.id == recipe_version_id)

@@ -13,6 +13,7 @@ import type {
   MemberIngredientRequest,
   MemberIngredientRequestPage,
 } from "../../lib/ingredient-catalog-api";
+import type { CatalogActionType } from "../../lib/cooking-action-api";
 import type { CatalogUnit } from "../../lib/measurement-unit-api";
 import type { RecipeDetail } from "../../lib/recipe-api";
 import { createRecipeVariant, VariantApiError } from "../../lib/variant-api";
@@ -68,6 +69,53 @@ const CUP_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2";
 const TABLESPOON_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3";
 const CAN_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4";
 const PACKAGE_SIZE_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const MIX_ACTION_ID = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1";
+const FOLD_ACTION_ID = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
+const BAKE_ACTION_ID = "dddddddd-dddd-4ddd-8ddd-ddddddddddd3";
+
+const actionTypes: CatalogActionType[] = [
+  {
+    id: MIX_ACTION_ID,
+    key: "mix",
+    canonical_verb: "mix",
+    active: true,
+    provenance: "Test fixture",
+  },
+  {
+    id: FOLD_ACTION_ID,
+    key: "fold",
+    canonical_verb: "fold",
+    active: true,
+    provenance: "Test fixture",
+  },
+  {
+    id: BAKE_ACTION_ID,
+    key: "bake",
+    canonical_verb: "bake",
+    active: true,
+    provenance: "Test fixture",
+  },
+];
+
+function action(
+  id: string,
+  type: CatalogActionType,
+  ingredientOccurrenceIds: string[] = [],
+) {
+  return {
+    id,
+    action_type: {
+      id: type.id,
+      key: type.key,
+      canonical_verb: type.canonical_verb,
+      active: type.active,
+    },
+    display_order: 0,
+    ingredient_occurrence_ids: ingredientOccurrenceIds,
+    duration: null,
+    temperature: null,
+  };
+}
 
 const measurementUnits: CatalogUnit[] = [
   {
@@ -237,9 +285,24 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
       },
     ],
     instructions: [
-      { id: "mix-step", text: "Whisk the dry ingredients.", display_order: 0 },
-      { id: "fold-step", text: "Fold in the carrots and walnuts.", display_order: 1 },
-      { id: "bake-step", text: "Bake until springy.", display_order: 2 },
+      {
+        id: "mix-step",
+        text: "Whisk the dry ingredients.",
+        display_order: 0,
+        actions: [action("mix-action", actionTypes[0], ["sugar-row"])],
+      },
+      {
+        id: "fold-step",
+        text: "Fold in the carrots and walnuts.",
+        display_order: 1,
+        actions: [action("fold-action", actionTypes[1], ["walnut-row"])],
+      },
+      {
+        id: "bake-step",
+        text: "Bake until springy.",
+        display_order: 2,
+        actions: [action("bake-action", actionTypes[2])],
+      },
     ],
     ...overrides,
   };
@@ -359,6 +422,7 @@ function renderEditor(recipe = sourceRecipe()) {
     <RecipeVariantEditor
       sourceRecipe={recipe}
       measurementUnits={measurementUnits}
+      actionTypes={actionTypes}
     />,
   );
 }
@@ -700,6 +764,57 @@ describe("RecipeVariantEditor", () => {
     ).toHaveFocus();
   });
 
+  it("preserves step prose and structured action state after leaf validation fails", async () => {
+    renderEditor();
+
+    const step = expandInstructionRow(1);
+    const prose = within(step).getByRole("textbox", { name: "Instruction" });
+    fireEvent.change(prose, {
+      target: { value: "Keep this carefully authored prose." },
+    });
+    const actionType = within(step).getByRole("combobox", {
+      name: "Cooking action",
+    });
+    fireEvent.change(actionType, { target: { value: "" } });
+    fireEvent.click(
+      within(step).getByRole("button", { name: "Done editing step 1" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+
+    await waitFor(() =>
+      expect(within(step).getByRole("combobox", { name: "Cooking action" })).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      ),
+    );
+    expect(within(step).getByRole("textbox", { name: "Instruction" })).toHaveValue(
+      "Keep this carefully authored prose.",
+    );
+    expect(within(step).getByText("Choose a cooking action.")).toBeInTheDocument();
+    expect(createRecipeVariant).not.toHaveBeenCalled();
+  });
+
+  it("clears a removed-input error when its ingredient occurrence is restored", async () => {
+    renderEditor();
+
+    const sugar = screen.getByRole("group", { name: /ingredient 1/i });
+    expandIngredientRow(sugar, "White sugar");
+    fireEvent.click(within(sugar).getByRole("button", { name: /remove white sugar/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+
+    const step = instructionRow(1);
+    await waitFor(() =>
+      expect(within(step).getByText(/restore the removed ingredient/i)).toBeInTheDocument(),
+    );
+
+    fireEvent.click(within(sugar).getByRole("button", { name: /undo removal/i }));
+    expect(within(step).queryByText(/restore the removed ingredient/i)).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: /check your version before creating it/i }),
+    ).toBeNull();
+  });
+
   it("submits the exact mixed edit payload after add, remove, and undo interactions", async () => {
     vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
     renderEditor();
@@ -786,6 +901,13 @@ describe("RecipeVariantEditor", () => {
     fireEvent.change(instructionInput(4), {
       target: { value: "  Cool completely before serving.  " },
     });
+    const addedStep = instructionRow(4);
+    fireEvent.click(
+      within(addedStep).getByRole("button", { name: "Add cooking action" }),
+    );
+    fireEvent.change(within(addedStep).getByLabelText("Cooking action"), {
+      target: { value: BAKE_ACTION_ID },
+    });
 
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
 
@@ -815,6 +937,7 @@ describe("RecipeVariantEditor", () => {
           { op: "remove", recipe_ingredient_id: "salt-row" },
           {
             op: "add",
+            edit_ref: "added-ingredient-1",
             ingredient_id: ORANGE_ZEST_ID,
             display_name: "Orange zest",
             measure: {
@@ -832,7 +955,16 @@ describe("RecipeVariantEditor", () => {
             text: "Whisk the dry ingredients thoroughly.",
           },
           { op: "remove", recipe_instruction_id: "fold-step" },
-          { op: "add", text: "Cool completely before serving." },
+          {
+            op: "add",
+            text: "Cool completely before serving.",
+            actions: [
+              {
+                action_type_id: BAKE_ACTION_ID,
+                ingredient_refs: [],
+              },
+            ],
+          },
         ],
       },
       FIRST_KEY,

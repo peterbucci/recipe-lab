@@ -2,15 +2,21 @@ from decimal import Decimal
 from uuid import UUID
 
 from app.models import (
+    ACTION_PARAMETER_DURATION,
+    ACTION_PARAMETER_TEMPERATURE,
+    CookingActionType,
     Ingredient,
     MeasurementUnit,
     RecipeIngredient,
     RecipeInstruction,
+    RecipeInstructionAction,
+    RecipeInstructionActionInput,
+    RecipeInstructionActionMeasure,
     RecipeVersion,
 )
 from app.schemas.measurements import ExactMeasureResponse
 from app.schemas.recipe_diffs import RecipeDiffResponse
-from app.seeds.identifiers import measurement_uuid
+from app.seeds.identifiers import action_uuid, measurement_uuid
 from app.services.recipe_diffs import build_recipe_diff
 
 LINEAGE_ID = UUID(int=1)
@@ -32,6 +38,8 @@ def _measurement_unit(key: str) -> MeasurementUnit:
         "tsp": "volume",
         "tbsp": "volume",
         "can": "package",
+        "minute": "time",
+        "celsius": "temperature",
     }
     labels = {
         "g": ("gram", "grams", "g", "symbol"),
@@ -39,6 +47,8 @@ def _measurement_unit(key: str) -> MeasurementUnit:
         "tsp": ("teaspoon", "teaspoons", "tsp", "symbol"),
         "tbsp": ("tablespoon", "tablespoons", "tbsp", "symbol"),
         "can": ("can", "cans", None, "word"),
+        "minute": ("minute", "minutes", "min", "symbol"),
+        "celsius": ("degree Celsius", "degrees Celsius", "°C", "symbol"),
     }
     canonical, plural, symbol, display_style = labels[key]
     return MeasurementUnit(
@@ -97,13 +107,89 @@ def _instruction(
     version_id: UUID,
     display_order: int,
     text: str,
+    actions: list[RecipeInstructionAction] | None = None,
 ) -> RecipeInstruction:
-    return RecipeInstruction(
+    instruction = RecipeInstruction(
         id=_id(row_id),
         recipe_version_id=version_id,
         instruction=text,
         display_order=display_order,
     )
+    instruction.actions = actions or []
+    return instruction
+
+
+def _action_type(key: str) -> CookingActionType:
+    return CookingActionType(
+        id=action_uuid("action-type", key),
+        key=key,
+        canonical_verb=key,
+        active=True,
+        provenance="Test fixture.",
+    )
+
+
+def _action(
+    *,
+    row_id: int,
+    version_id: UUID,
+    instruction_id: int,
+    display_order: int,
+    action_type: CookingActionType,
+    inputs: list[RecipeIngredient] | None = None,
+    duration: Decimal | None = None,
+    temperature: Decimal | None = None,
+) -> RecipeInstructionAction:
+    action_id = _id(row_id)
+    action = RecipeInstructionAction(
+        id=action_id,
+        recipe_version_id=version_id,
+        recipe_instruction_id=_id(instruction_id),
+        action_type_id=action_type.id,
+        action_type=action_type,
+        display_order=display_order,
+    )
+    action.inputs = [
+        RecipeInstructionActionInput(
+            id=_id(row_id * 10 + index + 1),
+            recipe_version_id=version_id,
+            recipe_instruction_action_id=action_id,
+            recipe_ingredient_id=ingredient.id,
+            display_order=index,
+        )
+        for index, ingredient in enumerate(inputs or [])
+    ]
+    measures: list[RecipeInstructionActionMeasure] = []
+    if duration is not None:
+        unit = _measurement_unit("minute")
+        measures.append(
+            RecipeInstructionActionMeasure(
+                recipe_instruction_action_id=action_id,
+                semantic=ACTION_PARAMETER_DURATION,
+                measure_mode="exact",
+                quantity_min=duration,
+                quantity_max=None,
+                measurement_unit_id=unit.id,
+                measurement_unit=unit,
+                unit_display="minute",
+            )
+        )
+    if temperature is not None:
+        unit = _measurement_unit("celsius")
+        measures.append(
+            RecipeInstructionActionMeasure(
+                recipe_instruction_action_id=action_id,
+                semantic=ACTION_PARAMETER_TEMPERATURE,
+                measure_mode="exact",
+                quantity_min=temperature,
+                quantity_max=None,
+                measurement_unit_id=unit.id,
+                measurement_unit=unit,
+                unit_display="°C",
+            )
+        )
+    action.measures = measures
+    return action
 
 
 def _version(
@@ -191,13 +277,43 @@ def test_copied_snapshots_with_fresh_row_ids_have_no_changes() -> None:
             )
         ],
     )
+    mix = _action_type("mix")
+    base.instructions[0].actions = [
+        _action(
+            row_id=1_200,
+            version_id=base_id,
+            instruction_id=1_100,
+            display_order=0,
+            action_type=mix,
+            inputs=[base.ingredients[0]],
+            duration=Decimal("5"),
+        )
+    ]
+    target.instructions[0].actions = [
+        _action(
+            row_id=2_200,
+            version_id=target_id,
+            instruction_id=2_100,
+            display_order=0,
+            action_type=mix,
+            inputs=[target.ingredients[0]],
+            duration=Decimal("5.0000"),
+        )
+    ]
 
     diff = build_recipe_diff(base, target, set())
 
     assert base.ingredients[0].id != target.ingredients[0].id
     assert base.instructions[0].id != target.instructions[0].id
+    assert base.instructions[0].actions[0].id != target.instructions[0].actions[0].id
+    assert (
+        base.instructions[0].actions[0].inputs[0].id
+        != target.instructions[0].actions[0].inputs[0].id
+    )
     assert diff.metadata_changes == []
     _assert_no_content_changes(diff)
+    assert [item.id for item in diff.ingredient_context.base] == [base.ingredients[0].id]
+    assert [item.id for item in diff.ingredient_context.target] == [target.ingredients[0].id]
     assert diff.has_changes is False
 
 
@@ -957,3 +1073,425 @@ def test_instruction_additions_and_removals_remain_separate_from_ingredient_chan
     assert [item.text for item in reverse.instructions.removed] == ["Serve."]
     assert reverse.instructions.added == []
     assert reverse.instructions.modified == []
+
+
+def test_structured_action_changes_use_granular_fixed_field_order() -> None:
+    flour = _catalog_ingredient(90, "Flour")
+    salt = _catalog_ingredient(91, "Salt")
+    mix = _action_type("mix")
+    bake = _action_type("bake")
+    base_id = _id(900)
+    target_id = _id(901)
+    base_ingredients = [
+        _ingredient(
+            row_id=9_000,
+            version_id=base_id,
+            catalog=flour,
+            display_order=0,
+            quantity=Decimal("2"),
+            unit="cup",
+        ),
+        _ingredient(
+            row_id=9_001,
+            version_id=base_id,
+            catalog=salt,
+            display_order=1,
+            quantity=Decimal("1"),
+            unit="tsp",
+        ),
+    ]
+    target_ingredients = [
+        _ingredient(
+            row_id=9_010,
+            version_id=target_id,
+            catalog=flour,
+            display_order=0,
+            quantity=Decimal("2"),
+            unit="cup",
+        ),
+        _ingredient(
+            row_id=9_011,
+            version_id=target_id,
+            catalog=salt,
+            display_order=1,
+            quantity=Decimal("1"),
+            unit="tsp",
+        ),
+    ]
+    base_instruction = _instruction(
+        row_id=9_100,
+        version_id=base_id,
+        display_order=0,
+        text="Mix, then bake.",
+        actions=[
+            _action(
+                row_id=9_200,
+                version_id=base_id,
+                instruction_id=9_100,
+                display_order=0,
+                action_type=mix,
+                inputs=[base_ingredients[0]],
+            ),
+            _action(
+                row_id=9_201,
+                version_id=base_id,
+                instruction_id=9_100,
+                display_order=1,
+                action_type=bake,
+                inputs=[base_ingredients[0]],
+                duration=Decimal("30"),
+                temperature=Decimal("180"),
+            ),
+        ],
+    )
+    target_instruction = _instruction(
+        row_id=9_110,
+        version_id=target_id,
+        display_order=0,
+        text="Mix carefully, then bake.",
+        actions=[
+            _action(
+                row_id=9_210,
+                version_id=target_id,
+                instruction_id=9_110,
+                display_order=1,
+                action_type=mix,
+                inputs=[target_ingredients[1]],
+            ),
+            _action(
+                row_id=9_211,
+                version_id=target_id,
+                instruction_id=9_110,
+                display_order=0,
+                action_type=bake,
+                inputs=[target_ingredients[0]],
+                duration=Decimal("35"),
+                temperature=Decimal("190"),
+            ),
+        ],
+    )
+    base = _version(
+        version_id=base_id.int,
+        version_number=1,
+        ingredients=base_ingredients,
+        instructions=[base_instruction],
+    )
+    target = _version(
+        version_id=target_id.int,
+        version_number=2,
+        parent_version_id=base_id,
+        ingredients=target_ingredients,
+        instructions=[target_instruction],
+    )
+
+    diff = build_recipe_diff(base, target, set())
+
+    assert len(diff.instructions.modified) == 1
+    assert diff.instructions.modified[0].changed_fields == [
+        "text",
+        "inputs",
+        "action_order",
+        "duration",
+        "temperature",
+    ]
+    assert diff.instructions.modified[0].before.actions[0].ingredient_occurrence_ids == [
+        base_ingredients[0].id
+    ]
+    assert diff.instructions.modified[0].after.actions[1].ingredient_occurrence_ids == [
+        target_ingredients[1].id
+    ]
+
+
+def test_action_membership_and_action_order_are_distinct_changes() -> None:
+    flour = _catalog_ingredient(92, "Flour")
+    mix = _action_type("mix")
+    bake = _action_type("bake")
+    base_id = _id(920)
+    reordered_id = _id(921)
+    added_id = _id(922)
+    base_ingredient = _ingredient(
+        row_id=9_200,
+        version_id=base_id,
+        catalog=flour,
+        display_order=0,
+        quantity=Decimal("2"),
+        unit="cup",
+    )
+    reordered_ingredient = _ingredient(
+        row_id=9_210,
+        version_id=reordered_id,
+        catalog=flour,
+        display_order=0,
+        quantity=Decimal("2"),
+        unit="cup",
+    )
+    added_ingredient = _ingredient(
+        row_id=9_220,
+        version_id=added_id,
+        catalog=flour,
+        display_order=0,
+        quantity=Decimal("2"),
+        unit="cup",
+    )
+
+    def instruction_with_actions(
+        *,
+        row_id: int,
+        version_id: UUID,
+        ingredient: RecipeIngredient,
+        action_types: list[CookingActionType],
+    ) -> RecipeInstruction:
+        return _instruction(
+            row_id=row_id,
+            version_id=version_id,
+            display_order=0,
+            text="Prepare the batter.",
+            actions=[
+                _action(
+                    row_id=row_id + 100 + index,
+                    version_id=version_id,
+                    instruction_id=row_id,
+                    display_order=index,
+                    action_type=action_type,
+                    inputs=[ingredient],
+                )
+                for index, action_type in enumerate(action_types)
+            ],
+        )
+
+    base = _version(
+        version_id=base_id.int,
+        version_number=1,
+        ingredients=[base_ingredient],
+        instructions=[
+            instruction_with_actions(
+                row_id=9_300,
+                version_id=base_id,
+                ingredient=base_ingredient,
+                action_types=[mix, bake],
+            )
+        ],
+    )
+    reordered = _version(
+        version_id=reordered_id.int,
+        version_number=2,
+        parent_version_id=base_id,
+        ingredients=[reordered_ingredient],
+        instructions=[
+            instruction_with_actions(
+                row_id=9_310,
+                version_id=reordered_id,
+                ingredient=reordered_ingredient,
+                action_types=[bake, mix],
+            )
+        ],
+    )
+    added = _version(
+        version_id=added_id.int,
+        version_number=2,
+        parent_version_id=base_id,
+        ingredients=[added_ingredient],
+        instructions=[
+            instruction_with_actions(
+                row_id=9_320,
+                version_id=added_id,
+                ingredient=added_ingredient,
+                action_types=[mix, bake, _action_type("rest")],
+            )
+        ],
+    )
+
+    reordered_diff = build_recipe_diff(base, reordered, set())
+    added_diff = build_recipe_diff(base, added, set())
+
+    assert reordered_diff.instructions.modified[0].changed_fields == ["action_order"]
+    assert added_diff.instructions.modified[0].changed_fields == ["actions"]
+
+
+def test_repeated_ingredient_content_convergence_does_not_change_action_input() -> None:
+    salt = _catalog_ingredient(93, "Salt")
+    mix = _action_type("mix")
+    base_id = _id(930)
+    target_id = _id(931)
+    base_ingredients = [
+        _ingredient(
+            row_id=9_300,
+            version_id=base_id,
+            catalog=salt,
+            display_order=0,
+            quantity=Decimal("1"),
+            unit="tsp",
+        ),
+        _ingredient(
+            row_id=9_301,
+            version_id=base_id,
+            catalog=salt,
+            display_order=1,
+            quantity=Decimal("2"),
+            unit="tsp",
+        ),
+    ]
+    target_ingredients = [
+        _ingredient(
+            row_id=9_310,
+            version_id=target_id,
+            catalog=salt,
+            display_order=0,
+            quantity=Decimal("2"),
+            unit="tsp",
+        ),
+        _ingredient(
+            row_id=9_311,
+            version_id=target_id,
+            catalog=salt,
+            display_order=1,
+            quantity=Decimal("2"),
+            unit="tsp",
+        ),
+    ]
+    base = _version(
+        version_id=base_id.int,
+        version_number=1,
+        ingredients=base_ingredients,
+        instructions=[
+            _instruction(
+                row_id=9_320,
+                version_id=base_id,
+                display_order=0,
+                text="Mix in the first salt portion.",
+                actions=[
+                    _action(
+                        row_id=9_330,
+                        version_id=base_id,
+                        instruction_id=9_320,
+                        display_order=0,
+                        action_type=mix,
+                        inputs=[base_ingredients[0]],
+                    )
+                ],
+            )
+        ],
+    )
+    target = _version(
+        version_id=target_id.int,
+        version_number=2,
+        parent_version_id=base_id,
+        ingredients=target_ingredients,
+        instructions=[
+            _instruction(
+                row_id=9_321,
+                version_id=target_id,
+                display_order=0,
+                text="Mix in the first salt portion.",
+                actions=[
+                    _action(
+                        row_id=9_331,
+                        version_id=target_id,
+                        instruction_id=9_321,
+                        display_order=0,
+                        action_type=mix,
+                        inputs=[target_ingredients[0]],
+                    )
+                ],
+            )
+        ],
+    )
+
+    diff = build_recipe_diff(base, target, set())
+
+    assert [item.changed_fields for item in diff.ingredients.modified] == [["measure"]]
+    assert diff.instructions.modified == []
+
+
+def test_repeated_action_content_convergence_does_not_change_action_order() -> None:
+    flour = _catalog_ingredient(94, "Flour")
+    mix = _action_type("mix")
+    base_id = _id(940)
+    target_id = _id(941)
+    base_ingredient = _ingredient(
+        row_id=9_400,
+        version_id=base_id,
+        catalog=flour,
+        display_order=0,
+        quantity=Decimal("2"),
+        unit="cup",
+    )
+    target_ingredient = _ingredient(
+        row_id=9_410,
+        version_id=target_id,
+        catalog=flour,
+        display_order=0,
+        quantity=Decimal("2"),
+        unit="cup",
+    )
+    base = _version(
+        version_id=base_id.int,
+        version_number=1,
+        ingredients=[base_ingredient],
+        instructions=[
+            _instruction(
+                row_id=9_420,
+                version_id=base_id,
+                display_order=0,
+                text="Mix twice.",
+                actions=[
+                    _action(
+                        row_id=9_430,
+                        version_id=base_id,
+                        instruction_id=9_420,
+                        display_order=0,
+                        action_type=mix,
+                        inputs=[base_ingredient],
+                        duration=Decimal("5"),
+                    ),
+                    _action(
+                        row_id=9_431,
+                        version_id=base_id,
+                        instruction_id=9_420,
+                        display_order=1,
+                        action_type=mix,
+                        inputs=[base_ingredient],
+                        duration=Decimal("10"),
+                    ),
+                ],
+            )
+        ],
+    )
+    target = _version(
+        version_id=target_id.int,
+        version_number=2,
+        parent_version_id=base_id,
+        ingredients=[target_ingredient],
+        instructions=[
+            _instruction(
+                row_id=9_421,
+                version_id=target_id,
+                display_order=0,
+                text="Mix twice.",
+                actions=[
+                    _action(
+                        row_id=9_440,
+                        version_id=target_id,
+                        instruction_id=9_421,
+                        display_order=0,
+                        action_type=mix,
+                        inputs=[target_ingredient],
+                        duration=Decimal("10"),
+                    ),
+                    _action(
+                        row_id=9_441,
+                        version_id=target_id,
+                        instruction_id=9_421,
+                        display_order=1,
+                        action_type=mix,
+                        inputs=[target_ingredient],
+                        duration=Decimal("10"),
+                    ),
+                ],
+            )
+        ],
+    )
+
+    diff = build_recipe_diff(base, target, set())
+
+    assert diff.instructions.modified[0].changed_fields == ["duration"]

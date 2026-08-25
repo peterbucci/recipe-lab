@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { fetchCookingActionTypes } from "../../../../lib/cooking-action-api";
 import { fetchRecipe, isRecipeVersionId } from "../../../../lib/recipe-api";
 import { fetchMeasurementUnits } from "../../../../lib/measurement-unit-api";
 import { RecipeForkGate } from "../../../components/recipe-fork-gate";
@@ -24,13 +25,31 @@ export default async function RecipeVariantPage({ params }: RecipeVariantPagePro
     notFound();
   }
 
-  const [recipe, measurementUnits] = await Promise.all([
+  const [
+    recipe,
+    ingredientUnits,
+    durationUnits,
+    temperatureUnits,
+    actionTypes,
+  ] = await Promise.all([
     fetchRecipe(recipeVersionId),
     fetchMeasurementUnits("ingredient_amount"),
+    fetchMeasurementUnits("action_duration"),
+    fetchMeasurementUnits("temperature"),
+    fetchCookingActionTypes(),
   ]);
   if (recipe === null) {
     notFound();
   }
+
+  const measurementUnits = Array.from(
+    new Map(
+      [...ingredientUnits, ...durationUnits, ...temperatureUnits].map((unit) => [
+        unit.id,
+        unit,
+      ]),
+    ).values(),
+  );
 
   return (
     <RecipeForkGate recipeTitle={recipe.title} recipeVersionId={recipe.id}>
@@ -48,7 +67,11 @@ export default async function RecipeVariantPage({ params }: RecipeVariantPagePro
             version stays connected to it.
           </p>
         </header>
-        <RecipeVariantEditor sourceRecipe={recipe} measurementUnits={measurementUnits} />
+        <RecipeVariantEditor
+          sourceRecipe={recipe}
+          measurementUnits={measurementUnits}
+          actionTypes={actionTypes}
+        />
       </main>
     </RecipeForkGate>
   );

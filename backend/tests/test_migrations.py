@@ -11,11 +11,13 @@ from sqlalchemy import Connection, Engine, inspect
 from sqlalchemy.exc import IntegrityError
 
 from app.measurement_audit import build_legacy_measurement_audit
-from app.seeds.identifiers import measurement_uuid
+from app.seeds.catalog import load_bundled_catalog
+from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
 
 DOMAIN_TABLES = {
     "allergens",
     "catalog_curators",
+    "cooking_action_types",
     "dietary_flags",
     "ingredient_aliases",
     "ingredient_catalog_audit_events",
@@ -34,6 +36,9 @@ DOMAIN_TABLES = {
     "oidc_login_transactions",
     "preference_events",
     "recipe_lineages",
+    "recipe_instruction_action_inputs",
+    "recipe_instruction_action_measures",
+    "recipe_instruction_actions",
     "recipe_ratings",
     "recipe_saves",
     "recipe_version_ingredients",
@@ -138,6 +143,19 @@ def test_migrations_round_trip_on_empty_postgres_schema(
     }
     assert ingredient_columns["ingredient_id"]["nullable"] is False
     assert ingredient_columns["measure_mode"]["nullable"] is False
+    action_input_foreign_keys = {
+        foreign_key["name"]: (
+            tuple(foreign_key["constrained_columns"]),
+            tuple(foreign_key["referred_columns"]),
+        )
+        for foreign_key in upgraded_inspector.get_foreign_keys("recipe_instruction_action_inputs")
+    }
+    assert action_input_foreign_keys[
+        "fk_recipe_instruction_action_inputs_ingredient_same_version"
+    ] == (
+        ("recipe_version_id", "recipe_ingredient_id"),
+        ("recipe_version_id", "id"),
+    )
     quantity_min_type = ingredient_columns["quantity_min"]["type"]
     quantity_max_type = ingredient_columns["quantity_max"]["type"]
     unit_display_type = ingredient_columns["unit_display"]["type"]
@@ -594,6 +612,161 @@ def test_measurement_downgrade_refuses_non_seed_catalog_metadata(
             )
             == 1
         )
+
+
+def _insert_seed_action_migration_fixture(
+    connection: Connection,
+) -> tuple[UUID, UUID]:
+    catalog = load_bundled_catalog()
+    recipe = next(item for item in catalog.recipes if item.key == "blueberry-oat-muffins-v1")
+    instruction = next(item for item in recipe.instructions if item.key == "prepare")
+    dataset_id = catalog.metadata.dataset_id
+    user_id = uuid4()
+    lineage_id = seed_uuid(dataset_id, "recipe-lineage", recipe.key)
+    version_id = seed_uuid(dataset_id, "recipe-version", recipe.key)
+    instruction_id = seed_uuid(
+        dataset_id,
+        "recipe-instruction",
+        f"{recipe.key}:{instruction.key}",
+    )
+    non_seed_instruction_id = uuid4()
+    metadata = sa.MetaData()
+    users = sa.Table("users", metadata, autoload_with=connection)
+    lineages = sa.Table("recipe_lineages", metadata, autoload_with=connection)
+    versions = sa.Table("recipe_versions", metadata, autoload_with=connection)
+    instructions = sa.Table(
+        "recipe_version_instructions",
+        metadata,
+        autoload_with=connection,
+    )
+    connection.execute(
+        users.insert().values(
+            id=user_id,
+            email=f"action-migration-{user_id}@example.com",
+            display_name="Action migration test",
+        )
+    )
+    connection.execute(lineages.insert().values(id=lineage_id, created_by_user_id=user_id))
+    connection.execute(
+        versions.insert().values(
+            id=version_id,
+            lineage_id=lineage_id,
+            parent_version_id=None,
+            created_by_user_id=user_id,
+            version_number=1,
+            title=recipe.title,
+            description=recipe.description,
+            servings=recipe.servings,
+        )
+    )
+    connection.execute(
+        instructions.insert(),
+        [
+            {
+                "id": instruction_id,
+                "recipe_version_id": version_id,
+                "instruction": instruction.text,
+                "display_order": 0,
+            },
+            {
+                "id": non_seed_instruction_id,
+                "recipe_version_id": version_id,
+                "instruction": instruction.text,
+                "display_order": 1,
+            },
+        ],
+    )
+    return instruction_id, non_seed_instruction_id
+
+
+def test_action_migration_uses_only_explicit_seed_mappings(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260824_0009")
+        instruction_id, non_seed_instruction_id = _insert_seed_action_migration_fixture(connection)
+        command.upgrade(alembic_config, "head")
+
+        mapped = connection.execute(
+            sa.text(
+                """
+                SELECT id, action_type_id, display_order
+                FROM recipe_instruction_actions
+                WHERE recipe_instruction_id = :instruction_id
+                ORDER BY display_order
+                """
+            ),
+            {"instruction_id": instruction_id},
+        ).all()
+        inferred = connection.scalar(
+            sa.text(
+                """
+                SELECT count(*)
+                FROM recipe_instruction_actions
+                WHERE recipe_instruction_id = :instruction_id
+                """
+            ),
+            {"instruction_id": non_seed_instruction_id},
+        )
+        temperature = connection.execute(
+            sa.text(
+                """
+                SELECT semantic, measure_mode, quantity_min, measurement_unit_id
+                FROM recipe_instruction_action_measures
+                WHERE recipe_instruction_action_id = :action_id
+                """
+            ),
+            {"action_id": mapped[0].id},
+        ).one()
+
+        assert len(mapped) == 2
+        assert mapped[0].action_type_id == action_uuid("action-type", "preheat")
+        assert mapped[1].action_type_id == action_uuid("action-type", "line")
+        assert inferred == 0
+        assert temperature == (
+            "temperature",
+            "exact",
+            Decimal("190.000000"),
+            measurement_uuid("unit", "celsius"),
+        )
+
+        command.downgrade(alembic_config, "20260824_0009")
+        assert MigrationContext.configure(connection).get_current_revision() == "20260824_0009"
+
+
+def test_action_downgrade_refuses_user_authored_structure(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260824_0009")
+        instruction_id, _non_seed_instruction_id = _insert_seed_action_migration_fixture(connection)
+        command.upgrade(alembic_config, "head")
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO recipe_instruction_actions
+                    (id, recipe_version_id, recipe_instruction_id,
+                     action_type_id, display_order)
+                SELECT :id, recipe_version_id, id, :action_type_id, 2
+                FROM recipe_version_instructions
+                WHERE id = :instruction_id
+                """
+            ),
+            {
+                "id": uuid4(),
+                "action_type_id": action_uuid("action-type", "serve"),
+                "instruction_id": instruction_id,
+            },
+        )
+
+        with pytest.raises(RuntimeError, match="downgrade refused"):
+            command.downgrade(alembic_config, "20260824_0009")
+
+        assert MigrationContext.configure(connection).get_current_revision() == ("20260824_0010")
 
 
 def test_secure_account_migration_classifies_seed_users_without_rekeying(

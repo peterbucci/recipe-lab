@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthSession } from "../../lib/auth-api";
 import type { RecipeDetail } from "../../lib/recipe-api";
+import type { RecipeInstructionAction } from "../../lib/structured-action";
 import { AuthSessionProvider } from "./auth-session-provider";
 import { RecipeDetailView } from "./recipe-detail-view";
 
@@ -87,8 +88,18 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
       },
     ],
     instructions: [
-      { id: "step-one", text: "Heat the oven and prepare the pan.", display_order: 0 },
-      { id: "step-two", text: "Fold the dry ingredients into the wet mixture.", display_order: 1 },
+      {
+        id: "step-one",
+        text: "Heat the oven and prepare the pan.",
+        display_order: 0,
+        actions: [],
+      },
+      {
+        id: "step-two",
+        text: "Fold the dry ingredients into the wet mixture.",
+        display_order: 1,
+        actions: [],
+      },
     ],
     ...overrides,
   };
@@ -100,6 +111,27 @@ function renderDetail(recipe: RecipeDetail, session: AuthSession = { status: "an
       <RecipeDetailView recipe={recipe} />
     </AuthSessionProvider>,
   );
+}
+
+function structuredAction(
+  id: string,
+  verb: string,
+  displayOrder: number,
+  ingredientOccurrenceIds: string[] = [],
+): RecipeInstructionAction {
+  return {
+    id,
+    action_type: {
+      id: `type-${id}`,
+      key: verb,
+      canonical_verb: verb,
+      active: true,
+    },
+    display_order: displayOrder,
+    ingredient_occurrence_ids: ingredientOccurrenceIds,
+    duration: null,
+    temperature: null,
+  };
 }
 
 beforeEach(() => {
@@ -164,6 +196,42 @@ describe("RecipeDetailView", () => {
       "/recipes/carrot-v2/fork",
     );
     expect(screen.getByTestId("view-tracker")).toHaveTextContent("carrot-v2");
+  });
+
+  it("keeps prose primary while rendering ordered action structure and exact ingredient occurrences", () => {
+    const recipe = detail();
+    const mix = structuredAction("mix", "mix", 0, ["sugar-line"]);
+    mix.duration = {
+      kind: "exact",
+      value: "5.0000",
+      unit: {
+        id: "minute-unit",
+        key: "minute",
+        dimension: "time",
+        canonical_label: "minute",
+        plural_label: "minutes",
+        symbol: "min",
+        display_style: "word",
+        active: true,
+      },
+      display_unit: "minutes",
+      display: "5 minutes",
+    };
+    const fold = structuredAction("fold", "fold", 1, ["salt-line"]);
+    fold.action_type.active = false;
+    recipe.instructions[0].actions = [fold, mix];
+
+    renderDetail(recipe);
+
+    expect(screen.getByText("Heat the oven and prepare the pan.")).toBeInTheDocument();
+    const actions = screen.getByRole("list", { name: "Structured actions for step 1" });
+    const rendered = within(actions).getAllByRole("listitem");
+    expect(rendered).toHaveLength(2);
+    expect(within(rendered[0]).getByText("mix")).toBeInTheDocument();
+    expect(within(rendered[0]).getByText("Inputs: Ingredient 1: White sugar")).toBeInTheDocument();
+    expect(within(rendered[0]).getByText("Duration: 5 minutes")).toBeInTheDocument();
+    expect(within(rendered[1]).getByText("fold")).toBeInTheDocument();
+    expect(within(rendered[1]).getByText("Historical action")).toBeInTheDocument();
   });
 
   it("renders honest empty aggregate and lineage states without exposing private controls", () => {

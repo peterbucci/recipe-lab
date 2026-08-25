@@ -1,10 +1,11 @@
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, func, select, text
-from sqlalchemy.orm import InstrumentedAttribute, Session
+from sqlalchemy.orm import InstrumentedAttribute, Session, selectinload
 
 from app.catalog_names import lock_catalog_names, normalize_catalog_name
 from app.core.demo_identity import (
@@ -18,6 +19,7 @@ from app.models import (
     ACCOUNT_KIND_DEMO,
     ACCOUNT_KIND_SYSTEM,
     Allergen,
+    CookingActionType,
     DietaryFlag,
     Ingredient,
     IngredientAlias,
@@ -28,15 +30,21 @@ from app.models import (
     MeasurementUnitAlias,
     RecipeIngredient,
     RecipeInstruction,
+    RecipeInstructionAction,
+    RecipeInstructionActionInput,
+    RecipeInstructionActionMeasure,
     RecipeLineage,
     RecipeVersion,
     User,
 )
-from app.seeds.identifiers import measurement_uuid, seed_uuid
+from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
 from app.seeds.schema import (
+    ActionTypeSeed,
+    ExactActionMeasureSeed,
     IngredientSeed,
     MeasurementUnitSeed,
     NamedSeed,
+    RecipeActionSeed,
     RecipeIngredientSeed,
     RecipeInstructionSeed,
     RecipeSeed,
@@ -271,6 +279,71 @@ def _load_measurement_catalog(
     for seed in measurement_catalog.units:
         _load_measurement_conversion(session, seed, units, created_at, report)
     return units
+
+
+def _action_type_values_match(
+    existing: CookingActionType,
+    seed: ActionTypeSeed,
+    created_at: datetime,
+) -> bool:
+    return (
+        existing.key == seed.key
+        and existing.canonical_verb == seed.canonical_verb
+        and existing.active is seed.active
+        and existing.provenance == seed.provenance
+        and existing.created_at == created_at
+    )
+
+
+def _load_action_catalog(
+    session: Session,
+    catalog: SeedCatalog,
+    report: SeedReport,
+) -> dict[str, CookingActionType]:
+    created_at = catalog.action_catalog.metadata.published_at
+    result: dict[str, CookingActionType] = {}
+    for seed in catalog.action_catalog.action_types:
+        expected_id = action_uuid("action-type", seed.key)
+        by_id = session.get(CookingActionType, expected_id)
+        by_key = session.scalars(
+            select(CookingActionType).where(_normalized_match(CookingActionType.key, seed.key))
+        ).one_or_none()
+        if by_id is not None:
+            if by_key is not None and by_key.id != expected_id:
+                raise _conflict(
+                    "cooking action type",
+                    seed.key,
+                    "catalog key belongs to another UUID",
+                )
+            if not _action_type_values_match(by_id, seed, created_at):
+                raise _conflict(
+                    "cooking action type",
+                    seed.key,
+                    "stored fields differ from the catalog",
+                )
+            report.reused["cooking_action_types"] += 1
+            result[seed.key] = by_id
+            continue
+        if by_key is not None:
+            raise _conflict(
+                "cooking action type",
+                seed.key,
+                "catalog key has a non-deterministic UUID",
+            )
+
+        created = CookingActionType(
+            id=expected_id,
+            key=seed.key,
+            canonical_verb=seed.canonical_verb,
+            active=seed.active,
+            provenance=seed.provenance,
+            created_at=created_at,
+        )
+        session.add(created)
+        session.flush()
+        report.created["cooking_action_types"] += 1
+        result[seed.key] = created
+    return result
 
 
 def _get_or_create_category(
@@ -738,6 +811,191 @@ def _recipe_instruction_values_match(
     )
 
 
+def _seed_action_measure_fields(
+    seed: RecipeActionSeed,
+    semantic: str,
+    measurement_units: dict[str, MeasurementUnit],
+) -> tuple[str, Decimal, Decimal | None, UUID, str] | None:
+    measure = seed.duration if semantic == "duration" else seed.temperature
+    if measure is None:
+        return None
+    unit = measurement_units[measure.unit]
+    unit_display = unit.symbol or unit.canonical_label
+    if isinstance(measure, ExactActionMeasureSeed):
+        return "exact", measure.value, None, unit.id, unit_display
+    return "range", measure.minimum, measure.maximum, unit.id, unit_display
+
+
+def _verify_recipe_instruction_actions(
+    session: Session,
+    catalog: SeedCatalog,
+    recipe: RecipeSeed,
+    instruction_seed: RecipeInstructionSeed,
+    instruction: RecipeInstruction,
+    action_types: dict[str, CookingActionType],
+    measurement_units: dict[str, MeasurementUnit],
+) -> None:
+    existing_actions = list(
+        session.scalars(
+            select(RecipeInstructionAction)
+            .options(
+                selectinload(RecipeInstructionAction.inputs),
+                selectinload(RecipeInstructionAction.measures),
+            )
+            .where(RecipeInstructionAction.recipe_instruction_id == instruction.id)
+            .order_by(RecipeInstructionAction.display_order)
+        )
+    )
+    if len(existing_actions) != len(instruction_seed.actions):
+        raise _conflict("recipe version", recipe.key, "instruction actions differ")
+
+    ingredient_seed_by_key = {item.key: item for item in recipe.ingredients}
+    for action_order, (existing_action, action_seed) in enumerate(
+        zip(existing_actions, instruction_seed.actions, strict=True)
+    ):
+        stable_action_key = f"{recipe.key}:{instruction_seed.key}:{action_seed.key}"
+        expected_action_id = seed_uuid(
+            catalog.metadata.dataset_id,
+            "recipe-instruction-action",
+            stable_action_key,
+        )
+        if not (
+            existing_action.id == expected_action_id
+            and existing_action.recipe_version_id == instruction.recipe_version_id
+            and existing_action.recipe_instruction_id == instruction.id
+            and existing_action.action_type_id == action_types[action_seed.action_type].id
+            and existing_action.display_order == action_order
+        ):
+            raise _conflict("recipe version", recipe.key, "instruction actions differ")
+
+        if len(existing_action.inputs) != len(action_seed.inputs):
+            raise _conflict("recipe version", recipe.key, "instruction action inputs differ")
+        for input_order, (existing_input, input_key) in enumerate(
+            zip(existing_action.inputs, action_seed.inputs, strict=True)
+        ):
+            expected_input_id = seed_uuid(
+                catalog.metadata.dataset_id,
+                "recipe-instruction-action-input",
+                f"{stable_action_key}:{input_key}",
+            )
+            expected_ingredient_id = seed_uuid(
+                catalog.metadata.dataset_id,
+                "recipe-ingredient",
+                f"{recipe.key}:{ingredient_seed_by_key[input_key].key}",
+            )
+            if not (
+                existing_input.id == expected_input_id
+                and existing_input.recipe_version_id == instruction.recipe_version_id
+                and existing_input.recipe_instruction_action_id == expected_action_id
+                and existing_input.recipe_ingredient_id == expected_ingredient_id
+                and existing_input.display_order == input_order
+            ):
+                raise _conflict(
+                    "recipe version",
+                    recipe.key,
+                    "instruction action inputs differ",
+                )
+
+        measures_by_semantic = {measure.semantic: measure for measure in existing_action.measures}
+        expected_semantics = {
+            semantic
+            for semantic, measure in (
+                ("duration", action_seed.duration),
+                ("temperature", action_seed.temperature),
+            )
+            if measure is not None
+        }
+        if set(measures_by_semantic) != expected_semantics:
+            raise _conflict("recipe version", recipe.key, "instruction action measures differ")
+        for semantic in sorted(expected_semantics):
+            expected_fields = _seed_action_measure_fields(
+                action_seed,
+                semantic,
+                measurement_units,
+            )
+            if expected_fields is None:
+                raise AssertionError("Expected action measure fields were not produced.")
+            existing_measure = measures_by_semantic[semantic]
+            if (
+                existing_measure.measure_mode,
+                existing_measure.quantity_min,
+                existing_measure.quantity_max,
+                existing_measure.measurement_unit_id,
+                existing_measure.unit_display,
+            ) != expected_fields:
+                raise _conflict(
+                    "recipe version",
+                    recipe.key,
+                    "instruction action measures differ",
+                )
+
+
+def _insert_recipe_instruction_actions(
+    session: Session,
+    catalog: SeedCatalog,
+    recipe: RecipeSeed,
+    instruction_seed: RecipeInstructionSeed,
+    instruction_id: UUID,
+    recipe_version_id: UUID,
+    action_types: dict[str, CookingActionType],
+    measurement_units: dict[str, MeasurementUnit],
+    report: SeedReport,
+) -> None:
+    for action_order, action_seed in enumerate(instruction_seed.actions):
+        stable_action_key = f"{recipe.key}:{instruction_seed.key}:{action_seed.key}"
+        action_id = seed_uuid(
+            catalog.metadata.dataset_id,
+            "recipe-instruction-action",
+            stable_action_key,
+        )
+        session.add(
+            RecipeInstructionAction(
+                id=action_id,
+                recipe_version_id=recipe_version_id,
+                recipe_instruction_id=instruction_id,
+                action_type_id=action_types[action_seed.action_type].id,
+                display_order=action_order,
+            )
+        )
+        report.created["recipe_instruction_actions"] += 1
+        for input_order, input_key in enumerate(action_seed.inputs):
+            session.add(
+                RecipeInstructionActionInput(
+                    id=seed_uuid(
+                        catalog.metadata.dataset_id,
+                        "recipe-instruction-action-input",
+                        f"{stable_action_key}:{input_key}",
+                    ),
+                    recipe_version_id=recipe_version_id,
+                    recipe_instruction_action_id=action_id,
+                    recipe_ingredient_id=seed_uuid(
+                        catalog.metadata.dataset_id,
+                        "recipe-ingredient",
+                        f"{recipe.key}:{input_key}",
+                    ),
+                    display_order=input_order,
+                )
+            )
+            report.created["recipe_instruction_action_inputs"] += 1
+        for semantic in ("duration", "temperature"):
+            fields = _seed_action_measure_fields(action_seed, semantic, measurement_units)
+            if fields is None:
+                continue
+            measure_mode, quantity_min, quantity_max, unit_id, unit_display = fields
+            session.add(
+                RecipeInstructionActionMeasure(
+                    recipe_instruction_action_id=action_id,
+                    semantic=semantic,
+                    measure_mode=measure_mode,
+                    quantity_min=quantity_min,
+                    quantity_max=quantity_max,
+                    measurement_unit_id=unit_id,
+                    unit_display=unit_display,
+                )
+            )
+            report.created["recipe_instruction_action_measures"] += 1
+
+
 def _verify_recipe_snapshot(
     session: Session,
     catalog: SeedCatalog,
@@ -745,6 +1003,7 @@ def _verify_recipe_snapshot(
     version: RecipeVersion,
     ingredients: dict[str, Ingredient],
     measurement_units: dict[str, MeasurementUnit],
+    action_types: dict[str, CookingActionType],
 ) -> None:
     existing_ingredients = list(
         session.scalars(
@@ -803,6 +1062,15 @@ def _verify_recipe_snapshot(
             display_order,
         ):
             raise _conflict("recipe version", seed.key, "instruction snapshot differs")
+        _verify_recipe_instruction_actions(
+            session,
+            catalog,
+            seed,
+            expected_instruction,
+            existing_instruction,
+            action_types,
+            measurement_units,
+        )
 
 
 def _insert_recipe_snapshot(
@@ -812,6 +1080,7 @@ def _insert_recipe_snapshot(
     version: RecipeVersion,
     ingredients: dict[str, Ingredient],
     measurement_units: dict[str, MeasurementUnit],
+    action_types: dict[str, CookingActionType],
     report: SeedReport,
 ) -> None:
     for display_order, item in enumerate(seed.ingredients):
@@ -840,19 +1109,31 @@ def _insert_recipe_snapshot(
         report.created["recipe_ingredients"] += 1
 
     for display_order, instruction in enumerate(seed.instructions):
+        instruction_id = seed_uuid(
+            catalog.metadata.dataset_id,
+            "recipe-instruction",
+            f"{seed.key}:{instruction.key}",
+        )
         session.add(
             RecipeInstruction(
-                id=seed_uuid(
-                    catalog.metadata.dataset_id,
-                    "recipe-instruction",
-                    f"{seed.key}:{instruction.key}",
-                ),
+                id=instruction_id,
                 recipe_version_id=version.id,
                 instruction=instruction.text,
                 display_order=display_order,
             )
         )
         report.created["recipe_instructions"] += 1
+        _insert_recipe_instruction_actions(
+            session,
+            catalog,
+            seed,
+            instruction,
+            instruction_id,
+            version.id,
+            action_types,
+            measurement_units,
+            report,
+        )
     session.flush()
 
 
@@ -864,6 +1145,7 @@ def _load_recipe(
     user: User,
     ingredients: dict[str, Ingredient],
     measurement_units: dict[str, MeasurementUnit],
+    action_types: dict[str, CookingActionType],
     report: SeedReport,
 ) -> RecipeVersion:
     version_id = seed_uuid(catalog.metadata.dataset_id, "recipe-version", seed.key)
@@ -890,10 +1172,24 @@ def _load_recipe(
             existing,
             ingredients,
             measurement_units,
+            action_types,
         )
         report.reused["recipe_versions"] += 1
         report.reused["recipe_ingredients"] += len(seed.ingredients)
         report.reused["recipe_instructions"] += len(seed.instructions)
+        report.reused["recipe_instruction_actions"] += sum(
+            len(instruction.actions) for instruction in seed.instructions
+        )
+        report.reused["recipe_instruction_action_inputs"] += sum(
+            len(action.inputs)
+            for instruction in seed.instructions
+            for action in instruction.actions
+        )
+        report.reused["recipe_instruction_action_measures"] += sum(
+            int(action.duration is not None) + int(action.temperature is not None)
+            for instruction in seed.instructions
+            for action in instruction.actions
+        )
         return existing
 
     created = RecipeVersion(
@@ -916,6 +1212,7 @@ def _load_recipe(
         created,
         ingredients,
         measurement_units,
+        action_types,
         report,
     )
     report.created["recipe_versions"] += 1
@@ -942,6 +1239,7 @@ def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
     )
     report = SeedReport()
     measurement_units = _load_measurement_catalog(session, catalog, report)
+    action_types = _load_action_catalog(session, catalog, report)
     user = _get_or_create_catalog_user(session, catalog, report)
     _get_or_create_demo_user(session, report)
     categories = {
@@ -999,6 +1297,7 @@ def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
             user,
             ingredients,
             measurement_units,
+            action_types,
             report,
         )
 

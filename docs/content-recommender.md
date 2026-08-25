@@ -50,6 +50,14 @@ metadata term. The model does not inspect held-out events, relevance labels,
 descriptions, instructions, quantities, dietary flags, allergens, or
 substitution edges.
 
+That instruction exclusion includes the structured cooking-action graph:
+action types, ingredient-occurrence inputs, action order, duration, and
+temperature are not exported to snapshot v2 and do not affect `content-v1`.
+Using them would require a new snapshot and model version with its own feature
+weights, fingerprints, leakage tests, explanations, and baseline comparison;
+it cannot be introduced under the existing model ID. See
+[structured cooking actions](cooking-actions.md).
+
 ## Signed preference profiles
 
 Training events are ordered by UTC occurrence time and then event UUID. The

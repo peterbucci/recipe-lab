@@ -22,6 +22,9 @@ from app.models import (
     PreferenceEvent,
     RecipeIngredient,
     RecipeInstruction,
+    RecipeInstructionAction,
+    RecipeInstructionActionInput,
+    RecipeInstructionActionMeasure,
     RecipeLineage,
     RecipeRating,
     RecipeSave,
@@ -29,7 +32,7 @@ from app.models import (
     User,
 )
 from app.schemas.recipe_forks import RecipeForkRequest
-from app.seeds.identifiers import measurement_uuid, seed_uuid
+from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
 from app.seeds.loader import CATALOG_USER_KEY
 from app.services.recipe_forks import InvalidRecipeEditsError, fork_recipe_version
 from tests.member_session import (
@@ -50,6 +53,20 @@ CATALOG_USER_ID = seed_uuid(DATASET_ID, "user", CATALOG_USER_KEY)
 
 SUGAR_ROW_ID = seed_uuid(DATASET_ID, "recipe-ingredient", f"{CARROT_ROOT_KEY}:sugar")
 NUTS_ROW_ID = seed_uuid(DATASET_ID, "recipe-ingredient", f"{CARROT_ROOT_KEY}:nuts")
+FLOUR_ROW_ID = seed_uuid(DATASET_ID, "recipe-ingredient", f"{CARROT_ROOT_KEY}:flour")
+CARROT_ROW_ID = seed_uuid(DATASET_ID, "recipe-ingredient", f"{CARROT_ROOT_KEY}:carrot")
+EGGS_ROW_ID = seed_uuid(DATASET_ID, "recipe-ingredient", f"{CARROT_ROOT_KEY}:eggs")
+OIL_ROW_ID = seed_uuid(DATASET_ID, "recipe-ingredient", f"{CARROT_ROOT_KEY}:oil")
+CINNAMON_ROW_ID = seed_uuid(
+    DATASET_ID,
+    "recipe-ingredient",
+    f"{CARROT_ROOT_KEY}:cinnamon",
+)
+BAKING_POWDER_ROW_ID = seed_uuid(
+    DATASET_ID,
+    "recipe-ingredient",
+    f"{CARROT_ROOT_KEY}:baking-powder",
+)
 BAKING_SODA_ROW_ID = seed_uuid(
     DATASET_ID,
     "recipe-ingredient",
@@ -64,6 +81,11 @@ MIX_DRY_INSTRUCTION_ID = seed_uuid(
     DATASET_ID,
     "recipe-instruction",
     f"{CARROT_ROOT_KEY}:mix-dry",
+)
+COMBINE_INSTRUCTION_ID = seed_uuid(
+    DATASET_ID,
+    "recipe-instruction",
+    f"{CARROT_ROOT_KEY}:combine",
 )
 BAKE_INSTRUCTION_ID = seed_uuid(
     DATASET_ID,
@@ -122,10 +144,28 @@ class VersionSnapshot:
 
 def _clear_member_forks(engine: Engine) -> None:
     fork_ids = select(RecipeVersion.id).where(RecipeVersion.created_by_user_id == MEMBER_USER_ID)
+    action_ids = select(RecipeInstructionAction.id).where(
+        RecipeInstructionAction.recipe_version_id.in_(fork_ids)
+    )
     with Session(bind=engine) as session, session.begin():
         session.execute(delete(PreferenceEvent).where(PreferenceEvent.user_id == MEMBER_USER_ID))
         session.execute(delete(RecipeRating).where(RecipeRating.recipe_version_id.in_(fork_ids)))
         session.execute(delete(RecipeSave).where(RecipeSave.recipe_version_id.in_(fork_ids)))
+        session.execute(
+            delete(RecipeInstructionActionMeasure).where(
+                RecipeInstructionActionMeasure.recipe_instruction_action_id.in_(action_ids)
+            )
+        )
+        session.execute(
+            delete(RecipeInstructionActionInput).where(
+                RecipeInstructionActionInput.recipe_version_id.in_(fork_ids)
+            )
+        )
+        session.execute(
+            delete(RecipeInstructionAction).where(
+                RecipeInstructionAction.recipe_version_id.in_(fork_ids)
+            )
+        )
         session.execute(
             delete(RecipeIngredient).where(RecipeIngredient.recipe_version_id.in_(fork_ids))
         )
@@ -196,6 +236,22 @@ def _exact_measure(value: object, unit_id: UUID) -> dict[str, object]:
 
 def _qualitative_measure(value: str = "unspecified") -> dict[str, str]:
     return {"kind": "qualitative", "value": value}
+
+
+def _structured_action(
+    action_type_key: str,
+    *ingredient_occurrence_ids: UUID,
+) -> dict[str, object]:
+    return {
+        "action_type_id": str(action_uuid("action-type", action_type_key)),
+        "ingredient_refs": [
+            {
+                "kind": "existing",
+                "recipe_ingredient_id": str(ingredient_occurrence_id),
+            }
+            for ingredient_occurrence_id in ingredient_occurrence_ids
+        ],
+    }
 
 
 def _action_headers(action_id: UUID | None = None) -> dict[str, str]:
@@ -339,7 +395,7 @@ def test_fork_copies_snapshot_and_persists_lineage_parent_and_author(
         headers=_action_headers(),
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 201, response.text
     detail = _json_object(response.json())
     child_id = UUID(detail["id"])
     assert response.headers["location"] == f"/api/recipes/{child_id}"
@@ -456,12 +512,39 @@ def test_fork_applies_all_structured_edits_without_mutating_parent(
             "text": "Whisk the dry ingredients until evenly combined.",
         },
         {
+            "op": "set_actions",
+            "recipe_instruction_id": str(MIX_DRY_INSTRUCTION_ID),
+            "actions": [
+                _structured_action(
+                    "whisk",
+                    FLOUR_ROW_ID,
+                    CINNAMON_ROW_ID,
+                    BAKING_POWDER_ROW_ID,
+                )
+            ],
+        },
+        {
+            "op": "set_actions",
+            "recipe_instruction_id": str(COMBINE_INSTRUCTION_ID),
+            "actions": [
+                _structured_action("whisk", SUGAR_ROW_ID, EGGS_ROW_ID, OIL_ROW_ID),
+                _structured_action(
+                    "fold",
+                    FLOUR_ROW_ID,
+                    CINNAMON_ROW_ID,
+                    BAKING_POWDER_ROW_ID,
+                ),
+                _structured_action("fold", CARROT_ROW_ID, NUTS_ROW_ID),
+            ],
+        },
+        {
             "op": "remove",
             "recipe_instruction_id": str(BAKE_INSTRUCTION_ID),
         },
         {
             "op": "add",
             "text": "Bake until springy in the center, then cool completely.",
+            "actions": [_structured_action("bake")],
         },
     ]
 
@@ -471,7 +554,7 @@ def test_fork_applies_all_structured_edits_without_mutating_parent(
         headers=_action_headers(),
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 201, response.text
     detail = _json_object(response.json())
     ingredients = cast(list[dict[str, Any]], detail["ingredients"])
     instructions = cast(list[dict[str, Any]], detail["instructions"])

@@ -21,6 +21,7 @@ from app.db.base import Base
 from app.models.common import CreatedAtMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.action import RecipeInstructionAction
     from app.models.engagement import RecipeRating, RecipeSave
     from app.models.ingredient import Ingredient
     from app.models.measurement import IngredientPackageSize, MeasurementUnit
@@ -162,6 +163,11 @@ class RecipeIngredient(UUIDPrimaryKeyMixin, Base):
             "display_order",
             name="uq_recipe_version_ingredients_version_display_order",
         ),
+        UniqueConstraint(
+            "recipe_version_id",
+            "id",
+            name="uq_recipe_version_ingredients_version_id",
+        ),
     )
 
     recipe_version_id: Mapped[UUID] = mapped_column(
@@ -210,6 +216,11 @@ class RecipeInstruction(UUIDPrimaryKeyMixin, Base):
             "display_order",
             name="uq_recipe_version_instructions_version_display_order",
         ),
+        UniqueConstraint(
+            "recipe_version_id",
+            "id",
+            name="uq_recipe_version_instructions_version_id",
+        ),
     )
 
     recipe_version_id: Mapped[UUID] = mapped_column(
@@ -221,3 +232,8 @@ class RecipeInstruction(UUIDPrimaryKeyMixin, Base):
     display_order: Mapped[int] = mapped_column(Integer, nullable=False)
 
     recipe_version: Mapped[RecipeVersion] = relationship(back_populates="instructions")
+    actions: Mapped[list["RecipeInstructionAction"]] = relationship(
+        back_populates="instruction",
+        order_by="RecipeInstructionAction.display_order",
+        passive_deletes="all",
+    )

@@ -16,6 +16,9 @@ from app.models import (
     PreferenceEvent,
     RecipeIngredient,
     RecipeInstruction,
+    RecipeInstructionAction,
+    RecipeInstructionActionInput,
+    RecipeInstructionActionMeasure,
     RecipeRating,
     RecipeSave,
     RecipeVersion,
@@ -90,11 +93,29 @@ def _clear_recommendation_activity(engine: Engine) -> None:
         session.execute(delete(RecipeSave).where(RecipeSave.user_id == MEMBER_USER_ID))
 
         if member_fork_ids:
+            action_ids = select(RecipeInstructionAction.id).where(
+                RecipeInstructionAction.recipe_version_id.in_(member_fork_ids)
+            )
             session.execute(
                 delete(RecipeRating).where(RecipeRating.recipe_version_id.in_(member_fork_ids))
             )
             session.execute(
                 delete(RecipeSave).where(RecipeSave.recipe_version_id.in_(member_fork_ids))
+            )
+            session.execute(
+                delete(RecipeInstructionActionMeasure).where(
+                    RecipeInstructionActionMeasure.recipe_instruction_action_id.in_(action_ids)
+                )
+            )
+            session.execute(
+                delete(RecipeInstructionActionInput).where(
+                    RecipeInstructionActionInput.recipe_version_id.in_(member_fork_ids)
+                )
+            )
+            session.execute(
+                delete(RecipeInstructionAction).where(
+                    RecipeInstructionAction.recipe_version_id.in_(member_fork_ids)
+                )
             )
             session.execute(
                 delete(RecipeIngredient).where(
