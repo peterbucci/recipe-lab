@@ -4,6 +4,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import {
   IngredientCatalogApiError,
+  type MissingIngredientRequest,
   submitMissingIngredientRequest,
 } from "../../lib/ingredient-catalog-api";
 
@@ -12,6 +13,7 @@ interface MissingIngredientRequestPanelProps {
   idPrefix: string;
   initialName: string;
   onClose: () => void;
+  onSubmitted?: (request: MissingIngredientRequest) => void;
 }
 
 interface RequestFieldErrors {
@@ -38,6 +40,7 @@ export function MissingIngredientRequestPanel({
   idPrefix,
   initialName,
   onClose,
+  onSubmitted,
 }: MissingIngredientRequestPanelProps) {
   const proposedNameRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
@@ -90,6 +93,7 @@ export function MissingIngredientRequestPanel({
         context: context.trim() || null,
       });
       setSubmitted(true);
+      onSubmitted?.(request);
       setStatusMessage(
         `${request.proposed_name} was submitted for review. It cannot be used in a recipe unless a curator approves it.`,
       );

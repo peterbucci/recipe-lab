@@ -112,9 +112,11 @@ function deferred<T>() {
 
 function PickerHarness({
   initialValue = null,
+  onRequest,
   onSelection,
 }: {
   initialValue?: CatalogIngredientSelection | null;
+  onRequest?: (request: MissingIngredientRequest) => void;
   onSelection?: (selection: CatalogIngredientSelection | null) => void;
 }) {
   const [selection, setSelection] = useState(initialValue);
@@ -124,6 +126,7 @@ function PickerHarness({
       contextLabel="test ingredient"
       label="Ingredient"
       value={selection}
+      onRequestSubmitted={onRequest}
       onChange={(next) => {
         setSelection(next);
         onSelection?.(next);
@@ -269,7 +272,8 @@ describe("IngredientCatalogPicker", () => {
     );
     vi.mocked(submitMissingIngredientRequest).mockResolvedValue(request(unsafeName));
     const onSelection = vi.fn();
-    render(<PickerHarness onSelection={onSelection} />);
+    const onRequest = vi.fn();
+    render(<PickerHarness onRequest={onRequest} onSelection={onSelection} />);
 
     const search = screen.getByRole("searchbox", { name: "Ingredient" });
     fireEvent.change(search, { target: { value: unsafeName } });
@@ -300,6 +304,11 @@ describe("IngredientCatalogPicker", () => {
     expect(document.querySelector("img")).toBeNull();
     expect(search).toHaveValue(unsafeName);
     expect(onSelection).not.toHaveBeenCalled();
+    expect(onRequest).toHaveBeenCalledWith(expect.objectContaining({
+      id: REQUEST_ID,
+      proposed_name: unsafeName,
+      status: "pending",
+    }));
   });
 
   it("preserves request input after a duplicate response", async () => {

@@ -1,20 +1,21 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { AuthApiError, signOut } from "../../lib/auth-api";
 import { useAuthSession } from "./auth-session-provider";
+import { GuardedLink, useNavigationBlocker } from "./navigation-blocker-provider";
 
 export function AccountMenu() {
   const router = useRouter();
   const { state, refreshSession, replaceSession } = useAuthSession();
+  const { confirmNavigation, setBlocked } = useNavigationBlocker();
   const [signOutPending, setSignOutPending] = useState(false);
   const [signOutError, setSignOutError] = useState("");
 
   async function handleSignOut() {
-    if (signOutPending) {
+    if (signOutPending || !confirmNavigation()) {
       return;
     }
 
@@ -22,6 +23,7 @@ export function AccountMenu() {
     setSignOutError("");
     try {
       await signOut();
+      setBlocked(false);
       replaceSession({ status: "anonymous" });
       router.replace("/");
       router.refresh();
@@ -58,9 +60,9 @@ export function AccountMenu() {
 
   if (state.session.status === "anonymous") {
     return (
-      <Link className="button button--primary account-sign-in" href="/sign-in">
+      <GuardedLink className="button button--primary account-sign-in" href="/sign-in">
         Sign in
-      </Link>
+      </GuardedLink>
     );
   }
 
@@ -79,20 +81,25 @@ export function AccountMenu() {
           {user.handle ? <span>@{user.handle}</span> : <span>Account setup not finished</span>}
         </p>
         {state.session.status === "onboarding_required" ? (
-          <Link className="account-menu__link" href="/onboarding">
+          <GuardedLink className="account-menu__link" href="/onboarding">
             Finish account setup
-          </Link>
+          </GuardedLink>
         ) : null}
         {state.session.status === "authenticated" ? (
-          <Link className="account-menu__link" href="/account/ingredient-requests">
+          <GuardedLink className="account-menu__link" href="/account/ingredient-requests">
             My ingredient requests
-          </Link>
+          </GuardedLink>
+        ) : null}
+        {state.session.status === "authenticated" ? (
+          <GuardedLink className="account-menu__link" href="/account/recipe-drafts">
+            My recipe drafts
+          </GuardedLink>
         ) : null}
         {state.session.status === "authenticated" &&
         state.session.capabilities?.review_ingredient_requests ? (
-          <Link className="account-menu__link" href="/catalog/ingredient-requests">
+          <GuardedLink className="account-menu__link" href="/catalog/ingredient-requests">
             Review ingredient requests
-          </Link>
+          </GuardedLink>
         ) : null}
         <button
           className="account-menu__action"
