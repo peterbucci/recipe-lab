@@ -52,6 +52,19 @@ from app.models.recipe import (
     RecipeLineage,
     RecipeVersion,
 )
+from app.models.recipe_duplicate import (
+    RECIPE_DUPLICATE_CANDIDATE_CLASSIFICATIONS,
+    RECIPE_DUPLICATE_CLASSIFICATIONS,
+    RECIPE_DUPLICATE_DECISION_CONTINUE,
+    RECIPE_DUPLICATE_DECISION_REVISE,
+    RECIPE_DUPLICATE_DECISIONS,
+    RECIPE_DUPLICATE_DISTINCT,
+    RECIPE_DUPLICATE_EXACT,
+    RECIPE_DUPLICATE_PROBABLE,
+    RecipeDuplicateCandidate,
+    RecipeDuplicateDecision,
+    RecipeDuplicatePreflight,
+)
 from app.models.recipe_fingerprint import RecipeStructuralFingerprint
 from app.models.user import (
     ACCOUNT_KIND_DEMO,
@@ -117,6 +130,17 @@ __all__ = [
     "RecipeLineage",
     "RecipeRating",
     "RecipeSave",
+    "RECIPE_DUPLICATE_CANDIDATE_CLASSIFICATIONS",
+    "RECIPE_DUPLICATE_CLASSIFICATIONS",
+    "RECIPE_DUPLICATE_DECISION_CONTINUE",
+    "RECIPE_DUPLICATE_DECISION_REVISE",
+    "RECIPE_DUPLICATE_DECISIONS",
+    "RECIPE_DUPLICATE_DISTINCT",
+    "RECIPE_DUPLICATE_EXACT",
+    "RECIPE_DUPLICATE_PROBABLE",
+    "RecipeDuplicateCandidate",
+    "RecipeDuplicateDecision",
+    "RecipeDuplicatePreflight",
     "RecipeStructuralFingerprint",
     "RecipeVersion",
     "USER_ACCOUNT_KINDS",
