@@ -34,6 +34,7 @@ from app.schemas.recipes import (
     RecipeSummary,
     RecipeVersionReference,
 )
+from app.services.measurements import serialize_measure
 from app.services.preference_events import (
     IdempotencyKeyConflictError,
     PreferenceEventIntent,
@@ -139,8 +140,13 @@ def _ingredient(item: RecipeIngredient) -> RecipeIngredientResponse:
         ingredient_id=item.ingredient_id,
         canonical_name=item.ingredient.canonical_name,
         display_name=item.name,
-        quantity=item.quantity,
-        unit=item.unit,
+        measure=serialize_measure(
+            kind=item.measure_mode,
+            quantity_min=item.quantity_min,
+            quantity_max=item.quantity_max,
+            unit=item.measurement_unit,
+            package_size_id=item.package_size_id,
+        ),
         preparation_notes=item.preparation_notes,
         display_order=item.display_order,
     )

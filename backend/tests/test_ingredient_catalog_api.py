@@ -340,6 +340,7 @@ def test_request_submission_requires_member_csrf_and_stays_out_of_catalog(
                     "op": "add",
                     "ingredient_id": body["id"],
                     "display_name": "Romanesco leaf",
+                    "measure": {"kind": "qualitative", "value": "unspecified"},
                 }
             ],
             "instruction_edits": [],

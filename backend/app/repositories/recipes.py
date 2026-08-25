@@ -93,7 +93,10 @@ def get_recipe_version(
         .options(
             joinedload(RecipeVersion.parent),
             selectinload(RecipeVersion.descendants),
-            selectinload(RecipeVersion.ingredients).joinedload(RecipeIngredient.ingredient),
+            selectinload(RecipeVersion.ingredients).options(
+                joinedload(RecipeIngredient.ingredient),
+                joinedload(RecipeIngredient.measurement_unit),
+            ),
             selectinload(RecipeVersion.instructions),
             raiseload("*"),
         )

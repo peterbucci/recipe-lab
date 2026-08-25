@@ -15,8 +15,7 @@ type RecipeFieldValue = str | Decimal | None
 type RecipeIngredientChangedField = Literal[
     "ingredient",
     "display_name",
-    "quantity",
-    "unit",
+    "measure",
     "preparation_notes",
 ]
 type RecipeInstructionChangedField = Literal["text"]

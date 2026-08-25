@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from decimal import Decimal
 from importlib import resources
@@ -10,7 +10,12 @@ from pydantic import ValidationError
 
 from app.core.demo_identity import DEMO_USER_ID, DEMO_USER_KEY
 from app.seeds.catalog import load_bundled_catalog
-from app.seeds.identifiers import SEED_NAMESPACE, seed_uuid
+from app.seeds.identifiers import (
+    MEASUREMENT_NAMESPACE,
+    SEED_NAMESPACE,
+    measurement_uuid,
+    seed_uuid,
+)
 from app.seeds.loader import CATALOG_USER_KEY
 from app.seeds.schema import RecipeSeed, SeedCatalog
 
@@ -55,6 +60,14 @@ def _all_seed_ids(catalog: SeedCatalog) -> list[UUID]:
         seed_uuid(dataset_id, "user", CATALOG_USER_KEY),
         seed_uuid(dataset_id, "user", DEMO_USER_KEY),
     ]
+    identifiers.extend(
+        measurement_uuid("unit", unit.key) for unit in catalog.measurement_catalog.units
+    )
+    identifiers.extend(
+        measurement_uuid("unit-alias", f"{unit.key}:{alias.key}")
+        for unit in catalog.measurement_catalog.units
+        for alias in unit.aliases
+    )
     identifiers.extend(
         seed_uuid(dataset_id, "ingredient-category", category.key)
         for category in catalog.categories
@@ -141,6 +154,70 @@ def test_catalog_has_the_golden_recipe_counts_and_complete_structure(
         for recipe in seed_catalog.recipes
         for item in recipe.ingredients
     )
+
+
+def test_measurement_catalog_is_complete_and_legacy_mapping_is_exact(
+    seed_catalog: SeedCatalog,
+) -> None:
+    measurement_catalog = seed_catalog.measurement_catalog
+    units = {unit.key: unit for unit in measurement_catalog.units}
+    distribution = Counter(
+        item.unit for recipe in seed_catalog.recipes for item in recipe.ingredients
+    )
+
+    assert measurement_catalog.metadata.version == 1
+    assert measurement_catalog.metadata.namespace_url == (
+        "https://github.com/peterbucci/recipe-lab/measurement-catalog/v1"
+    )
+    assert set(units) == {
+        "mg",
+        "g",
+        "kg",
+        "ml",
+        "l",
+        "tsp",
+        "tbsp",
+        "cup",
+        "count",
+        "clove",
+        "slice",
+        "second",
+        "minute",
+        "hour",
+        "celsius",
+        "fahrenheit",
+        "can",
+        "bunch",
+        "package",
+    }
+    assert {unit.dimension for unit in units.values()} == {
+        "mass",
+        "volume",
+        "count",
+        "time",
+        "temperature",
+        "package",
+    }
+    assert sum(unit.conversion is not None for unit in units.values()) == 10
+    assert units["fahrenheit"].conversion is not None
+    assert units["fahrenheit"].conversion.offset_numerator == -32
+    assert units["fahrenheit"].conversion.scale_numerator == 5
+    assert units["fahrenheit"].conversion.scale_denominator == 9
+    assert units["tsp"].conversion is None
+    assert units["tbsp"].conversion is None
+    assert units["cup"].conversion is None
+    assert {alias.alias for alias in units["g"].aliases} >= {"grams"}
+    assert distribution == {
+        "g": 166,
+        "ml": 58,
+        "tsp": 25,
+        "clove": 15,
+        "count": 10,
+        "tbsp": 6,
+        "slice": 1,
+    }
+    assert None not in distribution
+    assert sum(distribution.values()) == 281
 
 
 def test_recipe_graph_has_branching_depth_and_the_carrot_cake_demo(
@@ -286,6 +363,7 @@ def test_all_seed_owned_ids_are_unique_uuid5_values_with_stable_sentinels(
     identifiers = _all_seed_ids(seed_catalog)
 
     assert SEED_NAMESPACE == UUID("f3d73e68-808e-501b-bd50-2ec5181abd92")
+    assert MEASUREMENT_NAMESPACE == UUID("3f63d3c0-bb27-5540-92aa-c8b23cf95a13")
     assert identifiers == _all_seed_ids(seed_catalog)
     assert all(identifier.version == 5 for identifier in identifiers)
     assert len(identifiers) == len(set(identifiers))
@@ -309,6 +387,30 @@ def test_all_seed_owned_ids_are_unique_uuid5_values_with_stable_sentinels(
     assert seed_uuid(dataset_id, "recipe-version", CARROT_PECAN_KEY) == UUID(
         "1494c532-7bec-5208-8bf7-e5f48057697b"
     )
+    assert measurement_uuid("unit", "g") == UUID("4a4df044-7982-5ad0-9afd-96ca25b2691f")
+    assert measurement_uuid("unit-alias", "g:grams") == UUID("224daafa-bb7b-5f4d-aa17-198efafdf264")
+
+
+def test_catalog_rejects_unknown_and_ambiguous_measurement_references(
+    seed_catalog: SeedCatalog,
+) -> None:
+    unknown_unit = _raw_catalog(seed_catalog)
+    recipes = _record_list(unknown_unit, "recipes")
+    ingredients = cast(list[dict[str, Any]], recipes[0]["ingredients"])
+    ingredients[0]["unit"] = "missing-unit"
+    with pytest.raises(ValidationError, match="references unknown measurement unit"):
+        SeedCatalog.model_validate(unknown_unit)
+
+    ambiguous_alias = _raw_catalog(seed_catalog)
+    measurement_catalog = cast(dict[str, Any], ambiguous_alias["measurement_catalog"])
+    units = cast(list[dict[str, Any]], measurement_catalog["units"])
+    first_aliases = cast(list[dict[str, Any]], units[0]["aliases"])
+    first_aliases[0]["alias"] = units[1]["canonical_label"]
+    with pytest.raises(
+        ValidationError,
+        match="measurement unit lookup labels must identify exactly one unit",
+    ):
+        SeedCatalog.model_validate(ambiguous_alias)
 
 
 def test_catalog_rejects_an_unknown_recipe_parent(seed_catalog: SeedCatalog) -> None:

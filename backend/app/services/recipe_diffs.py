@@ -23,6 +23,7 @@ from app.schemas.recipes import (
     RecipeInstructionResponse,
     RecipeVersionReference,
 )
+from app.services.measurements import serialize_measure
 
 
 class _Identified(Protocol):
@@ -32,8 +33,7 @@ class _Identified(Protocol):
 _INGREDIENT_FIELD_ORDER: tuple[RecipeIngredientChangedField, ...] = (
     "ingredient",
     "display_name",
-    "quantity",
-    "unit",
+    "measure",
     "preparation_notes",
 )
 
@@ -46,21 +46,36 @@ def _instruction_order(item: RecipeInstruction) -> tuple[int, int]:
     return item.display_order, item.id.int
 
 
+def _measure_signature(
+    item: RecipeIngredient,
+) -> tuple[str, Decimal | None, Decimal | None, UUID | None, UUID | None]:
+    return (
+        item.measure_mode,
+        item.quantity_min,
+        item.quantity_max,
+        item.measurement_unit_id,
+        item.package_size_id,
+    )
+
+
 def _ingredient_signature(
     item: RecipeIngredient,
-) -> tuple[str, Decimal | None, str | None, str | None]:
-    return item.name, item.quantity, item.unit, item.preparation_notes
+) -> tuple[
+    str,
+    tuple[str, Decimal | None, Decimal | None, UUID | None, UUID | None],
+    str | None,
+]:
+    return item.name, _measure_signature(item), item.preparation_notes
 
 
 def _replacement_candidate_order(
     before: RecipeIngredient,
     after: RecipeIngredient,
-) -> tuple[int, bool, bool, bool, int, int, int]:
+) -> tuple[int, bool, bool, int, int, int]:
     """Prefer replacements that preserve amount semantics before row position."""
 
     content_changes = (
-        before.quantity != after.quantity,
-        before.unit != after.unit,
+        _measure_signature(before) != _measure_signature(after),
         before.preparation_notes != after.preparation_notes,
     )
     return (
@@ -209,8 +224,13 @@ def _ingredient_snapshot(item: RecipeIngredient) -> RecipeIngredientResponse:
         ingredient_id=item.ingredient_id,
         canonical_name=item.ingredient.canonical_name,
         display_name=item.name,
-        quantity=item.quantity,
-        unit=item.unit,
+        measure=serialize_measure(
+            kind=item.measure_mode,
+            quantity_min=item.quantity_min,
+            quantity_max=item.quantity_max,
+            unit=item.measurement_unit,
+            package_size_id=item.package_size_id,
+        ),
         preparation_notes=item.preparation_notes,
         display_order=item.display_order,
     )
@@ -231,8 +251,7 @@ def _ingredient_changed_fields(
     changed = {
         "ingredient": before.ingredient_id != after.ingredient_id,
         "display_name": before.name != after.name,
-        "quantity": before.quantity != after.quantity,
-        "unit": before.unit != after.unit,
+        "measure": _measure_signature(before) != _measure_signature(after),
         "preparation_notes": before.preparation_notes != after.preparation_notes,
     }
     return [field for field in _INGREDIENT_FIELD_ORDER if changed[field]]

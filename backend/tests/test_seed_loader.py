@@ -28,6 +28,9 @@ from app.models import (
     IngredientCatalogAuditEvent,
     IngredientCatalogRequest,
     IngredientSubstitution,
+    MeasurementConversionRule,
+    MeasurementUnit,
+    MeasurementUnitAlias,
     PreferenceEvent,
     RecipeIngredient,
     RecipeRating,
@@ -44,7 +47,7 @@ from app.schemas.ingredient_catalog import (
     IngredientCatalogRequestCreate,
 )
 from app.seeds import SeedConflictError, load_bundled_catalog, seed_catalog
-from app.seeds.identifiers import seed_uuid
+from app.seeds.identifiers import measurement_uuid, seed_uuid
 from app.seeds.loader import CATALOG_USER_KEY
 from app.services.catalog_requests import (
     CatalogRequestConflictError,
@@ -61,6 +64,11 @@ SEEDED_TABLE_COUNTS = {
     "ingredient_dietary_flags": 243,
     "ingredient_substitutions": 12,
     "ingredients": 99,
+    "ingredient_density_rules": 0,
+    "ingredient_package_sizes": 0,
+    "measurement_conversion_rules": 10,
+    "measurement_unit_aliases": 21,
+    "measurement_units": 19,
     "preference_events": 0,
     "recipe_lineages": 25,
     "recipe_version_ingredients": 281,
@@ -109,8 +117,9 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
     with Session(seed_engine) as session, session.begin():
         report = seed_catalog(session, catalog)
 
-    assert report.created_total == sum(SEEDED_TABLE_COUNTS.values())
-    assert report.reused_total == 0
+    migration_seeded_measurements = 19 + 21 + 10
+    assert report.created_total == sum(SEEDED_TABLE_COUNTS.values()) - migration_seeded_measurements
+    assert report.reused_total == migration_seeded_measurements
 
     dataset_id = catalog.metadata.dataset_id
     carrot_root_id = seed_uuid(
@@ -142,6 +151,26 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
     with Session(seed_engine) as session:
         assert table_counts(session) == SEEDED_TABLE_COUNTS
 
+        gram = session.get(MeasurementUnit, measurement_uuid("unit", "g"))
+        grams_alias = session.get(
+            MeasurementUnitAlias,
+            measurement_uuid("unit-alias", "g:grams"),
+        )
+        fahrenheit_rule = session.get(
+            MeasurementConversionRule,
+            measurement_uuid("unit", "fahrenheit"),
+        )
+        assert gram is not None
+        assert gram.key == "g"
+        assert gram.canonical_label == "gram"
+        assert grams_alias is not None
+        assert grams_alias.measurement_unit_id == gram.id
+        assert fahrenheit_rule is not None
+        assert fahrenheit_rule.base_unit_id == measurement_uuid("unit", "celsius")
+        assert fahrenheit_rule.offset_numerator == -32
+        assert fahrenheit_rule.scale_numerator == 5
+        assert fahrenheit_rule.scale_denominator == 9
+
         catalog_user_id = seed_uuid(dataset_id, "user", CATALOG_USER_KEY)
         catalog_user = session.get(User, catalog_user_id)
         demo_user = session.get(User, DEMO_USER_ID)
@@ -171,6 +200,21 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
         assert pasta_v3.parent_version_id == pasta_v2.id
         assert pasta_v3.lineage_id == pasta_v2.lineage_id
 
+        carrot_ingredients = list(
+            session.scalars(
+                select(RecipeIngredient)
+                .where(RecipeIngredient.recipe_version_id == carrot_root.id)
+                .order_by(RecipeIngredient.display_order)
+            )
+        )
+        assert carrot_ingredients
+        assert all(item.measure_mode == "exact" for item in carrot_ingredients)
+        assert all(item.quantity_min is not None for item in carrot_ingredients)
+        assert all(item.quantity_max is None for item in carrot_ingredients)
+        assert all(item.measurement_unit_id is not None for item in carrot_ingredients)
+        assert all(item.unit_display is not None for item in carrot_ingredients)
+        assert all(item.package_size_id is None for item in carrot_ingredients)
+
         chickpea = resolve_ingredient_name(session, "  GARBANZO BEANS ")
         assert chickpea is not None
         assert chickpea.canonical_name == "Chickpea"
@@ -182,6 +226,27 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
         assert substitutions[0].replacement_ingredient.canonical_name == "Pecan"
         assert substitutions[0].quantity_ratio == Decimal("1.0000")
         assert substitutions[0].provenance is not None
+
+
+def test_seed_loader_recreates_missing_measurement_catalog_deterministically(
+    seed_engine: Engine,
+) -> None:
+    with seed_engine.begin() as connection:
+        connection.execute(Base.metadata.tables["measurement_conversion_rules"].delete())
+        connection.execute(Base.metadata.tables["measurement_unit_aliases"].delete())
+        connection.execute(Base.metadata.tables["measurement_units"].delete())
+
+    catalog = load_bundled_catalog()
+    with Session(seed_engine) as session, session.begin():
+        report = seed_catalog(session, catalog)
+
+    assert report.created["measurement_units"] == 19
+    assert report.created["measurement_unit_aliases"] == 21
+    assert report.created["measurement_conversion_rules"] == 10
+    assert report.reused["measurement_units"] == 0
+    with Session(seed_engine) as session:
+        assert table_counts(session) == SEEDED_TABLE_COUNTS
+        assert session.get(MeasurementUnit, measurement_uuid("unit", "g")) is not None
 
 
 def test_second_committed_seed_load_is_an_exact_no_op(seed_engine: Engine) -> None:
@@ -199,6 +264,29 @@ def test_second_committed_seed_load_is_an_exact_no_op(seed_engine: Engine) -> No
     assert second_report.created_total == 0
     assert second_report.reused_total == sum(SEEDED_TABLE_COUNTS.values())
     assert second_snapshot == first_snapshot
+
+
+def test_measurement_catalog_drift_fails_atomically(seed_engine: Engine) -> None:
+    catalog = load_bundled_catalog()
+    with Session(seed_engine) as session, session.begin():
+        seed_catalog(session, catalog)
+    with Session(seed_engine) as session, session.begin():
+        gram = session.get(MeasurementUnit, measurement_uuid("unit", "g"))
+        assert gram is not None
+        gram.provenance = "Conflicting runtime measurement provenance."
+    with Session(seed_engine) as session:
+        before = database_snapshot(session)
+
+    with Session(seed_engine) as session:
+        with pytest.raises(
+            SeedConflictError,
+            match="measurement unit 'g': stored fields differ from the catalog",
+        ):
+            with session.begin():
+                seed_catalog(session, catalog)
+
+    with Session(seed_engine) as session:
+        assert database_snapshot(session) == before
 
 
 def test_seed_rerun_preserves_demo_user_interactions(seed_engine: Engine) -> None:

@@ -199,8 +199,12 @@ def test_recipe_detail_returns_ordered_snapshot_and_direct_children(
     assert [item["display_order"] for item in instructions] == list(range(4))
     sugar = next(item for item in ingredients if item["display_name"] == "White sugar")
     assert sugar["canonical_name"] == "Granulated sugar"
-    assert sugar["quantity"] == "180.0000"
-    assert sugar["unit"] == "g"
+    assert sugar["measure"]["kind"] == "exact"
+    assert sugar["measure"]["value"] == "180.0000"
+    assert sugar["measure"]["unit"]["key"] == "g"
+    assert sugar["measure"]["display"] == "180 g"
+    assert "quantity" not in sugar
+    assert "unit" not in sugar
     assert instructions[0]["text"].startswith("Heat the oven")
 
 
@@ -333,6 +337,10 @@ def test_openapi_documents_recipe_and_error_schemas(api_client: TestClient) -> N
         "RecipePageResponse",
         "RecipeDetailResponse",
         "RecipeIngredientResponse",
+        "ExactMeasureResponse",
+        "RangeMeasureResponse",
+        "QualitativeMeasureResponse",
+        "MeasurementUnitSummary",
         "RecipeInstructionResponse",
         "ErrorResponse",
     } <= set(schemas)

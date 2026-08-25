@@ -20,6 +20,8 @@ _ONE = Decimal(1)
 _FOUR = Decimal(4)
 
 type RecommendationSourceKind = Literal["save", "rating", "fork", "view"]
+type IngredientMeasureKind = Literal["exact", "range", "qualitative"]
+type QualitativeIngredientMeasure = Literal["to_taste", "as_needed", "unspecified"]
 
 _SOURCE_KIND_ORDER: dict[RecommendationSourceKind, int] = {
     "save": 0,
@@ -41,16 +43,82 @@ _COLD_START_REASON = "A deterministic cold-start pick from the Recipe Lab catalo
 
 
 @dataclass(frozen=True, slots=True)
+class RecommendationIngredientMeasure:
+    """One occurrence-preserving structured ingredient amount signal.
+
+    The record carries curated identities and decimals only. It deliberately
+    excludes author-entered display labels so recommendation adapters and
+    offline exports never have to recover semantics from presentation text.
+    """
+
+    ingredient_id: UUID
+    kind: IngredientMeasureKind
+    value: Decimal | None = None
+    minimum: Decimal | None = None
+    maximum: Decimal | None = None
+    unit_id: UUID | None = None
+    package_size_id: UUID | None = None
+    qualitative_value: QualitativeIngredientMeasure | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind == "exact":
+            valid = (
+                self.value is not None
+                and self.value.is_finite()
+                and self.value > 0
+                and self.minimum is None
+                and self.maximum is None
+                and self.unit_id is not None
+                and self.qualitative_value is None
+            )
+        elif self.kind == "range":
+            valid = (
+                self.value is None
+                and self.minimum is not None
+                and self.minimum.is_finite()
+                and self.minimum > 0
+                and self.maximum is not None
+                and self.maximum.is_finite()
+                and self.maximum > self.minimum
+                and self.unit_id is not None
+                and self.qualitative_value is None
+            )
+        elif self.kind == "qualitative":
+            valid = (
+                self.value is None
+                and self.minimum is None
+                and self.maximum is None
+                and self.unit_id is None
+                and self.package_size_id is None
+                and self.qualitative_value in {"to_taste", "as_needed", "unspecified"}
+            )
+        else:
+            valid = False
+        if not valid:
+            raise ValueError("ingredient measure signal has an invalid structured shape")
+
+
+@dataclass(frozen=True, slots=True)
 class BaselineCandidate:
     recipe_version_id: UUID
     title: str
     version_number: int
-    ingredient_ids: frozenset[UUID]
+    ingredient_measures: tuple[RecommendationIngredientMeasure, ...]
     rating_sum: int
     rating_count: int
     save_count: int
     fork_count: int
     view_count: int
+    # Snapshot-v1 compatibility only. Production and v2 adapters derive IDs
+    # exclusively from truthful structured occurrence records.
+    legacy_ingredient_ids: frozenset[UUID] = frozenset()
+
+    @property
+    def ingredient_ids(self) -> frozenset[UUID]:
+        """Retain baseline-v1 set behavior while carrying richer future signals."""
+
+        structured_ids = frozenset(measure.ingredient_id for measure in self.ingredient_measures)
+        return structured_ids | self.legacy_ingredient_ids
 
 
 @dataclass(frozen=True, slots=True)

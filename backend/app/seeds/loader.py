@@ -23,15 +23,19 @@ from app.models import (
     IngredientAlias,
     IngredientCategory,
     IngredientSubstitution,
+    MeasurementConversionRule,
+    MeasurementUnit,
+    MeasurementUnitAlias,
     RecipeIngredient,
     RecipeInstruction,
     RecipeLineage,
     RecipeVersion,
     User,
 )
-from app.seeds.identifiers import seed_uuid
+from app.seeds.identifiers import measurement_uuid, seed_uuid
 from app.seeds.schema import (
     IngredientSeed,
+    MeasurementUnitSeed,
     NamedSeed,
     RecipeIngredientSeed,
     RecipeInstructionSeed,
@@ -91,6 +95,182 @@ def _aliases_in_catalog_namespace(session: Session, value: str) -> list[Ingredie
         for alias in session.scalars(select(IngredientAlias)).all()
         if normalize_catalog_name(alias.alias) == normalized_name
     ]
+
+
+def _measurement_unit_values_match(
+    existing: MeasurementUnit,
+    seed: MeasurementUnitSeed,
+    created_at: datetime,
+) -> bool:
+    return (
+        existing.key == seed.key
+        and existing.dimension == seed.dimension
+        and existing.conversion_family == seed.conversion_family
+        and existing.canonical_label == seed.canonical_label
+        and existing.plural_label == seed.plural_label
+        and existing.symbol == seed.symbol
+        and existing.display_style == seed.display_style
+        and existing.active is seed.active
+        and existing.provenance == seed.provenance
+        and existing.created_at == created_at
+    )
+
+
+def _load_measurement_unit(
+    session: Session,
+    seed: MeasurementUnitSeed,
+    created_at: datetime,
+    report: SeedReport,
+) -> MeasurementUnit:
+    expected_id = measurement_uuid("unit", seed.key)
+    by_id = session.get(MeasurementUnit, expected_id)
+    by_key = session.scalars(
+        select(MeasurementUnit).where(_normalized_match(MeasurementUnit.key, seed.key))
+    ).one_or_none()
+    if by_id is not None:
+        if by_key is not None and by_key.id != expected_id:
+            raise _conflict("measurement unit", seed.key, "catalog key belongs to another UUID")
+        if not _measurement_unit_values_match(by_id, seed, created_at):
+            raise _conflict("measurement unit", seed.key, "stored fields differ from the catalog")
+        report.reused["measurement_units"] += 1
+        return by_id
+    if by_key is not None:
+        raise _conflict("measurement unit", seed.key, "catalog key has a non-deterministic UUID")
+
+    created = MeasurementUnit(
+        id=expected_id,
+        key=seed.key,
+        dimension=seed.dimension,
+        conversion_family=seed.conversion_family,
+        canonical_label=seed.canonical_label,
+        plural_label=seed.plural_label,
+        symbol=seed.symbol,
+        display_style=seed.display_style,
+        active=seed.active,
+        provenance=seed.provenance,
+        created_at=created_at,
+    )
+    session.add(created)
+    session.flush()
+    report.created["measurement_units"] += 1
+    return created
+
+
+def _load_measurement_aliases(
+    session: Session,
+    seed: MeasurementUnitSeed,
+    unit: MeasurementUnit,
+    created_at: datetime,
+    report: SeedReport,
+) -> None:
+    for alias_seed in seed.aliases:
+        expected_id = measurement_uuid("unit-alias", f"{seed.key}:{alias_seed.key}")
+        by_id = session.get(MeasurementUnitAlias, expected_id)
+        by_alias = session.scalars(
+            select(MeasurementUnitAlias).where(
+                _normalized_match(MeasurementUnitAlias.alias, alias_seed.alias)
+            )
+        ).one_or_none()
+        if by_id is not None:
+            if by_alias is not None and by_alias.id != expected_id:
+                raise _conflict(
+                    "measurement unit alias",
+                    f"{seed.key}:{alias_seed.key}",
+                    "alias belongs to another UUID",
+                )
+            if (
+                by_id.measurement_unit_id != unit.id
+                or by_id.alias != alias_seed.alias
+                or by_id.created_at != created_at
+            ):
+                raise _conflict(
+                    "measurement unit alias",
+                    f"{seed.key}:{alias_seed.key}",
+                    "stored fields differ from the catalog",
+                )
+            report.reused["measurement_unit_aliases"] += 1
+            continue
+        if by_alias is not None:
+            raise _conflict(
+                "measurement unit alias",
+                f"{seed.key}:{alias_seed.key}",
+                "alias has a non-deterministic UUID",
+            )
+        session.add(
+            MeasurementUnitAlias(
+                id=expected_id,
+                measurement_unit_id=unit.id,
+                alias=alias_seed.alias,
+                created_at=created_at,
+            )
+        )
+        session.flush()
+        report.created["measurement_unit_aliases"] += 1
+
+
+def _load_measurement_conversion(
+    session: Session,
+    seed: MeasurementUnitSeed,
+    units: dict[str, MeasurementUnit],
+    created_at: datetime,
+    report: SeedReport,
+) -> None:
+    conversion = seed.conversion
+    if conversion is None:
+        return
+    unit = units[seed.key]
+    existing = session.get(MeasurementConversionRule, unit.id)
+    if existing is not None:
+        if not (
+            existing.base_unit_id == units[conversion.base_unit].id
+            and existing.scale_numerator == conversion.scale_numerator
+            and existing.scale_denominator == conversion.scale_denominator
+            and existing.offset_numerator == conversion.offset_numerator
+            and existing.offset_denominator == conversion.offset_denominator
+            and existing.active is seed.active
+            and existing.provenance == conversion.provenance
+            and existing.created_at == created_at
+        ):
+            raise _conflict(
+                "measurement conversion rule",
+                seed.key,
+                "stored fields differ from the catalog",
+            )
+        report.reused["measurement_conversion_rules"] += 1
+        return
+    session.add(
+        MeasurementConversionRule(
+            unit_id=unit.id,
+            base_unit_id=units[conversion.base_unit].id,
+            scale_numerator=conversion.scale_numerator,
+            scale_denominator=conversion.scale_denominator,
+            offset_numerator=conversion.offset_numerator,
+            offset_denominator=conversion.offset_denominator,
+            active=seed.active,
+            provenance=conversion.provenance,
+            created_at=created_at,
+        )
+    )
+    session.flush()
+    report.created["measurement_conversion_rules"] += 1
+
+
+def _load_measurement_catalog(
+    session: Session,
+    catalog: SeedCatalog,
+    report: SeedReport,
+) -> dict[str, MeasurementUnit]:
+    measurement_catalog = catalog.measurement_catalog
+    created_at = measurement_catalog.metadata.published_at
+    units = {
+        seed.key: _load_measurement_unit(session, seed, created_at, report)
+        for seed in measurement_catalog.units
+    }
+    for seed in measurement_catalog.units:
+        _load_measurement_aliases(session, seed, units[seed.key], created_at, report)
+    for seed in measurement_catalog.units:
+        _load_measurement_conversion(session, seed, units, created_at, report)
+    return units
 
 
 def _get_or_create_category(
@@ -527,14 +707,19 @@ def _recipe_ingredient_values_match(
     seed: RecipeIngredientSeed,
     expected_id: UUID,
     ingredient_id: UUID,
+    measurement_unit_id: UUID | None,
     display_order: int,
 ) -> bool:
     return (
         existing.id == expected_id
         and existing.ingredient_id == ingredient_id
         and existing.name == seed.name
-        and existing.quantity == seed.quantity
-        and existing.unit == seed.unit
+        and existing.measure_mode == ("exact" if seed.quantity is not None else "unspecified")
+        and existing.quantity_min == seed.quantity
+        and existing.quantity_max is None
+        and existing.measurement_unit_id == measurement_unit_id
+        and existing.unit_display == seed.unit
+        and existing.package_size_id is None
         and existing.preparation_notes == seed.preparation_notes
         and existing.display_order == display_order
     )
@@ -559,6 +744,7 @@ def _verify_recipe_snapshot(
     seed: RecipeSeed,
     version: RecipeVersion,
     ingredients: dict[str, Ingredient],
+    measurement_units: dict[str, MeasurementUnit],
 ) -> None:
     existing_ingredients = list(
         session.scalars(
@@ -583,6 +769,11 @@ def _verify_recipe_snapshot(
             expected_ingredient,
             expected_id,
             ingredients[expected_ingredient.ingredient].id,
+            (
+                measurement_units[expected_ingredient.unit].id
+                if expected_ingredient.unit is not None
+                else None
+            ),
             display_order,
         ):
             raise _conflict("recipe version", seed.key, "ingredient snapshot differs")
@@ -620,6 +811,7 @@ def _insert_recipe_snapshot(
     seed: RecipeSeed,
     version: RecipeVersion,
     ingredients: dict[str, Ingredient],
+    measurement_units: dict[str, MeasurementUnit],
     report: SeedReport,
 ) -> None:
     for display_order, item in enumerate(seed.ingredients):
@@ -633,8 +825,14 @@ def _insert_recipe_snapshot(
                 recipe_version_id=version.id,
                 ingredient_id=ingredients[item.ingredient].id,
                 name=item.name,
-                quantity=item.quantity,
-                unit=item.unit,
+                measure_mode="exact" if item.quantity is not None else "unspecified",
+                quantity_min=item.quantity,
+                quantity_max=None,
+                measurement_unit_id=(
+                    measurement_units[item.unit].id if item.unit is not None else None
+                ),
+                unit_display=item.unit,
+                package_size_id=None,
                 preparation_notes=item.preparation_notes,
                 display_order=display_order,
             )
@@ -665,6 +863,7 @@ def _load_recipe(
     lineage: RecipeLineage,
     user: User,
     ingredients: dict[str, Ingredient],
+    measurement_units: dict[str, MeasurementUnit],
     report: SeedReport,
 ) -> RecipeVersion:
     version_id = seed_uuid(catalog.metadata.dataset_id, "recipe-version", seed.key)
@@ -684,7 +883,14 @@ def _load_recipe(
             user.id,
         ):
             raise _conflict("recipe version", seed.key, "stored fields differ from the catalog")
-        _verify_recipe_snapshot(session, catalog, seed, existing, ingredients)
+        _verify_recipe_snapshot(
+            session,
+            catalog,
+            seed,
+            existing,
+            ingredients,
+            measurement_units,
+        )
         report.reused["recipe_versions"] += 1
         report.reused["recipe_ingredients"] += len(seed.ingredients)
         report.reused["recipe_instructions"] += len(seed.instructions)
@@ -703,7 +909,15 @@ def _load_recipe(
     )
     session.add(created)
     session.flush()
-    _insert_recipe_snapshot(session, catalog, seed, created, ingredients, report)
+    _insert_recipe_snapshot(
+        session,
+        catalog,
+        seed,
+        created,
+        ingredients,
+        measurement_units,
+        report,
+    )
     report.created["recipe_versions"] += 1
     return created
 
@@ -727,6 +941,7 @@ def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
         },
     )
     report = SeedReport()
+    measurement_units = _load_measurement_catalog(session, catalog, report)
     user = _get_or_create_catalog_user(session, catalog, report)
     _get_or_create_demo_user(session, report)
     categories = {
@@ -783,6 +998,7 @@ def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
             lineages[root_key],
             user,
             ingredients,
+            measurement_units,
             report,
         )
 

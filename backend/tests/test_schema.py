@@ -11,6 +11,7 @@ from app.models import (
     MAX_RATING,
     MIN_RATING,
     Ingredient,
+    MeasurementUnit,
     PreferenceEvent,
     RecipeIngredient,
     RecipeInstruction,
@@ -34,6 +35,30 @@ def create_ingredient(session: Session, canonical_name: str) -> Ingredient:
     session.add(ingredient)
     session.flush()
     return ingredient
+
+
+def create_measurement_unit(
+    session: Session,
+    *,
+    key: str,
+    dimension: str,
+    label: str,
+    symbol: str,
+) -> MeasurementUnit:
+    unit = MeasurementUnit(
+        key=key,
+        dimension=dimension,
+        conversion_family=f"schema-test-{key}",
+        canonical_label=label,
+        plural_label=f"{label}s",
+        symbol=symbol,
+        display_style="symbol",
+        active=True,
+        provenance="Schema test fixture.",
+    )
+    session.add(unit)
+    session.flush()
+    return unit
 
 
 def create_lineage_with_root(
@@ -251,21 +276,36 @@ def test_ingredient_fields_and_display_order_round_trip(db_session: Session) -> 
     _, version = create_lineage_with_root(db_session, creator, title="Structured Ingredients")
     salt = create_ingredient(db_session, "Salt")
     walnuts = create_ingredient(db_session, "Walnuts")
+    cup = create_measurement_unit(
+        db_session,
+        key="schema-test-cup",
+        dimension="volume",
+        label="schema cup",
+        symbol="cup",
+    )
     version.ingredients.extend(
         [
             RecipeIngredient(
                 ingredient=salt,
                 name="Salt",
-                quantity=None,
-                unit=None,
+                measure_mode="to_taste",
+                quantity_min=None,
+                quantity_max=None,
+                measurement_unit_id=None,
+                unit_display=None,
+                package_size_id=None,
                 preparation_notes="to taste",
                 display_order=1,
             ),
             RecipeIngredient(
                 ingredient=walnuts,
                 name="Walnuts",
-                quantity=Decimal("0.1250"),
-                unit="cup",
+                measure_mode="exact",
+                quantity_min=Decimal("0.1250"),
+                quantity_max=None,
+                measurement_unit_id=cup.id,
+                unit_display="cup",
+                package_size_id=None,
                 preparation_notes="toasted and chopped",
                 display_order=0,
             ),
@@ -278,11 +318,15 @@ def test_ingredient_fields_and_display_order_round_trip(db_session: Session) -> 
     assert first.name == "Walnuts"
     assert first.ingredient_id == walnuts.id
     assert first.ingredient.canonical_name == "Walnuts"
-    assert first.quantity == Decimal("0.1250")
-    assert first.unit == "cup"
+    assert first.measure_mode == "exact"
+    assert first.quantity_min == Decimal("0.1250")
+    assert first.quantity_max is None
+    assert first.measurement_unit_id == cup.id
+    assert first.unit_display == "cup"
     assert first.preparation_notes == "toasted and chopped"
     assert [ingredient.display_order for ingredient in version.ingredients] == [0, 1]
-    assert second.quantity is None
+    assert second.measure_mode == "to_taste"
+    assert second.quantity_min is None
     assert second.preparation_notes == "to taste"
 
     with pytest.raises(IntegrityError) as error:
@@ -302,13 +346,24 @@ def test_ingredient_constraints_reject_invalid_rows(db_session: Session) -> None
     flour = create_ingredient(db_session, "Flour")
     invalid_quantity = create_ingredient(db_session, "Invalid Quantity")
     invalid_position = create_ingredient(db_session, "Invalid Position")
+    gram = create_measurement_unit(
+        db_session,
+        key="schema-test-g",
+        dimension="mass",
+        label="schema gram",
+        symbol="g",
+    )
     db_session.add(
         RecipeIngredient(
             recipe_version_id=version.id,
             ingredient_id=sugar.id,
             name="Sugar",
-            quantity=Decimal("180.0000"),
-            unit="g",
+            measure_mode="exact",
+            quantity_min=Decimal("180.0000"),
+            quantity_max=None,
+            measurement_unit_id=gram.id,
+            unit_display="g",
+            package_size_id=None,
             preparation_notes=None,
             display_order=0,
         )
@@ -321,8 +376,12 @@ def test_ingredient_constraints_reject_invalid_rows(db_session: Session) -> None
             recipe_version_id=version.id,
             ingredient_id=flour.id,
             name="Flour",
-            quantity=Decimal("250.0000"),
-            unit="g",
+            measure_mode="exact",
+            quantity_min=Decimal("250.0000"),
+            quantity_max=None,
+            measurement_unit_id=gram.id,
+            unit_display="g",
+            package_size_id=None,
             preparation_notes=None,
             display_order=0,
         ),
@@ -334,12 +393,16 @@ def test_ingredient_constraints_reject_invalid_rows(db_session: Session) -> None
             recipe_version_id=version.id,
             ingredient_id=invalid_quantity.id,
             name="Invalid Quantity",
-            quantity=Decimal("0.0000"),
-            unit="g",
+            measure_mode="exact",
+            quantity_min=Decimal("0.0000"),
+            quantity_max=None,
+            measurement_unit_id=gram.id,
+            unit_display="g",
+            package_size_id=None,
             preparation_notes=None,
             display_order=1,
         ),
-        "ck_recipe_version_ingredients_quantity_positive",
+        "ck_recipe_version_ingredients_measure_shape_valid",
     )
     assert_flush_violates(
         db_session,
@@ -347,8 +410,12 @@ def test_ingredient_constraints_reject_invalid_rows(db_session: Session) -> None
             recipe_version_id=version.id,
             ingredient_id=invalid_position.id,
             name="Invalid Position",
-            quantity=Decimal("1.0000"),
-            unit=None,
+            measure_mode="exact",
+            quantity_min=Decimal("1.0000"),
+            quantity_max=None,
+            measurement_unit_id=gram.id,
+            unit_display="g",
+            package_size_id=None,
             preparation_notes=None,
             display_order=-1,
         ),

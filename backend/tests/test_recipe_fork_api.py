@@ -17,6 +17,8 @@ from app.main import create_app
 from app.models import (
     Ingredient,
     IngredientAlias,
+    IngredientPackageSize,
+    MeasurementUnit,
     PreferenceEvent,
     RecipeIngredient,
     RecipeInstruction,
@@ -27,7 +29,7 @@ from app.models import (
     User,
 )
 from app.schemas.recipe_forks import RecipeForkRequest
-from app.seeds.identifiers import seed_uuid
+from app.seeds.identifiers import measurement_uuid, seed_uuid
 from app.seeds.loader import CATALOG_USER_KEY
 from app.services.recipe_forks import InvalidRecipeEditsError, fork_recipe_version
 from tests.member_session import (
@@ -75,6 +77,10 @@ WALNUT_ID = seed_uuid(DATASET_ID, "ingredient", "walnut")
 SUGAR_ID = seed_uuid(DATASET_ID, "ingredient", "granulated-sugar")
 UNKNOWN_INGREDIENT_ID = UUID("77000000-0000-4000-8000-000000000099")
 MEMBER_USER_ID = UUID("77000000-0000-4000-8000-000000000002")
+CUP_UNIT_ID = measurement_uuid("unit", "cup")
+TBSP_UNIT_ID = measurement_uuid("unit", "tbsp")
+G_UNIT_ID = measurement_uuid("unit", "g")
+CAN_UNIT_ID = measurement_uuid("unit", "can")
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,8 +88,12 @@ class IngredientSnapshot:
     id: UUID
     ingredient_id: UUID
     name: str
-    quantity: Decimal | None
-    unit: str | None
+    measure_mode: str
+    quantity_min: Decimal | None
+    quantity_max: Decimal | None
+    measurement_unit_id: UUID | None
+    unit_display: str | None
+    package_size_id: UUID | None
     preparation_notes: str | None
     display_order: int
 
@@ -180,6 +190,14 @@ def _base_payload(*, title: str = "My Carrot Cake") -> dict[str, Any]:
     }
 
 
+def _exact_measure(value: object, unit_id: UUID) -> dict[str, object]:
+    return {"kind": "exact", "value": value, "unit_id": str(unit_id)}
+
+
+def _qualitative_measure(value: str = "unspecified") -> dict[str, str]:
+    return {"kind": "qualitative", "value": value}
+
+
 def _action_headers(action_id: UUID | None = None) -> dict[str, str]:
     return {"Idempotency-Key": str(action_id or uuid4())}
 
@@ -193,8 +211,12 @@ def _snapshot_version(engine: Engine, recipe_version_id: UUID) -> VersionSnapsho
                 id=item.id,
                 ingredient_id=item.ingredient_id,
                 name=item.name,
-                quantity=item.quantity,
-                unit=item.unit,
+                measure_mode=item.measure_mode,
+                quantity_min=item.quantity_min,
+                quantity_max=item.quantity_max,
+                measurement_unit_id=item.measurement_unit_id,
+                unit_display=item.unit_display,
+                package_size_id=item.package_size_id,
                 preparation_notes=item.preparation_notes,
                 display_order=item.display_order,
             )
@@ -236,8 +258,12 @@ def _ingredient_values(items: tuple[IngredientSnapshot, ...]) -> list[tuple[obje
         (
             item.ingredient_id,
             item.name,
-            item.quantity,
-            item.unit,
+            item.measure_mode,
+            item.quantity_min,
+            item.quantity_max,
+            item.measurement_unit_id,
+            item.unit_display,
+            item.package_size_id,
             item.preparation_notes,
             item.display_order,
         )
@@ -401,14 +427,9 @@ def test_fork_applies_all_structured_edits_without_mutating_parent(
     payload = _base_payload(title="Orange Pecan Carrot Cake")
     payload["ingredient_edits"] = [
         {
-            "op": "set_quantity",
+            "op": "set_measure",
             "recipe_ingredient_id": str(SUGAR_ROW_ID),
-            "quantity": "1.2500",
-        },
-        {
-            "op": "set_unit",
-            "recipe_ingredient_id": str(SUGAR_ROW_ID),
-            "unit": "cup",
+            "measure": _exact_measure("1.2500", CUP_UNIT_ID),
         },
         {
             "op": "replace",
@@ -424,8 +445,7 @@ def test_fork_applies_all_structured_edits_without_mutating_parent(
             "op": "add",
             "ingredient_id": str(ORANGE_ZEST_ID),
             "display_name": "Orange zest",
-            "quantity": "1",
-            "unit": "tbsp",
+            "measure": _exact_measure("1", TBSP_UNIT_ID),
             "preparation_notes": "finely grated",
         },
     ]
@@ -468,12 +488,12 @@ def test_fork_applies_all_structured_edits_without_mutating_parent(
         "Orange zest",
     ]
     sugar = ingredients[2]
-    assert sugar["quantity"] == "1.2500"
-    assert sugar["unit"] == "cup"
+    assert sugar["measure"]["value"] == "1.2500"
+    assert sugar["measure"]["unit"]["id"] == str(CUP_UNIT_ID)
     pecan = ingredients[5]
     assert pecan["ingredient_id"] == str(PECAN_ID)
     assert pecan["canonical_name"] == "Pecan"
-    assert pecan["quantity"] == "100.0000"
+    assert pecan["measure"]["value"] == "100.0000"
     assert pecan["preparation_notes"] == "roughly chopped"
     orange_zest = ingredients[-1]
     assert orange_zest["ingredient_id"] == str(ORANGE_ZEST_ID)
@@ -489,6 +509,313 @@ def test_fork_applies_all_structured_edits_without_mutating_parent(
     assert _snapshot_version(seeded_api_engine, CARROT_ROOT_ID) == parent_before
 
 
+def test_replacing_ingredient_clears_ingredient_specific_package_metadata(
+    seeded_api_engine: Engine,
+) -> None:
+    package_size_id = uuid4()
+    with Session(bind=seeded_api_engine) as session:
+        transaction = session.begin()
+        try:
+            package_size = IngredientPackageSize(
+                id=package_size_id,
+                ingredient_id=WALNUT_ID,
+                package_unit_id=CAN_UNIT_ID,
+                content_unit_id=G_UNIT_ID,
+                content_value=Decimal("400.000000"),
+                label="400 g fork replacement test can",
+                active=True,
+                provenance="Reviewed fork replacement test package size.",
+            )
+            session.add(package_size)
+            session.flush()
+            source_row = session.get(RecipeIngredient, NUTS_ROW_ID)
+            assert source_row is not None
+            source_row.measure_mode = "exact"
+            source_row.quantity_min = Decimal("1.0000")
+            source_row.quantity_max = None
+            source_row.measurement_unit_id = CAN_UNIT_ID
+            source_row.unit_display = "can"
+            source_row.package_size_id = package_size.id
+            session.flush()
+
+            payload = RecipeForkRequest.model_validate(
+                {
+                    **_base_payload(title="Package-safe pecan replacement"),
+                    "ingredient_edits": [
+                        {
+                            "op": "replace",
+                            "recipe_ingredient_id": str(NUTS_ROW_ID),
+                            "ingredient_id": str(PECAN_ID),
+                            "display_name": "Pecan",
+                        }
+                    ],
+                }
+            )
+            child_id = fork_recipe_version(
+                session,
+                source_version_id=CARROT_ROOT_ID,
+                author_user_id=MEMBER_USER_ID,
+                payload=payload,
+            )
+            assert child_id is not None
+            session.flush()
+
+            replacement = session.scalar(
+                select(RecipeIngredient).where(
+                    RecipeIngredient.recipe_version_id == child_id,
+                    RecipeIngredient.ingredient_id == PECAN_ID,
+                )
+            )
+            assert replacement is not None
+            assert replacement.package_size_id is None
+        finally:
+            transaction.rollback()
+
+
+def test_fork_persists_matching_reviewed_package_metadata(
+    seeded_api_engine: Engine,
+) -> None:
+    package_size_id = uuid4()
+    with Session(bind=seeded_api_engine) as session:
+        transaction = session.begin()
+        try:
+            session.add(
+                IngredientPackageSize(
+                    id=package_size_id,
+                    ingredient_id=WALNUT_ID,
+                    package_unit_id=CAN_UNIT_ID,
+                    content_unit_id=G_UNIT_ID,
+                    content_value=Decimal("400.000000"),
+                    label="400 g authored package test can",
+                    active=True,
+                    provenance="Reviewed authored package test size.",
+                )
+            )
+            session.flush()
+            payload = RecipeForkRequest.model_validate(
+                {
+                    **_base_payload(title="Package-aware walnut measure"),
+                    "ingredient_edits": [
+                        {
+                            "op": "set_measure",
+                            "recipe_ingredient_id": str(NUTS_ROW_ID),
+                            "measure": {
+                                "kind": "exact",
+                                "value": "2",
+                                "unit_id": str(CAN_UNIT_ID),
+                                "package_size_id": str(package_size_id),
+                            },
+                        }
+                    ],
+                }
+            )
+
+            child_id = fork_recipe_version(
+                session,
+                source_version_id=CARROT_ROOT_ID,
+                author_user_id=MEMBER_USER_ID,
+                payload=payload,
+            )
+            assert child_id is not None
+            session.flush()
+
+            packaged_row = session.scalar(
+                select(RecipeIngredient).where(
+                    RecipeIngredient.recipe_version_id == child_id,
+                    RecipeIngredient.ingredient_id == WALNUT_ID,
+                )
+            )
+            assert packaged_row is not None
+            assert packaged_row.measurement_unit_id == CAN_UNIT_ID
+            assert packaged_row.package_size_id == package_size_id
+        finally:
+            transaction.rollback()
+
+
+def test_fork_persists_range_and_qualitative_measures_atomically(
+    fork_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    range_payload = _base_payload(title="Ranged Sugar Carrot Cake")
+    range_payload["ingredient_edits"] = [
+        {
+            "op": "set_measure",
+            "recipe_ingredient_id": str(SUGAR_ROW_ID),
+            "measure": {
+                "kind": "range",
+                "minimum": "160",
+                "maximum": "180",
+                "unit_id": str(G_UNIT_ID),
+            },
+        }
+    ]
+    range_response = fork_client.post(
+        f"/api/recipes/{CARROT_ROOT_ID}/variants",
+        json=range_payload,
+        headers=_action_headers(),
+    )
+
+    assert range_response.status_code == 201
+    ranged_sugar = next(
+        item
+        for item in cast(list[dict[str, Any]], range_response.json()["ingredients"])
+        if item["ingredient_id"] == str(SUGAR_ID)
+    )
+    assert ranged_sugar["measure"] == {
+        "kind": "range",
+        "minimum": "160.0000",
+        "maximum": "180.0000",
+        "unit": {
+            "id": str(G_UNIT_ID),
+            "key": "g",
+            "dimension": "mass",
+            "canonical_label": "gram",
+            "plural_label": "grams",
+            "symbol": "g",
+            "display_style": "symbol",
+            "active": True,
+        },
+        "display_unit": "g",
+        "display": "160–180 g",
+        "package_size_id": None,
+    }
+    ranged_stored = next(
+        item
+        for item in _snapshot_version(
+            seeded_api_engine,
+            UUID(range_response.json()["id"]),
+        ).ingredients
+        if item.ingredient_id == SUGAR_ID
+    )
+    assert ranged_stored.measure_mode == "range"
+    assert ranged_stored.quantity_min == Decimal("160.0000")
+    assert ranged_stored.quantity_max == Decimal("180.0000")
+    assert ranged_stored.measurement_unit_id == G_UNIT_ID
+
+    qualitative_payload = _base_payload(title="Sugar to Taste Carrot Cake")
+    qualitative_payload["ingredient_edits"] = [
+        {
+            "op": "set_measure",
+            "recipe_ingredient_id": str(SUGAR_ROW_ID),
+            "measure": {"kind": "qualitative", "value": "to_taste"},
+        }
+    ]
+    qualitative_response = fork_client.post(
+        f"/api/recipes/{CARROT_ROOT_ID}/variants",
+        json=qualitative_payload,
+        headers=_action_headers(),
+    )
+
+    assert qualitative_response.status_code == 201
+    qualitative_sugar = next(
+        item
+        for item in cast(list[dict[str, Any]], qualitative_response.json()["ingredients"])
+        if item["ingredient_id"] == str(SUGAR_ID)
+    )
+    assert qualitative_sugar["measure"] == {
+        "kind": "qualitative",
+        "value": "to_taste",
+        "unit": None,
+        "display_unit": None,
+        "display": "to taste",
+    }
+    qualitative_stored = next(
+        item
+        for item in _snapshot_version(
+            seeded_api_engine,
+            UUID(qualitative_response.json()["id"]),
+        ).ingredients
+        if item.ingredient_id == SUGAR_ID
+    )
+    assert qualitative_stored.measure_mode == "to_taste"
+    assert qualitative_stored.quantity_min is None
+    assert qualitative_stored.quantity_max is None
+    assert qualitative_stored.measurement_unit_id is None
+
+
+def test_historical_inactive_units_remain_readable_and_copyable_but_not_selectable(
+    fork_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    with Session(bind=seeded_api_engine) as session, session.begin():
+        gram = session.get(MeasurementUnit, G_UNIT_ID)
+        assert gram is not None
+        gram.active = False
+
+    try:
+        parent_response = fork_client.get(f"/api/recipes/{CARROT_ROOT_ID}")
+        assert parent_response.status_code == 200
+        parent_sugar = next(
+            item
+            for item in cast(list[dict[str, Any]], parent_response.json()["ingredients"])
+            if item["ingredient_id"] == str(SUGAR_ID)
+        )
+        assert parent_sugar["measure"]["unit"]["active"] is False
+
+        copied_response = fork_client.post(
+            f"/api/recipes/{CARROT_ROOT_ID}/variants",
+            json=_base_payload(title="Historical Unit Copy"),
+            headers=_action_headers(),
+        )
+        assert copied_response.status_code == 201
+        copied_sugar = next(
+            item
+            for item in cast(list[dict[str, Any]], copied_response.json()["ingredients"])
+            if item["ingredient_id"] == str(SUGAR_ID)
+        )
+        assert copied_sugar["measure"]["unit"]["active"] is False
+
+        rejected_payload = _base_payload(title="Inactive Unit Selection")
+        rejected_payload["ingredient_edits"] = [
+            {
+                "op": "set_measure",
+                "recipe_ingredient_id": str(SUGAR_ROW_ID),
+                "measure": _exact_measure("150", G_UNIT_ID),
+            }
+        ]
+        rejected_response = fork_client.post(
+            f"/api/recipes/{CARROT_ROOT_ID}/variants",
+            json=rejected_payload,
+            headers=_action_headers(),
+        )
+        assert rejected_response.status_code == 422
+        error = _json_object(rejected_response.json())["error"]
+        assert error["code"] == "invalid_recipe_edits"
+        assert "measurement_unit_inactive" in error["message"]
+    finally:
+        with Session(bind=seeded_api_engine) as session, session.begin():
+            gram = session.get(MeasurementUnit, G_UNIT_ID)
+            assert gram is not None
+            gram.active = True
+
+
+def test_unknown_curated_unit_is_rejected_without_creating_a_fork(
+    fork_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    unknown_unit_id = uuid4()
+    payload = _base_payload(title="Unknown Unit Selection")
+    payload["ingredient_edits"] = [
+        {
+            "op": "set_measure",
+            "recipe_ingredient_id": str(SUGAR_ROW_ID),
+            "measure": _exact_measure("1", unknown_unit_id),
+        }
+    ]
+
+    response = fork_client.post(
+        f"/api/recipes/{CARROT_ROOT_ID}/variants",
+        json=payload,
+        headers=_action_headers(),
+    )
+
+    assert response.status_code == 422
+    error = _json_object(response.json())["error"]
+    assert error["code"] == "invalid_recipe_edits"
+    assert "measurement_unit_not_found" in error["message"]
+    assert _member_fork_count(seeded_api_engine) == 0
+
+
 def test_known_alias_preserves_display_text_and_uses_catalog_identity(
     fork_client: TestClient,
     seeded_api_engine: Engine,
@@ -499,8 +826,7 @@ def test_known_alias_preserves_display_text_and_uses_catalog_identity(
             "op": "add",
             "ingredient_id": str(CHICKPEA_ID),
             "display_name": "  garbanzo beans  ",
-            "quantity": "1",
-            "unit": "cup",
+            "measure": _exact_measure("1", CUP_UNIT_ID),
         }
     ]
 
@@ -532,6 +858,7 @@ def test_valid_ingredient_id_with_another_identitys_label_is_rejected(
             "op": "add",
             "ingredient_id": str(PECAN_ID),
             "display_name": "Orange zest",
+            "measure": _qualitative_measure(),
         }
     ]
 
@@ -584,9 +911,9 @@ def test_same_identity_can_select_a_different_curated_display_label(
             **_base_payload(),
             "ingredient_edits": [
                 {
-                    "op": "set_quantity",
+                    "op": "set_measure",
                     "recipe_ingredient_id": str(SUGAR_ROW_ID),
-                    "quantity": True,
+                    "measure": _exact_measure(True, G_UNIT_ID),
                 }
             ],
         },
@@ -594,9 +921,9 @@ def test_same_identity_can_select_a_different_curated_display_label(
             **_base_payload(),
             "ingredient_edits": [
                 {
-                    "op": "set_quantity",
+                    "op": "set_measure",
                     "recipe_ingredient_id": str(SUGAR_ROW_ID),
-                    "quantity": "1.00001",
+                    "measure": _exact_measure("1.00001", G_UNIT_ID),
                 }
             ],
         },
@@ -604,9 +931,13 @@ def test_same_identity_can_select_a_different_curated_display_label(
             **_base_payload(),
             "ingredient_edits": [
                 {
-                    "op": "set_unit",
+                    "op": "set_measure",
                     "recipe_ingredient_id": str(SUGAR_ROW_ID),
-                    "unit": "   ",
+                    "measure": {
+                        "kind": "exact",
+                        "value": "1",
+                        "unit_id": "not-a-uuid",
+                    },
                 }
             ],
         },
@@ -618,7 +949,7 @@ def test_same_identity_can_select_a_different_curated_display_label(
         "zero-servings",
         "boolean-quantity",
         "overprecise-quantity",
-        "blank-unit",
+        "invalid-unit-id",
         "unknown-operation",
         "client-author",
     ],
@@ -646,29 +977,29 @@ def test_invalid_request_shapes_create_no_fork(
     [
         [
             {
-                "op": "set_quantity",
+                "op": "set_measure",
                 "recipe_ingredient_id": str(FOREIGN_INGREDIENT_ROW_ID),
-                "quantity": "2",
+                "measure": _exact_measure("2", G_UNIT_ID),
             }
         ],
         [
             {
-                "op": "set_quantity",
+                "op": "set_measure",
                 "recipe_ingredient_id": str(SUGAR_ROW_ID),
-                "quantity": "150",
+                "measure": _exact_measure("150", G_UNIT_ID),
             },
             {
-                "op": "set_quantity",
+                "op": "set_measure",
                 "recipe_ingredient_id": str(SUGAR_ROW_ID),
-                "quantity": "140",
+                "measure": _exact_measure("140", G_UNIT_ID),
             },
         ],
         [
             {"op": "remove", "recipe_ingredient_id": str(SUGAR_ROW_ID)},
             {
-                "op": "set_unit",
+                "op": "set_measure",
                 "recipe_ingredient_id": str(SUGAR_ROW_ID),
-                "unit": "cup",
+                "measure": _exact_measure("1", CUP_UNIT_ID),
             },
         ],
         [
@@ -718,6 +1049,7 @@ def test_invalid_or_conflicting_edits_roll_back_without_mutating_parent(
             "op": "add",
             "ingredient_id": str(UNKNOWN_INGREDIENT_ID),
             "display_name": "Not a catalog ingredient",
+            "measure": _qualitative_measure(),
         },
         {
             "op": "replace",

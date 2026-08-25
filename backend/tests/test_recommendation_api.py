@@ -21,6 +21,7 @@ from app.models import (
     RecipeVersion,
     User,
 )
+from app.repositories.recommendations import load_recommendation_data
 from app.seeds.identifiers import seed_uuid
 from tests.member_session import (
     MemberCredentials,
@@ -209,6 +210,23 @@ def _table_counts(engine: Engine) -> tuple[int, int, int, int]:
             for model in (PreferenceEvent, RecipeSave, RecipeRating, RecipeVersion)
         )
     return cast(tuple[int, int, int, int], counts)
+
+
+def test_recommendation_adapter_retains_structured_measure_signals(
+    seeded_api_engine: Engine,
+) -> None:
+    with Session(bind=seeded_api_engine) as session:
+        data = load_recommendation_data(session, None)
+        candidate = next(item for item in data.candidates if item.recipe.id == CARROT_ROOT_ID)
+
+        assert len(candidate.ingredient_measures) == len(candidate.recipe.ingredients)
+        assert candidate.ingredient_ids == frozenset(
+            measure.ingredient_id for measure in candidate.ingredient_measures
+        )
+        assert all(measure.kind == "exact" for measure in candidate.ingredient_measures)
+        assert all(measure.value is not None for measure in candidate.ingredient_measures)
+        assert all(measure.unit_id is not None for measure in candidate.ingredient_measures)
+        assert all(measure.package_size_id is None for measure in candidate.ingredient_measures)
 
 
 def test_cold_start_is_stable_bounded_and_uses_the_published_weights(

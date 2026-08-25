@@ -2,7 +2,8 @@
 
 ## Scope and origin
 
-`catalog.json` and `recipes.json` are the Recipe Lab demo data assets. Their
+`catalog.json`, `recipes.json`, and `measurements-v1.json` are the Recipe Lab
+demo data assets. Their
 recipe titles, descriptions, quantities, instructions, ingredient metadata,
 aliases, and substitution notes were written independently for this project.
 They are not copied or adapted from published recipes.
@@ -14,10 +15,24 @@ recipe-version key and parent link rather than editing the published snapshot.
 
 ## License
 
-The two data assets named above are dedicated to the public domain under
+The three data assets named above are dedicated to the public domain under
 [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/).
 This dedication applies to the catalog content, not automatically to the
 Recipe Lab source code or other repository files.
+
+## Measurement vocabulary
+
+`measurements-v1.json` uses a dedicated UUIDv5 namespace that is independent
+of the demo recipe dataset version. Existing measurement keys and identifiers
+are immutable; a later vocabulary revision must use a new versioned asset
+rather than reinterpret v1 keys.
+
+The v1 conversion rules are deliberately narrow. Metric mass, metric volume,
+elapsed time, and Celsius/Fahrenheit use explicit rational scale and offset
+rules. Culinary teaspoon, tablespoon, and cup labels retain their authored
+meaning but have no conversion rule because regional definitions differ.
+Count labels and package labels such as can and bunch are likewise not treated
+as interchangeable without reviewed ingredient-specific metadata.
 
 ## Interpretation and safety
 
