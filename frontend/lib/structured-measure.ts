@@ -110,7 +110,7 @@ export function createStructuredMeasureDraft(
   if (measure.kind === "exact") {
     return {
       mode: "exact",
-      exactValue: measure.value,
+      exactValue: displayDecimal(measure.value),
       rangeMinimum: "",
       rangeMaximum: "",
       unit: measure.unit,
@@ -121,8 +121,8 @@ export function createStructuredMeasureDraft(
     return {
       mode: "range",
       exactValue: "",
-      rangeMinimum: measure.minimum,
-      rangeMaximum: measure.maximum,
+      rangeMinimum: displayDecimal(measure.minimum),
+      rangeMaximum: displayDecimal(measure.maximum),
       unit: measure.unit,
       packageSizeId: measure.package_size_id ?? null,
     };
