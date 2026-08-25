@@ -31,12 +31,14 @@ server rendering, prefetching, or unrelated recipe reads.
 The dedicated `/recipes/{recipeVersionId}/fork` server route loads the immutable
 source snapshot and passes it to a controlled client form. The editor keeps raw
 entered values in local state, validates them without resetting the draft, and
-derives typed quantity, unit, replacement, addition, removal, and instruction
-operations only at submission. API validation errors leave those values in
-place. A `201 Created` response supplies the child identifier, which the router
-uses to replace the editor route with the new recipe detail page. The source
-snapshot remains unchanged, while the API retains control of lineage, version
-number, display order, and demo-author attribution.
+derives atomic `set_measure`, replacement, addition, removal, and instruction
+operations only at submission. A `set_measure` contains the complete exact,
+range, or qualitative amount; the client never emits independent quantity and
+unit patches. API validation errors leave draft values in place. A `201
+Created` response supplies the child identifier, which the router uses to
+replace the editor route with the new recipe detail page. The source snapshot
+remains unchanged, while the API retains control of lineage, version number,
+display order, and member attribution.
 
 Recipe detail pages render the available parent, current version, and direct
 children as an accessible semantic list. This intentionally communicates one
@@ -67,13 +69,15 @@ tested with `EXISTS` so matching rows cannot duplicate recipes or inflate the
 count.
 
 Detail reads eager-load the scalar parent and select-load ordered ingredients,
-instructions, and direct children. This keeps the query count bounded without
-creating a Cartesian product between collections. API schemas preserve exact
-decimal values as JSON strings and expose the authored ingredient name beside
-its canonical identity. A separate aggregate query returns only rating count
-and average, never individual interaction records. Validation and not-found
-failures share one documented error envelope while retaining their semantic
-HTTP status codes.
+their curated measurement units, instructions, and direct children. This keeps
+the query count bounded without creating a Cartesian product between
+collections. API schemas preserve exact decimal values as JSON strings, expose
+the authored ingredient name beside its canonical identity, and return one
+discriminated `measure` union. Exact and range measures reference a curated unit
+identity; qualitative measures contain neither numeric fields nor a unit. A
+separate aggregate query returns only rating count and average, never individual
+interaction records. Validation and not-found failures share one documented
+error envelope while retaining their semantic HTTP status codes.
 
 Recipe diffs use dedicated bounded snapshot queries rather than the broader
 detail loader. A target compares to its direct parent by default, while an
@@ -125,10 +129,12 @@ Recipe forking is an application service behind a single transactional route.
 It locks the lineage row before assigning the next lineage-wide version number,
 copies the source ingredients and instructions into draft values, validates and
 applies structured edits, and then inserts a fresh child snapshot with new row
-identifiers. The API controls lineage, direct parent, version number, display
-order, and session-member attribution. The fork action fingerprints the
-canonical validated request, then creates the child and its event in one
-transaction.
+identifiers. Amount changes use only the atomic `set_measure` operation; the
+service validates the complete exact, range, or qualitative shape and any
+curated unit before changing the draft row. The API controls lineage, direct
+parent, version number, display order, and session-member attribution. The fork
+action fingerprints the canonical validated request, then creates the child and
+its event in one transaction.
 An exact action-key retry returns that child; a changed source or payload with
 the same key is rejected. Different action keys remain distinct authored forks.
 
@@ -171,6 +177,15 @@ names and exact aliases for lookup, uses data-backed vocabularies for one broad
 category plus dietary and allergen assignments, and avoids fixed database
 enums. An absent dietary or allergen assignment means the metadata is unknown;
 it is not a safety claim.
+
+Ingredient amounts are stored as one constrained shape. Exact measures have one
+positive value and a curated unit; ranges have positive, strictly increasing
+minimum and maximum values plus one curated unit; `to_taste`, `as_needed`, and
+`unspecified` contain no numeric value or unit. Curated measurement units and
+aliases use deterministic identities, immutable display metadata, and explicit
+conversion families. The stored `unit_display` column is a legacy/storage
+integrity snapshot, not the rendering source: reads regenerate display text
+from the referenced curated unit metadata and stored decimal values.
 
 Ingredient substitutions are curated, directed relationships. They store a
 replacement with a positive quantity ratio or written guidance and require
@@ -385,7 +400,7 @@ recommendation reads.
 
 ## Early design decisions to record
 
-- Unit normalization and display-unit preservation.
+- Measurement-catalog evolution, unit deactivation, and storage-snapshot retention.
 - Original-recipe creation and content-update enforcement.
 - Preference-event retention and migration from demo to authenticated users.
 - Recipe and metadata provenance.

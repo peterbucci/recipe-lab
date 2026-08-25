@@ -151,10 +151,20 @@ Requirements: Docker Desktop with Docker Compose.
 
 ```powershell
 Copy-Item .env.example .env
-docker compose up --build -d
-docker compose exec backend python -m alembic upgrade head
-docker compose exec backend python -m app.seeds load
+docker compose build
+docker compose up -d db
+# Existing databases only: continue only when this exits successfully.
+docker compose run --rm backend recipe-lab-measurements audit-legacy --format json
+if ($LASTEXITCODE -ne 0) { throw "Resolve the measurement audit before migrating." }
+docker compose run --rm backend python -m alembic upgrade head
+docker compose run --rm backend python -m app.seeds load
+docker compose up -d backend frontend
 ```
+
+Skip the audit command and its exit-code check for a fresh empty database,
+where the legacy recipe table does not exist yet. This order keeps the new
+application processes stopped until the fail-closed audit and migration have
+succeeded.
 
 Open:
 
@@ -239,9 +249,9 @@ python -m ruff format --check src tests
 python -m ruff check src tests
 python -m mypy src tests
 python -m pytest
-recipe-lab-eval run --snapshot tests/fixtures/synthetic_snapshot_v1.json `
+recipe-lab-eval run --snapshot tests/fixtures/synthetic_snapshot_v2.json `
   --k 5 --k 10 --seed 20260821 --output reports/synthetic-report.json
-recipe-lab-eval simulate --catalog tests/fixtures/readiness_catalog_v1.json `
+recipe-lab-eval simulate --catalog tests/fixtures/readiness_catalog_v2.json `
   --profiles 64 --seed 20260822 --output snapshots/readiness-simulated-v1.json
 recipe-lab-eval readiness --snapshot snapshots/readiness-simulated-v1.json `
   --output reports/readiness-v2.json --strict

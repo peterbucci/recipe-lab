@@ -27,18 +27,28 @@ See the [offline substitution rules engine](substitution-engine.md).
 
 ## Snapshot contract
 
-The `recipe-lab-evaluation-snapshot-v1` format contains:
+The `recipe-lab-evaluation-snapshot-v2` format contains:
 
 - a dataset ID, one explicit UTC cutoff, and stated limitations;
-- recipe-version IDs, creation times, titles, version numbers, and distinct
-  canonical ingredient IDs; and
+- recipe-version IDs, creation times, titles, version numbers, and one structured
+  record per authored ingredient occurrence; each record carries its canonical
+  ingredient identity, exact/range/qualitative kind, decimal bounds, curated
+  measurement-unit identity, optional reviewed package-size identity, and any
+  qualitative value; and
 - typed view, save, rating, and fork events with opaque event and profile IDs.
 
 The extractor reads a repeatable PostgreSQL snapshot and omits names, email
 addresses, IP addresses, user agents, referrers, search text, fork request
 fingerprints, and free-form event context. Recipe and event arrays are
-canonicalized before hashing, so equivalent ordering and JSON formatting yield
-the same snapshot fingerprint.
+canonicalized before hashing; ingredient occurrences retain authored order.
+Equivalent recipe/event ordering and JSON formatting yield the same snapshot
+fingerprint, while any measure-only change changes it.
+
+The reader deliberately accepts v1 snapshots for historical evaluation. Their
+distinct ingredient IDs remain available only through an explicit legacy-ID
+fallback; they do not become fabricated qualitative measures. New exports and
+programmatically created snapshots are always v2, and creating v2 data from
+legacy ID-only recipes is refused with a recapture instruction.
 
 The evaluator never reads the mutable `recipe_saves` or `recipe_ratings` tables
 for a historical run. Their present state cannot describe what was known at an

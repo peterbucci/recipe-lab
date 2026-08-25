@@ -129,18 +129,18 @@ real-user improvement.
 
 The deterministic 64-profile readiness cohort exercises all 192 candidate
 details through the full `hybrid` route. At K=1, `hybrid-v1` reports precision
-`0.625000`, recall `0.312500`, NDCG `0.625000`, and coverage `0.750000`. At K=3,
-it reports precision `0.666667`, recall `1.000000`, NDCG `0.866219`, and coverage
+`0.718750`, recall `0.359375`, NDCG `0.718750`, and coverage `0.875000`. At K=3,
+it reports precision `0.666667`, recall `1.000000`, NDCG `0.887435`, and coverage
 `1.000000`. Mean recommended popularity and mean candidate popularity are both
 `1.000000`, so popularity bias is `0.000000` at both cutoffs.
 
-The best simpler reference is `content-v1`. Hybrid NDCG trails it by `0.015625`
-at K=1 and leads it by only `0.001481` at the primary K=3; K=1 recall regresses
-by `0.007813`, and K=1 coverage trails by `0.125000`. The result therefore
-retains the simpler model independently of the synthetic-evidence guard. These
-numbers verify the deterministic plumbing and conservative decision contract;
-they are not product-quality evidence and must not be tuned into an artificial
-win.
+The best simpler reference is the tied, lower-complexity `baseline-v1` at K=1
+and `content-v1` at the primary K=3. Hybrid leads those references by `0.015625`
+and `0.001028` NDCG respectively, but the primary lift remains below the
+policy's `0.010000` minimum. The result therefore retains the simpler model,
+and synthetic evidence independently bars adoption. These numbers verify the
+deterministic plumbing and conservative decision contract; they are not
+product-quality evidence and must not be tuned into an artificial win.
 
 ## Artifact and privacy boundary
 
