@@ -11,6 +11,13 @@ import type { CatalogUnit } from "../../lib/measurement-unit-api";
 import type { RecipeDetail } from "../../lib/recipe-api";
 import { isRecipeVersionId } from "../../lib/recipe-api";
 import {
+  createRecipeDuplicatePreflight,
+  RecipeDuplicateApiError,
+  recordRecipeDuplicateDecision,
+  type RecipeDuplicateDecision,
+  type RecipeDuplicatePreflight,
+} from "../../lib/recipe-duplicate-api";
+import {
   effectiveStructuredActionState,
   structuredActionFieldKey,
   structuredActionDraftsMatchRecipe,
@@ -34,8 +41,16 @@ import {
   type VariantInstructionDraft,
   validateVariantDraft,
 } from "../../lib/variant-draft";
-import { createRecipeVariant, VariantApiError } from "../../lib/variant-api";
+import {
+  createRecipeVariant,
+  type RecipeVariantCreateRequest,
+  VariantApiError,
+} from "../../lib/variant-api";
 import { IngredientCatalogPicker } from "./ingredient-catalog-picker";
+import {
+  RecipeDuplicatePreflightReview,
+  RecipeDuplicateUnavailable,
+} from "./recipe-duplicate-preflight-review";
 import { StructuredActionEditor } from "./structured-action-editor";
 import { IngredientAmountControl } from "./structured-measure-control";
 
@@ -49,6 +64,26 @@ interface ForkAttempt {
   fingerprint: string;
   idempotencyKey: string;
 }
+
+interface DuplicateReviewState {
+  draftRevision: number;
+  payloadFingerprint: string;
+  payload: RecipeVariantCreateRequest;
+  result: RecipeDuplicatePreflight;
+}
+
+interface DuplicateUnavailableState {
+  draftRevision: number;
+  payloadFingerprint: string;
+  payload: RecipeVariantCreateRequest;
+}
+
+type PendingOperation =
+  | "preflight"
+  | "decision-continue"
+  | "decision-revise"
+  | "create"
+  | null;
 
 interface FieldErrorProps {
   id: string;
@@ -197,6 +232,9 @@ export function RecipeVariantEditor({
   const instructionCounter = useRef(0);
   const pendingFocusId = useRef<string | null>(null);
   const submittingRef = useRef(false);
+  const draftRevisionRef = useRef(0);
+  const preflightAttemptRef = useRef<ForkAttempt | null>(null);
+  const decisionAttemptRef = useRef<ForkAttempt | null>(null);
   const forkAttemptRef = useRef<ForkAttempt | null>(null);
   const [initialDraftFingerprint] = useState(() =>
     draftFingerprint(createVariantDraft(sourceRecipe)),
@@ -209,13 +247,24 @@ export function RecipeVariantEditor({
   const [apiError, setApiError] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [pending, setPending] = useState(false);
+  const [pendingOperation, setPendingOperation] = useState<PendingOperation>(null);
+  const [duplicateReview, setDuplicateReview] = useState<DuplicateReviewState | null>(
+    null,
+  );
+  const [duplicateUnavailable, setDuplicateUnavailable] =
+    useState<DuplicateUnavailableState | null>(null);
+  const [duplicateAcknowledged, setDuplicateAcknowledged] = useState(false);
+  const [duplicateDecisionFailure, setDuplicateDecisionFailure] =
+    useState<RecipeDuplicateDecision | null>(null);
   const [expandedIngredientKeys, setExpandedIngredientKeys] = useState<Set<string>>(
     () => new Set(),
   );
   const [expandedInstructionKeys, setExpandedInstructionKeys] = useState<Set<string>>(
     () => new Set(),
   );
-  const hasUnsavedChanges = draftFingerprint(draft) !== initialDraftFingerprint;
+  const currentDraftFingerprint = draftFingerprint(draft);
+  const activeDuplicateReview = duplicateReview;
+  const hasUnsavedChanges = currentDraftFingerprint !== initialDraftFingerprint;
 
   useEffect(() => {
     if (!pendingFocusId.current) {
@@ -298,7 +347,20 @@ export function RecipeVariantEditor({
     pendingFocusId.current = elementId;
   }
 
+  function markDraftEdited() {
+    draftRevisionRef.current += 1;
+    if (duplicateReview !== null || duplicateUnavailable !== null) {
+      setDuplicateReview(null);
+      setDuplicateUnavailable(null);
+      setDuplicateAcknowledged(false);
+      setDuplicateDecisionFailure(null);
+      decisionAttemptRef.current = null;
+      setStatusMessage("Your draft changed. Check its recipe structure again when ready.");
+    }
+  }
+
   function updateMetadata(field: "title" | "description" | "servings", value: string) {
+    markDraftEdited();
     clearErrors(field);
     setDraft((current) => ({ ...current, [field]: value }));
   }
@@ -308,6 +370,7 @@ export function RecipeVariantEditor({
     changes: Partial<VariantIngredientDraft>,
     changedField?: "name" | "preparationNotes",
   ) {
+    markDraftEdited();
     clearErrors(changedField ? ingredientFieldKey(key, changedField) : undefined);
     setDraft((current) => ({
       ...current,
@@ -322,6 +385,7 @@ export function RecipeVariantEditor({
     changes: Partial<VariantInstructionDraft>,
     changedField: "text" | "actions" = "text",
   ) {
+    markDraftEdited();
     if (changedField === "actions") {
       setApiError("");
       setFormErrors([]);
@@ -346,6 +410,7 @@ export function RecipeVariantEditor({
   }
 
   function addIngredient() {
+    markDraftEdited();
     ingredientCounter.current += 1;
     const key = `added-ingredient-${ingredientCounter.current}`;
     const ingredient = createAddedIngredientDraft(
@@ -361,6 +426,7 @@ export function RecipeVariantEditor({
   }
 
   function addInstruction() {
+    markDraftEdited();
     instructionCounter.current += 1;
     const key = `added-instruction-${instructionCounter.current}`;
     const instruction = createAddedInstructionDraft(
@@ -375,9 +441,334 @@ export function RecipeVariantEditor({
     }));
   }
 
+  function finishWithError(error: unknown, kind: "duplicate" | "variant") {
+    submittingRef.current = false;
+    setPending(false);
+    setPendingOperation(null);
+    setStatusMessage("");
+    setDuplicateReview(null);
+    setDuplicateUnavailable(null);
+    setDuplicateAcknowledged(false);
+    setDuplicateDecisionFailure(null);
+    setApiError(
+      kind === "duplicate"
+        ? error instanceof RecipeDuplicateApiError
+          ? error.message
+          : "Recipe Lab could not check this version right now. Your draft is still here; please try again."
+        : error instanceof VariantApiError
+          ? error.message
+          : "The recipe service could not create your version. Please try again.",
+    );
+    focusErrorSummary();
+  }
+
+  function advisoryFailureCanBeSkipped(error: unknown): boolean {
+    if (error instanceof TypeError) {
+      return true;
+    }
+    return (
+      error instanceof RecipeDuplicateApiError &&
+      error.status >= 500 &&
+      !error.code.startsWith("invalid_")
+    );
+  }
+
+  function resetDuplicateAttemptsAfterConflict(error: unknown) {
+    if (
+      error instanceof RecipeDuplicateApiError &&
+      error.status === 409 &&
+      (error.code === "duplicate_preflight_stale" ||
+        error.code === "idempotency_key_conflict")
+    ) {
+      preflightAttemptRef.current = null;
+      decisionAttemptRef.current = null;
+    }
+  }
+
+  function finishUnavailablePreflight(
+    error: unknown,
+    unavailable: DuplicateUnavailableState,
+  ) {
+    if (!advisoryFailureCanBeSkipped(error)) {
+      resetDuplicateAttemptsAfterConflict(error);
+      finishWithError(error, "duplicate");
+      return;
+    }
+    submittingRef.current = false;
+    setPending(false);
+    setPendingOperation(null);
+    setDuplicateReview(null);
+    setDuplicateAcknowledged(false);
+    setDuplicateDecisionFailure(null);
+    setDuplicateUnavailable(unavailable);
+    setApiError("");
+    setStatusMessage(
+      "The advisory similarity review could not be completed. Your draft is still here.",
+    );
+  }
+
+  function finishUnavailableDecision(
+    error: unknown,
+    decision: RecipeDuplicateDecision,
+  ) {
+    if (!advisoryFailureCanBeSkipped(error)) {
+      resetDuplicateAttemptsAfterConflict(error);
+      finishWithError(error, "duplicate");
+      return;
+    }
+    submittingRef.current = false;
+    setPending(false);
+    setPendingOperation(null);
+    setDuplicateDecisionFailure(decision);
+    setApiError("");
+    setStatusMessage(
+      "Recipe Lab could not confirm whether your advisory review choice was recorded.",
+    );
+  }
+
+  async function createValidatedVariant(
+    payload: RecipeVariantCreateRequest,
+    fingerprint: string,
+  ) {
+    setPendingOperation("create");
+    setStatusMessage("Creating your version…");
+    if (forkAttemptRef.current?.fingerprint !== fingerprint) {
+      forkAttemptRef.current = {
+        fingerprint,
+        idempotencyKey: createIdempotencyKey(),
+      };
+    }
+
+    try {
+      const created = await createRecipeVariant(
+        sourceRecipe.id,
+        payload,
+        forkAttemptRef.current.idempotencyKey,
+      );
+      if (!isRecipeVersionId(created.id)) {
+        throw new VariantApiError(
+          "The recipe service returned an invalid recipe identifier.",
+          502,
+        );
+      }
+      setStatusMessage("Your version is ready. Opening the recipe…");
+      router.replace(`/recipes/${encodeURIComponent(created.id)}`);
+    } catch (error) {
+      finishWithError(error, "variant");
+    }
+  }
+
+  async function recordDuplicateDecision(decision: RecipeDuplicateDecision) {
+    const review = activeDuplicateReview;
+    if (
+      review === null ||
+      submittingRef.current ||
+      (decision === "continue" && !duplicateAcknowledged)
+    ) {
+      return;
+    }
+
+    submittingRef.current = true;
+    setPending(true);
+    setPendingOperation(decision === "continue" ? "decision-continue" : "decision-revise");
+    setFieldErrors({});
+    setFormErrors([]);
+    setApiError("");
+    setDuplicateDecisionFailure(null);
+    setStatusMessage(
+      decision === "continue"
+        ? "Recording your choice before creating the version…"
+        : "Recording your choice and returning to the draft…",
+    );
+
+    const acknowledgement = review.result.acknowledgement;
+    const decisionFingerprint = [
+      acknowledgement.preflight_id,
+      acknowledgement.policy_version,
+      acknowledgement.result_digest,
+      decision,
+    ].join(":");
+    if (decisionAttemptRef.current?.fingerprint !== decisionFingerprint) {
+      decisionAttemptRef.current = {
+        fingerprint: decisionFingerprint,
+        idempotencyKey: createIdempotencyKey(),
+      };
+    }
+
+    try {
+      await recordRecipeDuplicateDecision(
+        acknowledgement.preflight_id,
+        {
+          policy_version: acknowledgement.policy_version,
+          result_digest: acknowledgement.result_digest,
+          decision,
+        },
+        decisionAttemptRef.current.idempotencyKey,
+      );
+
+      if (draftRevisionRef.current !== review.draftRevision) {
+        submittingRef.current = false;
+        setPending(false);
+        setPendingOperation(null);
+        setDuplicateReview(null);
+        setDuplicateAcknowledged(false);
+        setStatusMessage("Your draft changed. Check its recipe structure again when ready.");
+        return;
+      }
+
+      setDuplicateReview(null);
+      setDuplicateAcknowledged(false);
+      setDuplicateDecisionFailure(null);
+      if (decision === "continue") {
+        await createValidatedVariant(review.payload, review.payloadFingerprint);
+        return;
+      }
+
+      submittingRef.current = false;
+      setPending(false);
+      setPendingOperation(null);
+      preflightAttemptRef.current = null;
+      decisionAttemptRef.current = null;
+      setStatusMessage("Your choice was recorded. Every draft field is ready to revise.");
+      window.setTimeout(() => document.getElementById(`${formId}-title`)?.focus(), 0);
+    } catch (error) {
+      finishUnavailableDecision(error, decision);
+    }
+  }
+
+  async function retryUnavailableDecision() {
+    if (duplicateDecisionFailure === null) {
+      return;
+    }
+    await recordDuplicateDecision(duplicateDecisionFailure);
+  }
+
+  async function createWithoutRecordedDecision() {
+    const review = activeDuplicateReview;
+    if (
+      review === null ||
+      duplicateDecisionFailure !== "continue" ||
+      submittingRef.current
+    ) {
+      return;
+    }
+    submittingRef.current = true;
+    setPending(true);
+    setDuplicateReview(null);
+    setDuplicateAcknowledged(false);
+    setDuplicateDecisionFailure(null);
+    preflightAttemptRef.current = null;
+    decisionAttemptRef.current = null;
+    await createValidatedVariant(review.payload, review.payloadFingerprint);
+  }
+
+  function returnWithoutRecordedDecision() {
+    if (duplicateDecisionFailure !== "revise" || submittingRef.current) {
+      return;
+    }
+    setDuplicateReview(null);
+    setDuplicateAcknowledged(false);
+    setDuplicateDecisionFailure(null);
+    preflightAttemptRef.current = null;
+    decisionAttemptRef.current = null;
+    setStatusMessage(
+      "The review decision was not confirmed. Every draft field is ready to revise.",
+    );
+    window.setTimeout(() => document.getElementById(`${formId}-title`)?.focus(), 0);
+  }
+
+  async function runDuplicatePreflight(
+    unavailable: DuplicateUnavailableState,
+    preserveFallback: boolean,
+  ) {
+    if (submittingRef.current) {
+      return;
+    }
+    submittingRef.current = true;
+    setPending(true);
+    setPendingOperation("preflight");
+    setFieldErrors({});
+    setFormErrors([]);
+    setApiError("");
+    setDuplicateReview(null);
+    setDuplicateAcknowledged(false);
+    setDuplicateDecisionFailure(null);
+    if (!preserveFallback) {
+      setDuplicateUnavailable(null);
+    }
+    setStatusMessage("Checking this version's recipe structure…");
+
+    if (preflightAttemptRef.current?.fingerprint !== unavailable.payloadFingerprint) {
+      preflightAttemptRef.current = {
+        fingerprint: unavailable.payloadFingerprint,
+        idempotencyKey: createIdempotencyKey(),
+      };
+    }
+
+    try {
+      const result = await createRecipeDuplicatePreflight(
+        sourceRecipe.id,
+        unavailable.payload,
+        preflightAttemptRef.current.idempotencyKey,
+      );
+      if (draftRevisionRef.current !== unavailable.draftRevision) {
+        submittingRef.current = false;
+        setPending(false);
+        setPendingOperation(null);
+        setDuplicateUnavailable(null);
+        setStatusMessage("Your draft changed. Check its recipe structure again when ready.");
+        return;
+      }
+
+      setDuplicateUnavailable(null);
+      if (result.classification === "distinct") {
+        await createValidatedVariant(
+          unavailable.payload,
+          unavailable.payloadFingerprint,
+        );
+        return;
+      }
+
+      setDuplicateReview({ ...unavailable, result });
+      submittingRef.current = false;
+      setPending(false);
+      setPendingOperation(null);
+      setStatusMessage("Review the advisory recipe-structure results before continuing.");
+    } catch (error) {
+      finishUnavailablePreflight(error, unavailable);
+    }
+  }
+
+  async function retryUnavailablePreflight() {
+    if (duplicateUnavailable === null) {
+      return;
+    }
+    await runDuplicatePreflight(duplicateUnavailable, true);
+  }
+
+  async function createWithoutDuplicateReview() {
+    const unavailable = duplicateUnavailable;
+    if (unavailable === null || submittingRef.current) {
+      return;
+    }
+    submittingRef.current = true;
+    setPending(true);
+    setFieldErrors({});
+    setFormErrors([]);
+    setApiError("");
+    await createValidatedVariant(
+      unavailable.payload,
+      unavailable.payloadFingerprint,
+    );
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submittingRef.current) {
+    if (
+      submittingRef.current ||
+      activeDuplicateReview !== null ||
+      duplicateUnavailable !== null
+    ) {
       return;
     }
 
@@ -409,46 +800,15 @@ export function RecipeVariantEditor({
       return;
     }
 
-    submittingRef.current = true;
-    setPending(true);
-    setFieldErrors({});
-    setFormErrors([]);
-    setApiError("");
-    setStatusMessage("Creating your version…");
-
-    const fingerprint = JSON.stringify(validation.payload);
-    if (forkAttemptRef.current?.fingerprint !== fingerprint) {
-      forkAttemptRef.current = {
-        fingerprint,
-        idempotencyKey: createIdempotencyKey(),
-      };
-    }
-
-    try {
-      const created = await createRecipeVariant(
-        sourceRecipe.id,
-        validation.payload,
-        forkAttemptRef.current.idempotencyKey,
-      );
-      if (!isRecipeVersionId(created.id)) {
-        throw new VariantApiError(
-          "The recipe service returned an invalid recipe identifier.",
-          502,
-        );
-      }
-      setStatusMessage("Your version is ready. Opening the recipe…");
-      router.replace(`/recipes/${encodeURIComponent(created.id)}`);
-    } catch (error) {
-      submittingRef.current = false;
-      setPending(false);
-      setStatusMessage("");
-      setApiError(
-        error instanceof VariantApiError
-          ? error.message
-          : "The recipe service could not create your version. Please try again.",
-      );
-      focusErrorSummary();
-    }
+    const payloadFingerprint = JSON.stringify(validation.payload);
+    await runDuplicatePreflight(
+      {
+        draftRevision: draftRevisionRef.current,
+        payloadFingerprint,
+        payload: validation.payload,
+      },
+      false,
+    );
   }
 
   const validationMessages = [
@@ -912,10 +1272,63 @@ export function RecipeVariantEditor({
         </button>
       </fieldset>
 
+      {activeDuplicateReview ? (
+        <RecipeDuplicatePreflightReview
+          result={activeDuplicateReview.result}
+          acknowledged={duplicateAcknowledged}
+          decisionFailure={duplicateDecisionFailure}
+          pendingDecision={
+            pendingOperation === "decision-continue"
+              ? "continue"
+              : pendingOperation === "decision-revise"
+                ? "revise"
+                : null
+          }
+          onAcknowledgedChange={setDuplicateAcknowledged}
+          onContinue={() => void recordDuplicateDecision("continue")}
+          onRevise={() => void recordDuplicateDecision("revise")}
+          onRetryDecision={() => void retryUnavailableDecision()}
+          onCreateWithoutRecordedDecision={() =>
+            void createWithoutRecordedDecision()
+          }
+          onReturnWithoutRecordedDecision={returnWithoutRecordedDecision}
+        />
+      ) : null}
+
+      {duplicateUnavailable ? (
+        <RecipeDuplicateUnavailable
+          pendingAction={
+            pendingOperation === "preflight"
+              ? "retry"
+              : pendingOperation === "create"
+                ? "create"
+                : null
+          }
+          onRetry={() => void retryUnavailablePreflight()}
+          onCreateWithoutReview={() => void createWithoutDuplicateReview()}
+        />
+      ) : null}
+
       <footer className="variant-editor__actions">
         <div>
-          <button className="button button--primary" type="submit" disabled={pending}>
-            {pending ? "Creating your version…" : "Create my version"}
+          <button
+            className="button button--primary"
+            type="submit"
+            disabled={
+              pending ||
+              activeDuplicateReview !== null ||
+              duplicateUnavailable !== null
+            }
+          >
+            {pendingOperation === "preflight"
+              ? "Checking recipe structure…"
+              : pendingOperation === "create"
+                ? "Creating your version…"
+                : activeDuplicateReview
+                  ? "Review similarity results"
+                  : duplicateUnavailable
+                    ? "Choose how to continue"
+                  : "Create my version"}
           </button>
           {pending ? (
             <span className="button button--disabled" aria-disabled="true">

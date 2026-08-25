@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-import type { Page } from "@playwright/test";
+import type { Page, Response as PlaywrightResponse } from "@playwright/test";
 
 export type MemberName = "alice" | "bob" | "curator";
 
@@ -123,4 +123,24 @@ export async function useAcceptanceMember(
     },
   ]);
   return member;
+}
+
+export async function continueRecipeDuplicateReviewIfRequired(
+  page: Page,
+  preflightResponse: PlaywrightResponse,
+): Promise<void> {
+  const payload: unknown = await preflightResponse.json();
+  if (!isRecord(payload) || !isRecord(payload.acknowledgement)) {
+    throw new Error("Duplicate preflight acceptance response has an invalid shape.");
+  }
+  if (payload.acknowledgement.required === false) {
+    return;
+  }
+  if (payload.acknowledgement.required !== true) {
+    throw new Error("Duplicate preflight acceptance response has an invalid acknowledgement.");
+  }
+  await page
+    .getByRole("checkbox", { name: /reviewed these advisory results/i })
+    .check();
+  await page.getByRole("button", { name: "Create my version anyway" }).click();
 }

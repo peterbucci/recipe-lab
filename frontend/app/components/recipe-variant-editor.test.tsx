@@ -16,14 +16,22 @@ import type {
 import type { CatalogActionType } from "../../lib/cooking-action-api";
 import type { CatalogUnit } from "../../lib/measurement-unit-api";
 import type { RecipeDetail } from "../../lib/recipe-api";
+import {
+  createRecipeDuplicatePreflight,
+  RecipeDuplicateApiError,
+  recordRecipeDuplicateDecision,
+  type RecipeDuplicatePreflight,
+} from "../../lib/recipe-duplicate-api";
 import { createRecipeVariant, VariantApiError } from "../../lib/variant-api";
 import { RecipeVariantEditor } from "./recipe-variant-editor";
 
 const mocks = vi.hoisted(() => ({
   browseMyIngredientRequests: vi.fn(),
+  createRecipeDuplicatePreflight: vi.fn(),
   createIdempotencyKey: vi.fn(),
   createRecipeVariant: vi.fn(),
   fetchMyIngredientRequest: vi.fn(),
+  recordRecipeDuplicateDecision: vi.fn(),
   replace: vi.fn(),
   searchCatalogIngredients: vi.fn(),
 }));
@@ -37,6 +45,15 @@ vi.mock("../../lib/variant-api", async (importOriginal) => {
   return {
     ...actual,
     createRecipeVariant: mocks.createRecipeVariant,
+  };
+});
+
+vi.mock("../../lib/recipe-duplicate-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/recipe-duplicate-api")>();
+  return {
+    ...actual,
+    createRecipeDuplicatePreflight: mocks.createRecipeDuplicatePreflight,
+    recordRecipeDuplicateDecision: mocks.recordRecipeDuplicateDecision,
   };
 });
 
@@ -58,6 +75,11 @@ const SOURCE_ID = "11111111-1111-4111-8111-111111111111";
 const CHILD_ID = "22222222-2222-4222-8222-222222222222";
 const FIRST_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
 const SECOND_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2";
+const THIRD_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3";
+const FOURTH_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4";
+const FIFTH_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa7";
+const PREFLIGHT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5";
+const CANDIDATE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa6";
 const SUGAR_ID = "44444444-4444-4444-8444-444444444444";
 const WALNUT_ID = "55555555-5555-4555-8555-555555555555";
 const SALT_ID = "66666666-6666-4666-8666-666666666666";
@@ -328,6 +350,42 @@ function createdRecipe(): RecipeDetail {
   };
 }
 
+function duplicatePreflight(
+  classification: "exact_duplicate" | "probable_duplicate" | "distinct" = "distinct",
+  overrides: Partial<RecipeDuplicatePreflight> = {},
+): RecipeDuplicatePreflight {
+  const distinct = classification === "distinct";
+  return {
+    classification,
+    same_lineage_no_change: false,
+    candidates: distinct
+      ? []
+      : [
+          {
+            public_recipe_version_id: CANDIDATE_ID,
+            title: "Public carrot cake candidate",
+            classification,
+            score: classification === "exact_duplicate" ? "1.000000" : "0.850000",
+            reasons: [
+              {
+                code: "same_curated_ingredient_multiset",
+                message: "The curated ingredient set is the same.",
+              },
+            ],
+          },
+        ],
+    warnings: [],
+    acknowledgement: {
+      preflight_id: PREFLIGHT_ID,
+      policy_version: "recipe-duplicate-preflight-policy-v1",
+      result_digest: "a".repeat(64),
+      required: !distinct,
+      allowed_decisions: distinct ? [] : ["continue", "revise"],
+    },
+    ...overrides,
+  };
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
@@ -430,12 +488,22 @@ function renderEditor(recipe = sourceRecipe()) {
 beforeEach(() => {
   mocks.browseMyIngredientRequests.mockReset();
   mocks.replace.mockReset();
+  mocks.createRecipeDuplicatePreflight.mockReset();
+  mocks.recordRecipeDuplicateDecision.mockReset();
   mocks.createRecipeVariant.mockReset();
   mocks.createIdempotencyKey.mockReset();
   mocks.searchCatalogIngredients.mockReset();
   mocks.fetchMyIngredientRequest.mockReset();
   mocks.browseMyIngredientRequests.mockResolvedValue(resolvedRequestPage());
   mocks.fetchMyIngredientRequest.mockResolvedValue(resolvedRequest());
+  mocks.createRecipeDuplicatePreflight.mockResolvedValue(duplicatePreflight());
+  mocks.recordRecipeDuplicateDecision.mockImplementation(
+    async (_preflightId: string, payload: { decision: "continue" | "revise" }) => ({
+      preflight_id: PREFLIGHT_ID,
+      decision: payload.decision,
+      recorded_at: "2026-08-25T12:00:00Z",
+    }),
+  );
   mocks.searchCatalogIngredients.mockImplementation(
     async ({ query }: { query?: string }) => {
       if (query?.trim().toLocaleLowerCase() === "orange zest") {
@@ -446,7 +514,10 @@ beforeEach(() => {
   );
   mocks.createIdempotencyKey
     .mockReturnValueOnce(FIRST_KEY)
-    .mockReturnValueOnce(SECOND_KEY);
+    .mockReturnValueOnce(SECOND_KEY)
+    .mockReturnValueOnce(THIRD_KEY)
+    .mockReturnValueOnce(FOURTH_KEY)
+    .mockReturnValueOnce(FIFTH_KEY);
 });
 
 describe("RecipeVariantEditor", () => {
@@ -683,7 +754,7 @@ describe("RecipeVariantEditor", () => {
           },
         ],
       }),
-      FIRST_KEY,
+      SECOND_KEY,
     );
     const submittedPayload = vi.mocked(createRecipeVariant).mock.calls[0]?.[1];
     expect(JSON.stringify(submittedPayload)).not.toContain(PACKAGE_SIZE_ID);
@@ -710,7 +781,7 @@ describe("RecipeVariantEditor", () => {
     expect(createRecipeVariant).toHaveBeenCalledWith(
       SOURCE_ID,
       expect.objectContaining({ ingredient_edits: [] }),
-      FIRST_KEY,
+      SECOND_KEY,
     );
   });
 
@@ -732,7 +803,7 @@ describe("RecipeVariantEditor", () => {
     expect(createRecipeVariant).toHaveBeenCalledWith(
       SOURCE_ID,
       expect.objectContaining({ ingredient_edits: [] }),
-      FIRST_KEY,
+      SECOND_KEY,
     );
   });
 
@@ -967,7 +1038,7 @@ describe("RecipeVariantEditor", () => {
           },
         ],
       },
-      FIRST_KEY,
+      SECOND_KEY,
     );
   });
 
@@ -1046,7 +1117,7 @@ describe("RecipeVariantEditor", () => {
           },
         ],
       },
-      FIRST_KEY,
+      SECOND_KEY,
     );
   });
 
@@ -1123,9 +1194,448 @@ describe("RecipeVariantEditor", () => {
     expect(within(selectedIngredient as HTMLElement).getByText("Pecan")).toBeInTheDocument();
     expect(screen.getByRole("form")).toHaveAttribute("aria-busy", "false");
     expect(screen.getByRole("button", { name: /^create my version$/i })).toBeEnabled();
-    expect(createRecipeVariant).toHaveBeenCalledOnce();
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
     expect(mocks.replace).not.toHaveBeenCalled();
     await waitFor(() => expect(alert).toHaveFocus());
+  });
+
+  it("pauses an exact match for focused acknowledgement, records continue once, then creates", async () => {
+    vi.mocked(createRecipeDuplicatePreflight).mockResolvedValue(
+      duplicatePreflight("exact_duplicate"),
+    );
+    vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
+    renderEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+
+    const heading = await screen.findByRole("heading", {
+      name: "Review an existing structural match",
+    });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(createRecipeVariant).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: /Public carrot cake candidate/i })).toHaveAttribute(
+      "href",
+      `/recipes/${CANDIDATE_ID}`,
+    );
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /reviewed these advisory results/i }),
+    );
+    const continueButton = screen.getByRole("button", {
+      name: "Create my version anyway",
+    });
+    fireEvent.click(continueButton);
+    fireEvent.click(continueButton);
+
+    await waitFor(() => expect(recordRecipeDuplicateDecision).toHaveBeenCalledOnce());
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
+    expect(createRecipeDuplicatePreflight).toHaveBeenCalledWith(
+      SOURCE_ID,
+      expect.any(Object),
+      FIRST_KEY,
+    );
+    expect(recordRecipeDuplicateDecision).toHaveBeenCalledWith(
+      PREFLIGHT_ID,
+      {
+        policy_version: "recipe-duplicate-preflight-policy-v1",
+        result_digest: "a".repeat(64),
+        decision: "continue",
+      },
+      SECOND_KEY,
+    );
+    expect(createRecipeVariant).toHaveBeenCalledWith(
+      SOURCE_ID,
+      expect.any(Object),
+      THIRD_KEY,
+    );
+  });
+
+  it("records revise, preserves the draft, and returns focus to editing", async () => {
+    vi.mocked(createRecipeDuplicatePreflight).mockResolvedValue(
+      duplicatePreflight("probable_duplicate"),
+    );
+    renderEditor();
+    const title = screen.getByLabelText(/^title$/i);
+    fireEvent.change(title, { target: { value: "Keep this probable-match draft" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+
+    await waitFor(() => expect(recordRecipeDuplicateDecision).toHaveBeenCalledOnce());
+    expect(recordRecipeDuplicateDecision).toHaveBeenCalledWith(
+      PREFLIGHT_ID,
+      expect.objectContaining({ decision: "revise" }),
+      SECOND_KEY,
+    );
+    await waitFor(() => expect(title).toHaveFocus());
+    expect(title).toHaveValue("Keep this probable-match draft");
+    expect(screen.queryByRole("region", { name: /similar recipe structures/i })).toBeNull();
+    expect(createRecipeVariant).not.toHaveBeenCalled();
+  });
+
+  it("uses fresh preflight evidence when an unchanged revised draft is resubmitted", async () => {
+    vi.mocked(createRecipeDuplicatePreflight).mockResolvedValue(
+      duplicatePreflight("probable_duplicate"),
+    );
+    vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
+    renderEditor();
+
+    const submit = screen.getByRole("button", { name: /^create my version$/i });
+    fireEvent.click(submit);
+    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    await waitFor(() => expect(recordRecipeDuplicateDecision).toHaveBeenCalledOnce());
+
+    fireEvent.click(submit);
+    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /reviewed these advisory results/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Create my version anyway" }));
+
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
+    expect(
+      vi.mocked(createRecipeDuplicatePreflight).mock.calls.map((call) => call[2]),
+    ).toEqual([FIRST_KEY, THIRD_KEY]);
+    expect(
+      vi.mocked(recordRecipeDuplicateDecision).mock.calls.map((call) => call[2]),
+    ).toEqual([SECOND_KEY, FOURTH_KEY]);
+    expect(createRecipeVariant).toHaveBeenCalledWith(
+      SOURCE_ID,
+      expect.any(Object),
+      FIFTH_KEY,
+    );
+  });
+
+  it("invalidates a no-change review immediately when the draft changes", async () => {
+    vi.mocked(createRecipeDuplicatePreflight).mockResolvedValue(
+      duplicatePreflight("exact_duplicate", {
+        same_lineage_no_change: true,
+        candidates: [],
+        warnings: [
+          {
+            code: "same_lineage_no_change",
+            message: "The structured recipe is unchanged from its direct parent.",
+          },
+        ],
+      }),
+    );
+    renderEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+    await screen.findByRole("region", {
+      name: "This version keeps the same recipe structure",
+    });
+    fireEvent.change(screen.getByLabelText(/^title$/i), {
+      target: { value: "A newly revised title" },
+    });
+
+    expect(
+      screen.queryByRole("region", {
+        name: "This version keeps the same recipe structure",
+      }),
+    ).toBeNull();
+    expect(screen.getByLabelText(/^title$/i)).toHaveValue("A newly revised title");
+    expect(screen.getByRole("status")).toHaveTextContent(/draft changed/i);
+    expect(recordRecipeDuplicateDecision).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      name: "503 availability response",
+      error: new RecipeDuplicateApiError(
+        "Recipe Lab could not check this version right now. Your draft is still here; please try again.",
+        503,
+        "duplicate_preflight_unavailable",
+      ),
+    },
+    { name: "network failure", error: new TypeError("fetch failed") },
+  ])(
+    "requires an explicit create choice after a $name",
+    async ({ error }) => {
+      vi.mocked(createRecipeDuplicatePreflight).mockRejectedValue(error);
+      vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
+      renderEditor();
+      const title = screen.getByLabelText(/^title$/i);
+      fireEvent.change(title, { target: { value: "Preserved unavailable draft" } });
+
+      fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+
+      const fallback = await screen.findByRole("region", {
+        name: "Similarity review could not be completed",
+      });
+      await waitFor(() =>
+        expect(
+          within(fallback).getByRole("heading", {
+            name: "Similarity review could not be completed",
+          }),
+        ).toHaveFocus(),
+      );
+      expect(fallback).toHaveTextContent("does not mean your version is distinct");
+      expect(title).toHaveValue("Preserved unavailable draft");
+      expect(createRecipeVariant).not.toHaveBeenCalled();
+      expect(recordRecipeDuplicateDecision).not.toHaveBeenCalled();
+
+      fireEvent.click(
+        within(fallback).getByRole("button", {
+          name: "Create without similarity review",
+        }),
+      );
+      await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
+      expect(createRecipeVariant).toHaveBeenCalledWith(
+        SOURCE_ID,
+        expect.any(Object),
+        SECOND_KEY,
+      );
+      expect(recordRecipeDuplicateDecision).not.toHaveBeenCalled();
+    },
+  );
+
+  it("retries an unavailable review with the same preflight key before auto-creating distinct", async () => {
+    vi.mocked(createRecipeDuplicatePreflight)
+      .mockRejectedValueOnce(
+        new RecipeDuplicateApiError(
+          "Recipe Lab could not check this version right now. Your draft is still here; please try again.",
+          503,
+          "duplicate_preflight_unavailable",
+        ),
+      )
+      .mockResolvedValueOnce(duplicatePreflight("distinct"));
+    vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
+    renderEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+    const fallback = await screen.findByRole("region", {
+      name: "Similarity review could not be completed",
+    });
+    expect(createRecipeVariant).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(fallback).getByRole("button", { name: "Retry similarity review" }),
+    );
+
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
+    expect(
+      vi.mocked(createRecipeDuplicatePreflight).mock.calls.map((call) => call[2]),
+    ).toEqual([FIRST_KEY, FIRST_KEY]);
+    expect(createRecipeVariant).toHaveBeenCalledWith(
+      SOURCE_ID,
+      expect.any(Object),
+      SECOND_KEY,
+    );
+  });
+
+  it.each([
+    {
+      name: "malformed response",
+      error: new RecipeDuplicateApiError(
+        "Recipe Lab received an invalid similarity review response.",
+        502,
+        "invalid_recipe_duplicate_response",
+      ),
+    },
+    {
+      name: "expired session",
+      error: new RecipeDuplicateApiError(
+        "Your session expired. Sign in again to continue.",
+        401,
+        "authentication_required",
+      ),
+    },
+    {
+      name: "unavailable source",
+      error: new RecipeDuplicateApiError(
+        "Recipe Lab could not check this version right now. Your draft is still here; please try again.",
+        404,
+        "recipe_not_found",
+      ),
+    },
+    {
+      name: "stale preflight conflict",
+      error: new RecipeDuplicateApiError(
+        "Recipe Lab could not check this version right now. Your draft is still here; please try again.",
+        409,
+        "duplicate_preflight_stale",
+      ),
+    },
+    {
+      name: "invalid recipe edits",
+      error: new RecipeDuplicateApiError(
+        "Recipe Lab could not check this version right now. Your draft is still here; please try again.",
+        422,
+        "invalid_recipe_edits",
+      ),
+    },
+  ])("preserves every draft field after a $name", async ({ error }) => {
+    vi.mocked(createRecipeDuplicatePreflight).mockRejectedValue(error);
+    renderEditor();
+    const title = screen.getByLabelText(/^title$/i);
+    fireEvent.change(title, { target: { value: "Preserve this title" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(title).toHaveValue("Preserve this title");
+    expect(createRecipeVariant).not.toHaveBeenCalled();
+    expect(screen.queryByRole("region", { name: /recipe structure/i })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Create without similarity review" }),
+    ).toBeNull();
+    await waitFor(() => expect(alert).toHaveFocus());
+  });
+
+  it("clears candidate details after a stale acknowledgement decision", async () => {
+    vi.mocked(createRecipeDuplicatePreflight).mockResolvedValue(
+      duplicatePreflight("probable_duplicate"),
+    );
+    vi.mocked(recordRecipeDuplicateDecision).mockRejectedValueOnce(
+      new RecipeDuplicateApiError(
+        "Recipe Lab could not check this version right now. Your draft is still here; please try again.",
+        409,
+        "duplicate_preflight_stale",
+      ),
+    );
+    vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
+    renderEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+    await screen.findByRole("link", { name: /Public carrot cake candidate/i });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /reviewed these advisory results/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Create my version anyway" }));
+
+    await screen.findByRole("alert");
+    expect(screen.queryByRole("link", { name: /Public carrot cake candidate/i })).toBeNull();
+    expect(screen.getByLabelText(/^title$/i)).toHaveValue(
+      "Carrot Walnut Snack Cake variation",
+    );
+    expect(createRecipeVariant).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /reviewed these advisory results/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Create my version anyway" }));
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
+    expect(
+      vi.mocked(createRecipeDuplicatePreflight).mock.calls.map((call) => call[2]),
+    ).toEqual([FIRST_KEY, THIRD_KEY]);
+    expect(
+      vi.mocked(recordRecipeDuplicateDecision).mock.calls.map((call) => call[2]),
+    ).toEqual([SECOND_KEY, FOURTH_KEY]);
+  });
+
+  it("retries an unavailable continue decision with the same key, then creates", async () => {
+    vi.mocked(createRecipeDuplicatePreflight).mockResolvedValue(
+      duplicatePreflight("probable_duplicate"),
+    );
+    vi.mocked(recordRecipeDuplicateDecision)
+      .mockRejectedValueOnce(
+        new RecipeDuplicateApiError(
+          "Recipe Lab could not check this version right now. Your draft is still here; please try again.",
+          503,
+        ),
+      )
+      .mockResolvedValueOnce({
+        preflight_id: PREFLIGHT_ID,
+        decision: "continue",
+        recorded_at: "2026-08-25T12:00:00Z",
+      });
+    vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
+    renderEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /reviewed these advisory results/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Create my version anyway" }));
+    const failureHeading = await screen.findByRole("heading", {
+      name: "Your review choice could not be confirmed",
+    });
+    await waitFor(() => expect(failureHeading).toHaveFocus());
+    expect(createRecipeVariant).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Retry recording my choice" }));
+
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
+    expect(createRecipeDuplicatePreflight).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(recordRecipeDuplicateDecision).mock.calls.map((call) => call[2]),
+    ).toEqual([SECOND_KEY, SECOND_KEY]);
+    expect(createRecipeVariant).toHaveBeenCalledWith(
+      SOURCE_ID,
+      expect.any(Object),
+      THIRD_KEY,
+    );
+  });
+
+  it("requires an explicit create when a continue decision cannot be recorded", async () => {
+    vi.mocked(createRecipeDuplicatePreflight).mockResolvedValue(
+      duplicatePreflight("probable_duplicate"),
+    );
+    vi.mocked(recordRecipeDuplicateDecision).mockRejectedValue(
+      new RecipeDuplicateApiError(
+        "Recipe Lab could not check this version right now. Your draft is still here; please try again.",
+        503,
+      ),
+    );
+    vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
+    renderEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /reviewed these advisory results/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Create my version anyway" }));
+    await screen.findByRole("heading", {
+      name: "Your review choice could not be confirmed",
+    });
+    expect(createRecipeVariant).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Create without confirming the review decision",
+      }),
+    );
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
+    expect(recordRecipeDuplicateDecision).toHaveBeenCalledOnce();
+    expect(createRecipeVariant).toHaveBeenCalledWith(
+      SOURCE_ID,
+      expect.any(Object),
+      THIRD_KEY,
+    );
+  });
+
+  it("returns to an intact draft when a revise decision cannot be recorded", async () => {
+    vi.mocked(createRecipeDuplicatePreflight).mockResolvedValue(
+      duplicatePreflight("probable_duplicate"),
+    );
+    vi.mocked(recordRecipeDuplicateDecision).mockRejectedValue(
+      new TypeError("fetch failed"),
+    );
+    renderEditor();
+    const title = screen.getByLabelText(/^title$/i);
+    fireEvent.change(title, { target: { value: "Keep this decision-failure draft" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    await screen.findByRole("heading", {
+      name: "Your review choice could not be confirmed",
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Return to editing without confirming the review decision",
+      }),
+    );
+
+    await waitFor(() => expect(title).toHaveFocus());
+    expect(title).toHaveValue("Keep this decision-failure draft");
+    expect(screen.queryByRole("region", { name: /similar recipe structures/i })).toBeNull();
+    expect(createRecipeVariant).not.toHaveBeenCalled();
   });
 
   it("reuses a failed fork key until the draft changes", async () => {
@@ -1149,10 +1659,14 @@ describe("RecipeVariantEditor", () => {
 
     await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledTimes(3));
     const calls = vi.mocked(createRecipeVariant).mock.calls;
-    expect(calls[0]?.[2]).toBe(FIRST_KEY);
-    expect(calls[1]?.[2]).toBe(FIRST_KEY);
-    expect(calls[2]?.[2]).toBe(SECOND_KEY);
-    expect(mocks.createIdempotencyKey).toHaveBeenCalledTimes(2);
+    expect(calls[0]?.[2]).toBe(SECOND_KEY);
+    expect(calls[1]?.[2]).toBe(SECOND_KEY);
+    expect(calls[2]?.[2]).toBe(FOURTH_KEY);
+    const preflightCalls = vi.mocked(createRecipeDuplicatePreflight).mock.calls;
+    expect(preflightCalls[0]?.[2]).toBe(FIRST_KEY);
+    expect(preflightCalls[1]?.[2]).toBe(FIRST_KEY);
+    expect(preflightCalls[2]?.[2]).toBe(THIRD_KEY);
+    expect(mocks.createIdempotencyKey).toHaveBeenCalledTimes(4);
   });
 
   it("guards against same-tick duplicate submissions while creation is pending", async () => {
@@ -1164,7 +1678,8 @@ describe("RecipeVariantEditor", () => {
     fireEvent.submit(form);
     fireEvent.submit(form);
 
-    expect(createRecipeVariant).toHaveBeenCalledOnce();
+    expect(createRecipeDuplicatePreflight).toHaveBeenCalledOnce();
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
     expect(form).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("button", { name: /creating your version/i })).toBeDisabled();
     expect(screen.getByText(/creating your version/i, { selector: "p" })).toHaveAttribute(

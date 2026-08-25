@@ -1,7 +1,10 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { useAcceptanceMember } from "./acceptance-session";
+import {
+  continueRecipeDuplicateReviewIfRequired,
+  useAcceptanceMember,
+} from "./acceptance-session";
 
 const recipePathPattern = /^\/recipes\/([^/]+)$/;
 
@@ -178,9 +181,18 @@ test.describe("MVP acceptance", () => {
           `/api/recipes/${encodeURIComponent(sourceRecipeVersionId)}/variants`,
         ),
     );
+    const duplicatePreflightResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/duplicate-preflights"),
+    );
     await activateWithKeyboard(
       page,
       page.getByRole("button", { name: "Create my version", exact: true }),
+    );
+    await continueRecipeDuplicateReviewIfRequired(
+      page,
+      await duplicatePreflightResponse,
     );
     const submittedVariant = (await createRequest).postDataJSON() as {
       ingredient_edits: Array<Record<string, unknown>>;
