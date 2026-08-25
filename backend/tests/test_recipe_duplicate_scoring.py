@@ -455,6 +455,7 @@ def test_structured_action_components_detect_order_inputs_duration_and_temperatu
     assert action_change.components.action_order == Fraction(1, 2)
     assert action_change.components.ordered_inputs == Fraction(2, 3)
     assert action_change.components.duration_temperature < 1
+    assert action_change.reasons[-1].code == "different_action_order"
     assert input_change.components.action_order == 1
     assert input_change.components.ordered_inputs < 1
     assert parameter_change.components.action_order == 1
@@ -529,7 +530,7 @@ def test_probable_threshold_is_inclusive_at_exactly_four_fifths() -> None:
     assert result.classification == "probable_duplicate"
 
 
-def test_reasons_are_bounded_and_follow_ingredient_quantity_action_order() -> None:
+def test_reasons_are_bounded_and_distinguish_changed_action_types() -> None:
     left = _fingerprint(_structure())
     right = _fingerprint(
         _structure(
@@ -546,7 +547,7 @@ def test_reasons_are_bounded_and_follow_ingredient_quantity_action_order() -> No
     assert [reason.code for reason in result.reasons] == [
         "overlapping_ingredient_multisets",
         "partially_matching_quantities",
-        "different_action_order",
+        "different_action_types",
     ]
 
 

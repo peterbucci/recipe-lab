@@ -3,7 +3,18 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from decimal import Decimal
+from fractions import Fraction
 
+import pytest
+from app.services.recipe_duplicate_scoring import (
+    DuplicateCandidateFingerprint,
+    DuplicateCandidateReason,
+    DuplicateCandidateScore,
+    score_recipe_duplicate_candidate,
+)
+from app.services.recipe_fingerprints import StructuralFingerprint, build_structural_fingerprint
+
+import recipe_lab_evaluation.duplicate_evaluation as duplicate_evaluation_module
 from recipe_lab_evaluation.dataset import canonical_json
 from recipe_lab_evaluation.duplicate_dataset import DuplicateBenchmark
 from recipe_lab_evaluation.duplicate_evaluation import (
@@ -37,6 +48,7 @@ def test_fixture_engineering_validates_all_classes_categories_and_explanations(
     assert report.counts.false_positives == 0
     assert report.counts.false_negatives == 0
     assert report.counts.cases_with_complete_explanations == 11
+    assert report.counts.cases_matching_expected_components == 11
     assert report.counts.required_categories == 11
     assert report.counts.covered_categories == 11
     assert report.metrics.precision == Decimal("1.000000")
@@ -44,10 +56,13 @@ def test_fixture_engineering_validates_all_classes_categories_and_explanations(
     assert report.metrics.three_class_accuracy == Decimal("1.000000")
     assert report.metrics.evaluated_coverage == Decimal("1.000000")
     assert report.metrics.category_coverage == Decimal("1.000000")
+    assert report.metrics.component_expectation_coverage == Decimal("1.000000")
     assert report.metrics.explanation_coverage == Decimal("1.000000")
     assert report.false_positive_categories == ()
     assert report.false_negative_categories == ()
     assert report.classification_mismatch_categories == ()
+    assert report.component_mismatch_categories == ()
+    assert report.explanation_mismatch_categories == ()
     assert set(REQUIRED_DUPLICATE_EVALUATION_LIMITATIONS) == set(report.limitations)
 
 
@@ -79,7 +94,7 @@ def test_report_exposes_the_versioned_reproducible_production_scoring_contract(
             ),
         },
         "maximum_reasons": 3,
-        "parameter_sha256": "51a9a0462260fb47b574c1070e90bd964dd57ab171a818f55b1897a567ce1f70",
+        "parameter_sha256": "2ee8c0d10459115b7269859c3a62dbe2da75b44841a148424e74d09955773ee2",
         "probable_duplicate_threshold": "0.800000",
         "structure_version": "recipe-structure-v1",
         "weights": {
@@ -92,6 +107,101 @@ def test_report_exposes_the_versioned_reproducible_production_scoring_contract(
         "exact_duplicate",
         "probable_duplicate",
     ]
+
+
+def test_action_type_change_has_a_distinct_ordered_explanation_contract(
+    duplicate_benchmark: DuplicateBenchmark,
+) -> None:
+    case = next(item for item in duplicate_benchmark.cases if item.category == "action_change")
+    recipes = {item.id: item for item in duplicate_benchmark.recipes}
+    left = build_structural_fingerprint(recipes[case.left_recipe_id].structure)
+    right = build_structural_fingerprint(recipes[case.right_recipe_id].structure)
+
+    assert left is not None
+    assert right is not None
+    result = score_recipe_duplicate_candidate(left, right)
+    assert (
+        tuple(reason.code for reason in result.reasons)
+        == case.expected_reason_codes
+        == (
+            "same_ingredient_multiset",
+            "matching_quantities",
+            "different_action_types",
+        )
+    )
+    assert result.reasons[-1].message == ("One or more structured cooking-action types differ.")
+
+
+def test_report_rejects_nonempty_but_incorrect_explanations(
+    duplicate_benchmark: DuplicateBenchmark,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    production_scorer = score_recipe_duplicate_candidate
+
+    def scorer_with_wrong_reason(
+        left: DuplicateCandidateFingerprint | StructuralFingerprint,
+        right: DuplicateCandidateFingerprint | StructuralFingerprint,
+    ) -> DuplicateCandidateScore:
+        result = production_scorer(left, right)
+        if result.classification != "probable_duplicate":
+            return result
+        return replace(
+            result,
+            reasons=(
+                *result.reasons[:-1],
+                DuplicateCandidateReason(
+                    code="different_ordered_inputs",
+                    message="The ordered canonical inputs to cooking actions differ.",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        duplicate_evaluation_module,
+        "score_recipe_duplicate_candidate",
+        scorer_with_wrong_reason,
+    )
+
+    report = evaluate_duplicate_candidates(duplicate_benchmark)
+
+    assert report.status == "invalid"
+    assert "explanation_mismatch" in report.reason_codes
+    assert report.metrics.explanation_coverage is not None
+    assert report.metrics.explanation_coverage < Decimal("1")
+    assert report.explanation_mismatch_categories
+
+
+def test_report_rejects_unexpected_component_relations(
+    duplicate_benchmark: DuplicateBenchmark,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    production_scorer = score_recipe_duplicate_candidate
+
+    def scorer_with_wrong_component(
+        left: DuplicateCandidateFingerprint | StructuralFingerprint,
+        right: DuplicateCandidateFingerprint | StructuralFingerprint,
+    ) -> DuplicateCandidateScore:
+        result = production_scorer(left, right)
+        if result.classification != "distinct":
+            return result
+        return replace(
+            result,
+            components=replace(result.components, ingredient_multiset=Fraction(0)),
+        )
+
+    monkeypatch.setattr(
+        duplicate_evaluation_module,
+        "score_recipe_duplicate_candidate",
+        scorer_with_wrong_component,
+    )
+
+    report = evaluate_duplicate_candidates(duplicate_benchmark)
+
+    assert report.status == "invalid"
+    assert "component_expectation_mismatch" in report.reason_codes
+    assert report.metrics.component_expectation_coverage is not None
+    assert report.metrics.component_expectation_coverage < Decimal("1")
+    assert report.component_mismatch_categories
 
 
 def test_exact_vs_probable_mismatch_is_aggregate_without_positive_boundary_error(
@@ -165,6 +275,8 @@ def test_report_is_byte_deterministic_and_omits_pair_ids_prose_and_identity_fiel
     assert "path" not in first
     assert duplicate_benchmark.benchmark_id not in first
     for recipe in duplicate_benchmark.recipes:
+        for source_label in recipe.ingredient_source_labels:
+            assert source_label not in first
         for prose in recipe.instruction_prose:
             assert prose not in first
     for forbidden_field in (

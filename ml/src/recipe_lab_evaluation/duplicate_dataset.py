@@ -3,14 +3,22 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import Counter
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from fractions import Fraction
 from pathlib import Path
 from typing import Literal, cast
 
 from app.services.recipe_duplicate_scoring import (
+    ACTION_DUPLICATE_REASON_CODES,
     DUPLICATE_CANDIDATE_SCORING_ALGORITHM_VERSION,
+    EXACT_DUPLICATE_REASON_CODES,
+    INGREDIENT_DUPLICATE_REASON_CODES,
+    MAX_DUPLICATE_REASONS,
+    QUANTITY_DUPLICATE_REASON_CODES,
     DuplicateClassification,
+    DuplicateReasonCode,
 )
 from app.services.recipe_fingerprints import (
     STRUCTURAL_FINGERPRINT_ALGORITHM_VERSION,
@@ -41,6 +49,7 @@ type DuplicateBenchmarkCategory = Literal[
     "temperature_change",
     "unit_equivalence",
 ]
+type DuplicateComponentExpectationValue = Literal["below_one", "one"]
 
 REQUIRED_DUPLICATE_BENCHMARK_CATEGORIES: tuple[DuplicateBenchmarkCategory, ...] = (
     "action_change",
@@ -70,8 +79,19 @@ class DuplicateBenchmarkError(ValueError):
 @dataclass(frozen=True, slots=True)
 class DuplicateBenchmarkRecipe:
     id: str
+    ingredient_source_labels: tuple[str, ...]
     instruction_prose: tuple[str, ...]
     structure: RecipeStructure
+
+
+@dataclass(frozen=True, slots=True)
+class DuplicateComponentExpectations:
+    ingredient_multiset: DuplicateComponentExpectationValue
+    normalized_quantities: DuplicateComponentExpectationValue
+    action_order: DuplicateComponentExpectationValue
+    ordered_inputs: DuplicateComponentExpectationValue
+    duration_temperature: DuplicateComponentExpectationValue
+    structured_actions: DuplicateComponentExpectationValue
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +101,8 @@ class DuplicateBenchmarkCase:
     left_recipe_id: str
     right_recipe_id: str
     expected_classification: DuplicateClassification
+    expected_components: DuplicateComponentExpectations
+    expected_reason_codes: tuple[DuplicateReasonCode, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +114,111 @@ class DuplicateBenchmark:
     recipes: tuple[DuplicateBenchmarkRecipe, ...]
     cases: tuple[DuplicateBenchmarkCase, ...]
     sha256: str
+
+
+_ALL_ONE_COMPONENTS = DuplicateComponentExpectations(
+    ingredient_multiset="one",
+    normalized_quantities="one",
+    action_order="one",
+    ordered_inputs="one",
+    duration_temperature="one",
+    structured_actions="one",
+)
+_QUANTITY_CHANGE_COMPONENTS = DuplicateComponentExpectations(
+    ingredient_multiset="one",
+    normalized_quantities="below_one",
+    action_order="one",
+    ordered_inputs="one",
+    duration_temperature="one",
+    structured_actions="one",
+)
+_ACTION_CHANGE_COMPONENTS = DuplicateComponentExpectations(
+    ingredient_multiset="one",
+    normalized_quantities="one",
+    action_order="below_one",
+    ordered_inputs="below_one",
+    duration_temperature="below_one",
+    structured_actions="below_one",
+)
+_PARAMETER_CHANGE_COMPONENTS = DuplicateComponentExpectations(
+    ingredient_multiset="one",
+    normalized_quantities="one",
+    action_order="one",
+    ordered_inputs="one",
+    duration_temperature="below_one",
+    structured_actions="below_one",
+)
+_ADVERSARIAL_COMPONENTS = DuplicateComponentExpectations(
+    ingredient_multiset="one",
+    normalized_quantities="below_one",
+    action_order="below_one",
+    ordered_inputs="below_one",
+    duration_temperature="below_one",
+    structured_actions="below_one",
+)
+_EXPECTED_COMPONENTS_BY_CATEGORY: dict[
+    DuplicateBenchmarkCategory, DuplicateComponentExpectations
+] = {
+    "action_change": _ACTION_CHANGE_COMPONENTS,
+    "action_order_change": _ACTION_CHANGE_COMPONENTS,
+    "adversarial_near_match": _ADVERSARIAL_COMPONENTS,
+    "alias_equivalence": _ALL_ONE_COMPONENTS,
+    "duration_change": _PARAMETER_CHANGE_COMPONENTS,
+    "ingredient_reorder": _ALL_ONE_COMPONENTS,
+    "proportional_scaling": _ALL_ONE_COMPONENTS,
+    "prose_paraphrase": _ALL_ONE_COMPONENTS,
+    "quantity_change": _QUANTITY_CHANGE_COMPONENTS,
+    "temperature_change": _PARAMETER_CHANGE_COMPONENTS,
+    "unit_equivalence": _ALL_ONE_COMPONENTS,
+}
+_EXACT_REASONS: tuple[DuplicateReasonCode, ...] = ("exact_structural_match",)
+_EXPECTED_REASONS_BY_CATEGORY: dict[DuplicateBenchmarkCategory, tuple[DuplicateReasonCode, ...]] = {
+    "action_change": (
+        "same_ingredient_multiset",
+        "matching_quantities",
+        "different_action_types",
+    ),
+    "action_order_change": (
+        "same_ingredient_multiset",
+        "matching_quantities",
+        "different_action_order",
+    ),
+    "adversarial_near_match": (
+        "same_ingredient_multiset",
+        "partially_matching_quantities",
+        "different_action_types",
+    ),
+    "alias_equivalence": _EXACT_REASONS,
+    "duration_change": (
+        "same_ingredient_multiset",
+        "matching_quantities",
+        "different_duration_or_temperature",
+    ),
+    "ingredient_reorder": _EXACT_REASONS,
+    "proportional_scaling": (
+        "same_ingredient_multiset",
+        "proportionally_scaled_quantities",
+        "matching_structured_actions",
+    ),
+    "prose_paraphrase": _EXACT_REASONS,
+    "quantity_change": (
+        "same_ingredient_multiset",
+        "partially_matching_quantities",
+        "matching_structured_actions",
+    ),
+    "temperature_change": (
+        "same_ingredient_multiset",
+        "matching_quantities",
+        "different_duration_or_temperature",
+    ),
+    "unit_equivalence": _EXACT_REASONS,
+}
+_REASON_CODE_SET = frozenset(
+    EXACT_DUPLICATE_REASON_CODES
+    | INGREDIENT_DUPLICATE_REASON_CODES
+    | QUANTITY_DUPLICATE_REASON_CODES
+    | ACTION_DUPLICATE_REASON_CODES
+)
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -180,7 +307,9 @@ _TOP_LEVEL_KEYS = frozenset(
         "recipes",
     }
 )
-_RECIPE_RECORD_KEYS = frozenset({"id", "instruction_prose", "structure"})
+_RECIPE_RECORD_KEYS = frozenset(
+    {"id", "ingredient_source_labels", "instruction_prose", "structure"}
+)
 _STRUCTURE_KEYS = frozenset({"ingredients", "instructions"})
 _INGREDIENT_KEYS = frozenset({"canonical_ingredient", "measure", "occurrence"})
 _INSTRUCTION_KEYS = frozenset({"actions"})
@@ -204,9 +333,21 @@ _CASE_KEYS = frozenset(
     {
         "category",
         "expected_classification",
+        "expected_components",
+        "expected_reason_codes",
         "id",
         "left_recipe_id",
         "right_recipe_id",
+    }
+)
+_COMPONENT_KEYS = frozenset(
+    {
+        "action_order",
+        "duration_temperature",
+        "ingredient_multiset",
+        "normalized_quantities",
+        "ordered_inputs",
+        "structured_actions",
     }
 )
 
@@ -353,6 +494,19 @@ def _parse_recipes(value: object) -> tuple[DuplicateBenchmarkRecipe, ...]:
             )
         )
         structure = _parse_structure(item["structure"], path=f"{path}.structure")
+        ingredient_source_labels = tuple(
+            _string(label, path=f"{path}.ingredient_source_labels[{label_index}]")
+            for label_index, label in enumerate(
+                _array(
+                    item["ingredient_source_labels"],
+                    path=f"{path}.ingredient_source_labels",
+                )
+            )
+        )
+        if len(ingredient_source_labels) != len(structure.ingredients):
+            raise DuplicateBenchmarkError(
+                f"{path}.ingredient_source_labels must align with the structured ingredients"
+            )
         if len(instruction_prose) != len(structure.instructions):
             raise DuplicateBenchmarkError(
                 f"{path}.instruction_prose must align with the structured instructions"
@@ -360,11 +514,36 @@ def _parse_recipes(value: object) -> tuple[DuplicateBenchmarkRecipe, ...]:
         recipes.append(
             DuplicateBenchmarkRecipe(
                 id=_slug(item["id"], path=f"{path}.id"),
+                ingredient_source_labels=ingredient_source_labels,
                 instruction_prose=instruction_prose,
                 structure=structure,
             )
         )
     return tuple(recipes)
+
+
+def _parse_component_expectations(
+    value: object,
+    *,
+    path: str,
+) -> DuplicateComponentExpectations:
+    document = _object(value, path=path)
+    _exact_keys(document, expected=_COMPONENT_KEYS, path=path)
+
+    def expectation(key: str) -> DuplicateComponentExpectationValue:
+        raw = _string(document[key], path=f"{path}.{key}")
+        if raw not in {"below_one", "one"}:
+            raise DuplicateBenchmarkError(f"{path}.{key} has an unsupported expectation")
+        return cast(DuplicateComponentExpectationValue, raw)
+
+    return DuplicateComponentExpectations(
+        ingredient_multiset=expectation("ingredient_multiset"),
+        normalized_quantities=expectation("normalized_quantities"),
+        action_order=expectation("action_order"),
+        ordered_inputs=expectation("ordered_inputs"),
+        duration_temperature=expectation("duration_temperature"),
+        structured_actions=expectation("structured_actions"),
+    )
 
 
 def _parse_cases(value: object) -> tuple[DuplicateBenchmarkCase, ...]:
@@ -381,6 +560,21 @@ def _parse_cases(value: object) -> tuple[DuplicateBenchmarkCase, ...]:
         )
         if raw_classification not in _CLASSIFICATIONS:
             raise DuplicateBenchmarkError(f"{path}.expected_classification is unsupported")
+        expected_reason_codes = tuple(
+            _string(reason, path=f"{path}.expected_reason_codes[{reason_index}]")
+            for reason_index, reason in enumerate(
+                _array(item["expected_reason_codes"], path=f"{path}.expected_reason_codes")
+            )
+        )
+        if (
+            not expected_reason_codes
+            or len(expected_reason_codes) > MAX_DUPLICATE_REASONS
+            or len(expected_reason_codes) != len(set(expected_reason_codes))
+            or any(reason not in _REASON_CODE_SET for reason in expected_reason_codes)
+        ):
+            raise DuplicateBenchmarkError(
+                f"{path}.expected_reason_codes must be unique, supported, and bounded"
+            )
         cases.append(
             DuplicateBenchmarkCase(
                 id=_slug(item["id"], path=f"{path}.id"),
@@ -388,6 +582,10 @@ def _parse_cases(value: object) -> tuple[DuplicateBenchmarkCase, ...]:
                 left_recipe_id=_slug(item["left_recipe_id"], path=f"{path}.left_recipe_id"),
                 right_recipe_id=_slug(item["right_recipe_id"], path=f"{path}.right_recipe_id"),
                 expected_classification=cast(DuplicateClassification, raw_classification),
+                expected_components=_parse_component_expectations(
+                    item["expected_components"], path=f"{path}.expected_components"
+                ),
+                expected_reason_codes=cast(tuple[DuplicateReasonCode, ...], expected_reason_codes),
             )
         )
     return tuple(cases)
@@ -476,6 +674,19 @@ def _structure_to_document(structure: RecipeStructure) -> dict[str, object]:
     }
 
 
+def _component_expectations_to_document(
+    expectations: DuplicateComponentExpectations,
+) -> dict[str, str]:
+    return {
+        "action_order": expectations.action_order,
+        "duration_temperature": expectations.duration_temperature,
+        "ingredient_multiset": expectations.ingredient_multiset,
+        "normalized_quantities": expectations.normalized_quantities,
+        "ordered_inputs": expectations.ordered_inputs,
+        "structured_actions": expectations.structured_actions,
+    }
+
+
 def _normalized_document(benchmark: DuplicateBenchmark) -> dict[str, object]:
     return {
         "benchmark_id": benchmark.benchmark_id,
@@ -483,6 +694,10 @@ def _normalized_document(benchmark: DuplicateBenchmark) -> dict[str, object]:
             {
                 "category": case.category,
                 "expected_classification": case.expected_classification,
+                "expected_components": _component_expectations_to_document(
+                    case.expected_components
+                ),
+                "expected_reason_codes": list(case.expected_reason_codes),
                 "id": case.id,
                 "left_recipe_id": case.left_recipe_id,
                 "right_recipe_id": case.right_recipe_id,
@@ -495,12 +710,266 @@ def _normalized_document(benchmark: DuplicateBenchmark) -> dict[str, object]:
         "recipes": [
             {
                 "id": item.id,
+                "ingredient_source_labels": list(item.ingredient_source_labels),
                 "instruction_prose": list(item.instruction_prose),
                 "structure": _structure_to_document(item.structure),
             }
             for item in sorted(benchmark.recipes, key=lambda item: item.id)
         ],
     }
+
+
+def _case_error(case: DuplicateBenchmarkCase, detail: str) -> DuplicateBenchmarkError:
+    return DuplicateBenchmarkError(
+        f"case {case.id!r} does not exercise {case.category!r}: {detail}"
+    )
+
+
+def _flatten_actions(recipe: DuplicateBenchmarkRecipe) -> tuple[StructuralAction, ...]:
+    return tuple(
+        action for instruction in recipe.structure.instructions for action in instruction.actions
+    )
+
+
+def _ingredient_identity_order(recipe: DuplicateBenchmarkRecipe) -> tuple[str | None, ...]:
+    return tuple(item.ingredient_identity for item in recipe.structure.ingredients)
+
+
+def _ingredient_occurrence_order(recipe: DuplicateBenchmarkRecipe) -> tuple[str | None, ...]:
+    return tuple(item.occurrence_key for item in recipe.structure.ingredients)
+
+
+def _source_unit_keys(recipe: DuplicateBenchmarkRecipe) -> tuple[str | None, ...]:
+    return tuple(
+        item.measure.unit.key
+        if item.measure is not None and item.measure.unit is not None
+        else None
+        for item in recipe.structure.ingredients
+    )
+
+
+def _measure_base_values(measure: StructuralMeasure | None) -> tuple[Fraction, ...] | None:
+    if measure is None or measure.mode not in {"exact", "range"} or measure.unit is None:
+        return None
+    rule = measure.unit.conversion
+    if rule is None or not rule.reviewed:
+        return None
+    raw_values = (
+        (measure.quantity_min,)
+        if measure.mode == "exact"
+        else (measure.quantity_min, measure.quantity_max)
+    )
+    if any(value is None for value in raw_values):
+        return None
+    scale = Fraction(rule.scale_numerator, rule.scale_denominator)
+    offset = Fraction(rule.offset_numerator, rule.offset_denominator)
+    return tuple((Fraction(cast(Decimal, value)) + offset) * scale for value in raw_values)
+
+
+def _positive_global_quantity_scale(
+    left: DuplicateBenchmarkRecipe,
+    right: DuplicateBenchmarkRecipe,
+) -> Fraction | None:
+    if _ingredient_identity_order(left) != _ingredient_identity_order(right):
+        return None
+    ratios: set[Fraction] = set()
+    for left_item, right_item in zip(
+        left.structure.ingredients,
+        right.structure.ingredients,
+        strict=True,
+    ):
+        left_values = _measure_base_values(left_item.measure)
+        right_values = _measure_base_values(right_item.measure)
+        if (
+            left_values is None
+            or right_values is None
+            or len(left_values) != len(right_values)
+            or any(value == 0 for value in left_values)
+        ):
+            return None
+        ratios.update(
+            right_value / left_value
+            for left_value, right_value in zip(left_values, right_values, strict=True)
+        )
+    if len(ratios) != 1:
+        return None
+    result = next(iter(ratios))
+    return result if result > 0 else None
+
+
+def _validate_case_semantics(
+    case: DuplicateBenchmarkCase,
+    left: DuplicateBenchmarkRecipe,
+    right: DuplicateBenchmarkRecipe,
+) -> None:
+    if left.id == right.id:
+        raise _case_error(case, "the pair must use two different recipe records")
+    if case.expected_components != _EXPECTED_COMPONENTS_BY_CATEGORY[case.category]:
+        raise _case_error(case, "the expected component profile is not the category contract")
+    if case.expected_reason_codes != _EXPECTED_REASONS_BY_CATEGORY[case.category]:
+        raise _case_error(case, "the expected ordered reasons are not the category contract")
+
+    left_fingerprint = build_structural_fingerprint(left.structure)
+    right_fingerprint = build_structural_fingerprint(right.structure)
+    if left_fingerprint is None or right_fingerprint is None:
+        raise _case_error(case, "both recipes must produce complete production fingerprints")
+    exact_structure = (
+        left_fingerprint.digest == right_fingerprint.digest
+        and left_fingerprint.canonical_json == right_fingerprint.canonical_json
+    )
+    exact_categories = {
+        "alias_equivalence",
+        "ingredient_reorder",
+        "prose_paraphrase",
+        "unit_equivalence",
+    }
+    if (case.category in exact_categories) != exact_structure:
+        raise _case_error(case, "the production fingerprint relation is incorrect")
+
+    left_actions = _flatten_actions(left)
+    right_actions = _flatten_actions(right)
+    left_measures = tuple(item.measure for item in left.structure.ingredients)
+    right_measures = tuple(item.measure for item in right.structure.ingredients)
+
+    if case.category == "unit_equivalence":
+        if not (
+            _ingredient_identity_order(left) == _ingredient_identity_order(right)
+            and _ingredient_occurrence_order(left) == _ingredient_occurrence_order(right)
+            and left.structure.instructions == right.structure.instructions
+            and left.ingredient_source_labels == right.ingredient_source_labels
+            and _prose_signature(left.instruction_prose)
+            == _prose_signature(right.instruction_prose)
+            and _source_unit_keys(left) != _source_unit_keys(right)
+        ):
+            raise _case_error(
+                case,
+                "only equivalent reviewed source-unit representations may differ",
+            )
+    elif case.category == "alias_equivalence":
+        if not (
+            left.structure == right.structure
+            and _prose_signature(left.instruction_prose)
+            == _prose_signature(right.instruction_prose)
+            and tuple(label.casefold() for label in left.ingredient_source_labels)
+            != tuple(label.casefold() for label in right.ingredient_source_labels)
+        ):
+            raise _case_error(
+                case,
+                "distinct source ingredient labels must map to identical curated structure",
+            )
+    elif case.category == "ingredient_reorder":
+        left_entries = tuple(
+            zip(left.structure.ingredients, left.ingredient_source_labels, strict=True)
+        )
+        right_entries = tuple(
+            zip(right.structure.ingredients, right.ingredient_source_labels, strict=True)
+        )
+        if not (
+            left_entries != right_entries
+            and Counter(left_entries) == Counter(right_entries)
+            and left.structure.instructions == right.structure.instructions
+            and _prose_signature(left.instruction_prose)
+            == _prose_signature(right.instruction_prose)
+        ):
+            raise _case_error(case, "the same ingredient records must appear in a new order")
+    elif case.category == "prose_paraphrase":
+        if not (
+            left.structure == right.structure
+            and left.ingredient_source_labels == right.ingredient_source_labels
+            and _prose_signature(left.instruction_prose)
+            != _prose_signature(right.instruction_prose)
+        ):
+            raise _case_error(
+                case,
+                "genuinely different prose must retain identical curated structure",
+            )
+    elif case.category in {"proportional_scaling", "quantity_change"}:
+        common_quantity_frame = (
+            _ingredient_identity_order(left) == _ingredient_identity_order(right)
+            and _ingredient_occurrence_order(left) == _ingredient_occurrence_order(right)
+            and left.structure.instructions == right.structure.instructions
+            and left.ingredient_source_labels == right.ingredient_source_labels
+            and left_measures != right_measures
+        )
+        scale = _positive_global_quantity_scale(left, right)
+        if not common_quantity_frame:
+            raise _case_error(case, "only structured ingredient quantities may differ")
+        if case.category == "proportional_scaling" and (scale is None or scale == 1):
+            raise _case_error(case, "all quantities must use one non-unit positive scale")
+        if case.category == "quantity_change" and scale is not None:
+            raise _case_error(case, "quantities must not share one positive global scale")
+    elif case.category == "action_change":
+        left_non_types = tuple(
+            (action.ingredient_occurrence_keys, action.duration, action.temperature)
+            for action in left_actions
+        )
+        right_non_types = tuple(
+            (action.ingredient_occurrence_keys, action.duration, action.temperature)
+            for action in right_actions
+        )
+        if not (
+            left.structure.ingredients == right.structure.ingredients
+            and left.ingredient_source_labels == right.ingredient_source_labels
+            and left_non_types == right_non_types
+            and Counter(action.action_type_key for action in left_actions)
+            != Counter(action.action_type_key for action in right_actions)
+        ):
+            raise _case_error(case, "action types must change while their other fields match")
+    elif case.category == "action_order_change":
+        if not (
+            left.structure.ingredients == right.structure.ingredients
+            and left.ingredient_source_labels == right.ingredient_source_labels
+            and left_actions != right_actions
+            and Counter(left_actions) == Counter(right_actions)
+        ):
+            raise _case_error(case, "the same complete actions must appear in a new order")
+    elif case.category in {"duration_change", "temperature_change"}:
+        left_common = tuple(
+            (
+                action.action_type_key,
+                action.ingredient_occurrence_keys,
+                action.temperature if case.category == "duration_change" else action.duration,
+            )
+            for action in left_actions
+        )
+        right_common = tuple(
+            (
+                action.action_type_key,
+                action.ingredient_occurrence_keys,
+                action.temperature if case.category == "duration_change" else action.duration,
+            )
+            for action in right_actions
+        )
+        left_changed = tuple(
+            action.duration if case.category == "duration_change" else action.temperature
+            for action in left_actions
+        )
+        right_changed = tuple(
+            action.duration if case.category == "duration_change" else action.temperature
+            for action in right_actions
+        )
+        if not (
+            left.structure.ingredients == right.structure.ingredients
+            and left.ingredient_source_labels == right.ingredient_source_labels
+            and left_common == right_common
+            and left_changed != right_changed
+        ):
+            raise _case_error(
+                case, f"only structured {case.category.removesuffix('_change')} may differ"
+            )
+    elif case.category == "adversarial_near_match":
+        if not (
+            Counter(_ingredient_identity_order(left)) == Counter(_ingredient_identity_order(right))
+            and left_measures != right_measures
+            and Counter(action.action_type_key for action in left_actions)
+            != Counter(action.action_type_key for action in right_actions)
+            and tuple(action.ingredient_occurrence_keys for action in left_actions)
+            != tuple(action.ingredient_occurrence_keys for action in right_actions)
+        ):
+            raise _case_error(
+                case,
+                "shared ingredients must conceal quantity, action-type, and input-order changes",
+            )
 
 
 def _validate_benchmark(benchmark: DuplicateBenchmark) -> None:
@@ -526,29 +995,11 @@ def _validate_benchmark(benchmark: DuplicateBenchmark) -> None:
             raise DuplicateBenchmarkError("case references an unknown left recipe")
         if case.right_recipe_id not in recipes:
             raise DuplicateBenchmarkError("case references an unknown right recipe")
-        if case.category == "prose_paraphrase":
-            if case.left_recipe_id == case.right_recipe_id:
-                raise DuplicateBenchmarkError(
-                    "prose paraphrase must compare two different recipe records"
-                )
-            left_recipe = recipes[case.left_recipe_id]
-            right_recipe = recipes[case.right_recipe_id]
-            if _prose_signature(left_recipe.instruction_prose) == _prose_signature(
-                right_recipe.instruction_prose
-            ):
-                raise DuplicateBenchmarkError(
-                    "prose paraphrase must contain genuinely different instruction prose"
-                )
-            left_fingerprint = build_structural_fingerprint(left_recipe.structure)
-            right_fingerprint = build_structural_fingerprint(right_recipe.structure)
-            if (
-                left_fingerprint is None
-                or right_fingerprint is None
-                or left_fingerprint.canonical_json != right_fingerprint.canonical_json
-            ):
-                raise DuplicateBenchmarkError(
-                    "prose paraphrase must retain an identical curated structure"
-                )
+        _validate_case_semantics(
+            case,
+            recipes[case.left_recipe_id],
+            recipes[case.right_recipe_id],
+        )
 
     categories = {case.category for case in benchmark.cases}
     missing_categories = _CATEGORY_SET - categories
@@ -608,6 +1059,8 @@ __all__ = [
     "DuplicateBenchmarkCategory",
     "DuplicateBenchmarkError",
     "DuplicateBenchmarkRecipe",
+    "DuplicateComponentExpectationValue",
+    "DuplicateComponentExpectations",
     "duplicate_benchmark_to_json",
     "load_duplicate_benchmark",
     "parse_duplicate_benchmark_json",

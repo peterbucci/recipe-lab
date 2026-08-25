@@ -509,10 +509,10 @@ jobs:
               "labeled-structural-pair-evaluation-v1"
           )
           assert report["benchmark_sha256"] == (
-              "6d471e5e85a067cd2b18236fde4a4fca8bc8fc8aefa9ae6eb9beeabe85e89688"
+              "89174416e4398e58ef1ea5b2af0cdaa1681c22199b5f455803a384533304dc24"
           )
           assert report["run_id"] == (
-              "dd268f016eb323360db0cbc13a4be6393d2e8b7d6f656a374f7f80384e7ced46"
+              "748e785d55410ff42856c07dbb2521d7dd0b8b8e68809fabcc2c82a7ebf8e24e"
           )
           assert report["status"] == "engineering_validated"
           assert report["reason_codes"] == []
@@ -541,7 +541,7 @@ jobs:
               },
               "maximum_reasons": 3,
               "parameter_sha256": (
-                  "51a9a0462260fb47b574c1070e90bd964dd57ab171a818f55b1897a567ce1f70"
+                  "2ee8c0d10459115b7269859c3a62dbe2da75b44841a148424e74d09955773ee2"
               ),
               "probable_duplicate_threshold": "0.800000",
               "structure_version": "recipe-structure-v1",
@@ -558,6 +558,7 @@ jobs:
           assert report["counts"] == {
               "cases": 11,
               "cases_with_complete_explanations": 11,
+              "cases_matching_expected_components": 11,
               "classification_matches": 11,
               "covered_categories": 11,
               "evaluated_cases": 11,
@@ -580,6 +581,7 @@ jobs:
           }
           assert report["metrics"] == {
               "category_coverage": "1.000000",
+              "component_expectation_coverage": "1.000000",
               "evaluated_coverage": "1.000000",
               "explanation_coverage": "1.000000",
               "precision": "1.000000",
@@ -588,6 +590,8 @@ jobs:
           }
           assert report["error_categories"] == {
               "classification_mismatches": [],
+              "component_mismatches": [],
+              "explanation_mismatches": [],
               "false_negatives": [],
               "false_positives": [],
           }

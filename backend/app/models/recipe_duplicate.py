@@ -185,7 +185,8 @@ class RecipeDuplicateCandidate(Base):
             "('proportionally_scaled_quantities', 'matching_quantities', "
             "'partially_matching_quantities', 'different_quantities') "
             "AND (reason_codes ->> 2) IN "
-            "('matching_structured_actions', 'different_action_order', "
+            "('matching_structured_actions', 'different_action_types', "
+            "'different_action_order', "
             "'different_ordered_inputs', 'different_duration_or_temperature'))",
             name="reason_codes_supported_ordered",
         ),

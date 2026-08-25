@@ -65,6 +65,7 @@ type DuplicateReasonCode = Literal[
     "partially_matching_quantities",
     "different_quantities",
     "matching_structured_actions",
+    "different_action_types",
     "different_action_order",
     "different_ordered_inputs",
     "different_duration_or_temperature",
@@ -90,6 +91,7 @@ QUANTITY_DUPLICATE_REASON_CODES = frozenset(
 ACTION_DUPLICATE_REASON_CODES = frozenset(
     {
         "matching_structured_actions",
+        "different_action_types",
         "different_action_order",
         "different_ordered_inputs",
         "different_duration_or_temperature",
@@ -147,6 +149,7 @@ _PARAMETER_PAYLOAD: JsonObject = {
     "reason_variants": {
         "actions": [
             "matching_structured_actions",
+            "different_action_types",
             "different_action_order",
             "different_ordered_inputs",
             "different_duration_or_temperature",
@@ -189,6 +192,7 @@ _REASON_MESSAGES: dict[DuplicateReasonCode, str] = {
     "partially_matching_quantities": "Some canonical ingredient quantities match consistently.",
     "different_quantities": "Canonical ingredient quantities do not match consistently.",
     "matching_structured_actions": "Structured actions, inputs, durations, and temperatures match.",
+    "different_action_types": "One or more structured cooking-action types differ.",
     "different_action_order": "The structured cooking-action order differs.",
     "different_ordered_inputs": "The ordered canonical inputs to cooking actions differ.",
     "different_duration_or_temperature": "A structured duration or temperature differs.",
@@ -710,6 +714,7 @@ def _reason(code: DuplicateReasonCode) -> DuplicateCandidateReason:
 def _reasons(
     *,
     exact_match: bool,
+    action_types_match: bool,
     components: DuplicateCandidateScoreComponents,
     quantity_scale: Fraction,
 ) -> tuple[DuplicateCandidateReason, ...]:
@@ -734,6 +739,8 @@ def _reasons(
 
     if components.structured_actions == 1:
         action_reason: DuplicateReasonCode = "matching_structured_actions"
+    elif not action_types_match:
+        action_reason = "different_action_types"
     elif components.action_order < 1:
         action_reason = "different_action_order"
     elif components.ordered_inputs < 1:
@@ -838,6 +845,10 @@ def score_recipe_duplicate_candidates(
         components=components,
         reasons=_reasons(
             exact_match=exact_match,
+            action_types_match=(
+                Counter(action.action_type for action in left.actions)
+                == Counter(action.action_type for action in right.actions)
+            ),
             components=components,
             quantity_scale=quantity_scale,
         ),

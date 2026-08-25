@@ -121,7 +121,7 @@ def _probable_candidate(
     reason_codes: tuple[str, ...] = (
         "same_ingredient_multiset",
         "matching_quantities",
-        "different_action_order",
+        "different_action_types",
     ),
 ) -> RecipeDuplicateCandidateWrite:
     return RecipeDuplicateCandidateWrite(

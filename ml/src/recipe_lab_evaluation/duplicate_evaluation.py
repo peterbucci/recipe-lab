@@ -36,6 +36,7 @@ from .duplicate_dataset import (
     REQUIRED_DUPLICATE_BENCHMARK_CATEGORIES,
     DuplicateBenchmark,
     DuplicateBenchmarkCategory,
+    DuplicateComponentExpectations,
     duplicate_benchmark_to_json,
     parse_duplicate_benchmark_json,
 )
@@ -59,6 +60,10 @@ _CLASSIFICATIONS: tuple[DuplicateClassification, ...] = (
 REQUIRED_DUPLICATE_EVALUATION_LIMITATIONS = (
     "The benchmark is a small hand-authored synthetic fixture with no confidence intervals.",
     "No independent human adjudication or real recipe-pair prevalence is available.",
+    (
+        "Coverage measures synthetic fixture cases and required perturbation categories, "
+        "not the public catalog or a recipe population."
+    ),
     (
         "The structural fingerprint omits prose, equipment, technique nuance, geometry, "
         "and doneness."
@@ -92,6 +97,7 @@ class DuplicateEvaluationCounts:
     false_positives: int
     false_negatives: int
     cases_with_complete_explanations: int
+    cases_matching_expected_components: int
     required_categories: int
     covered_categories: int
 
@@ -103,6 +109,7 @@ class DuplicateEvaluationMetrics:
     three_class_accuracy: Decimal | None
     evaluated_coverage: Decimal | None
     category_coverage: Decimal | None
+    component_expectation_coverage: Decimal | None
     explanation_coverage: Decimal | None
 
 
@@ -128,6 +135,8 @@ class DuplicateEvaluationReport:
     false_positive_categories: tuple[DuplicateErrorCategory, ...]
     false_negative_categories: tuple[DuplicateErrorCategory, ...]
     classification_mismatch_categories: tuple[DuplicateErrorCategory, ...]
+    component_mismatch_categories: tuple[DuplicateErrorCategory, ...]
+    explanation_mismatch_categories: tuple[DuplicateErrorCategory, ...]
     limitations: tuple[str, ...]
 
 
@@ -167,6 +176,30 @@ def _error_categories(
     )
 
 
+def _components_match(
+    expectations: DuplicateComponentExpectations,
+    *,
+    ingredient_multiset: Fraction,
+    normalized_quantities: Fraction,
+    action_order: Fraction,
+    ordered_inputs: Fraction,
+    duration_temperature: Fraction,
+    structured_actions: Fraction,
+) -> bool:
+    values = {
+        "action_order": action_order,
+        "duration_temperature": duration_temperature,
+        "ingredient_multiset": ingredient_multiset,
+        "normalized_quantities": normalized_quantities,
+        "ordered_inputs": ordered_inputs,
+        "structured_actions": structured_actions,
+    }
+    return all(
+        value == 1 if getattr(expectations, name) == "one" else value < 1
+        for name, value in values.items()
+    )
+
+
 def evaluate_duplicate_candidates(benchmark: DuplicateBenchmark) -> DuplicateEvaluationReport:
     """Evaluate the production duplicate scorer against labeled structural pairs."""
 
@@ -177,6 +210,8 @@ def evaluate_duplicate_candidates(benchmark: DuplicateBenchmark) -> DuplicateEva
     false_positive_categories: Counter[DuplicateBenchmarkCategory] = Counter()
     false_negative_categories: Counter[DuplicateBenchmarkCategory] = Counter()
     mismatch_categories: Counter[DuplicateBenchmarkCategory] = Counter()
+    component_mismatch_categories: Counter[DuplicateBenchmarkCategory] = Counter()
+    explanation_mismatch_categories: Counter[DuplicateBenchmarkCategory] = Counter()
     confusion: dict[DuplicateClassification, dict[DuplicateClassification, int]] = {
         expected: {predicted: 0 for predicted in _CLASSIFICATIONS} for expected in _CLASSIFICATIONS
     }
@@ -186,6 +221,7 @@ def evaluate_duplicate_candidates(benchmark: DuplicateBenchmark) -> DuplicateEva
     false_positives = 0
     false_negatives = 0
     complete_explanations = 0
+    matching_components = 0
     evaluated = 0
     covered_categories: set[DuplicateBenchmarkCategory] = set()
 
@@ -217,14 +253,31 @@ def evaluate_duplicate_candidates(benchmark: DuplicateBenchmark) -> DuplicateEva
         if expected_positive and not predicted_positive:
             false_negative_categories[case.category] += 1
 
-        explanation_codes = [reason.code for reason in result.reasons]
-        if (
-            explanation_codes
+        explanation_codes = tuple(reason.code for reason in result.reasons)
+        explanation_matches = (
+            explanation_codes == case.expected_reason_codes
             and len(explanation_codes) <= MAX_DUPLICATE_REASONS
             and len(explanation_codes) == len(set(explanation_codes))
             and all(reason.message.strip() for reason in result.reasons)
-        ):
+        )
+        if explanation_matches:
             complete_explanations += 1
+        else:
+            explanation_mismatch_categories[case.category] += 1
+
+        components_match = _components_match(
+            case.expected_components,
+            ingredient_multiset=result.components.ingredient_multiset,
+            normalized_quantities=result.components.normalized_quantities,
+            action_order=result.components.action_order,
+            ordered_inputs=result.components.ordered_inputs,
+            duration_temperature=result.components.duration_temperature,
+            structured_actions=result.components.structured_actions,
+        )
+        if components_match:
+            matching_components += 1
+        else:
+            component_mismatch_categories[case.category] += 1
 
     case_count = len(benchmark.cases)
     expected_positive_count = sum(
@@ -247,6 +300,7 @@ def evaluate_duplicate_candidates(benchmark: DuplicateBenchmark) -> DuplicateEva
         false_positives=false_positives,
         false_negatives=false_negatives,
         cases_with_complete_explanations=complete_explanations,
+        cases_matching_expected_components=matching_components,
         required_categories=len(REQUIRED_DUPLICATE_BENCHMARK_CATEGORIES),
         covered_categories=len(covered_categories),
     )
@@ -258,6 +312,7 @@ def evaluate_duplicate_candidates(benchmark: DuplicateBenchmark) -> DuplicateEva
         category_coverage=_ratio(
             len(covered_categories), len(REQUIRED_DUPLICATE_BENCHMARK_CATEGORIES)
         ),
+        component_expectation_coverage=_ratio(matching_components, evaluated),
         explanation_coverage=_ratio(complete_explanations, evaluated),
     )
 
@@ -273,7 +328,9 @@ def evaluate_duplicate_candidates(benchmark: DuplicateBenchmark) -> DuplicateEva
         if set(REQUIRED_DUPLICATE_BENCHMARK_CATEGORIES) - covered_categories:
             validation_reasons.append("required_category_missing")
         if complete_explanations != evaluated:
-            validation_reasons.append("missing_explanation")
+            validation_reasons.append("explanation_mismatch")
+        if matching_components != evaluated:
+            validation_reasons.append("component_expectation_mismatch")
         status = "invalid" if validation_reasons else "engineering_validated"
 
     run_material = {
@@ -299,6 +356,8 @@ def evaluate_duplicate_candidates(benchmark: DuplicateBenchmark) -> DuplicateEva
         false_positive_categories=_error_categories(false_positive_categories),
         false_negative_categories=_error_categories(false_negative_categories),
         classification_mismatch_categories=_error_categories(mismatch_categories),
+        component_mismatch_categories=_error_categories(component_mismatch_categories),
+        explanation_mismatch_categories=_error_categories(explanation_mismatch_categories),
         limitations=tuple(sorted(REQUIRED_DUPLICATE_EVALUATION_LIMITATIONS)),
     )
 
@@ -337,6 +396,9 @@ def duplicate_evaluation_report_to_document(
         "counts": {
             "cases": report.counts.cases,
             "cases_with_complete_explanations": (report.counts.cases_with_complete_explanations),
+            "cases_matching_expected_components": (
+                report.counts.cases_matching_expected_components
+            ),
             "classification_matches": report.counts.classification_matches,
             "covered_categories": report.counts.covered_categories,
             "evaluated_cases": report.counts.evaluated_cases,
@@ -353,6 +415,8 @@ def duplicate_evaluation_report_to_document(
             "classification_mismatches": _category_document(
                 report.classification_mismatch_categories
             ),
+            "component_mismatches": _category_document(report.component_mismatch_categories),
+            "explanation_mismatches": _category_document(report.explanation_mismatch_categories),
             "false_negatives": _category_document(report.false_negative_categories),
             "false_positives": _category_document(report.false_positive_categories),
         },
@@ -360,6 +424,9 @@ def duplicate_evaluation_report_to_document(
         "limitations": list(report.limitations),
         "metrics": {
             "category_coverage": _metric(report.metrics.category_coverage),
+            "component_expectation_coverage": _metric(
+                report.metrics.component_expectation_coverage
+            ),
             "evaluated_coverage": _metric(report.metrics.evaluated_coverage),
             "explanation_coverage": _metric(report.metrics.explanation_coverage),
             "precision": _metric(report.metrics.precision),

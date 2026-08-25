@@ -165,6 +165,7 @@ _REASON_MESSAGES: dict[str, str] = {
     "matching_structured_actions": (
         "Structured actions, inputs, durations, and temperatures match."
     ),
+    "different_action_types": "One or more structured cooking-action types differ.",
     "different_action_order": "The structured cooking-action order differs.",
     "different_ordered_inputs": ("The ordered canonical inputs to cooking actions differ."),
     "different_duration_or_temperature": "A structured duration or temperature differs.",

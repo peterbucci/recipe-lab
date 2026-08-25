@@ -55,6 +55,8 @@ def test_fixture_keeps_genuine_paraphrased_prose_outside_fingerprint_structure()
     assert set(paraphrase_case) == {
         "category",
         "expected_classification",
+        "expected_components",
+        "expected_reason_codes",
         "id",
         "left_recipe_id",
         "right_recipe_id",
@@ -182,8 +184,55 @@ def test_rejects_reflexive_fake_paraphrases_and_structural_changes() -> None:
     ingredients = cast(list[dict[str, Any]], structure["ingredients"])
     measure = cast(dict[str, object], ingredients[0]["measure"])
     measure["value"] = "121"
-    with pytest.raises(DuplicateBenchmarkError, match="identical curated structure"):
+    with pytest.raises(DuplicateBenchmarkError, match="fingerprint relation"):
         parse_duplicate_benchmark_json(json.dumps(structural_change))
+
+
+def test_alias_case_uses_distinct_source_labels_outside_identical_curated_structure(
+    duplicate_benchmark: DuplicateBenchmark,
+) -> None:
+    case = next(item for item in duplicate_benchmark.cases if item.category == "alias_equivalence")
+    recipes = {item.id: item for item in duplicate_benchmark.recipes}
+    left = recipes[case.left_recipe_id]
+    right = recipes[case.right_recipe_id]
+
+    assert left.structure == right.structure
+    assert left.ingredient_source_labels != right.ingredient_source_labels
+    assert build_structural_fingerprint(left.structure) == build_structural_fingerprint(
+        right.structure
+    )
+
+
+@pytest.mark.parametrize(
+    ("category", "replacement_recipe_id"),
+    [
+        ("unit_equivalence", "paraphrased-prose"),
+        ("alias_equivalence", "paraphrased-prose"),
+        ("ingredient_reorder", "paraphrased-prose"),
+        ("prose_paraphrase", "alias-equivalent"),
+        ("proportional_scaling", "unit-equivalent"),
+        ("quantity_change", "scaled"),
+        ("action_change", "action-reordered"),
+        ("action_order_change", "action-changed"),
+        ("duration_change", "temperature-changed"),
+        ("temperature_change", "duration-changed"),
+        ("adversarial_near_match", "quantity-changed"),
+    ],
+)
+def test_rejects_category_labels_that_do_not_exercise_the_claimed_semantics(
+    category: str,
+    replacement_recipe_id: str,
+) -> None:
+    document = _document()
+    case = next(
+        item
+        for item in cast(list[dict[str, object]], document["cases"])
+        if item["category"] == category
+    )
+    case["right_recipe_id"] = replacement_recipe_id
+
+    with pytest.raises(DuplicateBenchmarkError, match="does not exercise"):
+        parse_duplicate_benchmark_json(json.dumps(document))
 
 
 def test_normalized_fixture_and_hash_are_order_and_whitespace_stable(
