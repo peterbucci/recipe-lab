@@ -1,4 +1,7 @@
 import type { RecipeViewerState } from "./recipe-viewer-state";
+import type { RecipeIngredientMeasure } from "./structured-measure";
+
+export type { RecipeIngredientMeasure } from "./structured-measure";
 
 export interface RecipeSummary {
   id: string;
@@ -22,8 +25,7 @@ export interface RecipeIngredient {
   ingredient_id: string;
   canonical_name: string;
   display_name: string;
-  quantity: string | null;
-  unit: string | null;
+  measure: RecipeIngredientMeasure;
   preparation_notes: string | null;
   display_order: number;
 }
@@ -49,8 +51,7 @@ export type RecipeFieldName = "title" | "description" | "servings";
 export type RecipeIngredientChangedField =
   | "ingredient"
   | "display_name"
-  | "quantity"
-  | "unit"
+  | "measure"
   | "preparation_notes";
 
 export type RecipeInstructionChangedField = "text";

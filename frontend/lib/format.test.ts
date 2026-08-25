@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDecimal, formatIngredientAmount, formatServings } from "./format";
+import { formatDecimal, formatIngredientMeasure, formatServings } from "./format";
 
 describe("recipe value formatting", () => {
   it("removes only insignificant fractional zeroes", () => {
@@ -9,11 +9,36 @@ describe("recipe value formatting", () => {
     expect(formatDecimal("1000")).toBe("1000");
   });
 
-  it("formats yields and ingredient amounts without floating-point conversion", () => {
+  it("formats yields and uses reviewed structured-measure display text", () => {
     expect(formatServings("1.00")).toBe("1 serving");
     expect(formatServings("8.00")).toBe("8 servings");
-    expect(formatIngredientAmount("2.0000", "count")).toBe("2");
-    expect(formatIngredientAmount("3.0000", "clove")).toBe("3 cloves");
-    expect(formatIngredientAmount(null, null)).toBe("Amount not specified");
+    expect(
+      formatIngredientMeasure({
+        kind: "qualitative",
+        value: "to_taste",
+        unit: null,
+        display_unit: null,
+        display: "To taste",
+      }),
+    ).toBe("To taste");
+    expect(
+      formatIngredientMeasure({
+        kind: "range",
+        minimum: "1.0000",
+        maximum: "2.0000",
+        unit: {
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          key: "count",
+          dimension: "count",
+          canonical_label: "count",
+          plural_label: "count",
+          symbol: null,
+          display_style: "hidden",
+          active: true,
+        },
+        display_unit: null,
+        display: "1–2",
+      }),
+    ).toBe("1–2");
   });
 });

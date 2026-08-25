@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { fetchRecipe, isRecipeVersionId } from "../../../../lib/recipe-api";
+import { fetchMeasurementUnits } from "../../../../lib/measurement-unit-api";
 import { RecipeForkGate } from "../../../components/recipe-fork-gate";
 import { RecipeVariantEditor } from "../../../components/recipe-variant-editor";
 
@@ -23,7 +24,10 @@ export default async function RecipeVariantPage({ params }: RecipeVariantPagePro
     notFound();
   }
 
-  const recipe = await fetchRecipe(recipeVersionId);
+  const [recipe, measurementUnits] = await Promise.all([
+    fetchRecipe(recipeVersionId),
+    fetchMeasurementUnits("ingredient_amount"),
+  ]);
   if (recipe === null) {
     notFound();
   }
@@ -44,7 +48,7 @@ export default async function RecipeVariantPage({ params }: RecipeVariantPagePro
             version stays connected to it.
           </p>
         </header>
-        <RecipeVariantEditor sourceRecipe={recipe} />
+        <RecipeVariantEditor sourceRecipe={recipe} measurementUnits={measurementUnits} />
       </main>
     </RecipeForkGate>
   );

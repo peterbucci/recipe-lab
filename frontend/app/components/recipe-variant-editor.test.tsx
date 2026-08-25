@@ -13,6 +13,7 @@ import type {
   MemberIngredientRequest,
   MemberIngredientRequestPage,
 } from "../../lib/ingredient-catalog-api";
+import type { CatalogUnit } from "../../lib/measurement-unit-api";
 import type { RecipeDetail } from "../../lib/recipe-api";
 import { createRecipeVariant, VariantApiError } from "../../lib/variant-api";
 import { RecipeVariantEditor } from "./recipe-variant-editor";
@@ -62,6 +63,84 @@ const SALT_ID = "66666666-6666-4666-8666-666666666666";
 const PECAN_ID = "77777777-7777-4777-8777-777777777777";
 const ORANGE_ZEST_ID = "88888888-8888-4888-8888-888888888888";
 const REQUEST_ID = "99999999-9999-4999-8999-999999999999";
+const GRAM_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+const CUP_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2";
+const TABLESPOON_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3";
+const CAN_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4";
+const PACKAGE_SIZE_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+const measurementUnits: CatalogUnit[] = [
+  {
+    id: GRAM_ID,
+    key: "gram",
+    dimension: "mass",
+    canonical_label: "gram",
+    plural_label: "grams",
+    symbol: "g",
+    display_style: "symbol",
+    aliases: ["gram", "grams"],
+    active: true,
+    provenance: "Test fixture",
+  },
+  {
+    id: CUP_ID,
+    key: "cup",
+    dimension: "volume",
+    canonical_label: "cup",
+    plural_label: "cups",
+    symbol: null,
+    display_style: "word",
+    aliases: ["cup", "cups"],
+    active: true,
+    provenance: "Test fixture",
+  },
+  {
+    id: TABLESPOON_ID,
+    key: "tablespoon",
+    dimension: "volume",
+    canonical_label: "tablespoon",
+    plural_label: "tablespoons",
+    symbol: "tbsp",
+    display_style: "symbol",
+    aliases: ["tablespoon"],
+    active: true,
+    provenance: "Test fixture",
+  },
+  {
+    id: CAN_ID,
+    key: "can",
+    dimension: "package",
+    canonical_label: "can",
+    plural_label: "cans",
+    symbol: null,
+    display_style: "word",
+    aliases: ["can", "cans"],
+    active: true,
+    provenance: "Test fixture",
+  },
+];
+
+const gramSummary = {
+  id: GRAM_ID,
+  key: "gram",
+  dimension: "mass" as const,
+  canonical_label: "gram",
+  plural_label: "grams",
+  symbol: "g",
+  display_style: "symbol" as const,
+  active: true,
+};
+
+const canSummary = {
+  id: CAN_ID,
+  key: "can",
+  dimension: "package" as const,
+  canonical_label: "can",
+  plural_label: "cans",
+  symbol: null,
+  display_style: "word" as const,
+  active: true,
+};
 
 function resolvedRequest(): MemberIngredientRequest {
   return {
@@ -116,8 +195,13 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
         ingredient_id: SUGAR_ID,
         canonical_name: "Granulated sugar",
         display_name: "White sugar",
-        quantity: "180.0000",
-        unit: "g",
+        measure: {
+          kind: "exact",
+          value: "180.0000",
+          unit: gramSummary,
+          display_unit: "g",
+          display: "180 g",
+        },
         preparation_notes: null,
         display_order: 0,
       },
@@ -126,8 +210,13 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
         ingredient_id: WALNUT_ID,
         canonical_name: "Walnut",
         display_name: "Walnuts",
-        quantity: "100.0000",
-        unit: "g",
+        measure: {
+          kind: "exact",
+          value: "100.0000",
+          unit: gramSummary,
+          display_unit: "g",
+          display: "100 g",
+        },
         preparation_notes: "roughly chopped",
         display_order: 1,
       },
@@ -136,8 +225,13 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
         ingredient_id: SALT_ID,
         canonical_name: "Salt",
         display_name: "Salt",
-        quantity: null,
-        unit: null,
+        measure: {
+          kind: "qualitative",
+          value: "unspecified",
+          unit: null,
+          display_unit: null,
+          display: "Amount not specified",
+        },
         preparation_notes: null,
         display_order: 2,
       },
@@ -247,6 +341,28 @@ function instructionInput(stepNumber: number): HTMLTextAreaElement {
   });
 }
 
+function packagedSourceRecipe(): RecipeDetail {
+  const recipe = sourceRecipe();
+  recipe.ingredients[0].measure = {
+    kind: "exact",
+    value: "2.0000",
+    unit: canSummary,
+    package_size_id: PACKAGE_SIZE_ID,
+    display_unit: "cans",
+    display: "2 cans",
+  };
+  return recipe;
+}
+
+function renderEditor(recipe = sourceRecipe()) {
+  return render(
+    <RecipeVariantEditor
+      sourceRecipe={recipe}
+      measurementUnits={measurementUnits}
+    />,
+  );
+}
+
 beforeEach(() => {
   mocks.browseMyIngredientRequests.mockReset();
   mocks.replace.mockReset();
@@ -270,8 +386,8 @@ beforeEach(() => {
 });
 
 describe("RecipeVariantEditor", () => {
-  it("prefills an accessible editable copy, including nullable amounts and units", () => {
-    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+  it("prefills accessible exact and qualitative structured amounts", () => {
+    renderEditor();
 
     const form = screen.getByRole("form", {
       name: /make carrot walnut snack cake your own/i,
@@ -282,7 +398,7 @@ describe("RecipeVariantEditor", () => {
     expect(within(form).getByRole("group", { name: /^ingredients$/i })).toBeInTheDocument();
     expect(within(form).getByRole("group", { name: /^instructions$/i })).toBeInTheDocument();
     expect(
-      within(form).getByText(/choose every added or swapped ingredient from the curated catalog/i),
+      within(form).getByText(/every numeric unit from the curated catalog/i),
     ).toBeInTheDocument();
     expect(within(form).getByLabelText(/^title$/i)).toHaveValue(
       "Carrot Walnut Snack Cake variation",
@@ -306,7 +422,7 @@ describe("RecipeVariantEditor", () => {
       name: "Change White sugar",
     });
     expect(changeSugar).toHaveAttribute("aria-expanded", "false");
-    expect(within(sugar).queryByLabelText(/^quantity$/i)).not.toBeInTheDocument();
+    expect(within(sugar).queryByLabelText(/^amount$/i)).not.toBeInTheDocument();
     fireEvent.click(changeSugar);
     expect(
       within(sugar).getByRole("button", {
@@ -314,17 +430,24 @@ describe("RecipeVariantEditor", () => {
       }),
     ).toHaveAttribute("aria-expanded", "true");
     expect(within(sugar).getByRole("searchbox", { name: /swap ingredient/i })).toHaveValue("");
-    expect(within(sugar).getByLabelText(/^quantity$/i)).toHaveValue("180.0000");
-    expect(within(sugar).getByLabelText(/^quantity$/i)).toHaveAttribute(
+    expect(
+      within(sugar).getByRole("group", {
+        name: "Amount for Ingredient 1: White sugar",
+      }),
+    ).toBeInTheDocument();
+    expect(within(sugar).getByRole("radio", { name: "Exact" })).toBeChecked();
+    expect(within(sugar).getByLabelText(/^amount$/i)).toHaveValue("180.0000");
+    expect(within(sugar).getByLabelText(/^amount$/i)).toHaveAttribute(
       "inputmode",
       "decimal",
     );
-    expect(within(sugar).getByLabelText(/^unit$/i)).toHaveValue("g");
+    expect(within(sugar).getByLabelText(/^unit$/i)).toHaveValue(GRAM_ID);
 
     const salt = within(form).getByRole("group", { name: /ingredient 3/i });
     expandIngredientRow(salt, "Salt");
-    expect(within(salt).getByLabelText(/^quantity$/i)).toHaveValue("");
-    expect(within(salt).getByLabelText(/^unit$/i)).toHaveValue("");
+    expect(within(salt).getByRole("radio", { name: "Unspecified" })).toBeChecked();
+    expect(within(salt).queryByLabelText(/^amount$/i)).not.toBeInTheDocument();
+    expect(within(salt).queryByLabelText(/^unit$/i)).not.toBeInTheDocument();
     const firstStep = instructionRow(1);
     const editFirstStep = within(firstStep).getByRole("button", {
       name: "Edit step 1",
@@ -348,7 +471,7 @@ describe("RecipeVariantEditor", () => {
   });
 
   it("moves focus into added rows and preserves it across remove and undo", () => {
-    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+    renderEditor();
 
     fireEvent.click(screen.getByRole("button", { name: /add ingredient/i }));
     const addedIngredient = screen.getByRole("group", {
@@ -383,7 +506,7 @@ describe("RecipeVariantEditor", () => {
   });
 
   it("warns before leaving after the cook changes the draft", () => {
-    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+    renderEditor();
 
     fireEvent.change(screen.getByLabelText(/^title$/i), {
       target: { value: "My carrot cake" },
@@ -395,23 +518,177 @@ describe("RecipeVariantEditor", () => {
     expect(beforeUnload.defaultPrevented).toBe(true);
   });
 
-  it("reopens a compact row when validation finds an error inside it", async () => {
-    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+  it("clears the leave warning when only inactive measurement fields differ", () => {
+    renderEditor();
 
     const sugar = screen.getByRole("group", { name: /ingredient 1/i });
     fireEvent.click(within(sugar).getByRole("button", { name: /change white sugar/i }));
-    fireEvent.change(within(sugar).getByLabelText(/^quantity$/i), {
+    fireEvent.click(within(sugar).getByRole("radio", { name: "Range" }));
+    fireEvent.change(within(sugar).getByLabelText(/minimum amount/i), {
+      target: { value: "1" },
+    });
+    fireEvent.change(within(sugar).getByLabelText(/maximum amount/i), {
+      target: { value: "2" },
+    });
+    fireEvent.click(within(sugar).getByRole("radio", { name: "Exact" }));
+
+    expect(within(sugar).getByText("Starting ingredient")).toBeInTheDocument();
+    expect(screen.queryByText(/you have unsaved changes/i)).not.toBeInTheDocument();
+    const beforeUnload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(beforeUnload);
+    expect(beforeUnload.defaultPrevented).toBe(false);
+  });
+
+  it("treats numerically equivalent exact values as unchanged", () => {
+    renderEditor();
+
+    const sugar = screen.getByRole("group", { name: /ingredient 1/i });
+    expandIngredientRow(sugar, "White sugar");
+    fireEvent.change(within(sugar).getByLabelText(/^amount$/i), {
+      target: { value: "180" },
+    });
+
+    expect(within(sugar).getByText("Starting ingredient")).toBeInTheDocument();
+    expect(screen.queryByText(/you have unsaved changes/i)).not.toBeInTheDocument();
+    const beforeUnload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(beforeUnload);
+    expect(beforeUnload.defaultPrevented).toBe(false);
+  });
+
+  it("treats numerically equivalent range bounds as unchanged", () => {
+    const recipe = sourceRecipe();
+    recipe.ingredients[0].measure = {
+      kind: "range",
+      minimum: "1.0000",
+      maximum: "2.0000",
+      unit: gramSummary,
+      display_unit: "g",
+      display: "1–2 g",
+    };
+    renderEditor(recipe);
+
+    const sugar = screen.getByRole("group", { name: /ingredient 1/i });
+    expandIngredientRow(sugar, "White sugar");
+    fireEvent.change(within(sugar).getByLabelText(/minimum amount/i), {
+      target: { value: "1" },
+    });
+    fireEvent.change(within(sugar).getByLabelText(/maximum amount/i), {
+      target: { value: "2" },
+    });
+
+    expect(within(sugar).getByText("Starting ingredient")).toBeInTheDocument();
+    expect(screen.queryByText(/you have unsaved changes/i)).not.toBeInTheDocument();
+    const beforeUnload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(beforeUnload);
+    expect(beforeUnload.defaultPrevented).toBe(false);
+  });
+
+  it("clears inherited package metadata when the ingredient selection changes", async () => {
+    vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
+    renderEditor(packagedSourceRecipe());
+
+    const sugar = screen.getByRole("group", { name: /ingredient 1/i });
+    expandIngredientRow(sugar, "White sugar");
+    await chooseCatalogIngredient(
+      sugar,
+      /swap ingredient/i,
+      "Pecan",
+      /pecan.*also known as/i,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
+    expect(createRecipeVariant).toHaveBeenCalledWith(
+      SOURCE_ID,
+      expect.objectContaining({
+        ingredient_edits: [
+          {
+            op: "replace",
+            recipe_ingredient_id: "sugar-row",
+            ingredient_id: PECAN_ID,
+            display_name: "Pecan",
+          },
+          {
+            op: "set_measure",
+            recipe_ingredient_id: "sugar-row",
+            measure: {
+              kind: "exact",
+              value: "2.0000",
+              unit_id: CAN_ID,
+            },
+          },
+        ],
+      }),
+      FIRST_KEY,
+    );
+    const submittedPayload = vi.mocked(createRecipeVariant).mock.calls[0]?.[1];
+    expect(JSON.stringify(submittedPayload)).not.toContain(PACKAGE_SIZE_ID);
+  });
+
+  it("restores inherited package metadata when a replacement is reverted", async () => {
+    vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
+    renderEditor(packagedSourceRecipe());
+
+    const sugar = screen.getByRole("group", { name: /ingredient 1/i });
+    expandIngredientRow(sugar, "White sugar");
+    await chooseCatalogIngredient(
+      sugar,
+      /swap ingredient/i,
+      "Pecan",
+      /pecan.*also known as/i,
+    );
+    fireEvent.click(within(sugar).getByRole("button", { name: "Clear selection" }));
+
+    expect(within(sugar).getByText("Starting ingredient")).toBeInTheDocument();
+    expect(screen.queryByText(/you have unsaved changes/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
+    expect(createRecipeVariant).toHaveBeenCalledWith(
+      SOURCE_ID,
+      expect.objectContaining({ ingredient_edits: [] }),
+      FIRST_KEY,
+    );
+  });
+
+  it("restores inherited package metadata when the original unit is reselected", async () => {
+    vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
+    renderEditor(packagedSourceRecipe());
+
+    const sugar = screen.getByRole("group", { name: /ingredient 1/i });
+    expandIngredientRow(sugar, "White sugar");
+    const unit = within(sugar).getByLabelText(/^unit$/i);
+    fireEvent.change(unit, { target: { value: GRAM_ID } });
+    expect(within(sugar).getByText("Changed")).toBeInTheDocument();
+    fireEvent.change(unit, { target: { value: CAN_ID } });
+
+    expect(within(sugar).getByText("Starting ingredient")).toBeInTheDocument();
+    expect(screen.queryByText(/you have unsaved changes/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
+    await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
+    expect(createRecipeVariant).toHaveBeenCalledWith(
+      SOURCE_ID,
+      expect.objectContaining({ ingredient_edits: [] }),
+      FIRST_KEY,
+    );
+  });
+
+  it("reopens a compact row when validation finds an error inside it", async () => {
+    renderEditor();
+
+    const sugar = screen.getByRole("group", { name: /ingredient 1/i });
+    fireEvent.click(within(sugar).getByRole("button", { name: /change white sugar/i }));
+    fireEvent.change(within(sugar).getByLabelText(/^amount$/i), {
       target: { value: "not a number" },
     });
     fireEvent.click(
       within(sugar).getByRole("button", { name: /done editing white sugar/i }),
     );
-    expect(within(sugar).queryByLabelText(/^quantity$/i)).not.toBeInTheDocument();
+    expect(within(sugar).queryByLabelText(/^amount$/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
 
     await waitFor(() =>
-      expect(within(sugar).getByLabelText(/^quantity$/i)).toHaveAttribute(
+      expect(within(sugar).getByLabelText(/^amount$/i)).toHaveAttribute(
         "aria-invalid",
         "true",
       ),
@@ -425,7 +702,7 @@ describe("RecipeVariantEditor", () => {
 
   it("submits the exact mixed edit payload after add, remove, and undo interactions", async () => {
     vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
-    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+    renderEditor();
 
     fireEvent.change(screen.getByLabelText(/^title$/i), {
       target: { value: "  Orange Pecan Carrot Cake  " },
@@ -436,16 +713,16 @@ describe("RecipeVariantEditor", () => {
 
     const sugar = screen.getByRole("group", { name: /ingredient 1/i });
     expandIngredientRow(sugar, "White sugar");
-    fireEvent.change(within(sugar).getByLabelText(/^quantity$/i), {
+    fireEvent.change(within(sugar).getByLabelText(/^amount$/i), {
       target: { value: "140.0000" },
     });
     fireEvent.change(within(sugar).getByLabelText(/^unit$/i), {
-      target: { value: "cup" },
+      target: { value: CUP_ID },
     });
-    expect(within(sugar).getByText("White sugar · 140 cup")).toBeInTheDocument();
+    expect(within(sugar).getByText("White sugar · 140 cups")).toBeInTheDocument();
     expect(
       within(sugar).getByText(
-        "Before: White sugar · 180 g → Now: White sugar · 140 cup",
+        "Before: White sugar · 180 g → Now: White sugar · 140 cups",
       ),
     ).toBeInTheDocument();
 
@@ -477,23 +754,23 @@ describe("RecipeVariantEditor", () => {
       ),
     ).toBeInTheDocument();
     fireEvent.click(within(salt).getByRole("button", { name: /undo removal/i }));
-    expect(within(salt).getByLabelText(/^quantity$/i)).toHaveValue("");
-    expect(within(salt).getByLabelText(/^unit$/i)).toHaveValue("");
+    expect(within(salt).getByRole("radio", { name: "Unspecified" })).toBeChecked();
     fireEvent.click(within(salt).getByRole("button", { name: /remove salt/i }));
 
     fireEvent.click(screen.getByRole("button", { name: /add ingredient/i }));
-    const addedIngredient = screen.getByRole("group", { name: /ingredient 4/i });
+    const addedIngredient = screen.getByRole("group", { name: "New ingredient 4" });
     await chooseCatalogIngredient(
       addedIngredient,
       /^ingredient$/i,
       "Orange zest",
       /^orange zest.*choose$/i,
     );
-    fireEvent.change(within(addedIngredient).getByLabelText(/^quantity$/i), {
+    fireEvent.click(within(addedIngredient).getByRole("radio", { name: "Exact" }));
+    fireEvent.change(within(addedIngredient).getByLabelText(/^amount$/i), {
       target: { value: " 1.25 " },
     });
     fireEvent.change(within(addedIngredient).getByLabelText(/^unit$/i), {
-      target: { value: " tbsp " },
+      target: { value: TABLESPOON_ID },
     });
     fireEvent.change(within(addedIngredient).getByLabelText(/preparation notes/i), {
       target: { value: " finely grated " },
@@ -521,14 +798,13 @@ describe("RecipeVariantEditor", () => {
         servings: "8.00",
         ingredient_edits: [
           {
-            op: "set_quantity",
+            op: "set_measure",
             recipe_ingredient_id: "sugar-row",
-            quantity: "140.0000",
-          },
-          {
-            op: "set_unit",
-            recipe_ingredient_id: "sugar-row",
-            unit: "cup",
+            measure: {
+              kind: "exact",
+              value: "140.0000",
+              unit_id: CUP_ID,
+            },
           },
           {
             op: "replace",
@@ -541,8 +817,11 @@ describe("RecipeVariantEditor", () => {
             op: "add",
             ingredient_id: ORANGE_ZEST_ID,
             display_name: "Orange zest",
-            quantity: "1.25",
-            unit: "tbsp",
+            measure: {
+              kind: "exact",
+              value: "1.25",
+              unit_id: TABLESPOON_ID,
+            },
             preparation_notes: "finely grated",
           },
         ],
@@ -562,15 +841,15 @@ describe("RecipeVariantEditor", () => {
 
   it("applies a confirmed request resolution only to its ingredient row without losing draft work", async () => {
     vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
-    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+    renderEditor();
 
     const title = screen.getByLabelText(/^title$/i);
     fireEvent.change(title, { target: { value: "Request-resolved carrot cake" } });
 
     const sugar = screen.getByRole("group", { name: /ingredient 1/i });
     expandIngredientRow(sugar, "White sugar");
-    const sugarQuantity = within(sugar).getByLabelText(/^quantity$/i);
-    fireEvent.change(sugarQuantity, { target: { value: "150.0000" } });
+    const sugarAmount = within(sugar).getByLabelText(/^amount$/i);
+    fireEvent.change(sugarAmount, { target: { value: "150.0000" } });
 
     const firstInstruction = instructionInput(1);
     fireEvent.change(firstInstruction, {
@@ -598,7 +877,7 @@ describe("RecipeVariantEditor", () => {
       expect.any(AbortSignal),
     );
     expect(title).toHaveValue("Request-resolved carrot cake");
-    expect(sugarQuantity).toHaveValue("150.0000");
+    expect(sugarAmount).toHaveValue("150.0000");
     expect(firstInstruction).toHaveValue("Whisk the dry ingredients very thoroughly.");
     expect(within(sugar).getByText("White sugar · 150 g")).toBeVisible();
 
@@ -612,9 +891,13 @@ describe("RecipeVariantEditor", () => {
         servings: "8.00",
         ingredient_edits: [
           {
-            op: "set_quantity",
+            op: "set_measure",
             recipe_ingredient_id: "sugar-row",
-            quantity: "150.0000",
+            measure: {
+              kind: "exact",
+              value: "150.0000",
+              unit_id: GRAM_ID,
+            },
           },
           {
             op: "replace",
@@ -636,18 +919,18 @@ describe("RecipeVariantEditor", () => {
   });
 
   it("reports local validation errors without posting or clearing entered values", async () => {
-    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+    renderEditor();
 
     const title = screen.getByLabelText(/^title$/i);
     const servings = screen.getByLabelText(/^servings$/i);
     const sugar = screen.getByRole("group", { name: /ingredient 1/i });
     expandIngredientRow(sugar, "White sugar");
-    const sugarQuantity = within(sugar).getByLabelText(/^quantity$/i);
+    const sugarAmount = within(sugar).getByLabelText(/^amount$/i);
     const firstStep = instructionInput(1);
 
     fireEvent.change(title, { target: { value: "   " } });
     fireEvent.change(servings, { target: { value: "0.00" } });
-    fireEvent.change(sugarQuantity, { target: { value: "1.00001" } });
+    fireEvent.change(sugarAmount, { target: { value: "1.00001" } });
     fireEvent.change(firstStep, { target: { value: "   " } });
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
 
@@ -655,7 +938,7 @@ describe("RecipeVariantEditor", () => {
     expect(within(alert).getByText("Version title is required.")).toBeInTheDocument();
     expect(within(alert).getByText("Servings must be greater than zero.")).toBeInTheDocument();
     expect(
-      within(alert).getByText("Quantity can have at most 4 decimal places."),
+      within(alert).getByText("Amount can have at most 4 decimal places."),
     ).toBeInTheDocument();
     expect(within(alert).getByText("Instruction is required.")).toBeInTheDocument();
     expect(createRecipeVariant).not.toHaveBeenCalled();
@@ -663,11 +946,11 @@ describe("RecipeVariantEditor", () => {
 
     expect(title).toHaveValue("   ");
     expect(servings).toHaveValue("0.00");
-    expect(sugarQuantity).toHaveValue("1.00001");
+    expect(sugarAmount).toHaveValue("1.00001");
     expect(firstStep).toHaveValue("   ");
     expect(title).toHaveAttribute("aria-invalid", "true");
     expect(servings).toHaveAttribute("aria-invalid", "true");
-    expect(sugarQuantity).toHaveAttribute("aria-invalid", "true");
+    expect(sugarAmount).toHaveAttribute("aria-invalid", "true");
     expect(firstStep).toHaveAttribute("aria-invalid", "true");
     await waitFor(() => expect(alert).toHaveFocus());
   });
@@ -680,7 +963,7 @@ describe("RecipeVariantEditor", () => {
         "invalid_recipe_edits",
       ),
     );
-    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+    renderEditor();
 
     const title = screen.getByLabelText(/^title$/i);
     const walnuts = screen.getByRole("group", { name: /ingredient 2/i });
@@ -718,7 +1001,7 @@ describe("RecipeVariantEditor", () => {
       .mockRejectedValueOnce(new Error("response lost"))
       .mockRejectedValueOnce(new Error("response lost"))
       .mockResolvedValueOnce(createdRecipe());
-    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+    renderEditor();
 
     const createButton = screen.getByRole("button", { name: /^create my version$/i });
     fireEvent.click(createButton);
@@ -743,7 +1026,7 @@ describe("RecipeVariantEditor", () => {
   it("guards against same-tick duplicate submissions while creation is pending", async () => {
     const request = deferred<RecipeDetail>();
     vi.mocked(createRecipeVariant).mockReturnValue(request.promise);
-    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+    renderEditor();
 
     const form = screen.getByRole("form");
     fireEvent.submit(form);
@@ -767,7 +1050,7 @@ describe("RecipeVariantEditor", () => {
 
   it("replaces the editor route with the newly created recipe version", async () => {
     vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
-    render(<RecipeVariantEditor sourceRecipe={sourceRecipe()} />);
+    renderEditor();
 
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
 

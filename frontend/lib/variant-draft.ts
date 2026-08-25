@@ -1,5 +1,16 @@
 import type { RecipeDetail } from "./recipe-api";
 import type { CatalogIngredientSelection } from "./ingredient-catalog-api";
+import type { CatalogUnit } from "./measurement-unit-api";
+import {
+  createStructuredMeasureDraft,
+  createUnspecifiedMeasureDraft,
+  ingredientAmountPolicy,
+  structuredMeasureDraftMatchesRecipe,
+  type RecipeIngredientMeasure,
+  type StructuredMeasureDraft,
+  type StructuredMeasureField,
+  validateStructuredMeasureDraft,
+} from "./structured-measure";
 import type {
   IngredientEdit,
   InstructionEdit,
@@ -13,10 +24,8 @@ export interface VariantIngredientDraft {
   sourceDisplayName: string | null;
   sourceCanonicalName: string | null;
   selectedIngredient: CatalogIngredientSelection | null;
-  quantity: string;
-  originalQuantity: string | null;
-  unit: string;
-  originalUnit: string | null;
+  measure: StructuredMeasureDraft;
+  originalMeasure: RecipeIngredientMeasure | null;
   preparationNotes: string;
   removed: boolean;
 }
@@ -46,7 +55,6 @@ export interface VariantDraftValidation {
 const TITLE_MAX_LENGTH = 200;
 const DESCRIPTION_MAX_LENGTH = 2_000;
 const INGREDIENT_NAME_MAX_LENGTH = 200;
-const UNIT_MAX_LENGTH = 64;
 const PREPARATION_NOTES_MAX_LENGTH = 1_000;
 const INSTRUCTION_MAX_LENGTH = 5_000;
 
@@ -79,10 +87,8 @@ export function createVariantDraft(source: RecipeDetail): RecipeVariantDraft {
       sourceDisplayName: ingredient.display_name,
       sourceCanonicalName: ingredient.canonical_name,
       selectedIngredient: null,
-      quantity: ingredient.quantity ?? "",
-      originalQuantity: ingredient.quantity,
-      unit: ingredient.unit ?? "",
-      originalUnit: ingredient.unit,
+      measure: createStructuredMeasureDraft(ingredient.measure),
+      originalMeasure: ingredient.measure,
       preparationNotes: ingredient.preparation_notes ?? "",
       removed: false,
     })),
@@ -104,10 +110,8 @@ export function createAddedIngredientDraft(key: string): VariantIngredientDraft 
     sourceDisplayName: null,
     sourceCanonicalName: null,
     selectedIngredient: null,
-    quantity: "",
-    originalQuantity: null,
-    unit: "",
-    originalUnit: null,
+    measure: createUnspecifiedMeasureDraft(),
+    originalMeasure: null,
     preparationNotes: "",
     removed: false,
   };
@@ -125,9 +129,16 @@ export function createAddedInstructionDraft(key: string): VariantInstructionDraf
 
 export function ingredientFieldKey(
   ingredientKey: string,
-  field: "name" | "quantity" | "unit" | "preparationNotes",
+  field: "name" | "preparationNotes",
 ): string {
   return `ingredient.${ingredientKey}.${field}`;
+}
+
+export function ingredientMeasureFieldKey(
+  ingredientKey: string,
+  field: StructuredMeasureField,
+): string {
+  return `ingredient.${ingredientKey}.measure.${field}`;
 }
 
 export function instructionFieldKey(instructionKey: string): string {
@@ -222,7 +233,10 @@ function selectionError(
   return null;
 }
 
-export function validateVariantDraft(draft: RecipeVariantDraft): VariantDraftValidation {
+export function validateVariantDraft(
+  draft: RecipeVariantDraft,
+  measurementUnits: readonly CatalogUnit[],
+): VariantDraftValidation {
   const fieldErrors: Record<string, string> = {};
   const formErrors: string[] = [];
   const ingredientEdits: IngredientEdit[] = [];
@@ -280,27 +294,19 @@ export function validateVariantDraft(draft: RecipeVariantDraft): VariantDraftVal
       fieldErrors[ingredientFieldKey(ingredient.key, "name")] = nameError;
     }
 
-    const quantityError = decimalError(ingredient.quantity, {
-      label: "Quantity",
-      maxWholeDigits: 8,
-      maxDecimalPlaces: 4,
-      required: false,
-    });
-    if (quantityError) {
-      fieldErrors[ingredientFieldKey(ingredient.key, "quantity")] = quantityError;
+    const measureValidation = validateStructuredMeasureDraft(
+      ingredient.measure,
+      ingredientAmountPolicy,
+      measurementUnits,
+    );
+    for (const [field, message] of Object.entries(measureValidation.fieldErrors)) {
+      if (message) {
+        fieldErrors[
+          ingredientMeasureFieldKey(ingredient.key, field as StructuredMeasureField)
+        ] = message;
+      }
     }
 
-    const unitError = textError(ingredient.unit, {
-      label: "Unit",
-      maxLength: UNIT_MAX_LENGTH,
-      required: false,
-    });
-    if (unitError) {
-      fieldErrors[ingredientFieldKey(ingredient.key, "unit")] = unitError;
-    }
-
-    const quantity = normalized(ingredient.quantity) || null;
-    const unit = normalized(ingredient.unit) || null;
     const preparationNotes = normalized(ingredient.preparationNotes) || null;
 
     if (ingredient.sourceId === null) {
@@ -312,13 +318,12 @@ export function validateVariantDraft(draft: RecipeVariantDraft): VariantDraftVal
       if (notesError) {
         fieldErrors[ingredientFieldKey(ingredient.key, "preparationNotes")] = notesError;
       }
-      if (ingredient.selectedIngredient) {
+      if (ingredient.selectedIngredient && measureValidation.measure) {
         ingredientEdits.push({
           op: "add",
           ingredient_id: ingredient.selectedIngredient.ingredientId,
           display_name: ingredient.selectedIngredient.displayName,
-          quantity,
-          unit,
+          measure: measureValidation.measure,
           preparation_notes: preparationNotes,
         });
       }
@@ -343,18 +348,15 @@ export function validateVariantDraft(draft: RecipeVariantDraft): VariantDraftVal
       }
     }
 
-    if (quantity !== ingredient.originalQuantity) {
+    if (
+      measureValidation.measure &&
+      ingredient.originalMeasure &&
+      !structuredMeasureDraftMatchesRecipe(ingredient.measure, ingredient.originalMeasure)
+    ) {
       ingredientEdits.push({
-        op: "set_quantity",
+        op: "set_measure",
         recipe_ingredient_id: ingredient.sourceId,
-        quantity,
-      });
-    }
-    if (unit !== ingredient.originalUnit) {
-      ingredientEdits.push({
-        op: "set_unit",
-        recipe_ingredient_id: ingredient.sourceId,
-        unit,
+        measure: measureValidation.measure,
       });
     }
   }

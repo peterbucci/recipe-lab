@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { formatIngredientAmount, formatServings } from "../../lib/format";
+import { formatIngredientMeasure, formatServings } from "../../lib/format";
 import type { RecipeDetail, RecipeVersionReference } from "../../lib/recipe-api";
 import { RatingSummary } from "./rating-summary";
 import { RecipeArtwork } from "./recipe-artwork";
@@ -72,7 +72,7 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
               return (
                 <li key={ingredient.id}>
                   <span className="ingredient-list__amount">
-                    {formatIngredientAmount(ingredient.quantity, ingredient.unit)}
+                    {formatIngredientMeasure(ingredient.measure)}
                   </span>
                   <span className="ingredient-list__name">
                     <strong>{ingredient.display_name}</strong>
