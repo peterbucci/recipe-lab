@@ -66,8 +66,20 @@ def test_report_exposes_the_versioned_reproducible_production_scoring_contract(
         },
         "algorithm": "deterministic_explainable_structural_similarity",
         "algorithm_version": "duplicate-candidate-similarity-v1",
+        "capacity": {
+            "maximum_actions_per_structure": 500,
+            "maximum_flattened_inputs_per_structure": 2000,
+            "maximum_ingredient_occurrences_per_structure": 200,
+            "maximum_nonexact_pair_work_units": 10000000,
+            "overflow_behavior": "fail_closed",
+            "pair_work_estimate": (
+                "(1 + 2 * left_ingredients * right_ingredients) * "
+                "(left_ingredients + right_ingredients) + "
+                "2 * left_actions * right_actions + left_inputs * right_inputs"
+            ),
+        },
         "maximum_reasons": 3,
-        "parameter_sha256": "361533613dc82176863adfa85617f6e6a90c6e7eb34d00bb57bf8e2cb667fca2",
+        "parameter_sha256": "51a9a0462260fb47b574c1070e90bd964dd57ab171a818f55b1897a567ce1f70",
         "probable_duplicate_threshold": "0.800000",
         "structure_version": "recipe-structure-v1",
         "weights": {
@@ -152,10 +164,13 @@ def test_report_is_byte_deterministic_and_omits_pair_ids_prose_and_identity_fiel
     assert "host" not in first
     assert "path" not in first
     assert duplicate_benchmark.benchmark_id not in first
+    for recipe in duplicate_benchmark.recipes:
+        for prose in recipe.instruction_prose:
+            assert prose not in first
     for forbidden_field in (
         "case_id",
-        "left_structure_id",
-        "right_structure_id",
+        "left_recipe_id",
+        "right_recipe_id",
         "recipe_id",
         "user_id",
         "profile_id",
@@ -165,3 +180,35 @@ def test_report_is_byte_deterministic_and_omits_pair_ids_prose_and_identity_fiel
         "instruction_text",
     ):
         assert f'"{forbidden_field}"' not in first
+
+
+def test_report_omits_caller_supplied_recipe_and_pair_identifiers(
+    duplicate_benchmark: DuplicateBenchmark,
+) -> None:
+    recipe_ids = {
+        recipe.id: f"private-recipe-record-{index:02d}"
+        for index, recipe in enumerate(duplicate_benchmark.recipes)
+    }
+    private_pair_ids = [
+        f"private-pair-record-{index:02d}" for index in range(len(duplicate_benchmark.cases))
+    ]
+    changed = replace(
+        duplicate_benchmark,
+        recipes=tuple(
+            replace(recipe, id=recipe_ids[recipe.id]) for recipe in duplicate_benchmark.recipes
+        ),
+        cases=tuple(
+            replace(
+                case,
+                id=private_pair_ids[index],
+                left_recipe_id=recipe_ids[case.left_recipe_id],
+                right_recipe_id=recipe_ids[case.right_recipe_id],
+            )
+            for index, case in enumerate(duplicate_benchmark.cases)
+        ),
+    )
+
+    raw = duplicate_evaluation_report_to_json(evaluate_duplicate_candidates(changed))
+
+    for private_id in (*recipe_ids.values(), *private_pair_ids):
+        assert private_id not in raw

@@ -11,8 +11,13 @@ from app.services.recipe_duplicate_scoring import (
     ACTION_ORDER_SUBWEIGHT,
     DUPLICATE_CANDIDATE_PARAMETER_HASH,
     DUPLICATE_CANDIDATE_SCORING_ALGORITHM_VERSION,
+    DUPLICATE_PAIR_WORK_ESTIMATE,
     DURATION_TEMPERATURE_SUBWEIGHT,
     INGREDIENT_MULTISET_WEIGHT,
+    MAX_DUPLICATE_ACTIONS,
+    MAX_DUPLICATE_FLATTENED_INPUTS,
+    MAX_DUPLICATE_INGREDIENT_OCCURRENCES,
+    MAX_DUPLICATE_PAIR_WORK_UNITS,
     MAX_DUPLICATE_REASONS,
     NORMALIZED_QUANTITY_WEIGHT,
     ORDERED_INPUT_SUBWEIGHT,
@@ -166,7 +171,7 @@ def evaluate_duplicate_candidates(benchmark: DuplicateBenchmark) -> DuplicateEva
     """Evaluate the production duplicate scorer against labeled structural pairs."""
 
     benchmark = parse_duplicate_benchmark_json(duplicate_benchmark_to_json(benchmark))
-    structures = {item.id: item.structure for item in benchmark.structures}
+    recipes = {item.id: item for item in benchmark.recipes}
     expected_counts: Counter[str] = Counter()
     predicted_counts: Counter[str] = Counter()
     false_positive_categories: Counter[DuplicateBenchmarkCategory] = Counter()
@@ -185,8 +190,8 @@ def evaluate_duplicate_candidates(benchmark: DuplicateBenchmark) -> DuplicateEva
     covered_categories: set[DuplicateBenchmarkCategory] = set()
 
     for case in benchmark.cases:
-        left = build_structural_fingerprint(structures[case.left_structure_id])
-        right = build_structural_fingerprint(structures[case.right_structure_id])
+        left = build_structural_fingerprint(recipes[case.left_recipe_id].structure)
+        right = build_structural_fingerprint(recipes[case.right_recipe_id].structure)
         if left is None or right is None:
             continue
         result = score_recipe_duplicate_candidate(left, right)
@@ -375,6 +380,16 @@ def duplicate_evaluation_report_to_document(
             },
             "algorithm": "deterministic_explainable_structural_similarity",
             "algorithm_version": DUPLICATE_CANDIDATE_SCORING_ALGORITHM_VERSION,
+            "capacity": {
+                "maximum_actions_per_structure": MAX_DUPLICATE_ACTIONS,
+                "maximum_flattened_inputs_per_structure": MAX_DUPLICATE_FLATTENED_INPUTS,
+                "maximum_ingredient_occurrences_per_structure": (
+                    MAX_DUPLICATE_INGREDIENT_OCCURRENCES
+                ),
+                "maximum_nonexact_pair_work_units": MAX_DUPLICATE_PAIR_WORK_UNITS,
+                "overflow_behavior": "fail_closed",
+                "pair_work_estimate": DUPLICATE_PAIR_WORK_ESTIMATE,
+            },
             "maximum_reasons": MAX_DUPLICATE_REASONS,
             "parameter_sha256": DUPLICATE_CANDIDATE_PARAMETER_HASH,
             "probable_duplicate_threshold": _fraction_metric(PROBABLE_DUPLICATE_THRESHOLD),

@@ -68,8 +68,9 @@ class DuplicateBenchmarkError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
-class DuplicateBenchmarkStructure:
+class DuplicateBenchmarkRecipe:
     id: str
+    instruction_prose: tuple[str, ...]
     structure: RecipeStructure
 
 
@@ -77,8 +78,8 @@ class DuplicateBenchmarkStructure:
 class DuplicateBenchmarkCase:
     id: str
     category: DuplicateBenchmarkCategory
-    left_structure_id: str
-    right_structure_id: str
+    left_recipe_id: str
+    right_recipe_id: str
     expected_classification: DuplicateClassification
 
 
@@ -88,7 +89,7 @@ class DuplicateBenchmark:
     benchmark_id: str
     structure_version: str
     scoring_algorithm_version: str
-    structures: tuple[DuplicateBenchmarkStructure, ...]
+    recipes: tuple[DuplicateBenchmarkRecipe, ...]
     cases: tuple[DuplicateBenchmarkCase, ...]
     sha256: str
 
@@ -144,6 +145,10 @@ def _identity(value: object, *, path: str) -> str:
     return result
 
 
+def _prose_signature(values: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(" ".join(value.split()).casefold() for value in values)
+
+
 def _integer(value: object, *, path: str, positive: bool = False) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise DuplicateBenchmarkError(f"{path} must be an integer")
@@ -172,10 +177,10 @@ _TOP_LEVEL_KEYS = frozenset(
         "schema_version",
         "scoring_algorithm_version",
         "structure_version",
-        "structures",
+        "recipes",
     }
 )
-_STRUCTURE_RECORD_KEYS = frozenset({"id", "structure"})
+_RECIPE_RECORD_KEYS = frozenset({"id", "instruction_prose", "structure"})
 _STRUCTURE_KEYS = frozenset({"ingredients", "instructions"})
 _INGREDIENT_KEYS = frozenset({"canonical_ingredient", "measure", "occurrence"})
 _INSTRUCTION_KEYS = frozenset({"actions"})
@@ -200,8 +205,8 @@ _CASE_KEYS = frozenset(
         "category",
         "expected_classification",
         "id",
-        "left_structure_id",
-        "right_structure_id",
+        "left_recipe_id",
+        "right_recipe_id",
     }
 )
 
@@ -335,19 +340,31 @@ def _parse_structure(value: object, *, path: str) -> RecipeStructure:
     return structure
 
 
-def _parse_structures(value: object) -> tuple[DuplicateBenchmarkStructure, ...]:
-    structures: list[DuplicateBenchmarkStructure] = []
-    for index, raw in enumerate(_array(value, path="structures")):
-        path = f"structures[{index}]"
+def _parse_recipes(value: object) -> tuple[DuplicateBenchmarkRecipe, ...]:
+    recipes: list[DuplicateBenchmarkRecipe] = []
+    for index, raw in enumerate(_array(value, path="recipes")):
+        path = f"recipes[{index}]"
         item = _object(raw, path=path)
-        _exact_keys(item, expected=_STRUCTURE_RECORD_KEYS, path=path)
-        structures.append(
-            DuplicateBenchmarkStructure(
-                id=_slug(item["id"], path=f"{path}.id"),
-                structure=_parse_structure(item["structure"], path=f"{path}.structure"),
+        _exact_keys(item, expected=_RECIPE_RECORD_KEYS, path=path)
+        instruction_prose = tuple(
+            _string(prose, path=f"{path}.instruction_prose[{prose_index}]")
+            for prose_index, prose in enumerate(
+                _array(item["instruction_prose"], path=f"{path}.instruction_prose")
             )
         )
-    return tuple(structures)
+        structure = _parse_structure(item["structure"], path=f"{path}.structure")
+        if len(instruction_prose) != len(structure.instructions):
+            raise DuplicateBenchmarkError(
+                f"{path}.instruction_prose must align with the structured instructions"
+            )
+        recipes.append(
+            DuplicateBenchmarkRecipe(
+                id=_slug(item["id"], path=f"{path}.id"),
+                instruction_prose=instruction_prose,
+                structure=structure,
+            )
+        )
+    return tuple(recipes)
 
 
 def _parse_cases(value: object) -> tuple[DuplicateBenchmarkCase, ...]:
@@ -368,12 +385,8 @@ def _parse_cases(value: object) -> tuple[DuplicateBenchmarkCase, ...]:
             DuplicateBenchmarkCase(
                 id=_slug(item["id"], path=f"{path}.id"),
                 category=raw_category,
-                left_structure_id=_slug(
-                    item["left_structure_id"], path=f"{path}.left_structure_id"
-                ),
-                right_structure_id=_slug(
-                    item["right_structure_id"], path=f"{path}.right_structure_id"
-                ),
+                left_recipe_id=_slug(item["left_recipe_id"], path=f"{path}.left_recipe_id"),
+                right_recipe_id=_slug(item["right_recipe_id"], path=f"{path}.right_recipe_id"),
                 expected_classification=cast(DuplicateClassification, raw_classification),
             )
         )
@@ -471,20 +484,21 @@ def _normalized_document(benchmark: DuplicateBenchmark) -> dict[str, object]:
                 "category": case.category,
                 "expected_classification": case.expected_classification,
                 "id": case.id,
-                "left_structure_id": case.left_structure_id,
-                "right_structure_id": case.right_structure_id,
+                "left_recipe_id": case.left_recipe_id,
+                "right_recipe_id": case.right_recipe_id,
             }
             for case in sorted(benchmark.cases, key=lambda item: item.id)
         ],
         "schema_version": benchmark.schema_version,
         "scoring_algorithm_version": benchmark.scoring_algorithm_version,
         "structure_version": benchmark.structure_version,
-        "structures": [
+        "recipes": [
             {
                 "id": item.id,
+                "instruction_prose": list(item.instruction_prose),
                 "structure": _structure_to_document(item.structure),
             }
-            for item in sorted(benchmark.structures, key=lambda item: item.id)
+            for item in sorted(benchmark.recipes, key=lambda item: item.id)
         ],
     }
 
@@ -497,21 +511,44 @@ def _validate_benchmark(benchmark: DuplicateBenchmark) -> None:
     if benchmark.scoring_algorithm_version != DUPLICATE_CANDIDATE_SCORING_ALGORITHM_VERSION:
         raise DuplicateBenchmarkError("unsupported duplicate benchmark scoring version")
 
-    structure_ids = [item.id for item in benchmark.structures]
-    if not structure_ids:
-        raise DuplicateBenchmarkError("structures must contain at least one entry")
-    if len(structure_ids) != len(set(structure_ids)):
-        raise DuplicateBenchmarkError("structure IDs must be unique")
-    known_structures = set(structure_ids)
+    recipe_ids = [item.id for item in benchmark.recipes]
+    if not recipe_ids:
+        raise DuplicateBenchmarkError("recipes must contain at least one entry")
+    if len(recipe_ids) != len(set(recipe_ids)):
+        raise DuplicateBenchmarkError("recipe IDs must be unique")
+    recipes = {item.id: item for item in benchmark.recipes}
 
     case_ids = [case.id for case in benchmark.cases]
     if len(case_ids) != len(set(case_ids)):
         raise DuplicateBenchmarkError("case IDs must be unique")
     for case in benchmark.cases:
-        if case.left_structure_id not in known_structures:
-            raise DuplicateBenchmarkError("case references an unknown left structure")
-        if case.right_structure_id not in known_structures:
-            raise DuplicateBenchmarkError("case references an unknown right structure")
+        if case.left_recipe_id not in recipes:
+            raise DuplicateBenchmarkError("case references an unknown left recipe")
+        if case.right_recipe_id not in recipes:
+            raise DuplicateBenchmarkError("case references an unknown right recipe")
+        if case.category == "prose_paraphrase":
+            if case.left_recipe_id == case.right_recipe_id:
+                raise DuplicateBenchmarkError(
+                    "prose paraphrase must compare two different recipe records"
+                )
+            left_recipe = recipes[case.left_recipe_id]
+            right_recipe = recipes[case.right_recipe_id]
+            if _prose_signature(left_recipe.instruction_prose) == _prose_signature(
+                right_recipe.instruction_prose
+            ):
+                raise DuplicateBenchmarkError(
+                    "prose paraphrase must contain genuinely different instruction prose"
+                )
+            left_fingerprint = build_structural_fingerprint(left_recipe.structure)
+            right_fingerprint = build_structural_fingerprint(right_recipe.structure)
+            if (
+                left_fingerprint is None
+                or right_fingerprint is None
+                or left_fingerprint.canonical_json != right_fingerprint.canonical_json
+            ):
+                raise DuplicateBenchmarkError(
+                    "prose paraphrase must retain an identical curated structure"
+                )
 
     categories = {case.category for case in benchmark.cases}
     missing_categories = _CATEGORY_SET - categories
@@ -538,7 +575,7 @@ def parse_duplicate_benchmark_json(text: str) -> DuplicateBenchmark:
         scoring_algorithm_version=_string(
             document["scoring_algorithm_version"], path="scoring_algorithm_version"
         ),
-        structures=_parse_structures(document["structures"]),
+        recipes=_parse_recipes(document["recipes"]),
         cases=_parse_cases(document["cases"]),
         sha256="",
     )
@@ -549,7 +586,7 @@ def parse_duplicate_benchmark_json(text: str) -> DuplicateBenchmark:
         benchmark_id=benchmark.benchmark_id,
         structure_version=benchmark.structure_version,
         scoring_algorithm_version=benchmark.scoring_algorithm_version,
-        structures=benchmark.structures,
+        recipes=benchmark.recipes,
         cases=benchmark.cases,
         sha256=hashlib.sha256(normalized.encode("utf-8")).hexdigest(),
     )
@@ -570,7 +607,7 @@ __all__ = [
     "DuplicateBenchmarkCase",
     "DuplicateBenchmarkCategory",
     "DuplicateBenchmarkError",
-    "DuplicateBenchmarkStructure",
+    "DuplicateBenchmarkRecipe",
     "duplicate_benchmark_to_json",
     "load_duplicate_benchmark",
     "parse_duplicate_benchmark_json",

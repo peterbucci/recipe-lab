@@ -172,16 +172,20 @@ recipe-lab-eval duplicate-run `
   --strict
 ```
 
-The `recipe-lab-duplicate-evaluation-fixture-v1` contract contains only curated
-ingredient identities, normalized measures, and structured action features. It
-exercises exact equivalence after reviewed unit conversion, canonical aliases,
-ingredient reordering, and prose paraphrase; probable candidates from proportional
-scaling and action, order, duration, or temperature changes; and distinct quantity
-changes plus an adversarial same-ingredient near-match. Prose and recipe, user, or
-profile identifiers are absent from the aggregate report.
+The `recipe-lab-duplicate-evaluation-fixture-v1` contract keeps synthetic
+instruction prose outside each recipe's fingerprint structure. Its paraphrase case
+uses two different recipe records with genuinely different instructions but
+identical curated ingredients, normalized measures, and structured action graphs,
+then derives both fingerprints through the production builder. Other cases exercise
+exact equivalence after reviewed unit conversion, canonical aliases, and ingredient
+reordering; probable candidates from proportional scaling and action, order,
+duration, or temperature changes; and distinct quantity changes plus an adversarial
+same-ingredient near-match. Prose and recipe, user, or profile identifiers are
+absent from the aggregate report.
 
 The byte-deterministic `recipe-lab-duplicate-evaluation-report-v1` records the
-production algorithm version, parameter SHA-256, threshold, feature weights,
+production algorithm version, parameter SHA-256, capacity/work budget, threshold,
+feature weights,
 three-class confusion matrix, positive-class precision and recall (where exact
 and probable are positive), accuracy,
 coverage, and aggregate false-positive/false-negative categories. Its fixed

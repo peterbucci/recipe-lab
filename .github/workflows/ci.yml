@@ -509,10 +509,10 @@ jobs:
               "labeled-structural-pair-evaluation-v1"
           )
           assert report["benchmark_sha256"] == (
-              "29c2c1d36b6ecd39a092da9fc605f0dc7ecdf345ab0e33970ce62920c0539c7d"
+              "6d471e5e85a067cd2b18236fde4a4fca8bc8fc8aefa9ae6eb9beeabe85e89688"
           )
           assert report["run_id"] == (
-              "0b60306b5c559f131b04c0baee1e68fa1b09e7a375aa705d50ef250e7d664b7d"
+              "dd268f016eb323360db0cbc13a4be6393d2e8b7d6f656a374f7f80384e7ced46"
           )
           assert report["status"] == "engineering_validated"
           assert report["reason_codes"] == []
@@ -526,9 +526,22 @@ jobs:
               },
               "algorithm": "deterministic_explainable_structural_similarity",
               "algorithm_version": "duplicate-candidate-similarity-v1",
+              "capacity": {
+                  "maximum_actions_per_structure": 500,
+                  "maximum_flattened_inputs_per_structure": 2000,
+                  "maximum_ingredient_occurrences_per_structure": 200,
+                  "maximum_nonexact_pair_work_units": 10000000,
+                  "overflow_behavior": "fail_closed",
+                  "pair_work_estimate": (
+                      "(1 + 2 * left_ingredients * right_ingredients) * "
+                      "(left_ingredients + right_ingredients) + "
+                      "2 * left_actions * right_actions + "
+                      "left_inputs * right_inputs"
+                  ),
+              },
               "maximum_reasons": 3,
               "parameter_sha256": (
-                  "361533613dc82176863adfa85617f6e6a90c6e7eb34d00bb57bf8e2cb667fca2"
+                  "51a9a0462260fb47b574c1070e90bd964dd57ab171a818f55b1897a567ce1f70"
               ),
               "probable_duplicate_threshold": "0.800000",
               "structure_version": "recipe-structure-v1",

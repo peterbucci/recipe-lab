@@ -3,9 +3,30 @@
   "benchmark_id": "duplicate-candidates-synthetic-v1",
   "structure_version": "recipe-structure-v1",
   "scoring_algorithm_version": "duplicate-candidate-similarity-v1",
-  "structures": [
+  "recipes": [
     {
       "id": "base",
+      "instruction_prose": ["Combine the ingredients until smooth, then bake the mixture until set."],
+      "structure": {
+        "ingredients": [
+          {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "water", "canonical_ingredient": "ingredient:water", "measure": {"mode": "exact", "value": "80", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "salt", "canonical_ingredient": "ingredient:salt", "measure": {"mode": "exact", "value": "2", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "yeast", "canonical_ingredient": "ingredient:yeast", "measure": {"mode": "exact", "value": "1", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "oil", "canonical_ingredient": "ingredient:oil", "measure": {"mode": "exact", "value": "10", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
+          {"occurrence": "sugar", "canonical_ingredient": "ingredient:sugar", "measure": {"mode": "exact", "value": "5", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+        ],
+        "instructions": [
+          {"actions": [
+            {"action": "mix", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "2", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": null},
+            {"action": "bake", "inputs": ["flour", "water", "salt", "yeast", "oil", "sugar"], "duration": {"mode": "exact", "value": "25", "unit": {"key": "minute", "dimension": "time", "family": "clock-time", "base_key": "minute", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}, "temperature": {"mode": "exact", "value": "220", "unit": {"key": "celsius", "dimension": "temperature", "family": "metric-temperature", "base_key": "celsius", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}}
+          ]}
+        ]
+      }
+    },
+    {
+      "id": "paraphrased-prose",
+      "instruction_prose": ["Stir everything into a smooth mixture; cook it in the oven until firm."],
       "structure": {
         "ingredients": [
           {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
@@ -25,6 +46,7 @@
     },
     {
       "id": "unit-equivalent",
+      "instruction_prose": ["Combine the ingredients until smooth, then bake the mixture until set."],
       "structure": {
         "ingredients": [
           {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "0.12", "unit": {"key": "kg", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1000, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
@@ -44,6 +66,7 @@
     },
     {
       "id": "alias-equivalent",
+      "instruction_prose": ["Combine the ingredients until smooth, then bake the mixture until set."],
       "structure": {
         "ingredients": [
           {"occurrence": "all-purpose-flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
@@ -63,6 +86,7 @@
     },
     {
       "id": "ingredient-reordered",
+      "instruction_prose": ["Combine the ingredients until smooth, then bake the mixture until set."],
       "structure": {
         "ingredients": [
           {"occurrence": "sugar", "canonical_ingredient": "ingredient:sugar", "measure": {"mode": "exact", "value": "5", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
@@ -82,6 +106,7 @@
     },
     {
       "id": "scaled",
+      "instruction_prose": ["Combine the ingredients until smooth, then bake the mixture until set."],
       "structure": {
         "ingredients": [
           {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "240", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
@@ -101,6 +126,7 @@
     },
     {
       "id": "quantity-changed",
+      "instruction_prose": ["Combine the ingredients until smooth, then bake the mixture until set."],
       "structure": {
         "ingredients": [
           {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "121", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
@@ -120,6 +146,7 @@
     },
     {
       "id": "action-changed",
+      "instruction_prose": ["Whisk the ingredients together, then bake the mixture until set."],
       "structure": {
         "ingredients": [
           {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
@@ -139,6 +166,7 @@
     },
     {
       "id": "action-reordered",
+      "instruction_prose": ["Bake the combined ingredients, then mix them thoroughly."],
       "structure": {
         "ingredients": [
           {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
@@ -158,6 +186,7 @@
     },
     {
       "id": "duration-changed",
+      "instruction_prose": ["Mix the ingredients a little longer, then bake them for half an hour."],
       "structure": {
         "ingredients": [
           {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
@@ -177,6 +206,7 @@
     },
     {
       "id": "temperature-changed",
+      "instruction_prose": ["Mix the ingredients, then bake the mixture at a lower temperature."],
       "structure": {
         "ingredients": [
           {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "120", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
@@ -196,6 +226,7 @@
     },
     {
       "id": "adversarial",
+      "instruction_prose": ["Chop the ingredients and freeze the result until solid."],
       "structure": {
         "ingredients": [
           {"occurrence": "flour", "canonical_ingredient": "ingredient:flour", "measure": {"mode": "exact", "value": "121", "unit": {"key": "g", "dimension": "mass", "family": "metric-mass", "base_key": "g", "scale_numerator": 1, "scale_denominator": 1, "offset_numerator": 0, "offset_denominator": 1}}},
@@ -215,16 +246,16 @@
     }
   ],
   "cases": [
-    {"id": "unit-equivalence", "category": "unit_equivalence", "left_structure_id": "base", "right_structure_id": "unit-equivalent", "expected_classification": "exact_duplicate"},
-    {"id": "alias-equivalence", "category": "alias_equivalence", "left_structure_id": "base", "right_structure_id": "alias-equivalent", "expected_classification": "exact_duplicate"},
-    {"id": "ingredient-reorder", "category": "ingredient_reorder", "left_structure_id": "base", "right_structure_id": "ingredient-reordered", "expected_classification": "exact_duplicate"},
-    {"id": "prose-paraphrase", "category": "prose_paraphrase", "left_structure_id": "base", "right_structure_id": "base", "expected_classification": "exact_duplicate"},
-    {"id": "proportional-scaling", "category": "proportional_scaling", "left_structure_id": "base", "right_structure_id": "scaled", "expected_classification": "probable_duplicate"},
-    {"id": "quantity-change", "category": "quantity_change", "left_structure_id": "base", "right_structure_id": "quantity-changed", "expected_classification": "distinct"},
-    {"id": "action-change", "category": "action_change", "left_structure_id": "base", "right_structure_id": "action-changed", "expected_classification": "probable_duplicate"},
-    {"id": "action-order-change", "category": "action_order_change", "left_structure_id": "base", "right_structure_id": "action-reordered", "expected_classification": "probable_duplicate"},
-    {"id": "duration-change", "category": "duration_change", "left_structure_id": "base", "right_structure_id": "duration-changed", "expected_classification": "probable_duplicate"},
-    {"id": "temperature-change", "category": "temperature_change", "left_structure_id": "base", "right_structure_id": "temperature-changed", "expected_classification": "probable_duplicate"},
-    {"id": "adversarial-near-match", "category": "adversarial_near_match", "left_structure_id": "base", "right_structure_id": "adversarial", "expected_classification": "distinct"}
+    {"id": "unit-equivalence", "category": "unit_equivalence", "left_recipe_id": "base", "right_recipe_id": "unit-equivalent", "expected_classification": "exact_duplicate"},
+    {"id": "alias-equivalence", "category": "alias_equivalence", "left_recipe_id": "base", "right_recipe_id": "alias-equivalent", "expected_classification": "exact_duplicate"},
+    {"id": "ingredient-reorder", "category": "ingredient_reorder", "left_recipe_id": "base", "right_recipe_id": "ingredient-reordered", "expected_classification": "exact_duplicate"},
+    {"id": "prose-paraphrase", "category": "prose_paraphrase", "left_recipe_id": "base", "right_recipe_id": "paraphrased-prose", "expected_classification": "exact_duplicate"},
+    {"id": "proportional-scaling", "category": "proportional_scaling", "left_recipe_id": "base", "right_recipe_id": "scaled", "expected_classification": "probable_duplicate"},
+    {"id": "quantity-change", "category": "quantity_change", "left_recipe_id": "base", "right_recipe_id": "quantity-changed", "expected_classification": "distinct"},
+    {"id": "action-change", "category": "action_change", "left_recipe_id": "base", "right_recipe_id": "action-changed", "expected_classification": "probable_duplicate"},
+    {"id": "action-order-change", "category": "action_order_change", "left_recipe_id": "base", "right_recipe_id": "action-reordered", "expected_classification": "probable_duplicate"},
+    {"id": "duration-change", "category": "duration_change", "left_recipe_id": "base", "right_recipe_id": "duration-changed", "expected_classification": "probable_duplicate"},
+    {"id": "temperature-change", "category": "temperature_change", "left_recipe_id": "base", "right_recipe_id": "temperature-changed", "expected_classification": "probable_duplicate"},
+    {"id": "adversarial-near-match", "category": "adversarial_near_match", "left_recipe_id": "base", "right_recipe_id": "adversarial", "expected_classification": "distinct"}
   ]
 }
