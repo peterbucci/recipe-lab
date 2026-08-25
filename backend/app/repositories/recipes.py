@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Numeric, cast, exists, func, or_, select
+from sqlalchemy import ColumnElement, Numeric, cast, exists, func, or_, select, true
 from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
 from app.models import (
@@ -11,6 +11,7 @@ from app.models import (
     RecipeInstructionAction,
     RecipeInstructionActionMeasure,
     RecipeRating,
+    RecipeStructuralFingerprint,
     RecipeVersion,
 )
 from app.repositories.ingredients import resolve_ingredient_name
@@ -26,6 +27,29 @@ class RecipeBrowseResult:
 class RecipeRatingAggregate:
     average: Decimal | None
     count: int
+
+
+@dataclass(frozen=True, slots=True)
+class PublicRecipeDuplicateCandidate:
+    """Public recipe identity plus the immutable structure used by preflight."""
+
+    recipe_version_id: UUID
+    title: str
+    algorithm_version: str
+    digest: str
+    canonical_payload: str
+
+
+def publicly_readable_recipe_version_filter() -> ColumnElement[bool]:
+    """Return the shared visibility predicate for public recipe reads.
+
+    Every recipe version is public in the current model. Keeping the predicate as
+    an explicit seam ensures publication/withdrawal stories can change browse,
+    detail, and duplicate-candidate reads together instead of accidentally letting
+    preflight inspect unavailable work.
+    """
+
+    return true()
 
 
 def _escape_like(value: str) -> str:
@@ -72,6 +96,7 @@ def browse_recipe_versions(
             )
         )
 
+    filters.append(publicly_readable_recipe_version_filter())
     total = session.scalar(select(func.count()).select_from(RecipeVersion).where(*filters))
     statement = (
         select(RecipeVersion)
@@ -115,9 +140,74 @@ def get_recipe_version(
             ),
             raiseload("*"),
         )
-        .where(RecipeVersion.id == recipe_version_id)
+        .where(
+            RecipeVersion.id == recipe_version_id,
+            publicly_readable_recipe_version_filter(),
+        )
     )
     return session.scalar(statement)
+
+
+def list_public_recipe_duplicate_candidates(
+    session: Session,
+    *,
+    algorithm_version: str,
+    exclude_recipe_version_id: UUID | None = None,
+) -> list[PublicRecipeDuplicateCandidate]:
+    """Load only public, fingerprinted snapshots for deterministic preflight scoring."""
+
+    statement = (
+        select(
+            RecipeVersion.id,
+            RecipeVersion.title,
+            RecipeStructuralFingerprint.algorithm_version,
+            RecipeStructuralFingerprint.digest,
+            RecipeStructuralFingerprint.canonical_payload,
+        )
+        .join(
+            RecipeStructuralFingerprint,
+            RecipeStructuralFingerprint.recipe_version_id == RecipeVersion.id,
+        )
+        .where(
+            publicly_readable_recipe_version_filter(),
+            RecipeStructuralFingerprint.algorithm_version == algorithm_version,
+        )
+        .order_by(RecipeVersion.id)
+    )
+    if exclude_recipe_version_id is not None:
+        statement = statement.where(RecipeVersion.id != exclude_recipe_version_id)
+
+    return [
+        PublicRecipeDuplicateCandidate(
+            recipe_version_id=recipe_version_id,
+            title=title,
+            algorithm_version=stored_algorithm_version,
+            digest=digest,
+            canonical_payload=canonical_payload,
+        )
+        for (
+            recipe_version_id,
+            title,
+            stored_algorithm_version,
+            digest,
+            canonical_payload,
+        ) in session.execute(statement)
+    ]
+
+
+def get_public_recipe_version_titles(
+    session: Session,
+    recipe_version_ids: set[UUID],
+) -> dict[UUID, str]:
+    """Resolve public candidate display metadata without exposing hidden counts."""
+
+    if not recipe_version_ids:
+        return {}
+    statement = select(RecipeVersion.id, RecipeVersion.title).where(
+        publicly_readable_recipe_version_filter(),
+        RecipeVersion.id.in_(recipe_version_ids),
+    )
+    return {recipe_version_id: title for recipe_version_id, title in session.execute(statement)}
 
 
 def get_recipe_rating_aggregate(
