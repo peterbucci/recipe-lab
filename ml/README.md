@@ -173,22 +173,26 @@ recipe-lab-eval duplicate-run `
 ```
 
 The `recipe-lab-duplicate-evaluation-fixture-v1` contract keeps synthetic
-instruction prose outside each recipe's fingerprint structure. Its paraphrase case
-uses two different recipe records with genuinely different instructions but
-identical curated ingredients, normalized measures, and structured action graphs,
-then derives both fingerprints through the production builder. Other cases exercise
-exact equivalence after reviewed unit conversion, canonical aliases, and ingredient
-reordering; probable candidates from proportional scaling and action, order,
-duration, or temperature changes; and distinct quantity changes plus an adversarial
-same-ingredient near-match. Prose and recipe, user, or profile identifiers are
-absent from the aggregate report.
+instruction prose and authored ingredient source labels outside each recipe's
+fingerprint structure. Its paraphrase case uses two different recipe records with
+genuinely different instructions but identical curated structure. Its alias case
+uses different source labels that map to the same canonical ingredient identities.
+Category-specific validation rejects label-only coverage: the unit, reorder,
+proportional quantity, action-type, action-order, duration, temperature, and
+adversarial cases must each contain their claimed source perturbation. Every case
+also declares its expected scorer-component relations and ordered reason codes,
+which are checked against fingerprints and results produced by the production
+builder and scorer. Prose, source labels, and recipe, user, or profile identifiers
+are absent from the aggregate report.
 
 The byte-deterministic `recipe-lab-duplicate-evaluation-report-v1` records the
 production algorithm version, parameter SHA-256, capacity/work budget, threshold,
 feature weights,
 three-class confusion matrix, positive-class precision and recall (where exact
 and probable are positive), accuracy,
-coverage, and aggregate false-positive/false-negative categories. Its fixed
+category, component-expectation, and explanation coverage, plus aggregate
+classification, component, explanation, false-positive, and false-negative error
+categories. Its fixed
 limitations make clear that `engineering_validated` is small synthetic contract
 evidence only. Duplicate suggestions remain advisory: the report does not authorize
 blocking publication, merging or deleting recipes, plagiarism claims, or a learned

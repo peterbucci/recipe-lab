@@ -1,0 +1,187 @@
+# Recipe duplicate-candidate preflight
+
+## Purpose and boundary
+
+Recipe Lab runs a reusable, advisory duplicate check before the current variant
+editor creates a public child recipe. Its structural core accepts a completed
+fingerprint plus an optional direct source. The current variant endpoint is one
+adapter; RCP-27 can pass a source-less original draft, while RCP-28 can pass a
+direct parent and receive the same acknowledgement and no-change contract.
+
+The check answers a narrow structural question. It does not decide authorship,
+originality, copyright, plagiarism, culinary equivalence, or which recipe is
+better. It never merges lineages, transfers ownership, deletes a recipe, or
+blocks an author at the API layer. Ingredient-catalog request deduplication is a
+separate curation workflow and shares neither these records nor this policy.
+
+## Preflight flow
+
+`POST /api/recipes/{source_version_id}/duplicate-preflights` accepts the same
+validated edit payload as variant creation plus a member-scoped UUID
+`Idempotency-Key`. Its adapter prepares the child and calls the source-optional
+structural core. The service:
+
+1. verifies that the source is publicly readable;
+2. validates and prepares the complete proposed child without inserting it;
+3. builds its `recipe-structure-v1` fingerprint;
+4. compares it only with publicly readable, fingerprinted recipe versions;
+5. ranks at most five exact or probable candidates;
+6. stores immutable, bounded audit evidence; and
+7. returns `exact_duplicate`, `probable_duplicate`, or `distinct`.
+
+Titles, descriptions, servings, ingredient display labels and aliases,
+preparation notes, instruction prose, authors, and lineage metadata are absent
+from scoring. A prose rewrite or a switch between reviewed labels for the same
+curated ingredient therefore cannot turn an exact structural match into a
+distinct recipe.
+
+An unchanged structure relative to the direct source also returns the separate
+`same_lineage_no_change` warning. The source is already known to the caller, so
+it is not repeated as a candidate row.
+
+## Exact and probable classifications
+
+An exact match requires all three of the following:
+
+- the same fingerprint algorithm version;
+- the same lowercase SHA-256 digest; and
+- byte-identical canonical JSON.
+
+The payload comparison is mandatory. A digest collision alone is never treated
+as exact.
+
+Non-exact pairs use `duplicate-candidate-similarity-v1`. Every calculation uses
+exact rational arithmetic. The versioned score is:
+
+```text
+score = 9/20 * ingredient multiset similarity
+      + 1/4  * normalized quantity similarity
+      + 3/10 * structured action similarity
+```
+
+Ingredient similarity is multiset Dice over stable curated ingredient IDs and
+preserves repeated occurrences. Quantity similarity finds the one positive
+global rational scale that maximizes exact same-ingredient measure matches.
+Exact and range endpoints, unit semantics, qualitative modes, and curated
+package-size identities remain explicit. Ties prefer scale 1, then the smallest
+positive fraction.
+
+Structured action similarity is itself versioned:
+
+```text
+structured actions = 1/2  * ordered action-type LCS Dice
+                   + 3/10 * ordered (action, input ingredient) LCS Dice
+                   + 1/5  * ordered (action, duration, temperature) LCS Dice
+```
+
+A non-exact score of at least `4/5` is probable; a lower score is distinct. The
+threshold, weights, subweights, reason ordering, maximum of three reasons, and a
+SHA-256 of the complete parameter document travel with the versioned evaluator.
+No learned or opaque classifier participates.
+
+The enclosing `recipe-duplicate-preflight-policy-v1` is versioned separately.
+Its canonical parameter document pins the scorer version and hash, public-only
+selection, exact-first ranking and UUID tie-break, source exclusion,
+direct-parent warning semantics, response bounds, and fixed scoring work
+budgets. One preflight considers at most 500 public fingerprints. Each structure
+is capped at 200 ingredient occurrences, 500 actions, and 2,000 flattened action
+inputs; a conservative quantity-scan and LCS estimate caps all non-exact pair
+work at 10,000,000 units before any pair is scored. Overflow returns one generic
+`503` temporary-unavailable response. It never returns a silently truncated or
+partially scored result.
+
+## Public and privacy boundary
+
+Candidate discovery starts from the shared publicly-readable recipe predicate;
+it does not score every recipe and filter private results afterward. Responses
+contain only a bounded public recipe-version UUID, immutable public title,
+classification, six-decimal score, and up to three fixed explanation reasons.
+They contain no candidate totals, hidden-match counts, timings, raw feature
+vectors, private IDs, user data, or canonical payloads.
+
+The current schema has only public immutable recipe versions. The explicit
+public-read repository seam exists so RCP-27 and later withdrawal work can add
+visibility in one place without allowing preflight to inspect drafts. A replay
+or decision rechecks the source and every returned candidate. If any evidence is
+no longer public or the policy version has changed, the API returns one generic
+stale-result conflict and does not repeat prior candidate details.
+
+## Acknowledgement and author decision
+
+Every response carries this stable acknowledgement envelope:
+
+```json
+{
+  "preflight_id": "00000000-0000-4000-8000-000000000000",
+  "policy_version": "recipe-duplicate-preflight-policy-v1",
+  "result_digest": "<lowercase sha256>",
+  "required": true,
+  "allowed_decisions": ["continue", "revise"]
+}
+```
+
+`required` is false only for a distinct result. For an exact, probable, or
+direct-parent no-change result, the author can explicitly continue or revise.
+`POST /api/recipe-duplicate-preflights/{preflight_id}/decision` records that
+choice against the exact policy version and result digest. The decision is
+advisory; it does not create or publish a recipe by itself.
+
+The current browser editor pauses inline, shows neutral explanations and public
+candidate links in a draft-safe new tab, and requires an acknowledgement
+checkbox before continuing. Editing any field invalidates the old preflight. If
+the advisory check is unavailable, the editor says that no classification was
+produced and offers an explicit retry or continue-without-review path; it never
+pretends the result was distinct. If a decision response is lost, it says the
+client cannot confirm whether the choice was recorded, retries with the same
+idempotency key, or lets the author explicitly continue without confirmation.
+RCP-27 and RCP-28 must recompute the structure and validate the acknowledgement
+inside their publication transaction rather than trusting client state.
+
+## Immutable evidence
+
+Migration `20260825_0012` adds three append-only tables:
+
+- `recipe_duplicate_preflights` stores actor, idempotency identity, source,
+  subject fingerprint identity, policy, classification, warning state, and
+  result digest;
+- `recipe_duplicate_candidates` stores at most five public candidate pairs with
+  rank, basis-point score, at most three reason codes, and exact-payload
+  confirmation; and
+- `recipe_duplicate_decisions` stores one actor-owned continue-or-revise choice
+  for an acknowledged result.
+
+Database triggers reject update, delete, and truncate operations. Composite
+foreign keys bind candidate policy/fingerprint versions and decision actor,
+policy, and result digest to the referenced preflight. Database checks enforce
+the supported ordered explanation families. An idempotent replay must also
+match its stored request fingerprint, optional direct source, and subject
+fingerprint algorithm and digest; mismatches return the same generic conflict.
+Neither recipe prose nor canonical payloads are copied into these audit tables,
+and the records are deliberately separate from `preference_events` so
+duplicate-review choices cannot become recommendation signals.
+
+## Evaluation and limitations
+
+The separate `recipe-lab-eval duplicate-run` command imports the production
+fingerprint builder and scorer and evaluates a committed, labeled synthetic
+recipe-pair fixture. Instruction prose remains outside each fingerprint
+structure. The paraphrase case uses two distinct recipe records with genuinely
+different instructions but an identical curated action graph. The report
+contains no prose or recipe/pair identifiers. It reports
+three-class accuracy, positive precision and recall, confusion counts, category
+coverage, component-expectation coverage, ordered-explanation coverage, and
+aggregate classification, component, explanation, false-positive, and
+false-negative categories, plus scorer parameters and fixed limitations in a
+byte-deterministic aggregate report.
+
+The fixture exercises normalized units, distinct authored labels mapped to the
+same canonical ingredients, ingredient display reordering, prose paraphrase
+invariance, proportional scaling, quantity and action-type changes, action
+ordering, duration, temperature, and an adversarial near-match. The loader
+verifies each claimed source perturbation instead of treating a category label
+as coverage; the evaluator also checks declared component relations and ordered
+reason codes. It is a small synthetic engineering benchmark without human
+adjudication, confidence intervals, user outcomes, or learned-model evidence.
+Its results can validate implementation consistency; they cannot justify a hard
+publication block or a claim about creative or legal identity. Any future
+enforcement policy requires a separate reviewed product decision and evidence.

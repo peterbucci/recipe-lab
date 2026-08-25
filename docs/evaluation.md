@@ -279,6 +279,42 @@ passes. Invalid benchmark syntax or configuration exits 2.
 The full candidate, ordering, caution, and metric definitions are documented in
 [offline substitution rules engine](substitution-engine.md).
 
+## Separate recipe-duplicate benchmark
+
+`recipe-lab-eval duplicate-run` evaluates the production
+`duplicate-candidate-similarity-v1` scorer against a separate labeled
+synthetic recipe-pair fixture. It does not reuse the recommendation snapshot,
+temporal split, substitution catalog, member events, or model-adoption policy.
+Each synthetic record keeps instruction prose and authored ingredient source
+labels outside its canonical `RecipeStructure`. The paraphrase case uses
+different prose and identical structure; the alias case uses different source
+labels for the same canonical ingredient identities. Category-specific fixture
+validation rejects pairs that do not actually contain their claimed unit,
+ingredient-order, proportional-quantity, action-type, action-order, duration,
+temperature, or adversarial perturbation. Cases carry expected
+`exact_duplicate`, `probable_duplicate`, or `distinct` labels plus explicit
+scorer-component relations and ordered reason codes.
+
+The canonical `recipe-lab-duplicate-evaluation-report-v1` report identifies the
+`labeled-structural-pair-evaluation-v1` protocol, benchmark SHA-256, scorer and
+fingerprint versions, parameter SHA, fixed work limits, threshold, weights and
+subweights, three-class confusion counts, positive precision and recall,
+three-class accuracy, evaluated/category/component-expectation/explanation coverage, and
+sorted classification, component, explanation, false-positive, and
+false-negative categories. It declares `advisory_only: true` and
+`learned_classifier_attempted: false`. Raw recipe IDs, user IDs, prose, and
+caller-supplied labels are absent from the aggregate report.
+
+Status `engineering_validated` requires every expected classification,
+component relation, and ordered explanation contract to match, with every
+required fixture category semantically exercised. The fixed limitations state
+that this is a small hand-authored synthetic fixture without human adjudication,
+confidence intervals, user outcomes, or a learned classifier. Even perfect
+metrics cannot justify a publication block, plagiarism claim, or
+culinary-identity claim. See
+[recipe duplicate-candidate preflight](duplicate-detection.md) for the product
+contract and scoring formula.
+
 ## Known limitations
 
 - The bundled product seed has no preference events, so it cannot establish
