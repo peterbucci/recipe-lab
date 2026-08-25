@@ -483,6 +483,103 @@ jobs:
           ]
           PY
 
+      - name: Verify duplicate-candidate evaluation report
+        shell: bash
+        run: |
+          recipe-lab-eval duplicate-run \
+            --benchmark tests/fixtures/duplicate_candidates_v1.json \
+            --output "$RUNNER_TEMP/duplicate-report-a.json" --strict
+          recipe-lab-eval duplicate-run \
+            --benchmark tests/fixtures/duplicate_candidates_v1.json \
+            --output "$RUNNER_TEMP/duplicate-report-b.json" --strict
+          cmp "$RUNNER_TEMP/duplicate-report-a.json" \
+            "$RUNNER_TEMP/duplicate-report-b.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "duplicate-report-a.json").read_text()
+          )
+          assert report["schema_version"] == (
+              "recipe-lab-duplicate-evaluation-report-v1"
+          )
+          assert report["protocol_version"] == (
+              "labeled-structural-pair-evaluation-v1"
+          )
+          assert report["benchmark_sha256"] == (
+              "29c2c1d36b6ecd39a092da9fc605f0dc7ecdf345ab0e33970ce62920c0539c7d"
+          )
+          assert report["run_id"] == (
+              "0b60306b5c559f131b04c0baee1e68fa1b09e7a375aa705d50ef250e7d664b7d"
+          )
+          assert report["status"] == "engineering_validated"
+          assert report["reason_codes"] == []
+          assert report["advisory_only"] is True
+          assert report["learned_classifier_attempted"] is False
+          assert report["scoring"] == {
+              "action_subweights": {
+                  "action_order": "0.500000",
+                  "duration_temperature": "0.200000",
+                  "ordered_inputs": "0.300000",
+              },
+              "algorithm": "deterministic_explainable_structural_similarity",
+              "algorithm_version": "duplicate-candidate-similarity-v1",
+              "maximum_reasons": 3,
+              "parameter_sha256": (
+                  "361533613dc82176863adfa85617f6e6a90c6e7eb34d00bb57bf8e2cb667fca2"
+              ),
+              "probable_duplicate_threshold": "0.800000",
+              "structure_version": "recipe-structure-v1",
+              "weights": {
+                  "ingredient_multiset": "0.450000",
+                  "normalized_quantities": "0.250000",
+                  "structured_actions": "0.300000",
+              },
+          }
+          assert report["positive_classifications"] == [
+              "exact_duplicate",
+              "probable_duplicate",
+          ]
+          assert report["counts"] == {
+              "cases": 11,
+              "cases_with_complete_explanations": 11,
+              "classification_matches": 11,
+              "covered_categories": 11,
+              "evaluated_cases": 11,
+              "expected": {
+                  "distinct": 2,
+                  "exact_duplicate": 4,
+                  "probable_duplicate": 5,
+              },
+              "expected_positive": 9,
+              "false_negatives": 0,
+              "false_positives": 0,
+              "predicted": {
+                  "distinct": 2,
+                  "exact_duplicate": 4,
+                  "probable_duplicate": 5,
+              },
+              "predicted_positive": 9,
+              "required_categories": 11,
+              "true_positives": 9,
+          }
+          assert report["metrics"] == {
+              "category_coverage": "1.000000",
+              "evaluated_coverage": "1.000000",
+              "explanation_coverage": "1.000000",
+              "precision": "1.000000",
+              "recall": "1.000000",
+              "three_class_accuracy": "1.000000",
+          }
+          assert report["error_categories"] == {
+              "classification_mismatches": [],
+              "false_negatives": [],
+              "false_positives": [],
+          }
+          PY
+
       - name: Upload reproducibility report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v6
@@ -494,6 +591,7 @@ jobs:
             ${{ runner.temp }}/collaborative-report-a.json
             ${{ runner.temp }}/hybrid-report-a.json
             ${{ runner.temp }}/substitution-report-a.json
+            ${{ runner.temp }}/duplicate-report-a.json
           if-no-files-found: ignore
           retention-days: 7
 
