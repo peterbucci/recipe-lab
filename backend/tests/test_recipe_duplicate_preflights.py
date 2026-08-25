@@ -1,6 +1,8 @@
+import json
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
+from hashlib import sha256
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -25,6 +27,7 @@ from app.repositories.recipe_duplicates import (
 from app.repositories.recipes import PublicRecipeDuplicateCandidate
 from app.schemas.recipe_duplicates import RecipeDuplicateDecisionRequest
 from app.schemas.recipe_forks import RecipeForkRequest
+from app.services.recipe_duplicate_scoring import DUPLICATE_CANDIDATE_PARAMETER_HASH
 from app.services.recipe_fingerprints import (
     CanonicalUnit,
     RecipeStructure,
@@ -203,6 +206,51 @@ def _install_creation_dependencies(
     )
 
 
+def test_preflight_policy_contract_versions_selection_and_work_limits() -> None:
+    payload = json.loads(preflight_service.RECIPE_DUPLICATE_POLICY_PARAMETER_DOCUMENT)
+
+    assert preflight_service.RECIPE_DUPLICATE_POLICY_VERSION == (
+        "recipe-duplicate-preflight-policy-v1"
+    )
+    assert payload["scorer"] == {
+        "algorithm_version": "duplicate-candidate-similarity-v1",
+        "parameter_hash": DUPLICATE_CANDIDATE_PARAMETER_HASH,
+    }
+    assert payload["candidate_selection"] == {
+        "maximum_candidates": 5,
+        "ranking": [
+            "exact_classification_first",
+            "descending_exact_rational_score",
+            "ascending_public_recipe_version_uuid",
+        ],
+        "source_recipe_version": "excluded_from_candidate_results",
+        "visibility": "publicly_readable_recipe_versions_only",
+    }
+    assert payload["work_budget"] == {
+        "candidate_comparisons": 500,
+        "maximum_actions_per_structure": 500,
+        "maximum_flattened_inputs_per_structure": 2_000,
+        "maximum_ingredient_occurrences_per_structure": 200,
+        "maximum_total_nonexact_pair_work_units": 10_000_000,
+        "overflow_behavior": "fail_closed_without_partial_results",
+        "pair_work_estimate": (
+            "(1 + 2 * left_ingredients * right_ingredients) * "
+            "(left_ingredients + right_ingredients) + "
+            "2 * left_actions * right_actions + left_inputs * right_inputs"
+        ),
+        "rationale": (
+            "The total bound conservatively covers quantity-scale scans and LCS cells "
+            "for every non-exact pair before any pair is scored."
+        ),
+    }
+    assert (
+        sha256(
+            preflight_service.RECIPE_DUPLICATE_POLICY_PARAMETER_DOCUMENT.encode("utf-8")
+        ).hexdigest()
+        == preflight_service.RECIPE_DUPLICATE_POLICY_PARAMETER_HASH
+    )
+
+
 def test_exact_preflight_is_bounded_explainable_and_warns_on_parent_no_change(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -255,6 +303,121 @@ def test_exact_preflight_is_bounded_explainable_and_warns_on_parent_no_change(
     assert source_id not in {
         candidate.public_recipe_version_id for candidate in capture[0].candidates
     }
+
+
+def test_preflight_fails_closed_before_scoring_an_over_capacity_public_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = uuid4()
+    fingerprint = _required(build_structural_fingerprint(_structure()))
+    candidates = [
+        _public_candidate(
+            uuid4(),
+            title="Bounded public candidate",
+            fingerprint=fingerprint,
+        )
+        for _ in range(preflight_service.MAX_PUBLIC_DUPLICATE_COMPARISONS + 1)
+    ]
+    _install_creation_dependencies(
+        monkeypatch,
+        prepared=_prepared(source_id, fingerprint),
+        candidates=candidates,
+        source_fingerprint=None,
+    )
+    monkeypatch.setattr(
+        preflight_service,
+        "get_public_recipe_version_titles",
+        lambda _session, ids: {source_id: "Source"} if source_id in ids else {},
+    )
+    monkeypatch.setattr(
+        preflight_service,
+        "score_recipe_duplicate_candidates",
+        lambda *_args, **_kwargs: pytest.fail("capacity must be checked before pair scoring"),
+    )
+
+    with pytest.raises(
+        preflight_service.RecipeDuplicatePreflightCapacityError,
+        match="temporarily unavailable",
+    ):
+        preflight_service.run_recipe_duplicate_preflight(
+            cast(Session, object()),
+            source_version_id=source_id,
+            actor_user_id=uuid4(),
+            action_id=uuid4(),
+            payload=_payload(),
+        )
+
+
+def test_preflight_fails_closed_when_aggregate_pair_work_exceeds_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = uuid4()
+    unit = CanonicalUnit(key="g", dimension="mass", conversion_family="mass-si")
+    ingredients = tuple(
+        StructuralIngredient(
+            occurrence_key=f"work-{index}",
+            ingredient_identity=f"ingredient-{index}",
+            measure=StructuralMeasure(mode="exact", quantity_min=Decimal(1), unit=unit),
+        )
+        for index in range(100)
+    )
+
+    def work_fingerprint(action_type: str) -> StructuralFingerprint:
+        actions = tuple(
+            StructuralAction(
+                action_type_key=action_type,
+                ingredient_occurrence_keys=tuple(
+                    ingredient.occurrence_key
+                    for ingredient in ingredients
+                    if ingredient.occurrence_key is not None
+                ),
+            )
+            for _ in range(20)
+        )
+        return _required(
+            build_structural_fingerprint(
+                RecipeStructure(
+                    ingredients=ingredients,
+                    instructions=(StructuralInstruction(actions=actions),),
+                )
+            )
+        )
+
+    subject = work_fingerprint("mix")
+    candidate_fingerprint = work_fingerprint("knead")
+    candidates = [
+        _public_candidate(
+            uuid4(),
+            title="Bounded but collectively expensive candidate",
+            fingerprint=candidate_fingerprint,
+        )
+        for _ in range(2)
+    ]
+    _install_creation_dependencies(
+        monkeypatch,
+        prepared=_prepared(source_id, subject),
+        candidates=candidates,
+        source_fingerprint=None,
+    )
+    monkeypatch.setattr(
+        preflight_service,
+        "get_public_recipe_version_titles",
+        lambda _session, ids: {source_id: "Source"} if source_id in ids else {},
+    )
+    monkeypatch.setattr(
+        preflight_service,
+        "score_recipe_duplicate_candidates",
+        lambda *_args, **_kwargs: pytest.fail("aggregate work must be checked before pair scoring"),
+    )
+
+    with pytest.raises(preflight_service.RecipeDuplicatePreflightCapacityError):
+        preflight_service.run_recipe_duplicate_preflight(
+            cast(Session, object()),
+            source_version_id=source_id,
+            actor_user_id=uuid4(),
+            action_id=uuid4(),
+            payload=_payload(),
+        )
 
 
 @pytest.mark.parametrize(
@@ -381,6 +544,97 @@ def test_preflight_replay_is_stable_and_conflicting_key_reuse_is_rejected(
             action_id=action_id,
             payload=_payload(title="A conflicting request"),
         )
+
+
+def test_replay_and_decision_fail_stale_when_a_returned_candidate_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = uuid4()
+    candidate_id = uuid4()
+    actor_id = uuid4()
+    action_id = uuid4()
+    fingerprint = _required(build_structural_fingerprint(_structure()))
+    prepared = _prepared(source_id, fingerprint)
+    candidate = _public_candidate(
+        candidate_id,
+        title="A public candidate that later becomes unavailable",
+        fingerprint=fingerprint,
+    )
+    _install_creation_dependencies(
+        monkeypatch,
+        prepared=prepared,
+        candidates=[candidate],
+        source_fingerprint=None,
+    )
+    capture: list[RecipeDuplicatePreflight] = []
+    _install_store(
+        monkeypatch,
+        titles={source_id: "Public source", candidate_id: candidate.title},
+        capture=capture,
+    )
+    created = preflight_service.run_recipe_duplicate_preflight(
+        cast(Session, object()),
+        source_version_id=source_id,
+        actor_user_id=actor_id,
+        action_id=action_id,
+        payload=_payload(),
+    )
+    stored = capture[0]
+    assert created.response.candidates[0].public_recipe_version_id == candidate_id
+
+    monkeypatch.setattr(
+        preflight_service,
+        "get_public_recipe_version_titles",
+        lambda _session, ids: {source_id: "Public source"} if source_id in ids else {},
+    )
+    monkeypatch.setattr(
+        preflight_service,
+        "get_recipe_duplicate_preflight_by_action",
+        lambda *_args, **_kwargs: stored,
+    )
+    with pytest.raises(
+        preflight_service.RecipeDuplicatePreflightStaleError,
+        match="no longer current",
+    ) as replay_error:
+        preflight_service.run_recipe_duplicate_preflight(
+            cast(Session, object()),
+            source_version_id=source_id,
+            actor_user_id=actor_id,
+            action_id=action_id,
+            payload=_payload(),
+        )
+    assert str(candidate_id) not in str(replay_error.value)
+    assert candidate.title not in str(replay_error.value)
+
+    monkeypatch.setattr(
+        preflight_service,
+        "get_recipe_duplicate_preflight_by_id",
+        lambda *_args, **_kwargs: stored,
+    )
+    monkeypatch.setattr(
+        preflight_service,
+        "store_recipe_duplicate_decision",
+        lambda *_args, **_kwargs: pytest.fail(
+            "an unavailable candidate must fail before a decision is stored"
+        ),
+    )
+    with pytest.raises(
+        preflight_service.RecipeDuplicatePreflightStaleError,
+        match="no longer current",
+    ) as decision_error:
+        preflight_service.record_recipe_duplicate_decision(
+            cast(Session, object()),
+            preflight_id=stored.id,
+            actor_user_id=actor_id,
+            action_id=uuid4(),
+            payload=RecipeDuplicateDecisionRequest(
+                policy_version=created.response.acknowledgement.policy_version,
+                result_digest=created.response.acknowledgement.result_digest,
+                decision="continue",
+            ),
+        )
+    assert str(candidate_id) not in str(decision_error.value)
+    assert candidate.title not in str(decision_error.value)
 
 
 def test_unavailable_source_is_rejected_before_preparation(

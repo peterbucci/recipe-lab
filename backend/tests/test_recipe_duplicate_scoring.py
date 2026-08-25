@@ -17,8 +17,13 @@ from app.services.recipe_duplicate_scoring import (
     DUPLICATE_CANDIDATE_PARAMETER_DOCUMENT,
     DUPLICATE_CANDIDATE_PARAMETER_HASH,
     DUPLICATE_CANDIDATE_SCORING_ALGORITHM_VERSION,
+    DUPLICATE_PAIR_WORK_ESTIMATE,
     DURATION_TEMPERATURE_SUBWEIGHT,
     INGREDIENT_MULTISET_WEIGHT,
+    MAX_DUPLICATE_ACTIONS,
+    MAX_DUPLICATE_FLATTENED_INPUTS,
+    MAX_DUPLICATE_INGREDIENT_OCCURRENCES,
+    MAX_DUPLICATE_PAIR_WORK_UNITS,
     MAX_DUPLICATE_REASONS,
     NORMALIZED_QUANTITY_WEIGHT,
     ORDERED_INPUT_SUBWEIGHT,
@@ -26,8 +31,10 @@ from app.services.recipe_duplicate_scoring import (
     STRUCTURED_ACTION_WEIGHT,
     DuplicateCandidateFingerprint,
     InvalidRecipeStructurePayloadError,
+    RecipeDuplicateScoringCapacityError,
     UnsupportedRecipeStructureVersionError,
     score_recipe_duplicate_candidates,
+    validate_recipe_duplicate_scoring_capacity,
 )
 from app.services.recipe_fingerprints import (
     CanonicalUnit,
@@ -164,6 +171,14 @@ def test_parameter_contract_is_versioned_exact_and_self_hashing() -> None:
     assert DURATION_TEMPERATURE_SUBWEIGHT == Fraction(1, 5)
     assert PROBABLE_DUPLICATE_THRESHOLD == Fraction(4, 5)
     assert payload["supported_structure_versions"] == ["recipe-structure-v1"]
+    assert payload["capacity"] == {
+        "maximum_actions_per_structure": MAX_DUPLICATE_ACTIONS,
+        "maximum_flattened_inputs_per_structure": MAX_DUPLICATE_FLATTENED_INPUTS,
+        "maximum_ingredient_occurrences_per_structure": (MAX_DUPLICATE_INGREDIENT_OCCURRENCES),
+        "maximum_nonexact_pair_work_units": MAX_DUPLICATE_PAIR_WORK_UNITS,
+        "overflow_behavior": "fail_closed",
+        "pair_work_estimate": DUPLICATE_PAIR_WORK_ESTIMATE,
+    }
     assert sha256(DUPLICATE_CANDIDATE_PARAMETER_DOCUMENT.encode()).hexdigest() == (
         DUPLICATE_CANDIDATE_PARAMETER_HASH
     )
@@ -202,6 +217,117 @@ def test_unsupported_structure_versions_and_malformed_v1_payloads_are_rejected()
         score_recipe_duplicate_candidates(unsupported, _input(fingerprint))
     with pytest.raises(InvalidRecipeStructurePayloadError, match="invalid recipe-structure-v1"):
         score_recipe_duplicate_candidates(malformed, _input(fingerprint))
+
+
+def _capacity_structure(
+    *,
+    ingredient_count: int,
+    action_count: int,
+    flattened_input_count: int,
+) -> RecipeStructure:
+    ingredients = tuple(
+        StructuralIngredient(f"capacity-{index}", FLOUR, _exact(1))
+        for index in range(ingredient_count)
+    )
+    remaining_inputs = flattened_input_count
+    actions: list[StructuralAction] = []
+    for _ in range(action_count):
+        count = min(ingredient_count, remaining_inputs)
+        actions.append(
+            StructuralAction(
+                "mix",
+                tuple(f"capacity-{index}" for index in range(count)),
+            )
+        )
+        remaining_inputs -= count
+    assert remaining_inputs == 0
+    return RecipeStructure(
+        ingredients=ingredients,
+        instructions=(StructuralInstruction(actions=tuple(actions)),),
+    )
+
+
+@pytest.mark.parametrize(
+    ("ingredient_count", "action_count", "flattened_input_count"),
+    (
+        (MAX_DUPLICATE_INGREDIENT_OCCURRENCES, 1, 0),
+        (1, MAX_DUPLICATE_ACTIONS, 0),
+        (MAX_DUPLICATE_INGREDIENT_OCCURRENCES, 10, MAX_DUPLICATE_FLATTENED_INPUTS),
+    ),
+)
+def test_scoring_capacity_accepts_each_exact_boundary(
+    ingredient_count: int,
+    action_count: int,
+    flattened_input_count: int,
+) -> None:
+    validate_recipe_duplicate_scoring_capacity(
+        _fingerprint(
+            _capacity_structure(
+                ingredient_count=ingredient_count,
+                action_count=action_count,
+                flattened_input_count=flattened_input_count,
+            )
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("ingredient_count", "action_count", "flattened_input_count", "message"),
+    (
+        (MAX_DUPLICATE_INGREDIENT_OCCURRENCES + 1, 1, 0, "ingredient-occurrence"),
+        (1, MAX_DUPLICATE_ACTIONS + 1, 0, "structured-action"),
+        (
+            MAX_DUPLICATE_INGREDIENT_OCCURRENCES,
+            11,
+            MAX_DUPLICATE_FLATTENED_INPUTS + 1,
+            "ordered-input",
+        ),
+    ),
+)
+def test_scoring_fails_closed_above_each_structural_work_limit(
+    ingredient_count: int,
+    action_count: int,
+    flattened_input_count: int,
+    message: str,
+) -> None:
+    fingerprint = _fingerprint(
+        _capacity_structure(
+            ingredient_count=ingredient_count,
+            action_count=action_count,
+            flattened_input_count=flattened_input_count,
+        )
+    )
+
+    with pytest.raises(RecipeDuplicateScoringCapacityError, match=message):
+        score_recipe_duplicate_candidates(fingerprint, fingerprint)
+
+
+def test_scoring_fails_closed_when_bounded_structures_exceed_pair_work_product() -> None:
+    ingredient_count = 150
+    left = _fingerprint(
+        _capacity_structure(
+            ingredient_count=ingredient_count,
+            action_count=1,
+            flattened_input_count=0,
+        )
+    )
+    right_structure = _capacity_structure(
+        ingredient_count=ingredient_count,
+        action_count=1,
+        flattened_input_count=0,
+    )
+    right = _fingerprint(
+        replace(
+            right_structure,
+            ingredients=(
+                replace(right_structure.ingredients[0], measure=_exact(2)),
+                *right_structure.ingredients[1:],
+            ),
+        )
+    )
+
+    with pytest.raises(RecipeDuplicateScoringCapacityError, match="pair exceeds"):
+        score_recipe_duplicate_candidates(left, right)
 
 
 def test_ingredient_similarity_is_a_multiplicity_preserving_order_independent_dice_score() -> None:

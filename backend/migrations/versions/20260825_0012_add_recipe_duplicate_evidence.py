@@ -192,7 +192,8 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "(classification = 'exact_duplicate' "
             "AND score_basis_points = 10000 AND exact_payload_confirmed = true) "
-            "OR (classification = 'probable_duplicate' AND exact_payload_confirmed = false)",
+            "OR (classification = 'probable_duplicate' "
+            "AND score_basis_points >= 8000 AND exact_payload_confirmed = false)",
             name=op.f("ck_recipe_duplicate_candidates_exact_evidence_consistent"),
         ),
         sa.ForeignKeyConstraint(

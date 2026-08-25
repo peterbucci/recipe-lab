@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import replace
 from decimal import Decimal
 from fractions import Fraction
@@ -12,7 +13,10 @@ from app.models import (
     RECIPE_DUPLICATE_DECISION_CONTINUE,
     RECIPE_DUPLICATE_DISTINCT,
     RECIPE_DUPLICATE_EXACT,
+    RECIPE_DUPLICATE_PROBABLE,
+    RecipeDuplicateCandidate,
     RecipeDuplicateDecision,
+    RecipeDuplicatePreflight,
     RecipeLineage,
     RecipeVersion,
     User,
@@ -33,7 +37,7 @@ from app.repositories.recipe_duplicates import (
 )
 
 FINGERPRINT_VERSION = "recipe-structure-v1"
-POLICY_VERSION = "duplicate-candidate-similarity-v1"
+POLICY_VERSION = "recipe-duplicate-preflight-policy-v1"
 REQUEST_FINGERPRINT = "a" * 64
 SUBJECT_DIGEST = "b" * 64
 RESULT_DIGEST = "c" * 64
@@ -107,6 +111,28 @@ def _exact_candidate(recipe: RecipeVersion) -> RecipeDuplicateCandidateWrite:
         fingerprint_algorithm_version=FINGERPRINT_VERSION,
         policy_version=POLICY_VERSION,
         exact_payload_confirmed=True,
+    )
+
+
+def _probable_candidate(
+    recipe: RecipeVersion,
+    *,
+    score_basis_points: int = 8_000,
+    reason_codes: tuple[str, ...] = (
+        "same_ingredient_multiset",
+        "matching_quantities",
+        "different_action_order",
+    ),
+) -> RecipeDuplicateCandidateWrite:
+    return RecipeDuplicateCandidateWrite(
+        public_recipe_version_id=recipe.id,
+        rank=1,
+        classification=RECIPE_DUPLICATE_PROBABLE,
+        score_basis_points=score_basis_points,
+        reason_codes=reason_codes,
+        fingerprint_algorithm_version=FINGERPRINT_VERSION,
+        policy_version=POLICY_VERSION,
+        exact_payload_confirmed=False,
     )
 
 
@@ -368,6 +394,116 @@ def test_repository_refuses_unbounded_or_inconsistent_candidate_evidence(
             result_digest=RESULT_DIGEST,
             candidates=[malformed_reason],
         )
+
+
+@pytest.mark.parametrize(
+    ("candidate_write", "message"),
+    (
+        (
+            lambda recipe: _probable_candidate(recipe, score_basis_points=7_999),
+            "similarity threshold",
+        ),
+        (
+            lambda recipe: _probable_candidate(
+                recipe,
+                reason_codes=(
+                    "invented_reason",
+                    "matching_quantities",
+                    "matching_structured_actions",
+                ),
+            ),
+            "supported ingredient, quantity, and action families",
+        ),
+        (
+            lambda recipe: _probable_candidate(
+                recipe,
+                reason_codes=(
+                    "matching_structured_actions",
+                    "matching_quantities",
+                    "same_ingredient_multiset",
+                ),
+            ),
+            "supported ingredient, quantity, and action families",
+        ),
+        (
+            lambda recipe: replace(
+                _exact_candidate(recipe),
+                reason_codes=("matching_quantities",),
+            ),
+            "exact structural-match reason",
+        ),
+    ),
+)
+def test_repository_refuses_below_threshold_or_unsupported_reason_evidence(
+    db_session: Session,
+    candidate_write: Callable[[RecipeVersion], RecipeDuplicateCandidateWrite],
+    message: str,
+) -> None:
+    actor, _, source, candidate = _create_fixture(db_session)
+    write = candidate_write(candidate)
+    classification = write.classification
+
+    with pytest.raises(ValueError, match=message):
+        store_recipe_duplicate_preflight(
+            db_session,
+            actor_user_id=actor.id,
+            action_id=uuid4(),
+            request_fingerprint=REQUEST_FINGERPRINT,
+            source_version_id=source.id,
+            subject_fingerprint_algorithm=FINGERPRINT_VERSION,
+            subject_fingerprint_digest=SUBJECT_DIGEST,
+            policy_version=POLICY_VERSION,
+            classification=classification,
+            same_parent_no_change=False,
+            result_digest=RESULT_DIGEST,
+            candidates=[write],
+        )
+
+
+def test_database_rejects_probable_evidence_below_the_versioned_threshold(
+    db_session: Session,
+) -> None:
+    actor, _, source, candidate = _create_fixture(db_session)
+    preflight = RecipeDuplicatePreflight(
+        actor_user_id=actor.id,
+        action_id=uuid4(),
+        request_fingerprint=REQUEST_FINGERPRINT,
+        source_version_id=source.id,
+        subject_fingerprint_algorithm=FINGERPRINT_VERSION,
+        subject_fingerprint_digest=SUBJECT_DIGEST,
+        policy_version=POLICY_VERSION,
+        classification=RECIPE_DUPLICATE_PROBABLE,
+        same_parent_no_change=False,
+        result_digest=RESULT_DIGEST,
+    )
+    db_session.add(preflight)
+    db_session.flush()
+
+    with pytest.raises(IntegrityError) as error:
+        with db_session.begin_nested():
+            db_session.add(
+                RecipeDuplicateCandidate(
+                    preflight_id=preflight.id,
+                    public_recipe_version_id=candidate.id,
+                    rank=1,
+                    classification=RECIPE_DUPLICATE_PROBABLE,
+                    score_basis_points=7_999,
+                    reason_codes=[
+                        "same_ingredient_multiset",
+                        "matching_quantities",
+                        "different_action_order",
+                    ],
+                    fingerprint_algorithm_version=FINGERPRINT_VERSION,
+                    policy_version=POLICY_VERSION,
+                    exact_payload_confirmed=False,
+                )
+            )
+            db_session.flush()
+
+    diagnostic = getattr(error.value.orig, "diag", None)
+    assert getattr(diagnostic, "constraint_name", None) == (
+        "ck_recipe_duplicate_candidates_exact_evidence_consistent"
+    )
 
 
 def test_decision_requires_actor_owned_current_acknowledgement_and_is_idempotent(

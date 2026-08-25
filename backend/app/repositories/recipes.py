@@ -152,9 +152,13 @@ def list_public_recipe_duplicate_candidates(
     session: Session,
     *,
     algorithm_version: str,
+    comparison_limit: int,
     exclude_recipe_version_id: UUID | None = None,
 ) -> list[PublicRecipeDuplicateCandidate]:
     """Load only public, fingerprinted snapshots for deterministic preflight scoring."""
+
+    if comparison_limit <= 0:
+        raise ValueError("Duplicate candidate comparison limit must be positive.")
 
     statement = (
         select(
@@ -173,6 +177,7 @@ def list_public_recipe_duplicate_candidates(
             RecipeStructuralFingerprint.algorithm_version == algorithm_version,
         )
         .order_by(RecipeVersion.id)
+        .limit(comparison_limit)
     )
     if exclude_recipe_version_id is not None:
         statement = statement.where(RecipeVersion.id != exclude_recipe_version_id)

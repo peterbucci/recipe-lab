@@ -19,7 +19,9 @@ from app.schemas.recipe_duplicates import (
 from app.services.auth import AuthenticatedSession
 from app.services.recipe_duplicate_preflights import (
     RecipeDuplicateDecisionServiceResult,
+    RecipeDuplicatePreflightCapacityError,
     RecipeDuplicatePreflightServiceResult,
+    RecipeDuplicatePreflightStaleError,
 )
 
 TEST_ORIGIN = "http://localhost:3000"
@@ -132,7 +134,7 @@ def test_preflight_route_returns_private_bounded_contract(
                 ],
                 acknowledgement=RecipeDuplicateAcknowledgementResponse(
                     preflight_id=preflight_id,
-                    policy_version="duplicate-candidate-similarity-v1",
+                    policy_version="recipe-duplicate-preflight-policy-v1",
                     result_digest=result_digest,
                     required=True,
                     allowed_decisions=["continue", "revise"],
@@ -156,7 +158,7 @@ def test_preflight_route_returns_private_bounded_contract(
     acknowledgement = _json_object(body["acknowledgement"])
     assert acknowledgement == {
         "preflight_id": str(preflight_id),
-        "policy_version": "duplicate-candidate-similarity-v1",
+        "policy_version": "recipe-duplicate-preflight-policy-v1",
         "result_digest": result_digest,
         "required": True,
         "allowed_decisions": ["continue", "revise"],
@@ -226,7 +228,7 @@ def test_decision_route_records_only_acknowledged_advisory_choice(
         f"/api/recipe-duplicate-preflights/{preflight_id}/decision",
         headers={"Idempotency-Key": str(uuid4())},
         json={
-            "policy_version": "duplicate-candidate-similarity-v1",
+            "policy_version": "recipe-duplicate-preflight-policy-v1",
             "result_digest": "b" * 64,
             "decision": "continue",
         },
@@ -238,6 +240,86 @@ def test_decision_route_records_only_acknowledged_advisory_choice(
         "decision": "continue",
         "recorded_at": "2026-08-25T00:00:00Z",
     }
+
+
+def test_preflight_capacity_failure_is_generic_and_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    duplicate_client: TestClient,
+) -> None:
+    def capacity_failure(
+        *_args: object, **_kwargs: object
+    ) -> RecipeDuplicatePreflightServiceResult:
+        raise RecipeDuplicatePreflightCapacityError(
+            "Internal work-limit details must not reach the response."
+        )
+
+    monkeypatch.setattr(
+        duplicate_routes,
+        "run_recipe_duplicate_preflight",
+        capacity_failure,
+    )
+    response = duplicate_client.post(
+        f"/api/recipes/{uuid4()}/duplicate-preflights",
+        headers={"Idempotency-Key": str(uuid4())},
+        json=_payload(),
+    )
+
+    assert response.status_code == 503
+    assert _json_object(response.json())["error"] == {
+        "code": "duplicate_preflight_unavailable",
+        "message": "Duplicate preflight is temporarily unavailable. Please try again later.",
+        "issues": [],
+    }
+
+
+def test_stale_candidate_evidence_is_generic_for_replay_and_decision_routes(
+    monkeypatch: pytest.MonkeyPatch,
+    duplicate_client: TestClient,
+) -> None:
+    hidden_candidate_id = uuid4()
+    hidden_title = "Unavailable private candidate title"
+
+    def stale_failure(*_args: object, **_kwargs: object) -> None:
+        raise RecipeDuplicatePreflightStaleError(
+            f"Internal evidence mentioned {hidden_candidate_id} and {hidden_title}."
+        )
+
+    monkeypatch.setattr(
+        duplicate_routes,
+        "run_recipe_duplicate_preflight",
+        stale_failure,
+    )
+    preflight_response = duplicate_client.post(
+        f"/api/recipes/{uuid4()}/duplicate-preflights",
+        headers={"Idempotency-Key": str(uuid4())},
+        json=_payload(),
+    )
+
+    monkeypatch.setattr(
+        duplicate_routes,
+        "record_recipe_duplicate_decision",
+        stale_failure,
+    )
+    decision_response = duplicate_client.post(
+        f"/api/recipe-duplicate-preflights/{uuid4()}/decision",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={
+            "policy_version": "recipe-duplicate-preflight-policy-v1",
+            "result_digest": "c" * 64,
+            "decision": "continue",
+        },
+    )
+
+    expected = {
+        "code": "duplicate_preflight_stale",
+        "message": "The duplicate preflight is no longer current. Run it again.",
+        "issues": [],
+    }
+    for response in (preflight_response, decision_response):
+        assert response.status_code == 409
+        assert _json_object(response.json())["error"] == expected
+        assert str(hidden_candidate_id) not in response.text
+        assert hidden_title not in response.text
 
 
 def test_openapi_documents_both_duplicate_preflight_actions(

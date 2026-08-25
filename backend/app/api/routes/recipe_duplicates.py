@@ -19,6 +19,7 @@ from app.schemas.recipe_duplicates import (
 from app.schemas.recipe_forks import RecipeForkRequest
 from app.services.recipe_duplicate_preflights import (
     RecipeDuplicateDecisionNotRequiredError,
+    RecipeDuplicatePreflightCapacityError,
     RecipeDuplicatePreflightStaleError,
     RecipeDuplicatePreflightUnavailableError,
     record_recipe_duplicate_decision,
@@ -56,6 +57,10 @@ PREFLIGHT_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     422: {
         "model": ErrorResponse,
         "description": "The request shape, identifier, or recipe edits are invalid.",
+    },
+    503: {
+        "model": ErrorResponse,
+        "description": "The bounded duplicate preflight is temporarily unavailable.",
     },
 }
 DECISION_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
@@ -130,6 +135,12 @@ def create_recipe_duplicate_preflight(
             status_code=404,
             code="recipe_not_found",
             message="The public source recipe version was not found.",
+        ) from error
+    except RecipeDuplicatePreflightCapacityError as error:
+        raise ApiError(
+            status_code=503,
+            code="duplicate_preflight_unavailable",
+            message="Duplicate preflight is temporarily unavailable. Please try again later.",
         ) from error
     except InvalidRecipeEditsError as error:
         raise ApiError(

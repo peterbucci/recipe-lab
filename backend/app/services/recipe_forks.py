@@ -67,14 +67,19 @@ class InvalidRecipeEditsError(ValueError):
     """Raised when structurally valid edits cannot be applied to the source snapshot."""
 
 
+class PreparedRecipeFingerprintMismatchError(RuntimeError):
+    """Raised when persisted rows differ from the structure validated during preparation."""
+
+
 @dataclass(frozen=True, slots=True)
 class PreparedRecipeFork:
     """Validated fork content that can be inspected before it is persisted.
 
     A prepared fork is valid only inside the transaction in which it was created.
-    Preparation takes the source lineage lock but does not insert a child recipe or
-    any dependent rows. The public ``structure`` and ``structural_fingerprint``
-    fields are therefore safe inputs to publication preflight services.
+    Preparation reads the immutable source without taking its lineage write lock
+    and does not insert a child recipe or dependent rows. Persistence takes the
+    lineage lock before allocating a version number. The public ``structure`` and
+    ``structural_fingerprint`` fields are safe inputs to publication preflight services.
     """
 
     source_version_id: UUID
@@ -205,22 +210,10 @@ def _set_draft_measure(
     ) = fields
 
 
-def _load_source_after_lineage_lock(
+def _load_source_for_preparation(
     session: Session,
     source_version_id: UUID,
 ) -> RecipeVersion | None:
-    lineage_id = session.scalar(
-        select(RecipeVersion.lineage_id).where(RecipeVersion.id == source_version_id)
-    )
-    if lineage_id is None:
-        return None
-
-    locked_lineage_id = session.scalar(
-        select(RecipeLineage.id).where(RecipeLineage.id == lineage_id).with_for_update()
-    )
-    if locked_lineage_id is None:
-        return None
-
     statement = (
         select(RecipeVersion)
         .options(
@@ -826,7 +819,7 @@ def prepare_recipe_fork(
 ) -> PreparedRecipeFork | None:
     """Validate and materialize fork structure without inserting a child snapshot."""
 
-    source = _load_source_after_lineage_lock(session, source_version_id)
+    source = _load_source_for_preparation(session, source_version_id)
     if source is None:
         return None
 
@@ -859,7 +852,18 @@ def persist_prepared_recipe_fork(
     prepared: PreparedRecipeFork,
     author_user_id: UUID,
 ) -> UUID:
-    """Persist a prepared fork inside the transaction that holds its lineage lock."""
+    """Lock the prepared lineage, revalidate its source, and persist the child."""
+
+    locked_lineage_id = session.scalar(
+        select(RecipeLineage.id).where(RecipeLineage.id == prepared.lineage_id).with_for_update()
+    )
+    if locked_lineage_id is None:
+        raise RuntimeError("Prepared recipe lineage is no longer available.")
+    source_lineage_id = session.scalar(
+        select(RecipeVersion.lineage_id).where(RecipeVersion.id == prepared.source_version_id)
+    )
+    if source_lineage_id != prepared.lineage_id:
+        raise RuntimeError("Prepared recipe source is no longer available in its lineage.")
 
     highest_version = session.scalar(
         select(func.max(RecipeVersion.version_number)).where(
@@ -895,6 +899,17 @@ def persist_prepared_recipe_fork(
     if fingerprint_result.state == "incomplete":
         raise RuntimeError(
             "A validated complete child recipe did not produce a structural fingerprint."
+        )
+    stored_fingerprint = fingerprint_result.fingerprint
+    expected_fingerprint = prepared.structural_fingerprint
+    if (
+        stored_fingerprint is None
+        or stored_fingerprint.algorithm_version != expected_fingerprint.algorithm_version
+        or stored_fingerprint.digest != expected_fingerprint.digest
+        or stored_fingerprint.canonical_payload != expected_fingerprint.canonical_json
+    ):
+        raise PreparedRecipeFingerprintMismatchError(
+            "Persisted recipe structure does not match its prepared structural fingerprint."
         )
     return child.id
 

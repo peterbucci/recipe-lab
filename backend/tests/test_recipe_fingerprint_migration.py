@@ -155,7 +155,7 @@ def test_migration_backfills_only_complete_versions_without_mutating_content(
 
         command.upgrade(alembic_config, "head")
 
-        assert MigrationContext.configure(connection).get_current_revision() == ("20260825_0011")
+        assert MigrationContext.configure(connection).get_current_revision() == ("20260825_0012")
         stored = _stored_fingerprints(connection)
         assert len(stored) == 1
         assert stored[0][0] == complete_id

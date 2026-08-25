@@ -1,3 +1,4 @@
+from dataclasses import replace
 from decimal import Decimal
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
 from app.services.recipe_fingerprints import STRUCTURAL_FINGERPRINT_STORAGE_VERSION
 from app.services.recipe_forks import (
     InvalidRecipeEditsError,
+    PreparedRecipeFingerprintMismatchError,
     fork_recipe_version,
     persist_prepared_recipe_fork,
     prepare_recipe_fork,
@@ -193,6 +195,78 @@ def test_prepare_materializes_structure_without_inserting_until_persisted(
     assert child_fingerprint.digest == prepared.structural_fingerprint.digest
     assert child_fingerprint.canonical_payload == prepared.structural_fingerprint.canonical_json
     assert db_session.scalar(select(func.count()).select_from(RecipeVersion)) == initial_count + 1
+
+
+@pytest.mark.parametrize(
+    ("fingerprint_field", "fingerprint_value"),
+    (
+        ("algorithm_version", "recipe-structure-test-mismatch"),
+        ("digest", "f" * 64),
+        ("canonical_json", "{}"),
+    ),
+)
+def test_persist_rejects_structure_that_differs_from_preparation(
+    db_session: Session,
+    fingerprint_field: str,
+    fingerprint_value: str,
+) -> None:
+    source = _seed(db_session)
+    initial_count = db_session.scalar(select(func.count()).select_from(RecipeVersion))
+    prepared = prepare_recipe_fork(
+        db_session,
+        source_version_id=source.id,
+        payload=_payload(),
+    )
+    assert prepared is not None
+    if fingerprint_field == "algorithm_version":
+        mismatched_fingerprint = replace(
+            prepared.structural_fingerprint,
+            algorithm_version=fingerprint_value,
+        )
+    elif fingerprint_field == "digest":
+        mismatched_fingerprint = replace(
+            prepared.structural_fingerprint,
+            digest=fingerprint_value,
+        )
+    else:
+        assert fingerprint_field == "canonical_json"
+        mismatched_fingerprint = replace(
+            prepared.structural_fingerprint,
+            canonical_json=fingerprint_value,
+        )
+    mismatched = replace(prepared, structural_fingerprint=mismatched_fingerprint)
+
+    with pytest.raises(PreparedRecipeFingerprintMismatchError, match="does not match"):
+        with db_session.begin_nested():
+            persist_prepared_recipe_fork(
+                db_session,
+                prepared=mismatched,
+                author_user_id=DEMO_USER_ID,
+            )
+
+    assert db_session.scalar(select(func.count()).select_from(RecipeVersion)) == initial_count
+
+
+def test_persist_revalidates_the_prepared_lineage_before_inserting(
+    db_session: Session,
+) -> None:
+    source = _seed(db_session)
+    initial_count = db_session.scalar(select(func.count()).select_from(RecipeVersion))
+    prepared = prepare_recipe_fork(
+        db_session,
+        source_version_id=source.id,
+        payload=_payload(),
+    )
+    assert prepared is not None
+
+    with pytest.raises(RuntimeError, match="lineage is no longer available"):
+        persist_prepared_recipe_fork(
+            db_session,
+            prepared=replace(prepared, lineage_id=uuid4()),
+            author_user_id=DEMO_USER_ID,
+        )
+
+    assert db_session.scalar(select(func.count()).select_from(RecipeVersion)) == initial_count
 
 
 def test_fork_actions_can_target_same_request_added_ingredients(

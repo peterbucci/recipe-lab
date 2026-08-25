@@ -58,22 +58,87 @@ from app.services.preference_events import recipe_fork_request_fingerprint
 from app.services.recipe_duplicate_scoring import (
     DUPLICATE_CANDIDATE_PARAMETER_HASH,
     DUPLICATE_CANDIDATE_SCORING_ALGORITHM_VERSION,
+    DUPLICATE_PAIR_WORK_ESTIMATE,
+    MAX_DUPLICATE_ACTIONS,
+    MAX_DUPLICATE_FLATTENED_INPUTS,
+    MAX_DUPLICATE_INGREDIENT_OCCURRENCES,
+    MAX_DUPLICATE_PAIR_WORK_UNITS,
+    MAX_DUPLICATE_REASONS,
     DuplicateCandidateFingerprint,
     DuplicateCandidateReason,
     InvalidRecipeStructurePayloadError,
+    RecipeDuplicateScoringCapacityError,
     UnsupportedRecipeStructureVersionError,
+    estimate_recipe_duplicate_pair_work,
+    get_recipe_duplicate_scoring_shape,
+    recipe_duplicate_fingerprints_are_exact,
     score_recipe_duplicate_candidates,
 )
 from app.services.recipe_fingerprints import STRUCTURAL_FINGERPRINT_ALGORITHM_VERSION
 from app.services.recipe_forks import PreparedRecipeFork, prepare_recipe_fork
 
-RECIPE_DUPLICATE_POLICY_VERSION = DUPLICATE_CANDIDATE_SCORING_ALGORITHM_VERSION
+RECIPE_DUPLICATE_POLICY_VERSION = "recipe-duplicate-preflight-policy-v1"
 RECIPE_DUPLICATE_RESULT_SCHEMA = "recipe-lab.recipe-duplicate-preflight-result"
 RECIPE_DUPLICATE_RESULT_VERSION = 1
 MAX_PUBLIC_DUPLICATE_CANDIDATES = 5
+MAX_PUBLIC_DUPLICATE_COMPARISONS = 500
+MAX_PREFLIGHT_DUPLICATE_WORK_UNITS = MAX_DUPLICATE_PAIR_WORK_UNITS
 SAME_LINEAGE_NO_CHANGE_MESSAGE = (
     "This version has the same canonical structure as its direct parent."
 )
+
+_POLICY_PARAMETER_PAYLOAD: dict[str, object] = {
+    "candidate_selection": {
+        "maximum_candidates": MAX_PUBLIC_DUPLICATE_CANDIDATES,
+        "ranking": [
+            "exact_classification_first",
+            "descending_exact_rational_score",
+            "ascending_public_recipe_version_uuid",
+        ],
+        "source_recipe_version": "excluded_from_candidate_results",
+        "visibility": "publicly_readable_recipe_versions_only",
+    },
+    "classification_priority": [
+        "same_parent_no_change_or_exact_candidate",
+        "probable_candidate",
+        "distinct",
+    ],
+    "direct_parent_no_change": {
+        "classification": RECIPE_DUPLICATE_EXACT,
+        "condition": "same_versioned_fingerprint_digest_and_canonical_payload",
+        "requires_acknowledgement": True,
+        "warning_code": "same_lineage_no_change",
+    },
+    "maximum_reasons_per_candidate": MAX_DUPLICATE_REASONS,
+    "policy_version": RECIPE_DUPLICATE_POLICY_VERSION,
+    "scorer": {
+        "algorithm_version": DUPLICATE_CANDIDATE_SCORING_ALGORITHM_VERSION,
+        "parameter_hash": DUPLICATE_CANDIDATE_PARAMETER_HASH,
+    },
+    "work_budget": {
+        "candidate_comparisons": MAX_PUBLIC_DUPLICATE_COMPARISONS,
+        "maximum_actions_per_structure": MAX_DUPLICATE_ACTIONS,
+        "maximum_flattened_inputs_per_structure": MAX_DUPLICATE_FLATTENED_INPUTS,
+        "maximum_ingredient_occurrences_per_structure": (MAX_DUPLICATE_INGREDIENT_OCCURRENCES),
+        "maximum_total_nonexact_pair_work_units": MAX_PREFLIGHT_DUPLICATE_WORK_UNITS,
+        "overflow_behavior": "fail_closed_without_partial_results",
+        "pair_work_estimate": DUPLICATE_PAIR_WORK_ESTIMATE,
+        "rationale": (
+            "The total bound conservatively covers quantity-scale scans and LCS cells "
+            "for every non-exact pair before any pair is scored."
+        ),
+    },
+}
+RECIPE_DUPLICATE_POLICY_PARAMETER_DOCUMENT = json.dumps(
+    _POLICY_PARAMETER_PAYLOAD,
+    allow_nan=False,
+    ensure_ascii=False,
+    separators=(",", ":"),
+    sort_keys=True,
+)
+RECIPE_DUPLICATE_POLICY_PARAMETER_HASH = hashlib.sha256(
+    RECIPE_DUPLICATE_POLICY_PARAMETER_DOCUMENT.encode("utf-8")
+).hexdigest()
 
 _REASON_MESSAGES: dict[str, str] = {
     "exact_structural_match": "The complete canonical recipe structure matches exactly.",
@@ -107,6 +172,10 @@ class RecipeDuplicatePreflightStaleError(RuntimeError):
 
 class RecipeDuplicateDecisionNotRequiredError(RuntimeError):
     """Raised when a distinct result has no advisory acknowledgement to record."""
+
+
+class RecipeDuplicatePreflightCapacityError(RuntimeError):
+    """Raised generically when fixed duplicate-scoring work limits are exceeded."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,24 +235,52 @@ def _rank_candidates(
         algorithm_version=subject.algorithm_version,
     )
     try:
-        if source_fingerprint is not None:
-            parent_score = score_recipe_duplicate_candidates(
-                subject,
-                DuplicateCandidateFingerprint(
-                    algorithm_version=source_fingerprint.algorithm_version,
-                    digest=source_fingerprint.digest,
-                    canonical_json=source_fingerprint.canonical_payload,
-                ),
+        subject_input = DuplicateCandidateFingerprint.from_structural_fingerprint(subject)
+        subject_shape = get_recipe_duplicate_scoring_shape(subject_input)
+        public_candidates = list_public_recipe_duplicate_candidates(
+            session,
+            algorithm_version=subject.algorithm_version,
+            comparison_limit=MAX_PUBLIC_DUPLICATE_COMPARISONS + 1,
+            exclude_recipe_version_id=prepared.source_version_id,
+        )
+        if len(public_candidates) > MAX_PUBLIC_DUPLICATE_COMPARISONS:
+            raise RecipeDuplicatePreflightCapacityError(
+                "Duplicate preflight is temporarily unavailable."
             )
+
+        parent_input = (
+            DuplicateCandidateFingerprint(
+                algorithm_version=source_fingerprint.algorithm_version,
+                digest=source_fingerprint.digest,
+                canonical_json=source_fingerprint.canonical_payload,
+            )
+            if source_fingerprint is not None
+            else None
+        )
+        candidate_inputs = [
+            (candidate, _candidate_fingerprint(candidate)) for candidate in public_candidates
+        ]
+        total_work = 0
+        for other_input in [
+            *([parent_input] if parent_input is not None else []),
+            *(candidate_input for _, candidate_input in candidate_inputs),
+        ]:
+            other_shape = get_recipe_duplicate_scoring_shape(other_input)
+            if recipe_duplicate_fingerprints_are_exact(subject_input, other_input):
+                continue
+            total_work += estimate_recipe_duplicate_pair_work(subject_shape, other_shape)
+            if total_work > MAX_PREFLIGHT_DUPLICATE_WORK_UNITS:
+                raise RecipeDuplicatePreflightCapacityError(
+                    "Duplicate preflight is temporarily unavailable."
+                )
+
+        if parent_input is not None:
+            parent_score = score_recipe_duplicate_candidates(subject_input, parent_input)
             same_parent_no_change = parent_score.classification == RECIPE_DUPLICATE_EXACT
 
         ranked: list[_RankedCandidate] = []
-        for candidate in list_public_recipe_duplicate_candidates(
-            session,
-            algorithm_version=subject.algorithm_version,
-            exclude_recipe_version_id=prepared.source_version_id,
-        ):
-            score = score_recipe_duplicate_candidates(subject, _candidate_fingerprint(candidate))
+        for candidate, candidate_input in candidate_inputs:
+            score = score_recipe_duplicate_candidates(subject_input, candidate_input)
             if score.classification == RECIPE_DUPLICATE_DISTINCT:
                 continue
             ranked.append(
@@ -197,6 +294,10 @@ def _rank_candidates(
                     exact_payload_confirmed=score.exact_match,
                 )
             )
+    except RecipeDuplicateScoringCapacityError as error:
+        raise RecipeDuplicatePreflightCapacityError(
+            "Duplicate preflight is temporarily unavailable."
+        ) from error
     except (InvalidRecipeStructurePayloadError, UnsupportedRecipeStructureVersionError) as error:
         raise RuntimeError("Stored public recipe structure cannot be scored safely.") from error
 
@@ -237,6 +338,7 @@ def _result_document(
         "candidates": candidates,
         "classification": classification,
         "parameter_hash": DUPLICATE_CANDIDATE_PARAMETER_HASH,
+        "policy_parameter_hash": RECIPE_DUPLICATE_POLICY_PARAMETER_HASH,
         "policy_version": RECIPE_DUPLICATE_POLICY_VERSION,
         "same_parent_no_change": same_parent_no_change,
         "schema": RECIPE_DUPLICATE_RESULT_SCHEMA,

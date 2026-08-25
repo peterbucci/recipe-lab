@@ -166,7 +166,8 @@ class RecipeDuplicateCandidate(Base):
         CheckConstraint(
             "(classification = 'exact_duplicate' "
             "AND score_basis_points = 10000 AND exact_payload_confirmed = true) "
-            "OR (classification = 'probable_duplicate' AND exact_payload_confirmed = false)",
+            "OR (classification = 'probable_duplicate' "
+            "AND score_basis_points >= 8000 AND exact_payload_confirmed = false)",
             name="exact_evidence_consistent",
         ),
         UniqueConstraint(

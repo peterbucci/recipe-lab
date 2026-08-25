@@ -38,7 +38,17 @@ ACTION_ORDER_SUBWEIGHT = Fraction(1, 2)
 ORDERED_INPUT_SUBWEIGHT = Fraction(3, 10)
 DURATION_TEMPERATURE_SUBWEIGHT = Fraction(1, 5)
 PROBABLE_DUPLICATE_THRESHOLD = Fraction(4, 5)
+PROBABLE_DUPLICATE_THRESHOLD_BASIS_POINTS = int(PROBABLE_DUPLICATE_THRESHOLD * 10_000)
 MAX_DUPLICATE_REASONS = 3
+MAX_DUPLICATE_INGREDIENT_OCCURRENCES = 200
+MAX_DUPLICATE_ACTIONS = 500
+MAX_DUPLICATE_FLATTENED_INPUTS = 2_000
+MAX_DUPLICATE_PAIR_WORK_UNITS = 10_000_000
+DUPLICATE_PAIR_WORK_ESTIMATE = (
+    "(1 + 2 * left_ingredients * right_ingredients) * "
+    "(left_ingredients + right_ingredients) + "
+    "2 * left_actions * right_actions + left_inputs * right_inputs"
+)
 
 type DuplicateClassification = Literal[
     "exact_duplicate",
@@ -61,9 +71,42 @@ type DuplicateReasonCode = Literal[
 ]
 type JsonObject = dict[str, object]
 
+EXACT_DUPLICATE_REASON_CODES = frozenset({"exact_structural_match"})
+INGREDIENT_DUPLICATE_REASON_CODES = frozenset(
+    {
+        "same_ingredient_multiset",
+        "overlapping_ingredient_multisets",
+        "different_ingredient_multisets",
+    }
+)
+QUANTITY_DUPLICATE_REASON_CODES = frozenset(
+    {
+        "proportionally_scaled_quantities",
+        "matching_quantities",
+        "partially_matching_quantities",
+        "different_quantities",
+    }
+)
+ACTION_DUPLICATE_REASON_CODES = frozenset(
+    {
+        "matching_structured_actions",
+        "different_action_order",
+        "different_ordered_inputs",
+        "different_duration_or_temperature",
+    }
+)
+
 _PARAMETER_PAYLOAD: JsonObject = {
     "algorithm_version": DUPLICATE_CANDIDATE_SCORING_ALGORITHM_VERSION,
     "arithmetic": "exact_rational",
+    "capacity": {
+        "maximum_actions_per_structure": MAX_DUPLICATE_ACTIONS,
+        "maximum_flattened_inputs_per_structure": MAX_DUPLICATE_FLATTENED_INPUTS,
+        "maximum_ingredient_occurrences_per_structure": (MAX_DUPLICATE_INGREDIENT_OCCURRENCES),
+        "maximum_nonexact_pair_work_units": MAX_DUPLICATE_PAIR_WORK_UNITS,
+        "overflow_behavior": "fail_closed",
+        "pair_work_estimate": DUPLICATE_PAIR_WORK_ESTIMATE,
+    },
     "features": {
         "ingredient_multiset": {
             "metric": "multiset_dice",
@@ -160,6 +203,10 @@ class InvalidRecipeStructurePayloadError(ValueError):
     """Raised when a purported v1 canonical payload is malformed or inconsistent."""
 
 
+class RecipeDuplicateScoringCapacityError(ValueError):
+    """Raised before scoring when a structure exceeds the fixed v1 work budget."""
+
+
 @dataclass(frozen=True, slots=True)
 class DuplicateCandidateFingerprint:
     """The persisted fingerprint fields required by the pure scorer."""
@@ -248,6 +295,15 @@ class _Action:
 class _ParsedStructure:
     ingredients: tuple[_IngredientOccurrence, ...]
     actions: tuple[_Action, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RecipeDuplicateScoringShape:
+    """Counts used for a conservative, deterministic pre-scoring work estimate."""
+
+    ingredient_occurrences: int
+    actions: int
+    flattened_inputs: int
 
 
 def _invalid(detail: str) -> InvalidRecipeStructurePayloadError:
@@ -379,6 +435,7 @@ def _parse_structure(fingerprint: DuplicateCandidateFingerprint) -> _ParsedStruc
     raw_ingredients = _list(payload["ingredients"], "ingredients")
     if not raw_ingredients:
         raise _invalid("ingredients")
+    ingredient_occurrence_count = 0
     for index, value in enumerate(raw_ingredients):
         item = _object(value, f"ingredients[{index}]")
         if set(item) != {"ingredient", "measure", "multiplicity", "occurrences"}:
@@ -389,6 +446,11 @@ def _parse_structure(fingerprint: DuplicateCandidateFingerprint) -> _ParsedStruc
         occurrences = _list(item["occurrences"], f"ingredients[{index}].occurrences")
         if len(occurrences) != multiplicity:
             raise _invalid(f"ingredients[{index}].occurrences")
+        ingredient_occurrence_count += len(occurrences)
+        if ingredient_occurrence_count > MAX_DUPLICATE_INGREDIENT_OCCURRENCES:
+            raise RecipeDuplicateScoringCapacityError(
+                "Recipe structure exceeds the ingredient-occurrence scoring budget."
+            )
         for occurrence in occurrences:
             token = _string(occurrence, f"ingredients[{index}].occurrences")
             if token in occurrence_identity:
@@ -397,6 +459,7 @@ def _parse_structure(fingerprint: DuplicateCandidateFingerprint) -> _ParsedStruc
             ingredients.append(_IngredientOccurrence(identity, measure))
 
     actions: list[_Action] = []
+    flattened_input_count = 0
     raw_instructions = _list(payload["instructions"], "instructions")
     if not raw_instructions:
         raise _invalid("instructions")
@@ -408,12 +471,21 @@ def _parse_structure(fingerprint: DuplicateCandidateFingerprint) -> _ParsedStruc
         if not raw_actions:
             raise _invalid(f"instructions[{instruction_index}].actions")
         for action_index, action_value in enumerate(raw_actions):
+            if len(actions) >= MAX_DUPLICATE_ACTIONS:
+                raise RecipeDuplicateScoringCapacityError(
+                    "Recipe structure exceeds the structured-action scoring budget."
+                )
             detail = f"instructions[{instruction_index}].actions[{action_index}]"
             action = _object(action_value, detail)
             if set(action) != {"action", "inputs", "parameters"}:
                 raise _invalid(detail)
             action_type = _string(action["action"], f"{detail}.action")
             input_tokens = _list(action["inputs"], f"{detail}.inputs")
+            flattened_input_count += len(input_tokens)
+            if flattened_input_count > MAX_DUPLICATE_FLATTENED_INPUTS:
+                raise RecipeDuplicateScoringCapacityError(
+                    "Recipe structure exceeds the ordered-input scoring budget."
+                )
             seen_inputs: set[str] = set()
             inputs: list[str] = []
             for input_value in input_tokens:
@@ -439,6 +511,54 @@ def _parse_structure(fingerprint: DuplicateCandidateFingerprint) -> _ParsedStruc
                     raise _invalid(f"{detail}.parameters")
             actions.append(_Action(action_type, tuple(inputs), duration, temperature))
     return _ParsedStructure(tuple(ingredients), tuple(actions))
+
+
+def validate_recipe_duplicate_scoring_capacity(
+    fingerprint: DuplicateCandidateFingerprint | StructuralFingerprint,
+) -> None:
+    """Validate one fingerprint and enforce the fixed v1 structural work budget."""
+
+    _parse_structure(_coerce_fingerprint(fingerprint))
+
+
+def get_recipe_duplicate_scoring_shape(
+    fingerprint: DuplicateCandidateFingerprint | StructuralFingerprint,
+) -> RecipeDuplicateScoringShape:
+    """Parse one bounded structure and return only its scoring dimensions."""
+
+    parsed = _parse_structure(_coerce_fingerprint(fingerprint))
+    return RecipeDuplicateScoringShape(
+        ingredient_occurrences=len(parsed.ingredients),
+        actions=len(parsed.actions),
+        flattened_inputs=sum(len(action.inputs) for action in parsed.actions),
+    )
+
+
+def estimate_recipe_duplicate_pair_work(
+    left: RecipeDuplicateScoringShape,
+    right: RecipeDuplicateScoringShape,
+) -> int:
+    """Conservatively bound v1 quantity scans and dynamic-programming cells."""
+
+    quantity_work = (1 + 2 * left.ingredient_occurrences * right.ingredient_occurrences) * (
+        left.ingredient_occurrences + right.ingredient_occurrences
+    )
+    action_work = 2 * left.actions * right.actions
+    input_work = left.flattened_inputs * right.flattened_inputs
+    return quantity_work + action_work + input_work
+
+
+def recipe_duplicate_fingerprints_are_exact(
+    left: DuplicateCandidateFingerprint,
+    right: DuplicateCandidateFingerprint,
+) -> bool:
+    """Confirm exact structural identity without trusting a digest match alone."""
+
+    return (
+        left.algorithm_version == right.algorithm_version
+        and left.digest == right.digest
+        and left.canonical_json == right.canonical_json
+    )
 
 
 def _dice(matched: int, left_count: int, right_count: int) -> Fraction:
@@ -646,11 +766,44 @@ def score_recipe_duplicate_candidates(
     left = _parse_structure(left_input)
     right = _parse_structure(right_input)
 
-    exact_match = (
-        left_input.algorithm_version == right_input.algorithm_version
-        and left_input.digest == right_input.digest
-        and left_input.canonical_json == right_input.canonical_json
+    exact_match = recipe_duplicate_fingerprints_are_exact(left_input, right_input)
+    if exact_match:
+        components = DuplicateCandidateScoreComponents(
+            ingredient_multiset=Fraction(1),
+            normalized_quantities=Fraction(1),
+            action_order=Fraction(1),
+            ordered_inputs=Fraction(1),
+            duration_temperature=Fraction(1),
+            structured_actions=Fraction(1),
+        )
+        return DuplicateCandidateScore(
+            algorithm_version=DUPLICATE_CANDIDATE_SCORING_ALGORITHM_VERSION,
+            parameter_hash=DUPLICATE_CANDIDATE_PARAMETER_HASH,
+            classification="exact_duplicate",
+            score=Fraction(1),
+            exact_match=True,
+            probable_duplicate=False,
+            quantity_scale=Fraction(1),
+            components=components,
+            reasons=(_reason("exact_structural_match"),),
+        )
+
+    left_shape = RecipeDuplicateScoringShape(
+        ingredient_occurrences=len(left.ingredients),
+        actions=len(left.actions),
+        flattened_inputs=sum(len(action.inputs) for action in left.actions),
     )
+    right_shape = RecipeDuplicateScoringShape(
+        ingredient_occurrences=len(right.ingredients),
+        actions=len(right.actions),
+        flattened_inputs=sum(len(action.inputs) for action in right.actions),
+    )
+    if estimate_recipe_duplicate_pair_work(left_shape, right_shape) > (
+        MAX_DUPLICATE_PAIR_WORK_UNITS
+    ):
+        raise RecipeDuplicateScoringCapacityError(
+            "Recipe pair exceeds the duplicate-scoring work budget."
+        )
     ingredient_multiset = _ingredient_score(left, right)
     normalized_quantities, quantity_scale = _quantity_score(left, right)
     action_order, ordered_inputs, duration_temperature, structured_actions = _action_scores(
@@ -669,10 +822,8 @@ def score_recipe_duplicate_candidates(
         + NORMALIZED_QUANTITY_WEIGHT * normalized_quantities
         + STRUCTURED_ACTION_WEIGHT * structured_actions
     )
-    if exact_match:
-        classification: DuplicateClassification = "exact_duplicate"
-    elif score >= PROBABLE_DUPLICATE_THRESHOLD:
-        classification = "probable_duplicate"
+    if score >= PROBABLE_DUPLICATE_THRESHOLD:
+        classification: DuplicateClassification = "probable_duplicate"
     else:
         classification = "distinct"
 

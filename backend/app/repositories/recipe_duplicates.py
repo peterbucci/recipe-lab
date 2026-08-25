@@ -18,6 +18,13 @@ from app.models import (
     RecipeDuplicateDecision,
     RecipeDuplicatePreflight,
 )
+from app.services.recipe_duplicate_scoring import (
+    ACTION_DUPLICATE_REASON_CODES,
+    EXACT_DUPLICATE_REASON_CODES,
+    INGREDIENT_DUPLICATE_REASON_CODES,
+    PROBABLE_DUPLICATE_THRESHOLD_BASIS_POINTS,
+    QUANTITY_DUPLICATE_REASON_CODES,
+)
 
 MAX_RECIPE_DUPLICATE_CANDIDATES = 5
 MAX_RECIPE_DUPLICATE_REASON_CODES = 3
@@ -150,11 +157,37 @@ def _validate_candidates(
         if candidate.classification == RECIPE_DUPLICATE_EXACT:
             if candidate.score_basis_points != 10_000 or not candidate.exact_payload_confirmed:
                 raise ValueError("Exact candidates require confirmed payload equality.")
+            if (
+                len(candidate.reason_codes) != 1
+                or candidate.reason_codes[0] not in EXACT_DUPLICATE_REASON_CODES
+            ):
+                raise ValueError("Exact candidates require only the exact structural-match reason.")
         elif candidate.classification == RECIPE_DUPLICATE_PROBABLE:
-            if not 0 <= candidate.score_basis_points <= 10_000:
-                raise ValueError("Candidate scores must be between zero and 10,000 basis points.")
+            if (
+                not PROBABLE_DUPLICATE_THRESHOLD_BASIS_POINTS
+                <= (candidate.score_basis_points)
+                <= 10_000
+            ):
+                raise ValueError(
+                    "Probable candidate scores must meet the versioned similarity threshold."
+                )
             if candidate.exact_payload_confirmed:
                 raise ValueError("Probable candidates cannot claim exact payload equality.")
+            if len(candidate.reason_codes) != 3:
+                raise ValueError(
+                    "Probable candidate reasons must use the supported ingredient, quantity, "
+                    "and action families in order."
+                )
+            ingredient_reason, quantity_reason, action_reason = candidate.reason_codes
+            if (
+                ingredient_reason not in INGREDIENT_DUPLICATE_REASON_CODES
+                or quantity_reason not in QUANTITY_DUPLICATE_REASON_CODES
+                or action_reason not in ACTION_DUPLICATE_REASON_CODES
+            ):
+                raise ValueError(
+                    "Probable candidate reasons must use the supported ingredient, quantity, "
+                    "and action families in order."
+                )
         else:
             raise ValueError("Only exact and probable candidates may be stored.")
 
