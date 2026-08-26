@@ -954,13 +954,16 @@ def test_curator_session_capability_tracks_the_narrow_database_grant(
     catalog_api: CatalogApi,
 ) -> None:
     assert catalog_api.curator.get("/api/auth/session").json()["capabilities"] == {
-        "review_ingredient_requests": True
+        "review_ingredient_requests": True,
+        "moderate_recipe_reports": False,
     }
     assert catalog_api.member.get("/api/auth/session").json()["capabilities"] == {
-        "review_ingredient_requests": False
+        "review_ingredient_requests": False,
+        "moderate_recipe_reports": False,
     }
     assert catalog_api.incomplete.get("/api/auth/session").json()["capabilities"] == {
-        "review_ingredient_requests": False
+        "review_ingredient_requests": False,
+        "moderate_recipe_reports": False,
     }
 
     with Session(bind=catalog_api.engine) as session, session.begin():
@@ -970,10 +973,12 @@ def test_curator_session_capability_tracks_the_narrow_database_grant(
         session.add(CatalogCurator(user_id=MEMBER_ID, granted_by_user_id=PEER_CURATOR_ID))
 
     assert catalog_api.curator.get("/api/auth/session").json()["capabilities"] == {
-        "review_ingredient_requests": False
+        "review_ingredient_requests": False,
+        "moderate_recipe_reports": False,
     }
     assert catalog_api.member.get("/api/auth/session").json()["capabilities"] == {
-        "review_ingredient_requests": True
+        "review_ingredient_requests": True,
+        "moderate_recipe_reports": False,
     }
 
 

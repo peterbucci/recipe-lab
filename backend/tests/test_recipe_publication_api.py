@@ -234,6 +234,8 @@ def _publication_payload(
     acknowledgement = _json_object(evidence["acknowledgement"])
     return {
         "revision": revision,
+        "community_rules_accepted": True,
+        "content_rights_confirmed": True,
         "duplicate_review": {
             "preflight_id": acknowledgement["preflight_id"],
             "policy_version": acknowledgement["policy_version"],
@@ -286,6 +288,8 @@ def test_original_draft_preflight_publish_and_exact_retry(
     decision = "continue" if acknowledgement["required"] else None
     publish_payload = {
         "revision": 2,
+        "community_rules_accepted": True,
+        "content_rights_confirmed": True,
         "duplicate_review": {
             "preflight_id": acknowledgement["preflight_id"],
             "policy_version": acknowledgement["policy_version"],
@@ -372,6 +376,8 @@ def test_original_draft_preflight_publish_and_exact_retry(
         assert receipt.source_draft_id == UUID(draft_id)
         assert receipt.actor_user_id == MEMBER_ID
         assert receipt.draft_revision == 2
+        assert receipt.community_rules_version == "community-rules-v1"
+        assert receipt.publication_rights_confirmed_at == receipt.published_at
         assert receipt.duplicate_preflight_id == UUID(cast(str, acknowledgement["preflight_id"]))
         draft_ingredients = list(
             session.scalars(
@@ -1257,6 +1263,8 @@ def test_original_publication_rolls_back_every_row_and_preserves_the_draft(
     acknowledgement = _json_object(_json_object(preflight.json())["acknowledgement"])
     payload = {
         "revision": 2,
+        "community_rules_accepted": True,
+        "content_rights_confirmed": True,
         "duplicate_review": {
             "preflight_id": acknowledgement["preflight_id"],
             "policy_version": acknowledgement["policy_version"],
@@ -1312,6 +1320,8 @@ def test_concurrent_identical_publication_retries_reuse_one_root(
     acknowledgement = _json_object(_json_object(preflight.json())["acknowledgement"])
     payload = {
         "revision": 2,
+        "community_rules_accepted": True,
+        "content_rights_confirmed": True,
         "duplicate_review": {
             "preflight_id": acknowledgement["preflight_id"],
             "policy_version": acknowledgement["policy_version"],
