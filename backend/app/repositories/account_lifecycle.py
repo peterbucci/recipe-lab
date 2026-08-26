@@ -1,3 +1,4 @@
+import hashlib
 from datetime import datetime
 from uuid import UUID
 
@@ -6,7 +7,9 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     CATALOG_REQUEST_PENDING,
+    AbuseRateLimitBucket,
     CatalogCurator,
+    CommunityModerator,
     IngredientCatalogAuditEvent,
     IngredientCatalogRequest,
     OIDCIdentity,
@@ -21,11 +24,14 @@ from app.models import (
     RecipeDuplicateDecision,
     RecipeDuplicatePreflight,
     RecipeRating,
+    RecipeReport,
     RecipeSave,
     RecipeVersionPublication,
     User,
     UserSession,
 )
+
+DELETED_REPORT_FINGERPRINT = hashlib.sha256(b"deleted-account-report").hexdigest()
 
 
 def get_account_user_for_update(session: Session, user_id: UUID) -> User | None:
@@ -188,6 +194,22 @@ def purge_member_private_data(
         session.execute(
             delete(model).where(model.user_id == user_id).execution_options(**execution_options)
         )
+    session.execute(
+        update(RecipeReport)
+        .where(RecipeReport.reporter_user_id == user_id)
+        .values(details=None, request_fingerprint=DELETED_REPORT_FINGERPRINT)
+        .execution_options(**execution_options)
+    )
+    session.execute(
+        delete(AbuseRateLimitBucket)
+        .where(AbuseRateLimitBucket.account_user_id == user_id)
+        .execution_options(**execution_options)
+    )
+    session.execute(
+        delete(CommunityModerator)
+        .where(CommunityModerator.user_id == user_id)
+        .execution_options(**execution_options)
+    )
     session.execute(
         delete(CatalogCurator)
         .where(CatalogCurator.user_id == user_id)

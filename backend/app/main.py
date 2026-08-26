@@ -5,6 +5,7 @@ from app.api.errors import register_error_handlers
 from app.api.router import api_router
 from app.core.config import settings
 from app.core.logging import install_sensitive_query_redaction
+from app.middleware.request_body_limit import RequestBodyLimitMiddleware
 
 
 def create_app() -> FastAPI:
@@ -20,6 +21,10 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+    )
+    application.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_body_bytes=settings.max_request_body_bytes,
     )
     register_error_handlers(application)
     application.include_router(api_router, prefix="/api")

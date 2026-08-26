@@ -25,6 +25,8 @@ class RecipePublicationDuplicateReview(RecipePublicationSchema):
 class RecipeOriginalPublicationRequest(RecipePublicationSchema):
     revision: int = Field(ge=1)
     duplicate_review: RecipePublicationDuplicateReview
+    community_rules_accepted: Literal[True]
+    content_rights_confirmed: Literal[True]
 
 
 class RecipeOriginalPublicationResponse(RecipePublicationSchema):

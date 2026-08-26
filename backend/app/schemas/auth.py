@@ -34,6 +34,7 @@ class AccountCapabilitiesResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     review_ingredient_requests: bool = False
+    moderate_recipe_reports: bool = False
 
 
 class MemberSessionResponse(BaseModel):

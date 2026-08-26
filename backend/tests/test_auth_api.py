@@ -13,7 +13,7 @@ from app.api.dependencies import get_oidc_client, get_session
 from app.core.config import Settings, get_settings
 from app.core.security import AUTH_CSRF_COOKIE_NAME, token_digest
 from app.main import create_app
-from app.models import OIDCIdentity, OIDCLoginTransaction, User, UserSession
+from app.models import AbuseRateLimitBucket, OIDCIdentity, OIDCLoginTransaction, User, UserSession
 from app.models.auth import OIDC_LOGIN_PURPOSE_REAUTHENTICATE
 from app.models.recipe_draft import RecipeDraft
 from app.services.oidc import InvalidOIDCLoginError, VerifiedOIDCIdentity
@@ -83,6 +83,7 @@ class AuthApi:
 
 def _clear_member_auth(engine: Engine) -> None:
     with Session(bind=engine) as session, session.begin():
+        session.execute(delete(AbuseRateLimitBucket))
         session.execute(delete(UserSession))
         session.execute(delete(OIDCIdentity))
         session.execute(delete(OIDCLoginTransaction))
@@ -199,7 +200,10 @@ def test_proxy_callback_creates_one_member_and_routes_first_login_to_onboarding(
     assert session_response.status_code == 200
     assert session_response.json()["status"] == "onboarding_required"
     assert set(session_response.json()["user"]) == {"id", "handle", "display_name"}
-    assert session_response.json()["capabilities"] == {"review_ingredient_requests": False}
+    assert session_response.json()["capabilities"] == {
+        "review_ingredient_requests": False,
+        "moderate_recipe_reports": False,
+    }
     assert "email" not in session_response.text
     assert "member-subject-123" not in session_response.text
 
@@ -241,7 +245,10 @@ def test_onboarding_requires_origin_and_session_bound_csrf_then_logout_revokes(
             "handle": "test-cook",
             "display_name": "Test Cook",
         },
-        "capabilities": {"review_ingredient_requests": False},
+        "capabilities": {
+            "review_ingredient_requests": False,
+            "moderate_recipe_reports": False,
+        },
     }
 
     logout = auth_api.client.post(
@@ -276,6 +283,28 @@ def test_existing_onboarded_member_returns_directly_to_validated_path(auth_api: 
     with Session(bind=auth_api.engine) as session:
         assert session.scalar(select(func.count()).select_from(User)) == 1
         assert session.scalar(select(func.count()).select_from(OIDCIdentity)) == 1
+
+
+def test_verified_oidc_identity_is_limited_before_another_session_is_created(
+    auth_api: AuthApi,
+) -> None:
+    auth_api.settings.abuse_rate_limit_auth_identity = 1
+    first_state = _start_login(auth_api)
+    assert _complete_login(auth_api, first_state).status_code == 303
+
+    second_state = _start_login(auth_api)
+    limited = _complete_login(auth_api, second_state)
+
+    assert limited.status_code == 429
+    assert 1 <= int(limited.headers["retry-after"]) <= 60
+    assert limited.json()["error"] == {
+        "code": "rate_limit_exceeded",
+        "message": "Too many requests. Please try again later.",
+        "issues": [],
+    }
+    with Session(bind=auth_api.engine) as session:
+        assert session.scalar(select(func.count()).select_from(User)) == 1
+        assert session.scalar(select(func.count()).select_from(UserSession)) == 1
 
 
 def test_provider_error_consumes_state_and_redacts_details(auth_api: AuthApi) -> None:
