@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AUTH_SESSION_EXPIRED_EVENT } from "./auth-api";
 import {
   RecipeDuplicateApiError,
+  createRecipeDraftDuplicatePreflight,
   createRecipeDuplicatePreflight,
   parseRecipeDuplicateDecision,
   parseRecipeDuplicatePreflight,
@@ -211,6 +212,29 @@ describe("recipe duplicate response parsing", () => {
 });
 
 describe("recipe duplicate API client", () => {
+  it("checks one saved private draft revision without resubmitting its document", async () => {
+    const responsePayload = preflightResponse("probable_duplicate");
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(responsePayload, { status: 201 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createRecipeDraftDuplicatePreflight(SOURCE_ID, 7, ACTION_ID),
+    ).resolves.toEqual(responsePayload);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/recipe-drafts/${SOURCE_ID}/duplicate-preflights`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ revision: 7 }),
+        headers: expect.objectContaining({
+          "Idempotency-Key": ACTION_ID,
+          "X-CSRF-Token": "test-csrf-token",
+        }),
+      }),
+    );
+  });
+
   it("posts a preflight with member mutation evidence and parses the result", async () => {
     const responsePayload = preflightResponse("probable_duplicate");
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(

@@ -4542,6 +4542,28 @@ a.lineage-card:hover {
   font-size: 0.82rem;
 }
 
+.draft-publication > .duplicate-preflight-review,
+.draft-publication__alert {
+  margin-top: 1rem;
+}
+
+.draft-publication__save-first {
+  border-left: 0.2rem solid var(--clay);
+  background: var(--clay-soft);
+  padding: 0.65rem 0.8rem;
+  color: var(--clay-dark) !important;
+  font-weight: 700;
+}
+
+.draft-publication__status,
+.draft-publication__boundary {
+  margin: 0.75rem 0 0;
+}
+
+.draft-publication__alert .button-row {
+  margin-top: 0.65rem;
+}
+
 .draft-editor__danger {
   border-color: #c89786;
 }

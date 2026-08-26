@@ -10,12 +10,13 @@ import { RecipeDraftEditor } from "./recipe-draft-editor";
 
 const mocks = vi.hoisted(() => ({
   fetchRecipeDraft: vi.fn(),
+  refresh: vi.fn(),
   replace: vi.fn(),
   updateRecipeDraft: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: mocks.replace }),
+  useRouter: () => ({ replace: mocks.replace, refresh: mocks.refresh }),
 }));
 
 vi.mock("../../lib/idempotency-key", () => ({
@@ -65,6 +66,7 @@ describe("RecipeDraftEditor", () => {
   beforeEach(() => {
     mocks.fetchRecipeDraft.mockReset().mockResolvedValue(detail);
     mocks.updateRecipeDraft.mockReset();
+    mocks.refresh.mockReset();
     mocks.replace.mockReset();
   });
 
@@ -105,5 +107,21 @@ describe("RecipeDraftEditor", () => {
 
     expect(screen.getByLabelText("Title")).toHaveValue("Keep this private work");
     expect(screen.getByRole("form", { name: "Private recipe draft editor" })).toBeVisible();
+  });
+
+  it("offers publication review for an original draft", async () => {
+    renderEditor();
+    expect(await screen.findByRole("button", { name: "Review and publish" })).toBeVisible();
+  });
+
+  it("keeps fork publication behind RCP-28", async () => {
+    mocks.fetchRecipeDraft.mockResolvedValue({
+      ...detail,
+      source_version_id: "22222222-2222-4222-8222-222222222222",
+    });
+    renderEditor();
+
+    expect(await screen.findByRole("button", { name: "Publish fork — not available yet" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Review and publish" })).toBeNull();
   });
 });

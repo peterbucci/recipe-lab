@@ -35,12 +35,14 @@ import {
   type RecipeDraftEditorState,
   type RecipeDraftIngredientState,
   type RecipeDraftInstructionState,
+  type RecipeDraftValidation,
   validateRecipeDraft,
 } from "../../lib/recipe-draft";
 import type { StructuredMeasureField } from "../../lib/structured-measure";
 import { MemberRouteGate } from "./member-route-gate";
 import { IngredientCatalogPicker } from "./ingredient-catalog-picker";
 import { GuardedLink, useNavigationBlocker } from "./navigation-blocker-provider";
+import { RecipeDraftPublication } from "./recipe-draft-publication";
 import { StructuredActionEditor } from "./structured-action-editor";
 import { IngredientAmountControl } from "./structured-measure-control";
 
@@ -101,6 +103,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
   const [baseline, setBaseline] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState<"save" | "discard" | null>(null);
+  const [publicationBusy, setPublicationBusy] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [formError, setFormError] = useState("");
   const [status, setStatus] = useState("");
@@ -364,6 +367,21 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
     }
   }
 
+  function applyPublicationValidation(validation: RecipeDraftValidation) {
+    setFieldErrors(validation.fieldErrors);
+    if (validation.payload) {
+      setFormError("");
+      setConflict(false);
+      return;
+    }
+    setFormError(
+      validation.formErrors.length > 0
+        ? validation.formErrors.join(" ")
+        : "Review the highlighted fields. Your saved draft is still private and unchanged.",
+    );
+    window.setTimeout(() => errorSummaryRef.current?.focus(), 0);
+  }
+
   if (loading && !draft) {
     return <main id="main-content" className="state-page"><p role="status">Loading your private draft…</p></main>;
   }
@@ -384,7 +402,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
   }
 
   const ingredientOptions = draftIngredientOptions(draft.ingredients);
-  const disabled = pending !== null;
+  const disabled = pending !== null || publicationBusy;
 
   return (
     <main id="main-content" className="page-shell page-shell--detail draft-editor-page">
@@ -530,12 +548,25 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
           <button id="draft-add-instruction" className="button button--secondary" type="button" disabled={draft.instructions.length >= 100} onClick={addInstruction}>Add instruction</button>
         </fieldset>
 
-        <section className="draft-editor__publish-note" aria-labelledby="draft-publish-title">
-          <p className="eyebrow">Publishing</p>
-          <h2 id="draft-publish-title">Your draft stays private.</h2>
-          <p>Publication, duplicate review, and public attribution belong to a later workflow. Saving here never publishes.</p>
-          <button className="button button--disabled" type="button" disabled>Publish recipe — not available yet</button>
-        </section>
+        {detail.source_version_id === null ? (
+          <RecipeDraftPublication
+            actionTypes={actionTypes}
+            draft={draft}
+            draftId={draftId}
+            dirty={dirty}
+            measurementUnits={measurementUnits}
+            onBusyChange={setPublicationBusy}
+            onValidation={applyPublicationValidation}
+            revision={detail.revision}
+          />
+        ) : (
+          <section className="draft-editor__publish-note" aria-labelledby="draft-publish-title">
+            <p className="eyebrow">Publishing</p>
+            <h2 id="draft-publish-title">This fork draft stays private.</h2>
+            <p>Publishing a fork belongs to RCP-28. Saving here never changes or replaces its public source.</p>
+            <button className="button button--disabled" type="button" disabled>Publish fork — not available yet</button>
+          </section>
+        )}
 
         <div className="variant-editor__actions draft-editor__actions">
           <div>
