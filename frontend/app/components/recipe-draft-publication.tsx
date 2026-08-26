@@ -52,6 +52,9 @@ interface Attempt {
 type PendingOperation = "preflight" | "publish" | null;
 type RetryOperation = "preflight" | "publish" | null;
 
+const PUBLICATION_CONFIRMATION_MESSAGE =
+  "Confirm the community rules and your right to share this recipe before publishing.";
+
 export function RecipeDraftPublication({
   actionTypes,
   draft,
@@ -70,10 +73,31 @@ export function RecipeDraftPublication({
   const submitting = useRef(false);
   const preflightAttempt = useRef<Attempt | null>(null);
   const publishAttempt = useRef<Attempt | null>(null);
+  const communityRulesRef = useRef<HTMLInputElement>(null);
+  const contentRightsRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<PendingOperation>(null);
   const [retryOperation, setRetryOperation] = useState<RetryOperation>(null);
   const [review, setReview] = useState<ReviewState | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
+  const confirmationScope = `${revision}:${fingerprint}`;
+  const [communityRulesConfirmation, setCommunityRulesConfirmation] = useState({
+    scope: "",
+    checked: false,
+  });
+  const [contentRightsConfirmation, setContentRightsConfirmation] = useState({
+    scope: "",
+    checked: false,
+  });
+  const [confirmationFailure, setConfirmationFailure] = useState<{
+    scope: string;
+    message: string;
+  } | null>(null);
+  const communityRulesAccepted =
+    communityRulesConfirmation.scope === confirmationScope && communityRulesConfirmation.checked;
+  const contentRightsConfirmed =
+    contentRightsConfirmation.scope === confirmationScope && contentRightsConfirmation.checked;
+  const confirmationError =
+    confirmationFailure?.scope === confirmationScope ? confirmationFailure.message : "";
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [sessionExpired, setSessionExpired] = useState(false);
@@ -98,6 +122,41 @@ export function RecipeDraftPublication({
       current.fingerprint === expectedFingerprint &&
       current.revision === expectedRevision
     );
+  }
+
+  function livePublicationAttestations(): {
+    community_rules_accepted: true;
+    content_rights_confirmed: true;
+  } | null {
+    if (
+      communityRulesRef.current?.checked !== true ||
+      contentRightsRef.current?.checked !== true
+    ) {
+      return null;
+    }
+    return {
+      community_rules_accepted: true,
+      content_rights_confirmed: true,
+    };
+  }
+
+  function pauseForMissingPublicationConfirmation(expectedScope: string) {
+    submitting.current = false;
+    setPending(null);
+    setConfirmationFailure({
+      scope: expectedScope,
+      message: PUBLICATION_CONFIRMATION_MESSAGE,
+    });
+    setStatus(
+      "Publishing paused because a required confirmation was removed. Your draft is still here.",
+    );
+    window.setTimeout(() => {
+      if (communityRulesRef.current?.checked !== true) {
+        communityRulesRef.current?.focus();
+      } else if (contentRightsRef.current?.checked !== true) {
+        contentRightsRef.current?.focus();
+      }
+    }, 0);
   }
 
   function finishFailure(reason: unknown, operation: Exclude<RetryOperation, null>) {
@@ -156,6 +215,11 @@ export function RecipeDraftPublication({
       setStatus("Your draft changed. Save it before publishing.");
       return;
     }
+    const attestations = livePublicationAttestations();
+    if (!attestations) {
+      pauseForMissingPublicationConfirmation(`${expectedRevision}:${expectedFingerprint}`);
+      return;
+    }
     const duplicateReview = duplicateReviewForPublication(result, decision);
     const attemptFingerprint = JSON.stringify({
       revision: expectedRevision,
@@ -176,7 +240,11 @@ export function RecipeDraftPublication({
     try {
       const published = await publishRecipeDraft(
         draftId,
-        { revision: expectedRevision, duplicate_review: duplicateReview },
+        {
+          revision: expectedRevision,
+          duplicate_review: duplicateReview,
+          ...attestations,
+        },
         publishAttempt.current.idempotencyKey,
       );
       setStatus(`${isFork ? "Version" : "Recipe"} published. Opening its permanent page…`);
@@ -190,6 +258,18 @@ export function RecipeDraftPublication({
 
   async function startReview() {
     if (submitting.current || dirty) return;
+    if (!communityRulesAccepted || !contentRightsConfirmed) {
+      setConfirmationFailure({
+        scope: confirmationScope,
+        message: PUBLICATION_CONFIRMATION_MESSAGE,
+      });
+      window.setTimeout(
+        () =>
+          (!communityRulesAccepted ? communityRulesRef : contentRightsRef).current?.focus(),
+        0,
+      );
+      return;
+    }
     const validation = validateRecipeDraftForPublication(
       draft,
       revision,
@@ -217,6 +297,7 @@ export function RecipeDraftPublication({
     setSessionExpired(false);
     setSourceUnavailable(false);
     setStatus("Checking this saved recipe’s structure…");
+    setConfirmationFailure(null);
     try {
       const result = await createRecipeDraftDuplicatePreflight(
         draftId,
@@ -287,6 +368,58 @@ export function RecipeDraftPublication({
         My recipes before deleting your account; a withdrawn snapshot stays unavailable after the
         account is gone.
       </p>
+      <fieldset
+        className="draft-publication__requirements"
+        aria-describedby={confirmationError ? "draft-publication-confirmation-error" : undefined}
+      >
+        <legend>Before publishing</legend>
+        <div className="draft-publication__requirement">
+          <input
+            id="draft-publication-community-rules"
+            ref={communityRulesRef}
+            type="checkbox"
+            checked={communityRulesAccepted}
+            required
+            onChange={(event) => {
+              setCommunityRulesConfirmation({
+                scope: confirmationScope,
+                checked: event.target.checked,
+              });
+              setConfirmationFailure(null);
+            }}
+          />
+          <div>
+            <label htmlFor="draft-publication-community-rules">
+              I have read and agree to the community rules.
+            </label>{" "}
+            <GuardedLink href="/community-rules">Open the community rules</GuardedLink>.
+          </div>
+        </div>
+        <div className="draft-publication__requirement">
+          <input
+            id="draft-publication-content-rights"
+            ref={contentRightsRef}
+            type="checkbox"
+            checked={contentRightsConfirmed}
+            required
+            onChange={(event) => {
+              setContentRightsConfirmation({
+                scope: confirmationScope,
+                checked: event.target.checked,
+              });
+              setConfirmationFailure(null);
+            }}
+          />
+          <label htmlFor="draft-publication-content-rights">
+            I created this recipe or have the right to share it.
+          </label>
+        </div>
+      </fieldset>
+      {confirmationError ? (
+        <p className="form-alert" id="draft-publication-confirmation-error" role="alert">
+          {confirmationError}
+        </p>
+      ) : null}
       {dirty ? <p className="draft-publication__save-first">Save your latest changes before publishing.</p> : null}
       {error ? (
         <div className="form-alert draft-publication__alert" role="alert">
