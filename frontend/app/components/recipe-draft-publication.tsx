@@ -35,6 +35,7 @@ interface RecipeDraftPublicationProps {
   onBusyChange: (busy: boolean) => void;
   onValidation: (validation: RecipeDraftValidation) => void;
   revision: number;
+  sourceVersionId: string | null;
 }
 
 interface ReviewState {
@@ -60,6 +61,7 @@ export function RecipeDraftPublication({
   onBusyChange,
   onValidation,
   revision,
+  sourceVersionId,
 }: RecipeDraftPublicationProps) {
   const router = useRouter();
   const { setBlocked } = useNavigationBlocker();
@@ -75,6 +77,8 @@ export function RecipeDraftPublication({
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [sourceUnavailable, setSourceUnavailable] = useState(false);
+  const isFork = sourceVersionId !== null;
   const activeReview =
     review && !dirty && review.fingerprint === fingerprint && review.revision === revision
       ? review
@@ -97,9 +101,15 @@ export function RecipeDraftPublication({
   }
 
   function finishFailure(reason: unknown, operation: Exclude<RetryOperation, null>) {
+    const sourceWasUnavailable =
+      isFork &&
+      (reason instanceof RecipeDuplicateApiError || reason instanceof RecipePublicationApiError) &&
+      reason.status === 409 &&
+      reason.code === "recipe_fork_source_unavailable";
     submitting.current = false;
     setPending(null);
-    setRetryOperation(operation);
+    setRetryOperation(sourceWasUnavailable ? null : operation);
+    setSourceUnavailable(sourceWasUnavailable);
     setSessionExpired(
       (reason instanceof RecipeDuplicateApiError || reason instanceof RecipePublicationApiError) &&
         reason.status === 401,
@@ -110,7 +120,7 @@ export function RecipeDraftPublication({
     ) {
       setReview(null);
       setAcknowledged(false);
-      setRetryOperation("preflight");
+      setRetryOperation(sourceWasUnavailable ? null : "preflight");
       preflightAttempt.current = null;
       publishAttempt.current = null;
     }
@@ -126,8 +136,8 @@ export function RecipeDraftPublication({
       reason instanceof RecipeDuplicateApiError || reason instanceof RecipePublicationApiError
         ? reason.message
         : operation === "preflight"
-          ? "Recipe Lab could not check this recipe right now. Your saved draft is still here."
-          : "Recipe Lab could not publish this recipe. Your saved draft is still here.",
+          ? `Recipe Lab could not check this ${isFork ? "version" : "recipe"} right now. Your saved draft is still here.`
+          : `Recipe Lab could not publish this ${isFork ? "version" : "recipe"}. Your saved draft is still here.`,
     );
     setStatus("");
   }
@@ -161,14 +171,15 @@ export function RecipeDraftPublication({
     setRetryOperation(null);
     setError("");
     setSessionExpired(false);
-    setStatus("Publishing one immutable recipe…");
+    setSourceUnavailable(false);
+    setStatus(`Publishing one immutable ${isFork ? "version" : "recipe"}…`);
     try {
       const published = await publishRecipeDraft(
         draftId,
         { revision: expectedRevision, duplicate_review: duplicateReview },
         publishAttempt.current.idempotencyKey,
       );
-      setStatus("Recipe published. Opening its permanent page…");
+      setStatus(`${isFork ? "Version" : "Recipe"} published. Opening its permanent page…`);
       setBlocked(false);
       router.replace(published.location);
       router.refresh();
@@ -204,6 +215,7 @@ export function RecipeDraftPublication({
     setAcknowledged(false);
     setError("");
     setSessionExpired(false);
+    setSourceUnavailable(false);
     setStatus("Checking this saved recipe’s structure…");
     try {
       const result = await createRecipeDraftDuplicatePreflight(
@@ -255,11 +267,20 @@ export function RecipeDraftPublication({
   return (
     <section className="draft-editor__publish-note draft-publication" aria-labelledby="draft-publish-title">
       <p className="eyebrow">Publishing</p>
-      <h2 id="draft-publish-title">Publish this original recipe.</h2>
-      <p>
-        Publication creates one public root recipe and an immutable version 1. Later corrections
-        become new versions; they never rewrite this snapshot.
-      </p>
+      <h2 id="draft-publish-title">
+        {isFork ? "Publish your version without changing its source." : "Publish this original recipe."}
+      </h2>
+      {isFork ? (
+        <p>
+          Publication creates a separate immutable child in the source recipe’s lineage. It keeps
+          this draft’s exact direct parent and credits you as the author; the source stays unchanged.
+        </p>
+      ) : (
+        <p>
+          Publication creates one public root recipe and an immutable version 1. Later corrections
+          become new versions; they never rewrite this snapshot.
+        </p>
+      )}
       {dirty ? <p className="draft-publication__save-first">Save your latest changes before publishing.</p> : null}
       {error ? (
         <div className="form-alert draft-publication__alert" role="alert">
@@ -269,14 +290,30 @@ export function RecipeDraftPublication({
               className="button button--secondary"
               type="button"
               disabled={pending !== null}
-              onClick={() =>
-                retryOperation === "publish" && activeReview
-                  ? void continuePublication()
-                  : void startReview()
-              }
+              onClick={() => {
+                if (sourceUnavailable) {
+                  void startReview();
+                } else if (retryOperation === "publish" && activeReview) {
+                  void continuePublication();
+                } else {
+                  void startReview();
+                }
+              }}
             >
-              {retryOperation === "publish" && activeReview ? "Retry publication" : "Retry similarity review"}
+              {sourceUnavailable
+                ? "Check source and retry"
+                : retryOperation === "publish" && activeReview
+                  ? "Retry publication"
+                  : "Retry similarity review"}
             </button>
+            {sourceUnavailable && sourceVersionId ? (
+              <GuardedLink
+                className="button button--quiet"
+                href={`/recipes/${encodeURIComponent(sourceVersionId)}`}
+              >
+                Check source page
+              </GuardedLink>
+            ) : null}
             {sessionExpired ? (
               <a
                 className="button button--quiet"
@@ -293,6 +330,7 @@ export function RecipeDraftPublication({
       {activeReview ? (
         <RecipeDuplicatePreflightReview
           mode="publication"
+          publicationKind={isFork ? "fork" : "original"}
           result={activeReview.result}
           acknowledged={acknowledged}
           decisionFailure={null}
@@ -314,14 +352,16 @@ export function RecipeDraftPublication({
           {pending === "preflight"
             ? "Checking recipe structure…"
             : pending === "publish"
-              ? "Publishing recipe…"
-              : "Review and publish"}
+              ? `Publishing ${isFork ? "version" : "recipe"}…`
+              : isFork
+                ? "Review and publish version"
+                : "Review and publish"}
         </button>
       )}
       <p className="draft-publication__status" role="status" aria-live="polite">
         {reviewInvalidated
           ? "Your draft changed. Save it before checking the recipe structure again."
-          : status || "Only you can publish this saved original draft."}
+          : status || `Only you can publish this saved ${isFork ? "fork" : "original"} draft.`}
       </p>
       <p className="draft-publication__boundary">
         Not ready? <GuardedLink href="/account/recipe-drafts">Return to your private drafts</GuardedLink>.

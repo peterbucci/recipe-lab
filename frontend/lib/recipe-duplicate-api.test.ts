@@ -327,4 +327,33 @@ describe("recipe duplicate API client", () => {
     expect(expired).toHaveBeenCalledOnce();
     window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
   });
+
+  it("identifies an unavailable fork source without exposing arbitrary server detail", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: "recipe_fork_source_unavailable",
+              message: "Untrusted upstream wording",
+            },
+          }),
+          { status: 409, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    const error = await createRecipeDraftDuplicatePreflight(
+      SOURCE_ID,
+      7,
+      ACTION_ID,
+    ).catch((reason: unknown) => reason);
+    expect(error).toMatchObject({
+      status: 409,
+      code: "recipe_fork_source_unavailable",
+      message: "The public source recipe is no longer available. Your private draft is unchanged.",
+    });
+    expect(String(error)).not.toContain("Untrusted upstream wording");
+  });
 });

@@ -10,6 +10,7 @@ import {
   type RecipeDraftValidation,
 } from "../../lib/recipe-draft";
 import { RecipeDuplicateApiError } from "../../lib/recipe-duplicate-api";
+import { RecipePublicationApiError } from "../../lib/recipe-publication-api";
 import { NavigationBlockerProvider } from "./navigation-blocker-provider";
 import { RecipeDraftPublication } from "./recipe-draft-publication";
 
@@ -43,6 +44,7 @@ const DRAFT_ID = "11111111-1111-4111-8111-111111111111";
 const PREFLIGHT_ID = "22222222-2222-4222-8222-222222222222";
 const RECIPE_ID = "33333333-3333-4333-8333-333333333333";
 const INGREDIENT_ID = "44444444-4444-4444-8444-444444444444";
+const SOURCE_ID = "66666666-6666-4666-8666-666666666666";
 const actionType: CatalogActionType = {
   id: "55555555-5555-4555-8555-555555555555",
   key: "mix",
@@ -98,14 +100,35 @@ function probablePreflight() {
   };
 }
 
+function directParentNoChangePreflight() {
+  return {
+    classification: "exact_duplicate" as const,
+    same_lineage_no_change: true,
+    candidates: [],
+    warnings: [{
+      code: "same_lineage_no_change" as const,
+      message: "This version has the same canonical structure as its direct parent.",
+    }],
+    acknowledgement: {
+      preflight_id: PREFLIGHT_ID,
+      policy_version: "recipe-duplicate-preflight-policy-v1",
+      result_digest: "b".repeat(64),
+      required: true,
+      allowed_decisions: ["continue" as const, "revise" as const],
+    },
+  };
+}
+
 function renderPublication({
   dirty = false,
   draft = completeDraft(),
   onValidation = vi.fn(),
+  sourceVersionId = null,
 }: {
   dirty?: boolean;
   draft?: RecipeDraftEditorState;
   onValidation?: (validation: RecipeDraftValidation) => void;
+  sourceVersionId?: string | null;
 } = {}) {
   render(
     <NavigationBlockerProvider>
@@ -118,6 +141,7 @@ function renderPublication({
         onBusyChange={vi.fn()}
         onValidation={onValidation}
         revision={4}
+        sourceVersionId={sourceVersionId}
       />
     </NavigationBlockerProvider>,
   );
@@ -194,5 +218,72 @@ describe("RecipeDraftPublication", () => {
     expect(await screen.findByRole("button", { name: "Retry similarity review" })).toBeVisible();
     expect(screen.queryByRole("button", { name: /publish without/i })).toBeNull();
     expect(screen.getByRole("heading", { name: "Publish this original recipe." })).toBeVisible();
+  });
+
+  it("requires an explicit direct-parent no-change decision before publishing a fork", async () => {
+    mocks.preflight.mockResolvedValue(directParentNoChangePreflight());
+    mocks.publish.mockResolvedValue({
+      recipe_version_id: RECIPE_ID,
+      location: `/recipes/${RECIPE_ID}`,
+    });
+    renderPublication({ sourceVersionId: SOURCE_ID });
+
+    expect(
+      screen.getByRole("heading", { name: "Publish your version without changing its source." }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Review and publish version" }));
+
+    const acknowledgement = await screen.findByRole("checkbox", {
+      name: /direct-parent no-change warning/i,
+    });
+    expect(screen.getByText(/same canonical structure as its direct parent/i)).toBeVisible();
+    const publishAnyway = screen.getByRole("button", { name: "Publish version anyway" });
+    expect(publishAnyway).toBeDisabled();
+    fireEvent.click(acknowledgement);
+    fireEvent.click(publishAnyway);
+
+    await waitFor(() =>
+      expect(mocks.publish).toHaveBeenCalledWith(
+        DRAFT_ID,
+        {
+          revision: 4,
+          duplicate_review: {
+            preflight_id: PREFLIGHT_ID,
+            policy_version: "recipe-duplicate-preflight-policy-v1",
+            result_digest: "b".repeat(64),
+            decision: "continue",
+          },
+        },
+        "publish-key",
+      ),
+    );
+    expect(mocks.replace).toHaveBeenCalledWith(`/recipes/${RECIPE_ID}`);
+  });
+
+  it("keeps a fork draft in place when its source becomes unavailable", async () => {
+    mocks.preflight.mockResolvedValue(directParentNoChangePreflight());
+    mocks.publish.mockRejectedValue(
+      new RecipePublicationApiError(
+        "The public source recipe is no longer available. Your private draft is unchanged.",
+        409,
+        "recipe_fork_source_unavailable",
+      ),
+    );
+    renderPublication({ sourceVersionId: SOURCE_ID });
+
+    fireEvent.click(screen.getByRole("button", { name: "Review and publish version" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: /direct-parent no-change warning/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Publish version anyway" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The public source recipe is no longer available. Your private draft is unchanged.",
+    );
+    expect(screen.getByRole("button", { name: "Check source and retry" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Check source page" })).toHaveAttribute(
+      "href",
+      `/recipes/${SOURCE_ID}`,
+    );
+    expect(mocks.replace).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Publish your version without changing its source." })).toBeVisible();
   });
 });

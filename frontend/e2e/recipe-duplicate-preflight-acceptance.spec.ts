@@ -22,14 +22,18 @@ async function publicRecipeVersionId(
   return match[1];
 }
 
-async function openCarrotFork(page: Page): Promise<void> {
+async function openCarrotFork(page: Page): Promise<string> {
   await page.goto("/recipes?q=carrot");
   await page
     .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
+    .first()
     .click();
   await page
     .getByRole("link", { name: "Make your own version", exact: true })
     .click();
+  await page.getByRole("button", { name: "Create private draft", exact: true }).click();
+  await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
+  return new URL(page.url()).pathname.split("/").at(-1)!;
 }
 
 function probableResponse(publicRecipeVersionId: string) {
@@ -77,23 +81,18 @@ test.describe("recipe duplicate preflight acceptance", () => {
       process.env.ACCEPTANCE_DATABASE_ISOLATED !== "1",
     "Recipe duplicate acceptance requires the isolated, freshly seeded database.",
   );
-  test.skip(
-    true,
-    "Duplicate preflight is a publication concern deferred to RCP-27/RCP-28; RCP-26 Save draft never invokes it.",
-  );
-
-  test("reviews and acknowledges a direct-parent structural match before creating", async ({
+  test("reviews and acknowledges a direct-parent structural match before publishing", async ({
     page,
   }) => {
     await useAcceptanceMember(page, "alice");
-    await openCarrotFork(page);
+    const draftId = await openCarrotFork(page);
 
     const preflightResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
-        response.url().endsWith("/duplicate-preflights"),
+        response.url().endsWith(`/api/recipe-drafts/${draftId}/duplicate-preflights`),
     );
-    await page.getByRole("button", { name: "Create my version", exact: true }).click();
+    await page.getByRole("button", { name: "Review and publish version", exact: true }).click();
     expect((await preflightResponse).status()).toBe(201);
 
     const review = page.getByRole("region", {
@@ -108,7 +107,7 @@ test.describe("recipe duplicate preflight acceptance", () => {
     await expect(review).toContainText(/advisory/i);
     await expect(review).not.toContainText(/plagiar|copied|stolen/i);
     const continueButton = review.getByRole("button", {
-      name: "Create my version anyway",
+      name: "Publish version anyway",
     });
     await expect(continueButton).toBeDisabled();
 
@@ -139,26 +138,20 @@ test.describe("recipe duplicate preflight acceptance", () => {
     ).toEqual([]);
 
     const acknowledgement = review.getByRole("checkbox", {
-      name: /reviewed these advisory results/i,
+      name: /direct-parent no-change warning/i,
     });
     await acknowledgement.focus();
     await page.keyboard.press("Space");
     await expect(acknowledgement).toBeChecked();
     await expect(continueButton).toBeEnabled();
-    const decisionResponse = page.waitForResponse(
+    const publicationResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
-        response.url().includes("/recipe-duplicate-preflights/") &&
-        response.url().endsWith("/decision"),
-    );
-    const variantResponse = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" && response.url().endsWith("/variants"),
+        response.url().endsWith(`/api/recipe-drafts/${draftId}/publish`),
     );
     await continueButton.focus();
     await page.keyboard.press("Enter");
-    expect((await decisionResponse).status()).toBe(201);
-    expect((await variantResponse).status()).toBe(201);
+    expect((await publicationResponse).status()).toBe(201);
     await expect(page).toHaveURL(/\/recipes\/[0-9a-f-]+$/i);
   });
 
@@ -172,7 +165,7 @@ test.describe("recipe duplicate preflight acceptance", () => {
       "pecan carrot",
     );
     await openCarrotFork(page);
-    await page.route("**/api/recipes/*/duplicate-preflights", async (route) => {
+    await page.route("**/api/recipe-drafts/*/duplicate-preflights", async (route) => {
       expect(route.request().method()).toBe("POST");
       await route.fulfill({
         status: 201,
@@ -180,21 +173,7 @@ test.describe("recipe duplicate preflight acceptance", () => {
         body: JSON.stringify(probableResponse(candidateId)),
       });
     });
-    await page.route("**/api/recipe-duplicate-preflights/*/decision", async (route) => {
-      const payload = route.request().postDataJSON() as { decision?: unknown };
-      expect(payload.decision).toBe("revise");
-      await route.fulfill({
-        status: 201,
-        contentType: "application/json",
-        body: JSON.stringify({
-          preflight_id: PREFLIGHT_ID,
-          decision: "revise",
-          recorded_at: "2026-08-25T12:00:00Z",
-        }),
-      });
-    });
-
-    await page.getByRole("button", { name: "Create my version", exact: true }).click();
+    await page.getByRole("button", { name: "Review and publish version", exact: true }).click();
     const review = page.getByRole("region", { name: "Review similar recipe structures" });
     await expect(review).toBeVisible();
     await expect(
@@ -220,7 +199,7 @@ test.describe("recipe duplicate preflight acceptance", () => {
     await expect(review).toHaveCount(0);
   });
 
-  test("removes a disappeared candidate and exposes only generic recovery", async ({ page }) => {
+  test("preserves a fork draft when its source becomes unavailable during publication", async ({ page }) => {
     await useAcceptanceMember(page, "alice");
     const candidateId = await publicRecipeVersionId(
       page,
@@ -228,38 +207,22 @@ test.describe("recipe duplicate preflight acceptance", () => {
       "pecan carrot",
     );
     await openCarrotFork(page);
-    let preflightAttempts = 0;
-    await page.route("**/api/recipes/*/duplicate-preflights", async (route) => {
-      preflightAttempts += 1;
-      if (preflightAttempts === 1) {
-        await route.fulfill({
-          status: 201,
-          contentType: "application/json",
-          body: JSON.stringify(probableResponse(candidateId)),
-        });
-        return;
-      }
+    await page.route("**/api/recipe-drafts/*/duplicate-preflights", async (route) => {
       await route.fulfill({
-        status: 503,
+        status: 201,
         contentType: "application/json",
-        body: JSON.stringify({
-          error: {
-            code: "duplicate_preflight_unavailable",
-            message: "Private draft Family Supper was removed by owner secret@example.test.",
-            issues: [{ private_recipe_title: "Family Supper" }],
-          },
-        }),
+        body: JSON.stringify(probableResponse(candidateId)),
       });
     });
-    await page.route("**/api/recipe-duplicate-preflights/*/decision", async (route) => {
+    await page.route("**/api/recipe-drafts/*/publish", async (route) => {
       await route.fulfill({
         status: 409,
         contentType: "application/json",
         body: JSON.stringify({
           error: {
-            code: "duplicate_preflight_stale",
-            message: "Private draft Family Supper is no longer publicly readable.",
-            issues: [{ owner_email: "secret@example.test" }],
+            code: "recipe_fork_source_unavailable",
+            message: "The public source recipe is no longer available. Your private draft is unchanged.",
+            issues: [],
           },
         }),
       });
@@ -267,38 +230,27 @@ test.describe("recipe duplicate preflight acceptance", () => {
 
     const title = page.getByLabel("Title", { exact: true });
     await title.fill("Keep this disappearing-candidate draft");
-    await page.getByRole("button", { name: "Create my version", exact: true }).click();
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    await expect(page.getByText("Draft saved privately.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Review and publish version", exact: true }).click();
     const review = page.getByRole("region", { name: "Review similar recipe structures" });
     await expect(review.getByRole("link", { name: new RegExp(PUBLIC_CANDIDATE_TITLE) })).toBeVisible();
     await review
-      .getByRole("checkbox", { name: /reviewed these advisory results/i })
+      .getByRole("checkbox", { name: /publish my version anyway/i })
       .check();
-    await review.getByRole("button", { name: "Create my version anyway" }).click();
+    await review.getByRole("button", { name: "Publish version anyway" }).click();
 
-    const alert = page.locator(".variant-error-summary");
+    const alert = page.locator(".draft-publication__alert");
     await expect(alert).toBeVisible();
-    await expect(alert).toBeFocused();
+    await expect(alert).toContainText("The public source recipe is no longer available");
     await expect(page.getByRole("link", { name: new RegExp(PUBLIC_CANDIDATE_TITLE) })).toHaveCount(
       0,
     );
     await expect(page.getByText(/Family Supper|secret@example\.test/i)).toHaveCount(0);
     await expect(title).toHaveValue("Keep this disappearing-candidate draft");
 
-    await page.getByRole("button", { name: "Create my version", exact: true }).click();
-    const unavailable = page.getByRole("region", {
-      name: "Similarity review could not be completed",
-    });
-    await expect(unavailable).toBeVisible();
-    await expect(
-      unavailable.getByRole("heading", {
-        name: "Similarity review could not be completed",
-      }),
-    ).toBeFocused();
-    await expect(unavailable).toContainText("does not mean your version is distinct");
-    await expect(unavailable.getByRole("button", { name: "Retry similarity review" })).toBeVisible();
-    await expect(
-      unavailable.getByRole("button", { name: "Create without similarity review" }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Check source and retry" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Check source page" })).toBeVisible();
     await expect(page.getByText(/Family Supper|secret@example\.test/i)).toHaveCount(0);
     await expect(title).toHaveValue("Keep this disappearing-candidate draft");
   });

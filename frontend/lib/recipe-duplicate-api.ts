@@ -375,6 +375,8 @@ async function duplicateApiError(response: Response): Promise<RecipeDuplicateApi
   const message =
     response.status === 401
       ? "Your session expired. Sign in again to continue."
+      : response.status === 409 && code === "recipe_fork_source_unavailable"
+        ? "The public source recipe is no longer available. Your private draft is unchanged."
       : "Recipe Lab could not check this version right now. Your draft is still here; please try again.";
   return new RecipeDuplicateApiError(message, response.status, code);
 }

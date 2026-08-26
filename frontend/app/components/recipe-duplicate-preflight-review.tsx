@@ -11,6 +11,7 @@ import type {
 interface RecipeDuplicatePreflightReviewProps {
   result: RecipeDuplicatePreflight;
   mode?: "variant" | "publication";
+  publicationKind?: "original" | "fork";
   acknowledged: boolean;
   decisionFailure: RecipeDuplicateDecision | null;
   pendingDecision: "continue" | "revise" | null;
@@ -35,6 +36,7 @@ function classificationLabel(classification: "exact_duplicate" | "probable_dupli
 export function RecipeDuplicatePreflightReview({
   result,
   mode = "variant",
+  publicationKind = "original",
   acknowledged,
   decisionFailure,
   pendingDecision,
@@ -51,6 +53,7 @@ export function RecipeDuplicatePreflightReview({
   const decisionFailureRef = useRef<HTMLHeadingElement>(null);
   const pending = pendingDecision !== null;
   const publishing = mode === "publication";
+  const publishingFork = publishing && publicationKind === "fork";
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -80,11 +83,22 @@ export function RecipeDuplicatePreflightReview({
         <h2 ref={headingRef} id={headingId} tabIndex={-1}>
           {heading}
         </h2>
-        <p>
-          Recipe Lab compares curated ingredients, normalized amounts, and structured
-          cooking actions. This review does not merge recipes or prevent you from making
-          {publishing ? " your recipe public." : " your version."}
-        </p>
+        {publishingFork && result.same_lineage_no_change ? (
+          <p>
+            Recipe Lab compared this saved draft with its exact direct parent. Publishing
+            still creates a separate immutable child and never changes or merges the source.
+          </p>
+        ) : (
+          <p>
+            Recipe Lab compares curated ingredients, normalized amounts, and structured
+            cooking actions. This review does not merge recipes or prevent you from making
+            {publishingFork
+              ? " your version public."
+              : publishing
+                ? " your recipe public."
+                : " your version."}
+          </p>
+        )}
       </div>
 
       {result.warnings.map((warning) => (
@@ -134,7 +148,11 @@ export function RecipeDuplicatePreflightReview({
               />
               <span>
                 {publishing
-                  ? "I reviewed these advisory results and want to publish my recipe anyway."
+                  ? publishingFork
+                    ? result.same_lineage_no_change
+                      ? "I reviewed the direct-parent no-change warning and want to publish my version anyway."
+                      : "I reviewed these advisory results and want to publish my version anyway."
+                    : "I reviewed these advisory results and want to publish my recipe anyway."
                   : "I reviewed these advisory results and want to create my version anyway."}
               </span>
             </label>
@@ -147,10 +165,14 @@ export function RecipeDuplicatePreflightReview({
               >
                 {pendingDecision === "continue"
                   ? publishing
-                    ? "Publishing your recipe…"
+                    ? publishingFork
+                      ? "Publishing your version…"
+                      : "Publishing your recipe…"
                     : "Recording your choice…"
                   : publishing
-                    ? "Publish recipe anyway"
+                    ? publishingFork
+                      ? "Publish version anyway"
+                      : "Publish recipe anyway"
                     : "Create my version anyway"}
               </button>
               <button
@@ -165,7 +187,7 @@ export function RecipeDuplicatePreflightReview({
             <p role="status" aria-live="polite">
               {pendingDecision === "continue"
                 ? publishing
-                  ? "Revalidating your review and publishing one immutable recipe."
+                  ? `Revalidating your review and publishing one immutable ${publishingFork ? "version" : "recipe"}.`
                   : "Recording your choice before creating the version."
                 : pendingDecision === "revise"
                   ? "Recording your choice and keeping every draft field."
