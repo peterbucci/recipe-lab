@@ -67,8 +67,17 @@ curated-authoring foundations. Draft ownership comes only from the active
 member session; revisions reject stale saves, unresolved ingredient requests
 remain outside canonical selections, and discard removes the aggregate from
 the live database. Drafts are absent from public reads, recommendations,
-events, and evaluation exports. Original and fork publication remain RCP-27
-and RCP-28 responsibilities. See
+events, and evaluation exports.
+
+RCP-27 adds the explicit source-less original-publication transition. A current
+saved revision must complete public-only structural similarity review; a match
+is advisory but requires an explicit continue. One idempotent transaction
+creates the lineage and immutable root snapshot, binds review and publication
+evidence, and seals the retained draft. Failure leaves the draft active and
+creates no partial public state. Seed versions are backfilled as published
+without changing their identifiers or topology. RCP-28 remains responsible for
+fork-draft publication, source revalidation, lineage version allocation, and
+the fork event. See
 [private recipe drafts](private-recipe-drafts.md).
 
 ## Post-MVP signal baseline

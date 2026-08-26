@@ -12,6 +12,7 @@ from app.models import (
     RecipeSave,
     RecipeVersion,
 )
+from app.repositories.recipes import publicly_readable_recipe_version_filter
 from app.services.recommendation_scoring import (
     QualitativeIngredientMeasure,
     RecommendationIngredientMeasure,
@@ -142,6 +143,7 @@ def load_recommendation_data(
             event_aggregates,
             event_aggregates.c.recipe_version_id == RecipeVersion.id,
         )
+        .where(publicly_readable_recipe_version_filter())
         .options(selectinload(RecipeVersion.ingredients), raiseload("*"))
         .order_by(
             func.lower(func.btrim(RecipeVersion.title)),

@@ -53,6 +53,7 @@ DOMAIN_TABLES = {
     "recipe_structural_fingerprints",
     "recipe_version_ingredients",
     "recipe_version_instructions",
+    "recipe_version_publications",
     "recipe_versions",
     "users",
     "user_sessions",
@@ -215,6 +216,127 @@ def test_migrations_round_trip_on_empty_postgres_schema(
 
     assert current_revision == script.get_current_head()
     assert DOMAIN_TABLES <= set(inspect(empty_postgres_engine).get_table_names())
+
+
+def test_original_publication_backfills_visibility_and_seals_existing_snapshots(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    user_id = uuid4()
+    lineage_id = uuid4()
+    version_id = uuid4()
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260825_0013")
+        parameters = {
+            "user_id": user_id,
+            "email": f"migration-{user_id}@example.test",
+            "handle": f"migration_{user_id.hex[:12]}",
+            "lineage_id": lineage_id,
+            "version_id": version_id,
+        }
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO users (
+                    id, email, display_name, handle, account_kind, status,
+                    created_at, updated_at
+                ) VALUES (
+                    :user_id, :email, 'Migration Author', :handle, 'member', 'active',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """
+            ),
+            parameters,
+        )
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO recipe_lineages (id, created_by_user_id, created_at)
+                VALUES (:lineage_id, :user_id, CURRENT_TIMESTAMP)
+                """
+            ),
+            parameters,
+        )
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO recipe_versions (
+                    id, lineage_id, parent_version_id, created_by_user_id,
+                    version_number, title, description, servings, created_at
+                ) VALUES (
+                    :version_id, :lineage_id, NULL, :user_id,
+                    1, 'Existing public recipe', NULL, 2.00, CURRENT_TIMESTAMP
+                )
+                """
+            ),
+            parameters,
+        )
+
+        command.upgrade(alembic_config, "head")
+        publication = connection.execute(
+            sa.text(
+                """
+                SELECT state, actor_user_id, source_draft_id, action_id, published_at
+                FROM recipe_version_publications
+                WHERE recipe_version_id = :version_id
+                """
+            ),
+            {"version_id": version_id},
+        ).one()
+        assert publication[0:4] == ("published", user_id, None, None)
+        assert publication.published_at is not None
+
+        with pytest.raises(IntegrityError, match="published recipe snapshots are immutable"):
+            with connection.begin_nested():
+                connection.execute(
+                    sa.text(
+                        "UPDATE recipe_versions SET title = 'Rewritten' WHERE id = :version_id"
+                    ),
+                    {"version_id": version_id},
+                )
+        with pytest.raises(IntegrityError, match="published recipe lineages are immutable"):
+            with connection.begin_nested():
+                connection.execute(
+                    sa.text(
+                        "UPDATE recipe_lineages SET created_by_user_id = :user_id "
+                        "WHERE id = :lineage_id"
+                    ),
+                    {"user_id": user_id, "lineage_id": lineage_id},
+                )
+        with pytest.raises(IntegrityError, match="publication evidence is append-only"):
+            with connection.begin_nested():
+                connection.execute(
+                    sa.text(
+                        "DELETE FROM recipe_version_publications "
+                        "WHERE recipe_version_id = :version_id"
+                    ),
+                    {"version_id": version_id},
+                )
+
+        # New algorithm-version evidence is intentionally append-only after publication.
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO recipe_structural_fingerprints (
+                    recipe_version_id, algorithm_version, digest, canonical_payload
+                ) VALUES (
+                    :version_id, 'future-recipe-structure-v2', :digest, :payload
+                )
+                """
+            ),
+            {"version_id": version_id, "digest": "a" * 64, "payload": '{"version":2}'},
+        )
+        with pytest.raises(IntegrityError, match="published recipe snapshots are immutable"):
+            with connection.begin_nested():
+                connection.execute(
+                    sa.text(
+                        "UPDATE recipe_structural_fingerprints SET digest = :digest "
+                        "WHERE recipe_version_id = :version_id "
+                        "AND algorithm_version = 'future-recipe-structure-v2'"
+                    ),
+                    {"version_id": version_id, "digest": "b" * 64},
+                )
 
 
 def test_ingredient_migration_backfills_legacy_recipe_rows(
@@ -561,7 +683,7 @@ def test_measurement_downgrade_refuses_unit_text_that_changes_identity(
             connection,
             [("Brown Sugar", Decimal("1.0000"), "g")],
         )
-        command.upgrade(alembic_config, "head")
+        command.upgrade(alembic_config, "20260825_0013")
         connection.execute(
             sa.text(
                 """
@@ -754,7 +876,7 @@ def test_action_downgrade_refuses_user_authored_structure(
         alembic_config.attributes["connection"] = connection
         command.upgrade(alembic_config, "20260824_0009")
         instruction_id, _non_seed_instruction_id = _insert_seed_action_migration_fixture(connection)
-        command.upgrade(alembic_config, "head")
+        command.upgrade(alembic_config, "20260825_0013")
         connection.execute(
             sa.text(
                 """

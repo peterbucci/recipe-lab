@@ -35,6 +35,7 @@ from app.models import (
     RecipeInstructionActionMeasure,
     RecipeLineage,
     RecipeVersion,
+    RecipeVersionPublication,
     User,
 )
 from app.repositories.recipe_fingerprints import (
@@ -1255,6 +1256,51 @@ def _record_recipe_structural_fingerprint(
         report.reused[entity] += 1
 
 
+def _record_recipe_publication(
+    session: Session,
+    *,
+    seed: RecipeSeed,
+    version: RecipeVersion,
+    catalog: SeedCatalog,
+    report: SeedReport,
+) -> None:
+    """Make deterministic seed snapshots publicly visible under the new predicate."""
+
+    existing = session.get(RecipeVersionPublication, version.id)
+    if existing is not None:
+        if (
+            existing.state != "published"
+            or existing.actor_user_id != version.created_by_user_id
+            or existing.source_draft_id is not None
+            or existing.action_id is not None
+            or existing.request_fingerprint is not None
+            or existing.draft_revision is not None
+            or existing.duplicate_preflight_id is not None
+            or existing.duplicate_policy_version is not None
+            or existing.duplicate_result_digest is not None
+            or existing.duplicate_decision_id is not None
+            or existing.published_at != catalog.published_at
+        ):
+            raise _conflict(
+                "recipe version publication",
+                seed.key,
+                "stored visibility or evidence differs from the catalog",
+            )
+        report.reused["recipe_version_publications"] += 1
+        return
+
+    session.add(
+        RecipeVersionPublication(
+            recipe_version_id=version.id,
+            state="published",
+            actor_user_id=version.created_by_user_id,
+            published_at=catalog.published_at,
+        )
+    )
+    session.flush()
+    report.created["recipe_version_publications"] += 1
+
+
 def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
     """Load a validated catalog into the caller's transaction without committing."""
 
@@ -1340,6 +1386,13 @@ def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
             session,
             seed=recipe_seed,
             version=version,
+            report=report,
+        )
+        _record_recipe_publication(
+            session,
+            seed=recipe_seed,
+            version=version,
+            catalog=catalog,
             report=report,
         )
 

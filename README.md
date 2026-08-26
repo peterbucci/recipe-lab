@@ -142,21 +142,24 @@ The repository currently provides:
   reviewed safe conversions, preserve repeated occurrences and ordered action
   graphs, and confirm digest candidates against exact canonical JSON;
 - a public-only, advisory duplicate preflight with versioned explainable
-  similarity, direct-parent no-change warnings, and immutable acknowledgements,
-  ready for the RCP-27/RCP-28 publication workflows;
+  similarity, direct-parent no-change warnings, and immutable acknowledgements;
 - private persistent original and fork drafts with session-owned authorship,
   optimistic revisions, catalog-backed structured content, separate unresolved
   ingredient-request state, and immediate irreversible discard;
+- source-less original-recipe publication that requires a revision-bound
+  similarity review, records an explicit advisory continue when needed, and
+  atomically creates one immutable root snapshot plus a durable publication
+  receipt;
 - Alembic migrations and database-level lineage, ordering, rating, event
   privacy, and uniqueness constraints;
 - PostgreSQL and local development services through Docker Compose.
 
 The repository also includes a deterministic demo catalog with 25 recipe
 lineages, useful variants, ingredient aliases, and directed substitutions.
-Publishing an original or fork draft remains a separate milestone. Draft
-authoring deliberately creates no lineage, recipe version, fingerprint,
-preference event, or recommendation signal. The complete private boundary and
-RCP-27/RCP-28 handoff are documented in
+Saving a draft deliberately creates no lineage, recipe version, fingerprint,
+preference event, or recommendation signal. A saved source-less draft can be
+published as one immutable original root; publishing a fork draft remains the
+RCP-28 boundary. The complete lifecycle is documented in
 [private recipe drafts](docs/private-recipe-drafts.md).
 
 ## Quick start with Docker
@@ -189,6 +192,8 @@ Open:
 - Baseline recommendation API: <http://localhost:8000/api/recommendations>
 - Duplicate preflight API: `POST /api/recipes/{id}/duplicate-preflights`
 - Private draft API: `POST` or `GET /api/recipe-drafts`
+- Draft similarity API: `POST /api/recipe-drafts/{id}/duplicate-preflights`
+- Original publication API: `POST /api/recipe-drafts/{id}/publish`
 - Account session status: <http://localhost:3000/api/auth/session>
 - Interactive API docs: <http://localhost:8000/docs>
 

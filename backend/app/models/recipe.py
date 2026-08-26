@@ -1,9 +1,11 @@
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import (
     CheckConstraint,
+    DateTime,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
@@ -25,7 +27,12 @@ if TYPE_CHECKING:
     from app.models.engagement import RecipeRating, RecipeSave
     from app.models.ingredient import Ingredient
     from app.models.measurement import IngredientPackageSize, MeasurementUnit
+    from app.models.recipe_draft import RecipeDraft
     from app.models.recipe_fingerprint import RecipeStructuralFingerprint
+
+
+RECIPE_PUBLICATION_STATE_PUBLISHED = "published"
+RECIPE_PUBLICATION_STATES = (RECIPE_PUBLICATION_STATE_PUBLISHED,)
 
 
 class RecipeLineage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
@@ -62,6 +69,7 @@ class RecipeVersion(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
             name="parent_not_self",
         ),
         UniqueConstraint("lineage_id", "id", name="uq_recipe_versions_lineage_id_id"),
+        UniqueConstraint("id", "created_by_user_id", name="uq_recipe_versions_id_author"),
         UniqueConstraint(
             "lineage_id",
             "version_number",
@@ -129,6 +137,144 @@ class RecipeVersion(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
         back_populates="recipe_version",
         order_by="RecipeStructuralFingerprint.algorithm_version",
         passive_deletes="all",
+    )
+    publication: Mapped["RecipeVersionPublication | None"] = relationship(
+        back_populates="recipe_version",
+        uselist=False,
+        viewonly=True,
+    )
+
+
+class RecipeVersionPublication(Base):
+    """Visibility and successful-publication evidence for one immutable version."""
+
+    __tablename__ = "recipe_version_publications"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["recipe_version_id", "actor_user_id"],
+            ["recipe_versions.id", "recipe_versions.created_by_user_id"],
+            name="fk_recipe_version_publications_version_author",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["source_draft_id", "actor_user_id", "draft_revision"],
+            ["recipe_drafts.id", "recipe_drafts.author_user_id", "recipe_drafts.revision"],
+            name="fk_recipe_version_publications_draft_author_revision",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            [
+                "duplicate_preflight_id",
+                "actor_user_id",
+                "duplicate_policy_version",
+                "duplicate_result_digest",
+            ],
+            [
+                "recipe_duplicate_preflights.id",
+                "recipe_duplicate_preflights.actor_user_id",
+                "recipe_duplicate_preflights.policy_version",
+                "recipe_duplicate_preflights.result_digest",
+            ],
+            name="fk_recipe_version_publications_preflight_acknowledgement",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            [
+                "duplicate_decision_id",
+                "duplicate_preflight_id",
+                "actor_user_id",
+                "duplicate_policy_version",
+                "duplicate_result_digest",
+            ],
+            [
+                "recipe_duplicate_decisions.id",
+                "recipe_duplicate_decisions.preflight_id",
+                "recipe_duplicate_decisions.actor_user_id",
+                "recipe_duplicate_decisions.acknowledged_policy_version",
+                "recipe_duplicate_decisions.acknowledged_result_digest",
+            ],
+            name="fk_recipe_version_publications_decision_acknowledgement",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "state = 'published'",
+            name="state_supported",
+        ),
+        CheckConstraint(
+            "request_fingerprint IS NULL OR request_fingerprint ~ '^[0-9a-f]{64}$'",
+            name="request_fingerprint_sha256",
+        ),
+        CheckConstraint(
+            "draft_revision IS NULL OR draft_revision >= 1",
+            name="draft_revision_positive",
+        ),
+        CheckConstraint(
+            "(source_draft_id IS NULL AND action_id IS NULL "
+            "AND request_fingerprint IS NULL AND draft_revision IS NULL "
+            "AND duplicate_preflight_id IS NULL AND duplicate_policy_version IS NULL "
+            "AND duplicate_result_digest IS NULL AND duplicate_decision_id IS NULL) OR "
+            "(source_draft_id IS NOT NULL AND action_id IS NOT NULL "
+            "AND request_fingerprint IS NOT NULL AND draft_revision IS NOT NULL "
+            "AND duplicate_preflight_id IS NOT NULL "
+            "AND NULLIF(btrim(duplicate_policy_version), '') IS NOT NULL "
+            "AND duplicate_result_digest ~ '^[0-9a-f]{64}$')",
+            name="evidence_shape_valid",
+        ),
+        UniqueConstraint("source_draft_id", name="uq_recipe_version_publications_source_draft"),
+        UniqueConstraint(
+            "actor_user_id",
+            "action_id",
+            name="uq_recipe_version_publications_actor_action",
+        ),
+        Index("ix_recipe_version_publications_state_version", "state", "recipe_version_id"),
+        Index("ix_recipe_version_publications_actor_published", "actor_user_id", "published_at"),
+    )
+
+    recipe_version_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+    )
+    state: Mapped[str] = mapped_column(
+        String(24),
+        nullable=False,
+        default=RECIPE_PUBLICATION_STATE_PUBLISHED,
+        server_default=text(f"'{RECIPE_PUBLICATION_STATE_PUBLISHED}'"),
+    )
+    source_draft_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+    )
+    actor_user_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    action_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    request_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    draft_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duplicate_preflight_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+    )
+    duplicate_policy_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    duplicate_result_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    duplicate_decision_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+    )
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+    recipe_version: Mapped[RecipeVersion] = relationship(
+        back_populates="publication",
+        viewonly=True,
+    )
+    source_draft: Mapped["RecipeDraft | None"] = relationship(
+        back_populates="publication",
+        viewonly=True,
     )
 
 

@@ -426,6 +426,19 @@ export async function createRecipeDuplicatePreflight(
   return parseRecipeDuplicatePreflight(result);
 }
 
+export async function createRecipeDraftDuplicatePreflight(
+  draftId: string,
+  revision: number,
+  idempotencyKey: string,
+): Promise<RecipeDuplicatePreflight> {
+  const result = await duplicateMutation(
+    `/api/recipe-drafts/${encodeURIComponent(draftId)}/duplicate-preflights`,
+    { revision },
+    idempotencyKey,
+  );
+  return parseRecipeDuplicatePreflight(result);
+}
+
 export async function recordRecipeDuplicateDecision(
   preflightId: string,
   payload: RecipeDuplicateDecisionInput,

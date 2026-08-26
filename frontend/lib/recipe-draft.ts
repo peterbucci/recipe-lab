@@ -1,3 +1,4 @@
+import type { ApiValidationIssue } from "./auth-api";
 import type { CatalogActionType } from "./cooking-action-api";
 import type {
   CatalogIngredientSelection,
@@ -12,6 +13,7 @@ import {
 import {
   createStructuredActionDraft,
   hydrateStructuredActionDrafts,
+  structuredActionFieldKey,
   type IngredientOccurrenceOption,
   type StructuredActionDraft,
   validateStructuredActionDrafts,
@@ -290,6 +292,112 @@ export function validateRecipeDraft(
       instructions,
     },
   };
+}
+
+export function validateRecipeDraftForPublication(
+  state: RecipeDraftEditorState,
+  revision: number,
+  units: readonly CatalogUnit[],
+  actionTypes: readonly CatalogActionType[],
+): RecipeDraftValidation {
+  const savedDraft = validateRecipeDraft(state, revision, units, actionTypes);
+  const fieldErrors = { ...savedDraft.fieldErrors };
+  const formErrors = [...savedDraft.formErrors];
+
+  if (!state.title.trim()) {
+    fieldErrors.title = "Title is required before publication.";
+  }
+  if (!state.servings.trim()) {
+    fieldErrors.servings = "Servings are required before publication.";
+  }
+  if (state.ingredients.length === 0) {
+    formErrors.push("Add at least one catalog ingredient before publication.");
+  }
+  if (state.instructions.length === 0) {
+    formErrors.push("Add at least one instruction before publication.");
+  }
+
+  for (const ingredient of state.ingredients) {
+    if (ingredient.selection?.kind === "request") {
+      fieldErrors[draftIngredientFieldKey(ingredient.key, "selection")] =
+        "Choose the request’s approved catalog ingredient before publication.";
+    }
+  }
+  for (const instruction of state.instructions) {
+    if (instruction.actions.length === 0) {
+      fieldErrors[draftInstructionActionFieldKey(instruction.key, "actions")] =
+        "Add at least one cooking action before publication.";
+    }
+  }
+
+  if (Object.keys(fieldErrors).length > 0 || formErrors.length > 0) {
+    return { fieldErrors, formErrors, payload: null };
+  }
+  return { fieldErrors, formErrors, payload: savedDraft.payload };
+}
+
+export function recipeDraftFieldErrorsFromIssues(
+  state: RecipeDraftEditorState,
+  issues: readonly ApiValidationIssue[],
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const measureField = (value: string): StructuredMeasureField | null => {
+    if (value === "mode" || value === "kind") return "mode";
+    if (value === "value") return "amount";
+    if (value === "minimum") return "minimum";
+    if (value === "maximum") return "maximum";
+    if (value === "unit" || value === "unit_id" || value === "package_size_id") return "unit";
+    return null;
+  };
+
+  for (const issue of issues) {
+    const path = issue.location[0] === "body" ? issue.location.slice(1) : issue.location;
+    const [section, index, field, nestedIndex, nestedField, measurePart] = path;
+    if (section === "title" || section === "description" || section === "servings") {
+      errors[section] = issue.message;
+      continue;
+    }
+    if (section === "ingredients" && typeof index === "number") {
+      const ingredient = state.ingredients[index];
+      if (!ingredient) continue;
+      if (field === "selection" || field === "ingredient_id" || field === "ingredient_request_id") {
+        errors[draftIngredientFieldKey(ingredient.key, "selection")] = issue.message;
+      } else if (field === "preparation_notes") {
+        errors[draftIngredientFieldKey(ingredient.key, "preparationNotes")] = issue.message;
+      } else if (field === "measure" && typeof nestedIndex === "string") {
+        const mapped = measureField(nestedIndex);
+        if (mapped) errors[draftIngredientMeasureFieldKey(ingredient.key, mapped)] = issue.message;
+      }
+      continue;
+    }
+    if (section !== "instructions" || typeof index !== "number") continue;
+    const instruction = state.instructions[index];
+    if (!instruction) continue;
+    if (field === "text") {
+      errors[draftInstructionFieldKey(instruction.key)] = issue.message;
+      continue;
+    }
+    if (field !== "actions") continue;
+    if (typeof nestedIndex !== "number") {
+      errors[draftInstructionActionFieldKey(instruction.key, "actions")] = issue.message;
+      continue;
+    }
+    const action = instruction.actions[nestedIndex];
+    if (!action || typeof nestedField !== "string") continue;
+    let actionField: string | null = null;
+    if (nestedField === "action_type_id" || nestedField === "action_type") {
+      actionField = structuredActionFieldKey(action.key, "type");
+    } else if (nestedField === "ingredient_refs" || nestedField === "inputs") {
+      actionField = structuredActionFieldKey(action.key, "inputs");
+    } else if (nestedField === "duration" || nestedField === "temperature") {
+      const mapped = typeof measurePart === "string" ? measureField(measurePart) : "mode";
+      if (mapped) actionField = structuredActionFieldKey(action.key, nestedField, mapped);
+    }
+    if (actionField) {
+      errors[draftInstructionActionFieldKey(instruction.key, actionField)] = issue.message;
+    }
+  }
+  return errors;
 }
 
 export function recipeDraftFingerprint(state: RecipeDraftEditorState): string {

@@ -375,7 +375,7 @@ def test_save_and_rating_actions_record_typed_history_without_reapplying_old_ret
     assert _event_count(seeded_api_engine) == 4
 
 
-def test_fork_action_replay_returns_the_original_child_and_conflicts_on_payload_change(
+def test_retired_fork_route_is_write_free_for_replays_and_payload_changes(
     preference_client: TestClient,
     seeded_api_engine: Engine,
 ) -> None:
@@ -393,24 +393,12 @@ def test_fork_action_replay_returns_the_original_child_and_conflicts_on_payload_
         json=equivalent_retry_payload,
     )
 
-    assert first.status_code == 201
-    assert replay.status_code == 201
-    first_child_id = UUID(_json_object(first.json())["id"])
-    assert _json_object(replay.json())["id"] == str(first_child_id)
-    assert first.headers["location"] == replay.headers["location"]
-    assert _member_fork_count(seeded_api_engine) == 1
-    assert _event_count(seeded_api_engine) == 1
-
-    with Session(bind=seeded_api_engine) as session:
-        event = _event_by_action(session, action_id, event_type="fork")
-        assert event is not None
-        assert event.user_id == MEMBER_USER_ID
-        assert event.recipe_version_id == CARROT_ROOT_ID
-        assert event.event_type == "fork"
-        assert event.related_recipe_version_id == first_child_id
-        assert event.request_fingerprint is not None
-        assert len(event.request_fingerprint) == 64
-        assert event.request_fingerprint == event.request_fingerprint.casefold()
+    assert {first.status_code, replay.status_code} == {409}
+    assert {
+        _json_object(_json_object(response.json())["error"])["code"] for response in (first, replay)
+    } == {"recipe_variant_publication_requires_draft"}
+    assert _member_fork_count(seeded_api_engine) == 0
+    assert _event_count(seeded_api_engine) == 0
 
     conflict = preference_client.post(
         f"/api/recipes/{CARROT_ROOT_ID}/variants",
@@ -418,12 +406,15 @@ def test_fork_action_replay_returns_the_original_child_and_conflicts_on_payload_
         json=_fork_payload(title="Changed after the first action"),
     )
     assert conflict.status_code == 409
-    assert _json_object(conflict.json())["error"]["code"] == "idempotency_key_conflict"
-    assert _member_fork_count(seeded_api_engine) == 1
-    assert _event_count(seeded_api_engine) == 1
+    assert (
+        _json_object(_json_object(conflict.json())["error"])["code"]
+        == "recipe_variant_publication_requires_draft"
+    )
+    assert _member_fork_count(seeded_api_engine) == 0
+    assert _event_count(seeded_api_engine) == 0
 
 
-def test_concurrent_fork_retries_create_one_child_and_one_event(
+def test_concurrent_requests_to_retired_fork_route_remain_write_free(
     seeded_api_engine: Engine,
     test_member_credentials: MemberCredentials,
 ) -> None:
@@ -431,7 +422,7 @@ def test_concurrent_fork_retries_create_one_child_and_one_event(
     action_id = uuid4()
     payload = _fork_payload(title="Concurrent Preference Event Cake")
 
-    def submit() -> tuple[int, str, str]:
+    def submit() -> tuple[int, str]:
         application = create_app()
 
         def override_session() -> Iterator[Session]:
@@ -449,22 +440,20 @@ def test_concurrent_fork_retries_create_one_child_and_one_event(
             )
             return (
                 response.status_code,
-                _json_object(response.json())["id"],
-                response.headers["location"],
+                _json_object(_json_object(response.json())["error"])["code"],
             )
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [executor.submit(submit) for _ in range(2)]
         results = [future.result(timeout=30) for future in futures]
 
-    assert {result[0] for result in results} == {201}
-    assert len({result[1] for result in results}) == 1
-    assert len({result[2] for result in results}) == 1
-    assert _member_fork_count(seeded_api_engine) == 1
-    assert _event_count(seeded_api_engine) == 1
+    assert {result[0] for result in results} == {409}
+    assert {result[1] for result in results} == {"recipe_variant_publication_requires_draft"}
+    assert _member_fork_count(seeded_api_engine) == 0
+    assert _event_count(seeded_api_engine) == 0
 
 
-def test_event_failure_rolls_back_current_state_and_immutable_fork(
+def test_event_failure_rolls_back_current_state_and_retired_fork_stays_write_free(
     monkeypatch: pytest.MonkeyPatch,
     preference_client: TestClient,
     seeded_api_engine: Engine,
@@ -489,14 +478,14 @@ def test_event_failure_rolls_back_current_state_and_immutable_fork(
         )
     assert _event_count(seeded_api_engine) == 0
 
-    monkeypatch.setattr(recipe_routes, "record_preference_event", fail_event)
-    with pytest.raises(RuntimeError, match="Injected preference-event write failure"):
-        preference_client.post(
-            f"/api/recipes/{CARROT_ROOT_ID}/variants",
-            headers=_action_headers(),
-            json=_fork_payload(),
-        )
+    monkeypatch.setattr(recipe_routes, "record_preference_event", fail_event, raising=False)
+    blocked = preference_client.post(
+        f"/api/recipes/{CARROT_ROOT_ID}/variants",
+        headers=_action_headers(),
+        json=_fork_payload(),
+    )
 
+    assert blocked.status_code == 409
     assert _member_fork_count(seeded_api_engine) == 0
     assert _event_count(seeded_api_engine) == 0
 
@@ -540,7 +529,6 @@ def test_cors_and_openapi_document_only_the_bounded_action_contract(
         paths["/api/recipes/{recipe_version_id}/save"]["put"],
         paths["/api/recipes/{recipe_version_id}/save"]["delete"],
         paths["/api/recipes/{recipe_version_id}/rating"]["put"],
-        paths["/api/recipes/{recipe_version_id}/variants"]["post"],
     ]
     for operation in action_operations:
         idempotency_parameter = next(
@@ -554,6 +542,14 @@ def test_cors_and_openapi_document_only_the_bounded_action_contract(
         assert operation["responses"]["409"]["content"]["application/json"]["schema"][
             "$ref"
         ].endswith("/ErrorResponse")
+
+    retired_fork_operation = paths["/api/recipes/{recipe_version_id}/variants"]["post"]
+    assert not any(
+        parameter["name"] == "Idempotency-Key" for parameter in retired_fork_operation["parameters"]
+    )
+    assert retired_fork_operation["responses"]["409"]["content"]["application/json"]["schema"][
+        "$ref"
+    ].endswith("/ErrorResponse")
 
     assert paths["/api/recipes/{recipe_version_id}/view"]["post"]["responses"]["204"]["description"]
     assert not any("preference" in path.casefold() for path in paths)

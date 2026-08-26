@@ -138,6 +138,32 @@ describe("RecipeDuplicatePreflightReview", () => {
     expect(revise).toHaveBeenCalledOnce();
   });
 
+  it("uses explicit immutable-publication language for an original draft", () => {
+    render(
+      <RecipeDuplicatePreflightReview
+        mode="publication"
+        result={result()}
+        acknowledged={false}
+        decisionFailure={null}
+        pendingDecision={null}
+        onAcknowledgedChange={vi.fn()}
+        onContinue={vi.fn()}
+        onRevise={vi.fn()}
+        onRetryDecision={vi.fn()}
+        onCreateWithoutRecordedDecision={vi.fn()}
+        onReturnWithoutRecordedDecision={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: "I reviewed these advisory results and want to publish my recipe anyway.",
+      }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Publish recipe anyway" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /without similarity review/i })).toBeNull();
+  });
+
   it("presents a direct-parent no-change warning without inventing a candidate", () => {
     render(
       <RecipeDuplicatePreflightReview

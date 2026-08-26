@@ -5,10 +5,13 @@ import type { CatalogUnit } from "./measurement-unit-api";
 import {
   createDraftIngredientState,
   createDraftInstructionState,
+  createStructuredActionDraft,
   draftIngredientOptions,
   hydrateRecipeDraft,
+  recipeDraftFieldErrorsFromIssues,
   type RecipeDraftEditorState,
   validateRecipeDraft,
+  validateRecipeDraftForPublication,
 } from "./recipe-draft";
 import type { RecipeDraftDetail } from "./recipe-draft-api";
 
@@ -120,6 +123,17 @@ describe("private recipe draft state", () => {
       ingredients: [],
       instructions: [],
     });
+    expect(validateRecipeDraftForPublication(state, 4, [], [])).toMatchObject({
+      payload: null,
+      fieldErrors: {
+        title: "Title is required before publication.",
+        servings: "Servings are required before publication.",
+      },
+      formErrors: [
+        "Add at least one catalog ingredient before publication.",
+        "Add at least one instruction before publication.",
+      ],
+    });
   });
 
   it("persists unresolved request identity and rejects incomplete populated rows", () => {
@@ -153,6 +167,82 @@ describe("private recipe draft state", () => {
     expect(valid.payload?.ingredients[0]?.selection).toEqual({
       kind: "request",
       ingredient_request_id: REQUEST_ID,
+    });
+    expect(
+      validateRecipeDraftForPublication(incomplete, 1, [], []).fieldErrors,
+    ).toMatchObject({
+      "ingredient.ingredient-ref.selection":
+        "Choose the request’s approved catalog ingredient before publication.",
+      "instruction.instruction-ref.action.actions":
+        "Add at least one cooking action before publication.",
+    });
+  });
+
+  it("accepts a complete catalog-backed original with ordered structured actions", () => {
+    const actionType: CatalogActionType = {
+      id: "55555555-5555-4555-8555-555555555555",
+      key: "mix",
+      canonical_verb: "mix",
+      active: true,
+      provenance: "Test catalog.",
+    };
+    const ingredient = createDraftIngredientState("ingredient-ref");
+    ingredient.selection = {
+      kind: "catalog",
+      ingredient: {
+        ingredientId: INGREDIENT_ID,
+        canonicalName: "sage",
+        displayName: "Sage",
+      },
+    };
+    const instruction = createDraftInstructionState("instruction-ref");
+    instruction.text = "Mix the sage.";
+    const action = createStructuredActionDraft("action-ref");
+    action.actionType = actionType;
+    action.ingredientKeys = [ingredient.key];
+    instruction.actions = [action];
+    const state: RecipeDraftEditorState = {
+      title: "Sage recipe",
+      description: "A publishable test recipe.",
+      servings: "2",
+      ingredients: [ingredient],
+      instructions: [instruction],
+    };
+
+    expect(
+      validateRecipeDraftForPublication(state, 6, [], [actionType]),
+    ).toMatchObject({
+      fieldErrors: {},
+      formErrors: [],
+      payload: {
+        revision: 6,
+        title: "Sage recipe",
+        servings: "2",
+        ingredients: [
+          { selection: { kind: "catalog", ingredient_id: INGREDIENT_ID } },
+        ],
+        instructions: [
+          { actions: [{ action_type_id: actionType.id }] },
+        ],
+      },
+    });
+    expect(
+      recipeDraftFieldErrorsFromIssues(state, [
+        {
+          location: ["body", "ingredients", 0, "selection", "ingredient_id"],
+          message: "This catalog ingredient is no longer available.",
+          type: "value_error",
+        },
+        {
+          location: ["body", "instructions", 0, "actions", 0, "action_type_id"],
+          message: "This cooking action is no longer available.",
+          type: "value_error",
+        },
+      ]),
+    ).toEqual({
+      "ingredient.ingredient-ref.selection": "This catalog ingredient is no longer available.",
+      "instruction.instruction-ref.action.action-ref.type":
+        "This cooking action is no longer available.",
     });
   });
 });

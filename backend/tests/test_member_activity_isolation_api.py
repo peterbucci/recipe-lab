@@ -319,13 +319,18 @@ def test_actor_spoof_payloads_and_incomplete_accounts_cannot_mutate(
             headers=_headers(),
             json={"rating": 5, "user_id": str(MEMBER_B_ID)},
         ),
-        member_activity_api.member_a.post(
-            f"/api/recipes/{CARROT_ROOT_ID}/variants",
-            headers=_headers(),
-            json={**_fork_payload(), "created_by_user_id": str(MEMBER_B_ID)},
-        ),
     ]
     assert {response.status_code for response in spoofed_mutations} == {422}
+    blocked_legacy_fork = member_activity_api.member_a.post(
+        f"/api/recipes/{CARROT_ROOT_ID}/variants",
+        headers=_headers(),
+        json={**_fork_payload(), "created_by_user_id": str(MEMBER_B_ID)},
+    )
+    assert blocked_legacy_fork.status_code == 409
+    assert (
+        _json_object(_json_object(blocked_legacy_fork.json())["error"])["code"]
+        == "recipe_variant_publication_requires_draft"
+    )
 
     incomplete_view = member_activity_api.incomplete.post(
         f"/api/recipes/{CARROT_ROOT_ID}/view",

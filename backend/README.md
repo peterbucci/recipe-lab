@@ -88,13 +88,14 @@ that is not present returns HTTP 404. Both use the documented `ErrorResponse`
 envelope. The response schemas and query constraints are available through
 OpenAPI at `/docs` and `/openapi.json`.
 
-Every stored recipe version is a published immutable snapshot, so each of its
-ingredient rows must reference the curated catalog. Recipe-writing APIs verify
-that each submitted stable ingredient ID exists and that its display label is
-that ingredient's canonical name or a reviewed alias; stale or mismatched
-selections fail atomically without creating catalog metadata. The
-identity/display boundary and separate private draft workflow are documented
-in [ingredient identity](../docs/ingredient-identity.md) and
+Every stored recipe version has an explicit published-state receipt, including
+seed versions backfilled without changing their IDs or topology. Each snapshot
+is immutable, so every ingredient row must reference the curated catalog.
+Recipe-writing APIs verify that each submitted stable ingredient ID exists and
+that its display label is that ingredient's canonical name or a reviewed alias;
+stale or mismatched selections fail atomically without creating catalog
+metadata. The identity/display boundary and separate private draft workflow are
+documented in [ingredient identity](../docs/ingredient-identity.md) and
 [private recipe drafts](../docs/private-recipe-drafts.md).
 
 `GET /api/ingredients` provides bounded, paginated canonical-and-alias search
@@ -333,25 +334,69 @@ slots use verified ingredient labels and structured measures. Request slots
 retain only owner-scoped unresolved selection identity, never a fabricated
 canonical ID, and cannot be structured-action inputs.
 
-Draft lifecycle operations create no lineage, immutable version, fingerprint,
-duplicate evidence, save, rating, or preference event. They are structurally
-absent from browse, detail, diff, profile, recommendation, duplicate-candidate,
-and evaluation-export queries. RCP-27 and RCP-28 own publication. See
-[private recipe drafts](../docs/private-recipe-drafts.md) for retention,
-request-resolution, editor, and publication boundaries.
+Creating, saving, resuming, resolving, or discarding a draft creates no
+lineage, immutable version, fingerprint, duplicate evidence, save, rating, or
+preference event. Drafts are structurally absent from browse, detail, diff,
+profile, recommendation, duplicate-candidate, and evaluation-export queries.
+Source-less original publication is a separate RCP-27 transition; RCP-28 owns
+fork publication. See [private recipe drafts](../docs/private-recipe-drafts.md)
+for retention, request-resolution, editor, and publication boundaries.
+
+## Original recipe publication
+
+RCP-27 publishes only a saved, active, source-less draft owned by the current
+onboarded member. The two author-only endpoints are:
+
+- `POST /api/recipe-drafts/{draft_id}/duplicate-preflights` with body
+  `{ "revision": <saved_revision> }`; and
+- `POST /api/recipe-drafts/{draft_id}/publish` with body
+  `{ "revision": <saved_revision>, "duplicate_review": { "preflight_id":
+  "<uuid>", "policy_version": "<version>", "result_digest": "<sha256>",
+  "decision": null | "continue" } }`.
+
+Both mutations require the session-bound CSRF token, trusted exact Origin, and
+a UUID `Idempotency-Key`. Similarity review is required before publication but
+remains advisory: a distinct result uses `decision: null`; an exact or probable
+result requires the author to submit `decision: "continue"`. Revising means
+changing and saving the draft, which invalidates the prior revision-bound
+review. There is no publish-without-review path.
+
+Publication reloads and locks the draft, then atomically revalidates ownership,
+active state, revision, source-less identity, complete curated structure,
+current duplicate policy, result digest, bounded public candidates, and any
+required continue decision. The same transaction creates one lineage and its
+version-1 root, copies fresh ordered ingredient, measure, instruction, action,
+and input rows, stores the structural fingerprint, records published state and
+the immutable publication receipt, and marks the retained draft `published`.
+The root has no parent and the session member is recorded as both lineage and
+version author. Original publication appends no fork or other preference event.
+
+Any validation or database failure rolls back the entire transition and leaves
+the draft active and editable. An exact retry by the same member with the same
+idempotency key and request returns `201`, the original
+`{ "recipe_version_id": "<uuid>", "location": "/recipes/<uuid>" }` body,
+and the same `Location` header. Reusing the key for a different intent returns
+`409`. After success, active-list, read, edit, and discard draft operations no
+longer expose that draft; the retained completed row and receipt prevent a
+second root from being created.
+
+Every seeded recipe version is backfilled with published state without changing
+its stable ID or lineage topology. Database guards reject update, delete, and
+truncate attempts against a published snapshot and its ordered child content.
+Corrections therefore require a new immutable version. Publishing a fork draft
+and allocating that new version inside an existing lineage remain RCP-28 work.
 
 ## Recipe duplicate preflight
 
 `POST /api/recipes/{recipe_version_id}/duplicate-preflights` accepts the same
-variant payload without inserting a child. It requires an onboarded member,
-Origin/CSRF evidence, and a UUID `Idempotency-Key`. The service builds the
-proposed `recipe-structure-v1` fingerprint and compares it only with publicly
-readable stored fingerprints. It returns `exact_duplicate`,
-`probable_duplicate`, or `distinct`, at most five public candidates, at most
-three fixed explanation reasons per candidate, and a stable acknowledgement.
-The endpoint is an adapter over a reusable structural core that accepts a
-completed fingerprint and an optional direct source, so RCP-27 can integrate a
-source-less original draft without copying the scoring or evidence policy.
+variant payload without inserting a child. The source-less draft adapter is
+`POST /api/recipe-drafts/{draft_id}/duplicate-preflights` with the saved
+revision. Both require an onboarded member, Origin/CSRF evidence, and a UUID
+`Idempotency-Key`. The service builds the proposed `recipe-structure-v1`
+fingerprint and compares it only with publicly readable stored fingerprints.
+It returns `exact_duplicate`, `probable_duplicate`, or `distinct`, at most five
+public candidates, at most three fixed explanation reasons per candidate, and
+a stable acknowledgement.
 
 Exact candidates require both the digest and canonical payload to match.
 Probable candidates use the versioned deterministic ingredient, normalized
@@ -367,16 +412,17 @@ and fixed work budgets: 500 public comparisons, 200 ingredient occurrences,
 non-exact work units. Budget overflow fails closed with one generic `503`
 response; the service never returns partial candidate evidence.
 
-`POST /api/recipe-duplicate-preflights/{preflight_id}/decision` records the
-actor's explicit `continue` or `revise` choice against the returned policy
-version and result digest. It does not create, publish, merge, or delete a
-recipe. Preflights, bounded candidate evidence, and decisions are append-only,
-actor-scoped, and idempotent; they are not recommendation events. Replays and
-decisions recheck public availability and return one generic stale conflict
-when prior evidence is no longer current. See
+`POST /api/recipe-duplicate-preflights/{preflight_id}/decision` records a
+standalone variant-flow `continue` or `revise` choice. Original publication
+instead binds the revision, policy, result digest, and optional `continue`
+directly inside its atomic publish transaction. Preflights, bounded candidate
+evidence, and decisions are append-only, actor-scoped, and idempotent; they are
+not recommendation events. Publication receipts are also append-only and bind
+an exact publish retry to its original result. Replays and publication recheck
+public availability and return one generic stale conflict when prior evidence
+is no longer current. See
 [recipe duplicate-candidate preflight](../docs/duplicate-detection.md) for the
-formula, privacy boundary, future publication integration, and evaluation
-limitations.
+formula, privacy boundary, publication binding, and evaluation limitations.
 
 ## Migrations
 

@@ -2,27 +2,34 @@
 
 ## Purpose and boundary
 
-Recipe Lab runs a reusable, advisory duplicate check before the current variant
-editor creates a public child recipe. Its structural core accepts a completed
-fingerprint plus an optional direct source. The current variant endpoint is one
-adapter; RCP-27 can pass a source-less original draft, while RCP-28 can pass a
-direct parent and receive the same acknowledgement and no-change contract.
+Recipe Lab runs a reusable, advisory duplicate check before a structurally
+authored recipe is published. Its core accepts a completed fingerprint plus an
+optional direct source. The variant endpoint prepares a proposed child, while
+the RCP-27 draft endpoint loads one saved source-less revision. RCP-28 can later
+use the same core with the draft's direct source and no-change contract.
 
 The check answers a narrow structural question. It does not decide authorship,
 originality, copyright, plagiarism, culinary equivalence, or which recipe is
 better. It never merges lineages, transfers ownership, deletes a recipe, or
-blocks an author at the API layer. Ingredient-catalog request deduplication is a
-separate curation workflow and shares neither these records nor this policy.
+makes a similarity match a publication prohibition: after the required review,
+an author can explicitly continue. Ingredient-catalog request deduplication is
+a separate curation workflow and shares neither these records nor this policy.
 
 ## Preflight flow
 
 `POST /api/recipes/{source_version_id}/duplicate-preflights` accepts the same
 validated edit payload as variant creation plus a member-scoped UUID
-`Idempotency-Key`. Its adapter prepares the child and calls the source-optional
-structural core. The service:
+`Idempotency-Key`. For an original draft,
+`POST /api/recipe-drafts/{draft_id}/duplicate-preflights` accepts
+`{ "revision": <saved_revision> }` and its own UUID `Idempotency-Key`. It
+requires the active, source-less draft to belong to the session member and
+prepares the complete saved aggregate. Both adapters call the same
+source-optional structural core. The service:
 
-1. verifies that the source is publicly readable;
-2. validates and prepares the complete proposed child without inserting it;
+1. verifies any source is publicly readable and any draft is private to the
+   active author;
+2. validates and prepares the complete proposed structure without inserting a
+   recipe version;
 3. builds its `recipe-structure-v1` fingerprint;
 4. compares it only with publicly readable, fingerprinted recipe versions;
 5. ranks at most five exact or probable candidates;
@@ -99,12 +106,15 @@ classification, six-decimal score, and up to three fixed explanation reasons.
 They contain no candidate totals, hidden-match counts, timings, raw feature
 vectors, private IDs, user data, or canonical payloads.
 
-The current schema has only public immutable recipe versions. The explicit
-public-read repository seam exists so RCP-27 and later withdrawal work can add
-visibility in one place without allowing preflight to inspect drafts. A replay
-or decision rechecks the source and every returned candidate. If any evidence is
-no longer public or the policy version has changed, the API returns one generic
-stale-result conflict and does not repeat prior candidate details.
+Every readable candidate has a `recipe_version_publications` row in the
+supported `published` state. Seeded versions are backfilled into that state
+without changing their stable IDs or lineage topology. Candidate lookup starts
+from this explicit shared predicate, so private drafts cannot enter the scorer
+and later visibility states can be added without filtering secrets after
+comparison. A replay, standalone decision, or publication rechecks every
+returned candidate. If any evidence is no longer public or the policy version
+has changed, the API returns one generic stale-result conflict and does not
+repeat prior candidate details.
 
 ## Acknowledgement and author decision
 
@@ -120,22 +130,44 @@ Every response carries this stable acknowledgement envelope:
 }
 ```
 
-`required` is false only for a distinct result. For an exact, probable, or
-direct-parent no-change result, the author can explicitly continue or revise.
+`required` describes whether this classification requires an author decision;
+it is false only for a distinct result. It does not make the review optional.
+For an exact, probable, or direct-parent no-change result, the author can
+explicitly continue or revise. The standalone variant route
 `POST /api/recipe-duplicate-preflights/{preflight_id}/decision` records that
 choice against the exact policy version and result digest. The decision is
 advisory; it does not create or publish a recipe by itself.
 
-The current browser editor pauses inline, shows neutral explanations and public
-candidate links in a draft-safe new tab, and requires an acknowledgement
-checkbox before continuing. Editing any field invalidates the old preflight. If
-the advisory check is unavailable, the editor says that no classification was
-produced and offers an explicit retry or continue-without-review path; it never
-pretends the result was distinct. If a decision response is lost, it says the
-client cannot confirm whether the choice was recorded, retries with the same
-idempotency key, or lets the author explicitly continue without confirmation.
-RCP-27 and RCP-28 must recompute the structure and validate the acknowledgement
-inside their publication transaction rather than trusting client state.
+The browser pauses inline, shows neutral explanations and public candidate
+links in a draft-safe new tab, and requires an acknowledgement before an
+advisory match can continue. Editing and saving any field changes the revision
+and invalidates the old preflight. If review is unavailable, a source-less
+draft remains unpublished and the editor offers a retry; it never pretends the
+result was distinct or offers publication without review.
+
+Original publication sends the revision and exact review envelope to
+`POST /api/recipe-drafts/{draft_id}/publish`:
+
+```json
+{
+  "revision": 4,
+  "duplicate_review": {
+    "preflight_id": "00000000-0000-4000-8000-000000000000",
+    "policy_version": "recipe-duplicate-preflight-policy-v1",
+    "result_digest": "<lowercase sha256>",
+    "decision": null
+  }
+}
+```
+
+A distinct result uses `decision: null`; an exact or probable result uses
+`decision: "continue"`. The publication transaction reloads and locks the
+draft, recomputes its fingerprint, and validates the actor, revision, current
+policy, result digest, bounded candidate visibility, and decision. It creates
+the immutable root snapshot and binds this evidence only if every check still
+passes. A stale or mismatched review leaves the draft active and creates no
+partial public state. RCP-28 must apply the same rule when fork publication is
+implemented.
 
 ## Immutable evidence
 
@@ -159,6 +191,13 @@ fingerprint algorithm and digest; mismatches return the same generic conflict.
 Neither recipe prose nor canonical payloads are copied into these audit tables,
 and the records are deliberately separate from `preference_events` so
 duplicate-review choices cannot become recommendation signals.
+
+`recipe_version_publications` is the immutable publication receipt. For an
+RCP-27 root it binds the public version to one retained source draft, actor,
+idempotency action, request fingerprint, saved revision, preflight, policy,
+result digest, and any continue decision. A unique source-draft constraint and
+member/action idempotency constraint prevent a second root while allowing an
+exact network retry to return the original `201` result and `Location`.
 
 ## Evaluation and limitations
 

@@ -47,16 +47,20 @@ from app.models.measurement import (
 )
 from app.models.preference_event import PREFERENCE_EVENT_TYPES, PreferenceEvent
 from app.models.recipe import (
+    RECIPE_PUBLICATION_STATE_PUBLISHED,
+    RECIPE_PUBLICATION_STATES,
     RecipeIngredient,
     RecipeInstruction,
     RecipeLineage,
     RecipeVersion,
+    RecipeVersionPublication,
 )
 from app.models.recipe_draft import (
     RECIPE_DRAFT_SELECTION_CATALOG,
     RECIPE_DRAFT_SELECTION_KINDS,
     RECIPE_DRAFT_SELECTION_REQUEST,
     RECIPE_DRAFT_STATUS_ACTIVE,
+    RECIPE_DRAFT_STATUS_PUBLISHED,
     RECIPE_DRAFT_STATUSES,
     RecipeDraft,
     RecipeDraftIngredient,
@@ -158,6 +162,7 @@ __all__ = [
     "RECIPE_DRAFT_SELECTION_KINDS",
     "RECIPE_DRAFT_SELECTION_REQUEST",
     "RECIPE_DRAFT_STATUS_ACTIVE",
+    "RECIPE_DRAFT_STATUS_PUBLISHED",
     "RECIPE_DRAFT_STATUSES",
     "RecipeDraft",
     "RecipeDraftIngredient",
@@ -167,6 +172,9 @@ __all__ = [
     "RecipeDraftInstructionActionMeasure",
     "RecipeStructuralFingerprint",
     "RecipeVersion",
+    "RecipeVersionPublication",
+    "RECIPE_PUBLICATION_STATE_PUBLISHED",
+    "RECIPE_PUBLICATION_STATES",
     "USER_ACCOUNT_KINDS",
     "USER_STATUS_ACTIVE",
     "USER_STATUS_DELETED",

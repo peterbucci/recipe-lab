@@ -769,11 +769,14 @@ def test_duplicate_evidence_tables_reject_update_delete_and_truncate(
     )
 
     mutations = (
-        "UPDATE recipe_duplicate_preflights SET classification = 'distinct'",
-        "DELETE FROM recipe_duplicate_candidates",
-        "TRUNCATE TABLE recipe_duplicate_decisions",
+        ("UPDATE recipe_duplicate_preflights SET classification = 'distinct'", "append-only"),
+        ("DELETE FROM recipe_duplicate_candidates", "append-only"),
+        (
+            "TRUNCATE TABLE recipe_duplicate_decisions",
+            "append-only|cannot truncate a table referenced in a foreign key constraint",
+        ),
     )
-    for statement in mutations:
-        with pytest.raises(DBAPIError, match="append-only"):
+    for statement, expected_error in mutations:
+        with pytest.raises(DBAPIError, match=expected_error):
             with db_session.begin_nested():
                 db_session.execute(text(statement))

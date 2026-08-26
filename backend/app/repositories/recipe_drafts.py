@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 from app.models import (
     Ingredient,
     IngredientCatalogRequest,
+    MeasurementConversionRule,
+    MeasurementUnit,
     RecipeDraft,
     RecipeDraftIngredient,
     RecipeDraftInstruction,
@@ -42,16 +44,19 @@ def _draft_detail_options() -> tuple[Any, ...]:
             joinedload(RecipeDraftIngredient.ingredient_request)
             .joinedload(IngredientCatalogRequest.resolved_ingredient)
             .selectinload(Ingredient.aliases),
-            joinedload(RecipeDraftIngredient.measurement_unit),
+            joinedload(RecipeDraftIngredient.measurement_unit)
+            .joinedload(MeasurementUnit.conversion_rule)
+            .joinedload(MeasurementConversionRule.base_unit),
         ),
         selectinload(RecipeDraft.instructions)
         .selectinload(RecipeDraftInstruction.actions)
         .options(
             joinedload(RecipeDraftInstructionAction.action_type),
             selectinload(RecipeDraftInstructionAction.inputs),
-            selectinload(RecipeDraftInstructionAction.measures).joinedload(
-                RecipeDraftInstructionActionMeasure.measurement_unit
-            ),
+            selectinload(RecipeDraftInstructionAction.measures)
+            .joinedload(RecipeDraftInstructionActionMeasure.measurement_unit)
+            .joinedload(MeasurementUnit.conversion_rule)
+            .joinedload(MeasurementConversionRule.base_unit),
         ),
         raiseload("*"),
     )
@@ -76,6 +81,26 @@ def get_owned_recipe_draft(
     if for_update:
         statement = statement.with_for_update(of=RecipeDraft)
     return session.scalar(statement)
+
+
+def get_owned_recipe_draft_for_publication(
+    session: Session,
+    *,
+    author_user_id: UUID,
+    draft_id: UUID,
+) -> RecipeDraft | None:
+    """Lock an active or completed owner draft for publication/replay."""
+
+    return session.scalar(
+        select(RecipeDraft)
+        .options(*_draft_detail_options())
+        .where(
+            RecipeDraft.id == draft_id,
+            RecipeDraft.author_user_id == author_user_id,
+            RecipeDraft.status.in_(("active", "published")),
+        )
+        .with_for_update(of=RecipeDraft)
+    )
 
 
 def browse_owned_recipe_drafts(

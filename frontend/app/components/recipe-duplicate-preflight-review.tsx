@@ -10,6 +10,7 @@ import type {
 
 interface RecipeDuplicatePreflightReviewProps {
   result: RecipeDuplicatePreflight;
+  mode?: "variant" | "publication";
   acknowledged: boolean;
   decisionFailure: RecipeDuplicateDecision | null;
   pendingDecision: "continue" | "revise" | null;
@@ -33,6 +34,7 @@ function classificationLabel(classification: "exact_duplicate" | "probable_dupli
 
 export function RecipeDuplicatePreflightReview({
   result,
+  mode = "variant",
   acknowledged,
   decisionFailure,
   pendingDecision,
@@ -48,6 +50,7 @@ export function RecipeDuplicatePreflightReview({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const decisionFailureRef = useRef<HTMLHeadingElement>(null);
   const pending = pendingDecision !== null;
+  const publishing = mode === "publication";
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -80,7 +83,7 @@ export function RecipeDuplicatePreflightReview({
         <p>
           Recipe Lab compares curated ingredients, normalized amounts, and structured
           cooking actions. This review does not merge recipes or prevent you from making
-          your version.
+          {publishing ? " your recipe public." : " your version."}
         </p>
       </div>
 
@@ -130,7 +133,9 @@ export function RecipeDuplicatePreflightReview({
                 onChange={(event) => onAcknowledgedChange(event.currentTarget.checked)}
               />
               <span>
-                I reviewed these advisory results and want to create my version anyway.
+                {publishing
+                  ? "I reviewed these advisory results and want to publish my recipe anyway."
+                  : "I reviewed these advisory results and want to create my version anyway."}
               </span>
             </label>
             <div className="duplicate-preflight-review__actions">
@@ -141,8 +146,12 @@ export function RecipeDuplicatePreflightReview({
                 onClick={onContinue}
               >
                 {pendingDecision === "continue"
-                  ? "Recording your choice…"
-                  : "Create my version anyway"}
+                  ? publishing
+                    ? "Publishing your recipe…"
+                    : "Recording your choice…"
+                  : publishing
+                    ? "Publish recipe anyway"
+                    : "Create my version anyway"}
               </button>
               <button
                 className="button button--secondary"
@@ -155,7 +164,9 @@ export function RecipeDuplicatePreflightReview({
             </div>
             <p role="status" aria-live="polite">
               {pendingDecision === "continue"
-                ? "Recording your choice before creating the version."
+                ? publishing
+                  ? "Revalidating your review and publishing one immutable recipe."
+                  : "Recording your choice before creating the version."
                 : pendingDecision === "revise"
                   ? "Recording your choice and keeping every draft field."
                   : "Choose whether to continue with this structure or return to editing."}

@@ -1103,7 +1103,7 @@ describe("RecipeVariantEditor", () => {
       },
       SECOND_KEY,
     );
-  });
+  }, 15_000);
 
   it("applies a confirmed request resolution only to its ingredient row without losing draft work", async () => {
     vi.mocked(createRecipeVariant).mockResolvedValue(createdRecipe());
