@@ -39,9 +39,7 @@ class RecipeVisibilityResult:
     changed: bool
 
 
-def effective_recipe_visibility_state(
-    publication: RecipeVersionPublication,
-) -> RecipeVisibilityState:
+def _effective_state(publication: RecipeVersionPublication) -> RecipeVisibilityState:
     if publication.moderation_hidden_at is not None:
         return "moderation_hidden"
     if publication.author_withdrawn_at is not None:
@@ -108,7 +106,7 @@ def set_authored_recipe_visibility(
         )
 
     publication.author_withdrawn_at = next_author_withdrawn_at
-    effective_state = effective_recipe_visibility_state(publication)
+    effective_state = _effective_state(publication)
     publication.state = effective_state
     publication.state_changed_at = changed_at
     publication.state_changed_by_user_id = actor_user_id

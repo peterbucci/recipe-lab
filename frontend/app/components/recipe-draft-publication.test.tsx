@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CatalogActionType } from "../../lib/cooking-action-api";
@@ -130,7 +130,7 @@ function renderPublication({
   onValidation?: (validation: RecipeDraftValidation) => void;
   sourceVersionId?: string | null;
 } = {}) {
-  return render(
+  render(
     <NavigationBlockerProvider>
       <RecipeDraftPublication
         actionTypes={[actionType]}
@@ -147,35 +147,6 @@ function renderPublication({
   );
 }
 
-function distinctPreflight() {
-  return {
-    classification: "distinct" as const,
-    same_lineage_no_change: false,
-    candidates: [],
-    warnings: [],
-    acknowledgement: {
-      preflight_id: PREFLIGHT_ID,
-      policy_version: "recipe-duplicate-preflight-policy-v1",
-      result_digest: "c".repeat(64),
-      required: false,
-      allowed_decisions: [],
-    },
-  };
-}
-
-function deferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
-  return { promise, resolve };
-}
-
-function confirmPublication() {
-  fireEvent.click(screen.getAllByRole("checkbox", { name: /agree to the community rules/i }).at(-1)!);
-  fireEvent.click(screen.getAllByRole("checkbox", { name: /right to share it/i }).at(-1)!);
-}
-
 describe("RecipeDraftPublication", () => {
   beforeEach(() => {
     mocks.preflight.mockReset();
@@ -186,21 +157,19 @@ describe("RecipeDraftPublication", () => {
   });
 
   it("requires a confirmed save and publication-complete fields before review", async () => {
-    const dirtyPublication = renderPublication({ dirty: true });
+    renderPublication({ dirty: true });
     expect(screen.getByRole("button", { name: "Review and publish" })).toBeDisabled();
     expect(screen.getByText("Save your latest changes before publishing.")).toBeVisible();
     expect(screen.getByText(/published snapshots and their recipe lineage stay public/i)).toHaveTextContent(
       /Deleted cook.*withdraw/i,
     );
-    dirtyPublication.unmount();
 
     const onValidation = vi.fn();
     renderPublication({
       draft: { title: "", description: "", servings: "", ingredients: [], instructions: [] },
       onValidation,
     });
-    confirmPublication();
-    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Review and publish" })[1]!);
     expect(onValidation).toHaveBeenCalledWith(expect.objectContaining({ payload: null }));
     expect(mocks.preflight).not.toHaveBeenCalled();
   });
@@ -214,10 +183,6 @@ describe("RecipeDraftPublication", () => {
     renderPublication();
 
     fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
-    expect(screen.getByRole("alert")).toHaveTextContent(/confirm the community rules/i);
-    expect(mocks.preflight).not.toHaveBeenCalled();
-    confirmPublication();
-    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
     await waitFor(() => expect(mocks.preflight).toHaveBeenCalledWith(DRAFT_ID, 4, "preflight-key"));
     const continueButton = await screen.findByRole("button", { name: "Publish recipe anyway" });
     expect(continueButton).toBeDisabled();
@@ -229,8 +194,6 @@ describe("RecipeDraftPublication", () => {
       DRAFT_ID,
       {
         revision: 4,
-        community_rules_accepted: true,
-        content_rights_confirmed: true,
         duplicate_review: {
           preflight_id: PREFLIGHT_ID,
           policy_version: "recipe-duplicate-preflight-policy-v1",
@@ -244,102 +207,6 @@ describe("RecipeDraftPublication", () => {
     expect(mocks.refresh).toHaveBeenCalledOnce();
   });
 
-  it("does not auto-publish when confirmation is revoked during a pending preflight", async () => {
-    const preflight = deferred<ReturnType<typeof distinctPreflight>>();
-    mocks.preflight.mockReturnValue(preflight.promise);
-    renderPublication();
-
-    confirmPublication();
-    const communityRules = screen
-      .getAllByRole("checkbox", { name: /agree to the community rules/i })
-      .at(-1)!;
-    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
-    await waitFor(() => expect(mocks.preflight).toHaveBeenCalledOnce());
-    fireEvent.click(communityRules);
-
-    await act(async () => {
-      preflight.resolve(distinctPreflight());
-      await preflight.promise;
-    });
-
-    await waitFor(() => expect(communityRules).toHaveFocus());
-    expect(communityRules).not.toBeChecked();
-    expect(mocks.publish).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toHaveTextContent(/confirm the community rules/i);
-    expect(screen.getByRole("status")).toHaveTextContent(
-      /publishing paused.*your draft is still here/i,
-    );
-    expect(screen.getByRole("button", { name: "Review and publish" })).toBeEnabled();
-  });
-
-  it("does not continue a duplicate publication after confirmation is revoked", async () => {
-    mocks.preflight.mockResolvedValue(probablePreflight());
-    renderPublication();
-
-    confirmPublication();
-    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
-    fireEvent.click(
-      await screen.findByRole("checkbox", { name: /publish my recipe anyway/i }),
-    );
-    const contentRights = screen
-      .getAllByRole("checkbox", { name: /right to share it/i })
-      .at(-1)!;
-    fireEvent.click(contentRights);
-    fireEvent.click(screen.getByRole("button", { name: "Publish recipe anyway" }));
-
-    await waitFor(() => expect(contentRights).toHaveFocus());
-    expect(mocks.publish).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toHaveTextContent(/confirm the community rules/i);
-    expect(screen.getByRole("checkbox", { name: /publish my recipe anyway/i })).toBeChecked();
-  });
-
-  it("does not retry publication after confirmation is revoked", async () => {
-    mocks.preflight.mockResolvedValue(probablePreflight());
-    mocks.publish
-      .mockRejectedValueOnce(
-        new RecipePublicationApiError(
-          "Recipe Lab could not publish this recipe right now. Your saved draft is still here.",
-          503,
-          "recipe_publication_unavailable",
-        ),
-      )
-      .mockResolvedValueOnce({
-        recipe_version_id: RECIPE_ID,
-        location: `/recipes/${RECIPE_ID}`,
-      });
-    renderPublication();
-
-    confirmPublication();
-    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
-    fireEvent.click(
-      await screen.findByRole("checkbox", { name: /publish my recipe anyway/i }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Publish recipe anyway" }));
-    const retry = await screen.findByRole("button", { name: "Retry publication" });
-    expect(mocks.publish).toHaveBeenCalledOnce();
-
-    const communityRules = screen
-      .getAllByRole("checkbox", { name: /agree to the community rules/i })
-      .at(-1)!;
-    fireEvent.click(communityRules);
-    fireEvent.click(retry);
-
-    await waitFor(() => expect(communityRules).toHaveFocus());
-    expect(mocks.publish).toHaveBeenCalledOnce();
-    expect(screen.getByText(/confirm the community rules and your right to share/i)).toBeVisible();
-    expect(screen.getByRole("checkbox", { name: /publish my recipe anyway/i })).toBeChecked();
-
-    fireEvent.click(communityRules);
-    fireEvent.click(screen.getByRole("button", { name: "Retry publication" }));
-    await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(2));
-    expect(mocks.publish.mock.calls[1]?.[1]).toEqual(
-      expect.objectContaining({
-        community_rules_accepted: true,
-        content_rights_confirmed: true,
-      }),
-    );
-  });
-
   it("offers retry without a publish-without-review escape hatch", async () => {
     mocks.preflight.mockRejectedValue(
       new RecipeDuplicateApiError(
@@ -350,7 +217,6 @@ describe("RecipeDraftPublication", () => {
     );
     renderPublication();
 
-    confirmPublication();
     fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
     expect(await screen.findByRole("button", { name: "Retry similarity review" })).toBeVisible();
     expect(screen.queryByRole("button", { name: /publish without/i })).toBeNull();
@@ -368,7 +234,6 @@ describe("RecipeDraftPublication", () => {
     expect(
       screen.getByRole("heading", { name: "Publish your version without changing its source." }),
     ).toBeVisible();
-    confirmPublication();
     fireEvent.click(screen.getByRole("button", { name: "Review and publish version" }));
 
     const acknowledgement = await screen.findByRole("checkbox", {
@@ -385,8 +250,6 @@ describe("RecipeDraftPublication", () => {
         DRAFT_ID,
         {
           revision: 4,
-          community_rules_accepted: true,
-          content_rights_confirmed: true,
           duplicate_review: {
             preflight_id: PREFLIGHT_ID,
             policy_version: "recipe-duplicate-preflight-policy-v1",
@@ -411,7 +274,6 @@ describe("RecipeDraftPublication", () => {
     );
     renderPublication({ sourceVersionId: SOURCE_ID });
 
-    confirmPublication();
     fireEvent.click(screen.getByRole("button", { name: "Review and publish version" }));
     fireEvent.click(await screen.findByRole("checkbox", { name: /direct-parent no-change warning/i }));
     fireEvent.click(screen.getByRole("button", { name: "Publish version anyway" }));

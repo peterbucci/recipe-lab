@@ -89,7 +89,6 @@ describe("RecipeMemberActions", () => {
     );
     expect(screen.getByRole("link", { name: /see what changed/i })).toBeVisible();
     expect(screen.queryByRole("region", { name: /save and rate/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Report recipe" })).toBeNull();
     expect(screen.queryByTestId("view-tracker")).toBeNull();
     expect(mocks.fetchRecipeViewerState).not.toHaveBeenCalled();
   });
@@ -117,7 +116,6 @@ describe("RecipeMemberActions", () => {
 
     expect(await screen.findByText(/saved; rating 5/i)).toBeVisible();
     expect(screen.getByTestId("view-tracker")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Report recipe" })).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: /use bob/i }));
 

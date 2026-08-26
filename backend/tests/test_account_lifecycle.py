@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from threading import Event
 from typing import cast
@@ -16,9 +16,7 @@ from sqlalchemy.orm import Session
 import app.services.account_lifecycle as account_lifecycle_service
 from app.core.config import Settings
 from app.models import (
-    AbuseRateLimitBucket,
     CatalogCurator,
-    CommunityModerator,
     IngredientCatalogAuditEvent,
     IngredientCatalogRequest,
     OIDCIdentity,
@@ -29,19 +27,14 @@ from app.models import (
     RecipeDuplicateDecision,
     RecipeDuplicatePreflight,
     RecipeLineage,
-    RecipeModerationCase,
     RecipeRating,
-    RecipeReport,
     RecipeSave,
     RecipeVersion,
     RecipeVersionPublication,
     User,
     UserSession,
 )
-from app.repositories.account_lifecycle import (
-    DELETED_REPORT_FINGERPRINT,
-    get_account_user_for_update,
-)
+from app.repositories.account_lifecycle import get_account_user_for_update
 from app.repositories.auth import get_user_session_by_id
 from app.services.account_lifecycle import delete_member_account
 from app.services.auth import issue_member_session, resolve_authenticated_session
@@ -181,27 +174,6 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
     )
     db_session.add_all([publication, pending_request, terminal_request])
     db_session.flush()
-    moderation_case = RecipeModerationCase(
-        recipe_version_id=version.id,
-        status="open",
-        opened_at=now,
-        reporter_count=1,
-        last_reported_at=now,
-        updated_at=now,
-    )
-    db_session.add(moderation_case)
-    db_session.flush()
-    retained_report = RecipeReport(
-        recipe_version_id=version.id,
-        reporter_user_id=deleting_user_id,
-        reason="other",
-        details="Private report details must be erased.",
-        action_id=uuid4(),
-        request_fingerprint="9" * 64,
-    )
-    db_session.add(retained_report)
-    db_session.flush()
-    retained_report_id = retained_report.id
     version_id = version.id
     active_draft_id = active_draft.id
     published_draft_id = published_draft.id
@@ -278,16 +250,6 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
                 event_type="view",
             ),
             CatalogCurator(user_id=deleting_user_id, granted_by_user_id=None),
-            CommunityModerator(user_id=deleting_user_id, granted_by_user_id=None),
-            AbuseRateLimitBucket(
-                operation="interaction",
-                dimension="account",
-                subject_digest="a" * 64,
-                account_user_id=deleting_user_id,
-                window_started_at=now,
-                request_count=1,
-                expires_at=now + timedelta(minutes=1),
-            ),
         ]
     )
     db_session.flush()
@@ -322,20 +284,6 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
     assert db_session.scalar(select(func.count()).select_from(RecipeRating)) == 0
     assert db_session.scalar(select(func.count()).select_from(PreferenceEvent)) == 0
     assert db_session.scalar(select(func.count()).select_from(CatalogCurator)) == 0
-    assert db_session.scalar(select(func.count()).select_from(CommunityModerator)) == 0
-    assert (
-        db_session.scalar(
-            select(func.count())
-            .select_from(AbuseRateLimitBucket)
-            .where(AbuseRateLimitBucket.account_user_id == deleting_user_id)
-        )
-        == 0
-    )
-    anonymized_report = db_session.get(RecipeReport, retained_report_id)
-    assert anonymized_report is not None
-    assert anonymized_report.reporter_user_id == deleting_user_id
-    assert anonymized_report.details is None
-    assert anonymized_report.request_fingerprint == DELETED_REPORT_FINGERPRINT
     assert db_session.get(RecipeDraft, active_draft_id) is None
     assert db_session.get(IngredientCatalogRequest, pending_request_id) is None
     retained_request = db_session.get(IngredientCatalogRequest, terminal_request_id)

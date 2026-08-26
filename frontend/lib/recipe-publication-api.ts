@@ -15,8 +15,6 @@ export interface RecipeDraftDuplicateReviewInput {
 export interface RecipeDraftPublishRequest {
   revision: number;
   duplicate_review: RecipeDraftDuplicateReviewInput;
-  community_rules_accepted: true;
-  content_rights_confirmed: true;
 }
 
 export interface RecipeDraftPublication {

@@ -167,8 +167,6 @@ def _publication_payload(
     acknowledgement = _json_object(preflight["acknowledgement"])
     return {
         "revision": 2,
-        "community_rules_accepted": True,
-        "content_rights_confirmed": True,
         "duplicate_review": {
             "preflight_id": acknowledgement["preflight_id"],
             "policy_version": acknowledgement["policy_version"],

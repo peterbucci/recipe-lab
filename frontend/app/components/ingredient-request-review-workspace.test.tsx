@@ -116,7 +116,7 @@ function renderWorkspace(canReview = true) {
       initialSession={{
         status: "authenticated",
         user: { id: CURATOR_ID, display_name: "Casey Curator", handle: "casey" },
-        capabilities: { review_ingredient_requests: canReview, moderate_recipe_reports: false },
+        capabilities: { review_ingredient_requests: canReview },
       }}
     >
       <IngredientRequestReviewWorkspace />

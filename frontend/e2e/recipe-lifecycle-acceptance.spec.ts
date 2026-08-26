@@ -28,11 +28,6 @@ async function expectNoAccessibilityViolations(page: Page): Promise<void> {
   expect(results.violations).toEqual([]);
 }
 
-async function confirmPublicationRequirements(page: Page): Promise<void> {
-  await page.getByRole("checkbox", { name: /agree to the community rules/i }).check();
-  await page.getByRole("checkbox", { name: /right to share it/i }).check();
-}
-
 async function fillCompleteRecipe(page: Page, title: string): Promise<void> {
   await page.getByLabel("Title", { exact: true }).fill(title);
   await page.getByLabel("Servings", { exact: true }).fill("2");
@@ -73,7 +68,6 @@ async function finishOriginalPublication(
   preflightResponse: Promise<Response>,
   publicationResponse: Promise<Response>,
 ): Promise<string> {
-  await confirmPublicationRequirements(page);
   await page.getByRole("button", { name: "Review and publish", exact: true }).click();
   const preflight = await preflightResponse;
   expect(preflight.status(), await preflight.text()).toBe(201);
@@ -134,7 +128,6 @@ async function publishUnchangedFork(
       response.request().method() === "POST" &&
       response.url().endsWith(`/api/recipe-drafts/${draftId}/duplicate-preflights`),
   );
-  await confirmPublicationRequirements(page);
   await page.getByRole("button", { name: "Review and publish version", exact: true }).click();
   const preflight = await preflightResponse;
   expect(preflight.status(), await preflight.text()).toBe(201);

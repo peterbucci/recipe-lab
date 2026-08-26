@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,26 +20,6 @@ class Settings(BaseSettings):
     auth_session_ttl_seconds: int = Field(default=14 * 24 * 60 * 60, ge=60)
     auth_recent_ttl_seconds: int = Field(default=10 * 60, ge=60, le=60 * 60)
 
-    max_request_body_bytes: int = Field(default=2 * 1024 * 1024, ge=1024, le=16 * 1024 * 1024)
-    abuse_rate_limit_secret: SecretStr = SecretStr("recipe-lab-local-development-rate-limit-secret")
-    internal_network_signal_secret: SecretStr = SecretStr(
-        "recipe-lab-local-internal-network-signal-secret"
-    )
-    internal_network_signal_ttl_seconds: int = Field(default=30, ge=5, le=5 * 60)
-    abuse_rate_limit_window_seconds: int = Field(default=60, ge=1, le=60 * 60)
-    abuse_rate_limit_auth_network: int = Field(default=120, ge=1, le=100_000)
-    abuse_rate_limit_auth_identity: int = Field(default=30, ge=1, le=100_000)
-    abuse_rate_limit_draft_account: int = Field(default=120, ge=1, le=100_000)
-    abuse_rate_limit_draft_network: int = Field(default=600, ge=1, le=100_000)
-    abuse_rate_limit_fork_account: int = Field(default=30, ge=1, le=100_000)
-    abuse_rate_limit_fork_network: int = Field(default=120, ge=1, le=100_000)
-    abuse_rate_limit_publication_account: int = Field(default=30, ge=1, le=100_000)
-    abuse_rate_limit_publication_network: int = Field(default=120, ge=1, le=100_000)
-    abuse_rate_limit_report_account: int = Field(default=30, ge=1, le=100_000)
-    abuse_rate_limit_report_network: int = Field(default=120, ge=1, le=100_000)
-    abuse_rate_limit_interaction_account: int = Field(default=600, ge=1, le=100_000)
-    abuse_rate_limit_interaction_network: int = Field(default=2_400, ge=1, le=100_000)
-
     oidc_issuer: str = ""
     oidc_client_id: str = ""
     oidc_client_secret: SecretStr | None = None
@@ -54,36 +34,6 @@ class Settings(BaseSettings):
     @classmethod
     def empty_oidc_secret_is_absent(cls, value: object) -> object:
         return None if isinstance(value, str) and not value.strip() else value
-
-    @field_validator("abuse_rate_limit_secret")
-    @classmethod
-    def rate_limit_secret_has_sufficient_entropy(cls, value: SecretStr) -> SecretStr:
-        if len(value.get_secret_value()) < 32:
-            raise ValueError("ABUSE_RATE_LIMIT_SECRET must contain at least 32 characters.")
-        return value
-
-    @field_validator("internal_network_signal_secret")
-    @classmethod
-    def internal_network_secret_has_sufficient_entropy(cls, value: SecretStr) -> SecretStr:
-        if len(value.get_secret_value()) < 32:
-            raise ValueError("INTERNAL_NETWORK_SIGNAL_SECRET must contain at least 32 characters.")
-        return value
-
-    @model_validator(mode="after")
-    def production_uses_private_abuse_secrets(self) -> "Settings":
-        if (
-            self.app_environment == "production"
-            and self.abuse_rate_limit_secret.get_secret_value()
-            == "recipe-lab-local-development-rate-limit-secret"
-        ):
-            raise ValueError("ABUSE_RATE_LIMIT_SECRET must be configured in production.")
-        if (
-            self.app_environment == "production"
-            and self.internal_network_signal_secret.get_secret_value()
-            == "recipe-lab-local-internal-network-signal-secret"
-        ):
-            raise ValueError("INTERNAL_NETWORK_SIGNAL_SECRET must be configured in production.")
-        return self
 
     @property
     def cors_origin_list(self) -> list[str]:

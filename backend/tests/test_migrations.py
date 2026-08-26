@@ -8,7 +8,7 @@ from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import Connection, Engine, inspect
-from sqlalchemy.exc import IntegrityError, ProgrammingError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.demo_identity import DEMO_USER_DISPLAY_NAME, DEMO_USER_EMAIL, DEMO_USER_ID
@@ -19,10 +19,8 @@ from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
 from app.services.recipe_responses import recipe_summary_response
 
 DOMAIN_TABLES = {
-    "abuse_rate_limit_buckets",
     "allergens",
     "catalog_curators",
-    "community_moderators",
     "cooking_action_types",
     "dietary_flags",
     "ingredient_aliases",
@@ -42,9 +40,6 @@ DOMAIN_TABLES = {
     "oidc_login_transactions",
     "preference_events",
     "recipe_lineages",
-    "recipe_moderation_audit_events",
-    "recipe_moderation_cases",
-    "recipe_reports",
     "recipe_duplicate_candidates",
     "recipe_duplicate_decisions",
     "recipe_duplicate_preflights",
@@ -1279,183 +1274,3 @@ def test_activity_migration_preserves_legacy_actor_and_scopes_action_keys(
             .where(migrated_events.c.action_id == shared_action_id)
         )
         assert scoped_rows == 3
-
-
-def test_community_moderation_migration_enforces_attestations_and_append_only_audit(
-    empty_postgres_engine: Engine,
-    alembic_config: Config,
-) -> None:
-    author_id = uuid4()
-    reporter_id = uuid4()
-    moderator_id = uuid4()
-    lineage_id = uuid4()
-    recipe_version_id = uuid4()
-
-    with empty_postgres_engine.begin() as connection:
-        alembic_config.attributes["connection"] = connection
-        command.upgrade(alembic_config, "head")
-        metadata = sa.MetaData()
-        users = sa.Table("users", metadata, autoload_with=connection)
-        lineages = sa.Table("recipe_lineages", metadata, autoload_with=connection)
-        versions = sa.Table("recipe_versions", metadata, autoload_with=connection)
-        publications = sa.Table("recipe_version_publications", metadata, autoload_with=connection)
-        moderators = sa.Table("community_moderators", metadata, autoload_with=connection)
-        cases = sa.Table("recipe_moderation_cases", metadata, autoload_with=connection)
-        reports = sa.Table("recipe_reports", metadata, autoload_with=connection)
-        audit_events = sa.Table(
-            "recipe_moderation_audit_events", metadata, autoload_with=connection
-        )
-        connection.execute(
-            users.insert(),
-            [
-                {
-                    "id": user_id,
-                    "email": f"{label}@migration.example.test",
-                    "handle": f"migration_{label}",
-                    "display_name": f"Migration {label.title()}",
-                    "account_kind": "member",
-                    "status": "active",
-                }
-                for user_id, label in (
-                    (author_id, "author"),
-                    (reporter_id, "reporter"),
-                    (moderator_id, "moderator"),
-                )
-            ],
-        )
-        connection.execute(lineages.insert().values(id=lineage_id, created_by_user_id=author_id))
-        connection.execute(
-            versions.insert().values(
-                id=recipe_version_id,
-                lineage_id=lineage_id,
-                parent_version_id=None,
-                created_by_user_id=author_id,
-                version_number=1,
-                title="Migration moderation recipe",
-                servings=Decimal("2.00"),
-            )
-        )
-        connection.execute(
-            publications.insert().values(
-                recipe_version_id=recipe_version_id,
-                actor_user_id=author_id,
-                community_rules_version="community-rules-v1",
-                publication_rights_confirmed_at=sa.func.now(),
-            )
-        )
-        connection.execute(
-            moderators.insert().values(
-                user_id=moderator_id,
-                granted_by_user_id=author_id,
-            )
-        )
-        connection.execute(
-            cases.insert().values(
-                recipe_version_id=recipe_version_id,
-                status="open",
-                reporter_count=1,
-                last_reported_at=sa.func.now(),
-            )
-        )
-        connection.execute(
-            reports.insert().values(
-                id=uuid4(),
-                recipe_version_id=recipe_version_id,
-                reporter_user_id=reporter_id,
-                reason="spam",
-                details="Repeated promotional content.",
-                action_id=uuid4(),
-                request_fingerprint="a" * 64,
-            )
-        )
-        audit_id = connection.scalar(
-            audit_events.insert()
-            .values(
-                recipe_version_id=recipe_version_id,
-                actor_user_id=moderator_id,
-                action="hide",
-                previous_status="open",
-                status="open",
-                visibility_state="moderation_hidden",
-                private_note="Reviewed by the migration fixture.",
-                action_id=uuid4(),
-                request_fingerprint="b" * 64,
-            )
-            .returning(audit_events.c.id)
-        )
-        assert audit_id is not None
-        receipt = connection.execute(
-            sa.select(
-                publications.c.community_rules_version,
-                publications.c.publication_rights_confirmed_at,
-            ).where(publications.c.recipe_version_id == recipe_version_id)
-        ).one()
-        assert receipt.community_rules_version == "community-rules-v1"
-        assert receipt.publication_rights_confirmed_at is not None
-
-        with pytest.raises(
-            IntegrityError,
-            match="recipe moderation audit events are append-only",
-        ):
-            with connection.begin_nested():
-                connection.execute(
-                    audit_events.update()
-                    .where(audit_events.c.id == audit_id)
-                    .values(private_note="Rewritten evidence")
-                )
-
-
-def test_community_moderation_downgrade_refuses_durable_attestation_evidence(
-    empty_postgres_engine: Engine,
-    alembic_config: Config,
-) -> None:
-    author_id = uuid4()
-    lineage_id = uuid4()
-    recipe_version_id = uuid4()
-
-    with empty_postgres_engine.connect() as connection:
-        alembic_config.attributes["connection"] = connection
-        command.upgrade(alembic_config, "head")
-        with connection.begin():
-            metadata = sa.MetaData()
-            users = sa.Table("users", metadata, autoload_with=connection)
-            lineages = sa.Table("recipe_lineages", metadata, autoload_with=connection)
-            versions = sa.Table("recipe_versions", metadata, autoload_with=connection)
-            publications = sa.Table(
-                "recipe_version_publications", metadata, autoload_with=connection
-            )
-            connection.execute(
-                users.insert().values(
-                    id=author_id,
-                    email="downgrade-author@example.test",
-                    handle="downgrade_author",
-                    display_name="Downgrade Author",
-                    account_kind="member",
-                    status="active",
-                )
-            )
-            connection.execute(
-                lineages.insert().values(id=lineage_id, created_by_user_id=author_id)
-            )
-            connection.execute(
-                versions.insert().values(
-                    id=recipe_version_id,
-                    lineage_id=lineage_id,
-                    parent_version_id=None,
-                    created_by_user_id=author_id,
-                    version_number=1,
-                    title="Durable attestation recipe",
-                    servings=Decimal("1.00"),
-                )
-            )
-            connection.execute(
-                publications.insert().values(
-                    recipe_version_id=recipe_version_id,
-                    actor_user_id=author_id,
-                    community_rules_version="community-rules-v1",
-                    publication_rights_confirmed_at=sa.func.now(),
-                )
-            )
-
-        with pytest.raises(ProgrammingError, match="cannot downgrade community moderation"):
-            command.downgrade(alembic_config, "20260826_0017")

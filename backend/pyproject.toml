@@ -22,7 +22,6 @@ dependencies = [
 
 [project.scripts]
 recipe-lab-curator = "app.catalog_curators.cli:main"
-recipe-lab-moderator = "app.moderators.cli:main"
 recipe-lab-measurements = "app.measurement_audit:main"
 recipe-lab-seed = "app.seeds.cli:main"
 

@@ -15,8 +15,6 @@ const ACTION_ID = "44444444-4444-4444-8444-444444444444";
 const LOCATION = `/recipes/${RECIPE_ID}`;
 const request: RecipeDraftPublishRequest = {
   revision: 4,
-  community_rules_accepted: true,
-  content_rights_confirmed: true,
   duplicate_review: {
     preflight_id: PREFLIGHT_ID,
     policy_version: "recipe-duplicate-preflight-policy-v1",

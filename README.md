@@ -109,12 +109,6 @@ The repository currently provides:
 - recent-provider-authenticated account deletion that revokes every session,
   erases private identity and activity, and retains immutable public topology
   only under unlinked `Deleted cook` attribution;
-- explicit publication rights/community-rules confirmations, private bounded
-  member reports, a separate operator-managed moderator role, de-identified
-  case review, independent hide/restore state, and append-only decision audits;
-- durable pseudonymous account/identity/network rate limits for sensitive write
-  seams plus an application-wide request-body limit with stable 429 and 413
-  responses;
 - append-only, server-timestamped preference events for explicit detail views,
   saves, ratings, and forks, with typed context and UUID action-key replay
   protection scoped by member and operation rather than free-form tracking
@@ -183,8 +177,7 @@ deleting valid descendants, and deleting an account retains only anonymous
 public topology under `Deleted cook`. See
 [cook profiles and recipe libraries](docs/cook-profiles-and-libraries.md) and
 [private recipe drafts](docs/private-recipe-drafts.md), plus
-[recipe visibility and account lifecycle](docs/recipe-visibility-and-account-lifecycle.md)
-and [community rules, reporting, and moderation](docs/community-moderation.md).
+[recipe visibility and account lifecycle](docs/recipe-visibility-and-account-lifecycle.md).
 
 ## Quick start with Docker
 
@@ -222,16 +215,9 @@ Open:
 - My Recipes API: `GET /api/my/recipes`
 - Saved Recipes API: `GET /api/my/saved-recipes`
 - Recipe visibility API: `PUT /api/recipes/{id}/visibility`
-- Recipe report API: `POST /api/recipes/{id}/reports`
-- Moderator queue API: `GET /api/moderation/recipe-reports`
 - Account session status: <http://localhost:3000/api/auth/session>
 - Account deletion API: `DELETE /api/auth/account`
 - Interactive API docs: <http://localhost:8000/docs>
-
-Community-moderator grants are deployment operations, not browser actions. Use
-`python -m app.moderators eligible`, `list`, `grant`, or `revoke` from the
-backend environment; see the moderation document above for the bounded command
-contract.
 
 Stop the services with `docker compose down`. Add `--volumes` only when you
 intentionally want to discard local database data.
@@ -372,10 +358,10 @@ the guarded acceptance run below.
 
 The canonical MVP journey intentionally writes real member activity and an
 immutable recipe variant, so it is skipped during ordinary local browser runs.
-CI provisions short-lived sessions for five synthetic members, including a
-narrow curator, a separate recipe moderator, and an account-deletion fixture,
-directly in its isolated database. This is a command-line test fixture, not a
-production HTTP authentication route: PostgreSQL receives only session and CSRF digests,
+CI provisions short-lived sessions for four synthetic members, including a
+narrow curator and an account-deletion fixture, directly in its isolated
+database. This is a command-line test fixture, not a production
+HTTP authentication route: PostgreSQL receives only session and CSRF digests,
 while the raw tokens exist only in a private temporary JSON file consumed by
 Playwright.
 

@@ -10,7 +10,6 @@ from app.repositories.interactions import (
     get_user,
     recipe_version_exists,
 )
-from app.repositories.moderation import is_community_moderator
 from app.schemas.interactions import RecipeViewerStateResponse
 from app.services.auth import AuthenticatedSession
 
@@ -55,24 +54,6 @@ def lock_catalog_curator_actor(
             status_code=403,
             code="catalog_curator_required",
             message="Catalog curator access is required.",
-        )
-    return actor_id
-
-
-def lock_recipe_moderator_actor(
-    session: Session,
-    authenticated: AuthenticatedSession,
-    *,
-    lock_grant: bool = False,
-) -> UUID:
-    """Require a live, independent community-moderator grant from the database."""
-
-    actor_id = lock_active_member_actor(session, authenticated)
-    if not is_community_moderator(session, actor_id, for_update=lock_grant):
-        raise ApiError(
-            status_code=403,
-            code="recipe_moderator_required",
-            message="Recipe moderator access is required.",
         )
     return actor_id
 

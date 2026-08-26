@@ -74,8 +74,6 @@ from app.services.recipe_fingerprints import (
     build_structural_fingerprint,
 )
 
-CURRENT_COMMUNITY_RULES_VERSION = "community-rules-v1"
-
 
 class RecipePublicationNotFoundError(LookupError):
     """Raised without revealing whether another member owns a draft."""
@@ -875,8 +873,6 @@ def publish_recipe_draft(
         duplicate_policy_version=preflight.policy_version,
         duplicate_result_digest=preflight.result_digest,
         duplicate_decision_id=decision.id if decision is not None else None,
-        community_rules_version=CURRENT_COMMUNITY_RULES_VERSION,
-        publication_rights_confirmed_at=published_at,
         published_at=published_at,
     )
     session.add(publication)

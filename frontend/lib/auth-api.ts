@@ -5,7 +5,6 @@ export interface AccountUser {
 }
 
 export interface AccountCapabilities {
-  moderate_recipe_reports: boolean;
   review_ingredient_requests: boolean;
 }
 
@@ -101,17 +100,10 @@ function parseCapabilities(value: unknown): AccountCapabilities | null | undefin
   if (value === undefined) {
     return undefined;
   }
-  if (
-    !isRecord(value) ||
-    typeof value.moderate_recipe_reports !== "boolean" ||
-    typeof value.review_ingredient_requests !== "boolean"
-  ) {
+  if (!isRecord(value) || typeof value.review_ingredient_requests !== "boolean") {
     return null;
   }
-  return {
-    moderate_recipe_reports: value.moderate_recipe_reports,
-    review_ingredient_requests: value.review_ingredient_requests,
-  };
+  return { review_ingredient_requests: value.review_ingredient_requests };
 }
 
 export function parseAuthSession(value: unknown): AuthSession {
