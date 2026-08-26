@@ -17,7 +17,11 @@ versions. The account surface adds:
   authenticated state;
 - `PATCH /api/auth/session/profile` to finish onboarding or update the account
   handle and display name; and
-- `POST /api/auth/logout` to revoke the current application session.
+- `POST /api/auth/logout` to revoke the current application session;
+- `GET /api/auth/reauthenticate?return_to=/relative-path` to require a fresh,
+  session-bound provider authentication before a sensitive action; and
+- `DELETE /api/auth/account` to irreversibly remove the current member's
+  private account data while preserving anonymous public recipe topology.
 
 The browser calls these endpoints through the same-origin Next.js `/api`
 proxy. Browser session responses contain only the local user ID, handle, and
@@ -51,7 +55,9 @@ system/demo identities and cannot acquire OIDC identities.
 ## Application sessions and CSRF
 
 After a valid callback, the backend creates a high-entropy opaque application
-session token. Only its SHA-256 digest is stored. The token cookie is
+session token. Only its SHA-256 digest is stored. Each session also records an
+immutable `authenticated_at` assurance timestamp; ordinary activity may update
+`last_seen_at` but never makes authentication newer. The token cookie is
 `HttpOnly`, `SameSite=Lax`, restricted to the application path, and `Secure`
 outside explicit local development.
 
@@ -65,6 +71,17 @@ Expired or revoked sessions and sessions for suspended or deleted members are
 anonymous. Provider access, refresh, and ID tokens are never used as Recipe Lab
 session cookies or stored in browser storage.
 
+Account deletion requires provider-supplied `authenticated_at` evidence to fall
+within `AUTH_RECENT_TTL_SECONDS`, which defaults to ten minutes. A session with
+missing evidence is treated as stale; ordinary callback time is never invented
+as authentication time. Provider timestamps beyond the configured clock skew
+are rejected. A stale or unknown session must start the dedicated
+reauthentication flow. That flow binds its one-time OIDC
+transaction to the current local session, requests `prompt=login` and
+`max_age=0`, and accepts only the exact existing issuer/subject with a fresh
+provider `auth_time`. Success rotates the bound session. Failure uses one
+generic message and changes no account data.
+
 ## Configuration
 
 Copy `.env.example` and set the hosted provider values:
@@ -76,6 +93,7 @@ OIDC_ISSUER=https://provider.example.com
 OIDC_CLIENT_ID=recipe-lab-local
 OIDC_CLIENT_SECRET=replace-if-the-provider-requires-one
 OIDC_REDIRECT_URI=http://localhost:3000/api/auth/callback
+AUTH_RECENT_TTL_SECONDS=600
 ```
 
 The redirect URI must be registered exactly with the provider. Production must
@@ -111,20 +129,28 @@ public reads and anonymous recommendations do not require the Demo identity to
 exist. The legacy `/api/me` demo route is removed; `/api/auth/session` is the
 only browser identity/session contract.
 
-RCP-23 and RCP-24 intentionally do not add password storage, social-account
-linking, custom MFA, original recipe publishing, public cook profiles, recipe
-visibility, or moderation. Those capabilities build on this boundary in later
-stories.
+Deleting an account atomically removes its OIDC mapping, private email and
+handle, every application session, saves, ratings, preference events, private
+draft content, and other unreferenced private workflow evidence. Published
+snapshots and fork relationships are not hard-deleted. Their stable author UUID
+resolves only to an irreversible `Deleted cook` tombstone with no profile link.
+See [recipe visibility and account lifecycle](recipe-visibility-and-account-lifecycle.md)
+for the complete retention and unavailable-content contract. Recipe Lab still
+does not store passwords, add custom MFA, merge social accounts, or expose
+provider identity data.
 
 ## Verification
 
 Backend tests cover migration round trips, exact issuer/subject reuse, session
 digest storage, callback validation failures, return-path safety, cookie
 attributes, Origin/CSRF enforcement, revocation, expiry, account status,
-member-scoped idempotency, and two-member activity/recommendation isolation.
-Frontend tests cover the same-origin proxy, sign-in, onboarding, account menu,
+provider-backed reauthentication, all-session account deletion, private-data
+erasure, retained public topology, member-scoped idempotency, and two-member
+activity/recommendation isolation.
+Frontend tests cover the same-origin proxy, sign-in, onboarding, pre-onboarding
+account deletion, account menu,
 session expiry, signed-out action gates, member interactions, keyboard
 operation, mobile layout, and accessibility. The guarded full-stack acceptance
-run provisions digest-only Alice, Bob, and catalog-curator sessions in an
+run provisions digest-only Alice, Bob, catalog-curator, and deletion-only sessions in an
 isolated database; OIDC provider behavior remains covered by a local fake, so
 CI needs no real tenant or secrets.

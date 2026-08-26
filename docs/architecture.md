@@ -175,8 +175,10 @@ The user record distinguishes member, system, and demo accounts and tracks
 active, suspended, and deleted status. OIDC identities store the private exact
 issuer/subject binding separately from the public account fields. Login
 transactions hold one-time state/nonce/PKCE material with short expirations;
-session rows hold only session and CSRF digests, lifecycle timestamps, and the
-member foreign key. Catalog Author and Demo Cook are seeded as non-login
+session rows hold only session and CSRF digests, an immutable provider-auth
+assurance time, other lifecycle timestamps, and the member foreign key. A
+deleted member is retained only as a constrained `Deleted cook` topology
+tombstone with no email or handle. Catalog Author and Demo Cook are seeded as non-login
 identities, and no migration transfers their existing activity to a member.
 
 Each `recipe_lineages` row groups an original recipe and all of its variants.
@@ -195,6 +197,13 @@ digest, optional continue decision, and publication time. Public browse,
 detail, diff, profile, duplicate, and recommendation-candidate repositories
 begin with this shared state predicate rather than treating every arbitrary
 version row as readable.
+
+RCP-30 extends that boundary with effective `published`, `author_withdrawn`, and
+`moderation_hidden` states plus independent author and moderation timestamps.
+Database triggers permit changes only to the narrow lifecycle metadata and
+append every transition to `recipe_version_visibility_events`; publication
+evidence and snapshot content remain immutable. Independent axes prevent a
+future moderator restore from erasing an author's earlier withdrawal.
 
 Every instruction may own an ordered set of structured action instances. Each
 action references one curated cooking-action type, zero or more ordered
@@ -257,9 +266,10 @@ version and insert, update, delete, or truncate attempts against its ordered
 ingredients, instructions, actions, action inputs, and measures. Existing
 fingerprint rows cannot be updated or deleted, while a new algorithm-version
 fingerprint may be appended and is immutable from that point forward.
-Publication evidence itself is append-only. Corrections must create a new
-immutable version through an authorized lifecycle rather than rewrite the
-published snapshot.
+Publication evidence itself remains immutable; only the separately enumerated
+visibility metadata can transition, with append-only audit evidence. Corrections
+must create a new immutable version through an authorized lifecycle rather than
+rewrite the published snapshot.
 
 `recipe_structural_fingerprints` stores one immutable result per recipe version
 and algorithm version. It retains both a lowercase SHA-256 digest and the exact
@@ -349,18 +359,30 @@ created concurrently from different branches. The existing unique constraint
 on `(lineage_id, version_number)` remains a database backstop.
 
 Public identity is a deliberately narrow projection of `users`: stable ID,
-normalized unique handle, and display name. Public browse, detail, and profile
+normalized unique handle, and display name. Deleted-cook topology uses that same
+shape with a null handle and fixed display text, producing no profile route.
+Public browse, detail, and profile
 queries share the publication predicate and eager-load the exact version author
 plus at most one publicly readable direct parent and author. Keeping the bare
 `parent_version_id` while omitting a non-public nested parent preserves graph
 truth without leaking private metadata.
 
 Private recipe libraries are session-derived read models rather than ownership
-parameters. My Recipes pages active drafts and published authored versions in a
-database union, then hydrates only the item kinds present on that page. Saved
+parameters. My Recipes pages active drafts and all authored publication states
+in a database union, then hydrates only the item kinds present on that page.
+That private state is the author withdraw/restore control surface. Saved
 Recipes joins the current member's saves to public versions. Both use bounded
 queries, private non-cacheable responses, and accept no user ID. See
 [cook profiles and recipe libraries](cook-profiles-and-libraries.md).
+
+Account deletion is one transaction after a short provider-backed recent-auth
+check. It tombstones the user, deletes every OIDC mapping and application
+session, removes saves, ratings, events, active drafts, and unreferenced private
+workflow evidence, and scrubs publication-bound draft shells. Restrictive
+topology and audit foreign keys remain valid through the stable tombstone UUID.
+Public visibility is unchanged: public snapshots stay public under `Deleted
+cook`, while author-withdrawn snapshots become permanently unrestorable. See
+[recipe visibility and account lifecycle](recipe-visibility-and-account-lifecycle.md).
 
 Saves and ratings reference exact versions rather than a mutable recipe record.
 Their composite keys allow only one of each interaction per user and version,
@@ -388,8 +410,9 @@ The `MVP acceptance` CI job is a full-stack completion gate rather than a
 mocked frontend test. Each run receives a new PostgreSQL service database,
 applies the complete migration history, and loads the deterministic catalog
 before starting a non-reloading API process and a production Next.js build.
-The guarded job provisions three synthetic onboarded members, including one
-narrow catalog curator, and stores only session/CSRF digests in PostgreSQL.
+The guarded job provisions four synthetic onboarded members, including one
+narrow catalog curator and one deletion-only member, and stores only
+session/CSRF digests in PostgreSQL.
 Raw acceptance tokens live in a private
 temporary file, Playwright traces are disabled for the guarded run, and the
 file is deleted before diagnostics are uploaded. Playwright runs with one
@@ -401,8 +424,11 @@ and rating state, curator-only ingredient review, original publication, and an
 uninterrupted cross-user private-fork, source-aware review, publication, and
 direct-parent comparison journey. They never intercept the real
 write path and therefore verify the session, CSRF, browser-to-database path,
-member attribution, lineage persistence, no-change acknowledgement, and diff
-result together. Backend integration separately verifies exactly-one event,
+member attribution, lineage persistence, no-change acknowledgement, and the
+complete diff result. The lifecycle journey also proves author-only withdrawal and restore,
+an independently public child with an unavailable source, irreversible private
+account cleanup, and retained public authorship under `Deleted cook`.
+Backend integration separately verifies exactly-one event,
 retry, rollback, source-loss, and concurrent-sibling behavior. Keyboard
 activation and automated WCAG A/AA checks cover the basic accessibility gate.
 The test is disabled unless both

@@ -175,9 +175,15 @@ The account routes are:
 - `GET /api/auth/session` for anonymous, onboarding-required, or authenticated
   state;
 - `PATCH /api/auth/session/profile` for handle/display-name onboarding; and
-- `POST /api/auth/logout` for server-side session revocation.
+- `POST /api/auth/logout` for server-side session revocation;
+- `GET /api/auth/reauthenticate` for a provider-backed, session-bound recent
+  authentication check; and
+- `DELETE /api/auth/account` for atomic private-data erasure and account
+  tombstoning.
 
-Only a digest of each high-entropy session token is stored. The opaque session
+Only a digest of each high-entropy session token is stored. The immutable
+`authenticated_at` timestamp controls the short account-deletion assurance
+window; request activity never extends it. The opaque session
 cookie is HttpOnly, SameSite Lax, application-scoped, and Secure outside local
 development. Account mutations additionally require a trusted exact `Origin`
 and the session-bound CSRF token sent in `X-CSRF-Token`. Expired or revoked
@@ -385,18 +391,51 @@ the nested `parent` is `null`; private parent metadata never leaks through a
 public child.
 
 `GET /api/cooks/{handle}` returns one normalized-handle public identity and a
-database-paginated list of that cook's explicitly published versions. Known
-cooks may have an empty profile. `GET /api/my/recipes` returns the active
-session member's current drafts and published originals or forks as a unified,
-discriminated activity page. `GET /api/my/saved-recipes` returns only that
-member's currently saved public versions. The private routes take no user ID,
-are marked `private, no-store`, and vary on the session cookie.
+database-paginated list of that cook's currently public versions. Known cooks
+may have an empty profile. `GET /api/my/recipes` returns the active session
+member's current drafts and every authored publication as a unified,
+discriminated activity page, with a private `visibility_state` on publication
+entries. `GET /api/my/saved-recipes` returns only that member's currently saved
+public versions. The private routes take no user ID, are marked `private,
+no-store`, and vary on the session cookie.
 
 All card paths eagerly load bounded author and public-parent context. Query
 counts therefore stay fixed as a page grows rather than issuing requests or
 database queries for each card. The full identity, privacy, pagination, and
 verification contract is documented in
 [cook profiles and recipe libraries](../docs/cook-profiles-and-libraries.md).
+
+## Recipe visibility and account lifecycle
+
+`PUT /api/recipes/{recipe_version_id}/visibility` lets only the exact version
+author choose `published` or `author_withdrawn`. The transaction holds the same
+publication guard used by duplicate review and fork publication, locks the
+publication row, records the state actor and time, and relies on a database
+trigger for append-only visibility evidence. The snapshot, publication receipt,
+lineage, version number, and descendants never change. `moderation_hidden` is a
+separate effective state reserved for RCP-31; an author cannot restore it, and
+its independent timestamp preserves any earlier author withdrawal.
+
+All public recipe repositories begin with the same publication-state predicate.
+Unavailable direct reads use one opaque not-found contract. A readable child
+whose parent is unavailable retains `parent_version_id` but has `parent: null`,
+and a public diff never loads the unavailable parent. Interaction replays,
+duplicate candidates, profiles, libraries, recommendations, fork-draft
+creation, and fork publication rechecks use the same rule.
+
+Account deletion requires recent authentication, exact Origin, and the
+session-bound CSRF token. A stale session receives
+`recent_authentication_required` and must complete a one-time OIDC flow with
+`prompt=login`, `max_age=0`, exact issuer/subject binding, and fresh `auth_time`.
+Missing provider `auth_time` is unknown rather than recent, and future values
+beyond the configured clock skew are rejected. Members can delete before
+choosing a handle; the browser uses `DELETE` as that confirmation phrase.
+Deletion removes the identity mapping, private email and handle, every session,
+saves, ratings, preference events, private draft content, and unreferenced
+private workflow evidence in one transaction. Immutable public versions remain
+under a constrained `Deleted cook` tombstone with a null handle; already
+withdrawn versions remain unavailable. The complete policy is documented in
+[recipe visibility and account lifecycle](../docs/recipe-visibility-and-account-lifecycle.md).
 
 ## Recipe duplicate preflight
 
