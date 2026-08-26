@@ -125,6 +125,12 @@ export function AccountMenu() {
             Review ingredient requests
           </GuardedLink>
         ) : null}
+        {state.session.status === "authenticated" &&
+        state.session.capabilities?.moderate_recipe_reports ? (
+          <GuardedLink className="account-menu__link" href="/moderation/recipes">
+            Review recipe reports
+          </GuardedLink>
+        ) : null}
         <button
           className="account-menu__action"
           type="button"

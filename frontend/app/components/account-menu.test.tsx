@@ -76,7 +76,7 @@ describe("AccountMenu", () => {
         initialSession={{
           status: "authenticated",
           user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
-          capabilities: { review_ingredient_requests: false },
+          capabilities: { review_ingredient_requests: false, moderate_recipe_reports: false },
         }}
       >
         <AccountMenu />
@@ -106,6 +106,7 @@ describe("AccountMenu", () => {
     expect(
       screen.queryByRole("link", { name: "Review ingredient requests" }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Review recipe reports" })).not.toBeInTheDocument();
 
     rerender(
       <AuthSessionProvider
@@ -113,7 +114,7 @@ describe("AccountMenu", () => {
         initialSession={{
           status: "authenticated",
           user: { id: "curator-id", display_name: "Casey Curator", handle: "casey" },
-          capabilities: { review_ingredient_requests: true },
+          capabilities: { review_ingredient_requests: true, moderate_recipe_reports: false },
         }}
       >
         <AccountMenu />
@@ -127,6 +128,28 @@ describe("AccountMenu", () => {
     expect(
       screen.getByRole("link", { name: "Review ingredient requests" }),
     ).toHaveAttribute("href", "/catalog/ingredient-requests");
+    expect(screen.queryByRole("link", { name: "Review recipe reports" })).not.toBeInTheDocument();
+  });
+
+  it("shows recipe moderation independently from catalog curation", () => {
+    render(
+      <AuthSessionProvider
+        initialSession={{
+          status: "authenticated",
+          user: { id: "moderator-id", display_name: "Morgan Moderator", handle: "morgan" },
+          capabilities: { review_ingredient_requests: false, moderate_recipe_reports: true },
+        }}
+      >
+        <AccountMenu />
+      </AuthSessionProvider>,
+    );
+
+    fireEvent.click(screen.getByLabelText("Account menu for Morgan Moderator"));
+    expect(screen.getByRole("link", { name: "Review recipe reports" })).toHaveAttribute(
+      "href",
+      "/moderation/recipes",
+    );
+    expect(screen.queryByRole("link", { name: "Review ingredient requests" })).not.toBeInTheDocument();
   });
 
   it("closes after a completed route change but stays open when the route does not change", () => {
