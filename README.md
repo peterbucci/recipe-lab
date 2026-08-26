@@ -438,6 +438,20 @@ WCAG A/AA checks. The temporary raw-token fixture is deleted after the suite
 and is never uploaded with diagnostics. M1 is not considered complete unless
 this job passes.
 
+The later stable `RCP-32 community release gate` is the deployment handoff for
+the account-backed community product. A separate fresh-database job creates
+Alice, Bob, a curator, and a moderator through a guarded loopback OIDC provider
+and runs one stateful production-build journey across ingredient approval,
+private authoring, original publication, cross-user forking, duplicate advice,
+reporting, visibility, and account deletion. It also rehearses migration
+rollback and re-upgrade, stages fixed legacy Demo Cook activity to prove that
+account creation never claims it, verifies a real backup/restore, and scans
+retained evidence for private values. Only identifier-free aggregate JSON
+summaries are retained. RCP-21 remains blocked until that aggregate check
+passes; offline ML evaluation is intentionally independent. See the
+[community release gate](docs/community-release-gate.md) for the exact contract
+and guarded local reproduction.
+
 ## Working agreements
 
 - Keep recipe data normalized enough to compare variants without hiding the

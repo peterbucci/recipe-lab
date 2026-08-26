@@ -161,3 +161,13 @@ community-moderator, and deletion-only sessions in an isolated database; OIDC
 provider behavior remains covered by a local fake, so CI needs no real tenant
 or secrets. Reporting, role boundaries, and durable abuse controls are detailed
 in [community rules, reporting, and moderation](community-moderation.md).
+
+RCP-32 adds a stricter deployment-gate path alongside that broad regression.
+Its guarded loopback provider implements discovery, ephemeral RS256 signing,
+Authorization Code with PKCE S256, exact redirect matching, and single-use
+short-lived codes. Alice, Bob, the curator, and the moderator traverse the real
+callback and onboarding flow; no session or role is inserted by the browser
+harness. The provider refuses production or non-loopback configuration, keeps
+all private identity material in memory, and disables access logs. See the
+[community release gate](community-release-gate.md) for its threat boundary and
+privacy-safe evidence rules.
