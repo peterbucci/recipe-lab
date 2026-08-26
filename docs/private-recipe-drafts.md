@@ -210,7 +210,10 @@ event. Fork publication atomically appends exactly one event whose member is the
 authenticated publisher, source is the direct parent, and related version is
 the child. The child version and receipt record that same publisher; the lineage
 creator receives no rights over another member's descendant. This is durable
-authorship evidence, while public cook-profile presentation remains RCP-29.
+authorship evidence. RCP-29 exposes the resulting public version through the
+author's profile and My Recipes while the retained completed draft remains
+absent from active private-draft reads. See
+[cook profiles and recipe libraries](cook-profiles-and-libraries.md).
 
 Success returns `201`,
 `{ "recipe_version_id": "<uuid>", "location": "/recipes/<uuid>" }`, and the

@@ -13,6 +13,7 @@ from app.models import (
     RecipeInstructionActionInput,
     RecipeInstructionActionMeasure,
     RecipeVersion,
+    User,
 )
 from app.schemas.measurements import ExactMeasureResponse
 from app.schemas.recipe_diffs import RecipeDiffResponse
@@ -215,6 +216,12 @@ def _version(
     )
     version.ingredients = ingredients
     version.instructions = instructions
+    version.author = User(
+        id=AUTHOR_ID,
+        email="recipe-diff-author@example.test",
+        handle="recipe-diff-author",
+        display_name="Recipe Diff Author",
+    )
     return version
 
 

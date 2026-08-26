@@ -11,7 +11,7 @@ interface RecipeCardProps {
 export function RecipeCard({ recipe }: RecipeCardProps) {
   const titleId = `recipe-card-title-${recipe.id}`;
   const versionLabel = recipe.parent_version_id
-    ? `Version ${recipe.version_number}`
+    ? `Fork · Version ${recipe.version_number}`
     : "Original";
 
   return (
@@ -26,9 +26,25 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
           <h3 id={titleId}>
             <Link href={`/recipes/${recipe.id}`}>{recipe.title}</Link>
           </h3>
+          <p className="recipe-card__attribution">
+            By{" "}
+            <Link href={`/cooks/${encodeURIComponent(recipe.author.handle)}`}>
+              {recipe.author.display_name}
+            </Link>
+          </p>
           <p className="recipe-card__description">
             {recipe.description ?? "No description provided."}
           </p>
+          {recipe.parent ? (
+            <p className="recipe-card__parent">
+              Based on{" "}
+              <Link href={`/recipes/${recipe.parent.id}`}>{recipe.parent.title}</Link>
+              {" by "}
+              <Link href={`/cooks/${encodeURIComponent(recipe.parent.author.handle)}`}>
+                {recipe.parent.author.display_name}
+              </Link>
+            </p>
+          ) : null}
           <span className="text-link recipe-card__link-hint" aria-hidden="true">
             View recipe <span aria-hidden="true">→</span>
           </span>

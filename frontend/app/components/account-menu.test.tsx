@@ -9,16 +9,19 @@ import {
 } from "./auth-session-provider";
 
 const routerMocks = vi.hoisted(() => ({
+  pathname: "/",
   refresh: vi.fn(),
   replace: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => routerMocks.pathname,
   useRouter: () => routerMocks,
 }));
 
 afterEach(() => {
   document.cookie = `${CSRF_COOKIE_NAME}=; Max-Age=0; Path=/`;
+  routerMocks.pathname = "/";
   routerMocks.refresh.mockReset();
   routerMocks.replace.mockReset();
   vi.unstubAllGlobals();
@@ -77,6 +80,18 @@ describe("AccountMenu", () => {
     );
 
     fireEvent.click(screen.getByLabelText("Account menu for Alice Cook"));
+    expect(screen.getByRole("link", { name: "Public profile" })).toHaveAttribute(
+      "href",
+      "/cooks/alice",
+    );
+    expect(screen.getByRole("link", { name: "My recipes" })).toHaveAttribute(
+      "href",
+      "/account/recipes",
+    );
+    expect(screen.getByRole("link", { name: "Saved recipes" })).toHaveAttribute(
+      "href",
+      "/account/saved-recipes",
+    );
     expect(
       screen.getByRole("link", { name: "My ingredient requests" }),
     ).toHaveAttribute("href", "/account/ingredient-requests");
@@ -104,6 +119,36 @@ describe("AccountMenu", () => {
     expect(
       screen.getByRole("link", { name: "Review ingredient requests" }),
     ).toHaveAttribute("href", "/catalog/ingredient-requests");
+  });
+
+  it("closes after a completed route change but stays open when the route does not change", () => {
+    function authenticatedMenu() {
+      return (
+        <AuthSessionProvider
+          initialSession={{
+            status: "authenticated" as const,
+            user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
+          }}
+        >
+          <AccountMenu />
+        </AuthSessionProvider>
+      );
+    }
+
+    const { rerender } = render(authenticatedMenu());
+    const summary = screen.getByLabelText("Account menu for Alice Cook");
+    const menu = summary.closest("details");
+    expect(menu).not.toBeNull();
+
+    fireEvent.click(summary);
+    expect(menu).toHaveAttribute("open");
+
+    rerender(authenticatedMenu());
+    expect(menu).toHaveAttribute("open");
+
+    routerMocks.pathname = "/catalog/ingredient-requests";
+    rerender(authenticatedMenu());
+    expect(menu).not.toHaveAttribute("open");
   });
 
   it("signs out with CSRF protection and replaces the menu with sign-in", async () => {

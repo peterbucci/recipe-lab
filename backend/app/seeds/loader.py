@@ -62,6 +62,7 @@ from app.services.recipe_fingerprint_persistence import (
 CATALOG_USER_KEY = "catalog-author"
 CATALOG_USER_EMAIL = "demo-catalog@recipe-lab.invalid"
 CATALOG_USER_DISPLAY_NAME = "Recipe Lab Demo Catalog"
+CATALOG_USER_HANDLE = "recipe-lab-catalog"
 SEED_ADVISORY_LOCK_ID = 0x52435005
 
 
@@ -451,6 +452,7 @@ def _get_or_create_user(
     expected_id: UUID,
     email: str,
     display_name: str,
+    handle: str | None,
     account_kind: str,
     created_at: datetime,
 ) -> User:
@@ -458,25 +460,36 @@ def _get_or_create_user(
     conflicting_email_owner = session.scalar(
         select(User).where(User.email == email, User.id != expected_id).limit(1)
     )
+    conflicting_handle_owner = (
+        session.scalar(select(User).where(User.handle == handle, User.id != expected_id).limit(1))
+        if handle is not None
+        else None
+    )
     if by_id is not None:
         if (
             by_id.email != email
             or by_id.display_name != display_name
+            or by_id.handle != handle
             or by_id.account_kind != account_kind
             or by_id.created_at != created_at
         ):
             raise _conflict("user", stable_key, "deterministic UUID has different content")
         if conflicting_email_owner is not None:
             raise _conflict("user", stable_key, "seed email belongs to another user")
+        if conflicting_handle_owner is not None:
+            raise _conflict("user", stable_key, "public handle belongs to another user")
         report.reused["users"] += 1
         return by_id
     if conflicting_email_owner is not None:
         raise _conflict("user", stable_key, "seed email has a non-deterministic UUID")
+    if conflicting_handle_owner is not None:
+        raise _conflict("user", stable_key, "public handle belongs to another user")
 
     created = User(
         id=expected_id,
         email=email,
         display_name=display_name,
+        handle=handle,
         account_kind=account_kind,
         created_at=created_at,
         updated_at=created_at,
@@ -499,6 +512,7 @@ def _get_or_create_catalog_user(
         expected_id=seed_uuid(catalog.metadata.dataset_id, "user", CATALOG_USER_KEY),
         email=CATALOG_USER_EMAIL,
         display_name=CATALOG_USER_DISPLAY_NAME,
+        handle=CATALOG_USER_HANDLE,
         account_kind=ACCOUNT_KIND_SYSTEM,
         created_at=catalog.published_at,
     )
@@ -515,6 +529,7 @@ def _get_or_create_demo_user(
         expected_id=DEMO_USER_ID,
         email=DEMO_USER_EMAIL,
         display_name=DEMO_USER_DISPLAY_NAME,
+        handle=None,
         account_kind=ACCOUNT_KIND_DEMO,
         created_at=DEMO_USER_CREATED_AT,
     )

@@ -3,7 +3,7 @@ from typing import cast
 from uuid import UUID
 
 from sqlalchemy import distinct, func, select
-from sqlalchemy.orm import Session, raiseload, selectinload
+from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
 from app.models import (
     PreferenceEvent,
@@ -144,7 +144,14 @@ def load_recommendation_data(
             event_aggregates.c.recipe_version_id == RecipeVersion.id,
         )
         .where(publicly_readable_recipe_version_filter())
-        .options(selectinload(RecipeVersion.ingredients), raiseload("*"))
+        .options(
+            joinedload(RecipeVersion.author),
+            selectinload(
+                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
+            ).joinedload(RecipeVersion.author),
+            selectinload(RecipeVersion.ingredients),
+            raiseload("*"),
+        )
         .order_by(
             func.lower(func.btrim(RecipeVersion.title)),
             func.btrim(RecipeVersion.title),

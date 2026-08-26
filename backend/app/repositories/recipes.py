@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Numeric, cast, exists, func, or_, select
+from sqlalchemy import ColumnElement, Numeric, and_, cast, exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
 from app.models import (
@@ -14,6 +14,7 @@ from app.models import (
     RecipeStructuralFingerprint,
     RecipeVersion,
     RecipeVersionPublication,
+    User,
 )
 from app.repositories.ingredients import resolve_ingredient_name
 
@@ -48,9 +49,15 @@ def publicly_readable_recipe_version_filter() -> ColumnElement[bool]:
     publication transaction can never leak through a public adapter.
     """
 
-    return exists().where(
-        RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
-        RecipeVersionPublication.state == "published",
+    return and_(
+        exists().where(
+            RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+            RecipeVersionPublication.state == "published",
+        ),
+        exists().where(
+            User.id == RecipeVersion.created_by_user_id,
+            User.handle.is_not(None),
+        ),
     )
 
 
@@ -102,6 +109,13 @@ def browse_recipe_versions(
     total = session.scalar(select(func.count()).select_from(RecipeVersion).where(*filters))
     statement = (
         select(RecipeVersion)
+        .options(
+            joinedload(RecipeVersion.author),
+            selectinload(
+                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
+            ).joinedload(RecipeVersion.author),
+            raiseload("*"),
+        )
         .where(*filters)
         .order_by(
             func.lower(func.btrim(RecipeVersion.title)),
@@ -125,10 +139,13 @@ def get_recipe_version(
     statement = (
         select(RecipeVersion)
         .options(
-            joinedload(RecipeVersion.parent.and_(RecipeVersion.publication.has(state="published"))),
+            joinedload(RecipeVersion.author),
             selectinload(
-                RecipeVersion.descendants.and_(RecipeVersion.publication.has(state="published"))
-            ),
+                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
+            ).joinedload(RecipeVersion.author),
+            selectinload(
+                RecipeVersion.descendants.and_(publicly_readable_recipe_version_filter())
+            ).joinedload(RecipeVersion.author),
             selectinload(RecipeVersion.ingredients).options(
                 joinedload(RecipeIngredient.ingredient),
                 joinedload(RecipeIngredient.measurement_unit),
@@ -150,6 +167,37 @@ def get_recipe_version(
         )
     )
     return session.scalar(statement)
+
+
+def browse_public_recipe_versions_by_author(
+    session: Session,
+    *,
+    author_user_id: UUID,
+    offset: int,
+    limit: int,
+) -> RecipeBrowseResult:
+    """List only explicit public snapshots authored by one exact user."""
+
+    filters = (
+        RecipeVersion.created_by_user_id == author_user_id,
+        publicly_readable_recipe_version_filter(),
+    )
+    total = session.scalar(select(func.count()).select_from(RecipeVersion).where(*filters)) or 0
+    statement = (
+        select(RecipeVersion)
+        .options(
+            joinedload(RecipeVersion.author),
+            selectinload(
+                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
+            ).joinedload(RecipeVersion.author),
+            raiseload("*"),
+        )
+        .where(*filters)
+        .order_by(RecipeVersion.created_at.desc(), RecipeVersion.id)
+        .offset(offset)
+        .limit(limit)
+    )
+    return RecipeBrowseResult(items=list(session.scalars(statement)), total=total)
 
 
 def list_public_recipe_duplicate_candidates(

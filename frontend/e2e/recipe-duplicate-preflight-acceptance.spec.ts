@@ -24,9 +24,12 @@ async function publicRecipeVersionId(
 
 async function openCarrotFork(page: Page): Promise<string> {
   await page.goto("/recipes?q=carrot");
-  await page
+  const rootRecipeCard = page
+    .getByRole("article", { name: "Carrot Walnut Snack Cake", exact: true })
+    .filter({ has: page.getByText("Original", { exact: true }) });
+  await expect(rootRecipeCard).toHaveCount(1);
+  await rootRecipeCard
     .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
-    .first()
     .click();
   await page
     .getByRole("link", { name: "Make your own version", exact: true })

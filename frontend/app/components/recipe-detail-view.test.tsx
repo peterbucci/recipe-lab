@@ -41,11 +41,22 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     description: "The original snack cake with less sugar and pecans.",
     servings: "8.00",
     created_at: "2026-08-20T00:00:00Z",
+    author: { id: "cook-two", handle: "second-cook", display_name: "Second Cook" },
     average_rating: 4.5,
     rating_count: 2,
     viewer_state: null,
-    parent: { id: "carrot-v1", version_number: 1, title: "Carrot Walnut Snack Cake" },
-    children: [{ id: "carrot-v3", version_number: 3, title: "Orange Raisin Carrot Cake" }],
+    parent: {
+      id: "carrot-v1",
+      version_number: 1,
+      title: "Carrot Walnut Snack Cake",
+      author: { id: "cook-one", handle: "first-cook", display_name: "First Cook" },
+    },
+    children: [{
+      id: "carrot-v3",
+      version_number: 3,
+      title: "Orange Raisin Carrot Cake",
+      author: { id: "cook-three", handle: "third-cook", display_name: "Third Cook" },
+    }],
     ingredients: [
       {
         id: "sugar-line",
@@ -168,6 +179,17 @@ describe("RecipeDetailView", () => {
     );
     expect(screen.getByText("140 g")).toBeInTheDocument();
     expect(screen.getByText(/catalog name: granulated sugar/i)).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Second Cook" })[0]).toHaveAttribute(
+      "href",
+      "/cooks/second-cook",
+    );
+    expect(screen.getByText(/this fork is based directly on/i)).toHaveTextContent(
+      "This fork is based directly on Carrot Walnut Snack Cake by First Cook. Lineage describes the recipe relationship, not endorsement or ownership.",
+    );
+    expect(screen.getAllByRole("link", { name: "First Cook" })[0]).toHaveAttribute(
+      "href",
+      "/cooks/first-cook",
+    );
 
     const instructions = screen.getByRole("heading", { name: /instructions/i }).closest("section");
     expect(instructions).not.toBeNull();

@@ -27,13 +27,10 @@ from app.schemas.recipe_diffs import (
     RecipeInstructionDiff,
     RecipeInstructionPairChange,
 )
-from app.schemas.recipes import (
-    RecipeIngredientResponse,
-    RecipeInstructionResponse,
-    RecipeVersionReference,
-)
+from app.schemas.recipes import RecipeIngredientResponse, RecipeInstructionResponse
 from app.services.actions import serialize_instruction_action
 from app.services.measurements import serialize_measure
+from app.services.recipe_responses import recipe_version_reference
 
 
 class _OrderedIdentified(Protocol):
@@ -640,8 +637,8 @@ def build_recipe_diff(
     )
     return RecipeDiffResponse(
         lineage_id=target.lineage_id,
-        base_version=RecipeVersionReference.model_validate(base),
-        target_version=RecipeVersionReference.model_validate(target),
+        base_version=recipe_version_reference(base),
+        target_version=recipe_version_reference(target),
         metadata_changes=metadata_changes,
         ingredients=ingredients,
         ingredient_context=RecipeIngredientContext(

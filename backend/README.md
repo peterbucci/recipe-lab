@@ -352,9 +352,9 @@ adds the immutable publication receipt, and marks the retained draft
 fork, the same member is also the actor on exactly one preference event whose
 source is the direct parent and whose related version is the new child. The
 lineage creator retains no edit, publication, withdrawal, or moderation rights
-over another member's child. Public cook-profile presentation remains RCP-29;
-RCP-28 persists attribution without exposing private account fields. Original
-publication appends no fork or other preference event.
+over another member's child. RCP-29 presents that persisted attribution through
+an explicit public reference containing only stable ID, handle, and display
+name. Original publication appends no fork or other preference event.
 
 Any validation or database failure rolls back the entire transition and leaves
 the draft active and editable. An exact retry by the same member with the same
@@ -374,6 +374,29 @@ its stable ID or lineage topology. Database guards reject update, delete, and
 truncate attempts against a published snapshot and its ordered child content.
 Corrections therefore require a new immutable version. Fork publication never
 rewrites its source or moves a child into a new lineage.
+
+## Cook profiles and member libraries
+
+Recipe browse and detail responses identify the author of the exact immutable
+version. Forks additionally expose a bounded direct-parent reference with that
+parent's author when the parent is still public. If the immutable parent ID is
+known but its snapshot is not public, `parent_version_id` remains present while
+the nested `parent` is `null`; private parent metadata never leaks through a
+public child.
+
+`GET /api/cooks/{handle}` returns one normalized-handle public identity and a
+database-paginated list of that cook's explicitly published versions. Known
+cooks may have an empty profile. `GET /api/my/recipes` returns the active
+session member's current drafts and published originals or forks as a unified,
+discriminated activity page. `GET /api/my/saved-recipes` returns only that
+member's currently saved public versions. The private routes take no user ID,
+are marked `private, no-store`, and vary on the session cookie.
+
+All card paths eagerly load bounded author and public-parent context. Query
+counts therefore stay fixed as a page grows rather than issuing requests or
+database queries for each card. The full identity, privacy, pagination, and
+verification contract is documented in
+[cook profiles and recipe libraries](../docs/cook-profiles-and-libraries.md).
 
 ## Recipe duplicate preflight
 

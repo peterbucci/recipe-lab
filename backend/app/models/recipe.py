@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from app.models.measurement import IngredientPackageSize, MeasurementUnit
     from app.models.recipe_draft import RecipeDraft
     from app.models.recipe_fingerprint import RecipeStructuralFingerprint
+    from app.models.user import User
 
 
 RECIPE_PUBLICATION_STATE_PUBLISHED = "published"
@@ -102,6 +103,7 @@ class RecipeVersion(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     servings: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
 
     lineage: Mapped[RecipeLineage] = relationship(back_populates="versions")
+    author: Mapped["User"] = relationship(foreign_keys=[created_by_user_id])
     parent: Mapped["RecipeVersion | None"] = relationship(
         back_populates="descendants",
         primaryjoin="RecipeVersion.parent_version_id == RecipeVersion.id",

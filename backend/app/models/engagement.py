@@ -37,6 +37,14 @@ class RecipeSave(Base):
     recipe_version: Mapped["RecipeVersion"] = relationship(back_populates="saves")
 
 
+_recipe_save_library_index = Index(
+    "ix_recipe_saves_user_created_recipe",
+    RecipeSave.user_id,
+    RecipeSave.created_at.desc(),
+    RecipeSave.recipe_version_id,
+)
+
+
 class RecipeRating(Base):
     __tablename__ = "recipe_ratings"
     __table_args__ = (
