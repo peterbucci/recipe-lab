@@ -9,10 +9,14 @@ from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import Connection, Engine, inspect
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
+from app.core.demo_identity import DEMO_USER_DISPLAY_NAME, DEMO_USER_EMAIL, DEMO_USER_ID
 from app.measurement_audit import build_legacy_measurement_audit
+from app.repositories.recipes import browse_recipe_versions
 from app.seeds.catalog import load_bundled_catalog
 from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
+from app.services.recipe_responses import recipe_summary_response
 
 DOMAIN_TABLES = {
     "allergens",
@@ -54,6 +58,7 @@ DOMAIN_TABLES = {
     "recipe_version_ingredients",
     "recipe_version_instructions",
     "recipe_version_publications",
+    "recipe_version_visibility_events",
     "recipe_versions",
     "users",
     "user_sessions",
@@ -277,7 +282,9 @@ def test_original_publication_backfills_visibility_and_seals_existing_snapshots(
         publication = connection.execute(
             sa.text(
                 """
-                SELECT state, actor_user_id, source_draft_id, action_id, published_at
+                SELECT state, actor_user_id, source_draft_id, action_id, published_at,
+                       author_withdrawn_at, moderation_hidden_at,
+                       state_changed_at, state_changed_by_user_id
                 FROM recipe_version_publications
                 WHERE recipe_version_id = :version_id
                 """
@@ -286,6 +293,76 @@ def test_original_publication_backfills_visibility_and_seals_existing_snapshots(
         ).one()
         assert publication[0:4] == ("published", user_id, None, None)
         assert publication.published_at is not None
+        assert publication.author_withdrawn_at is None
+        assert publication.moderation_hidden_at is None
+        assert publication.state_changed_at == publication.published_at
+        assert publication.state_changed_by_user_id == user_id
+        initial_event = connection.execute(
+            sa.text(
+                """
+                SELECT previous_state, state, actor_user_id,
+                       author_withdrawn_at, moderation_hidden_at, occurred_at
+                FROM recipe_version_visibility_events
+                WHERE recipe_version_id = :version_id
+                """
+            ),
+            {"version_id": version_id},
+        ).one()
+        assert initial_event[0:5] == (None, "published", user_id, None, None)
+        assert initial_event.occurred_at == publication.state_changed_at
+
+        connection.execute(
+            sa.text(
+                """
+                UPDATE recipe_version_publications
+                SET state = 'author_withdrawn',
+                    author_withdrawn_at = state_changed_at + INTERVAL '1 second',
+                    state_changed_at = state_changed_at + INTERVAL '1 second',
+                    state_changed_by_user_id = :user_id
+                WHERE recipe_version_id = :version_id
+                """
+            ),
+            {"user_id": user_id, "version_id": version_id},
+        )
+        visibility_events = connection.execute(
+            sa.text(
+                """
+                SELECT previous_state, state, actor_user_id, author_withdrawn_at,
+                       moderation_hidden_at, occurred_at
+                FROM recipe_version_visibility_events
+                WHERE recipe_version_id = :version_id
+                ORDER BY id
+                """
+            ),
+            {"version_id": version_id},
+        ).all()
+        assert [(event.previous_state, event.state) for event in visibility_events] == [
+            (None, "published"),
+            ("published", "author_withdrawn"),
+        ]
+        assert visibility_events[-1].actor_user_id == user_id
+        assert visibility_events[-1].author_withdrawn_at is not None
+        assert visibility_events[-1].moderation_hidden_at is None
+        assert visibility_events[-1].occurred_at == visibility_events[-1].author_withdrawn_at
+
+        with pytest.raises(IntegrityError, match="publication evidence is append-only"):
+            with connection.begin_nested():
+                connection.execute(
+                    sa.text(
+                        "UPDATE recipe_version_publications SET actor_user_id = :user_id "
+                        "WHERE recipe_version_id = :version_id"
+                    ),
+                    {"user_id": uuid4(), "version_id": version_id},
+                )
+        with pytest.raises(IntegrityError, match="visibility audit events are append-only"):
+            with connection.begin_nested():
+                connection.execute(
+                    sa.text(
+                        "UPDATE recipe_version_visibility_events SET state = 'published' "
+                        "WHERE recipe_version_id = :version_id"
+                    ),
+                    {"version_id": version_id},
+                )
 
         with pytest.raises(IntegrityError, match="published recipe snapshots are immutable"):
             with connection.begin_nested():
@@ -964,6 +1041,94 @@ def test_secure_account_migration_classifies_seed_users_without_rekeying(
                 display_name="Same Email, Different Identity",
             )
         )
+
+
+def test_public_recipe_migrations_preserve_legacy_demo_cook_attribution(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    lineage_id = uuid4()
+    recipe_version_id = uuid4()
+
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260825_0013")
+
+        metadata = sa.MetaData()
+        users = sa.Table("users", metadata, autoload_with=connection)
+        lineages = sa.Table("recipe_lineages", metadata, autoload_with=connection)
+        versions = sa.Table("recipe_versions", metadata, autoload_with=connection)
+        connection.execute(
+            users.insert().values(
+                id=DEMO_USER_ID,
+                email=DEMO_USER_EMAIL,
+                display_name=DEMO_USER_DISPLAY_NAME,
+                handle=None,
+                account_kind="demo",
+                status="active",
+            )
+        )
+        connection.execute(lineages.insert().values(id=lineage_id, created_by_user_id=DEMO_USER_ID))
+        connection.execute(
+            versions.insert().values(
+                id=recipe_version_id,
+                lineage_id=lineage_id,
+                parent_version_id=None,
+                created_by_user_id=DEMO_USER_ID,
+                version_number=1,
+                title="Legacy Demo Cook recipe",
+                description="A public recipe retained from the shared demo identity.",
+                servings=Decimal("4.00"),
+            )
+        )
+
+        command.upgrade(alembic_config, "head")
+
+        migrated_author = connection.execute(
+            sa.text("SELECT id, handle FROM users WHERE id = CAST(:id AS uuid)"),
+            {"id": str(DEMO_USER_ID)},
+        ).one()
+        assert migrated_author.id == DEMO_USER_ID
+        assert migrated_author.handle is None
+        assert (
+            connection.scalar(
+                sa.text(
+                    "SELECT state FROM recipe_version_publications "
+                    "WHERE recipe_version_id = CAST(:recipe_version_id AS uuid)"
+                ),
+                {"recipe_version_id": str(recipe_version_id)},
+            )
+            == "published"
+        )
+        assert (
+            connection.scalar(
+                sa.text(
+                    "SELECT created_by_user_id FROM recipe_versions "
+                    "WHERE id = CAST(:recipe_version_id AS uuid)"
+                ),
+                {"recipe_version_id": str(recipe_version_id)},
+            )
+            == DEMO_USER_ID
+        )
+
+        with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
+            public_page = browse_recipe_versions(
+                session,
+                search=None,
+                lineage_id=None,
+                ingredient_name=None,
+                is_variant=None,
+                offset=0,
+                limit=10,
+            )
+            assert [recipe.id for recipe in public_page.items] == [recipe_version_id]
+            summary = recipe_summary_response(public_page.items[0]).model_dump(mode="json")
+
+        assert summary["author"] == {
+            "id": str(DEMO_USER_ID),
+            "handle": None,
+            "display_name": DEMO_USER_DISPLAY_NAME,
+        }
 
 
 def test_activity_migration_preserves_legacy_actor_and_scopes_action_keys(

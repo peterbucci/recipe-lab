@@ -17,7 +17,6 @@ from app.models import (
     RecipeInstructionActionInput,
     RecipeLineage,
     RecipeVersion,
-    User,
 )
 from app.seeds.identifiers import action_uuid, measurement_uuid
 from app.services.recipe_fingerprints import STRUCTURAL_FINGERPRINT_STORAGE_VERSION
@@ -53,21 +52,29 @@ def _load_complete_and_incomplete_versions(connection: Connection) -> tuple[UUID
         ) as session,
         session.begin(),
     ):
-        user = User(
-            email=f"incomplete-fingerprint-{uuid4()}@example.test",
-            display_name="Fingerprint migration",
+        user_id = uuid4()
+        session.execute(
+            sa.text(
+                "INSERT INTO users "
+                "(id, email, display_name, account_kind, status) "
+                "VALUES (:id, :email, 'Fingerprint migration', 'member', 'active')"
+            ),
+            {
+                "id": user_id,
+                "email": f"incomplete-fingerprint-{uuid4()}@example.test",
+            },
         )
         ingredient = Ingredient(canonical_name=f"Migration ingredient {uuid4()}")
-        session.add_all([user, ingredient])
+        session.add(ingredient)
         session.flush()
 
-        complete_lineage = RecipeLineage(created_by_user_id=user.id)
+        complete_lineage = RecipeLineage(created_by_user_id=user_id)
         session.add(complete_lineage)
         session.flush()
         complete = RecipeVersion(
             lineage_id=complete_lineage.id,
             parent_version_id=None,
-            created_by_user_id=user.id,
+            created_by_user_id=user_id,
             version_number=1,
             title="Mapped recipe",
             description="This prose is outside the fingerprint.",
@@ -112,13 +119,13 @@ def _load_complete_and_incomplete_versions(connection: Connection) -> tuple[UUID
             )
         )
 
-        incomplete_lineage = RecipeLineage(created_by_user_id=user.id)
+        incomplete_lineage = RecipeLineage(created_by_user_id=user_id)
         session.add(incomplete_lineage)
         session.flush()
         incomplete = RecipeVersion(
             lineage_id=incomplete_lineage.id,
             parent_version_id=None,
-            created_by_user_id=user.id,
+            created_by_user_id=user_id,
             version_number=1,
             title="Unmapped legacy recipe",
             description="No reviewed structural rows.",
@@ -155,7 +162,7 @@ def test_migration_backfills_only_complete_versions_without_mutating_content(
 
         command.upgrade(alembic_config, "head")
 
-        assert MigrationContext.configure(connection).get_current_revision() == ("20260826_0015")
+        assert MigrationContext.configure(connection).get_current_revision() == ("20260826_0017")
         stored = _stored_fingerprints(connection)
         assert len(stored) == 1
         assert stored[0][0] == complete_id
