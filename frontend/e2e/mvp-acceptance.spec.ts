@@ -55,6 +55,7 @@ test.describe("MVP acceptance", () => {
     await Promise.all([
       page.waitForURL((url) => recipePathPattern.test(url.pathname)),
       page
+        .getByRole("article", { name: "Carrot Walnut Snack Cake", exact: true })
         .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
         .click(),
     ]);

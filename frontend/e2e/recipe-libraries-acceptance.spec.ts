@@ -91,8 +91,11 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
 
       await page.goto("/account/recipes");
       const aliceList = page.getByRole("list", { name: "My recipes" });
-      await expect(aliceList.getByRole("heading", { name: title })).toBeVisible();
-      await expect(aliceList.getByText("Private", { exact: true })).toBeVisible();
+      const aliceDraftHeading = aliceList.getByRole("heading", { name: title, exact: true });
+      const aliceDraftCard = aliceList.getByRole("article", { name: title, exact: true });
+      await expect(aliceDraftCard).toHaveCount(1);
+      await expect(aliceDraftHeading).toBeVisible();
+      await expect(aliceDraftCard.getByText("Private", { exact: true })).toBeVisible();
 
       const bobLibrary = await memberGet(page, "bob", "/api/my/recipes?page=1&page_size=100");
       expect(bobLibrary.status(), await bobLibrary.text()).toBe(200);

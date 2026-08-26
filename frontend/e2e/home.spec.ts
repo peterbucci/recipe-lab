@@ -11,9 +11,15 @@ async function activateWithKeyboard(page: Page, control: Locator): Promise<void>
   throw new Error("The expected control was not reachable through keyboard navigation.");
 }
 
+function carrotRootCard(page: Page): Locator {
+  return page.getByRole("article", { name: "Carrot Walnut Snack Cake", exact: true });
+}
+
 async function openCarrotRoot(page: Page): Promise<string> {
   await page.goto("/recipes?q=carrot");
-  await page.getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true }).click();
+  await carrotRootCard(page)
+    .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Carrot Walnut Snack Cake", level: 1 }),
   ).toBeVisible();
@@ -57,7 +63,10 @@ test("browses, searches, and opens a structured recipe anonymously", async ({ pa
   await recipeType.getByRole("link", { name: "Originals", exact: true }).click();
   await expect(page).toHaveURL("/recipes?q=carrot&type=originals");
   await expect(
-    page.getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true }),
+    carrotRootCard(page).getByRole("link", {
+      name: "Carrot Walnut Snack Cake",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Lower-Sugar Pecan Carrot Cake", exact: true }),
@@ -70,7 +79,9 @@ test("browses, searches, and opens a structured recipe anonymously", async ({ pa
   ).toBeVisible();
 
   await recipeType.getByRole("link", { name: "All", exact: true }).click();
-  await page.getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true }).click();
+  await carrotRootCard(page)
+    .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
+    .click();
   await expect(page.getByRole("heading", { name: /ingredients/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /instructions/i })).toBeVisible();
   await expect(page.getByRole("region", { name: "Member recipe actions" })).toContainText(
