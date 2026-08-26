@@ -8,8 +8,10 @@ from sqlalchemy.exc import IntegrityError
 
 from app.api.dependencies import (
     CsrfProtectedSessionDependency,
+    CsrfProtectedUntouchedSessionDependency,
     OIDCClientDependency,
     OptionalAuthenticatedSessionDependency,
+    RequiredAuthenticatedSessionDependency,
     SessionDependency,
     SettingsDependency,
 )
@@ -21,6 +23,7 @@ from app.core.security import (
     secrets_match,
     token_digest,
 )
+from app.models.auth import OIDC_LOGIN_PURPOSE_REAUTHENTICATE
 from app.repositories.auth import (
     consume_oidc_login_transaction,
     delete_oidc_login_transaction,
@@ -35,12 +38,19 @@ from app.schemas.auth import (
     MemberSessionResponse,
 )
 from app.schemas.errors import ErrorResponse
+from app.services.account_lifecycle import (
+    AccountDeletionNotAllowedError,
+    RecentAuthenticationRequiredError,
+    delete_member_account,
+)
 from app.services.auth import (
     AccountCannotAuthenticateError,
     AuthenticatedSession,
     HandleUnavailableError,
     begin_oidc_login,
+    begin_oidc_reauthentication,
     issue_member_session,
+    issue_reauthenticated_session,
     revoke_authenticated_session,
     update_member_profile,
     utc_now,
@@ -151,6 +161,33 @@ def _clear_auth_cookies(response: Response, settings: SettingsDependency) -> Non
     )
 
 
+def _reauthentication_failure_redirect(
+    *,
+    settings: SettingsDependency,
+    return_path: str,
+) -> RedirectResponse:
+    response = RedirectResponse(
+        "/auth/callback?"
+        + urlencode(
+            {
+                "error": "reauthentication_failed",
+                "return_to": return_path,
+            }
+        ),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+    response.delete_cookie(
+        AUTH_LOGIN_COOKIE_NAME,
+        path="/api/auth/callback",
+        secure=settings.auth_cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )
+    response.headers["Referrer-Policy"] = "no-referrer"
+    _set_no_store(response)
+    return response
+
+
 @router.get(
     "/login",
     response_class=RedirectResponse,
@@ -203,6 +240,68 @@ def start_login(
 
 
 @router.get(
+    "/reauthenticate",
+    response_class=RedirectResponse,
+    responses=AUTH_ERROR_RESPONSES,
+    summary="Reauthenticate before a sensitive account action",
+)
+def start_reauthentication(
+    session: SessionDependency,
+    settings: SettingsDependency,
+    oidc_client: OIDCClientDependency,
+    authenticated: RequiredAuthenticatedSessionDependency,
+    return_to: Annotated[
+        str,
+        Query(min_length=1, max_length=2048, description="Local path to return to."),
+    ] = "/account",
+) -> RedirectResponse:
+    try:
+        login = begin_oidc_reauthentication(
+            session,
+            settings=settings,
+            oidc_client=oidc_client,
+            authenticated=authenticated,
+            return_path=return_to,
+            now=utc_now(),
+        )
+        session.commit()
+    except AccountCannotAuthenticateError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=401,
+            code="authentication_required",
+            message="Sign in to continue.",
+        ) from error
+    except ValueError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=422,
+            code="invalid_return_path",
+            message="The return path is invalid.",
+        ) from error
+    except (OIDCConfigurationError, OIDCProviderUnavailableError) as error:
+        session.rollback()
+        raise _auth_unavailable(error) from error
+
+    response = RedirectResponse(
+        login.authorization_url,
+        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+    )
+    response.set_cookie(
+        AUTH_LOGIN_COOKIE_NAME,
+        login.state,
+        max_age=settings.oidc_login_ttl_seconds,
+        secure=settings.auth_cookie_secure,
+        httponly=True,
+        samesite="lax",
+        path="/api/auth/callback",
+    )
+    response.headers["Referrer-Policy"] = "no-referrer"
+    _set_no_store(response)
+    return response
+
+
+@router.get(
     "/callback",
     response_class=RedirectResponse,
     responses=AUTH_ERROR_RESPONSES,
@@ -233,9 +332,17 @@ def complete_login(
         nonce = login_transaction.nonce
         verifier = login_transaction.pkce_verifier
         return_path = login_transaction.return_path
+        login_purpose = login_transaction.purpose
+        bound_session_id = login_transaction.bound_session_id
+        reauthentication_started_at = login_transaction.created_at
         delete_oidc_login_transaction(session, login_transaction)
 
     if provider_error is not None or code is None:
+        if login_purpose == OIDC_LOGIN_PURPOSE_REAUTHENTICATE:
+            return _reauthentication_failure_redirect(
+                settings=settings,
+                return_path=return_path,
+            )
         raise _invalid_login()
 
     try:
@@ -243,24 +350,56 @@ def complete_login(
             code=code,
             code_verifier=verifier,
             expected_nonce=nonce,
+            require_auth_time_after=(
+                reauthentication_started_at
+                if login_purpose == OIDC_LOGIN_PURPOSE_REAUTHENTICATE
+                else None
+            ),
         )
         with session.begin():
-            issued = issue_member_session(
-                session,
-                settings=settings,
-                identity=identity,
-                return_path=return_path,
-                now=utc_now(),
-            )
+            if login_purpose == OIDC_LOGIN_PURPOSE_REAUTHENTICATE:
+                if bound_session_id is None:
+                    raise AccountCannotAuthenticateError("Account cannot authenticate.")
+                issued = issue_reauthenticated_session(
+                    session,
+                    settings=settings,
+                    identity=identity,
+                    bound_session_id=bound_session_id,
+                    return_path=return_path,
+                    now=utc_now(),
+                )
+            else:
+                issued = issue_member_session(
+                    session,
+                    settings=settings,
+                    identity=identity,
+                    return_path=return_path,
+                    now=utc_now(),
+                )
     except InvalidOIDCLoginError as error:
+        if login_purpose == OIDC_LOGIN_PURPOSE_REAUTHENTICATE:
+            return _reauthentication_failure_redirect(
+                settings=settings,
+                return_path=return_path,
+            )
         raise _invalid_login(error) from error
     except AccountCannotAuthenticateError as error:
+        if login_purpose == OIDC_LOGIN_PURPOSE_REAUTHENTICATE:
+            return _reauthentication_failure_redirect(
+                settings=settings,
+                return_path=return_path,
+            )
         raise _invalid_login(error) from error
     except (OIDCConfigurationError, OIDCProviderUnavailableError) as error:
+        if login_purpose == OIDC_LOGIN_PURPOSE_REAUTHENTICATE:
+            return _reauthentication_failure_redirect(
+                settings=settings,
+                return_path=return_path,
+            )
         raise _auth_unavailable(error) from error
 
     redirect_target = issued.return_path
-    if issued.user.handle is None:
+    if login_purpose != OIDC_LOGIN_PURPOSE_REAUTHENTICATE and issued.user.handle is None:
         redirect_target = f"/onboarding?{urlencode({'return_to': issued.return_path})}"
     response = RedirectResponse(redirect_target, status_code=status.HTTP_303_SEE_OTHER)
     _set_session_cookies(
@@ -361,6 +500,51 @@ def logout(
         now=utc_now(),
     )
     session.commit()
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    _clear_auth_cookies(response, settings)
+    _set_no_store(response)
+    return response
+
+
+@router.delete(
+    "/account",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    responses=AUTH_ERROR_RESPONSES,
+    summary="Delete the current member account",
+    description=(
+        "Requires recent provider authentication. Private account data is erased while "
+        "published recipe topology remains attributed to Deleted cook."
+    ),
+)
+def delete_account(
+    session: SessionDependency,
+    settings: SettingsDependency,
+    authenticated: CsrfProtectedUntouchedSessionDependency,
+) -> Response:
+    try:
+        delete_member_account(
+            session,
+            authenticated=authenticated,
+            recent_auth_ttl_seconds=settings.auth_recent_ttl_seconds,
+            now=utc_now(),
+        )
+        session.commit()
+    except RecentAuthenticationRequiredError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=403,
+            code="recent_authentication_required",
+            message="Sign in again before deleting your account.",
+        ) from error
+    except AccountDeletionNotAllowedError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=401,
+            code="authentication_required",
+            message="Sign in to continue.",
+        ) from error
+
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     _clear_auth_cookies(response, settings)
     _set_no_store(response)

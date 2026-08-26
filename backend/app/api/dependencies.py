@@ -58,6 +58,29 @@ OptionalAuthenticatedSessionDependency = Annotated[
 ]
 
 
+def get_optional_untouched_authenticated_session(
+    request: Request,
+    session: SessionDependency,
+) -> AuthenticatedSession | None:
+    """Resolve sensitive lifecycle requests without locking the session row early."""
+
+    raw_session_token = request.cookies.get(AUTH_SESSION_COOKIE_NAME)
+    if raw_session_token is None:
+        return None
+    return resolve_authenticated_session(
+        session,
+        raw_session_token=raw_session_token,
+        now=utc_now(),
+        touch=False,
+    )
+
+
+OptionalUntouchedAuthenticatedSessionDependency = Annotated[
+    AuthenticatedSession | None,
+    Depends(get_optional_untouched_authenticated_session),
+]
+
+
 def get_required_authenticated_session(
     authenticated: OptionalAuthenticatedSessionDependency,
 ) -> AuthenticatedSession:
@@ -76,13 +99,31 @@ RequiredAuthenticatedSessionDependency = Annotated[
 ]
 
 
-def require_valid_csrf(
-    request: Request,
-    authenticated: RequiredAuthenticatedSessionDependency,
-    settings: SettingsDependency,
-    csrf_header: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
+def get_required_untouched_authenticated_session(
+    authenticated: OptionalUntouchedAuthenticatedSessionDependency,
 ) -> AuthenticatedSession:
-    """Require same-origin evidence and a session-bound double-submit token."""
+    if authenticated is None:
+        raise ApiError(
+            status_code=401,
+            code="authentication_required",
+            message="Sign in to continue.",
+        )
+    return authenticated
+
+
+RequiredUntouchedAuthenticatedSessionDependency = Annotated[
+    AuthenticatedSession,
+    Depends(get_required_untouched_authenticated_session),
+]
+
+
+def _validate_csrf(
+    request: Request,
+    authenticated: AuthenticatedSession,
+    settings: Settings,
+    csrf_header: str | None,
+) -> AuthenticatedSession:
+    """Validate same-origin and session-bound double-submit evidence."""
 
     raw_csrf_cookie = request.cookies.get(AUTH_CSRF_COOKIE_NAME)
     origin = request.headers.get("origin")
@@ -114,7 +155,35 @@ def require_valid_csrf(
     return authenticated
 
 
+def require_valid_csrf(
+    request: Request,
+    authenticated: RequiredAuthenticatedSessionDependency,
+    settings: SettingsDependency,
+    csrf_header: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
+) -> AuthenticatedSession:
+    """Require same-origin evidence and a session-bound double-submit token."""
+
+    return _validate_csrf(request, authenticated, settings, csrf_header)
+
+
 CsrfProtectedSessionDependency = Annotated[
     AuthenticatedSession,
     Depends(require_valid_csrf),
+]
+
+
+def require_valid_csrf_without_touch(
+    request: Request,
+    authenticated: RequiredUntouchedAuthenticatedSessionDependency,
+    settings: SettingsDependency,
+    csrf_header: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
+) -> AuthenticatedSession:
+    """Validate CSRF without taking a session lock before lifecycle ordering."""
+
+    return _validate_csrf(request, authenticated, settings, csrf_header)
+
+
+CsrfProtectedUntouchedSessionDependency = Annotated[
+    AuthenticatedSession,
+    Depends(require_valid_csrf_without_touch),
 ]

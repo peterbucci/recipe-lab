@@ -68,7 +68,7 @@ DETAIL_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     **VALIDATION_ERROR_RESPONSE,
     404: {
         "model": ErrorResponse,
-        "description": "The requested recipe version does not exist.",
+        "description": "The requested recipe does not exist or is not publicly available.",
     },
 }
 FORK_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
@@ -82,7 +82,7 @@ FORK_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     },
     404: {
         "model": ErrorResponse,
-        "description": "The source recipe version does not exist.",
+        "description": "The source recipe does not exist or is not publicly available.",
     },
     409: {
         "model": ErrorResponse,
@@ -96,7 +96,9 @@ FORK_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
 DIFF_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     404: {
         "model": ErrorResponse,
-        "description": "The target or explicitly selected base recipe version does not exist.",
+        "description": (
+            "The target or selected base recipe does not exist or is not publicly available."
+        ),
     },
     422: {
         "model": ErrorResponse,
@@ -239,7 +241,7 @@ def recipe_detail(
         raise ApiError(
             status_code=404,
             code="recipe_not_found",
-            message=f"Recipe version {recipe_version_id} was not found.",
+            message="The recipe was not found or is not publicly available.",
         )
 
     detail = _detail_response(
@@ -279,7 +281,7 @@ def recipe_diff(
         raise ApiError(
             status_code=404,
             code="recipe_not_found",
-            message=f"Recipe version {recipe_version_id} was not found.",
+            message="The recipe was not found or is not publicly available.",
         )
 
     resolved_base_id = base_version_id or target_identity.parent_version_id
@@ -299,7 +301,7 @@ def recipe_diff(
         raise ApiError(
             status_code=404,
             code="recipe_not_found",
-            message=f"Recipe version {recipe_version_id} was not found.",
+            message="The recipe was not found or is not publicly available.",
         )
 
     base = versions.get(resolved_base_id)
@@ -307,7 +309,7 @@ def recipe_diff(
         raise ApiError(
             status_code=404,
             code="recipe_not_found",
-            message=f"Recipe version {resolved_base_id} was not found.",
+            message="The recipe was not found or is not publicly available.",
         )
 
     if base.lineage_id != target.lineage_id:

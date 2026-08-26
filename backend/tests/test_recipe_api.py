@@ -391,7 +391,7 @@ def test_missing_recipe_uses_the_documented_error_envelope(api_client: TestClien
     assert response.json() == {
         "error": {
             "code": "recipe_not_found",
-            "message": f"Recipe version {missing_id} was not found.",
+            "message": "The recipe was not found or is not publicly available.",
             "issues": [],
         }
     }

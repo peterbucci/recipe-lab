@@ -404,7 +404,7 @@ def test_interaction_writes_reject_missing_recipe_versions(
     assert response.json() == {
         "error": {
             "code": "recipe_not_found",
-            "message": f"Recipe version {missing_id} was not found.",
+            "message": "The recipe was not found or is not publicly available.",
             "issues": [],
         }
     }

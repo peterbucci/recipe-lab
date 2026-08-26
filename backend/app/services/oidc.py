@@ -3,6 +3,7 @@ from __future__ import annotations
 import ipaddress
 import unicodedata
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from threading import Lock
 from time import monotonic
 from typing import Any, cast
@@ -51,6 +52,7 @@ class VerifiedOIDCIdentity:
     email: str
     email_verified: bool
     suggested_display_name: str
+    authenticated_at: datetime | None = None
 
 
 def _json_object(response: httpx.Response) -> dict[str, Any]:
@@ -172,21 +174,23 @@ class OIDCClient:
         state: str,
         nonce: str,
         code_challenge: str,
+        force_reauthentication: bool = False,
     ) -> str:
         metadata = self._get_metadata()
-        query = urlencode(
-            {
-                "response_type": "code",
-                "response_mode": "query",
-                "client_id": self._settings.oidc_client_id,
-                "redirect_uri": self._settings.oidc_redirect_uri,
-                "scope": " ".join(self._settings.oidc_scope_list),
-                "state": state,
-                "nonce": nonce,
-                "code_challenge": code_challenge,
-                "code_challenge_method": "S256",
-            }
-        )
+        parameters: dict[str, str | int] = {
+            "response_type": "code",
+            "response_mode": "query",
+            "client_id": self._settings.oidc_client_id,
+            "redirect_uri": self._settings.oidc_redirect_uri,
+            "scope": " ".join(self._settings.oidc_scope_list),
+            "state": state,
+            "nonce": nonce,
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
+        }
+        if force_reauthentication:
+            parameters.update({"prompt": "login", "max_age": 0})
+        query = urlencode(parameters)
         delimiter = "&" if urlsplit(metadata.authorization_endpoint).query else "?"
         return f"{metadata.authorization_endpoint}{delimiter}{query}"
 
@@ -196,6 +200,7 @@ class OIDCClient:
         code: str,
         code_verifier: str,
         expected_nonce: str,
+        require_auth_time_after: datetime | None = None,
     ) -> VerifiedOIDCIdentity:
         metadata = self._get_metadata()
         data = {
@@ -239,7 +244,12 @@ class OIDCClient:
         id_token = payload.get("id_token")
         if not isinstance(id_token, str) or not id_token or len(id_token) > _MAX_ID_TOKEN_BYTES:
             raise InvalidOIDCLoginError("Identity provider did not return a valid ID token.")
-        return self._verify_id_token(id_token, expected_nonce=expected_nonce, metadata=metadata)
+        return self._verify_id_token(
+            id_token,
+            expected_nonce=expected_nonce,
+            metadata=metadata,
+            require_auth_time_after=require_auth_time_after,
+        )
 
     def _get_metadata(self) -> OIDCProviderMetadata:
         self.validate_configuration()
@@ -350,6 +360,7 @@ class OIDCClient:
         *,
         expected_nonce: str,
         metadata: OIDCProviderMetadata,
+        require_auth_time_after: datetime | None = None,
     ) -> VerifiedOIDCIdentity:
         try:
             header = jwt.get_unverified_header(id_token)
@@ -441,6 +452,23 @@ class OIDCClient:
         if claims.get("email_verified") is not True:
             raise InvalidOIDCLoginError("ID token email is not verified.")
 
+        raw_auth_time = claims.get("auth_time")
+        authenticated_at: datetime | None = None
+        if raw_auth_time is not None:
+            if isinstance(raw_auth_time, bool) or not isinstance(raw_auth_time, int):
+                raise InvalidOIDCLoginError("ID token authentication time is invalid.")
+            try:
+                authenticated_at = datetime.fromtimestamp(raw_auth_time, tz=UTC)
+            except (OverflowError, OSError, ValueError) as error:
+                raise InvalidOIDCLoginError("ID token authentication time is invalid.") from error
+        skew = timedelta(seconds=self._settings.oidc_clock_skew_seconds)
+        if authenticated_at is not None and authenticated_at > datetime.now(UTC) + skew:
+            raise InvalidOIDCLoginError("ID token authentication time is invalid.")
+        if require_auth_time_after is not None:
+            threshold = require_auth_time_after.astimezone(UTC)
+            if authenticated_at is None or authenticated_at < threshold - skew:
+                raise InvalidOIDCLoginError("Recent provider authentication is required.")
+
         raw_name = claims.get("name")
         suggested_name = raw_name.strip() if isinstance(raw_name, str) else ""
         if (
@@ -455,4 +483,5 @@ class OIDCClient:
             email=normalized_email,
             email_verified=True,
             suggested_display_name=suggested_name,
+            authenticated_at=authenticated_at,
         )

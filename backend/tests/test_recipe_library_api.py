@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from alembic import command
@@ -429,6 +429,7 @@ def test_private_libraries_are_actor_scoped_paginated_and_do_not_leak_account_da
         str(GRANDCHILD_ID),
         str(PUBLIC_CHILD_ID),
     }
+    assert all(item["visibility_state"] == "published" for item in published_items)
     assert all(item["recipe"]["author"]["id"] == str(MEMBER_A_ID) for item in published_items)
 
     other = recipe_library_api.member_b.get(
@@ -487,6 +488,276 @@ def test_private_libraries_are_actor_scoped_paginated_and_do_not_leak_account_da
         "/api/my/saved-recipes?page=1000001",
     ):
         assert recipe_library_api.member_a.get(path).status_code == 422
+
+
+def test_author_visibility_is_idempotent_and_applies_across_public_surfaces(
+    recipe_library_api: RecipeLibraryApi,
+) -> None:
+    non_owner = recipe_library_api.member_b.put(
+        f"/api/recipes/{ROOT_ID}/visibility",
+        json={"state": "author_withdrawn"},
+    )
+    assert non_owner.status_code == 404
+    assert str(ROOT_ID) not in non_owner.text
+    assert (
+        recipe_library_api.anonymous.put(
+            f"/api/recipes/{ROOT_ID}/visibility",
+            json={"state": "author_withdrawn"},
+        ).status_code
+        == 401
+    )
+
+    interaction_key = str(uuid4())
+    rating = recipe_library_api.member_a.put(
+        f"/api/recipes/{ROOT_ID}/rating",
+        json={"rating": 4},
+        headers={"Idempotency-Key": interaction_key},
+    )
+    assert rating.status_code == 200
+
+    withdrawn = recipe_library_api.member_a.put(
+        f"/api/recipes/{ROOT_ID}/visibility",
+        json={"state": "author_withdrawn"},
+    )
+    assert withdrawn.status_code == 200
+    assert withdrawn.headers["cache-control"] == "private, no-store"
+    withdrawn_body = _json_object(withdrawn.json())
+    assert set(withdrawn_body) == {"recipe_version_id", "state", "updated_at"}
+    assert withdrawn_body["recipe_version_id"] == str(ROOT_ID)
+    assert withdrawn_body["state"] == "author_withdrawn"
+
+    replay = recipe_library_api.member_a.put(
+        f"/api/recipes/{ROOT_ID}/visibility",
+        json={"state": "author_withdrawn"},
+    )
+    assert replay.status_code == 200
+    assert replay.json() == withdrawn.json()
+
+    with recipe_library_api.engine.connect() as connection:
+        publication = connection.execute(
+            text(
+                """
+                SELECT state, author_withdrawn_at, moderation_hidden_at,
+                       state_changed_at, state_changed_by_user_id
+                FROM recipe_version_publications
+                WHERE recipe_version_id = :recipe_version_id
+                """
+            ),
+            {"recipe_version_id": ROOT_ID},
+        ).one()
+        assert publication.state == "author_withdrawn"
+        assert publication.author_withdrawn_at == publication.state_changed_at
+        assert publication.moderation_hidden_at is None
+        assert publication.state_changed_by_user_id == MEMBER_A_ID
+        assert (
+            connection.scalar(
+                text(
+                    "SELECT count(*) FROM recipe_version_visibility_events "
+                    "WHERE recipe_version_id = :recipe_version_id"
+                ),
+                {"recipe_version_id": ROOT_ID},
+            )
+            == 2
+        )
+        assert (
+            connection.scalar(
+                text(
+                    "SELECT count(*) FROM recipe_saves "
+                    "WHERE user_id = :user_id AND recipe_version_id = :recipe_version_id"
+                ),
+                {"user_id": MEMBER_A_ID, "recipe_version_id": ROOT_ID},
+            )
+            == 1
+        )
+
+    browse = _json_object(
+        recipe_library_api.anonymous.get("/api/recipes", params={"page_size": 100}).json()
+    )
+    assert str(ROOT_ID) not in {item["id"] for item in browse["items"]}
+    search = _json_object(
+        recipe_library_api.anonymous.get(
+            "/api/recipes",
+            params={"q": "Alpha original", "page_size": 100},
+        ).json()
+    )
+    assert str(ROOT_ID) not in {item["id"] for item in search["items"]}
+    profile = _json_object(
+        recipe_library_api.anonymous.get(
+            "/api/cooks/member_alpha",
+            params={"page_size": 100},
+        ).json()
+    )
+    assert str(ROOT_ID) not in {item["id"] for item in profile["items"]}
+    recommendations = _json_object(
+        recipe_library_api.anonymous.get(
+            "/api/recommendations",
+            params={"limit": 10},
+        ).json()
+    )
+    assert str(ROOT_ID) not in {item["recipe"]["id"] for item in recommendations["items"]}
+
+    hidden_detail = recipe_library_api.anonymous.get(f"/api/recipes/{ROOT_ID}")
+    assert hidden_detail.status_code == 404
+    assert hidden_detail.json() == {
+        "error": {
+            "code": "recipe_not_found",
+            "message": "The recipe was not found or is not publicly available.",
+            "issues": [],
+        }
+    }
+    assert str(ROOT_ID) not in hidden_detail.text
+    assert "Alpha original" not in hidden_detail.text
+
+    child_detail = _json_object(recipe_library_api.anonymous.get(f"/api/recipes/{CHILD_ID}").json())
+    assert child_detail["parent_version_id"] == str(ROOT_ID)
+    assert child_detail["parent"] is None
+    assert "Alpha original" not in str(child_detail)
+    diff = recipe_library_api.anonymous.get(f"/api/recipes/{CHILD_ID}/diff")
+    assert diff.status_code == 404
+    assert str(ROOT_ID) not in diff.text
+    assert "Alpha original" not in diff.text
+
+    mine = _json_object(
+        recipe_library_api.member_a.get("/api/my/recipes", params={"page_size": 100}).json()
+    )
+    root_item = next(
+        item
+        for item in mine["items"]
+        if item["kind"] == "published" and item["recipe"]["id"] == str(ROOT_ID)
+    )
+    assert root_item["visibility_state"] == "author_withdrawn"
+    saves = _json_object(
+        recipe_library_api.member_a.get(
+            "/api/my/saved-recipes",
+            params={"page_size": 100},
+        ).json()
+    )
+    assert str(ROOT_ID) not in {item["recipe"]["id"] for item in saves["items"]}
+    assert saves["total"] == 1
+
+    replayed_rating = recipe_library_api.member_a.put(
+        f"/api/recipes/{ROOT_ID}/rating",
+        json={"rating": 4},
+        headers={"Idempotency-Key": interaction_key},
+    )
+    assert replayed_rating.status_code == 404
+    new_save = recipe_library_api.member_a.put(
+        f"/api/recipes/{ROOT_ID}/save",
+        headers={"Idempotency-Key": str(uuid4())},
+    )
+    assert new_save.status_code == 404
+
+    restored = recipe_library_api.member_a.put(
+        f"/api/recipes/{ROOT_ID}/visibility",
+        json={"state": "published"},
+    )
+    assert restored.status_code == 200
+    restored_body = _json_object(restored.json())
+    assert set(restored_body) == {"recipe_version_id", "state", "updated_at"}
+    assert restored_body["state"] == "published"
+    assert restored_body["updated_at"] != withdrawn_body["updated_at"]
+    assert recipe_library_api.anonymous.get(f"/api/recipes/{ROOT_ID}").status_code == 200
+    restored_saves = _json_object(
+        recipe_library_api.member_a.get(
+            "/api/my/saved-recipes",
+            params={"page_size": 100},
+        ).json()
+    )
+    assert str(ROOT_ID) in {item["recipe"]["id"] for item in restored_saves["items"]}
+    with recipe_library_api.engine.connect() as connection:
+        assert (
+            connection.scalar(
+                text(
+                    "SELECT count(*) FROM recipe_version_visibility_events "
+                    "WHERE recipe_version_id = :recipe_version_id"
+                ),
+                {"recipe_version_id": ROOT_ID},
+            )
+            == 3
+        )
+        topology = list(
+            connection.execute(
+                text(
+                    """
+                    SELECT id, parent_version_id
+                    FROM recipe_versions
+                    WHERE id IN (:root_id, :child_id, :grandchild_id)
+                    ORDER BY id
+                    """
+                ),
+                {
+                    "root_id": ROOT_ID,
+                    "child_id": CHILD_ID,
+                    "grandchild_id": GRANDCHILD_ID,
+                },
+            ).tuples()
+        )
+        assert topology == [
+            (ROOT_ID, None),
+            (CHILD_ID, ROOT_ID),
+            (GRANDCHILD_ID, CHILD_ID),
+        ]
+
+
+def test_author_cannot_restore_moderation_hidden_recipe_or_clear_withdrawal_axis(
+    recipe_library_api: RecipeLibraryApi,
+) -> None:
+    withdrawn = recipe_library_api.member_a.put(
+        f"/api/recipes/{ROOT_ID}/visibility",
+        json={"state": "author_withdrawn"},
+    )
+    assert withdrawn.status_code == 200
+
+    with recipe_library_api.engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                UPDATE recipe_version_publications
+                SET state = 'moderation_hidden',
+                    moderation_hidden_at = state_changed_at + INTERVAL '1 second',
+                    state_changed_at = state_changed_at + INTERVAL '1 second',
+                    state_changed_by_user_id = :moderator_user_id
+                WHERE recipe_version_id = :recipe_version_id
+                """
+            ),
+            {
+                "moderator_user_id": MEMBER_B_ID,
+                "recipe_version_id": ROOT_ID,
+            },
+        )
+
+    restore = recipe_library_api.member_a.put(
+        f"/api/recipes/{ROOT_ID}/visibility",
+        json={"state": "published"},
+    )
+    assert restore.status_code == 409
+    assert _json_object(_json_object(restore.json())["error"])["code"] == (
+        "recipe_visibility_managed_by_moderation"
+    )
+    with recipe_library_api.engine.connect() as connection:
+        publication = connection.execute(
+            text(
+                """
+                SELECT state, author_withdrawn_at, moderation_hidden_at
+                FROM recipe_version_publications
+                WHERE recipe_version_id = :recipe_version_id
+                """
+            ),
+            {"recipe_version_id": ROOT_ID},
+        ).one()
+        assert publication.state == "moderation_hidden"
+        assert publication.author_withdrawn_at is not None
+        assert publication.moderation_hidden_at is not None
+
+    mine = _json_object(
+        recipe_library_api.member_a.get("/api/my/recipes", params={"page_size": 100}).json()
+    )
+    root_item = next(
+        item
+        for item in mine["items"]
+        if item["kind"] == "published" and item["recipe"]["id"] == str(ROOT_ID)
+    )
+    assert root_item["visibility_state"] == "moderation_hidden"
 
 
 @contextmanager

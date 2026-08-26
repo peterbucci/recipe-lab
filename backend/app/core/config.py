@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     auth_allowed_origins: str = ""
     auth_session_ttl_seconds: int = Field(default=14 * 24 * 60 * 60, ge=60)
+    auth_recent_ttl_seconds: int = Field(default=10 * 60, ge=60, le=60 * 60)
 
     oidc_issuer: str = ""
     oidc_client_id: str = ""

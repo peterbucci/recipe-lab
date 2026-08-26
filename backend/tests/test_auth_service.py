@@ -110,7 +110,10 @@ def test_oidc_identity_attached_to_non_member_can_never_log_in(
     )
     db_session.add(system_user)
     db_session.flush()
-    identity = verified_identity(subject=f"{account_kind}-subject", email=system_user.email)
+    identity = verified_identity(
+        subject=f"{account_kind}-subject",
+        email=f"{account_kind}@example.test",
+    )
     create_oidc_identity(
         db_session,
         user=system_user,
@@ -178,6 +181,11 @@ def test_revoked_expired_and_inactive_sessions_do_not_authenticate(
         is None
     )
     other.user.status = blocked_status
+    if blocked_status == "deleted":
+        other.user.email = None
+        other.user.handle = None
+        other.user.display_name = "Deleted cook"
+        other.user.deleted_at = now
     assert (
         resolve_authenticated_session(
             db_session,

@@ -16,6 +16,8 @@ from app.schemas.recipe_publications import (
     RecipeDraftDuplicatePreflightRequest,
     RecipeDraftPublicationRequest,
     RecipeDraftPublicationResponse,
+    RecipeVisibilityResponse,
+    RecipeVisibilityUpdateRequest,
 )
 from app.services.recipe_duplicate_preflights import (
     RecipeDuplicateDecisionNotRequiredError,
@@ -32,6 +34,11 @@ from app.services.recipe_publications import (
     RecipePublicationRevisionConflictError,
     publish_recipe_draft,
     run_recipe_draft_duplicate_preflight,
+)
+from app.services.recipe_visibility import (
+    RecipeVisibilityModerationConflictError,
+    RecipeVisibilityNotFoundError,
+    set_authored_recipe_visibility,
 )
 
 router = APIRouter()
@@ -70,6 +77,25 @@ PUBLICATION_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
         "description": "Duplicate comparison is temporarily unavailable.",
     },
 }
+VISIBILITY_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
+    401: {"model": ErrorResponse, "description": "A valid member session is required."},
+    403: {
+        "model": ErrorResponse,
+        "description": "CSRF or Origin evidence is invalid, or account setup is incomplete.",
+    },
+    404: {
+        "model": ErrorResponse,
+        "description": "The authored publication was not found in this member's scope.",
+    },
+    409: {
+        "model": ErrorResponse,
+        "description": "Moderation-hidden content cannot be restored by its author.",
+    },
+    422: {
+        "model": ErrorResponse,
+        "description": "The recipe identifier or desired visibility state is invalid.",
+    },
+}
 
 
 def _private_no_store(response: Response) -> None:
@@ -90,6 +116,55 @@ def _revision_conflict() -> ApiError:
         status_code=409,
         code="recipe_draft_revision_conflict",
         message="This draft has a newer saved revision. Reload it before trying again.",
+    )
+
+
+@router.put(
+    "/recipes/{recipe_version_id}/visibility",
+    response_model=RecipeVisibilityResponse,
+    responses=VISIBILITY_ERROR_RESPONSES,
+    summary="Withdraw or restore an authored recipe version",
+    description=(
+        "Sets only the authenticated version author's visibility choice. It never mutates "
+        "the immutable recipe snapshot, its lineage, or independently authored descendants."
+    ),
+)
+def update_authored_recipe_visibility(
+    recipe_version_id: UUID,
+    payload: Annotated[RecipeVisibilityUpdateRequest, Body()],
+    response: Response,
+    session: SessionDependency,
+    authenticated: CsrfProtectedSessionDependency,
+) -> RecipeVisibilityResponse:
+    actor_id = lock_active_member_actor(session, authenticated)
+    try:
+        result = set_authored_recipe_visibility(
+            session,
+            actor_user_id=actor_id,
+            recipe_version_id=recipe_version_id,
+            desired_state=payload.state,
+        )
+    except RecipeVisibilityNotFoundError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=404,
+            code="recipe_not_found",
+            message="The recipe was not found or is not available in your authored recipes.",
+        ) from error
+    except RecipeVisibilityModerationConflictError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=409,
+            code="recipe_visibility_managed_by_moderation",
+            message="This recipe cannot be restored by its author.",
+        ) from error
+
+    _private_no_store(response)
+    session.commit()
+    return RecipeVisibilityResponse(
+        recipe_version_id=result.recipe_version_id,
+        state=result.state,
+        updated_at=result.state_changed_at,
     )
 
 

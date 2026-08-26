@@ -100,8 +100,9 @@ def record_recipe_view_for_current_user(
         recipe_version_id=recipe_version_id,
         event_type="view",
     )
-    if not _is_replay_or_error(session, intent):
-        ensure_recipe_exists(session, recipe_version_id)
+    replay = _is_replay_or_error(session, intent)
+    ensure_recipe_exists(session, recipe_version_id)
+    if not replay:
         record_preference_event(session, intent)
     session.commit()
     return Response(
@@ -133,8 +134,9 @@ def save_recipe_for_current_user(
         event_type="save",
         saved_value=True,
     )
-    if not _is_replay_or_error(session, intent):
-        ensure_recipe_exists(session, recipe_version_id)
+    replay = _is_replay_or_error(session, intent)
+    ensure_recipe_exists(session, recipe_version_id)
+    if not replay:
         save_recipe(
             session,
             user_id=actor_id,
@@ -173,8 +175,9 @@ def unsave_recipe_for_current_user(
         event_type="save",
         saved_value=False,
     )
-    if not _is_replay_or_error(session, intent):
-        ensure_recipe_exists(session, recipe_version_id)
+    replay = _is_replay_or_error(session, intent)
+    ensure_recipe_exists(session, recipe_version_id)
+    if not replay:
         unsave_recipe(
             session,
             user_id=actor_id,
@@ -213,8 +216,9 @@ def rate_recipe_for_current_user(
         event_type="rating",
         rating_value=payload.rating,
     )
-    if not _is_replay_or_error(session, intent):
-        ensure_recipe_exists(session, recipe_version_id)
+    replay = _is_replay_or_error(session, intent)
+    ensure_recipe_exists(session, recipe_version_id)
+    if not replay:
         rate_recipe(
             session,
             user_id=actor_id,

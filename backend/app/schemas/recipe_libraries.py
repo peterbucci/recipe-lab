@@ -29,6 +29,7 @@ class MyRecipeDraftItem(RecipeLibrarySchema):
 class MyPublishedRecipeItem(RecipeLibrarySchema):
     kind: Literal["published"] = "published"
     recipe: RecipeSummary
+    visibility_state: Literal["published", "author_withdrawn", "moderation_hidden"]
 
 
 MyRecipeLibraryItem = Annotated[
