@@ -1,5 +1,11 @@
 import type { NextRequest } from "next/server";
 
+import {
+  internalNetworkSignalSecret,
+  UNTRUSTED_FORWARDING_HEADERS,
+  verifyNetworkSignalHeaders,
+} from "../../../server/trusted-network-signal.mjs";
+
 interface ApiProxyContext {
   params: Promise<{ path: string[] }>;
 }
@@ -19,6 +25,7 @@ const REQUEST_HEADERS_TO_REMOVE = [
   "trailer",
   "transfer-encoding",
   "upgrade",
+  ...UNTRUSTED_FORWARDING_HEADERS,
 ];
 
 const RESPONSE_HEADERS_TO_REMOVE = [
@@ -120,6 +127,19 @@ function callbackErrorResponse(request: NextRequest, upstreamStatus: number): Re
   });
 }
 
+function callbackRateLimitResponse(request: NextRequest, upstream: Response): Response {
+  const response = proxyResponse(upstream, request.method);
+  const cookieSecure = request.nextUrl.protocol === "https:" ? "; Secure" : "";
+  response.headers.set("Cache-Control", "no-store");
+  response.headers.set("Pragma", "no-cache");
+  response.headers.set("Referrer-Policy", "no-referrer");
+  response.headers.append(
+    "Set-Cookie",
+    `recipe_lab_login=; Path=/api/auth/callback; Max-Age=0; HttpOnly; SameSite=Lax${cookieSecure}`,
+  );
+  return response;
+}
+
 function isSafeCallbackSuccess(request: NextRequest, upstream: Response): boolean {
   const location = upstream.headers.get("location");
   if (
@@ -150,9 +170,19 @@ export async function proxyApiRequest(
       path.length === 2 &&
       path[0] === "auth" &&
       path[1] === "callback";
+    const trustedNetworkHeaders = verifyNetworkSignalHeaders(request.headers, {
+      method: request.method,
+      path: request.nextUrl.pathname,
+      secret: internalNetworkSignalSecret(),
+    });
     const headers = new Headers(request.headers);
     for (const name of REQUEST_HEADERS_TO_REMOVE) {
       headers.delete(name);
+    }
+    if (trustedNetworkHeaders) {
+      for (const [name, value] of Object.entries(trustedNetworkHeaders)) {
+        headers.set(name, value);
+      }
     }
     const hasBody = request.method !== "GET" && request.method !== "HEAD";
     const upstreamSignal = AbortSignal.any([
@@ -173,6 +203,9 @@ export async function proxyApiRequest(
       redirect: "manual",
     });
     if (isAuthCallback) {
+      if (upstream.status === 429) {
+        return callbackRateLimitResponse(request, upstream);
+      }
       if (!isSafeCallbackSuccess(request, upstream)) {
         return callbackErrorResponse(request, upstream.status);
       }
@@ -219,6 +252,7 @@ export async function proxyApiRequest(
 }
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export const GET = proxyApiRequest;
 export const POST = proxyApiRequest;
