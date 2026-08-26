@@ -13,12 +13,14 @@ const baseVersion = {
   id: "11111111-1111-4111-8111-111111111111",
   version_number: 1,
   title: "Carrot Walnut Snack Cake",
+  author: { id: "cook-one", handle: "first-cook", display_name: "First Cook" },
 };
 
 const targetVersion = {
   id: "22222222-2222-4222-8222-222222222222",
   version_number: 2,
   title: "Lower-Sugar Pecan Carrot Cake",
+  author: { id: "cook-two", handle: "second-cook", display_name: "Second Cook" },
 };
 
 function ingredient(

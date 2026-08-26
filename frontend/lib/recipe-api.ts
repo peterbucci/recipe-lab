@@ -4,6 +4,12 @@ import type { RecipeIngredientMeasure } from "./structured-measure";
 
 export type { RecipeIngredientMeasure } from "./structured-measure";
 
+export interface PublicUserReference {
+  id: string;
+  handle: string;
+  display_name: string;
+}
+
 export interface RecipeSummary {
   id: string;
   lineage_id: string;
@@ -13,12 +19,15 @@ export interface RecipeSummary {
   description: string | null;
   servings: string;
   created_at: string;
+  author: PublicUserReference;
+  parent: RecipeVersionReference | null;
 }
 
 export interface RecipeVersionReference {
   id: string;
   version_number: number;
   title: string;
+  author: PublicUserReference;
 }
 
 export interface RecipeIngredient {
@@ -42,7 +51,6 @@ export interface RecipeDetail extends RecipeSummary {
   average_rating: number | null;
   rating_count: number;
   viewer_state: RecipeViewerState | null;
-  parent: RecipeVersionReference | null;
   children: RecipeVersionReference[];
   ingredients: RecipeIngredient[];
   instructions: RecipeInstruction[];

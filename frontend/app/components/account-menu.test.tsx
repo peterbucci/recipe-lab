@@ -77,6 +77,18 @@ describe("AccountMenu", () => {
     );
 
     fireEvent.click(screen.getByLabelText("Account menu for Alice Cook"));
+    expect(screen.getByRole("link", { name: "Public profile" })).toHaveAttribute(
+      "href",
+      "/cooks/alice",
+    );
+    expect(screen.getByRole("link", { name: "My recipes" })).toHaveAttribute(
+      "href",
+      "/account/recipes",
+    );
+    expect(screen.getByRole("link", { name: "Saved recipes" })).toHaveAttribute(
+      "href",
+      "/account/saved-recipes",
+    );
     expect(
       screen.getByRole("link", { name: "My ingredient requests" }),
     ).toHaveAttribute("href", "/account/ingredient-requests");

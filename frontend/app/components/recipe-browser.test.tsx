@@ -14,6 +14,8 @@ function recipe(overrides: Partial<RecipeSummary> = {}): RecipeSummary {
     description: "A softly spiced cake built for an afternoon snack.",
     servings: "8.00",
     created_at: "2026-08-20T00:00:00Z",
+    author: { id: "cook-one", handle: "alice", display_name: "Alice Cook" },
+    parent: null,
     ...overrides,
   };
 }
@@ -64,7 +66,11 @@ describe("RecipeBrowser", () => {
       "/recipes/recipe-two",
     );
     expect(screen.getByText(/^original$/i)).toBeInTheDocument();
-    expect(screen.getByText(/^version 2$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^fork · version 2$/i)).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Alice Cook" })[0]).toHaveAttribute(
+      "href",
+      "/cooks/alice",
+    );
     expect(screen.getByText(/no description provided/i)).toBeInTheDocument();
     const filters = screen.getByRole("navigation", { name: /recipe type/i });
     expect(within(filters).getByRole("link", { name: "All" })).toHaveAttribute(

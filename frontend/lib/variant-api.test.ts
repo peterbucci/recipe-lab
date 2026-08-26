@@ -68,6 +68,7 @@ function createdRecipe(): RecipeDetail {
     description: payload.description,
     servings: payload.servings,
     created_at: "2026-08-21T12:00:00Z",
+    author: { id: "cook-two", handle: "second-cook", display_name: "Second Cook" },
     average_rating: null,
     rating_count: 0,
     viewer_state: {
@@ -79,6 +80,7 @@ function createdRecipe(): RecipeDetail {
       id: "29454eba-3a4e-5380-b48c-c49dc3697b17",
       version_number: 1,
       title: "Carrot Walnut Snack Cake",
+      author: { id: "cook-one", handle: "first-cook", display_name: "First Cook" },
     },
     children: [],
     ingredients: [],

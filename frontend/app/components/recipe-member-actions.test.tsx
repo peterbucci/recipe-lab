@@ -52,7 +52,12 @@ function renderActions(session: AuthSession, switches = false) {
     <AuthSessionProvider initialSession={session}>
       {switches ? <SessionSwitches /> : null}
       <RecipeMemberActions
-        comparison={{ id: "parent", title: "Parent recipe", version_number: 1 }}
+        comparison={{
+          id: "parent",
+          title: "Parent recipe",
+          version_number: 1,
+          author: { id: "cook-one", handle: "first-cook", display_name: "First Cook" },
+        }}
         recipeVersionId={recipeVersionId}
       />
     </AuthSessionProvider>,

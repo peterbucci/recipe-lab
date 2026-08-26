@@ -13,11 +13,24 @@ interface RecipeDetailViewProps {
 
 function VersionLink({ label, version }: { label: string; version: RecipeVersionReference }) {
   return (
-    <Link className="lineage-card" href={`/recipes/${version.id}`}>
+    <article className="lineage-card">
       <span>{label}</span>
-      <strong>{version.title}</strong>
+      <strong>
+        <Link
+          aria-label={`${label}: ${version.title}, version ${version.version_number}, by ${version.author.display_name}`}
+          href={`/recipes/${version.id}`}
+        >
+          {version.title}
+        </Link>
+      </strong>
       <small>Version {version.version_number}</small>
-    </Link>
+      <small>
+        By{" "}
+        <Link href={`/cooks/${encodeURIComponent(version.author.handle)}`}>
+          {version.author.display_name}
+        </Link>
+      </small>
+    </article>
   );
 }
 
@@ -32,6 +45,23 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
           <div className="recipe-detail__intro">
             <p className="eyebrow">{isVariation ? "Variation" : "Original"}</p>
             <h1>{recipe.title}</h1>
+            <p className="recipe-detail__attribution">
+              By{" "}
+              <Link href={`/cooks/${encodeURIComponent(recipe.author.handle)}`}>
+                {recipe.author.display_name}
+              </Link>
+            </p>
+            {recipe.parent ? (
+              <p className="recipe-detail__parent-context">
+                This fork is based directly on{" "}
+                <Link href={`/recipes/${recipe.parent.id}`}>{recipe.parent.title}</Link>
+                {" by "}
+                <Link href={`/cooks/${encodeURIComponent(recipe.parent.author.handle)}`}>
+                  {recipe.parent.author.display_name}
+                </Link>
+                . Lineage describes the recipe relationship, not endorsement or ownership.
+              </p>
+            ) : null}
             {recipe.description ? (
               <p className="recipe-detail__description">{recipe.description}</p>
             ) : null}
@@ -132,6 +162,12 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
               <span>This version</span>
               <strong>{recipe.title}</strong>
               <small>Version {recipe.version_number}</small>
+              <small>
+                By{" "}
+                <Link href={`/cooks/${encodeURIComponent(recipe.author.handle)}`}>
+                  {recipe.author.display_name}
+                </Link>
+              </small>
             </div>
           </li>
           {recipe.children.map((child) => (

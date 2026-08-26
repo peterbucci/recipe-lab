@@ -86,13 +86,26 @@ export function AccountMenu() {
           </GuardedLink>
         ) : null}
         {state.session.status === "authenticated" ? (
-          <GuardedLink className="account-menu__link" href="/account/ingredient-requests">
-            My ingredient requests
+          <GuardedLink
+            className="account-menu__link"
+            href={`/cooks/${encodeURIComponent(state.session.user.handle)}`}
+          >
+            Public profile
           </GuardedLink>
         ) : null}
         {state.session.status === "authenticated" ? (
-          <GuardedLink className="account-menu__link" href="/account/recipe-drafts">
-            My recipe drafts
+          <GuardedLink className="account-menu__link" href="/account/recipes">
+            My recipes
+          </GuardedLink>
+        ) : null}
+        {state.session.status === "authenticated" ? (
+          <GuardedLink className="account-menu__link" href="/account/saved-recipes">
+            Saved recipes
+          </GuardedLink>
+        ) : null}
+        {state.session.status === "authenticated" ? (
+          <GuardedLink className="account-menu__link" href="/account/ingredient-requests">
+            My ingredient requests
           </GuardedLink>
         ) : null}
         {state.session.status === "authenticated" &&

@@ -108,6 +108,7 @@ function sourceRecipe(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     description: "A softly spiced snack cake.",
     servings: "8.00",
     created_at: "2026-08-20T00:00:00Z",
+    author: { id: "catalog-cook", handle: "recipe-lab", display_name: "Recipe Lab catalog" },
     average_rating: 4.5,
     rating_count: 2,
     viewer_state: {
