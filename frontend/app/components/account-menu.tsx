@@ -1,18 +1,26 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import { AuthApiError, signOut } from "../../lib/auth-api";
 import { useAuthSession } from "./auth-session-provider";
 import { GuardedLink, useNavigationBlocker } from "./navigation-blocker-provider";
 
 export function AccountMenu() {
+  const pathname = usePathname();
   const router = useRouter();
   const { state, refreshSession, replaceSession } = useAuthSession();
   const { confirmNavigation, setBlocked } = useNavigationBlocker();
+  const menuRef = useRef<HTMLDetailsElement>(null);
   const [signOutPending, setSignOutPending] = useState(false);
   const [signOutError, setSignOutError] = useState("");
+
+  useEffect(() => {
+    if (menuRef.current) {
+      menuRef.current.open = false;
+    }
+  }, [pathname]);
 
   async function handleSignOut() {
     if (signOutPending || !confirmNavigation()) {
@@ -68,7 +76,7 @@ export function AccountMenu() {
 
   const { user } = state.session;
   return (
-    <details className="account-menu">
+    <details className="account-menu" ref={menuRef}>
       <summary aria-label={`Account menu for ${user.display_name}`}>
         <span className="account-menu__avatar" aria-hidden="true">
           {user.display_name.trim().slice(0, 1).toLocaleUpperCase() || "C"}
