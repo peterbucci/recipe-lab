@@ -95,6 +95,22 @@ not add social features, public activity, account lifecycle presentation, or
 moderation. See
 [cook profiles and recipe libraries](cook-profiles-and-libraries.md).
 
+RCP-30 adds independent author-withdrawal and moderation-visibility axes plus
+recently reauthenticated account deletion. Unavailable ancestors remain
+privacy-safe topology references, active descendants remain readable, and a
+deleted member becomes an unlinked `Deleted cook` tombstone after private data
+and sessions are erased. See
+[recipe visibility and account lifecycle](recipe-visibility-and-account-lifecycle.md).
+
+RCP-31 adds explicit publication rights and community-rules confirmations,
+one bounded private member report per recipe version, a separately granted
+community-moderator queue, and append-only hide/restore/resolve decisions. It
+also rate-limits sensitive authentication and recipe writes with durable
+pseudonymous account/identity/network buckets and rejects oversized bodies
+before routing. Automated moderation, appeals, comments, follows, and a browser
+role-management console remain out of scope. See
+[community rules, reporting, and moderation](community-moderation.md).
+
 ## Post-MVP signal baseline
 
 RCP-15 adds a read-only, explainable recommendation API after the M1 boundary.
