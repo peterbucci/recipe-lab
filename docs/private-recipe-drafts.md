@@ -3,16 +3,17 @@
 Recipe Lab stores unfinished recipes in a private aggregate that is separate
 from immutable public recipe versions. A signed-in, onboarded member can start
 an empty original draft or copy one exact public recipe-version snapshot into a
-fork draft, save it, resume it in another browser session, and discard it. This
-workflow does not publish a recipe.
+fork draft, save it, resume it in another browser session, and discard it. A
+saved source-less draft can also cross the explicit RCP-27 publication boundary
+to become one immutable original root. Fork publication remains RCP-28 work.
 
 ## Private aggregate
 
 `recipe_drafts` owns the member, optional exact source version, metadata,
-lifecycle status, optimistic revision, and server timestamps. Its child tables
-store ordered ingredient slots, instructions, structured cooking actions,
-action inputs, and duration or temperature measures. Draft actions may point
-only to ingredient slots in the same draft.
+lifecycle status (`active` or `published`), optimistic revision, and server
+timestamps. Its child tables store ordered ingredient slots, instructions,
+structured cooking actions, action inputs, and duration or temperature
+measures. Draft actions may point only to ingredient slots in the same draft.
 
 An ingredient slot has one of two explicit states:
 
@@ -46,9 +47,13 @@ The private endpoints are:
 - `GET /api/recipe-drafts` lists only the current member's active drafts;
 - `GET /api/recipe-drafts/{draft_id}` reads only that member's active draft;
 - `PUT /api/recipe-drafts/{draft_id}` atomically replaces the saved aggregate
-  when the body's expected `revision` is current; and
+  when the body's expected `revision` is current;
 - `DELETE /api/recipe-drafts/{draft_id}?revision={expected}` permanently
-  discards the current revision.
+  discards the current revision;
+- `POST /api/recipe-drafts/{draft_id}/duplicate-preflights` reviews one saved
+  revision for structural similarity before original publication; and
+- `POST /api/recipe-drafts/{draft_id}/publish` atomically publishes one
+  reviewed, source-less revision.
 
 The server always selects authorship from the Recipe Lab session. Request
 schemas accept no author or user identifier. Reads require an active member
@@ -98,13 +103,13 @@ appear in:
 Creating, saving, resuming, resolving, or discarding a draft appends no
 `preference_events` row. The editor does not call recommendations,
 substitutions, structural duplicate preflight, or a publication endpoint while
-the member is authoring.
+the member is merely authoring or saving. The explicit publish action crosses
+this boundary only after a saved revision has completed similarity review.
 
-This isolation is deliberate defense in depth. Several public adapters can
-currently select every `RecipeVersion` because every row in that table is an
-immutable public snapshot. Keeping private state in separate tables prevents a
-future public adapter from leaking drafts merely because it omitted a status
-predicate.
+This isolation is deliberate defense in depth. Public adapters use the shared
+`recipe_version_publications` state predicate, while private content never
+occupies `recipe_versions` at all. A future adapter therefore cannot leak a
+draft merely because it mishandles a public visibility filter.
 
 ## Editor behavior
 
@@ -113,11 +118,14 @@ and unit controls, preparation notes, preserved instruction prose, and curated
 structured-action controls. Ingredients, instructions, and actions have
 keyboard-operable ordering controls; ordering is not drag-only.
 
-**Save draft** is a private persistence action. It is distinct from **Publish
-recipe**, which is not implemented by RCP-26. Validation and API errors leave
-the entered form values in place. After a confirmed save, that returned
+**Save draft** is a private persistence action and never publishes. **Review
+and publish** is available only for a clean, saved original draft. It first
+runs the required revision-bound similarity review, presents any bounded public
+matches neutrally, and publishes a distinct result or an explicit advisory
+continue. A fork draft remains private until RCP-28. Validation and API errors
+leave the entered form values in place. After a confirmed save, that returned
 revision becomes the clean baseline. A later edit is unsaved until another save
-succeeds.
+succeeds and completes a new review.
 
 Leaving with changes relative to the last confirmed save produces a truthful
 warning for reloads, closing the page, browser history navigation, and
@@ -132,35 +140,87 @@ draft and all child content. It is removed from the member's list and later
 reads return `404`. Recipe Lab provides no trash, undo, restore endpoint, or
 soft-deleted copy of the recipe body.
 
+Successful publication uses a different terminal policy. It retains the
+completed draft with `status = published` and an immutable
+`recipe_version_publications` receipt that binds the actor, idempotency action,
+draft revision, duplicate-review evidence, public version, and publication
+time. Published drafts are excluded from the active list, and ordinary draft
+read, edit, and discard operations return `404`. The retained state is not a
+second editable copy; it exists to make publication replayable and to prevent a
+second root from the same draft.
+
 Infrastructure backups, when configured, may retain database blocks according
 to the operator's separately documented backup schedule. They are not
 browsable or recoverable through the product. RCP-26 does not prescribe that
 schedule or claim that deleting a live row synchronously rewrites historical
 backups; deployment operations must define backup protection and expiry.
 
-## Publication boundary
+## Original publication boundary
 
-RCP-26 does not create a lineage, immutable recipe version, structural
-fingerprint, duplicate-preflight record, or fork event. It also does not mark a
-draft published.
+The author first calls
+`POST /api/recipe-drafts/{draft_id}/duplicate-preflights` with
+`{ "revision": <saved_revision> }` and a UUID `Idempotency-Key`. The returned
+preflight is immutable, actor-scoped, revision-bound, and limited to public
+candidates. Similarity review is required but advisory. A distinct result can
+publish with no decision; an exact or probable result can publish only when the
+author explicitly chooses `continue`. Choosing revise means editing and saving
+the draft, which invalidates the old review. Review failure has no
+continue-without-review shortcut.
 
-RCP-27 owns original-recipe publication. It must reload and lock the active
-author-owned source-less draft, validate the complete catalog-backed structure,
-run and bind the source-less duplicate preflight, create one lineage and root
-snapshot atomically, and only then complete the draft lifecycle. A failed
-publication must leave the draft editable.
+`POST /api/recipe-drafts/{draft_id}/publish` accepts the same saved revision and
+the review envelope:
 
-RCP-28 owns fork publication. It must retain the draft's exact source-version
-identity, recheck that source's public availability, allocate the child version
-inside the source lineage, and record exactly one fork event. Neither story may
-reinterpret unresolved request text as catalog identity.
+```json
+{
+  "revision": 4,
+  "duplicate_review": {
+    "preflight_id": "00000000-0000-4000-8000-000000000000",
+    "policy_version": "recipe-duplicate-preflight-policy-v1",
+    "result_digest": "<lowercase sha256>",
+    "decision": null
+  }
+}
+```
+
+For an advisory match, `decision` is `"continue"`. The endpoint also requires
+a UUID `Idempotency-Key`, the session-bound CSRF token, and trusted exact
+Origin. The service reloads and locks the active author-owned draft and
+revalidates its source-less identity, revision, complete curated structure,
+fingerprint, current policy, result digest, public candidates, and required
+decision. Client-supplied evidence alone is never trusted.
+
+One transaction creates a new lineage, a parentless version-1 root attributed
+to the member on both rows, fresh ordered snapshot children, the structural
+fingerprint, published visibility and receipt, and the draft's terminal
+`published` state. It appends no fork or other preference event. Success returns
+`201`,
+`{ "recipe_version_id": "<uuid>", "location": "/recipes/<uuid>" }`, and the
+same path in `Location`. An exact retry of the same member action returns that
+same response; an idempotency-key conflict returns `409`. Any failure rolls
+everything back, so the active draft remains editable and no partial lineage,
+snapshot, fingerprint, receipt, or completed state survives.
+
+The published snapshot is immediately available through existing public
+browse, detail, comparison, duplicate-candidate, and recommendation-candidate
+reads. Later public-profile reads use the same publication-state seam. Its
+lineage, root version, ordered content, structural fingerprint, and publication
+receipt are immutable. Corrections require a new version rather than mutation.
+RCP-28 owns publication of drafts with a source: it must recheck exact source
+visibility, allocate inside that source lineage, and record exactly one fork
+event. RCP-27 never publishes a fork draft, and neither story may reinterpret
+unresolved request text as catalog identity.
 
 ## Verification boundary
 
 Acceptance coverage includes owner-versus-other-member `404` behavior,
 authentication and CSRF failures, stale-revision conflicts, exact fork copying,
 arbitrary-identity rejection, request-status and resolution preservation,
-discard deletion, and public/non-signal exclusion. Frontend and browser checks
-cover saved-session resume, validation preservation, keyboard ordering,
-accessible error focus and announcements, phone layouts, two-tab conflicts,
-and both hard-navigation and client-navigation unsaved-change warnings.
+discard deletion, and private/non-signal exclusion. Publication coverage adds
+source-less and owner checks, revision and curated-identity revalidation,
+required advisory review, rollback on every failure, exact idempotent replay,
+one-root enforcement, retained-draft sealing, public visibility, immutable
+snapshot guards, and seeded-version backfill. Frontend and browser checks cover
+saved-session resume, validation preservation, keyboard ordering, accessible
+error focus and announcements, phone layouts, two-tab conflicts, both
+hard-navigation and client-navigation unsaved-change warnings, and successful
+publish navigation to the stable public location.

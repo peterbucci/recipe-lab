@@ -34,7 +34,9 @@ to copy that exact immutable snapshot, then routes to
 in local state, validates them without resetting the form, and saves one full
 ordered snapshot under an optimistic revision. API validation and revision
 errors leave browser values in place. Saving never creates a public version,
-lineage, fingerprint, or event; RCP-27 and RCP-28 own publication.
+lineage, fingerprint, or event. A separate review-and-publish action can turn a
+clean source-less revision into an original public root; RCP-28 owns the fork
+publication path.
 
 Recipe detail pages render the available parent, current version, and direct
 children as an accessible semantic list. This intentionally communicates one
@@ -182,6 +184,16 @@ from naming a parent in another lineage, while a partial unique index permits
 only one root per lineage. Ingredients and instructions belong to a specific
 snapshot and have stable display positions.
 
+`recipe_version_publications` is the explicit public-state and immutable-receipt
+boundary. Every seeded version is backfilled with supported `published` state
+without changing its stable UUID or topology. An RCP-27 receipt additionally
+binds one version to its retained source draft, author, idempotency action,
+request fingerprint, saved revision, duplicate preflight, policy, result
+digest, optional continue decision, and publication time. Public browse,
+detail, diff, profile, duplicate, and recommendation-candidate repositories
+begin with this shared state predicate rather than treating every arbitrary
+version row as readable.
+
 Every instruction may own an ordered set of structured action instances. Each
 action references one curated cooking-action type, zero or more ordered
 ingredient occurrences from the same recipe version, and at most one duration
@@ -237,10 +249,15 @@ Application services must create a new version rather than edit an existing
 snapshot. PostgreSQL prevents changes to a stored version's ID, lineage, or
 parent, and a recursive constraint trigger rejects cyclic bulk inserts. These
 guards keep lineage topology acyclic regardless of the write path. Restrictive
-foreign keys also protect referenced history from deletion. Blanket database
-triggers that reject every content update are deferred until the recipe
-creation lifecycle is defined, so seed corrections and future migrations are
-not made unnecessarily difficult.
+foreign keys also protect referenced history from deletion. Once a version has
+a publication receipt, database triggers reject changes to its lineage or
+version and insert, update, delete, or truncate attempts against its ordered
+ingredients, instructions, actions, action inputs, and measures. Existing
+fingerprint rows cannot be updated or deleted, while a new algorithm-version
+fingerprint may be appended and is immutable from that point forward.
+Publication evidence itself is append-only. Corrections must create a new
+immutable version through an authorized lifecycle rather than rewrite the
+published snapshot.
 
 `recipe_structural_fingerprints` stores one immutable result per recipe version
 and algorithm version. It retains both a lowercase SHA-256 digest and the exact
@@ -255,8 +272,8 @@ same transaction as the immutable version.
 RCP-25E consumes those fingerprints through a separate public-only advisory
 preflight. A source-optional structural core accepts a completed fingerprint;
 the current fork adapter first prepares and validates a proposed child in memory
-without taking a long-lived lineage lock, while RCP-27 can later pass a
-source-less original draft. No temporary recipe row is inserted. Fork
+without taking a long-lived lineage lock, while the RCP-27 adapter loads one
+saved source-less draft revision. No temporary recipe row is inserted. Fork
 persistence takes the lineage lock later and verifies that the stored
 fingerprint is byte-identical to the prepared fingerprint before the
 transaction can commit. `recipe-duplicate-preflight-policy-v1` pins candidate
@@ -276,9 +293,11 @@ mutation; composite foreign keys bind candidate policy/fingerprint versions and
 decision actor/policy/digest to their preflight; and bounded JSON checks enforce
 the explanation families. No prose or canonical payload is copied into the
 audit trail. These records are intentionally outside `preference_events`;
-duplicate review is not a recommendation signal. RCP-27 and RCP-28 must
-recompute and validate the result digest inside their publication transactions.
-See [recipe duplicate-candidate preflight](duplicate-detection.md).
+duplicate review is not a recommendation signal. RCP-27 recomputes and
+validates the draft revision, fingerprint, result digest, candidate visibility,
+and optional continue decision inside the original-publication transaction.
+RCP-28 must do the same for a fork. See
+[recipe duplicate-candidate preflight](duplicate-detection.md).
 
 Private recipe authoring uses a separate `recipe_drafts` aggregate rather than
 a status on `recipe_versions`. Draft children store ordered ingredient slots,
@@ -299,9 +318,16 @@ product trash or restore surface.
 Because drafts never occupy `recipe_versions`, they are absent by construction
 from public browse, detail, lineage, diff, profile, fingerprint, duplicate,
 interaction, recommendation, and evaluation-export queries. Draft lifecycle
-operations create no preference event. RCP-27 owns atomic source-less original
-publication and duplicate review; RCP-28 owns source visibility revalidation,
-lineage allocation, and the single fork event. See
+operations create no preference event. Original publication reloads and locks
+an active source-less draft, validates its complete curated document and
+revision-bound review, then uses one transaction to create the lineage,
+parentless version-1 snapshot, ordered child rows, fingerprint, receipt, and
+terminal draft status. Failure leaves the draft active with no partial public
+state. Success retains it as `published`, excludes it from active draft reads,
+and makes edit or discard return `404`; exact idempotent replay returns the same
+public version and location. The original transition creates no fork or other
+preference event. RCP-28 owns source visibility revalidation, lineage
+allocation, and the single fork event. See
 [private recipe drafts](private-recipe-drafts.md).
 
 The lineage-wide version number is allocated while holding a row lock on the
@@ -477,6 +503,8 @@ and limitations.
 Server-rendered read: Browser -> Next.js ---------> FastAPI -> PostgreSQL
 Browser API action:   Browser -> Next.js /api ----> FastAPI -> PostgreSQL
 Private draft action: Browser -> Next.js /api ----> FastAPI -> draft tables
+Original publication: Browser -> Next.js /api ----> FastAPI -> one transaction
+                                                     |        draft + public tables
 Account login:        Browser -> Next.js /api ----> FastAPI <-> OIDC provider
                                                     |
                                                     +-------> PostgreSQL
@@ -500,7 +528,7 @@ recommendation reads.
 ## Early design decisions to record
 
 - Measurement-catalog evolution, unit deactivation, and storage-snapshot retention.
-- Original- and fork-draft publication plus immutable content enforcement.
+- Fork-draft publication and subsequent immutable-version correction workflow.
 - Preference-event retention and migration from demo to authenticated users.
 - Recipe and metadata provenance.
 - Authenticated-profile and impression semantics for later evaluation data.
