@@ -22,6 +22,7 @@ from app.services.recipe_duplicate_preflights import (
     RecipeDuplicatePreflightCapacityError,
     RecipeDuplicatePreflightServiceResult,
     RecipeDuplicatePreflightStaleError,
+    RecipeDuplicatePreflightUnavailableError,
 )
 
 TEST_ORIGIN = "http://localhost:3000"
@@ -310,12 +311,32 @@ def test_stale_candidate_evidence_is_generic_for_replay_and_decision_routes(
         },
     )
 
+    def unavailable_source(*_args: object, **_kwargs: object) -> None:
+        raise RecipeDuplicatePreflightUnavailableError(
+            "Internal evidence mentioned an unavailable direct source."
+        )
+
+    monkeypatch.setattr(
+        duplicate_routes,
+        "record_recipe_duplicate_decision",
+        unavailable_source,
+    )
+    unavailable_source_response = duplicate_client.post(
+        f"/api/recipe-duplicate-preflights/{uuid4()}/decision",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={
+            "policy_version": "recipe-duplicate-preflight-policy-v1",
+            "result_digest": "d" * 64,
+            "decision": "continue",
+        },
+    )
+
     expected = {
         "code": "duplicate_preflight_stale",
         "message": "The duplicate preflight is no longer current. Run it again.",
         "issues": [],
     }
-    for response in (preflight_response, decision_response):
+    for response in (preflight_response, decision_response, unavailable_source_response):
         assert response.status_code == 409
         assert _json_object(response.json())["error"] == expected
         assert str(hidden_candidate_id) not in response.text

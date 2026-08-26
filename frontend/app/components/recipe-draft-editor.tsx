@@ -420,7 +420,10 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
         </p>
       </header>
 
-      <p className="draft-editor__privacy"><strong>Private draft</strong> · Revision {detail.revision}. Publishing is a separate future step.</p>
+      <p className="draft-editor__privacy">
+        <strong>Private draft</strong> · Revision {detail.revision}. Publishing creates a separate
+        immutable public snapshot.
+      </p>
       <p className="visually-hidden" role="status" aria-live="polite">{announcement}</p>
 
       <form className="variant-editor draft-editor" aria-label="Private recipe draft editor" noValidate onSubmit={(event) => void save(event)}>
@@ -548,25 +551,17 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
           <button id="draft-add-instruction" className="button button--secondary" type="button" disabled={draft.instructions.length >= 100} onClick={addInstruction}>Add instruction</button>
         </fieldset>
 
-        {detail.source_version_id === null ? (
-          <RecipeDraftPublication
-            actionTypes={actionTypes}
-            draft={draft}
-            draftId={draftId}
-            dirty={dirty}
-            measurementUnits={measurementUnits}
-            onBusyChange={setPublicationBusy}
-            onValidation={applyPublicationValidation}
-            revision={detail.revision}
-          />
-        ) : (
-          <section className="draft-editor__publish-note" aria-labelledby="draft-publish-title">
-            <p className="eyebrow">Publishing</p>
-            <h2 id="draft-publish-title">This fork draft stays private.</h2>
-            <p>Publishing a fork belongs to RCP-28. Saving here never changes or replaces its public source.</p>
-            <button className="button button--disabled" type="button" disabled>Publish fork — not available yet</button>
-          </section>
-        )}
+        <RecipeDraftPublication
+          actionTypes={actionTypes}
+          draft={draft}
+          draftId={draftId}
+          dirty={dirty}
+          measurementUnits={measurementUnits}
+          onBusyChange={setPublicationBusy}
+          onValidation={applyPublicationValidation}
+          revision={detail.revision}
+          sourceVersionId={detail.source_version_id}
+        />
 
         <div className="variant-editor__actions draft-editor__actions">
           <div>

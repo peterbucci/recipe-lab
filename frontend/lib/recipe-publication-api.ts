@@ -128,6 +128,8 @@ async function publicationError(response: Response): Promise<RecipePublicationAp
   }
   if (response.status === 401) {
     message = "Your session expired. Your draft is still here; sign in again before publishing.";
+  } else if (response.status === 409 && code === "recipe_fork_source_unavailable") {
+    message = "The public source recipe is no longer available. Your private draft is unchanged.";
   }
   return new RecipePublicationApiError(message, response.status, code, issues);
 }

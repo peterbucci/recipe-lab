@@ -14,8 +14,8 @@ from app.schemas.errors import ErrorResponse
 from app.schemas.recipe_duplicates import RecipeDuplicatePreflightResponse
 from app.schemas.recipe_publications import (
     RecipeDraftDuplicatePreflightRequest,
-    RecipeOriginalPublicationRequest,
-    RecipeOriginalPublicationResponse,
+    RecipeDraftPublicationRequest,
+    RecipeDraftPublicationResponse,
 )
 from app.services.recipe_duplicate_preflights import (
     RecipeDuplicateDecisionNotRequiredError,
@@ -25,11 +25,13 @@ from app.services.recipe_duplicate_preflights import (
 )
 from app.services.recipe_publications import (
     InvalidOriginalRecipePublicationError,
+    InvalidRecipeDraftPublicationError,
+    RecipeForkSourceUnavailableError,
     RecipePublicationIdempotencyConflictError,
     RecipePublicationNotFoundError,
     RecipePublicationRevisionConflictError,
-    publish_original_recipe_draft,
-    run_original_recipe_draft_duplicate_preflight,
+    publish_recipe_draft,
+    run_recipe_draft_duplicate_preflight,
 )
 
 router = APIRouter()
@@ -61,7 +63,7 @@ PUBLICATION_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     },
     422: {
         "model": ErrorResponse,
-        "description": "The original recipe draft is incomplete or invalid.",
+        "description": "The recipe draft is incomplete or invalid.",
     },
     503: {
         "model": ErrorResponse,
@@ -96,10 +98,11 @@ def _revision_conflict() -> ApiError:
     response_model=RecipeDuplicatePreflightResponse,
     status_code=status.HTTP_201_CREATED,
     responses=PUBLICATION_ERROR_RESPONSES,
-    summary="Check an original private draft for structural duplicates",
+    summary="Check a private draft for structural duplicates",
     description=(
-        "Fully validates one current source-less draft and stores a bounded advisory "
-        "comparison with public immutable recipes. It does not publish or expose the draft."
+        "Fully validates one current draft and stores a bounded advisory comparison with "
+        "public immutable recipes. Source-backed drafts also compare against their direct "
+        "parent for the no-change warning. This does not publish or expose the draft."
     ),
 )
 def create_original_draft_duplicate_preflight(
@@ -112,7 +115,7 @@ def create_original_draft_duplicate_preflight(
 ) -> RecipeDuplicatePreflightResponse:
     actor_id = lock_active_member_actor(session, authenticated)
     try:
-        result = run_original_recipe_draft_duplicate_preflight(
+        result = run_recipe_draft_duplicate_preflight(
             session,
             author_user_id=actor_id,
             draft_id=draft_id,
@@ -131,6 +134,29 @@ def create_original_draft_duplicate_preflight(
             status_code=422,
             code="invalid_original_recipe_draft",
             message=str(error),
+        ) from error
+    except InvalidRecipeDraftPublicationError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=422,
+            code="invalid_recipe_draft",
+            message=str(error),
+        ) from error
+    except RecipeForkSourceUnavailableError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=409,
+            code="recipe_fork_source_unavailable",
+            message=(
+                "The public source recipe is no longer available. Your private draft is unchanged."
+            ),
+        ) from error
+    except RecipeDuplicatePreflightStaleError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=409,
+            code="duplicate_preflight_stale",
+            message="The duplicate preflight is no longer current. Run it again.",
         ) from error
     except RecipePublicationIdempotencyConflictError as error:
         session.rollback()
@@ -164,27 +190,27 @@ def create_original_draft_duplicate_preflight(
 
 @router.post(
     "/recipe-drafts/{draft_id}/publish",
-    response_model=RecipeOriginalPublicationResponse,
+    response_model=RecipeDraftPublicationResponse,
     status_code=status.HTTP_201_CREATED,
     responses=PUBLICATION_ERROR_RESPONSES,
-    summary="Publish a source-less private draft as an immutable original recipe",
+    summary="Publish a private draft as an immutable recipe version",
     description=(
-        "Revalidates the complete curated draft and current duplicate evidence in one "
-        "serialized transaction, creates a root lineage/version snapshot, marks it public, "
-        "and completes the private draft."
+        "Revalidates the complete curated draft and duplicate evidence in one serialized "
+        "transaction. Source-less drafts create roots; source-backed drafts create direct "
+        "children in the source lineage and one fork preference event."
     ),
 )
 def publish_original_draft(
     draft_id: UUID,
-    payload: Annotated[RecipeOriginalPublicationRequest, Body()],
+    payload: Annotated[RecipeDraftPublicationRequest, Body()],
     action_id: PublicationActionIdHeader,
     response: Response,
     session: SessionDependency,
     authenticated: CsrfProtectedSessionDependency,
-) -> RecipeOriginalPublicationResponse:
+) -> RecipeDraftPublicationResponse:
     actor_id = lock_active_member_actor(session, authenticated)
     try:
-        result = publish_original_recipe_draft(
+        result = publish_recipe_draft(
             session,
             author_user_id=actor_id,
             draft_id=draft_id,
@@ -203,6 +229,22 @@ def publish_original_draft(
             status_code=422,
             code="invalid_original_recipe_draft",
             message=str(error),
+        ) from error
+    except InvalidRecipeDraftPublicationError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=422,
+            code="invalid_recipe_draft",
+            message=str(error),
+        ) from error
+    except RecipeForkSourceUnavailableError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=409,
+            code="recipe_fork_source_unavailable",
+            message=(
+                "The public source recipe is no longer available. Your private draft is unchanged."
+            ),
         ) from error
     except RecipeDuplicatePreflightNotFoundError as error:
         session.rollback()
@@ -253,7 +295,7 @@ def publish_original_draft(
     response.headers["Location"] = result.location
     _private_no_store(response)
     session.commit()
-    return RecipeOriginalPublicationResponse(
+    return RecipeDraftPublicationResponse(
         recipe_version_id=result.recipe_version_id,
         location=result.location,
     )

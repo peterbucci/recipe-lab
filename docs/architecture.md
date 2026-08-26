@@ -35,8 +35,10 @@ in local state, validates them without resetting the form, and saves one full
 ordered snapshot under an optimistic revision. API validation and revision
 errors leave browser values in place. Saving never creates a public version,
 lineage, fingerprint, or event. A separate review-and-publish action can turn a
-clean source-less revision into an original public root; RCP-28 owns the fork
-publication path.
+clean source-less revision into an original public root or a clean source-backed
+revision into a separate immutable child of its exact public source. The fork
+path displays the direct-parent no-change warning when appropriate and never
+rewrites the source snapshot.
 
 Recipe detail pages render the available parent, current version, and direct
 children as an accessible semantic list. This intentionally communicates one
@@ -271,12 +273,12 @@ same transaction as the immutable version.
 
 RCP-25E consumes those fingerprints through a separate public-only advisory
 preflight. A source-optional structural core accepts a completed fingerprint;
-the current fork adapter first prepares and validates a proposed child in memory
-without taking a long-lived lineage lock, while the RCP-27 adapter loads one
-saved source-less draft revision. No temporary recipe row is inserted. Fork
-persistence takes the lineage lock later and verifies that the stored
-fingerprint is byte-identical to the prepared fingerprint before the
-transaction can commit. `recipe-duplicate-preflight-policy-v1` pins candidate
+the legacy in-memory fork adapter prepares a proposed child without taking a
+long-lived lineage lock, while the publication adapter loads one saved original
+or source-backed draft revision. No temporary recipe row is inserted. Fork
+publication takes the lineage lock only inside the final transaction and
+verifies that the stored fingerprint is byte-identical to the prepared draft
+fingerprint before commit. `recipe-duplicate-preflight-policy-v1` pins candidate
 selection, public visibility, ordering, work limits, direct-parent semantics,
 and the exact `duplicate-candidate-similarity-v1` scorer parameters. Exact
 digest candidates are confirmed against canonical JSON, while non-exact public
@@ -293,10 +295,10 @@ mutation; composite foreign keys bind candidate policy/fingerprint versions and
 decision actor/policy/digest to their preflight; and bounded JSON checks enforce
 the explanation families. No prose or canonical payload is copied into the
 audit trail. These records are intentionally outside `preference_events`;
-duplicate review is not a recommendation signal. RCP-27 recomputes and
-validates the draft revision, fingerprint, result digest, candidate visibility,
-and optional continue decision inside the original-publication transaction.
-RCP-28 must do the same for a fork. See
+duplicate review is not a recommendation signal. Draft publication recomputes
+and validates the revision, fingerprint, optional exact source, result digest,
+candidate visibility, and optional continue decision inside the same
+transaction that exposes the immutable root or child. See
 [recipe duplicate-candidate preflight](duplicate-detection.md).
 
 Private recipe authoring uses a separate `recipe_drafts` aggregate rather than
@@ -318,19 +320,29 @@ product trash or restore surface.
 Because drafts never occupy `recipe_versions`, they are absent by construction
 from public browse, detail, lineage, diff, profile, fingerprint, duplicate,
 interaction, recommendation, and evaluation-export queries. Draft lifecycle
-operations create no preference event. Original publication reloads and locks
-an active source-less draft, validates its complete curated document and
-revision-bound review, then uses one transaction to create the lineage,
-parentless version-1 snapshot, ordered child rows, fingerprint, receipt, and
-terminal draft status. Failure leaves the draft active with no partial public
-state. Success retains it as `published`, excludes it from active draft reads,
-and makes edit or discard return `404`; exact idempotent replay returns the same
-public version and location. The original transition creates no fork or other
-preference event. RCP-28 owns source visibility revalidation, lineage
-allocation, and the single fork event. See
-[private recipe drafts](private-recipe-drafts.md).
+operations create no preference event. Publication reloads and locks an active
+owner draft, validates its complete curated document and revision-bound review,
+then selects one of two topology-preserving transitions. A source-less draft
+creates a new lineage and parentless version-1 root. A source-backed draft
+rechecks the exact source through the shared public predicate, locks its
+lineage, allocates the next lineage-wide version number, and creates a direct
+child without changing the source or lineage creator.
 
-The lineage-wide version number is allocated while holding a row lock on the
+The transaction also creates fresh ordered child rows, a fresh fingerprint, the
+publication receipt, and terminal draft status. A fork additionally creates
+exactly one preference event from its direct source to the child. The child
+version, receipt, and event all attribute the operation to the authenticated
+publisher; lineage creation does not grant rights over another author's
+descendants. Public author/profile presentation remains RCP-29. Failure,
+including loss of source visibility, leaves the draft active with no partial
+public state. Success retains it as `published`, excludes it from active draft
+reads, and makes edit or discard return `404`; exact idempotent replay returns
+the same public version and location. Original publication creates no fork or
+other preference event. See [private recipe drafts](private-recipe-drafts.md).
+
+The publication advisory lock serializes duplicate-evidence recomputation with
+changes to public visibility. It is not the lineage numbering contract. A
+fork's lineage-wide version number is allocated while holding a row lock on the
 lineage itself. Locking only the selected parent would not serialize siblings
 created concurrently from different branches. The existing unique constraint
 on `(lineage_id, version_number)` remains a database backstop.
@@ -370,11 +382,13 @@ worker because real member activity and fork writes are intentionally stateful
 within that disposable run.
 
 The canonical tests prove anonymous read-only access, isolated Alice/Bob save
-and rating state, curator-only ingredient review, and one uninterrupted
-authenticated browse, save, fork, structured edit, and parent-comparison
-journey. They never intercept the real
+and rating state, curator-only ingredient review, original publication, and an
+uninterrupted cross-user private-fork, source-aware review, publication, and
+direct-parent comparison journey. They never intercept the real
 write path and therefore verify the session, CSRF, browser-to-database path,
-member attribution, lineage persistence, and diff result together. Keyboard
+member attribution, lineage persistence, no-change acknowledgement, and diff
+result together. Backend integration separately verifies exactly-one event,
+retry, rollback, source-loss, and concurrent-sibling behavior. Keyboard
 activation and automated WCAG A/AA checks cover the basic accessibility gate.
 The test is disabled unless both
 `MVP_ACCEPTANCE=1` and `ACCEPTANCE_DATABASE_ISOLATED=1` are explicitly set, and

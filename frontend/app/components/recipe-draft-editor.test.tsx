@@ -114,14 +114,24 @@ describe("RecipeDraftEditor", () => {
     expect(await screen.findByRole("button", { name: "Review and publish" })).toBeVisible();
   });
 
-  it("keeps fork publication behind RCP-28", async () => {
+  it("offers the persistent publication flow for a source-backed fork draft", async () => {
+    const sourceId = "22222222-2222-4222-8222-222222222222";
     mocks.fetchRecipeDraft.mockResolvedValue({
       ...detail,
-      source_version_id: "22222222-2222-4222-8222-222222222222",
+      source_version_id: sourceId,
     });
     renderEditor();
 
-    expect(await screen.findByRole("button", { name: "Publish fork — not available yet" })).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Review and publish" })).toBeNull();
+    expect(
+      await screen.findByRole("heading", {
+        name: "Publish your version without changing its source.",
+      }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Review and publish version" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "exact public source version" })).toHaveAttribute(
+      "href",
+      `/recipes/${sourceId}`,
+    );
+    expect(screen.queryByText(/belongs to RCP-28/i)).toBeNull();
   });
 });

@@ -32,7 +32,7 @@ afterEach(() => {
   document.cookie = "recipe_lab_csrf=; Max-Age=0; path=/";
 });
 
-describe("original recipe publication API", () => {
+describe("recipe publication API", () => {
   it("requires matching stable body and Location header", () => {
     expect(
       parseRecipeDraftPublication(
@@ -106,5 +106,27 @@ describe("original recipe publication API", () => {
     expect(String(error)).not.toContain("Private upstream identity");
     expect(expired).toHaveBeenCalledOnce();
     window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
+  });
+
+  it("uses a stable draft-preserving conflict when a fork source is unavailable", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        error: {
+          code: "recipe_fork_source_unavailable",
+          message: "Source title and private operator detail",
+          issues: [],
+        },
+      }, { status: 409 }),
+    ));
+
+    const error = await publishRecipeDraft(DRAFT_ID, request, ACTION_ID).catch(
+      (reason: unknown) => reason,
+    );
+    expect(error).toMatchObject({
+      status: 409,
+      code: "recipe_fork_source_unavailable",
+      message: "The public source recipe is no longer available. Your private draft is unchanged.",
+    });
+    expect(String(error)).not.toContain("private operator detail");
   });
 });

@@ -28,7 +28,10 @@ test.describe("structured cooking action acceptance", () => {
 
     await useAcceptanceMember(page, "alice");
     await page.goto("/recipes?q=carrot");
-    await page.getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true }).click();
+    await page
+      .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
+      .first()
+      .click();
     await page.getByRole("link", { name: "Make your own version", exact: true }).click();
     await expect(page.getByRole("heading", { name: /make carrot walnut snack cake your own/i })).toBeVisible();
     await page.getByRole("button", { name: "Create private draft", exact: true }).click();
@@ -129,10 +132,38 @@ test.describe("structured cooking action acceptance", () => {
     await expect(resumedActions.nth(1).getByRole("combobox", { name: "Cooking action" })).toHaveValue(preheatTypeId);
     await expect(resumedActions.nth(2).getByRole("combobox", { name: "Cooking action" })).toHaveValue(lineTypeId);
     await expectNoAccessibilityViolations(page);
-  });
 
-  test.skip(
-    "publishes structured actions and compares them after the RCP-28 fork publication workflow lands",
-    async () => undefined,
-  );
+    const draftId = new URL(page.url()).pathname.split("/").at(-1)!;
+    const preflightResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/api/recipe-drafts/${draftId}/duplicate-preflights`),
+    );
+    const publishResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/api/recipe-drafts/${draftId}/publish`),
+    );
+    await page.getByRole("button", { name: "Review and publish version", exact: true }).click();
+    const preflight = await preflightResponse;
+    expect(preflight.status()).toBe(201);
+    const preflightBody = (await preflight.json()) as { classification?: unknown };
+    if (preflightBody.classification !== "distinct") {
+      const review = page.locator(".duplicate-preflight-review");
+      await review
+        .getByRole("checkbox", { name: /publish my version anyway|direct-parent no-change warning/i })
+        .check();
+      await review.getByRole("button", { name: "Publish version anyway" }).click();
+    }
+    expect((await publishResponse).status()).toBe(201);
+    await expect(page).toHaveURL(/\/recipes\/[0-9a-f-]+$/i);
+
+    await page.getByRole("link", { name: "See what changed", exact: true }).click();
+    const changedInstruction = page.getByRole("article", { name: "Updated instruction" }).first();
+    await expect(changedInstruction).toContainText("Prose changed");
+    await expect(changedInstruction).toContainText("Action order changed");
+    await expect(changedInstruction).toContainText("Duration changed");
+    await expect(changedInstruction).toContainText("Temperature changed");
+    await expectNoAccessibilityViolations(page);
+  });
 });

@@ -4,9 +4,10 @@
 
 Recipe Lab runs a reusable, advisory duplicate check before a structurally
 authored recipe is published. Its core accepts a completed fingerprint plus an
-optional direct source. The variant endpoint prepares a proposed child, while
-the RCP-27 draft endpoint loads one saved source-less revision. RCP-28 can later
-use the same core with the draft's direct source and no-change contract.
+optional direct source. The legacy variant adapter prepares a proposed child in
+memory, while the draft-publication adapter loads one saved original or
+source-backed revision. A source-backed review binds the draft's exact direct
+parent and applies the no-change contract.
 
 The check answers a narrow structural question. It does not decide authorship,
 originality, copyright, plagiarism, culinary equivalence, or which recipe is
@@ -17,14 +18,14 @@ a separate curation workflow and shares neither these records nor this policy.
 
 ## Preflight flow
 
-`POST /api/recipes/{source_version_id}/duplicate-preflights` accepts the same
-validated edit payload as variant creation plus a member-scoped UUID
-`Idempotency-Key`. For an original draft,
+`POST /api/recipes/{source_version_id}/duplicate-preflights` retains the legacy
+validated-edit adapter plus a member-scoped UUID `Idempotency-Key`. For a saved
+original or fork draft,
 `POST /api/recipe-drafts/{draft_id}/duplicate-preflights` accepts
 `{ "revision": <saved_revision> }` and its own UUID `Idempotency-Key`. It
-requires the active, source-less draft to belong to the session member and
-prepares the complete saved aggregate. Both adapters call the same
-source-optional structural core. The service:
+requires the active draft to belong to the session member, prepares its complete
+saved aggregate, and supplies `source_version_id` only for a fork. Both adapters
+call the same source-optional structural core. The service:
 
 1. verifies any source is publicly readable and any draft is private to the
    active author;
@@ -141,11 +142,14 @@ advisory; it does not create or publish a recipe by itself.
 The browser pauses inline, shows neutral explanations and public candidate
 links in a draft-safe new tab, and requires an acknowledgement before an
 advisory match can continue. Editing and saving any field changes the revision
-and invalidates the old preflight. If review is unavailable, a source-less
-draft remains unpublished and the editor offers a retry; it never pretends the
-result was distinct or offers publication without review.
+and invalidates the old preflight. If review is unavailable, the draft remains
+unpublished and the editor offers a retry; it never pretends the result was
+distinct or offers publication without review. If a fork's exact source is no
+longer publicly readable, the API returns
+`409 recipe_fork_source_unavailable`, keeps the draft intact, and offers no
+source-free fallback.
 
-Original publication sends the revision and exact review envelope to
+Draft publication sends the revision and exact review envelope to
 `POST /api/recipe-drafts/{draft_id}/publish`:
 
 ```json
@@ -163,11 +167,13 @@ Original publication sends the revision and exact review envelope to
 A distinct result uses `decision: null`; an exact or probable result uses
 `decision: "continue"`. The publication transaction reloads and locks the
 draft, recomputes its fingerprint, and validates the actor, revision, current
-policy, result digest, bounded candidate visibility, and decision. It creates
-the immutable root snapshot and binds this evidence only if every check still
-passes. A stale or mismatched review leaves the draft active and creates no
-partial public state. RCP-28 must apply the same rule when fork publication is
-implemented.
+policy, optional exact source, result digest, bounded candidate visibility, and
+decision. An original creates an immutable root. A fork rechecks source
+visibility, locks the existing lineage, and creates a separate direct child even
+when the parent structure is unchanged. The transaction binds the evidence only
+if every check still passes. A stale or mismatched review or an unavailable
+source leaves the draft active and creates no partial snapshot, publication
+receipt, fork event, or completed state.
 
 ## Immutable evidence
 

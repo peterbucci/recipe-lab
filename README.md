@@ -146,10 +146,10 @@ The repository currently provides:
 - private persistent original and fork drafts with session-owned authorship,
   optimistic revisions, catalog-backed structured content, separate unresolved
   ingredient-request state, and immediate irreversible discard;
-- source-less original-recipe publication that requires a revision-bound
-  similarity review, records an explicit advisory continue when needed, and
-  atomically creates one immutable root snapshot plus a durable publication
-  receipt;
+- original and source-backed fork publication that requires a revision-bound,
+  source-aware similarity review, records an explicit advisory continue when
+  needed, and atomically creates one immutable snapshot plus a durable
+  publication receipt;
 - Alembic migrations and database-level lineage, ordering, rating, event
   privacy, and uniqueness constraints;
 - PostgreSQL and local development services through Docker Compose.
@@ -157,10 +157,13 @@ The repository currently provides:
 The repository also includes a deterministic demo catalog with 25 recipe
 lineages, useful variants, ingredient aliases, and directed substitutions.
 Saving a draft deliberately creates no lineage, recipe version, fingerprint,
-preference event, or recommendation signal. A saved source-less draft can be
-published as one immutable original root; publishing a fork draft remains the
-RCP-28 boundary. The complete lifecycle is documented in
-[private recipe drafts](docs/private-recipe-drafts.md).
+preference event, or recommendation signal. Publishing a saved source-less
+draft creates one immutable original root. Publishing a saved fork draft locks
+the existing lineage, preserves its exact public source as the direct parent,
+attributes the child to the authenticated publisher, and records exactly one
+fork event. Public cook-profile presentation remains a later concern; the
+version, publication receipt, and event already retain honest authorship. The
+complete lifecycle is documented in [private recipe drafts](docs/private-recipe-drafts.md).
 
 ## Quick start with Docker
 
@@ -193,7 +196,7 @@ Open:
 - Duplicate preflight API: `POST /api/recipes/{id}/duplicate-preflights`
 - Private draft API: `POST` or `GET /api/recipe-drafts`
 - Draft similarity API: `POST /api/recipe-drafts/{id}/duplicate-preflights`
-- Original publication API: `POST /api/recipe-drafts/{id}/publish`
+- Draft publication API: `POST /api/recipe-drafts/{id}/publish`
 - Account session status: <http://localhost:3000/api/auth/session>
 - Interactive API docs: <http://localhost:8000/docs>
 

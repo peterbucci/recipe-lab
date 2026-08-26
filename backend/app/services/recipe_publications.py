@@ -1,4 +1,4 @@
-"""Atomic publication of complete source-less private recipe drafts."""
+"""Atomic publication of complete private recipe drafts."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -31,12 +32,14 @@ from app.models import (
     RecipeVersionPublication,
 )
 from app.repositories.ingredients import curated_display_label, get_ingredient
+from app.repositories.preference_events import get_preference_event
 from app.repositories.recipe_drafts import get_owned_recipe_draft_for_publication
 from app.repositories.recipe_publications import (
     get_recipe_publication_by_action,
     get_recipe_publication_by_draft,
     lock_recipe_publication_guard,
 )
+from app.repositories.recipes import publicly_readable_recipe_version_filter
 from app.schemas.actions import AddedIngredientOccurrenceReference, StructuredActionInput
 from app.schemas.measurements import (
     ExactMeasureInput,
@@ -45,11 +48,13 @@ from app.schemas.measurements import (
     StructuredMeasureInput,
 )
 from app.schemas.recipe_duplicates import RecipeDuplicatePreflightResponse
-from app.schemas.recipe_publications import RecipeOriginalPublicationRequest
+from app.schemas.recipe_publications import RecipeDraftPublicationRequest
 from app.services.actions import ActionContractError, validate_structured_actions
 from app.services.measurements import MeasurementError, validate_measure_input
+from app.services.preference_events import PreferenceEventIntent, record_preference_event
 from app.services.recipe_duplicate_preflights import (
     RecipeDuplicatePreflightServiceResult,
+    RecipeDuplicatePreflightUnavailableError,
     revalidate_recipe_duplicate_publication_evidence,
     run_structural_recipe_duplicate_preflight,
 )
@@ -77,8 +82,16 @@ class RecipePublicationRevisionConflictError(ValueError):
     """Raised when publication references an obsolete draft revision."""
 
 
-class InvalidOriginalRecipePublicationError(ValueError):
-    """Raised when a draft cannot become a complete original recipe."""
+class InvalidRecipeDraftPublicationError(ValueError):
+    """Raised when a draft cannot become one complete public recipe snapshot."""
+
+
+class InvalidOriginalRecipePublicationError(InvalidRecipeDraftPublicationError):
+    """Preserve the RCP-27 error contract for invalid source-less drafts."""
+
+
+class RecipeForkSourceUnavailableError(RuntimeError):
+    """Raised when a source-backed draft's immutable public parent is unavailable."""
 
 
 class RecipePublicationIdempotencyConflictError(RuntimeError):
@@ -90,7 +103,7 @@ class PublishedRecipeFingerprintMismatchError(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
-class PreparedOriginalRecipeDraft:
+class PreparedRecipeDraft:
     draft: RecipeDraft
     structure: RecipeStructure
     structural_fingerprint: StructuralFingerprint
@@ -98,7 +111,7 @@ class PreparedOriginalRecipeDraft:
 
 
 @dataclass(frozen=True, slots=True)
-class OriginalRecipePublicationResult:
+class RecipeDraftPublicationResult:
     recipe_version_id: UUID
     state: Literal["created", "reused"]
 
@@ -107,8 +120,8 @@ class OriginalRecipePublicationResult:
         return f"/recipes/{self.recipe_version_id}"
 
 
-def _invalid(message: str) -> InvalidOriginalRecipePublicationError:
-    return InvalidOriginalRecipePublicationError(message)
+def _invalid(message: str) -> InvalidRecipeDraftPublicationError:
+    return InvalidRecipeDraftPublicationError(message)
 
 
 def _unit_display(unit: MeasurementUnit) -> str:
@@ -368,44 +381,58 @@ def _preflight_request_fingerprint(
         "title": draft.title,
         "description": draft.description,
         "servings": str(draft.servings),
-        "schema": "recipe-lab.original-draft-preflight-request",
+        "schema": (
+            "recipe-lab.original-draft-preflight-request"
+            if draft.source_version_id is None
+            else "recipe-lab.variant-draft-preflight-request"
+        ),
         "version": 1,
     }
+    if draft.source_version_id is not None:
+        document["source_version_id"] = str(draft.source_version_id)
     canonical = json.dumps(document, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def original_publication_request_fingerprint(
+def recipe_draft_publication_request_fingerprint(
     draft_id: UUID,
-    payload: RecipeOriginalPublicationRequest,
+    payload: RecipeDraftPublicationRequest,
+    *,
+    source_version_id: UUID | None = None,
 ) -> str:
     document = {
         "draft_id": str(draft_id),
         "payload": payload.model_dump(mode="json"),
-        "schema": "recipe-lab.original-recipe-publication-request",
+        "schema": (
+            "recipe-lab.original-recipe-publication-request"
+            if source_version_id is None
+            else "recipe-lab.variant-recipe-publication-request"
+        ),
         "version": 1,
     }
+    if source_version_id is not None:
+        document["source_version_id"] = str(source_version_id)
     canonical = json.dumps(document, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def _prepare_locked_original_draft(
+# Preserve the RCP-27 helper import and its exact fingerprint bytes for source-less
+# publications.
+original_publication_request_fingerprint = recipe_draft_publication_request_fingerprint
+
+
+def _prepare_locked_recipe_draft_content(
     session: Session,
     *,
     draft: RecipeDraft,
     expected_revision: int,
-) -> PreparedOriginalRecipeDraft:
+) -> PreparedRecipeDraft:
     if draft.status != RECIPE_DRAFT_STATUS_ACTIVE:
         raise RecipePublicationIdempotencyConflictError(
             "This private draft has already completed publication."
         )
     if draft.revision != expected_revision:
         raise RecipePublicationRevisionConflictError("The draft has a newer saved revision.")
-    if draft.source_version_id is not None:
-        raise _invalid(
-            "Only source-less drafts can be published as original recipe roots. "
-            "Recipe forks use the separate variant-publication workflow."
-        )
     if not draft.title.strip():
         raise _invalid("A published recipe requires a title.")
     if draft.servings is None:
@@ -430,7 +457,7 @@ def _prepare_locked_original_draft(
     structural_fingerprint = build_structural_fingerprint(structure)
     if structural_fingerprint is None:
         raise _invalid("The draft does not contain a complete canonical recipe structure.")
-    return PreparedOriginalRecipeDraft(
+    return PreparedRecipeDraft(
         draft=draft,
         structure=structure,
         structural_fingerprint=structural_fingerprint,
@@ -441,7 +468,25 @@ def _prepare_locked_original_draft(
     )
 
 
-def run_original_recipe_draft_duplicate_preflight(
+def _prepare_locked_recipe_draft(
+    session: Session,
+    *,
+    draft: RecipeDraft,
+    expected_revision: int,
+) -> PreparedRecipeDraft:
+    try:
+        return _prepare_locked_recipe_draft_content(
+            session,
+            draft=draft,
+            expected_revision=expected_revision,
+        )
+    except InvalidRecipeDraftPublicationError as error:
+        if draft.source_version_id is None:
+            raise InvalidOriginalRecipePublicationError(str(error)) from error
+        raise
+
+
+def run_recipe_draft_duplicate_preflight(
     session: Session,
     *,
     author_user_id: UUID,
@@ -456,19 +501,27 @@ def run_original_recipe_draft_duplicate_preflight(
     )
     if draft is None:
         raise RecipePublicationNotFoundError("Private recipe draft not found.")
-    prepared = _prepare_locked_original_draft(
+    prepared = _prepare_locked_recipe_draft(
         session,
         draft=draft,
         expected_revision=expected_revision,
     )
-    return run_structural_recipe_duplicate_preflight(
-        session,
-        subject_fingerprint=prepared.structural_fingerprint,
-        source_version_id=None,
-        actor_user_id=author_user_id,
-        action_id=action_id,
-        request_fingerprint=prepared.preflight_request_fingerprint,
-    )
+    try:
+        return run_structural_recipe_duplicate_preflight(
+            session,
+            subject_fingerprint=prepared.structural_fingerprint,
+            source_version_id=draft.source_version_id,
+            actor_user_id=author_user_id,
+            action_id=action_id,
+            request_fingerprint=prepared.preflight_request_fingerprint,
+        )
+    except RecipeDuplicatePreflightUnavailableError as error:
+        raise RecipeForkSourceUnavailableError(
+            "The public source recipe is no longer available."
+        ) from error
+
+
+run_original_recipe_draft_duplicate_preflight = run_recipe_draft_duplicate_preflight
 
 
 def _copy_draft_snapshot(
@@ -477,14 +530,57 @@ def _copy_draft_snapshot(
     draft: RecipeDraft,
     author_user_id: UUID,
 ) -> RecipeVersion:
-    lineage = RecipeLineage(created_by_user_id=author_user_id)
-    session.add(lineage)
-    session.flush()
+    source_version_id = draft.source_version_id
+    parent_version_id: UUID | None = None
+    if source_version_id is None:
+        lineage = RecipeLineage(created_by_user_id=author_user_id)
+        session.add(lineage)
+        session.flush()
+        lineage_id = lineage.id
+        version_number = 1
+    else:
+        source_lineage_id = session.scalar(
+            select(RecipeVersion.lineage_id).where(
+                RecipeVersion.id == source_version_id,
+                publicly_readable_recipe_version_filter(),
+            )
+        )
+        if source_lineage_id is None:
+            raise RecipeForkSourceUnavailableError(
+                "The public source recipe is no longer available."
+            )
+        locked_lineage_id = session.scalar(
+            select(RecipeLineage.id).where(RecipeLineage.id == source_lineage_id).with_for_update()
+        )
+        if locked_lineage_id is None:
+            raise RecipeForkSourceUnavailableError(
+                "The public source recipe is no longer available."
+            )
+        confirmed_lineage_id = session.scalar(
+            select(RecipeVersion.lineage_id).where(
+                RecipeVersion.id == source_version_id,
+                RecipeVersion.lineage_id == locked_lineage_id,
+                publicly_readable_recipe_version_filter(),
+            )
+        )
+        if confirmed_lineage_id != locked_lineage_id:
+            raise RecipeForkSourceUnavailableError(
+                "The public source recipe is no longer available."
+            )
+        highest_version = session.scalar(
+            select(func.max(RecipeVersion.version_number)).where(
+                RecipeVersion.lineage_id == locked_lineage_id
+            )
+        )
+        lineage_id = locked_lineage_id
+        parent_version_id = source_version_id
+        version_number = (highest_version or 0) + 1
+
     version = RecipeVersion(
-        lineage_id=lineage.id,
-        parent_version_id=None,
+        lineage_id=lineage_id,
+        parent_version_id=parent_version_id,
         created_by_user_id=author_user_id,
-        version_number=1,
+        version_number=version_number,
         title=draft.title,
         description=draft.description,
         servings=draft.servings,
@@ -576,57 +672,52 @@ def _copy_draft_snapshot(
 
 
 def _reused_publication(
+    session: Session,
     publication: RecipeVersionPublication,
     *,
     request_fingerprint: str,
-    draft_id: UUID,
-) -> OriginalRecipePublicationResult:
+    draft: RecipeDraft,
+) -> RecipeDraftPublicationResult:
     if (
-        publication.source_draft_id != draft_id
+        publication.source_draft_id != draft.id
         or publication.request_fingerprint != request_fingerprint
     ):
         raise RecipePublicationIdempotencyConflictError(
             "The publication action or completed draft is bound to another request."
         )
-    return OriginalRecipePublicationResult(
+    if draft.source_version_id is not None:
+        if publication.action_id is None:
+            raise RuntimeError("A published recipe fork is missing its operation identifier.")
+        event = get_preference_event(
+            session,
+            user_id=publication.actor_user_id,
+            event_type="fork",
+            action_id=publication.action_id,
+        )
+        if (
+            event is None
+            or event.recipe_version_id != draft.source_version_id
+            or event.related_recipe_version_id != publication.recipe_version_id
+            or event.request_fingerprint != publication.request_fingerprint
+        ):
+            raise RuntimeError(
+                "A published recipe fork is missing its exact immutable preference event."
+            )
+    return RecipeDraftPublicationResult(
         recipe_version_id=publication.recipe_version_id,
         state="reused",
     )
 
 
-def publish_original_recipe_draft(
+def publish_recipe_draft(
     session: Session,
     *,
     author_user_id: UUID,
     draft_id: UUID,
-    payload: RecipeOriginalPublicationRequest,
+    payload: RecipeDraftPublicationRequest,
     action_id: UUID,
-) -> OriginalRecipePublicationResult:
-    """Validate, recheck duplicate evidence, and expose one immutable root atomically."""
-
-    request_fingerprint = original_publication_request_fingerprint(draft_id, payload)
-    replay = get_recipe_publication_by_action(
-        session,
-        actor_user_id=author_user_id,
-        action_id=action_id,
-    )
-    if replay is not None:
-        return _reused_publication(
-            replay,
-            request_fingerprint=request_fingerprint,
-            draft_id=draft_id,
-        )
-    completed = get_recipe_publication_by_draft(
-        session,
-        actor_user_id=author_user_id,
-        draft_id=draft_id,
-    )
-    if completed is not None:
-        return _reused_publication(
-            completed,
-            request_fingerprint=request_fingerprint,
-            draft_id=draft_id,
-        )
+) -> RecipeDraftPublicationResult:
+    """Validate, recheck evidence, and expose one immutable root or child atomically."""
 
     draft = get_owned_recipe_draft_for_publication(
         session,
@@ -635,6 +726,11 @@ def publish_original_recipe_draft(
     )
     if draft is None:
         raise RecipePublicationNotFoundError("Private recipe draft not found.")
+    request_fingerprint = recipe_draft_publication_request_fingerprint(
+        draft_id,
+        payload,
+        source_version_id=draft.source_version_id,
+    )
 
     # A concurrent identical request may have committed while this transaction waited
     # for the draft row lock. Resolve its receipt before interpreting published status.
@@ -645,9 +741,10 @@ def publish_original_recipe_draft(
     )
     if replay is not None:
         return _reused_publication(
+            session,
             replay,
             request_fingerprint=request_fingerprint,
-            draft_id=draft_id,
+            draft=draft,
         )
     completed = get_recipe_publication_by_draft(
         session,
@@ -656,9 +753,10 @@ def publish_original_recipe_draft(
     )
     if completed is not None:
         return _reused_publication(
+            session,
             completed,
             request_fingerprint=request_fingerprint,
-            draft_id=draft_id,
+            draft=draft,
         )
 
     lock_recipe_publication_guard(session)
@@ -669,9 +767,10 @@ def publish_original_recipe_draft(
     )
     if replay is not None:
         return _reused_publication(
+            session,
             replay,
             request_fingerprint=request_fingerprint,
-            draft_id=draft_id,
+            draft=draft,
         )
     completed = get_recipe_publication_by_draft(
         session,
@@ -680,31 +779,64 @@ def publish_original_recipe_draft(
     )
     if completed is not None:
         return _reused_publication(
+            session,
             completed,
             request_fingerprint=request_fingerprint,
-            draft_id=draft_id,
+            draft=draft,
         )
+
+    if (
+        draft.source_version_id is not None
+        and get_preference_event(
+            session,
+            user_id=author_user_id,
+            event_type="fork",
+            action_id=action_id,
+        )
+        is not None
+    ):
+        raise RecipePublicationIdempotencyConflictError(
+            "The publication action is already bound to another fork request."
+        )
+
+    if draft.source_version_id is not None:
+        source_is_public = session.scalar(
+            select(RecipeVersion.id).where(
+                RecipeVersion.id == draft.source_version_id,
+                publicly_readable_recipe_version_filter(),
+            )
+        )
+        if source_is_public is None:
+            raise RecipeForkSourceUnavailableError(
+                "The public source recipe is no longer available."
+            )
 
     # Catalog state and the complete canonical subject are authoritative only after
     # entering the same serialization boundary as public candidate recomputation.
-    prepared = _prepare_locked_original_draft(
+    prepared = _prepare_locked_recipe_draft(
         session,
         draft=draft,
         expected_revision=payload.revision,
     )
 
     review = payload.duplicate_review
-    preflight, decision = revalidate_recipe_duplicate_publication_evidence(
-        session,
-        preflight_id=review.preflight_id,
-        actor_user_id=author_user_id,
-        request_fingerprint=prepared.preflight_request_fingerprint,
-        subject_fingerprint=prepared.structural_fingerprint,
-        acknowledged_policy_version=review.policy_version,
-        acknowledged_result_digest=review.result_digest,
-        decision=review.decision,
-        decision_action_id=action_id,
-    )
+    try:
+        preflight, decision = revalidate_recipe_duplicate_publication_evidence(
+            session,
+            preflight_id=review.preflight_id,
+            actor_user_id=author_user_id,
+            request_fingerprint=prepared.preflight_request_fingerprint,
+            subject_fingerprint=prepared.structural_fingerprint,
+            source_version_id=draft.source_version_id,
+            acknowledged_policy_version=review.policy_version,
+            acknowledged_result_digest=review.result_digest,
+            decision=review.decision,
+            decision_action_id=action_id,
+        )
+    except RecipeDuplicatePreflightUnavailableError as error:
+        raise RecipeForkSourceUnavailableError(
+            "The public source recipe is no longer available."
+        ) from error
 
     version = _copy_draft_snapshot(
         session,
@@ -739,9 +871,24 @@ def publish_original_recipe_draft(
         duplicate_decision_id=decision.id if decision is not None else None,
     )
     session.add(publication)
+    if draft.source_version_id is not None:
+        record_preference_event(
+            session,
+            PreferenceEventIntent(
+                action_id=action_id,
+                user_id=author_user_id,
+                recipe_version_id=draft.source_version_id,
+                event_type="fork",
+                request_fingerprint=request_fingerprint,
+            ),
+            related_recipe_version_id=version.id,
+        )
     draft.status = RECIPE_DRAFT_STATUS_PUBLISHED
     session.flush()
-    return OriginalRecipePublicationResult(recipe_version_id=version.id, state="created")
+    return RecipeDraftPublicationResult(recipe_version_id=version.id, state="created")
+
+
+publish_original_recipe_draft = publish_recipe_draft
 
 
 def publication_preflight_response(
