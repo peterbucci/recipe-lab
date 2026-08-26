@@ -75,9 +75,17 @@ is advisory but requires an explicit continue. One idempotent transaction
 creates the lineage and immutable root snapshot, binds review and publication
 evidence, and seals the retained draft. Failure leaves the draft active and
 creates no partial public state. Seed versions are backfilled as published
-without changing their identifiers or topology. RCP-28 remains responsible for
-fork-draft publication, source revalidation, lineage version allocation, and
-the fork event. See
+without changing their identifiers or topology.
+
+RCP-28 extends that transition to a saved source-backed draft. Publication
+revalidates its exact public parent, applies the direct-parent no-change review,
+locks the existing lineage, allocates one lineage-wide child version, and
+records exactly one source-to-child fork event for the authenticated publisher.
+The source, child, and lineage topology remain immutable; the lineage creator
+receives no rights over another member's descendant. Exact retries return the
+same child, while changed intent or source loss fails without consuming the
+private draft. Persisted authorship lands here; public cook profiles remain
+RCP-29. See
 [private recipe drafts](private-recipe-drafts.md).
 
 ## Post-MVP signal baseline

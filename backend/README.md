@@ -272,47 +272,15 @@ so production and offline formulas share one implementation. See
 and [offline recommendation evaluation](../docs/evaluation.md) for the split,
 metrics, reproducibility, and data-limitations contract.
 
-## Recipe variant creation
+## Legacy direct variant endpoint
 
-`POST /api/recipes/{recipe_version_id}/variants` creates a new child of an
-existing recipe version for the signed-in, onboarded member. It requires the
-same session, Origin, CSRF, and UUID `Idempotency-Key` evidence used by other
-product actions. The request supplies
-the new title, nullable description, exact serving yield, and zero or more
-structured edits. A successful request returns the complete child snapshot
-with HTTP 201 and a `Location` header for its detail resource.
-
-Ingredient edits target row IDs from the direct source snapshot so recipes may
-use the same canonical ingredient more than once. `set_measure` replaces the
-complete amount atomically: it supplies either an exact value and curated unit
-ID, a strictly increasing range and curated unit ID, or an explicit
-`to_taste`, `as_needed`, or `unspecified` qualitative value. Quantity and unit
-cannot be submitted as independent partial edits. `add` likewise requires one
-complete structured measure. The remaining operations replace an ingredient
-through a stable catalog ID plus a server-verified canonical-or-alias display
-label, append an ingredient, or remove a row. Instruction edits update, append,
-or remove a source instruction. Replacements preserve the source measure and
-preparation notes unless a companion `set_measure` changes the measure; they do
-not infer a conversion or require a curated substitution edge. Retained rows
-keep their relative order, additions append in request order, and the final
-positions are compact.
-
-The service copies every retained ingredient and instruction into fresh rows
-and never updates the source snapshot. It rejects unknown or cross-recipe row
-IDs, conflicting edits, unknown catalog ingredients, no-op replacements, and a
-result with no ingredients or instructions. PostgreSQL serializes version
-allocation on the lineage row, so simultaneous forks receive distinct,
-lineage-wide version numbers. The route owns one transaction containing the
-copy, edits, parent link, and server-selected author; any failure rolls it all
-back.
-
-Repeating a fork with the same action key, source, and normalized request
-returns the original child and `Location` rather than creating a sibling.
-Reusing that key with a different source or payload returns HTTP 409. Different
-action keys intentionally create distinct sibling versions. Client interfaces
-still disable duplicate submission, but the server-side contract protects
-network retries. Automatic substitutions, unit conversion, edit-operation
-storage, and original-recipe creation remain outside this MVP endpoint.
+`POST /api/recipes/{recipe_version_id}/variants` is intentionally disabled and
+returns a write-free `409 recipe_variant_publication_requires_draft`. Account
+mode never turns an edit payload directly into a public child. Members instead
+copy the exact public source into a private draft, save and review that draft,
+and publish it through the authenticated draft-publication transaction below.
+This removes the former one-step path without discarding the reusable internal
+copying and fingerprint contracts.
 
 ## Private recipe drafts
 
@@ -326,7 +294,11 @@ are:
 - `PUT /api/recipe-drafts/{draft_id}` for a complete atomic save whose body
   includes the expected optimistic revision; and
 - `DELETE /api/recipe-drafts/{draft_id}?revision={expected}` for immediate,
-  irreversible discard from the live database.
+  irreversible discard from the live database;
+- `POST /api/recipe-drafts/{draft_id}/duplicate-preflights` for the required
+  revision-bound structural review; and
+- `POST /api/recipe-drafts/{draft_id}/publish` for the atomic original-or-fork
+  publication transition.
 
 The session supplies authorship. Another member receives `404`, stale saves or
 discards return `409`, and all responses are private and non-cacheable. Catalog
@@ -338,14 +310,16 @@ Creating, saving, resuming, resolving, or discarding a draft creates no
 lineage, immutable version, fingerprint, duplicate evidence, save, rating, or
 preference event. Drafts are structurally absent from browse, detail, diff,
 profile, recommendation, duplicate-candidate, and evaluation-export queries.
-Source-less original publication is a separate RCP-27 transition; RCP-28 owns
-fork publication. See [private recipe drafts](../docs/private-recipe-drafts.md)
-for retention, request-resolution, editor, and publication boundaries.
+The explicit publication action below is the only route from this private
+aggregate into the public recipe graph. See
+[private recipe drafts](../docs/private-recipe-drafts.md) for retention,
+request-resolution, editor, and publication boundaries.
 
-## Original recipe publication
+## Recipe draft publication
 
-RCP-27 publishes only a saved, active, source-less draft owned by the current
-onboarded member. The two author-only endpoints are:
+RCP-27 introduced source-less original publication and RCP-28 extends the same
+transaction to source-backed fork drafts. Both require a saved, active draft
+owned by the current onboarded member. The two author-only endpoints are:
 
 - `POST /api/recipe-drafts/{draft_id}/duplicate-preflights` with body
   `{ "revision": <saved_revision> }`; and
@@ -362,38 +336,56 @@ changing and saving the draft, which invalidates the prior revision-bound
 review. There is no publish-without-review path.
 
 Publication reloads and locks the draft, then atomically revalidates ownership,
-active state, revision, source-less identity, complete curated structure,
-current duplicate policy, result digest, bounded public candidates, and any
-required continue decision. The same transaction creates one lineage and its
-version-1 root, copies fresh ordered ingredient, measure, instruction, action,
-and input rows, stores the structural fingerprint, records published state and
-the immutable publication receipt, and marks the retained draft `published`.
-The root has no parent and the session member is recorded as both lineage and
-version author. Original publication appends no fork or other preference event.
+active state, revision, complete curated structure, current duplicate policy,
+result digest, bounded public candidates, exact optional source, and any
+required continue decision. A source-less draft creates one lineage and its
+parentless version-1 root. A source-backed draft rechecks that its exact source
+is still public, locks the source lineage, allocates the next lineage-wide
+version number, and retains that source as the direct parent. Concurrent
+siblings therefore receive distinct version numbers even when they start from
+different versions in the lineage.
+
+In either case, the transaction copies fresh ordered ingredient, measure,
+instruction, action, and input rows, stores a fresh structural fingerprint,
+adds the immutable publication receipt, and marks the retained draft
+`published`. The session member is the version author and receipt actor. For a
+fork, the same member is also the actor on exactly one preference event whose
+source is the direct parent and whose related version is the new child. The
+lineage creator retains no edit, publication, withdrawal, or moderation rights
+over another member's child. Public cook-profile presentation remains RCP-29;
+RCP-28 persists attribution without exposing private account fields. Original
+publication appends no fork or other preference event.
 
 Any validation or database failure rolls back the entire transition and leaves
 the draft active and editable. An exact retry by the same member with the same
 idempotency key and request returns `201`, the original
 `{ "recipe_version_id": "<uuid>", "location": "/recipes/<uuid>" }` body,
 and the same `Location` header. Reusing the key for a different intent returns
-`409`. After success, active-list, read, edit, and discard draft operations no
-longer expose that draft; the retained completed row and receipt prevent a
-second root from being created.
+`409`; retrying the same completed draft with a new key and unchanged intent
+also returns the same child. If a fork's source is no longer publicly readable,
+publication returns `409 recipe_fork_source_unavailable`, writes no partial
+child or event, and preserves the active draft. After success, active-list,
+read, edit, and discard draft operations no longer expose that draft; the
+retained completed row and receipt prevent a second root or child from being
+created.
 
 Every seeded recipe version is backfilled with published state without changing
 its stable ID or lineage topology. Database guards reject update, delete, and
 truncate attempts against a published snapshot and its ordered child content.
-Corrections therefore require a new immutable version. Publishing a fork draft
-and allocating that new version inside an existing lineage remain RCP-28 work.
+Corrections therefore require a new immutable version. Fork publication never
+rewrites its source or moves a child into a new lineage.
 
 ## Recipe duplicate preflight
 
-`POST /api/recipes/{recipe_version_id}/duplicate-preflights` accepts the same
-variant payload without inserting a child. The source-less draft adapter is
+`POST /api/recipes/{recipe_version_id}/duplicate-preflights` retains the legacy
+in-memory variant adapter without inserting a child. The publication adapter is
 `POST /api/recipe-drafts/{draft_id}/duplicate-preflights` with the saved
-revision. Both require an onboarded member, Origin/CSRF evidence, and a UUID
-`Idempotency-Key`. The service builds the proposed `recipe-structure-v1`
-fingerprint and compares it only with publicly readable stored fingerprints.
+revision and supports both original and source-backed drafts. Both require an
+onboarded member, Origin/CSRF evidence, and a UUID `Idempotency-Key`. The service
+builds the proposed `recipe-structure-v1` fingerprint and compares it only with
+publicly readable stored fingerprints. A source-backed review binds the exact
+direct parent, excludes it from ordinary candidate results, and separately
+reports an explainable no-change warning when its canonical structure matches.
 It returns `exact_duplicate`, `probable_duplicate`, or `distinct`, at most five
 public candidates, at most three fixed explanation reasons per candidate, and
 a stable acknowledgement.
@@ -413,14 +405,15 @@ non-exact work units. Budget overflow fails closed with one generic `503`
 response; the service never returns partial candidate evidence.
 
 `POST /api/recipe-duplicate-preflights/{preflight_id}/decision` records a
-standalone variant-flow `continue` or `revise` choice. Original publication
-instead binds the revision, policy, result digest, and optional `continue`
-directly inside its atomic publish transaction. Preflights, bounded candidate
-evidence, and decisions are append-only, actor-scoped, and idempotent; they are
-not recommendation events. Publication receipts are also append-only and bind
-an exact publish retry to its original result. Replays and publication recheck
-public availability and return one generic stale conflict when prior evidence
-is no longer current. See
+standalone legacy-variant-flow `continue` or `revise` choice. Draft publication
+instead binds the revision, optional source, policy, result digest, and optional
+`continue` directly inside its atomic transaction. Preflights, bounded
+candidate evidence, and decisions are append-only, actor-scoped, and
+idempotent; they are not recommendation events. Publication receipts are also
+append-only and bind an exact publish retry to its original result. Replays and
+publication recheck public candidate and source availability. Candidate drift
+returns one generic stale conflict; loss of a fork's direct source returns the
+specific source-unavailable conflict while retaining the private draft. See
 [recipe duplicate-candidate preflight](../docs/duplicate-detection.md) for the
 formula, privacy boundary, publication binding, and evaluation limitations.
 

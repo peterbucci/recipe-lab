@@ -5,7 +5,9 @@ from immutable public recipe versions. A signed-in, onboarded member can start
 an empty original draft or copy one exact public recipe-version snapshot into a
 fork draft, save it, resume it in another browser session, and discard it. A
 saved source-less draft can also cross the explicit RCP-27 publication boundary
-to become one immutable original root. Fork publication remains RCP-28 work.
+to become one immutable original root. RCP-28 lets a saved source-backed draft
+cross the same reviewed boundary as a separate immutable child of its exact
+public source.
 
 ## Private aggregate
 
@@ -51,9 +53,9 @@ The private endpoints are:
 - `DELETE /api/recipe-drafts/{draft_id}?revision={expected}` permanently
   discards the current revision;
 - `POST /api/recipe-drafts/{draft_id}/duplicate-preflights` reviews one saved
-  revision for structural similarity before original publication; and
+  original or fork revision for structural similarity; and
 - `POST /api/recipe-drafts/{draft_id}/publish` atomically publishes one
-  reviewed, source-less revision.
+  reviewed revision as an original root or direct fork child.
 
 The server always selects authorship from the Recipe Lab session. Request
 schemas accept no author or user identifier. Reads require an active member
@@ -108,8 +110,8 @@ this boundary only after a saved revision has completed similarity review.
 
 This isolation is deliberate defense in depth. Public adapters use the shared
 `recipe_version_publications` state predicate, while private content never
-occupies `recipe_versions` at all. A future adapter therefore cannot leak a
-draft merely because it mishandles a public visibility filter.
+occupies `recipe_versions` at all. The publication adapter therefore cannot leak
+a draft merely because another public query mishandles a visibility filter.
 
 ## Editor behavior
 
@@ -119,13 +121,15 @@ structured-action controls. Ingredients, instructions, and actions have
 keyboard-operable ordering controls; ordering is not drag-only.
 
 **Save draft** is a private persistence action and never publishes. **Review
-and publish** is available only for a clean, saved original draft. It first
-runs the required revision-bound similarity review, presents any bounded public
-matches neutrally, and publishes a distinct result or an explicit advisory
-continue. A fork draft remains private until RCP-28. Validation and API errors
-leave the entered form values in place. After a confirmed save, that returned
-revision becomes the clean baseline. A later edit is unsaved until another save
-succeeds and completes a new review.
+and publish** is available only for a clean, saved, structurally complete draft.
+It first runs the required revision-bound similarity review, presents any
+bounded public matches neutrally, and publishes a distinct result or an explicit
+advisory continue. A fork also compares itself with its exact direct parent and
+requires explicit acknowledgement when their canonical structures match.
+Validation, stale evidence, and source-unavailable errors leave the entered form
+values in place. After a confirmed save, that returned revision becomes the
+clean baseline. A later edit is unsaved until another save succeeds and
+completes a new review.
 
 Leaving with changes relative to the last confirmed save produces a truthful
 warning for reloads, closing the page, browser history navigation, and
@@ -147,7 +151,7 @@ draft revision, duplicate-review evidence, public version, and publication
 time. Published drafts are excluded from the active list, and ordinary draft
 read, edit, and discard operations return `404`. The retained state is not a
 second editable copy; it exists to make publication replayable and to prevent a
-second root from the same draft.
+second root or child from the same draft.
 
 Infrastructure backups, when configured, may retain database blocks according
 to the operator's separately documented backup schedule. They are not
@@ -155,7 +159,7 @@ browsable or recoverable through the product. RCP-26 does not prescribe that
 schedule or claim that deleting a live row synchronously rewrites historical
 backups; deployment operations must define backup protection and expiry.
 
-## Original publication boundary
+## Publication boundary
 
 The author first calls
 `POST /api/recipe-drafts/{draft_id}/duplicate-preflights` with
@@ -185,30 +189,47 @@ the review envelope:
 For an advisory match, `decision` is `"continue"`. The endpoint also requires
 a UUID `Idempotency-Key`, the session-bound CSRF token, and trusted exact
 Origin. The service reloads and locks the active author-owned draft and
-revalidates its source-less identity, revision, complete curated structure,
-fingerprint, current policy, result digest, public candidates, and required
-decision. Client-supplied evidence alone is never trusted.
+revalidates its revision, complete curated structure, fingerprint, current
+policy, optional exact source, result digest, public candidates, and required
+decision. Client-supplied evidence alone is never trusted. A source-backed
+preflight excludes the direct parent from ordinary candidate rows but separately
+records `same_lineage_no_change` when their canonical structures match.
 
-One transaction creates a new lineage, a parentless version-1 root attributed
-to the member on both rows, fresh ordered snapshot children, the structural
+For a source-less draft, one transaction creates a new lineage and parentless
+version-1 root attributed to the member on both rows. For a source-backed draft,
+the transaction rechecks that its exact source is publicly readable, locks that
+source's lineage, allocates the next lineage-wide version number, and creates a
+separate child whose direct parent remains the source. Locking the lineage, not
+only the selected parent, serializes siblings created concurrently from
+different branches.
+
+Both transitions create fresh ordered snapshot children, a fresh structural
 fingerprint, published visibility and receipt, and the draft's terminal
-`published` state. It appends no fork or other preference event. Success returns
-`201`,
+`published` state. Original publication appends no fork or other preference
+event. Fork publication atomically appends exactly one event whose member is the
+authenticated publisher, source is the direct parent, and related version is
+the child. The child version and receipt record that same publisher; the lineage
+creator receives no rights over another member's descendant. This is durable
+authorship evidence, while public cook-profile presentation remains RCP-29.
+
+Success returns `201`,
 `{ "recipe_version_id": "<uuid>", "location": "/recipes/<uuid>" }`, and the
 same path in `Location`. An exact retry of the same member action returns that
-same response; an idempotency-key conflict returns `409`. Any failure rolls
-everything back, so the active draft remains editable and no partial lineage,
-snapshot, fingerprint, receipt, or completed state survives.
+same response. A new idempotency key with the same completed intent also returns
+the same version; changed intent or key reuse returns `409`. If a fork's source
+is no longer public before publication, the API returns
+`409 recipe_fork_source_unavailable` and preserves the active private draft. Any
+failure rolls everything back, so no partial lineage allocation, snapshot,
+fingerprint, receipt, fork event, or completed state survives.
 
 The published snapshot is immediately available through existing public
 browse, detail, comparison, duplicate-candidate, and recommendation-candidate
 reads. Later public-profile reads use the same publication-state seam. Its
-lineage, root version, ordered content, structural fingerprint, and publication
-receipt are immutable. Corrections require a new version rather than mutation.
-RCP-28 owns publication of drafts with a source: it must recheck exact source
-visibility, allocate inside that source lineage, and record exactly one fork
-event. RCP-27 never publishes a fork draft, and neither story may reinterpret
-unresolved request text as catalog identity.
+lineage topology, root or child version, ordered content, structural fingerprint,
+and publication receipt are immutable. Corrections require a new version rather
+than mutation. A fork never moves into another lineage, changes its parent, or
+rewrites its source. Neither publication path may reinterpret unresolved request
+text as catalog identity.
 
 ## Verification boundary
 
@@ -216,11 +237,16 @@ Acceptance coverage includes owner-versus-other-member `404` behavior,
 authentication and CSRF failures, stale-revision conflicts, exact fork copying,
 arbitrary-identity rejection, request-status and resolution preservation,
 discard deletion, and private/non-signal exclusion. Publication coverage adds
-source-less and owner checks, revision and curated-identity revalidation,
-required advisory review, rollback on every failure, exact idempotent replay,
-one-root enforcement, retained-draft sealing, public visibility, immutable
-snapshot guards, and seeded-version backfill. Frontend and browser checks cover
-saved-session resume, validation preservation, keyboard ordering, accessible
-error focus and announcements, phone layouts, two-tab conflicts, both
-hard-navigation and client-navigation unsaved-change warnings, and successful
+original-versus-source-backed topology and owner checks, revision and
+curated-identity revalidation, source-aware advisory review, explicit
+direct-parent no-change acknowledgement, rollback on every failure, exact
+idempotent replay, changed-intent conflict, source-loss preservation, one-root
+or one-child enforcement, retained-draft sealing, public visibility, immutable
+snapshot guards, and seeded-version backfill. A two-member integration proves
+exact lineage and parent, publisher attribution, lineage-creator isolation,
+exactly one fork event, concurrent sibling numbering, retry behavior, and the
+direct-parent diff. Frontend and browser checks cover saved-session resume,
+validation preservation, keyboard ordering, accessible error focus and
+announcements, phone layouts, two-tab conflicts, both hard-navigation and
+client-navigation unsaved-change warnings, source-loss recovery, and successful
 publish navigation to the stable public location.
