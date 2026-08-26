@@ -466,6 +466,30 @@ isolated database; they do not create one. Acceptance runs also refuse to reuse
 an existing frontend server. CI owns and discards its database service after
 the job instead of attempting fragile row-by-row cleanup of immutable history.
 
+### Community release boundary
+
+RCP-32 adds a separate fresh-database acceptance job rather than replacing the
+broad `MVP acceptance` regression. Its single stateful journey creates Alice,
+Bob, a catalog curator, and a community moderator through the real application
+OIDC callback and onboarding paths using a guarded loopback-only provider. Role
+grants use the operator commands, and the journey crosses catalog intake,
+private drafts, original publication, a cross-user child, duplicate advice,
+moderation, visibility, and account deletion without fixture sessions or role
+inserts.
+
+A guarded pre-journey command stages three deterministic legacy Demo Cook
+interactions; the end-state verifier requires them to remain on that non-login
+identity. The read-only verifier consumes an exact UUID-only manifest and emits
+identifier-free counts. CI runs it on both the live disposable database and a
+real `pg_dump`/restore copy. Private canaries and credential markers are scanned
+before only the safe summaries are retained; browser captures, request logs,
+manifests, and database dumps are never artifacts. The
+stable `RCP-32 community release gate` check aggregates backend quality,
+frontend quality, `MVP acceptance`, and this canonical journey. Offline model
+evaluation remains independent. See
+[community release gate](community-release-gate.md) for the complete evidence,
+privacy, and local-run contract.
+
 ### ML workspace
 
 The `ml` directory is a separate Python distribution and is never imported by

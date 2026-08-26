@@ -111,6 +111,16 @@ before routing. Automated moderation, appeals, comments, follows, and a browser
 role-management console remain out of scope. See
 [community rules, reporting, and moderation](community-moderation.md).
 
+RCP-32 is the two-user community release gate. It adds no product capability;
+it proves the RCP-23 through RCP-31 seams together through a production frontend
+build, real API requests, guarded local OIDC account creation, operator-managed
+separate roles, and a freshly migrated PostgreSQL database. The gate includes
+migration rollback/re-upgrade, real backup/restore verification, privacy-safe
+end-state evidence, desktop and phone coverage, keyboard/focus checks, and WCAG
+A/AA assertions. The stable aggregate check blocks RCP-21 deployment work and
+does not depend on offline recommendation evaluation. See
+[community release gate](community-release-gate.md).
+
 ## Post-MVP signal baseline
 
 RCP-15 adds a read-only, explainable recommendation API after the M1 boundary.
