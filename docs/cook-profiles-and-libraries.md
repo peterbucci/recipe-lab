@@ -20,17 +20,21 @@ Every public cook reference is an explicit three-field value:
 ```
 
 The stable ID is the durable identity, the normalized unique handle is the
-route key, and the display name is presentation text. Public adapters never
-serialize email, OIDC issuer or subject, session data, authentication tokens,
-account lifecycle state, private activity, saves, ratings, or draft data.
-Account withdrawal, deleted-cook presentation, and moderation belong to later
-stories and are not inferred here.
+route key for an active cook, and the display name is presentation text. A
+deleted account's retained topology reference has `handle: null` and fixed
+display name `Deleted cook`. The fixed, non-login Demo Cook identity is the
+only compatibility exception for legacy public recipes and likewise has no
+handle. Both render as plain text without a profile link; arbitrary active
+handle-less identities are rejected. Public adapters never serialize email,
+OIDC issuer or subject, session data, authentication tokens, private activity,
+saves, ratings, or draft data. The erasure and retention policy is documented in
+[recipe visibility and account lifecycle](recipe-visibility-and-account-lifecycle.md).
 
 The deterministic seed catalog uses the reserved
 `recipe-lab-catalog` handle. Its public versions therefore carry honest catalog
 provenance instead of looking anonymous or being attributed to a real member.
-The non-login Demo Cook remains only a compatibility identity for historical
-private activity and receives no public profile handle from RCP-29.
+The non-login Demo Cook remains a compatibility identity for historical
+activity and receives no public profile handle from RCP-29.
 
 ## Public recipe attribution
 
@@ -55,9 +59,10 @@ loads the bounded context in fixed batched queries.
 case-insensitive after the same trim-and-lower normalization used at account
 creation. A known cook with no public recipes returns a valid empty page; an
 unknown handle returns `404 cook_not_found`. Profile items contain only
-explicitly published versions authored by that cook. Private drafts, saves,
-ratings, events, authentication data, and recipes authored by someone else do
-not enter the response.
+currently public versions authored by that cook. A deleted cook has no handle,
+so the former profile route becomes the same opaque not-found response as an
+unknown handle. Private drafts, saves, ratings, events, authentication data,
+and recipes authored by someone else do not enter the response.
 
 The web route `/cooks/{handle}` presents that same public-only list with normal
 loading, not-found, empty, error, pagination, keyboard, and responsive states.
@@ -69,9 +74,11 @@ solely from the active Recipe Lab session, return `Cache-Control: private,
 no-store`, and vary on the session cookie:
 
 - `GET /api/my/recipes` database-pages one recent activity stream containing
-  the current member's active private drafts and explicitly published versions.
-  Discriminated entries keep draft data separate from public recipe summaries.
-  The UI labels each item as an original or fork and labels drafts as private.
+  the current member's active private drafts and every authored publication.
+  Discriminated entries keep draft data separate from recipe summaries; private
+  publication entries additionally identify `published`, `author_withdrawn`, or
+  `moderation_hidden` visibility. The UI labels each item as an original or fork,
+  labels drafts as private, and is the author-only withdraw/restore surface.
 - `GET /api/my/saved-recipes` database-pages only public versions currently
   saved by the current member, ordered by the server-recorded save time.
 
@@ -80,8 +87,8 @@ The matching web routes are `/account/recipes` and
 One member cannot select another member's drafts, authored-library entries, or
 saves by changing a query parameter or URL because no such selector exists.
 
-RCP-29 does not add follows, comments, feeds, messages, notifications, public
-email, analytics, profile images, withdrawal, deletion, or moderation.
+Recipe withdrawal and deletion do not add follows, comments, feeds, messages,
+notifications, public email, analytics, profile images, or a moderation queue.
 
 ## Verification contract
 

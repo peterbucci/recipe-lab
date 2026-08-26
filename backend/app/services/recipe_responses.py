@@ -1,4 +1,5 @@
-from app.models import RecipeVersion, User
+from app.core.demo_identity import DEMO_USER_DISPLAY_NAME, DEMO_USER_ID
+from app.models import ACCOUNT_KIND_DEMO, USER_STATUS_DELETED, RecipeVersion, User
 from app.schemas.recipes import RecipeSummary, RecipeVersionReference
 from app.schemas.users import PublicUserReference
 
@@ -6,6 +7,18 @@ from app.schemas.users import PublicUserReference
 def public_user_reference(user: User) -> PublicUserReference:
     """Serialize exactly the three fields allowed in a public user reference."""
 
+    if user.status == USER_STATUS_DELETED:
+        return PublicUserReference(
+            id=user.id,
+            handle=None,
+            display_name="Deleted cook",
+        )
+    if user.id == DEMO_USER_ID and user.account_kind == ACCOUNT_KIND_DEMO and user.handle is None:
+        return PublicUserReference(
+            id=user.id,
+            handle=None,
+            display_name=DEMO_USER_DISPLAY_NAME,
+        )
     if user.handle is None:
         raise RuntimeError(f"Public recipe author {user.id} does not have a public handle.")
     return PublicUserReference(

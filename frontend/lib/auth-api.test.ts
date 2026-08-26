@@ -4,9 +4,11 @@ import {
   AUTH_SESSION_EXPIRED_EVENT,
   AuthApiError,
   CSRF_COOKIE_NAME,
+  deleteAccount,
   fetchAuthSession,
   parseAuthSession,
   readCookie,
+  reauthenticateHref,
   safeReturnTo,
   signInHref,
   signOut,
@@ -69,7 +71,7 @@ describe("auth API client", () => {
     });
   });
 
-  it("reads the CSRF cookie and sends it for profile and logout mutations", async () => {
+  it("reads the CSRF cookie and sends it for profile, logout, and deletion mutations", async () => {
     document.cookie = `${CSRF_COOKIE_NAME}=token%20value; Path=/`;
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -79,6 +81,7 @@ describe("auth API client", () => {
           user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
         }),
       )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -86,6 +89,7 @@ describe("auth API client", () => {
       updateAccountProfile({ handle: "alice", display_name: "Alice Cook" }),
     ).resolves.toMatchObject({ status: "authenticated" });
     await expect(signOut()).resolves.toBeUndefined();
+    await expect(deleteAccount()).resolves.toBeUndefined();
 
     expect(fetchMock.mock.calls[0]).toEqual([
       "/api/auth/session/profile",
@@ -103,6 +107,16 @@ describe("auth API client", () => {
       "/api/auth/logout",
       expect.objectContaining({
         method: "POST",
+        headers: {
+          Accept: "application/json",
+          "X-CSRF-Token": "token value",
+        },
+      }),
+    ]);
+    expect(fetchMock.mock.calls[2]).toEqual([
+      "/api/auth/account",
+      expect.objectContaining({
+        method: "DELETE",
         headers: {
           Accept: "application/json",
           "X-CSRF-Token": "token value",
@@ -209,6 +223,9 @@ describe("auth URL helpers", () => {
     expect(safeReturnTo("//malicious.example/steal")).toBe("/recipes");
     expect(signInHref("/onboarding")).toBe(
       "/api/auth/login?return_to=%2Fonboarding",
+    );
+    expect(reauthenticateHref("/account/settings")).toBe(
+      "/api/auth/reauthenticate?return_to=%2Faccount%2Fsettings",
     );
   });
 

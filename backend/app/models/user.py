@@ -1,4 +1,6 @@
-from sqlalchemy import CheckConstraint, String, text
+from datetime import datetime
+
+from sqlalchemy import CheckConstraint, DateTime, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -43,9 +45,17 @@ class User(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
             f"status IN {USER_STATUSES!r}",
             name="status_supported",
         ),
+        CheckConstraint(
+            "(status = 'deleted' AND account_kind = 'member' "
+            "AND email IS NULL AND handle IS NULL "
+            "AND display_name = 'Deleted cook' AND deleted_at IS NOT NULL) OR "
+            "((status <> 'deleted' OR account_kind <> 'member') "
+            "AND email IS NOT NULL AND deleted_at IS NULL)",
+            name="lifecycle_shape_valid",
+        ),
     )
 
-    email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True, index=True)
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
     handle: Mapped[str | None] = mapped_column(String(30), nullable=True, unique=True)
     account_kind: Mapped[str] = mapped_column(
@@ -60,3 +70,4 @@ class User(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
         default=USER_STATUS_ACTIVE,
         server_default=text(f"'{USER_STATUS_ACTIVE}'"),
     )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

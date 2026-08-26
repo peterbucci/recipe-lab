@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from sqlalchemy import func, literal, select, union_all
@@ -17,12 +17,19 @@ from app.models import (
 from app.repositories.recipe_drafts import RecipeDraftBrowseItem
 from app.repositories.recipes import publicly_readable_recipe_version_filter
 
+type RecipeVisibilityState = Literal[
+    "published",
+    "author_withdrawn",
+    "moderation_hidden",
+]
+
 
 @dataclass(frozen=True, slots=True)
 class MyRecipeLibraryEntry:
     kind: Literal["draft", "published"]
     draft: RecipeDraftBrowseItem | None = None
     recipe: RecipeVersion | None = None
+    visibility_state: RecipeVisibilityState | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,7 +67,7 @@ def browse_my_recipes(
     offset: int,
     limit: int,
 ) -> MyRecipeLibraryResult:
-    """Database-page one member's active drafts and public authored versions."""
+    """Database-page one member's active drafts and every authored publication."""
 
     draft_activity = select(
         literal("draft").label("kind"),
@@ -82,7 +89,6 @@ def browse_my_recipes(
         )
         .where(
             RecipeVersion.created_by_user_id == actor_user_id,
-            RecipeVersionPublication.state == "published",
         )
     )
     activity = union_all(draft_activity, publication_activity).subquery(
@@ -136,22 +142,38 @@ def browse_my_recipes(
     }
 
     statement = (
-        select(RecipeVersion)
+        select(
+            RecipeVersion,
+            RecipeVersionPublication.state,
+        )
+        .join(
+            RecipeVersionPublication,
+            RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+        )
         .options(*_recipe_card_options())
         .where(
             RecipeVersion.id.in_(recipe_ids),
             RecipeVersion.created_by_user_id == actor_user_id,
-            publicly_readable_recipe_version_filter(),
         )
     )
-    recipes = {recipe.id: recipe for recipe in session.scalars(statement)}
+    recipes = {
+        recipe.id: (recipe, visibility_state)
+        for recipe, visibility_state in session.execute(statement)
+    }
 
     items: list[MyRecipeLibraryEntry] = []
     for kind, entity_id in page_rows:
         if kind == "draft" and entity_id in drafts:
             items.append(MyRecipeLibraryEntry(kind="draft", draft=drafts[entity_id]))
         elif kind == "published" and entity_id in recipes:
-            items.append(MyRecipeLibraryEntry(kind="published", recipe=recipes[entity_id]))
+            recipe, visibility_state = recipes[entity_id]
+            items.append(
+                MyRecipeLibraryEntry(
+                    kind="published",
+                    recipe=recipe,
+                    visibility_state=cast(RecipeVisibilityState, visibility_state),
+                )
+            )
     return MyRecipeLibraryResult(items=items, total=total)
 
 

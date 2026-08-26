@@ -123,9 +123,14 @@ def my_recipe_library(
                 raise RuntimeError("Draft library entry is missing its draft.")
             items.append(MyRecipeDraftItem(draft=_draft_summary(item.draft)))
         else:
-            if item.recipe is None:
-                raise RuntimeError("Published library entry is missing its recipe.")
-            items.append(MyPublishedRecipeItem(recipe=recipe_summary_response(item.recipe)))
+            if item.recipe is None or item.visibility_state is None:
+                raise RuntimeError("Published library entry is missing visibility metadata.")
+            items.append(
+                MyPublishedRecipeItem(
+                    recipe=recipe_summary_response(item.recipe),
+                    visibility_state=item.visibility_state,
+                )
+            )
     result = MyRecipeLibraryResponse(
         items=items,
         page=page,

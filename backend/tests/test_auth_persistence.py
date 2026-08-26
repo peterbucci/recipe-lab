@@ -209,7 +209,7 @@ def test_identity_and_session_lifecycle_helpers(db_session: Session) -> None:
         user=member,
         issuer="https://identity.example.test",
         subject="session-subject",
-        email=member.email,
+        email="session@example.com",
         email_verified=True,
         last_seen_at=now,
     )
@@ -232,6 +232,7 @@ def test_identity_and_session_lifecycle_helpers(db_session: Session) -> None:
         "csrf_token_digest",
         "expires_at",
         "last_seen_at",
+        "authenticated_at",
         "revoked_at",
         "created_at",
     }
@@ -249,6 +250,7 @@ def test_identity_and_session_lifecycle_helpers(db_session: Session) -> None:
     assert identity.email == "updated@example.com"
     assert identity.last_seen_at == later
     assert user_session.last_seen_at == later
+    assert user_session.authenticated_at is None
     assert user_session.revoked_at == later
 
 

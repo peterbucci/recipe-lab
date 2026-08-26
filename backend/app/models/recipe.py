@@ -4,8 +4,10 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     DateTime,
+    FetchedValue,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
@@ -33,7 +35,13 @@ if TYPE_CHECKING:
 
 
 RECIPE_PUBLICATION_STATE_PUBLISHED = "published"
-RECIPE_PUBLICATION_STATES = (RECIPE_PUBLICATION_STATE_PUBLISHED,)
+RECIPE_PUBLICATION_STATE_AUTHOR_WITHDRAWN = "author_withdrawn"
+RECIPE_PUBLICATION_STATE_MODERATION_HIDDEN = "moderation_hidden"
+RECIPE_PUBLICATION_STATES = (
+    RECIPE_PUBLICATION_STATE_PUBLISHED,
+    RECIPE_PUBLICATION_STATE_AUTHOR_WITHDRAWN,
+    RECIPE_PUBLICATION_STATE_MODERATION_HIDDEN,
+)
 
 
 class RecipeLineage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
@@ -199,8 +207,16 @@ class RecipeVersionPublication(Base):
             ondelete="RESTRICT",
         ),
         CheckConstraint(
-            "state = 'published'",
+            "state IN ('published', 'author_withdrawn', 'moderation_hidden')",
             name="state_supported",
+        ),
+        CheckConstraint(
+            "(state = 'published' "
+            "AND author_withdrawn_at IS NULL AND moderation_hidden_at IS NULL) OR "
+            "(state = 'author_withdrawn' "
+            "AND author_withdrawn_at IS NOT NULL AND moderation_hidden_at IS NULL) OR "
+            "(state = 'moderation_hidden' AND moderation_hidden_at IS NOT NULL)",
+            name="visibility_shape_valid",
         ),
         CheckConstraint(
             "request_fingerprint IS NULL OR request_fingerprint ~ '^[0-9a-f]{64}$'",
@@ -242,6 +258,26 @@ class RecipeVersionPublication(Base):
         default=RECIPE_PUBLICATION_STATE_PUBLISHED,
         server_default=text(f"'{RECIPE_PUBLICATION_STATE_PUBLISHED}'"),
     )
+    author_withdrawn_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    moderation_hidden_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    state_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    state_changed_by_user_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+        server_default=FetchedValue(),
+        index=True,
+    )
     source_draft_id: Mapped[UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         nullable=True,
@@ -277,6 +313,64 @@ class RecipeVersionPublication(Base):
     source_draft: Mapped["RecipeDraft | None"] = relationship(
         back_populates="publication",
         viewonly=True,
+    )
+
+
+class RecipeVersionVisibilityEvent(Base):
+    """Append-only audit evidence for one publication visibility transition."""
+
+    __tablename__ = "recipe_version_visibility_events"
+    __table_args__ = (
+        CheckConstraint(
+            "previous_state IS NULL OR "
+            "previous_state IN ('published', 'author_withdrawn', 'moderation_hidden')",
+            name="previous_state_supported",
+        ),
+        CheckConstraint(
+            "state IN ('published', 'author_withdrawn', 'moderation_hidden')",
+            name="state_supported",
+        ),
+        CheckConstraint(
+            "(state = 'published' "
+            "AND author_withdrawn_at IS NULL AND moderation_hidden_at IS NULL) OR "
+            "(state = 'author_withdrawn' "
+            "AND author_withdrawn_at IS NOT NULL AND moderation_hidden_at IS NULL) OR "
+            "(state = 'moderation_hidden' AND moderation_hidden_at IS NOT NULL)",
+            name="visibility_shape_valid",
+        ),
+        Index(
+            "ix_recipe_version_visibility_events_version_occurred_id",
+            "recipe_version_id",
+            "occurred_at",
+            "id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    recipe_version_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("recipe_version_publications.recipe_version_id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    actor_user_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    previous_state: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    state: Mapped[str] = mapped_column(String(24), nullable=False)
+    author_withdrawn_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    moderation_hidden_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
     )
 
 

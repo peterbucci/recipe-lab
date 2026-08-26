@@ -1284,8 +1284,7 @@ def _record_recipe_publication(
     existing = session.get(RecipeVersionPublication, version.id)
     if existing is not None:
         if (
-            existing.state != "published"
-            or existing.actor_user_id != version.created_by_user_id
+            existing.actor_user_id != version.created_by_user_id
             or existing.source_draft_id is not None
             or existing.action_id is not None
             or existing.request_fingerprint is not None
@@ -1299,7 +1298,7 @@ def _record_recipe_publication(
             raise _conflict(
                 "recipe version publication",
                 seed.key,
-                "stored visibility or evidence differs from the catalog",
+                "stored publication evidence differs from the catalog",
             )
         report.reused["recipe_version_publications"] += 1
         return
@@ -1309,6 +1308,8 @@ def _record_recipe_publication(
             recipe_version_id=version.id,
             state="published",
             actor_user_id=version.created_by_user_id,
+            state_changed_at=catalog.published_at,
+            state_changed_by_user_id=version.created_by_user_id,
             published_at=catalog.published_at,
         )
     )

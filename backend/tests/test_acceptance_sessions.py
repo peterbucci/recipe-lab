@@ -86,8 +86,8 @@ def test_provisioner_creates_members_and_one_curator_with_digest_only_sessions(
 
     fixture = provision_acceptance_sessions(db_session, now=issued_at)
 
-    assert fixture["version"] == 2
-    assert set(fixture["members"]) == {"alice", "bob", "curator"}
+    assert fixture["version"] == 3
+    assert set(fixture["members"]) == {"alice", "bob", "curator", "deleter"}
     assert all(
         set(member_fixture) == {"user_id", "session_token", "csrf_token"}
         for member_fixture in fixture["members"].values()
@@ -100,6 +100,7 @@ def test_provisioner_creates_members_and_one_curator_with_digest_only_sessions(
         assert member_fixture["user_id"] == str(user.id)
         assert user.account_kind == ACCOUNT_KIND_MEMBER
         assert user.status == USER_STATUS_ACTIVE
+        assert user.deleted_at is None
         assert user.handle == definition.handle
         assert user.display_name == definition.display_name
 
@@ -112,6 +113,7 @@ def test_provisioner_creates_members_and_one_curator_with_digest_only_sessions(
         assert stored_session.token_digest != member_fixture["session_token"]
         assert stored_session.csrf_token_digest != member_fixture["csrf_token"]
         assert stored_session.created_at == issued_at
+        assert stored_session.authenticated_at == issued_at
         assert stored_session.expires_at == issued_at + ACCEPTANCE_SESSION_TTL
 
         grant = db_session.get(CatalogCurator, definition.user_id)
@@ -134,7 +136,7 @@ def test_reprovisioner_replaces_only_fixture_member_sessions(db_session: Session
 
 def test_fixture_file_is_private_exclusive_and_contains_no_identity_data(tmp_path: Path) -> None:
     fixture: AcceptanceFixture = {
-        "version": 2,
+        "version": 3,
         "members": {
             "alice": {
                 "user_id": "alice-id",
@@ -150,6 +152,11 @@ def test_fixture_file_is_private_exclusive_and_contains_no_identity_data(tmp_pat
                 "user_id": "curator-id",
                 "session_token": "curator-session",
                 "csrf_token": "curator-csrf",
+            },
+            "deleter": {
+                "user_id": "deleter-id",
+                "session_token": "deleter-session",
+                "csrf_token": "deleter-csrf",
             },
         },
     }

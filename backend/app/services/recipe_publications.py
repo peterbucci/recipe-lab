@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -857,9 +858,12 @@ def publish_recipe_draft(
             "The published snapshot differs from its fully validated private draft."
         )
 
+    published_at = datetime.now(UTC)
     publication = RecipeVersionPublication(
         recipe_version_id=version.id,
         state=RECIPE_PUBLICATION_STATE_PUBLISHED,
+        state_changed_at=published_at,
+        state_changed_by_user_id=author_user_id,
         source_draft_id=draft.id,
         actor_user_id=author_user_id,
         action_id=action_id,
@@ -869,6 +873,7 @@ def publish_recipe_draft(
         duplicate_policy_version=preflight.policy_version,
         duplicate_result_digest=preflight.result_digest,
         duplicate_decision_id=decision.id if decision is not None else None,
+        published_at=published_at,
     )
     session.add(publication)
     if draft.source_version_id is not None:

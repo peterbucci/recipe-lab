@@ -103,6 +103,12 @@ The repository currently provides:
 - exact-version public cook attribution, direct-parent author context bounded by
   public visibility, paginated public cook profiles, and session-only My
   Recipes and Saved Recipes libraries without per-card API requests;
+- author-controlled recipe withdrawal and restoration through one shared public
+  read predicate, with unavailable-source tombstones that preserve public
+  descendants without leaking hidden parent content;
+- recent-provider-authenticated account deletion that revokes every session,
+  erases private identity and activity, and retains immutable public topology
+  only under unlinked `Deleted cook` attribution;
 - append-only, server-timestamped preference events for explicit detail views,
   saves, ratings, and forks, with typed context and UUID action-key replay
   protection scoped by member and operation rather than free-form tracking
@@ -166,9 +172,12 @@ the existing lineage, preserves its exact public source as the direct parent,
 attributes the child to the authenticated publisher, and records exactly one
 fork event. RCP-29 presents that bounded attribution on recipe cards, details,
 and public cook profiles while keeping drafts and saves inside private member
-libraries. See
+libraries. Authors can now withdraw or restore their own snapshots without
+deleting valid descendants, and deleting an account retains only anonymous
+public topology under `Deleted cook`. See
 [cook profiles and recipe libraries](docs/cook-profiles-and-libraries.md) and
-[private recipe drafts](docs/private-recipe-drafts.md).
+[private recipe drafts](docs/private-recipe-drafts.md), plus
+[recipe visibility and account lifecycle](docs/recipe-visibility-and-account-lifecycle.md).
 
 ## Quick start with Docker
 
@@ -205,7 +214,9 @@ Open:
 - Public cook profile API: `GET /api/cooks/{handle}`
 - My Recipes API: `GET /api/my/recipes`
 - Saved Recipes API: `GET /api/my/saved-recipes`
+- Recipe visibility API: `PUT /api/recipes/{id}/visibility`
 - Account session status: <http://localhost:3000/api/auth/session>
+- Account deletion API: `DELETE /api/auth/account`
 - Interactive API docs: <http://localhost:8000/docs>
 
 Stop the services with `docker compose down`. Add `--volumes` only when you
@@ -347,8 +358,9 @@ the guarded acceptance run below.
 
 The canonical MVP journey intentionally writes real member activity and an
 immutable recipe variant, so it is skipped during ordinary local browser runs.
-CI provisions short-lived sessions for two synthetic, onboarded members directly
-in its isolated database. This is a command-line test fixture, not a production
+CI provisions short-lived sessions for four synthetic members, including a
+narrow curator and an account-deletion fixture, directly in its isolated
+database. This is a command-line test fixture, not a production
 HTTP authentication route: PostgreSQL receives only session and CSRF digests,
 while the raw tokens exist only in a private temporary JSON file consumed by
 Playwright.

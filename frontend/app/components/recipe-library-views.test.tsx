@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PublicCookProfilePage } from "../../lib/recipe-library-api";
 import type { RecipeSummary } from "../../lib/recipe-api";
+import { CSRF_COOKIE_NAME } from "../../lib/auth-api";
 import CookProfileError from "../cooks/[handle]/error";
 import CookProfileLoading from "../cooks/[handle]/loading";
 import CookProfileNotFound from "../cooks/[handle]/not-found";
@@ -79,6 +80,7 @@ function authenticated(children: React.ReactNode) {
 }
 
 afterEach(() => {
+  document.cookie = `${CSRF_COOKIE_NAME}=; Max-Age=0; Path=/`;
   vi.unstubAllGlobals();
 });
 
@@ -153,8 +155,8 @@ describe("cook profile and private recipe libraries", () => {
               updated_at: "2026-08-25T12:00:00Z",
             },
           },
-          { kind: "published", recipe: original() },
-          { kind: "published", recipe: fork() },
+          { kind: "published", recipe: original(), visibility_state: "published" },
+          { kind: "published", recipe: fork(), visibility_state: "published" },
         ],
         page: 1,
         page_size: 12,
@@ -182,6 +184,111 @@ describe("cook profile and private recipe libraries", () => {
       "/api/my/recipes?page=1&page_size=12",
       expect.objectContaining({ credentials: "same-origin" }),
     );
+  });
+
+  it("renders Deleted cook and an unavailable source without profile or source links", () => {
+    render(
+      <CookProfileView
+        data={profile({
+          items: [
+            original({
+              author: { id: CATALOG_ID, handle: null, display_name: "Deleted cook" },
+              parent_version_id: FORK_ID,
+              parent: null,
+            }),
+          ],
+          total: 1,
+          total_pages: 1,
+        })}
+      />,
+    );
+
+    const list = screen.getByRole("list", { name: "Public recipes by Alice Cook" });
+    expect(within(list).getByText("Deleted cook", { exact: true })).toBeVisible();
+    expect(within(list).queryByRole("link", { name: "Deleted cook" })).toBeNull();
+    expect(within(list).getByText("Source unavailable", { exact: true })).toBeVisible();
+  });
+
+  it("withdraws and restores snapshots from My recipes without exposing a public link", async () => {
+    document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
+    const publicPage = {
+      items: [{ kind: "published", recipe: original(), visibility_state: "published" }],
+      page: 1,
+      page_size: 12,
+      total: 1,
+      total_pages: 1,
+    };
+    const withdrawnPage = {
+      ...publicPage,
+      items: [{ kind: "published", recipe: original(), visibility_state: "author_withdrawn" }],
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(publicPage))
+      .mockResolvedValueOnce(
+        Response.json({
+          recipe_version_id: ROOT_ID,
+          state: "author_withdrawn",
+          updated_at: "2026-08-25T13:00:00Z",
+        }),
+      )
+      .mockResolvedValueOnce(Response.json(withdrawnPage));
+    vi.stubGlobal("fetch", fetchMock);
+    authenticated(<MyRecipeLibrary />);
+
+    const list = await screen.findByRole("list", { name: "My recipes" });
+    expect(within(list).getByRole("link", { name: "Alice’s tomato soup" })).toBeVisible();
+    fireEvent.click(within(list).getByRole("button", { name: "Withdraw Alice’s tomato soup" }));
+    expect(within(list).getByText(/existing public descendants remain available/i)).toBeVisible();
+    fireEvent.click(
+      within(list).getByRole("button", {
+        name: "Confirm withdrawal of Alice’s tomato soup",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/recipes/${ROOT_ID}/visibility`,
+        expect.objectContaining({
+          method: "PUT",
+          headers: expect.objectContaining({ "X-CSRF-Token": "csrf-value" }),
+          body: JSON.stringify({ state: "author_withdrawn" }),
+        }),
+      ),
+    );
+    expect(await within(list).findByText("Withdrawn", { exact: true })).toBeVisible();
+    expect(within(list).queryByRole("link", { name: "Alice’s tomato soup" })).toBeNull();
+    expect(
+      within(list).getByRole("button", { name: "Restore Alice’s tomato soup" }),
+    ).toBeVisible();
+  });
+
+  it("keeps a moderation-hidden snapshot discoverable without author controls", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          items: [
+            {
+              kind: "published",
+              recipe: original(),
+              visibility_state: "moderation_hidden",
+            },
+          ],
+          page: 1,
+          page_size: 12,
+          total: 1,
+          total_pages: 1,
+        }),
+      ),
+    );
+    authenticated(<MyRecipeLibrary />);
+
+    const list = await screen.findByRole("list", { name: "My recipes" });
+    expect(within(list).getByText("Hidden by moderation", { exact: true })).toBeVisible();
+    expect(within(list).getByText(/visibility cannot be changed here/i)).toBeVisible();
+    expect(within(list).queryByRole("link", { name: "Alice’s tomato soup" })).toBeNull();
+    expect(within(list).queryByRole("button")).toBeNull();
   });
 
   it("lists only the current member’s saved recipes and pages privately", async () => {

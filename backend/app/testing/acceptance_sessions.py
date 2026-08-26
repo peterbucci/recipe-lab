@@ -30,7 +30,7 @@ from app.models import (
     UserSession,
 )
 
-ACCEPTANCE_FIXTURE_VERSION = 2
+ACCEPTANCE_FIXTURE_VERSION = 3
 ACCEPTANCE_DATABASE_NAMES = frozenset(
     {
         "recipe_lab_acceptance",
@@ -87,6 +87,13 @@ ACCEPTANCE_MEMBERS = (
         handle="acceptance_curator",
         display_name="Casey Curator",
         catalog_curator=True,
+    ),
+    AcceptanceMemberDefinition(
+        key="deleter",
+        user_id=uuid5(_MEMBER_NAMESPACE, "deleter"),
+        email="deleter@acceptance.recipe-lab.invalid",
+        handle="acceptance_deleter",
+        display_name="Dana Deleter",
     ),
 )
 
@@ -160,6 +167,7 @@ def _load_or_create_member(
     user.handle = definition.handle
     user.display_name = definition.display_name
     user.status = USER_STATUS_ACTIVE
+    user.deleted_at = None
     session.flush()
     return user
 
@@ -187,6 +195,7 @@ def provision_acceptance_sessions(
                 token_digest=token_digest(raw_session_token),
                 csrf_token_digest=token_digest(raw_csrf_token),
                 created_at=issued_at,
+                authenticated_at=issued_at,
                 last_seen_at=issued_at,
                 expires_at=issued_at + ACCEPTANCE_SESSION_TTL,
             )

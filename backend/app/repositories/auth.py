@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy import delete, or_, select, text
 from sqlalchemy.orm import Session, joinedload
@@ -99,12 +100,14 @@ def create_user_session(
     csrf_token_digest: str,
     expires_at: datetime,
     last_seen_at: datetime,
+    authenticated_at: datetime | None = None,
 ) -> UserSession:
     user_session = UserSession(
         user=user,
         token_digest=token_digest,
         csrf_token_digest=csrf_token_digest,
         expires_at=expires_at,
+        authenticated_at=authenticated_at,
         last_seen_at=last_seen_at,
         created_at=last_seen_at,
     )
@@ -123,6 +126,22 @@ def get_user_session_by_token_digest(
         select(UserSession)
         .options(joinedload(UserSession.user))
         .where(UserSession.token_digest == token_digest)
+    )
+    if for_update:
+        statement = statement.with_for_update(of=UserSession)
+    return session.scalar(statement)
+
+
+def get_user_session_by_id(
+    session: Session,
+    session_id: UUID,
+    *,
+    for_update: bool = False,
+) -> UserSession | None:
+    statement = (
+        select(UserSession)
+        .options(joinedload(UserSession.user))
+        .where(UserSession.id == session_id)
     )
     if for_update:
         statement = statement.with_for_update(of=UserSession)
@@ -158,12 +177,16 @@ def create_oidc_login_transaction(
     pkce_verifier: str,
     return_path: str,
     expires_at: datetime,
+    purpose: str = "login",
+    bound_session_id: UUID | None = None,
 ) -> OIDCLoginTransaction:
     login_transaction = OIDCLoginTransaction(
         state_digest=state_digest,
         nonce=nonce,
         pkce_verifier=pkce_verifier,
         return_path=return_path,
+        purpose=purpose,
+        bound_session_id=bound_session_id,
         expires_at=expires_at,
     )
     session.add(login_transaction)

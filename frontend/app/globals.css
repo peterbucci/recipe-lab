@@ -1080,6 +1080,48 @@ h3 {
   pointer-events: none;
 }
 
+.recipe-card__actions {
+  position: relative;
+  z-index: 3;
+  margin-top: auto;
+  border-top: 1px solid var(--line);
+  padding-top: 0.85rem;
+}
+
+.recipe-card__link-hint + .recipe-card__actions {
+  margin-top: 1rem;
+}
+
+.recipe-visibility-control > p,
+.recipe-visibility-control__confirmation > p,
+.recipe-visibility-control__error,
+.recipe-visibility-control__status {
+  margin: 0 0 0.65rem !important;
+  font-size: 0.76rem !important;
+  line-height: 1.5 !important;
+}
+
+.recipe-visibility-control .button {
+  min-height: 2.4rem;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.78rem;
+}
+
+.recipe-visibility-control__confirmation {
+  border-radius: 0.7rem;
+  background: var(--clay-soft);
+  padding: 0.8rem;
+}
+
+.recipe-visibility-control__confirmation > p,
+.recipe-visibility-control__error {
+  color: var(--clay-dark) !important;
+}
+
+.recipe-visibility-control__status {
+  color: var(--leaf-dark) !important;
+}
+
 .pagination {
   display: grid;
   align-items: center;
@@ -1628,6 +1670,16 @@ h3 {
 .lineage-card--current {
   border: 0.12rem solid var(--leaf);
   background: var(--leaf-soft);
+}
+
+.lineage-card--unavailable {
+  border-style: dashed;
+  background: var(--surface-soft);
+}
+
+.lineage-card--unavailable:hover {
+  border-color: var(--line);
+  background: var(--surface-soft);
 }
 
 .lineage-empty {
@@ -4612,6 +4664,13 @@ h3 {
   font-weight: 700;
 }
 
+.draft-publication__retention-disclosure {
+  border-left: 0.22rem solid var(--mustard);
+  background: #fff5d9;
+  padding: 0.85rem 1rem;
+  color: var(--ink) !important;
+}
+
 .draft-publication__status,
 .draft-publication__boundary {
   margin: 0.75rem 0 0;
@@ -4742,6 +4801,92 @@ h3 {
   gap: 0.5rem;
   letter-spacing: 0.045em;
   text-transform: uppercase;
+}
+
+.account-settings .page-intro {
+  max-width: 58rem;
+}
+
+.account-deletion {
+  max-width: 58rem;
+  border: 1px solid #c89786;
+  border-radius: 1rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  padding: clamp(1.2rem, 4vw, 2rem);
+}
+
+.account-deletion h2 {
+  margin-bottom: 0.75rem;
+}
+
+.account-deletion__disclosure {
+  border-left: 0.22rem solid var(--clay);
+  background: var(--clay-soft);
+  padding: 0.9rem 1rem;
+}
+
+.account-deletion__disclosure p,
+.account-deletion__reauth p {
+  margin-bottom: 0.75rem;
+  color: var(--clay-dark);
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+
+.account-deletion__disclosure p:last-child,
+.account-deletion__reauth p:last-child {
+  margin-bottom: 0;
+}
+
+.account-deletion__form {
+  display: grid;
+  max-width: 38rem;
+  margin-top: 1.25rem;
+  gap: 1.1rem;
+}
+
+.account-deletion__acknowledgement {
+  display: grid;
+  align-items: start;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.account-deletion__acknowledgement input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0.18rem 0 0;
+  accent-color: var(--clay-dark);
+}
+
+.account-deletion__form .profile-form__field > span {
+  font-size: 0.88rem;
+  font-weight: 750;
+}
+
+.account-deletion__form .button--danger {
+  width: fit-content;
+}
+
+.account-deletion__reauth {
+  margin-top: 1.25rem;
+  border: 1px solid var(--clay);
+  border-radius: 0.8rem;
+  background: var(--clay-soft);
+  padding: 1rem;
+}
+
+.account-deletion__reauth h3 {
+  margin-bottom: 0.45rem;
+}
+
+.account-deletion__error {
+  margin-top: 1rem;
 }
 
 @media (max-width: 48rem) {

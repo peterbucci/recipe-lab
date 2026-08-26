@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -29,6 +30,21 @@ class RecipeOriginalPublicationRequest(RecipePublicationSchema):
 class RecipeOriginalPublicationResponse(RecipePublicationSchema):
     recipe_version_id: UUID
     location: str
+
+
+class RecipeVisibilityUpdateRequest(RecipePublicationSchema):
+    state: Literal["published", "author_withdrawn"] = Field(
+        description=(
+            "Desired author-controlled visibility. Moderation state is intentionally "
+            "outside this member endpoint."
+        )
+    )
+
+
+class RecipeVisibilityResponse(RecipePublicationSchema):
+    recipe_version_id: UUID
+    state: Literal["published", "author_withdrawn", "moderation_hidden"]
+    updated_at: datetime
 
 
 # RCP-28 source-backed publication uses the shipped RCP-27 HTTP/OpenAPI contract.

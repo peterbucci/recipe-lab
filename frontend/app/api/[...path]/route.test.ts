@@ -218,6 +218,37 @@ describe("same-origin API boundary", () => {
     expect(response.headers.get("set-cookie")).toContain("recipe_lab_session=session");
   });
 
+  it("passes a transaction-validated reauthentication failure destination unchanged", async () => {
+    vi.stubEnv("RECIPE_API_URL", "https://api.example.test");
+    const safeLocation =
+      "/auth/callback?error=reauthentication_failed&return_to=%2Faccount%2Fsettings";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(null, {
+          status: 303,
+          headers: {
+            Location: safeLocation,
+            "Set-Cookie":
+              "recipe_lab_login=; Max-Age=0; HttpOnly; Secure; SameSite=Lax; Path=/api/auth/callback",
+          },
+        }),
+      ),
+    );
+
+    const response = await GET(
+      new NextRequest(
+        "https://recipe.test/api/auth/callback?code=provider-secret&state=state-secret&return_to=https://malicious.example",
+      ),
+      { params: Promise.resolve({ path: ["auth", "callback"] }) },
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(safeLocation);
+    expect(response.headers.get("location")).not.toContain("malicious.example");
+    expect(response.headers.get("set-cookie")).toContain("recipe_lab_login=;");
+  });
+
   it.each([
     "https://malicious.example/steal",
     "//malicious.example/steal",

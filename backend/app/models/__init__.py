@@ -47,6 +47,8 @@ from app.models.measurement import (
 )
 from app.models.preference_event import PREFERENCE_EVENT_TYPES, PreferenceEvent
 from app.models.recipe import (
+    RECIPE_PUBLICATION_STATE_AUTHOR_WITHDRAWN,
+    RECIPE_PUBLICATION_STATE_MODERATION_HIDDEN,
     RECIPE_PUBLICATION_STATE_PUBLISHED,
     RECIPE_PUBLICATION_STATES,
     RecipeIngredient,
@@ -54,6 +56,7 @@ from app.models.recipe import (
     RecipeLineage,
     RecipeVersion,
     RecipeVersionPublication,
+    RecipeVersionVisibilityEvent,
 )
 from app.models.recipe_draft import (
     RECIPE_DRAFT_SELECTION_CATALOG,
@@ -173,6 +176,9 @@ __all__ = [
     "RecipeStructuralFingerprint",
     "RecipeVersion",
     "RecipeVersionPublication",
+    "RecipeVersionVisibilityEvent",
+    "RECIPE_PUBLICATION_STATE_AUTHOR_WITHDRAWN",
+    "RECIPE_PUBLICATION_STATE_MODERATION_HIDDEN",
     "RECIPE_PUBLICATION_STATE_PUBLISHED",
     "RECIPE_PUBLICATION_STATES",
     "USER_ACCOUNT_KINDS",

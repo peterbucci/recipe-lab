@@ -1,0 +1,289 @@
+import AxeBuilder from "@axe-core/playwright";
+import { expect, test, type Page, type Response } from "@playwright/test";
+
+import {
+  type MemberName,
+  useAcceptanceMember as applyAcceptanceMember,
+} from "./acceptance-session";
+
+const acceptanceEnabled =
+  process.env.MVP_ACCEPTANCE === "1" &&
+  process.env.ACCEPTANCE_DATABASE_ISOLATED === "1";
+const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+
+async function csrfHeaders(page: Page, memberName: MemberName): Promise<Record<string, string>> {
+  const member = await applyAcceptanceMember(page, memberName);
+  return {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    Origin: baseUrl,
+    "X-CSRF-Token": member.csrf_token,
+  };
+}
+
+async function expectNoAccessibilityViolations(page: Page): Promise<void> {
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(results.violations).toEqual([]);
+}
+
+async function fillCompleteRecipe(page: Page, title: string): Promise<void> {
+  await page.getByLabel("Title", { exact: true }).fill(title);
+  await page.getByLabel("Servings", { exact: true }).fill("2");
+  await page.getByRole("button", { name: "Add ingredient", exact: true }).click();
+  const ingredient = page.getByRole("group", { name: "Ingredient 1", exact: true });
+  const search = ingredient.getByRole("searchbox", {
+    name: "Catalog ingredient",
+    exact: true,
+  });
+  await search.fill("Pecan");
+  await search.press("Enter");
+  await ingredient
+    .getByRole("list", { name: "Catalog ingredient catalog results" })
+    .getByRole("button", { name: /pecan/i })
+    .first()
+    .click();
+
+  await page.getByRole("button", { name: "Add instruction", exact: true }).click();
+  const step = page.getByRole("group", { name: "Step 1", exact: true });
+  await step
+    .getByLabel("Human-readable direction", { exact: true })
+    .fill("Knead the pecans into a small lifecycle test bite and serve.");
+  await step.getByRole("button", { name: "Add cooking action", exact: true }).click();
+  const action = step.getByRole("group", { name: "Action 1", exact: true });
+  await action.getByRole("combobox", { name: "Cooking action", exact: true }).selectOption({
+    label: "knead",
+  });
+  await action
+    .getByRole("group", { name: "Ingredient inputs", exact: true })
+    .getByRole("checkbox", { name: /Ingredient 1: Pecan/i })
+    .check();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Draft saved privately.", { exact: true })).toBeVisible();
+}
+
+async function finishOriginalPublication(
+  page: Page,
+  preflightResponse: Promise<Response>,
+  publicationResponse: Promise<Response>,
+): Promise<string> {
+  await page.getByRole("button", { name: "Review and publish", exact: true }).click();
+  const preflight = await preflightResponse;
+  expect(preflight.status(), await preflight.text()).toBe(201);
+  const preflightBody = (await preflight.json()) as { classification?: unknown };
+  if (preflightBody.classification !== "distinct") {
+    const review = page.getByRole("region", {
+      name: /review (?:an existing structural match|similar recipe structures)/i,
+    });
+    await review.getByRole("checkbox", { name: /publish my recipe anyway/i }).check();
+    await review.getByRole("button", { name: "Publish recipe anyway" }).click();
+  }
+  const publication = await publicationResponse;
+  expect(publication.status(), await publication.text()).toBe(201);
+  const body = (await publication.json()) as {
+    location?: unknown;
+    recipe_version_id?: unknown;
+  };
+  expect(body.recipe_version_id).toMatch(/^[0-9a-f-]{36}$/i);
+  expect(body.location).toBe(`/recipes/${body.recipe_version_id}`);
+  await expect(page).toHaveURL(body.location as string);
+  return body.recipe_version_id as string;
+}
+
+async function publishOriginal(page: Page, memberName: MemberName, title: string): Promise<string> {
+  await applyAcceptanceMember(page, memberName);
+  await page.goto("/recipes/new");
+  await page.getByRole("button", { name: "Start writing", exact: true }).click();
+  await fillCompleteRecipe(page, title);
+  const draftId = new URL(page.url()).pathname.split("/").at(-1)!;
+  const preflightResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith(`/api/recipe-drafts/${draftId}/duplicate-preflights`),
+  );
+  const publicationResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith(`/api/recipe-drafts/${draftId}/publish`),
+  );
+  return finishOriginalPublication(page, preflightResponse, publicationResponse);
+}
+
+async function publishUnchangedFork(
+  page: Page,
+  sourceId: string,
+  childTitle: string,
+): Promise<string> {
+  await page.goto(`/recipes/${sourceId}/fork`);
+  await page.getByRole("button", { name: "Create private draft", exact: true }).click();
+  await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
+  const draftId = new URL(page.url()).pathname.split("/").at(-1)!;
+  await page.getByLabel("Title", { exact: true }).fill(childTitle);
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Draft saved privately.", { exact: true })).toBeVisible();
+
+  const preflightResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith(`/api/recipe-drafts/${draftId}/duplicate-preflights`),
+  );
+  await page.getByRole("button", { name: "Review and publish version", exact: true }).click();
+  const preflight = await preflightResponse;
+  expect(preflight.status(), await preflight.text()).toBe(201);
+  expect(await preflight.json()).toMatchObject({
+    classification: "exact_duplicate",
+    same_lineage_no_change: true,
+    acknowledgement: { required: true },
+  });
+
+  const review = page.getByRole("region", {
+    name: "This version keeps the same recipe structure",
+  });
+  await review
+    .getByRole("checkbox", { name: /direct-parent no-change warning/i })
+    .check();
+  const publicationResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith(`/api/recipe-drafts/${draftId}/publish`),
+  );
+  await review.getByRole("button", { name: "Publish version anyway" }).click();
+  const publication = await publicationResponse;
+  expect(publication.status(), await publication.text()).toBe(201);
+  const body = (await publication.json()) as { recipe_version_id?: unknown };
+  expect(body.recipe_version_id).toMatch(/^[0-9a-f-]{36}$/i);
+  await expect(page).toHaveURL(`/recipes/${body.recipe_version_id}`);
+  return body.recipe_version_id as string;
+}
+
+test.describe("recipe visibility and account lifecycle acceptance", () => {
+  test.describe.configure({ retries: 0, timeout: 90_000 });
+  test.skip(
+    !acceptanceEnabled,
+    "Recipe-lifecycle acceptance requires the isolated, freshly seeded database.",
+  );
+
+  test("withdraws and restores only an authored version without hiding its public child", async ({
+    page,
+  }) => {
+    const runId = crypto.randomUUID().slice(0, 8);
+    const sourceTitle = `RCP30 lifecycle parent ${runId}`;
+    const childTitle = `RCP30 lifecycle child ${runId}`;
+    const sourceId = await publishOriginal(page, "alice", sourceTitle);
+
+    await applyAcceptanceMember(page, "bob");
+    const childId = await publishUnchangedFork(page, sourceId, childTitle);
+    const bobHeaders = await csrfHeaders(page, "bob");
+    const unauthorized = await page.request.put(`/api/recipes/${sourceId}/visibility`, {
+      data: { state: "author_withdrawn" },
+      headers: bobHeaders,
+    });
+    expect(unauthorized.status(), await unauthorized.text()).toBe(404);
+
+    await applyAcceptanceMember(page, "alice");
+    await page.goto("/account/recipes");
+    let sourceCard = page.getByRole("article", { name: sourceTitle, exact: true });
+    await sourceCard.getByRole("button", { name: `Withdraw ${sourceTitle}`, exact: true }).click();
+    const withdrawalResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PUT" &&
+        response.url().endsWith(`/api/recipes/${sourceId}/visibility`),
+    );
+    await sourceCard
+      .getByRole("button", { name: `Confirm withdrawal of ${sourceTitle}`, exact: true })
+      .click();
+    expect((await withdrawalResponse).status()).toBe(200);
+    sourceCard = page.getByRole("article", { name: sourceTitle, exact: true });
+    await expect(sourceCard.getByText("Withdrawn", { exact: true })).toBeVisible();
+    await expect(sourceCard.getByRole("link", { name: sourceTitle, exact: true })).toHaveCount(0);
+
+    const unavailableSource = await page.request.get(`/api/recipes/${sourceId}`);
+    expect(unavailableSource.status()).toBe(404);
+    await page.goto(`/recipes?q=${encodeURIComponent(sourceTitle)}`);
+    await expect(page.getByRole("link", { name: sourceTitle, exact: true })).toHaveCount(0);
+
+    await page.goto(`/recipes/${childId}`);
+    await expect(page.getByRole("heading", { name: childTitle, level: 1 })).toBeVisible();
+    await expect(page.locator(".recipe-detail__parent-context").first()).toHaveText(
+      "Source unavailable",
+    );
+    await expect(page.getByText(sourceTitle, { exact: true })).toHaveCount(0);
+    await expectNoAccessibilityViolations(page);
+
+    await page.goto("/account/recipes");
+    sourceCard = page.getByRole("article", { name: sourceTitle, exact: true });
+    const restoreResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PUT" &&
+        response.url().endsWith(`/api/recipes/${sourceId}/visibility`),
+    );
+    await sourceCard.getByRole("button", { name: `Restore ${sourceTitle}`, exact: true }).click();
+    expect((await restoreResponse).status()).toBe(200);
+    sourceCard = page.getByRole("article", { name: sourceTitle, exact: true });
+    await expect(sourceCard.getByText("Public", { exact: true })).toBeVisible();
+    await expect(sourceCard.getByRole("link", { name: sourceTitle, exact: true })).toBeVisible();
+    expect((await page.request.get(`/api/recipes/${sourceId}`)).status()).toBe(200);
+  });
+
+  test("deletes private account data while retaining public history as Deleted cook", async ({
+    browser,
+    page,
+  }) => {
+    const runId = crypto.randomUUID().slice(0, 8);
+    const title = `RCP30 deleted cook recipe ${runId}`;
+    const recipeId = await publishOriginal(page, "deleter", title);
+
+    await page.goto("/account/settings");
+    await expect(page.getByRole("heading", { name: "Account settings", level: 1 })).toBeVisible();
+    await expect(page.getByText(/public when you delete your account stay public/i)).toBeVisible();
+    await expect(page.getByText(/author becomes Deleted cook/i)).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      ),
+    ).toBe(false);
+    await expectNoAccessibilityViolations(page);
+
+    await page
+      .getByRole("checkbox", { name: /account deletion is permanent/i })
+      .check();
+    await page.getByLabel(/Type acceptance_deleter to confirm/i).fill("acceptance_deleter");
+    const deletionResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "DELETE" &&
+        response.url().endsWith("/api/auth/account"),
+    );
+    await page.getByRole("button", { name: "Permanently delete account" }).click();
+    expect((await deletionResponse).status()).toBe(204);
+    await expect(page).toHaveURL("/account/deleted");
+    await expect(
+      page.getByRole("heading", { name: "Your account has been deleted.", level: 1 }),
+    ).toBeVisible();
+    const accountSession = await page.request.get("/api/auth/session");
+    expect(accountSession.status(), await accountSession.text()).toBe(200);
+    expect(await accountSession.json()).toEqual({ status: "anonymous" });
+
+    const publicContext = await browser.newContext();
+    const publicPage = await publicContext.newPage();
+    await publicPage.goto(new URL(`/recipes/${recipeId}`, baseUrl).toString());
+    await expect(publicPage.getByRole("heading", { name: title, level: 1 })).toBeVisible();
+    await expect(
+      publicPage.getByRole("main").getByText("By Deleted cook", { exact: true }).first(),
+    ).toBeVisible();
+    await expect(publicPage.getByRole("link", { name: "Deleted cook" })).toHaveCount(0);
+    await publicPage.goto(new URL("/cooks/acceptance_deleter", baseUrl).toString());
+    await expect(
+      publicPage.getByRole("heading", { name: "We couldn’t find that cook.", level: 1 }),
+    ).toBeVisible();
+    expect(
+      (
+        await publicPage.request.get(
+          new URL("/api/cooks/acceptance_deleter", baseUrl).toString(),
+        )
+      ).status(),
+    ).toBe(404);
+    await publicContext.close();
+  });
+});

@@ -28,6 +28,23 @@ describe("CallbackStatus", () => {
     expect(screen.queryByText("provider-secret-value")).not.toBeInTheDocument();
   });
 
+  it("returns a failed identity verification to settings without exposing provider details", () => {
+    render(
+      <AuthSessionProvider initialSession={{ status: "authenticated", user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" } }}>
+        <CallbackStatus errorCode="reauthentication_failed" returnTo="/account/settings" />
+      </AuthSessionProvider>,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "We couldn’t verify your identity. No account changes were made.",
+    );
+    expect(screen.getByRole("link", { name: "Return to account settings" })).toHaveAttribute(
+      "href",
+      "/account/settings",
+    );
+    expect(screen.queryByRole("link", { name: /signing in again/i })).toBeNull();
+  });
+
   it("sends a completed member to the validated return path", async () => {
     render(
       <AuthSessionProvider

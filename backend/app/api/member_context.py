@@ -63,7 +63,7 @@ def ensure_recipe_exists(session: Session, recipe_version_id: UUID) -> None:
         raise ApiError(
             status_code=404,
             code="recipe_not_found",
-            message=f"Recipe version {recipe_version_id} was not found.",
+            message="The recipe was not found or is not publicly available.",
         )
 
 

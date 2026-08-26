@@ -19,6 +19,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_login: "This sign-in attempt expired or was already used.",
   invalid_state: "This sign-in link expired or was already used.",
   provider_unavailable: "The identity provider is temporarily unavailable.",
+  reauthentication_failed: "We couldn’t verify your identity. No account changes were made.",
 };
 
 export function CallbackStatus({ errorCode, returnTo }: CallbackStatusProps) {
@@ -38,13 +39,24 @@ export function CallbackStatus({ errorCode, returnTo }: CallbackStatusProps) {
   }, [errorCode, returnTo, router, state]);
 
   if (errorCode) {
+    const reauthenticationFailed = errorCode === "reauthentication_failed";
     return (
       <div className="auth-state" role="alert">
-        <strong>We couldn’t sign you in.</strong>
+        <strong>
+          {reauthenticationFailed
+            ? "We couldn’t verify your identity."
+            : "We couldn’t sign you in."}
+        </strong>
         <p>{ERROR_MESSAGES[errorCode] ?? "Sign-in could not be completed. Please try again."}</p>
-        <Link className="button button--primary" href="/sign-in">
-          Try signing in again
-        </Link>
+        {reauthenticationFailed ? (
+          <Link className="button button--primary" href="/account/settings">
+            Return to account settings
+          </Link>
+        ) : (
+          <Link className="button button--primary" href="/sign-in">
+            Try signing in again
+          </Link>
+        )}
       </div>
     );
   }

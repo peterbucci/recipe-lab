@@ -198,6 +198,40 @@ describe("RecipeDetailView", () => {
     expect(within(lineage).getAllByRole("listitem")).toHaveLength(3);
   });
 
+  it("renders deleted attribution and an unavailable parent without leaking links or comparison", () => {
+    renderDetail(
+      detail({
+        author: { id: "deleted-id", handle: null, display_name: "Deleted cook" },
+        parent: null,
+        children: [],
+      }),
+    );
+
+    expect(screen.getAllByText("Deleted cook", { exact: true })).not.toHaveLength(0);
+    expect(screen.queryByRole("link", { name: "Deleted cook" })).toBeNull();
+    expect(screen.getAllByText("Source unavailable", { exact: true })).toHaveLength(2);
+    expect(screen.queryByRole("link", { name: /see what changed/i })).toBeNull();
+    const lineage = screen.getByRole("list", { name: /more versions of this recipe/i });
+    expect(within(lineage).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(lineage).queryByText("Carrot Walnut Snack Cake")).toBeNull();
+    expect(within(lineage).queryByText("First Cook")).toBeNull();
+  });
+
+  it("renders the legacy Demo Cook identity without a profile link", () => {
+    renderDetail(
+      detail({
+        author: {
+          id: "1fc5b3b8-cf73-54ce-b5d6-ed3c30df9fd9",
+          handle: null,
+          display_name: "Demo Cook",
+        },
+      }),
+    );
+
+    expect(screen.getAllByText("Demo Cook", { exact: true })).not.toHaveLength(0);
+    expect(screen.queryByRole("link", { name: "Demo Cook" })).toBeNull();
+  });
+
   it("hydrates private controls only after the authenticated member state loads", async () => {
     renderDetail(detail(), member);
 

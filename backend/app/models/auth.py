@@ -22,6 +22,12 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 LOWERCASE_SHA256_PATTERN = "^[0-9a-f]{64}$"
+OIDC_LOGIN_PURPOSE_LOGIN = "login"
+OIDC_LOGIN_PURPOSE_REAUTHENTICATE = "reauthenticate"
+OIDC_LOGIN_PURPOSES = (
+    OIDC_LOGIN_PURPOSE_LOGIN,
+    OIDC_LOGIN_PURPOSE_REAUTHENTICATE,
+)
 
 
 class OIDCIdentity(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
@@ -81,6 +87,10 @@ class UserSession(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     token_digest: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     csrf_token_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    authenticated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -116,12 +126,29 @@ class OIDCLoginTransaction(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
             "consumed_at IS NULL OR consumed_at >= created_at",
             name="consumed_not_before_creation",
         ),
+        CheckConstraint(
+            "(purpose = 'login' AND bound_session_id IS NULL) OR "
+            "(purpose = 'reauthenticate' AND bound_session_id IS NOT NULL)",
+            name="purpose_binding_valid",
+        ),
         Index("ix_oidc_login_transactions_expires_at", "expires_at"),
+        Index("ix_oidc_login_transactions_bound_session_id", "bound_session_id"),
     )
 
     state_digest: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     nonce: Mapped[str] = mapped_column(String(255), nullable=False)
     pkce_verifier: Mapped[str] = mapped_column(String(128), nullable=False)
     return_path: Mapped[str] = mapped_column(String(2048), nullable=False)
+    purpose: Mapped[str] = mapped_column(
+        String(24),
+        nullable=False,
+        default=OIDC_LOGIN_PURPOSE_LOGIN,
+        server_default=OIDC_LOGIN_PURPOSE_LOGIN,
+    )
+    bound_session_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("user_sessions.id", ondelete="CASCADE"),
+        nullable=True,
+    )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

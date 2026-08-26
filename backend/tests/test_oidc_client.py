@@ -122,6 +122,15 @@ def test_authorization_and_token_exchange_use_exact_configured_redirect_and_pkce
             "code_challenge": ["challenge-value"],
             "code_challenge_method": ["S256"],
         }
+        reauthentication_url = client.build_authorization_url(
+            state="reauth-state",
+            nonce=NONCE,
+            code_challenge="challenge-value",
+            force_reauthentication=True,
+        )
+        reauthentication_query = parse_qs(httpx.URL(reauthentication_url).query.decode("ascii"))
+        assert reauthentication_query["prompt"] == ["login"]
+        assert reauthentication_query["max_age"] == ["0"]
 
         identity = client.exchange_code(
             code="one-time-code",
@@ -134,12 +143,82 @@ def test_authorization_and_token_exchange_use_exact_configured_redirect_and_pkce
     assert identity.email == "cook@example.test"
     assert identity.email_verified is True
     assert identity.suggested_display_name == "Test Cook"
+    assert identity.authenticated_at is None
     assert [request.url.path for request in requests] == [
         "/.well-known/openid-configuration",
         "/token",
         "/jwks",
     ]
     assert "not-stored" not in repr(identity)
+
+
+def test_reauthentication_requires_a_fresh_valid_provider_auth_time() -> None:
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    authenticated_at = datetime.now(UTC).replace(microsecond=0)
+    http_client, _ = oidc_http_client(
+        signed_id_token(private_key, auth_time=int(authenticated_at.timestamp())),
+        private_key.public_key(),
+    )
+
+    with OIDCClient(auth_settings(), http_client=http_client) as client:
+        identity = client.exchange_code(
+            code="one-time-code",
+            code_verifier="v" * 64,
+            expected_nonce=NONCE,
+            require_auth_time_after=authenticated_at - timedelta(seconds=5),
+        )
+
+    assert identity.authenticated_at == authenticated_at
+
+
+def test_normal_login_rejects_a_future_provider_auth_time() -> None:
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    http_client, _ = oidc_http_client(
+        signed_id_token(
+            private_key,
+            auth_time=int((datetime.now(UTC) + timedelta(minutes=10)).timestamp()),
+        ),
+        private_key.public_key(),
+    )
+
+    with OIDCClient(auth_settings(), http_client=http_client) as client:
+        with pytest.raises(InvalidOIDCLoginError):
+            client.exchange_code(
+                code="one-time-code",
+                code_verifier="v" * 64,
+                expected_nonce=NONCE,
+            )
+
+
+@pytest.mark.parametrize(
+    "auth_time",
+    [
+        None,
+        int((datetime.now(UTC) - timedelta(minutes=10)).timestamp()),
+        int((datetime.now(UTC) + timedelta(minutes=10)).timestamp()),
+        "not-a-timestamp",
+        True,
+    ],
+    ids=["missing", "stale", "future", "wrong-type", "boolean"],
+)
+def test_reauthentication_rejects_missing_stale_future_or_invalid_auth_time(
+    auth_time: object | None,
+) -> None:
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    overrides = {} if auth_time is None else {"auth_time": auth_time}
+    http_client, _ = oidc_http_client(
+        signed_id_token(private_key, **overrides),
+        private_key.public_key(),
+    )
+
+    with OIDCClient(auth_settings(), http_client=http_client) as client:
+        with pytest.raises(InvalidOIDCLoginError):
+            client.exchange_code(
+                code="one-time-code",
+                code_verifier="v" * 64,
+                expected_nonce=NONCE,
+                require_auth_time_after=datetime.now(UTC) - timedelta(seconds=5),
+            )
 
 
 @pytest.mark.parametrize(

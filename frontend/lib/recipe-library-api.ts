@@ -1,13 +1,19 @@
 import { notifySessionExpired } from "./auth-api";
 import type { RecipeDraftListItem } from "./recipe-draft-api";
 import type {
+  ActivePublicUserReference,
   PublicUserReference,
   RecipeSummary,
   RecipeVersionReference,
 } from "./recipe-api";
 
+export type RecipeVisibilityState =
+  | "published"
+  | "author_withdrawn"
+  | "moderation_hidden";
+
 export interface PublicCookProfilePage {
-  cook: PublicUserReference;
+  cook: ActivePublicUserReference;
   items: RecipeSummary[];
   page: number;
   page_size: number;
@@ -17,7 +23,11 @@ export interface PublicCookProfilePage {
 
 export type MyRecipeLibraryItem =
   | { kind: "draft"; draft: RecipeDraftListItem }
-  | { kind: "published"; recipe: RecipeSummary };
+  | {
+      kind: "published";
+      recipe: RecipeSummary;
+      visibility_state: RecipeVisibilityState;
+    };
 
 export interface MyRecipeLibraryPage {
   items: MyRecipeLibraryItem[];
@@ -87,19 +97,33 @@ function invalidResponse(): RecipeLibraryApiError {
   );
 }
 
+const DEMO_COOK_ID = "1fc5b3b8-cf73-54ce-b5d6-ed3c30df9fd9";
+const DEMO_COOK_DISPLAY_NAME = "Demo Cook";
+
 export function parsePublicUserReference(value: unknown): PublicUserReference | null {
   if (
     !isRecord(value) ||
     !isUuid(value.id) ||
-    !boundedText(value.handle, 30) ||
-    !/^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])$/.test(value.handle) ||
     !boundedText(value.display_name, 120)
   ) {
     return null;
   }
+  if (
+    value.handle !== null &&
+    (!boundedText(value.handle, 30) ||
+      !/^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])$/.test(value.handle))
+  ) {
+    return null;
+  }
+  if (value.handle === null) {
+    const isDeletedCook = value.display_name === "Deleted cook";
+    const isDemoCook =
+      value.id === DEMO_COOK_ID && value.display_name === DEMO_COOK_DISPLAY_NAME;
+    if (!isDeletedCook && !isDemoCook) return null;
+  }
   return {
     id: value.id,
-    handle: value.handle,
+    handle: value.handle as string | null,
     display_name: value.display_name,
   };
 }
@@ -226,8 +250,11 @@ export function parsePublicCookProfilePage(value: unknown): PublicCookProfilePag
   if (!isRecord(value)) throw invalidResponse();
   const cook = parsePublicUserReference(value.cook);
   const items = envelope.items.map(parseRecipeSummary);
-  if (!cook || items.some((item) => item === null)) throw invalidResponse();
-  return { ...envelope, cook, items: items as RecipeSummary[] };
+  if (!cook || cook.handle === null || items.some((item) => item === null)) {
+    throw invalidResponse();
+  }
+  const activeCook: ActivePublicUserReference = { ...cook, handle: cook.handle };
+  return { ...envelope, cook: activeCook, items: items as RecipeSummary[] };
 }
 
 export function parseMyRecipeLibraryPage(value: unknown): MyRecipeLibraryPage {
@@ -240,7 +267,13 @@ export function parseMyRecipeLibraryPage(value: unknown): MyRecipeLibraryPage {
     }
     if (item.kind === "published") {
       const recipe = parseRecipeSummary(item.recipe);
-      return recipe ? { kind: "published", recipe } : null;
+      const visibilityState = item.visibility_state;
+      return recipe &&
+        (visibilityState === "published" ||
+          visibilityState === "author_withdrawn" ||
+          visibilityState === "moderation_hidden")
+        ? { kind: "published", recipe, visibility_state: visibilityState }
+        : null;
     }
     return null;
   });

@@ -6,6 +6,7 @@ import {
   fetchPublicCookProfile,
   fetchSavedRecipeLibrary,
   parsePublicCookProfilePage,
+  parsePublicUserReference,
   RecipeLibraryApiError,
 } from "./recipe-library-api";
 
@@ -15,6 +16,7 @@ const RECIPE_ID = "33333333-3333-4333-8333-333333333333";
 const PARENT_ID = "44444444-4444-4444-8444-444444444444";
 const LINEAGE_ID = "55555555-5555-4555-8555-555555555555";
 const DRAFT_ID = "66666666-6666-4666-8666-666666666666";
+const DEMO_COOK_ID = "1fc5b3b8-cf73-54ce-b5d6-ed3c30df9fd9";
 
 const cook = {
   id: COOK_ID,
@@ -118,7 +120,10 @@ describe("recipe library API", () => {
     };
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
-        items: [{ kind: "draft", draft }, { kind: "published", recipe }],
+        items: [
+          { kind: "draft", draft },
+          { kind: "published", recipe, visibility_state: "published" },
+        ],
         ...envelope,
         total: 2,
       }),
@@ -126,12 +131,86 @@ describe("recipe library API", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(fetchMyRecipeLibrary({ page: 3, pageSize: 8 })).resolves.toMatchObject({
-      items: [{ kind: "draft", draft }, { kind: "published", recipe }],
+      items: [
+        { kind: "draft", draft },
+        { kind: "published", recipe, visibility_state: "published" },
+      ],
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/my/recipes?page=3&page_size=8",
       expect.objectContaining({ credentials: "same-origin" }),
     );
+  });
+
+  it("allows only the bounded Deleted cook tombstone and validates private visibility", async () => {
+    const deletedCook = {
+      id: COOK_ID,
+      handle: null,
+      display_name: "Deleted cook",
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          items: [
+            {
+              kind: "published",
+              recipe: { ...recipe, author: deletedCook },
+              visibility_state: "author_withdrawn",
+            },
+          ],
+          ...envelope,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          items: [
+            {
+              kind: "published",
+              recipe,
+              visibility_state: "private-secret-state",
+            },
+          ],
+          ...envelope,
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchMyRecipeLibrary()).resolves.toMatchObject({
+      items: [
+        {
+          kind: "published",
+          recipe: { author: deletedCook },
+          visibility_state: "author_withdrawn",
+        },
+      ],
+    });
+    await expect(fetchMyRecipeLibrary()).rejects.toMatchObject({
+      code: "invalid_recipe_library_response",
+      status: 502,
+    });
+
+    expect(() =>
+      parsePublicCookProfilePage({
+        cook: deletedCook,
+        items: [],
+        ...envelope,
+        total: 0,
+        total_pages: 0,
+      }),
+    ).toThrow(RecipeLibraryApiError);
+  });
+
+  it("allows only the fixed handleless Demo Cook compatibility identity", () => {
+    const demoCook = {
+      id: DEMO_COOK_ID,
+      handle: null,
+      display_name: "Demo Cook",
+    };
+
+    expect(parsePublicUserReference(demoCook)).toEqual(demoCook);
+    expect(parsePublicUserReference({ ...demoCook, id: COOK_ID })).toBeNull();
+    expect(parsePublicUserReference({ ...demoCook, display_name: "Another demo" })).toBeNull();
   });
 
   it("reads only saved public recipes from the current actor route", async () => {

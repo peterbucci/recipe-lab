@@ -116,6 +116,9 @@ export function AccountMenu() {
             My ingredient requests
           </GuardedLink>
         ) : null}
+        <GuardedLink className="account-menu__link" href="/account/settings">
+          Account settings
+        </GuardedLink>
         {state.session.status === "authenticated" &&
         state.session.capabilities?.review_ingredient_requests ? (
           <GuardedLink className="account-menu__link" href="/catalog/ingredient-requests">

@@ -1,14 +1,24 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { formatServings } from "../../lib/format";
 import type { RecipeSummary } from "../../lib/recipe-api";
+import { PublicCookAttribution } from "./public-cook-attribution";
 import { RecipeArtwork } from "./recipe-artwork";
 
 interface RecipeCardProps {
+  actions?: ReactNode;
+  publiclyAccessible?: boolean;
   recipe: RecipeSummary;
+  visibilityLabel?: string;
 }
 
-export function RecipeCard({ recipe }: RecipeCardProps) {
+export function RecipeCard({
+  actions,
+  publiclyAccessible = true,
+  recipe,
+  visibilityLabel,
+}: RecipeCardProps) {
   const titleId = `recipe-card-title-${recipe.id}`;
   const versionLabel = recipe.parent_version_id
     ? `Fork · Version ${recipe.version_number}`
@@ -21,16 +31,18 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
         <div className="recipe-card__body">
           <div className="recipe-card__meta">
             <span className="version-badge">{versionLabel}</span>
+            {visibilityLabel ? <span>{visibilityLabel}</span> : null}
             <span>{formatServings(recipe.servings)}</span>
           </div>
           <h3 id={titleId}>
-            <Link href={`/recipes/${recipe.id}`}>{recipe.title}</Link>
+            {publiclyAccessible ? (
+              <Link href={`/recipes/${recipe.id}`}>{recipe.title}</Link>
+            ) : (
+              recipe.title
+            )}
           </h3>
           <p className="recipe-card__attribution">
-            By{" "}
-            <Link href={`/cooks/${encodeURIComponent(recipe.author.handle)}`}>
-              {recipe.author.display_name}
-            </Link>
+            By <PublicCookAttribution author={recipe.author} />
           </p>
           <p className="recipe-card__description">
             {recipe.description ?? "No description provided."}
@@ -40,14 +52,17 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
               Based on{" "}
               <Link href={`/recipes/${recipe.parent.id}`}>{recipe.parent.title}</Link>
               {" by "}
-              <Link href={`/cooks/${encodeURIComponent(recipe.parent.author.handle)}`}>
-                {recipe.parent.author.display_name}
-              </Link>
+              <PublicCookAttribution author={recipe.parent.author} />
             </p>
+          ) : recipe.parent_version_id ? (
+            <p className="recipe-card__parent">Source unavailable</p>
           ) : null}
-          <span className="text-link recipe-card__link-hint" aria-hidden="true">
-            View recipe <span aria-hidden="true">→</span>
-          </span>
+          {publiclyAccessible ? (
+            <span className="text-link recipe-card__link-hint" aria-hidden="true">
+              View recipe <span aria-hidden="true">→</span>
+            </span>
+          ) : null}
+          {actions ? <div className="recipe-card__actions">{actions}</div> : null}
         </div>
       </article>
     </li>

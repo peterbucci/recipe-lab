@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Numeric, and_, cast, exists, func, or_, select
+from sqlalchemy import ColumnElement, Numeric, cast, exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
 from app.models import (
@@ -14,7 +14,6 @@ from app.models import (
     RecipeStructuralFingerprint,
     RecipeVersion,
     RecipeVersionPublication,
-    User,
 )
 from app.repositories.ingredients import resolve_ingredient_name
 
@@ -49,15 +48,9 @@ def publicly_readable_recipe_version_filter() -> ColumnElement[bool]:
     publication transaction can never leak through a public adapter.
     """
 
-    return and_(
-        exists().where(
-            RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
-            RecipeVersionPublication.state == "published",
-        ),
-        exists().where(
-            User.id == RecipeVersion.created_by_user_id,
-            User.handle.is_not(None),
-        ),
+    return exists().where(
+        RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+        RecipeVersionPublication.state == "published",
     )
 
 
