@@ -1,6 +1,14 @@
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import {
+  buildNetworkSignalHeaders,
+  internalNetworkSignalSecret,
+  NETWORK_HEADER,
+  NETWORK_SIGNATURE_HEADER,
+  NETWORK_TIMESTAMP_HEADER,
+} from "../../../server/trusted-network-signal.mjs";
+
 import { GET, PATCH } from "./route";
 
 afterEach(() => {
@@ -100,6 +108,70 @@ describe("same-origin API boundary", () => {
         body: JSON.stringify({ handle: "alice" }),
       }),
       { params: Promise.resolve({ path: ["auth", "session", "profile"] }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("strips caller forwarding and forged internal-network headers", async () => {
+    vi.stubEnv("RECIPE_API_URL", "https://api.example.test");
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (request) => {
+      const forwarded = request as Request;
+      expect(forwarded.headers.get("forwarded")).toBeNull();
+      expect(forwarded.headers.get("x-forwarded-for")).toBeNull();
+      expect(forwarded.headers.get("x-real-ip")).toBeNull();
+      expect(forwarded.headers.get(NETWORK_HEADER)).toBeNull();
+      expect(forwarded.headers.get(NETWORK_TIMESTAMP_HEADER)).toBeNull();
+      expect(forwarded.headers.get(NETWORK_SIGNATURE_HEADER)).toBeNull();
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await GET(
+      new NextRequest("https://recipe.test/api/recipes", {
+        headers: {
+          Forwarded: "for=198.51.100.9",
+          "X-Forwarded-For": "198.51.100.9",
+          "X-Real-IP": "198.51.100.9",
+          [NETWORK_HEADER]: "198.51.100.0/24",
+          [NETWORK_TIMESTAMP_HEADER]: String(Math.floor(Date.now() / 1000)),
+          [NETWORK_SIGNATURE_HEADER]: "0".repeat(64),
+        },
+      }),
+      { params: Promise.resolve({ path: ["recipes"] }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("forwards a fresh signal created by the hardened frontend boundary", async () => {
+    vi.stubEnv("RECIPE_API_URL", "https://api.example.test");
+    const secret = internalNetworkSignalSecret();
+    const signal = buildNetworkSignalHeaders({
+      remoteAddress: "203.0.113.45",
+      method: "GET",
+      path: "/api/recipes",
+      secret,
+    });
+    expect(signal).not.toBeNull();
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (request) => {
+      const forwarded = request as Request;
+      expect(forwarded.headers.get(NETWORK_HEADER)).toBe("203.0.113.0/24");
+      expect(forwarded.headers.get(NETWORK_TIMESTAMP_HEADER)).toBe(
+        signal?.[NETWORK_TIMESTAMP_HEADER],
+      );
+      expect(forwarded.headers.get(NETWORK_SIGNATURE_HEADER)).toBe(
+        signal?.[NETWORK_SIGNATURE_HEADER],
+      );
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await GET(
+      new NextRequest("https://recipe.test/api/recipes", { headers: signal ?? {} }),
+      { params: Promise.resolve({ path: ["recipes"] }) },
     );
 
     expect(response.status).toBe(200);
@@ -216,6 +288,43 @@ describe("same-origin API boundary", () => {
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("/onboarding");
     expect(response.headers.get("set-cookie")).toContain("recipe_lab_session=session");
+  });
+
+  it("preserves callback rate-limit JSON and Retry-After instead of redirecting", async () => {
+    vi.stubEnv("RECIPE_API_URL", "https://api.example.test");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json(
+          {
+            error: {
+              code: "rate_limit_exceeded",
+              message: "Too many requests. Please try again later.",
+              issues: [],
+            },
+          },
+          { status: 429, headers: { "Retry-After": "23" } },
+        ),
+      ),
+    );
+
+    const response = await GET(
+      new NextRequest("https://recipe.test/api/auth/callback?code=code&state=state"),
+      { params: Promise.resolve({ path: ["auth", "callback"] }) },
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("23");
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("set-cookie")).toContain("recipe_lab_login=;");
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "rate_limit_exceeded",
+        message: "Too many requests. Please try again later.",
+        issues: [],
+      },
+    });
   });
 
   it("passes a transaction-validated reauthentication failure destination unchanged", async () => {
