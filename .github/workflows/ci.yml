@@ -631,6 +631,7 @@ jobs:
       MVP_ACCEPTANCE: "1"
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
       PLAYWRIGHT_WEB_SERVER_COMMAND: npm run start -- --hostname 127.0.0.1 --port 3000
+      INTERNAL_NETWORK_SIGNAL_SECRET: recipe-lab-ci-internal-network-signal-secret
     services:
       postgres:
         image: postgres:17-alpine
@@ -701,7 +702,7 @@ jobs:
           python -m alembic upgrade head
           python -m app.seeds load
 
-      - name: Provision isolated acceptance member and curator sessions
+      - name: Provision isolated acceptance member, curator, and moderator sessions
         working-directory: backend
         run: python -m app.testing.acceptance_sessions
 

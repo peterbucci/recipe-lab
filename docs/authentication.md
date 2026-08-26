@@ -25,7 +25,9 @@ versions. The account surface adds:
 
 The browser calls these endpoints through the same-origin Next.js `/api`
 proxy. Browser session responses contain only the local user ID, handle, and
-display name. They never contain the private email, OIDC issuer or subject,
+display name plus narrow boolean catalog-review and recipe-moderation
+capabilities. Those capability flags are derived from live, separate database
+grants and confer no role-management authority. Session responses never contain the private email, OIDC issuer or subject,
 provider tokens, application session token, or token digests.
 
 ## OIDC flow
@@ -94,12 +96,15 @@ OIDC_CLIENT_ID=recipe-lab-local
 OIDC_CLIENT_SECRET=replace-if-the-provider-requires-one
 OIDC_REDIRECT_URI=http://localhost:3000/api/auth/callback
 AUTH_RECENT_TTL_SECONDS=600
+ABUSE_RATE_LIMIT_SECRET=replace-with-a-long-random-deployment-secret
 ```
 
 The redirect URI must be registered exactly with the provider. Production must
 use HTTPS and `APP_ENVIRONMENT=production`; that environment enables secure
 cookies. Keep client secrets outside version control and inject them through
-the deployment secret store. When issuer or client ID is absent, the product
+the deployment secret store. The production-only abuse-control HMAC secret
+belongs in that same store and must not reuse an OIDC, database, or cookie
+secret. When issuer or client ID is absent, the product
 remains browsable but the sign-in start endpoint reports that authentication is
 unavailable.
 
@@ -151,6 +156,8 @@ Frontend tests cover the same-origin proxy, sign-in, onboarding, pre-onboarding
 account deletion, account menu,
 session expiry, signed-out action gates, member interactions, keyboard
 operation, mobile layout, and accessibility. The guarded full-stack acceptance
-run provisions digest-only Alice, Bob, catalog-curator, and deletion-only sessions in an
-isolated database; OIDC provider behavior remains covered by a local fake, so
-CI needs no real tenant or secrets.
+run provisions digest-only Alice, Bob, catalog-curator, separately granted
+community-moderator, and deletion-only sessions in an isolated database; OIDC
+provider behavior remains covered by a local fake, so CI needs no real tenant
+or secrets. Reporting, role boundaries, and durable abuse controls are detailed
+in [community rules, reporting, and moderation](community-moderation.md).

@@ -10,6 +10,7 @@ import {
 } from "../../lib/interaction-api";
 import { useAuthSession } from "./auth-session-provider";
 import { RecipeInteractionPanel } from "./recipe-interaction-panel";
+import { RecipeReportPanel } from "./recipe-report-panel";
 import { RecipeViewTracker } from "./recipe-view-tracker";
 
 interface RecipeMemberActionsProps {
@@ -178,6 +179,9 @@ export function RecipeMemberActions({
           />
         </>
       )}
+      {memberId !== null ? (
+        <RecipeReportPanel key={`report:${memberId}:${recipeVersionId}`} recipeVersionId={recipeVersionId} />
+      ) : null}
     </>
   );
 }

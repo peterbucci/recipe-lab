@@ -29,6 +29,7 @@ from app.repositories.auth import (
     delete_oidc_login_transaction,
 )
 from app.repositories.catalog_requests import is_catalog_curator
+from app.repositories.moderation import is_community_moderator
 from app.schemas.auth import (
     AccountCapabilitiesResponse,
     AccountProfileUpdateRequest,
@@ -38,6 +39,11 @@ from app.schemas.auth import (
     MemberSessionResponse,
 )
 from app.schemas.errors import ErrorResponse
+from app.services.abuse_limits import (
+    RateLimitUnavailableError,
+    abuse_protection_unavailable_error,
+    enforce_oidc_identity_rate_limit,
+)
 from app.services.account_lifecycle import (
     AccountDeletionNotAllowedError,
     RecentAuthenticationRequiredError,
@@ -68,6 +74,7 @@ AUTH_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     401: {"model": ErrorResponse, "description": "Authentication is required."},
     403: {"model": ErrorResponse, "description": "CSRF or Origin evidence is invalid."},
     409: {"model": ErrorResponse, "description": "The selected handle is unavailable."},
+    429: {"model": ErrorResponse, "description": "The authentication rate limit was exceeded."},
     422: {"model": ErrorResponse, "description": "The request parameters are invalid."},
     503: {"model": ErrorResponse, "description": "Authentication is unavailable."},
 }
@@ -104,7 +111,11 @@ def _member_response(
             review_ingredient_requests=(
                 authenticated.handle is not None
                 and is_catalog_curator(session, authenticated.user_id)
-            )
+            ),
+            moderate_recipe_reports=(
+                authenticated.handle is not None
+                and is_community_moderator(session, authenticated.user_id)
+            ),
         ),
     )
 
@@ -356,6 +367,16 @@ def complete_login(
                 else None
             ),
         )
+        try:
+            enforce_oidc_identity_rate_limit(
+                session,
+                settings=settings,
+                issuer=identity.issuer,
+                subject=identity.subject,
+                now=utc_now(),
+            )
+        except RateLimitUnavailableError as error:
+            raise abuse_protection_unavailable_error() from error
         with session.begin():
             if login_purpose == OIDC_LOGIN_PURPOSE_REAUTHENTICATE:
                 if bound_session_id is None:

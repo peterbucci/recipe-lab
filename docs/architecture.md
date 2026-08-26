@@ -125,6 +125,25 @@ onboarded session, it loads private state through the same-origin proxy and only
 then enables actions. Private state is never embedded in an anonymous
 server-rendered page.
 
+RCP-31 adds a private reporting and moderation boundary. An active member can
+submit one fixed-reason, bounded report per immutable public recipe version.
+Reports aggregate into one case, while reporter identity and free-text details
+stay out of every public serializer. A separately granted community moderator
+can inspect the de-identified queue and create idempotent hide, restore, or
+resolve actions. Each decision is retained in an append-only audit stream. The
+moderation visibility axis remains independent from author withdrawal, so a
+moderator restore cannot republish content its author withdrew. Publication now
+requires literal community-rules and content-rights confirmations and stores
+their server-side evidence in the immutable receipt. See
+[community rules, reporting, and moderation](community-moderation.md).
+
+Protected authentication and recipe-write seams also pass through durable
+fixed-window abuse controls. Network, account, and verified OIDC identity
+subjects are HMAC-pseudonymized; counters commit before endpoint work so a
+rejected request still consumes capacity. Oversized declared or streamed bodies
+are rejected before routing. Neither layer logs user-authored bodies or secret
+identity/session material.
+
 View, save, rating, and fork actions require an active onboarded member, an
 exact trusted Origin, the session-bound CSRF token, and an opaque UUID action
 key. They never accept a user ID, author ID, event type, or timestamp from the
@@ -204,6 +223,14 @@ Database triggers permit changes only to the narrow lifecycle metadata and
 append every transition to `recipe_version_visibility_events`; publication
 evidence and snapshot content remain immutable. Independent axes prevent a
 future moderator restore from erasing an author's earlier withdrawal.
+
+RCP-31 stores separate `recipe_reports`, aggregate
+`recipe_moderation_cases`, append-only `recipe_moderation_audit_events`, and
+operator-managed `community_moderators`. Publication receipts add the rules
+version and rights-confirmation timestamp for new member publications. Durable
+`abuse_rate_limit_buckets` use keyed subject digests and fixed expiry windows;
+they contain no request bodies, report text, raw addresses, OIDC subjects, or
+tokens.
 
 Every instruction may own an ordered set of structured action instances. Each
 action references one curated cooking-action type, zero or more ordered

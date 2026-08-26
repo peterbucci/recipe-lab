@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -8,11 +9,19 @@ from app.schemas.errors import ErrorDetail, ErrorResponse, ValidationIssue
 
 
 class ApiError(Exception):
-    def __init__(self, *, status_code: int, code: str, message: str) -> None:
+    def __init__(
+        self,
+        *,
+        status_code: int,
+        code: str,
+        message: str,
+        headers: Mapping[str, str] | None = None,
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.code = code
         self.message = message
+        self.headers = dict(headers or {})
 
 
 def _json_error(
@@ -21,6 +30,7 @@ def _json_error(
     code: str,
     message: str,
     issues: list[ValidationIssue] | None = None,
+    headers: Mapping[str, str] | None = None,
 ) -> JSONResponse:
     response = ErrorResponse(
         error=ErrorDetail(
@@ -32,6 +42,7 @@ def _json_error(
     return JSONResponse(
         status_code=status_code,
         content=response.model_dump(mode="json"),
+        headers=headers,
     )
 
 
@@ -42,6 +53,7 @@ async def api_error_handler(_request: Request, exception: Exception) -> JSONResp
         status_code=exception.status_code,
         code=exception.code,
         message=exception.message,
+        headers=exception.headers,
     )
 
 

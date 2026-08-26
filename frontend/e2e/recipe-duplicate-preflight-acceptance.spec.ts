@@ -3,6 +3,11 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { useAcceptanceMember } from "./acceptance-session";
 
+async function confirmPublicationRequirements(page: Page): Promise<void> {
+  await page.getByRole("checkbox", { name: /agree to the community rules/i }).check();
+  await page.getByRole("checkbox", { name: /right to share it/i }).check();
+}
+
 const PREFLIGHT_ID = "77777777-7777-4777-8777-777777777777";
 const RESULT_DIGEST = "a".repeat(64);
 const PUBLIC_CANDIDATE_TITLE = "Lower-Sugar Pecan Carrot Cake";
@@ -95,6 +100,7 @@ test.describe("recipe duplicate preflight acceptance", () => {
         response.request().method() === "POST" &&
         response.url().endsWith(`/api/recipe-drafts/${draftId}/duplicate-preflights`),
     );
+    await confirmPublicationRequirements(page);
     await page.getByRole("button", { name: "Review and publish version", exact: true }).click();
     expect((await preflightResponse).status()).toBe(201);
 
@@ -176,6 +182,7 @@ test.describe("recipe duplicate preflight acceptance", () => {
         body: JSON.stringify(probableResponse(candidateId)),
       });
     });
+    await confirmPublicationRequirements(page);
     await page.getByRole("button", { name: "Review and publish version", exact: true }).click();
     const review = page.getByRole("region", { name: "Review similar recipe structures" });
     await expect(review).toBeVisible();
@@ -235,6 +242,7 @@ test.describe("recipe duplicate preflight acceptance", () => {
     await title.fill("Keep this disappearing-candidate draft");
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
     await expect(page.getByText("Draft saved privately.", { exact: true })).toBeVisible();
+    await confirmPublicationRequirements(page);
     await page.getByRole("button", { name: "Review and publish version", exact: true }).click();
     const review = page.getByRole("region", { name: "Review similar recipe structures" });
     await expect(review.getByRole("link", { name: new RegExp(PUBLIC_CANDIDATE_TITLE) })).toBeVisible();

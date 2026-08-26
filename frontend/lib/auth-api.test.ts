@@ -32,12 +32,12 @@ describe("auth API client", () => {
           handle: "alice",
           email: "not-copied@example.test",
         },
-        capabilities: { review_ingredient_requests: true },
+        capabilities: { review_ingredient_requests: true, moderate_recipe_reports: false },
       }),
     ).toEqual({
       status: "authenticated",
       user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
-      capabilities: { review_ingredient_requests: true },
+      capabilities: { review_ingredient_requests: true, moderate_recipe_reports: false },
     });
     expect(() =>
       parseAuthSession({
@@ -49,7 +49,7 @@ describe("auth API client", () => {
       parseAuthSession({
         status: "authenticated",
         user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
-        capabilities: { review_ingredient_requests: "yes" },
+        capabilities: { review_ingredient_requests: "yes", moderate_recipe_reports: false },
       }),
     ).toThrow(AuthApiError);
   });

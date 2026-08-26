@@ -1,7 +1,12 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { useAcceptanceMember } from "./acceptance-session";
+
+async function confirmPublicationRequirements(page: Page): Promise<void> {
+  await page.getByRole("checkbox", { name: /agree to the community rules/i }).check();
+  await page.getByRole("checkbox", { name: /right to share it/i }).check();
+}
 
 const acceptanceEnabled =
   process.env.MVP_ACCEPTANCE === "1" &&
@@ -89,6 +94,7 @@ test.describe("original recipe publication acceptance", () => {
         response.request().method() === "POST" &&
         response.url().endsWith(`/api/recipe-drafts/${draftId}/publish`),
     );
+    await confirmPublicationRequirements(page);
     await page.getByRole("button", { name: "Review and publish", exact: true }).click();
     const preflight = await preflightResponse;
     expect(preflight.status()).toBe(201);

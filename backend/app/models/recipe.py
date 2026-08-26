@@ -227,6 +227,13 @@ class RecipeVersionPublication(Base):
             name="draft_revision_positive",
         ),
         CheckConstraint(
+            "(community_rules_version IS NULL "
+            "AND publication_rights_confirmed_at IS NULL) OR "
+            "(NULLIF(btrim(community_rules_version), '') IS NOT NULL "
+            "AND publication_rights_confirmed_at IS NOT NULL)",
+            name="publication_attestations",
+        ),
+        CheckConstraint(
             "(source_draft_id IS NULL AND action_id IS NULL "
             "AND request_fingerprint IS NULL AND draft_revision IS NULL "
             "AND duplicate_preflight_id IS NULL AND duplicate_policy_version IS NULL "
@@ -298,6 +305,11 @@ class RecipeVersionPublication(Base):
     duplicate_result_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
     duplicate_decision_id: Mapped[UUID | None] = mapped_column(
         Uuid(as_uuid=True),
+        nullable=True,
+    )
+    community_rules_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    publication_rights_confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=True,
     )
     published_at: Mapped[datetime] = mapped_column(

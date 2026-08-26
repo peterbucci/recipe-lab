@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import type { Page, Response as PlaywrightResponse } from "@playwright/test";
 
-export type MemberName = "alice" | "bob" | "curator" | "deleter";
+export type MemberName = "alice" | "bob" | "curator" | "moderator" | "deleter";
 
 interface AcceptanceMember {
   csrf_token: string;
@@ -11,7 +11,7 @@ interface AcceptanceMember {
 }
 
 interface AcceptanceSessionFixture {
-  version: 3;
+  version: 4;
   members: Record<MemberName, AcceptanceMember>;
 }
 
@@ -68,26 +68,29 @@ async function loadFixture(): Promise<AcceptanceSessionFixture> {
   if (
     !isRecord(payload) ||
     !hasExactKeys(payload, ["members", "version"]) ||
-    payload.version !== 3 ||
+    payload.version !== 4 ||
     !isRecord(payload.members) ||
-    !hasExactKeys(payload.members, ["alice", "bob", "curator", "deleter"])
+    !hasExactKeys(payload.members, ["alice", "bob", "curator", "moderator", "deleter"])
   ) {
     throw new Error("The guarded acceptance session fixture has an invalid shape.");
   }
   const alice = parseMember(payload.members.alice);
   const bob = parseMember(payload.members.bob);
   const curator = parseMember(payload.members.curator);
+  const moderator = parseMember(payload.members.moderator);
   const deleter = parseMember(payload.members.deleter);
   if (
     !alice ||
     !bob ||
     !curator ||
+    !moderator ||
     !deleter ||
-    new Set([alice.user_id, bob.user_id, curator.user_id, deleter.user_id]).size !== 4
+    new Set([alice.user_id, bob.user_id, curator.user_id, moderator.user_id, deleter.user_id])
+      .size !== 5
   ) {
     throw new Error("The guarded acceptance members are invalid.");
   }
-  return { version: 3, members: { alice, bob, curator, deleter } };
+  return { version: 4, members: { alice, bob, curator, moderator, deleter } };
 }
 
 export async function useAcceptanceMember(
