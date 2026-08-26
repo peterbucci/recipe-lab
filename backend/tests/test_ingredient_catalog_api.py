@@ -346,8 +346,11 @@ def test_request_submission_requires_member_csrf_and_stays_out_of_catalog(
             "instruction_edits": [],
         },
     )
-    assert pending_publication.status_code == 422
-    assert "is not in the curated catalog" in pending_publication.text
+    assert pending_publication.status_code == 409
+    assert (
+        _json_object(_json_object(pending_publication.json())["error"])["code"]
+        == "recipe_variant_publication_requires_draft"
+    )
     with Session(bind=catalog_api.engine) as session:
         assert session.scalar(select(func.count()).select_from(IngredientCatalogRequest)) == 1
         events = list(session.scalars(select(IngredientCatalogAuditEvent)))

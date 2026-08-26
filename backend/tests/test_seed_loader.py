@@ -8,6 +8,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.catalog_names import normalize_catalog_name
@@ -82,6 +83,7 @@ SEEDED_TABLE_COUNTS = {
     "recipe_instruction_action_inputs": 815,
     "recipe_instruction_action_measures": 24,
     "recipe_structural_fingerprints": 34,
+    "recipe_version_publications": 34,
     "recipe_versions": 34,
     "users": 2,
 }
@@ -412,7 +414,7 @@ def test_seed_rerun_preserves_demo_user_interactions(seed_engine: Engine) -> Non
         assert preserved_event.occurred_at == original_event_occurred_at
 
 
-def test_recipe_snapshot_drift_fails_and_rolls_back_repairs(
+def test_published_recipe_snapshot_drift_is_blocked_atomically(
     seed_engine: Engine,
 ) -> None:
     catalog = load_bundled_catalog()
@@ -430,26 +432,25 @@ def test_recipe_snapshot_drift_fails_and_rolls_back_repairs(
         "ingredient-alias",
         "scallion:green-onion",
     )
+    with Session(seed_engine) as session:
+        original_snapshot = database_snapshot(session)
+
+    with pytest.raises(IntegrityError, match="published recipe snapshots are immutable"):
+        with Session(seed_engine) as session, session.begin():
+            version = session.get(RecipeVersion, drifted_version_id)
+            alias = session.get(IngredientAlias, removed_alias_id)
+            assert version is not None
+            assert alias is not None
+            version.description = "Locally changed after the seed load."
+            session.delete(alias)
+
+    with Session(seed_engine) as session:
+        assert database_snapshot(session) == original_snapshot
+        assert session.get(IngredientAlias, removed_alias_id) is not None
+
     with Session(seed_engine) as session, session.begin():
-        version = session.get(RecipeVersion, drifted_version_id)
-        alias = session.get(IngredientAlias, removed_alias_id)
-        assert version is not None
-        assert alias is not None
-        version.description = "Locally changed after the seed load."
-        session.delete(alias)
-
-    with Session(seed_engine) as session:
-        drifted_snapshot = database_snapshot(session)
-        assert session.get(IngredientAlias, removed_alias_id) is None
-
-    with Session(seed_engine) as session:
-        with pytest.raises(SeedConflictError, match="stored fields differ"):
-            with session.begin():
-                seed_catalog(session, catalog)
-
-    with Session(seed_engine) as session:
-        assert database_snapshot(session) == drifted_snapshot
-        assert session.get(IngredientAlias, removed_alias_id) is None
+        report = seed_catalog(session, catalog)
+    assert report.created_total == 0
 
 
 def test_seed_reuses_and_enriches_preexisting_canonical_ingredient(

@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.models import RecipeRating, RecipeSave, RecipeVersion, User
+from app.repositories.recipes import publicly_readable_recipe_version_filter
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,7 +28,12 @@ def get_user(
 
 def recipe_version_exists(session: Session, recipe_version_id: UUID) -> bool:
     return (
-        session.scalar(select(RecipeVersion.id).where(RecipeVersion.id == recipe_version_id))
+        session.scalar(
+            select(RecipeVersion.id).where(
+                RecipeVersion.id == recipe_version_id,
+                publicly_readable_recipe_version_filter(),
+            )
+        )
         is not None
     )
 

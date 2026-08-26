@@ -1,7 +1,8 @@
 from decimal import Decimal
+from uuid import UUID
 
 import pytest
-from sqlalchemy import Engine, delete, select
+from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -239,6 +240,7 @@ def _create_complete_measured_recipe(
     title: str,
     quantity: Decimal,
     unit_key: str,
+    version_id: UUID | None = None,
 ) -> RecipeVersion:
     lineage = RecipeLineage(created_by_user_id=user.id)
     session.add(lineage)
@@ -252,6 +254,8 @@ def _create_complete_measured_recipe(
         description=None,
         servings=Decimal("1.00"),
     )
+    if version_id is not None:
+        version.id = version_id
     session.add(version)
     session.flush()
     recipe_ingredient = RecipeIngredient(
@@ -341,20 +345,46 @@ def test_backfill_is_bounded_resumable_and_idempotent(
         transaction = connection.begin()
         session = Session(bind=connection, expire_on_commit=False)
         try:
-            session.execute(delete(RecipeStructuralFingerprint))
-            recipe_version_ids = list(
-                session.scalars(select(RecipeVersion.id).order_by(RecipeVersion.id))
+            existing_cursor = session.scalar(
+                select(RecipeVersion.id).order_by(RecipeVersion.id.desc())
             )
-            assert len(recipe_version_ids) > 2
+            assert existing_cursor is not None
+            user = User(
+                email="fingerprint-backfill@example.test",
+                display_name="Fingerprint backfill",
+            )
+            ingredient = Ingredient(canonical_name="Fingerprint backfill ingredient")
+            session.add_all([user, ingredient])
+            session.flush()
+            recipe_version_ids = [
+                _create_complete_measured_recipe(
+                    session,
+                    user=user,
+                    ingredient=ingredient,
+                    title=f"Fingerprint backfill {number}",
+                    quantity=Decimal(number),
+                    unit_key="g",
+                    version_id=UUID(f"ffffffff-ffff-4fff-8fff-fffffffffff{number}"),
+                ).id
+                for number in range(1, 4)
+            ]
 
-            first = backfill_recipe_structural_fingerprints(session, limit=1)
+            first = backfill_recipe_structural_fingerprints(
+                session,
+                after_recipe_version_id=existing_cursor,
+                limit=1,
+            )
             assert first.scanned == 1
             assert first.created == 1
             assert first.reused == 0
             assert first.incomplete == 0
             assert first.next_cursor == recipe_version_ids[0]
 
-            retried = backfill_recipe_structural_fingerprints(session, limit=1)
+            retried = backfill_recipe_structural_fingerprints(
+                session,
+                after_recipe_version_id=existing_cursor,
+                limit=1,
+            )
             assert retried.scanned == 1
             assert retried.created == 0
             assert retried.reused == 1

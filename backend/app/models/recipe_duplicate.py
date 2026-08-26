@@ -279,6 +279,14 @@ class RecipeDuplicateDecision(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
             "action_id",
             name="uq_recipe_duplicate_decisions_actor_action",
         ),
+        UniqueConstraint(
+            "id",
+            "preflight_id",
+            "actor_user_id",
+            "acknowledged_policy_version",
+            "acknowledged_result_digest",
+            name="uq_recipe_duplicate_decisions_id_preflight_actor_ack",
+        ),
         Index(
             "ix_recipe_duplicate_decisions_actor_created_id",
             "actor_user_id",

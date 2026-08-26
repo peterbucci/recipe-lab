@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Header, Query, Response, status
+from fastapi import APIRouter, Query, Response
 from pydantic import StringConstraints
 from sqlalchemy.orm import Session
 
@@ -25,7 +25,6 @@ from app.repositories.recipes import (
 )
 from app.schemas.errors import ErrorResponse
 from app.schemas.recipe_diffs import RecipeDiffResponse
-from app.schemas.recipe_forks import RecipeForkRequest
 from app.schemas.recipes import (
     RecipeDetailResponse,
     RecipeIngredientResponse,
@@ -36,15 +35,7 @@ from app.schemas.recipes import (
 )
 from app.services.actions import serialize_instruction_action
 from app.services.measurements import serialize_measure
-from app.services.preference_events import (
-    IdempotencyKeyConflictError,
-    PreferenceEventIntent,
-    find_preference_event_replay,
-    recipe_fork_request_fingerprint,
-    record_preference_event,
-)
 from app.services.recipe_diffs import build_recipe_diff
-from app.services.recipe_forks import InvalidRecipeEditsError, fork_recipe_version
 
 router = APIRouter(prefix="/recipes")
 
@@ -66,17 +57,6 @@ IngredientName = Annotated[
         pattern=r"^[^\x00]*$",
     ),
 ]
-ActionIdHeader = Annotated[
-    UUID,
-    Header(
-        alias="Idempotency-Key",
-        description=(
-            "Opaque UUID scoped to this member's fork operation. Reusing it with the same "
-            "source and payload returns the original child; conflicting reuse returns 409."
-        ),
-    ),
-]
-
 VALIDATION_ERROR_RESPONSE: dict[int | str, dict[str, object]] = {
     422: {
         "model": ErrorResponse,
@@ -353,84 +333,26 @@ def recipe_diff(
 
 @router.post(
     "/{recipe_version_id}/variants",
-    response_model=RecipeDetailResponse,
-    status_code=status.HTTP_201_CREATED,
     responses=FORK_ERROR_RESPONSES,
-    summary="Create a child recipe variant",
+    summary="Route variant publication through private drafts",
     description=(
-        "Copies the source version's structured ingredients and instructions, applies the "
-        "requested edits, and stores a new immutable child in the same lineage. Every "
-        "published ingredient selection must pair an existing curated catalog ID with one "
-        "of that identity's canonical or alias labels; unknown IDs or mismatched labels "
-        "fail without creating a child or catalog record."
+        "The legacy direct-write endpoint is intentionally disabled so it cannot create "
+        "an unreviewed public child. Create a private source-backed draft instead; RCP-28 "
+        "owns the reviewed variant-publication workflow."
     ),
 )
 def create_recipe_variant(
     recipe_version_id: UUID,
-    payload: Annotated[RecipeForkRequest, Body()],
-    action_id: ActionIdHeader,
-    response: Response,
     session: SessionDependency,
     authenticated: CsrfProtectedSessionDependency,
-) -> RecipeDetailResponse:
-    request_fingerprint = recipe_fork_request_fingerprint(recipe_version_id, payload)
-    actor_id = lock_active_member_actor(session, authenticated)
-    intent = PreferenceEventIntent(
-        action_id=action_id,
-        user_id=actor_id,
-        recipe_version_id=recipe_version_id,
-        event_type="fork",
-        request_fingerprint=request_fingerprint,
+) -> None:
+    lock_active_member_actor(session, authenticated)
+    session.rollback()
+    raise ApiError(
+        status_code=409,
+        code="recipe_variant_publication_requires_draft",
+        message=(
+            "Direct variant publication is unavailable. Create a private source-backed "
+            "draft first; its publication workflow is delivered by RCP-28."
+        ),
     )
-    try:
-        replayed_event = find_preference_event_replay(session, intent)
-    except IdempotencyKeyConflictError as error:
-        raise ApiError(
-            status_code=409,
-            code="idempotency_key_conflict",
-            message="The Idempotency-Key conflicts with an earlier fork action.",
-        ) from error
-
-    if replayed_event is not None:
-        child_id = replayed_event.related_recipe_version_id
-        if child_id is None:
-            raise RuntimeError("The replayed fork event has no child recipe version.")
-    else:
-        try:
-            child_id = fork_recipe_version(
-                session,
-                source_version_id=recipe_version_id,
-                author_user_id=actor_id,
-                payload=payload,
-            )
-        except InvalidRecipeEditsError as error:
-            raise ApiError(
-                status_code=422,
-                code="invalid_recipe_edits",
-                message=str(error),
-            ) from error
-
-        if child_id is None:
-            raise ApiError(
-                status_code=404,
-                code="recipe_not_found",
-                message=f"Recipe version {recipe_version_id} was not found.",
-            )
-
-        record_preference_event(
-            session,
-            intent,
-            related_recipe_version_id=child_id,
-        )
-
-    session.expire_all()
-    child = get_recipe_version(session, child_id)
-    if child is None:
-        raise RuntimeError("The newly created recipe version could not be reloaded.")
-
-    response.headers["Location"] = f"/api/recipes/{child_id}"
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
-    detail = _detail_response(session, version=child, viewer_user_id=actor_id)
-    session.commit()
-    return detail

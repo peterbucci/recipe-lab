@@ -6,8 +6,10 @@ from threading import Barrier
 from typing import Any, cast
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
@@ -34,6 +36,13 @@ from app.models import (
 from app.schemas.recipe_forks import RecipeForkRequest
 from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
 from app.seeds.loader import CATALOG_USER_KEY
+from app.services.preference_events import (
+    IdempotencyKeyConflictError,
+    PreferenceEventIntent,
+    find_preference_event_replay,
+    recipe_fork_request_fingerprint,
+    record_preference_event,
+)
 from app.services.recipe_forks import InvalidRecipeEditsError, fork_recipe_version
 from tests.member_session import (
     MemberCredentials,
@@ -142,6 +151,185 @@ class VersionSnapshot:
     instructions: tuple[InstructionSnapshot, ...]
 
 
+class ServiceBackedForkClient:
+    """Keep fork-service regression coverage without reopening the retired HTTP write."""
+
+    def __init__(self, client: TestClient, engine: Engine) -> None:
+        self._client = client
+        self._engine = engine
+
+    def get(self, url: str) -> httpx.Response:
+        return cast(httpx.Response, self._client.get(url))
+
+    @staticmethod
+    def _response(
+        status_code: int,
+        *,
+        url: str,
+        body: dict[str, object],
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        return httpx.Response(
+            status_code,
+            json=body,
+            headers=headers,
+            request=httpx.Request("POST", f"http://testserver{url}"),
+        )
+
+    def post(
+        self,
+        url: str,
+        *,
+        json: object | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        prefix = "/api/recipes/"
+        suffix = "/variants"
+        if not (url.startswith(prefix) and url.endswith(suffix)):
+            return cast(
+                httpx.Response,
+                self._client.post(url, json=json, headers=headers),
+            )
+        source_text = url[len(prefix) : -len(suffix)]
+        try:
+            source_version_id = UUID(source_text)
+        except ValueError:
+            return cast(
+                httpx.Response,
+                self._client.post(url, json=json, headers=headers),
+            )
+
+        with Session(bind=self._engine, expire_on_commit=False) as session:
+            if session.get(User, MEMBER_USER_ID) is None:
+                return cast(
+                    httpx.Response,
+                    self._client.post(url, json=json, headers=headers),
+                )
+            try:
+                payload = RecipeForkRequest.model_validate(json)
+            except ValidationError as error:
+                return self._response(
+                    422,
+                    url=url,
+                    body={
+                        "error": {
+                            "code": "validation_error",
+                            "message": "The request failed validation.",
+                            "issues": [
+                                {
+                                    "loc": [str(part) for part in issue["loc"]],
+                                    "msg": issue["msg"],
+                                    "type": issue["type"],
+                                }
+                                for issue in error.errors(include_url=False)
+                            ],
+                        }
+                    },
+                )
+            action_value = (headers or {}).get("Idempotency-Key")
+            try:
+                action_id = UUID(action_value or "")
+            except ValueError:
+                return self._response(
+                    422,
+                    url=url,
+                    body={
+                        "error": {
+                            "code": "validation_error",
+                            "message": "The request failed validation.",
+                            "issues": [{"loc": ["header", "Idempotency-Key"]}],
+                        }
+                    },
+                )
+            intent = PreferenceEventIntent(
+                action_id=action_id,
+                user_id=MEMBER_USER_ID,
+                recipe_version_id=source_version_id,
+                event_type="fork",
+                request_fingerprint=recipe_fork_request_fingerprint(
+                    source_version_id,
+                    payload,
+                ),
+            )
+            try:
+                replay = find_preference_event_replay(session, intent)
+            except IdempotencyKeyConflictError:
+                session.rollback()
+                return self._response(
+                    409,
+                    url=url,
+                    body={
+                        "error": {
+                            "code": "idempotency_key_conflict",
+                            "message": "The Idempotency-Key conflicts with an earlier fork action.",
+                            "issues": [],
+                        }
+                    },
+                )
+            try:
+                child_id = (
+                    replay.related_recipe_version_id
+                    if replay is not None
+                    else fork_recipe_version(
+                        session,
+                        source_version_id=source_version_id,
+                        author_user_id=MEMBER_USER_ID,
+                        payload=payload,
+                    )
+                )
+            except InvalidRecipeEditsError as error:
+                session.rollback()
+                return self._response(
+                    422,
+                    url=url,
+                    body={
+                        "error": {
+                            "code": "invalid_recipe_edits",
+                            "message": str(error),
+                            "issues": [],
+                        }
+                    },
+                )
+            if child_id is None:
+                session.rollback()
+                return self._response(
+                    404,
+                    url=url,
+                    body={
+                        "error": {
+                            "code": "recipe_not_found",
+                            "message": f"Recipe version {source_version_id} was not found.",
+                            "issues": [],
+                        }
+                    },
+                )
+            if replay is None:
+                record_preference_event(
+                    session,
+                    intent,
+                    related_recipe_version_id=child_id,
+                )
+            session.flush()
+            child = session.get(RecipeVersion, child_id)
+            assert child is not None
+            detail = recipe_routes._detail_response(
+                session,
+                version=child,
+                viewer_user_id=MEMBER_USER_ID,
+            ).model_dump(mode="json")
+            session.commit()
+        return self._response(
+            201,
+            url=url,
+            body=detail,
+            headers={
+                "Location": f"/api/recipes/{child_id}",
+                "Cache-Control": "private, no-store",
+                "Vary": "Cookie",
+            },
+        )
+
+
 def _clear_member_forks(engine: Engine) -> None:
     fork_ids = select(RecipeVersion.id).where(RecipeVersion.created_by_user_id == MEMBER_USER_ID)
     action_ids = select(RecipeInstructionAction.id).where(
@@ -204,7 +392,7 @@ def test_member_credentials(
 def fork_client(
     seeded_api_engine: Engine,
     test_member_credentials: MemberCredentials,
-) -> Iterator[TestClient]:
+) -> Iterator[ServiceBackedForkClient]:
     application = create_app()
 
     def override_session() -> Iterator[Session]:
@@ -215,7 +403,7 @@ def fork_client(
     try:
         with TestClient(application) as client:
             authenticate_client(client, test_member_credentials)
-            yield client
+            yield ServiceBackedForkClient(client, seeded_api_engine)
     finally:
         application.dependency_overrides.clear()
 
@@ -452,7 +640,7 @@ def test_fork_copies_snapshot_and_persists_lineage_parent_and_author(
         )
 
     refreshed_parent = _json_object(fork_client.get(f"/api/recipes/{CARROT_ROOT_ID}").json())
-    assert child_id in {UUID(item["id"]) for item in refreshed_parent["children"]}
+    assert child_id not in {UUID(item["id"]) for item in refreshed_parent["children"]}
 
 
 def test_fork_from_variant_uses_direct_parent_and_lineage_wide_number(
@@ -611,7 +799,23 @@ def test_replacing_ingredient_clears_ingredient_specific_package_metadata(
             )
             session.add(package_size)
             session.flush()
-            source_row = session.get(RecipeIngredient, NUTS_ROW_ID)
+
+            mutable_source_id = fork_recipe_version(
+                session,
+                source_version_id=CARROT_ROOT_ID,
+                author_user_id=MEMBER_USER_ID,
+                payload=RecipeForkRequest.model_validate(
+                    _base_payload(title="Unpublished package replacement source")
+                ),
+            )
+            assert mutable_source_id is not None
+            session.flush()
+            source_row = session.scalar(
+                select(RecipeIngredient).where(
+                    RecipeIngredient.recipe_version_id == mutable_source_id,
+                    RecipeIngredient.ingredient_id == WALNUT_ID,
+                )
+            )
             assert source_row is not None
             source_row.measure_mode = "exact"
             source_row.quantity_min = Decimal("1.0000")
@@ -627,7 +831,7 @@ def test_replacing_ingredient_clears_ingredient_specific_package_metadata(
                     "ingredient_edits": [
                         {
                             "op": "replace",
-                            "recipe_ingredient_id": str(NUTS_ROW_ID),
+                            "recipe_ingredient_id": str(source_row.id),
                             "ingredient_id": str(PECAN_ID),
                             "display_name": "Pecan",
                         }
@@ -636,7 +840,7 @@ def test_replacing_ingredient_clears_ingredient_specific_package_metadata(
             )
             child_id = fork_recipe_version(
                 session,
-                source_version_id=CARROT_ROOT_ID,
+                source_version_id=mutable_source_id,
                 author_user_id=MEMBER_USER_ID,
                 payload=payload,
             )
@@ -1230,7 +1434,10 @@ def test_transaction_rolls_back_if_edit_processing_fails_after_child_insert(
         session.flush()
         raise InvalidRecipeEditsError("Injected invalid edit after a partial write.")
 
-    monkeypatch.setattr(recipe_routes, "fork_recipe_version", insert_then_fail)
+    monkeypatch.setattr(
+        "tests.test_recipe_fork_api.fork_recipe_version",
+        insert_then_fail,
+    )
 
     response = fork_client.post(
         f"/api/recipes/{CARROT_ROOT_ID}/variants",
@@ -1342,40 +1549,11 @@ def test_concurrent_forks_allocate_unique_contiguous_lineage_numbers(
 def test_openapi_documents_recipe_fork_contract(fork_client: TestClient) -> None:
     document = _json_object(fork_client.get("/openapi.json").json())
     paths = cast(dict[str, Any], document["paths"])
-    schemas = cast(dict[str, Any], cast(dict[str, Any], document["components"])["schemas"])
 
     operation = paths["/api/recipes/{recipe_version_id}/variants"]["post"]
-    assert operation["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith(
-        "/RecipeForkRequest"
-    )
-    assert operation["responses"]["201"]["content"]["application/json"]["schema"]["$ref"].endswith(
-        "/RecipeDetailResponse"
-    )
-    for status_code in ("401", "403", "404", "409", "422"):
+    assert "requestBody" not in operation
+    for status_code in ("401", "403", "409", "422"):
         assert operation["responses"][status_code]["content"]["application/json"]["schema"][
             "$ref"
         ].endswith("/ErrorResponse")
-
-    request_schema = schemas["RecipeForkRequest"]
-    assert request_schema["additionalProperties"] is False
-    assert set(request_schema["required"]) == {"title", "description", "servings"}
-    assert "created_by_user_id" not in request_schema["properties"]
-    assert "user_id" not in request_schema["properties"]
-    ingredient_items = request_schema["properties"]["ingredient_edits"]["items"]
-    instruction_items = request_schema["properties"]["instruction_edits"]["items"]
-    assert ingredient_items["discriminator"]["propertyName"] == "op"
-    assert instruction_items["discriminator"]["propertyName"] == "op"
-    assert "existing curated catalog" in operation["description"]
-    assert (
-        "Stable curated catalog identity"
-        in schemas["AddIngredient"]["properties"]["ingredient_id"]["description"]
-    )
-    assert "verifies" in schemas["ReplaceIngredient"]["properties"]["ingredient_id"]["description"]
-    assert "reviewed alias" in schemas["AddIngredient"]["properties"]["display_name"]["description"]
-    ingredient_response = schemas["RecipeIngredientResponse"]["properties"]
-    assert (
-        "Required curated catalog identity" in ingredient_response["ingredient_id"]["description"]
-    )
-    assert (
-        "does not define ingredient identity" in ingredient_response["display_name"]["description"]
-    )
+    assert "private source-backed draft" in operation["description"]

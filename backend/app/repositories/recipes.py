@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Numeric, cast, exists, func, or_, select, true
+from sqlalchemy import ColumnElement, Numeric, cast, exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
 from app.models import (
@@ -13,6 +13,7 @@ from app.models import (
     RecipeRating,
     RecipeStructuralFingerprint,
     RecipeVersion,
+    RecipeVersionPublication,
 )
 from app.repositories.ingredients import resolve_ingredient_name
 
@@ -43,13 +44,14 @@ class PublicRecipeDuplicateCandidate:
 def publicly_readable_recipe_version_filter() -> ColumnElement[bool]:
     """Return the shared visibility predicate for public recipe reads.
 
-    Every recipe version is public in the current model. Keeping the predicate as
-    an explicit seam ensures publication/withdrawal stories can change browse,
-    detail, and duplicate-candidate reads together instead of accidentally letting
-    preflight inspect unavailable work.
+    Visibility is explicit so an inserted-but-not-published snapshot and a failed
+    publication transaction can never leak through a public adapter.
     """
 
-    return true()
+    return exists().where(
+        RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+        RecipeVersionPublication.state == "published",
+    )
 
 
 def _escape_like(value: str) -> str:
@@ -123,8 +125,10 @@ def get_recipe_version(
     statement = (
         select(RecipeVersion)
         .options(
-            joinedload(RecipeVersion.parent),
-            selectinload(RecipeVersion.descendants),
+            joinedload(RecipeVersion.parent.and_(RecipeVersion.publication.has(state="published"))),
+            selectinload(
+                RecipeVersion.descendants.and_(RecipeVersion.publication.has(state="published"))
+            ),
             selectinload(RecipeVersion.ingredients).options(
                 joinedload(RecipeIngredient.ingredient),
                 joinedload(RecipeIngredient.measurement_unit),

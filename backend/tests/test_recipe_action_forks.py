@@ -98,7 +98,7 @@ def test_fork_copies_actions_and_remaps_inputs_to_fresh_child_occurrences(
     )
     assert child_id is not None
     db_session.expire_all()
-    child = get_recipe_version(db_session, child_id)
+    child = db_session.get(RecipeVersion, child_id)
     assert child is not None
     source_fingerprint = db_session.get(
         RecipeStructuralFingerprint,
@@ -330,7 +330,7 @@ def test_fork_actions_can_target_same_request_added_ingredients(
         author_user_id=DEMO_USER_ID,
     )
     db_session.expire_all()
-    child = get_recipe_version(db_session, child_id)
+    child = db_session.get(RecipeVersion, child_id)
     assert child is not None
     child_fingerprint = db_session.get(
         RecipeStructuralFingerprint,

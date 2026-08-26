@@ -9,6 +9,7 @@ from app.api.routes import (
     measurements,
     recipe_drafts,
     recipe_duplicates,
+    recipe_publications,
     recipes,
     recommendations,
 )
@@ -21,6 +22,7 @@ api_router.include_router(measurements.router, tags=["measurements"])
 api_router.include_router(actions.router, tags=["cooking actions"])
 api_router.include_router(recipe_drafts.router, tags=["recipe drafts"])
 api_router.include_router(recipe_duplicates.router, tags=["recipe duplicate preflight"])
+api_router.include_router(recipe_publications.router, tags=["recipe publication"])
 api_router.include_router(recipes.router, tags=["recipes"])
 api_router.include_router(interactions.router, tags=["interactions"])
 api_router.include_router(recommendations.router, tags=["recommendations"])

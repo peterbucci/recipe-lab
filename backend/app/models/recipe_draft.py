@@ -25,12 +25,13 @@ if TYPE_CHECKING:
     from app.models.catalog import IngredientCatalogRequest
     from app.models.ingredient import Ingredient
     from app.models.measurement import IngredientPackageSize, MeasurementUnit
-    from app.models.recipe import RecipeVersion
+    from app.models.recipe import RecipeVersion, RecipeVersionPublication
     from app.models.user import User
 
 
 RECIPE_DRAFT_STATUS_ACTIVE = "active"
-RECIPE_DRAFT_STATUSES = (RECIPE_DRAFT_STATUS_ACTIVE,)
+RECIPE_DRAFT_STATUS_PUBLISHED = "published"
+RECIPE_DRAFT_STATUSES = (RECIPE_DRAFT_STATUS_ACTIVE, RECIPE_DRAFT_STATUS_PUBLISHED)
 
 RECIPE_DRAFT_SELECTION_CATALOG = "catalog"
 RECIPE_DRAFT_SELECTION_REQUEST = "request"
@@ -46,7 +47,7 @@ class RecipeDraft(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     __tablename__ = "recipe_drafts"
     __table_args__ = (
         CheckConstraint(
-            "status = 'active'",
+            f"status IN {RECIPE_DRAFT_STATUSES!r}",
             name="status_supported",
         ),
         CheckConstraint("revision >= 1", name="revision_positive"),
@@ -59,6 +60,12 @@ class RecipeDraft(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
         ),
         CheckConstraint("servings IS NULL OR servings > 0", name="servings_positive"),
         UniqueConstraint("id", "author_user_id", name="uq_recipe_drafts_id_author"),
+        UniqueConstraint(
+            "id",
+            "author_user_id",
+            "revision",
+            name="uq_recipe_drafts_id_author_revision",
+        ),
         Index(
             "ix_recipe_drafts_author_status_updated_id",
             "author_user_id",
@@ -97,6 +104,11 @@ class RecipeDraft(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
 
     author: Mapped["User"] = relationship()
     source_version: Mapped["RecipeVersion | None"] = relationship()
+    publication: Mapped["RecipeVersionPublication | None"] = relationship(
+        back_populates="source_draft",
+        uselist=False,
+        viewonly=True,
+    )
     ingredients: Mapped[list["RecipeDraftIngredient"]] = relationship(
         back_populates="draft",
         order_by="RecipeDraftIngredient.display_order",

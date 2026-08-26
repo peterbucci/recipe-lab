@@ -21,6 +21,7 @@ from app.models import (
     RECIPE_DUPLICATE_EXACT,
     RECIPE_DUPLICATE_PROBABLE,
     RecipeDuplicateCandidate,
+    RecipeDuplicateDecision,
     RecipeDuplicatePreflight,
 )
 from app.repositories.recipe_duplicates import (
@@ -182,6 +183,10 @@ class RecipeDuplicatePreflightStaleError(RuntimeError):
 
 class RecipeDuplicateDecisionNotRequiredError(RuntimeError):
     """Raised when a distinct result has no advisory acknowledgement to record."""
+
+
+class RecipeDuplicateDecisionRequiredError(RuntimeError):
+    """Raised when duplicate candidates were not explicitly accepted."""
 
 
 class RecipeDuplicatePreflightCapacityError(RuntimeError):
@@ -588,6 +593,91 @@ def run_structural_recipe_duplicate_preflight(
         response=_response_from_stored(session, stored.preflight),
         state=stored.state,
     )
+
+
+def revalidate_recipe_duplicate_publication_evidence(
+    session: Session,
+    *,
+    preflight_id: UUID,
+    actor_user_id: UUID,
+    request_fingerprint: str,
+    subject_fingerprint: StructuralFingerprint,
+    acknowledged_policy_version: str,
+    acknowledged_result_digest: str,
+    decision: str | None,
+    decision_action_id: UUID,
+) -> tuple[RecipeDuplicatePreflight, RecipeDuplicateDecision | None]:
+    """Recompute source-less evidence and bind any continue decision for publication."""
+
+    preflight = get_recipe_duplicate_preflight_by_id(
+        session,
+        actor_user_id=actor_user_id,
+        preflight_id=preflight_id,
+    )
+    if preflight is None:
+        raise RecipeDuplicatePreflightNotFoundError("Duplicate preflight not found.")
+    if (
+        preflight.source_version_id is not None
+        or preflight.request_fingerprint != request_fingerprint
+        or preflight.subject_fingerprint_algorithm != subject_fingerprint.algorithm_version
+        or preflight.subject_fingerprint_digest != subject_fingerprint.digest
+        or preflight.policy_version != acknowledged_policy_version
+        or preflight.result_digest != acknowledged_result_digest
+    ):
+        raise RecipeDuplicatePreflightStaleError("Duplicate preflight is no longer current.")
+
+    candidates, same_parent_no_change = _rank_candidates(
+        session,
+        subject=subject_fingerprint,
+        source_version_id=None,
+    )
+    classification = _classification(
+        candidates,
+        same_parent_no_change=same_parent_no_change,
+    )
+    current_result_digest = _result_digest(
+        _result_document(
+            source_version_id=None,
+            subject_algorithm=subject_fingerprint.algorithm_version,
+            subject_digest=subject_fingerprint.digest,
+            classification=classification,
+            same_parent_no_change=same_parent_no_change,
+            candidates=[_computed_candidate_document(candidate) for candidate in candidates],
+        )
+    )
+    if (
+        classification != preflight.classification
+        or same_parent_no_change != preflight.same_parent_no_change
+        or current_result_digest != preflight.result_digest
+    ):
+        raise RecipeDuplicatePreflightStaleError("Duplicate preflight is no longer current.")
+    _response_from_stored(session, preflight)
+
+    if classification == RECIPE_DUPLICATE_DISTINCT:
+        if decision is not None:
+            raise RecipeDuplicateDecisionNotRequiredError(
+                "A distinct result does not accept an author decision."
+            )
+        return preflight, None
+    if decision != "continue":
+        raise RecipeDuplicateDecisionRequiredError(
+            "Duplicate candidates require an explicit continue decision."
+        )
+    try:
+        stored = store_recipe_duplicate_decision(
+            session,
+            preflight_id=preflight.id,
+            actor_user_id=actor_user_id,
+            action_id=decision_action_id,
+            decision="continue",
+            acknowledged_policy_version=acknowledged_policy_version,
+            acknowledged_result_digest=acknowledged_result_digest,
+        )
+    except RecipeDuplicateAcknowledgementConflictError as error:
+        raise RecipeDuplicatePreflightStaleError(
+            "Duplicate preflight is no longer current."
+        ) from error
+    return preflight, stored.decision
 
 
 def run_recipe_duplicate_preflight(

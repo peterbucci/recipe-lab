@@ -12,6 +12,7 @@ from app.models import (
     RecipeInstructionActionMeasure,
     RecipeVersion,
 )
+from app.repositories.recipes import publicly_readable_recipe_version_filter
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,7 +32,10 @@ def get_recipe_version_diff_identity(
         RecipeVersion.id,
         RecipeVersion.lineage_id,
         RecipeVersion.parent_version_id,
-    ).where(RecipeVersion.id == recipe_version_id)
+    ).where(
+        RecipeVersion.id == recipe_version_id,
+        publicly_readable_recipe_version_filter(),
+    )
     row = session.execute(statement).one_or_none()
     if row is None:
         return None
@@ -65,7 +69,10 @@ def get_recipe_versions_for_diff(
             ),
             raiseload("*"),
         )
-        .where(RecipeVersion.id.in_(recipe_version_ids))
+        .where(
+            RecipeVersion.id.in_(recipe_version_ids),
+            publicly_readable_recipe_version_filter(),
+        )
         .order_by(RecipeVersion.id)
     )
     return {version.id: version for version in session.scalars(statement)}

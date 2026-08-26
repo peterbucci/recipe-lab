@@ -250,6 +250,39 @@ def test_recommendation_adapter_retains_structured_measure_signals(
         assert all(measure.package_size_id is None for measure in candidate.ingredient_measures)
 
 
+def test_unpublished_snapshot_is_not_a_recommendation_candidate(
+    recommendation_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    with Session(bind=seeded_api_engine) as session, session.begin():
+        source = session.get(RecipeVersion, CARROT_ROOT_ID)
+        assert source is not None
+        latest_version_number = session.scalar(
+            select(func.max(RecipeVersion.version_number)).where(
+                RecipeVersion.lineage_id == source.lineage_id
+            )
+        )
+        assert latest_version_number is not None
+        hidden = RecipeVersion(
+            lineage_id=source.lineage_id,
+            parent_version_id=source.id,
+            created_by_user_id=MEMBER_USER_ID,
+            version_number=latest_version_number + 1,
+            title="Unpublished recommendation sentinel",
+            description="An inserted snapshot without a publication receipt.",
+            servings=Decimal("1.00"),
+        )
+        session.add(hidden)
+        session.flush()
+        hidden_id = hidden.id
+
+    response = recommendation_client.get("/api/recommendations", params={"limit": 50})
+
+    assert response.status_code == 200
+    returned_ids = {item["recipe"]["id"] for item in _items(_json_object(response.json()))}
+    assert str(hidden_id) not in returned_ids
+
+
 def test_cold_start_is_stable_bounded_and_uses_the_published_weights(
     recommendation_client: TestClient,
 ) -> None:
