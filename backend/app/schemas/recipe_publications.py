@@ -29,3 +29,10 @@ class RecipeOriginalPublicationRequest(RecipePublicationSchema):
 class RecipeOriginalPublicationResponse(RecipePublicationSchema):
     recipe_version_id: UUID
     location: str
+
+
+# RCP-28 source-backed publication uses the shipped RCP-27 HTTP/OpenAPI contract.
+# Generic Python aliases let the implementation describe both draft kinds without
+# changing the original component names consumed by existing clients.
+RecipeDraftPublicationRequest = RecipeOriginalPublicationRequest
+RecipeDraftPublicationResponse = RecipeOriginalPublicationResponse

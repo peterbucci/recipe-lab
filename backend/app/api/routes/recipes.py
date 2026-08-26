@@ -337,8 +337,8 @@ def recipe_diff(
     summary="Route variant publication through private drafts",
     description=(
         "The legacy direct-write endpoint is intentionally disabled so it cannot create "
-        "an unreviewed public child. Create a private source-backed draft instead; RCP-28 "
-        "owns the reviewed variant-publication workflow."
+        "an unreviewed public child. Create a private source-backed draft and publish it "
+        "through the authenticated draft publication workflow instead."
     ),
 )
 def create_recipe_variant(
@@ -353,6 +353,6 @@ def create_recipe_variant(
         code="recipe_variant_publication_requires_draft",
         message=(
             "Direct variant publication is unavailable. Create a private source-backed "
-            "draft first; its publication workflow is delivered by RCP-28."
+            "draft and use its reviewed publication workflow."
         ),
     )

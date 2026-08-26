@@ -440,6 +440,8 @@ def _response_from_stored(
     if preflight.source_version_id is not None:
         required_public_ids.add(preflight.source_version_id)
     titles = get_public_recipe_version_titles(session, required_public_ids)
+    if preflight.source_version_id is not None and preflight.source_version_id not in titles:
+        raise RecipeDuplicatePreflightUnavailableError("Public recipe not found.")
     if set(titles) != required_public_ids:
         raise RecipeDuplicatePreflightStaleError("Duplicate preflight is no longer current.")
 
@@ -602,12 +604,13 @@ def revalidate_recipe_duplicate_publication_evidence(
     actor_user_id: UUID,
     request_fingerprint: str,
     subject_fingerprint: StructuralFingerprint,
+    source_version_id: UUID | None,
     acknowledged_policy_version: str,
     acknowledged_result_digest: str,
     decision: str | None,
     decision_action_id: UUID,
 ) -> tuple[RecipeDuplicatePreflight, RecipeDuplicateDecision | None]:
-    """Recompute source-less evidence and bind any continue decision for publication."""
+    """Recompute source-aware evidence and bind any continue decision for publication."""
 
     preflight = get_recipe_duplicate_preflight_by_id(
         session,
@@ -617,7 +620,7 @@ def revalidate_recipe_duplicate_publication_evidence(
     if preflight is None:
         raise RecipeDuplicatePreflightNotFoundError("Duplicate preflight not found.")
     if (
-        preflight.source_version_id is not None
+        preflight.source_version_id != source_version_id
         or preflight.request_fingerprint != request_fingerprint
         or preflight.subject_fingerprint_algorithm != subject_fingerprint.algorithm_version
         or preflight.subject_fingerprint_digest != subject_fingerprint.digest
@@ -625,11 +628,15 @@ def revalidate_recipe_duplicate_publication_evidence(
         or preflight.result_digest != acknowledged_result_digest
     ):
         raise RecipeDuplicatePreflightStaleError("Duplicate preflight is no longer current.")
+    if source_version_id is not None and source_version_id not in (
+        get_public_recipe_version_titles(session, {source_version_id})
+    ):
+        raise RecipeDuplicatePreflightUnavailableError("Public recipe not found.")
 
     candidates, same_parent_no_change = _rank_candidates(
         session,
         subject=subject_fingerprint,
-        source_version_id=None,
+        source_version_id=source_version_id,
     )
     classification = _classification(
         candidates,
@@ -637,7 +644,7 @@ def revalidate_recipe_duplicate_publication_evidence(
     )
     current_result_digest = _result_digest(
         _result_document(
-            source_version_id=None,
+            source_version_id=source_version_id,
             subject_algorithm=subject_fingerprint.algorithm_version,
             subject_digest=subject_fingerprint.digest,
             classification=classification,

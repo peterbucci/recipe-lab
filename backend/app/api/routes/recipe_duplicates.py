@@ -188,7 +188,10 @@ def create_recipe_duplicate_decision(
             code="duplicate_preflight_not_found",
             message="The duplicate preflight was not found.",
         ) from error
-    except RecipeDuplicatePreflightStaleError as error:
+    except (
+        RecipeDuplicatePreflightStaleError,
+        RecipeDuplicatePreflightUnavailableError,
+    ) as error:
         raise ApiError(
             status_code=409,
             code="duplicate_preflight_stale",

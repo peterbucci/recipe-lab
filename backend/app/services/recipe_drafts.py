@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models import (
+    MeasurementUnit,
     RecipeDraft,
     RecipeDraftIngredient,
     RecipeDraftInstruction,
@@ -103,6 +104,14 @@ def _invalid(message: str) -> InvalidRecipeDraftError:
 
 def _unit_display(symbol: str | None, canonical_label: str) -> str:
     return symbol or canonical_label
+
+
+def _current_unit_display(unit: MeasurementUnit | None) -> str | None:
+    """Use current curated labels when an immutable source becomes an editable draft."""
+
+    if unit is None:
+        return None
+    return _unit_display(unit.symbol, unit.canonical_label)
 
 
 def _measure_fields(
@@ -385,7 +394,7 @@ def create_recipe_draft(
             quantity_min=item.quantity_min,
             quantity_max=item.quantity_max,
             measurement_unit_id=item.measurement_unit_id,
-            unit_display=item.unit_display,
+            unit_display=_current_unit_display(item.measurement_unit),
             package_size_id=item.package_size_id,
             preparation_notes=item.preparation_notes,
             display_order=item.display_order,
@@ -452,7 +461,7 @@ def create_recipe_draft(
                         quantity_min=measure.quantity_min,
                         quantity_max=measure.quantity_max,
                         measurement_unit_id=measure.measurement_unit_id,
-                        unit_display=measure.unit_display,
+                        unit_display=_current_unit_display(measure.measurement_unit),
                     )
                     for measure in source_action.measures
                 ]
