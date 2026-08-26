@@ -100,6 +100,9 @@ The repository currently provides:
 - anonymous public recipe browsing and comparison, with member-specific save,
   unsave, rating, and recorded-view activity plus authenticated fork creation
   bound exclusively to the signed-in, onboarded member selected by the session;
+- exact-version public cook attribution, direct-parent author context bounded by
+  public visibility, paginated public cook profiles, and session-only My
+  Recipes and Saved Recipes libraries without per-card API requests;
 - append-only, server-timestamped preference events for explicit detail views,
   saves, ratings, and forks, with typed context and UUID action-key replay
   protection scoped by member and operation rather than free-form tracking
@@ -161,9 +164,11 @@ preference event, or recommendation signal. Publishing a saved source-less
 draft creates one immutable original root. Publishing a saved fork draft locks
 the existing lineage, preserves its exact public source as the direct parent,
 attributes the child to the authenticated publisher, and records exactly one
-fork event. Public cook-profile presentation remains a later concern; the
-version, publication receipt, and event already retain honest authorship. The
-complete lifecycle is documented in [private recipe drafts](docs/private-recipe-drafts.md).
+fork event. RCP-29 presents that bounded attribution on recipe cards, details,
+and public cook profiles while keeping drafts and saves inside private member
+libraries. See
+[cook profiles and recipe libraries](docs/cook-profiles-and-libraries.md) and
+[private recipe drafts](docs/private-recipe-drafts.md).
 
 ## Quick start with Docker
 
@@ -197,6 +202,9 @@ Open:
 - Private draft API: `POST` or `GET /api/recipe-drafts`
 - Draft similarity API: `POST /api/recipe-drafts/{id}/duplicate-preflights`
 - Draft publication API: `POST /api/recipe-drafts/{id}/publish`
+- Public cook profile API: `GET /api/cooks/{handle}`
+- My Recipes API: `GET /api/my/recipes`
+- Saved Recipes API: `GET /api/my/saved-recipes`
 - Account session status: <http://localhost:3000/api/auth/session>
 - Interactive API docs: <http://localhost:8000/docs>
 

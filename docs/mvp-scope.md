@@ -84,9 +84,16 @@ records exactly one source-to-child fork event for the authenticated publisher.
 The source, child, and lineage topology remain immutable; the lineage creator
 receives no rights over another member's descendant. Exact retries return the
 same child, while changed intent or source loss fails without consuming the
-private draft. Persisted authorship lands here; public cook profiles remain
-RCP-29. See
+private draft. Persisted authorship lands here. See
 [private recipe drafts](private-recipe-drafts.md).
+
+RCP-29 presents that authorship through exact-version public cook references,
+direct-parent provenance, and paginated public profiles. It also adds two
+session-only read models: My Recipes for active drafts plus published originals
+and forks, and Saved Recipes for the current member's saves. These surfaces do
+not add social features, public activity, account lifecycle presentation, or
+moderation. See
+[cook profiles and recipe libraries](cook-profiles-and-libraries.md).
 
 ## Post-MVP signal baseline
 

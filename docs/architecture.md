@@ -333,10 +333,11 @@ publication receipt, and terminal draft status. A fork additionally creates
 exactly one preference event from its direct source to the child. The child
 version, receipt, and event all attribute the operation to the authenticated
 publisher; lineage creation does not grant rights over another author's
-descendants. Public author/profile presentation remains RCP-29. Failure,
-including loss of source visibility, leaves the draft active with no partial
-public state. Success retains it as `published`, excludes it from active draft
-reads, and makes edit or discard return `404`; exact idempotent replay returns
+descendants. RCP-29 presents the exact version author and, when publicly
+readable, the direct parent and its author through bounded public references.
+Failure, including loss of source visibility, leaves the draft active with no
+partial public state. Success retains it as `published`, excludes it from
+active draft reads, and makes edit or discard return `404`; exact idempotent replay returns
 the same public version and location. Original publication creates no fork or
 other preference event. See [private recipe drafts](private-recipe-drafts.md).
 
@@ -346,6 +347,20 @@ fork's lineage-wide version number is allocated while holding a row lock on the
 lineage itself. Locking only the selected parent would not serialize siblings
 created concurrently from different branches. The existing unique constraint
 on `(lineage_id, version_number)` remains a database backstop.
+
+Public identity is a deliberately narrow projection of `users`: stable ID,
+normalized unique handle, and display name. Public browse, detail, and profile
+queries share the publication predicate and eager-load the exact version author
+plus at most one publicly readable direct parent and author. Keeping the bare
+`parent_version_id` while omitting a non-public nested parent preserves graph
+truth without leaking private metadata.
+
+Private recipe libraries are session-derived read models rather than ownership
+parameters. My Recipes pages active drafts and published authored versions in a
+database union, then hydrates only the item kinds present on that page. Saved
+Recipes joins the current member's saves to public versions. Both use bounded
+queries, private non-cacheable responses, and accept no user ID. See
+[cook profiles and recipe libraries](cook-profiles-and-libraries.md).
 
 Saves and ratings reference exact versions rather than a mutable recipe record.
 Their composite keys allow only one of each interaction per user and version,
