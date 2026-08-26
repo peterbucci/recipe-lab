@@ -33,6 +33,7 @@ CARROT_LINEAGE_ID = seed_uuid(
     "recipe-lineage",
     "carrot-walnut-snack-cake-v1",
 )
+CATALOG_AUTHOR_ID = seed_uuid(DATASET_ID, "user", "catalog-author")
 PASTA_ROOT_ID = seed_uuid(
     DATASET_ID,
     "recipe-version",
@@ -92,7 +93,10 @@ def test_browse_defaults_list_every_version_in_stable_order(api_client: TestClie
         "description",
         "servings",
         "created_at",
+        "author",
+        "parent",
     }
+    assert set(items[0]["author"]) == {"id", "handle", "display_name"}
 
     all_items = cast(list[dict[str, Any]], _page(api_client, page_size=100)["items"])
     order_keys = [
@@ -187,6 +191,11 @@ def test_recipe_detail_returns_ordered_snapshot_and_direct_children(
     assert detail["servings"] == "8.00"
     assert detail["average_rating"] is None
     assert detail["rating_count"] == 0
+    assert detail["author"] == {
+        "id": str(CATALOG_AUTHOR_ID),
+        "handle": "recipe-lab-catalog",
+        "display_name": "Recipe Lab Demo Catalog",
+    }
     children = cast(list[dict[str, Any]], detail["children"])
     assert [child["id"] for child in children] == [
         str(CARROT_PECAN_ID),
@@ -326,6 +335,11 @@ def test_recipe_detail_returns_parent_without_transitive_children(
         "id": str(CARROT_ROOT_ID),
         "version_number": 1,
         "title": "Carrot Walnut Snack Cake",
+        "author": {
+            "id": str(CATALOG_AUTHOR_ID),
+            "handle": "recipe-lab-catalog",
+            "display_name": "Recipe Lab Demo Catalog",
+        },
     }
     assert detail["children"] == []
 

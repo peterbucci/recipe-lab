@@ -4,13 +4,13 @@ from fastapi import APIRouter, Query, Response
 
 from app.api.dependencies import OptionalAuthenticatedSessionDependency, SessionDependency
 from app.schemas.errors import ErrorResponse
-from app.schemas.recipes import RecipeSummary
 from app.schemas.recommendations import (
     RecipeRecommendationResponse,
     RecipeRecommendationsResponse,
     RecommendationScoreBreakdown,
     RecommendationWeightsResponse,
 )
+from app.services.recipe_responses import recipe_summary_response
 from app.services.recommendations import (
     BASELINE_STRATEGY,
     FORK_POPULARITY_WEIGHT,
@@ -81,7 +81,7 @@ def get_recommendations(
         ),
         items=[
             RecipeRecommendationResponse(
-                recipe=RecipeSummary.model_validate(item.recipe),
+                recipe=recipe_summary_response(item.recipe),
                 score=item.score,
                 components=RecommendationScoreBreakdown(
                     quality=item.quality,

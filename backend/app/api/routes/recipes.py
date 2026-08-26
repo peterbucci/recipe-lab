@@ -36,6 +36,7 @@ from app.schemas.recipes import (
 from app.services.actions import serialize_instruction_action
 from app.services.measurements import serialize_measure
 from app.services.recipe_diffs import build_recipe_diff
+from app.services.recipe_responses import recipe_summary_response, recipe_version_reference
 
 router = APIRouter(prefix="/recipes")
 
@@ -108,11 +109,11 @@ DIFF_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
 
 
 def _summary(version: RecipeVersion) -> RecipeSummary:
-    return RecipeSummary.model_validate(version)
+    return recipe_summary_response(version)
 
 
 def _reference(version: RecipeVersion) -> RecipeVersionReference:
-    return RecipeVersionReference.model_validate(version)
+    return recipe_version_reference(version)
 
 
 def _ingredient(item: RecipeIngredient) -> RecipeIngredientResponse:
@@ -162,7 +163,6 @@ def _detail_response(
             if viewer_user_id is not None
             else None
         ),
-        parent=_reference(version.parent) if version.parent is not None else None,
         children=[_reference(child) for child in version.descendants],
         ingredients=[_ingredient(item) for item in version.ingredients],
         instructions=[_instruction(item) for item in version.instructions],

@@ -221,6 +221,7 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
         assert carrot_fingerprint.canonical_payload.startswith('{"ingredients":')
         assert catalog_user is not None
         assert catalog_user.account_kind == ACCOUNT_KIND_SYSTEM
+        assert catalog_user.handle == "recipe-lab-catalog"
         assert demo_user is not None
         assert demo_user.email == DEMO_USER_EMAIL
         assert demo_user.display_name == DEMO_USER_DISPLAY_NAME
@@ -303,6 +304,41 @@ def test_second_committed_seed_load_is_an_exact_no_op(seed_engine: Engine) -> No
     assert second_report.created_total == 0
     assert second_report.reused_total == sum(SEEDED_TABLE_COUNTS.values())
     assert second_snapshot == first_snapshot
+
+
+def test_catalog_public_handle_collision_fails_before_seed_identity_creation(
+    seed_engine: Engine,
+) -> None:
+    catalog = load_bundled_catalog()
+    conflicting_user_id = uuid4()
+    with Session(seed_engine) as session, session.begin():
+        session.add(
+            User(
+                id=conflicting_user_id,
+                email="reserved-handle-owner@example.test",
+                display_name="Reserved Handle Owner",
+                handle="recipe-lab-catalog",
+                account_kind=ACCOUNT_KIND_MEMBER,
+            )
+        )
+
+    with Session(seed_engine) as session:
+        with pytest.raises(
+            SeedConflictError,
+            match="user 'catalog-author': public handle belongs to another user",
+        ):
+            with session.begin():
+                seed_catalog(session, catalog)
+
+    with Session(seed_engine) as session:
+        assert session.get(User, conflicting_user_id) is not None
+        assert (
+            session.get(
+                User,
+                seed_uuid(catalog.metadata.dataset_id, "user", CATALOG_USER_KEY),
+            )
+            is None
+        )
 
 
 def test_measurement_catalog_drift_fails_atomically(seed_engine: Engine) -> None:

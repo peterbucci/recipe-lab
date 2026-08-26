@@ -316,6 +316,15 @@ def test_cold_start_is_stable_bounded_and_uses_the_published_weights(
     assert titles == sorted(titles, key=lambda title: (title.casefold(), title))
     assert len({item["recipe"]["id"] for item in _items(body)}) == 10
     for item in _items(body):
+        recipe = _json_object(item["recipe"])
+        assert recipe["author"] == {
+            "id": str(seed_uuid(DATASET_ID, "user", "catalog-author")),
+            "handle": "recipe-lab-catalog",
+            "display_name": "Recipe Lab Demo Catalog",
+        }
+        assert set(recipe["author"]) == {"id", "handle", "display_name"}
+        if recipe["parent"] is not None:
+            assert set(recipe["parent"]["author"]) == {"id", "handle", "display_name"}
         assert SIX_DECIMAL_PATTERN.fullmatch(item["score"])
         assert item["score"] == "0.275000"
         assert 1 <= len(item["reason"]) <= 200

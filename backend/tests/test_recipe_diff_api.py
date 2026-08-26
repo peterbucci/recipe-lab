@@ -27,6 +27,7 @@ CARROT_LINEAGE_ID = seed_uuid(DATASET_ID, "recipe-lineage", CARROT_ROOT_KEY)
 PASTA_ROOT_ID = seed_uuid(DATASET_ID, "recipe-version", PASTA_ROOT_KEY)
 PASTA_THIRD_ID = seed_uuid(DATASET_ID, "recipe-version", PASTA_THIRD_KEY)
 PASTA_LINEAGE_ID = seed_uuid(DATASET_ID, "recipe-lineage", PASTA_ROOT_KEY)
+CATALOG_AUTHOR_ID = seed_uuid(DATASET_ID, "user", "catalog-author")
 
 WALNUT_ID = seed_uuid(DATASET_ID, "ingredient", "walnut")
 PECAN_ID = seed_uuid(DATASET_ID, "ingredient", "pecan")
@@ -82,6 +83,11 @@ def _version_reference(version_id: UUID, version_number: int, title: str) -> dic
         "id": str(version_id),
         "version_number": version_number,
         "title": title,
+        "author": {
+            "id": str(CATALOG_AUTHOR_ID),
+            "handle": "recipe-lab-catalog",
+            "display_name": "Recipe Lab Demo Catalog",
+        },
     }
 
 
@@ -433,7 +439,7 @@ def test_repeated_diff_requests_serialize_identically(diff_client: TestClient) -
     assert bodies[1:] == bodies[:1] * 2
 
 
-def test_diff_reads_use_bounded_queries_and_do_not_load_interactions_or_users(
+def test_diff_reads_use_bounded_queries_and_load_only_public_user_context(
     diff_client: TestClient,
     seeded_api_engine: Engine,
 ) -> None:
@@ -464,8 +470,18 @@ def test_diff_reads_use_bounded_queries_and_do_not_load_interactions_or_users(
     assert any("recipe_instruction_action_inputs" in statement for statement in statements)
     assert any("recipe_instruction_action_measures" in statement for statement in statements)
     assert any("ingredient_substitutions" in statement for statement in statements)
-    for excluded_table in ("recipe_ratings", "recipe_saves", "users"):
+    assert any("users" in statement for statement in statements)
+    for excluded_table in (
+        "recipe_ratings",
+        "recipe_saves",
+        "oidc_identities",
+        "user_sessions",
+        "preference_events",
+    ):
         assert all(excluded_table not in statement for statement in statements)
+    body = _json_object(response.json())
+    assert set(body["base_version"]["author"]) == {"id", "handle", "display_name"}
+    assert set(body["target_version"]["author"]) == {"id", "handle", "display_name"}
 
 
 def test_openapi_documents_recipe_diff_contract(diff_client: TestClient) -> None:
