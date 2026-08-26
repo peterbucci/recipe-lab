@@ -10,7 +10,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:release-gate": "playwright test e2e/rcp32-community-release-gate.spec.ts"
   },
   "dependencies": {
     "@next/env": "16.3.1",
