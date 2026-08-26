@@ -13,6 +13,7 @@ from app.models import (
     ACCOUNT_KIND_MEMBER,
     USER_STATUS_ACTIVE,
     CatalogCurator,
+    CommunityModerator,
     User,
     UserSession,
 )
@@ -79,15 +80,15 @@ def test_acceptance_guard_refuses_unsafe_environments(
         validate_acceptance_environment(environment)
 
 
-def test_provisioner_creates_members_and_one_curator_with_digest_only_sessions(
+def test_provisioner_creates_separate_curator_and_moderator_with_digest_only_sessions(
     db_session: Session,
 ) -> None:
     issued_at = datetime(2026, 8, 23, 16, 0, tzinfo=UTC)
 
     fixture = provision_acceptance_sessions(db_session, now=issued_at)
 
-    assert fixture["version"] == 3
-    assert set(fixture["members"]) == {"alice", "bob", "curator", "deleter"}
+    assert fixture["version"] == 4
+    assert set(fixture["members"]) == {"alice", "bob", "curator", "moderator", "deleter"}
     assert all(
         set(member_fixture) == {"user_id", "session_token", "csrf_token"}
         for member_fixture in fixture["members"].values()
@@ -118,6 +119,8 @@ def test_provisioner_creates_members_and_one_curator_with_digest_only_sessions(
 
         grant = db_session.get(CatalogCurator, definition.user_id)
         assert (grant is not None) is definition.catalog_curator
+        moderator_grant = db_session.get(CommunityModerator, definition.user_id)
+        assert (moderator_grant is not None) is definition.community_moderator
 
 
 def test_reprovisioner_replaces_only_fixture_member_sessions(db_session: Session) -> None:
@@ -136,7 +139,7 @@ def test_reprovisioner_replaces_only_fixture_member_sessions(db_session: Session
 
 def test_fixture_file_is_private_exclusive_and_contains_no_identity_data(tmp_path: Path) -> None:
     fixture: AcceptanceFixture = {
-        "version": 3,
+        "version": 4,
         "members": {
             "alice": {
                 "user_id": "alice-id",
@@ -152,6 +155,11 @@ def test_fixture_file_is_private_exclusive_and_contains_no_identity_data(tmp_pat
                 "user_id": "curator-id",
                 "session_token": "curator-session",
                 "csrf_token": "curator-csrf",
+            },
+            "moderator": {
+                "user_id": "moderator-id",
+                "session_token": "moderator-session",
+                "csrf_token": "moderator-csrf",
             },
             "deleter": {
                 "user_id": "deleter-id",
