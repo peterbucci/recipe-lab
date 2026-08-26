@@ -6,17 +6,25 @@ import {
   fetchMyRecipeLibrary,
   RecipeLibraryApiError,
   type MyRecipeLibraryPage,
+  type RecipeVisibilityState,
 } from "../../lib/recipe-library-api";
 import { MemberRouteGate } from "./member-route-gate";
 import { GuardedLink } from "./navigation-blocker-provider";
 import { PrivateLibraryPagination } from "./private-library-pagination";
 import { RecipeCard } from "./recipe-card";
+import { RecipeVisibilityControl } from "./recipe-visibility-control";
 
 const RETURN_TO = "/account/recipes";
 
 function formatActivity(timestamp: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(timestamp));
 }
+
+const VISIBILITY_LABELS = {
+  published: "Public",
+  author_withdrawn: "Withdrawn",
+  moderation_hidden: "Hidden by moderation",
+} as const;
 
 function MyRecipeLibraryInner() {
   const [pageNumber, setPageNumber] = useState(1);
@@ -71,6 +79,25 @@ function MyRecipeLibraryInner() {
     setPageNumber(nextPage);
   }
 
+  async function handleVisibilityChanged(
+    recipeVersionId: string,
+    visibilityState: RecipeVisibilityState,
+  ) {
+    setPage((current) =>
+      current
+        ? {
+            ...current,
+            items: current.items.map((item) =>
+              item.kind === "published" && item.recipe.id === recipeVersionId
+                ? { ...item, visibility_state: visibilityState }
+                : item,
+            ),
+          }
+        : current,
+    );
+    await load(pageNumber);
+  }
+
   return (
     <main id="main-content" className="page-shell member-library">
       <nav className="breadcrumb" aria-label="Breadcrumb">
@@ -80,15 +107,15 @@ function MyRecipeLibraryInner() {
         <div>
           <p className="eyebrow">Your recipe workspace</p>
           <h1>My recipes</h1>
-          <p>Find your current private drafts, published originals, and published forks.</p>
+          <p>Find your drafts and published snapshots, and manage which recipes are public.</p>
         </div>
         <GuardedLink className="button button--primary" href="/recipes/new">
           Start a new recipe
         </GuardedLink>
       </header>
       <p className="member-library__privacy">
-        Private drafts are visible only to you. Published entries open the public version that
-        everyone can read.
+        Private drafts are visible only to you. Withdrawn and moderation-hidden snapshots remain
+        in this private library, but their public pages are unavailable.
       </p>
 
       {error ? (
@@ -143,7 +170,24 @@ function MyRecipeLibraryInner() {
             <ul className="recipe-grid member-library__grid" aria-label="My recipes" aria-busy={loading}>
               {page.items.map((item) => {
                 if (item.kind === "published") {
-                  return <RecipeCard key={`published-${item.recipe.id}`} recipe={item.recipe} />;
+                  return (
+                    <RecipeCard
+                      key={`published-${item.recipe.id}`}
+                      actions={(
+                        <RecipeVisibilityControl
+                          onChanged={(visibilityState) =>
+                            handleVisibilityChanged(item.recipe.id, visibilityState)
+                          }
+                          recipeTitle={item.recipe.title}
+                          recipeVersionId={item.recipe.id}
+                          state={item.visibility_state}
+                        />
+                      )}
+                      publiclyAccessible={item.visibility_state === "published"}
+                      recipe={item.recipe}
+                      visibilityLabel={VISIBILITY_LABELS[item.visibility_state]}
+                    />
+                  );
                 }
                 const draft = item.draft;
                 const title = draft.title.trim() || "Untitled recipe";

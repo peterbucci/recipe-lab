@@ -6,8 +6,12 @@ export type { RecipeIngredientMeasure } from "./structured-measure";
 
 export interface PublicUserReference {
   id: string;
-  handle: string;
+  handle: string | null;
   display_name: string;
+}
+
+export interface ActivePublicUserReference extends PublicUserReference {
+  handle: string;
 }
 
 export interface RecipeSummary {

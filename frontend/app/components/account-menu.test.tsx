@@ -62,6 +62,10 @@ describe("AccountMenu", () => {
       "href",
       "/onboarding",
     );
+    expect(within(menu!).getByRole("link", { name: "Account settings" })).toHaveAttribute(
+      "href",
+      "/account/settings",
+    );
     expect(within(menu!).getByRole("button", { name: "Sign out" })).toBeEnabled();
   });
 
@@ -95,6 +99,10 @@ describe("AccountMenu", () => {
     expect(
       screen.getByRole("link", { name: "My ingredient requests" }),
     ).toHaveAttribute("href", "/account/ingredient-requests");
+    expect(screen.getByRole("link", { name: "Account settings" })).toHaveAttribute(
+      "href",
+      "/account/settings",
+    );
     expect(
       screen.queryByRole("link", { name: "Review ingredient requests" }),
     ).not.toBeInTheDocument();

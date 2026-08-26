@@ -305,6 +305,13 @@ export async function signOut(): Promise<void> {
   });
 }
 
+export async function deleteAccount(): Promise<void> {
+  await authFetch("/api/auth/account", {
+    method: "DELETE",
+    headers: memberMutationHeaders(),
+  });
+}
+
 export function safeReturnTo(value: string | null | undefined): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
     return FALLBACK_RETURN_TO;
@@ -325,4 +332,9 @@ export function safeReturnTo(value: string | null | undefined): string {
 export function signInHref(returnTo?: string | null): string {
   const query = new URLSearchParams({ return_to: safeReturnTo(returnTo) });
   return `/api/auth/login?${query.toString()}`;
+}
+
+export function reauthenticateHref(returnTo = "/account/settings"): string {
+  const query = new URLSearchParams({ return_to: safeReturnTo(returnTo) });
+  return `/api/auth/reauthenticate?${query.toString()}`;
 }

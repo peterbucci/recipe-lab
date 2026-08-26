@@ -160,6 +160,9 @@ describe("RecipeDraftPublication", () => {
     renderPublication({ dirty: true });
     expect(screen.getByRole("button", { name: "Review and publish" })).toBeDisabled();
     expect(screen.getByText("Save your latest changes before publishing.")).toBeVisible();
+    expect(screen.getByText(/published snapshots and their recipe lineage stay public/i)).toHaveTextContent(
+      /Deleted cook.*withdraw/i,
+    );
 
     const onValidation = vi.fn();
     renderPublication({

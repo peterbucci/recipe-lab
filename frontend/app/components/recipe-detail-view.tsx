@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { formatIngredientMeasure, formatServings } from "../../lib/format";
 import type { RecipeDetail, RecipeVersionReference } from "../../lib/recipe-api";
+import { PublicCookAttribution } from "./public-cook-attribution";
 import { RatingSummary } from "./rating-summary";
 import { RecipeArtwork } from "./recipe-artwork";
 import { RecipeInstructionActions } from "./recipe-instruction-actions";
@@ -25,10 +26,7 @@ function VersionLink({ label, version }: { label: string; version: RecipeVersion
       </strong>
       <small>Version {version.version_number}</small>
       <small>
-        By{" "}
-        <Link href={`/cooks/${encodeURIComponent(version.author.handle)}`}>
-          {version.author.display_name}
-        </Link>
+        By <PublicCookAttribution author={version.author} />
       </small>
     </article>
   );
@@ -46,21 +44,18 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
             <p className="eyebrow">{isVariation ? "Variation" : "Original"}</p>
             <h1>{recipe.title}</h1>
             <p className="recipe-detail__attribution">
-              By{" "}
-              <Link href={`/cooks/${encodeURIComponent(recipe.author.handle)}`}>
-                {recipe.author.display_name}
-              </Link>
+              By <PublicCookAttribution author={recipe.author} />
             </p>
             {recipe.parent ? (
               <p className="recipe-detail__parent-context">
                 This fork is based directly on{" "}
                 <Link href={`/recipes/${recipe.parent.id}`}>{recipe.parent.title}</Link>
                 {" by "}
-                <Link href={`/cooks/${encodeURIComponent(recipe.parent.author.handle)}`}>
-                  {recipe.parent.author.display_name}
-                </Link>
+                <PublicCookAttribution author={recipe.parent.author} />
                 . Lineage describes the recipe relationship, not endorsement or ownership.
               </p>
+            ) : isVariation ? (
+              <p className="recipe-detail__parent-context">Source unavailable</p>
             ) : null}
             {recipe.description ? (
               <p className="recipe-detail__description">{recipe.description}</p>
@@ -152,6 +147,14 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
             <li className="lineage-grid__item">
               <VersionLink label="Based on" version={recipe.parent} />
             </li>
+          ) : isVariation ? (
+            <li className="lineage-grid__item">
+              <article className="lineage-card lineage-card--unavailable">
+                <span>Based on</span>
+                <strong>Source unavailable</strong>
+                <small>The source recipe cannot be viewed.</small>
+              </article>
+            </li>
           ) : null}
           <li className="lineage-grid__item">
             <div
@@ -163,10 +166,7 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
               <strong>{recipe.title}</strong>
               <small>Version {recipe.version_number}</small>
               <small>
-                By{" "}
-                <Link href={`/cooks/${encodeURIComponent(recipe.author.handle)}`}>
-                  {recipe.author.display_name}
-                </Link>
+                By <PublicCookAttribution author={recipe.author} />
               </small>
             </div>
           </li>
@@ -176,7 +176,7 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
             </li>
           ))}
         </ul>
-        {!recipe.parent && recipe.children.length === 0 ? (
+        {!isVariation && recipe.children.length === 0 ? (
           <p className="lineage-empty">This recipe does not have another version yet.</p>
         ) : null}
       </section>

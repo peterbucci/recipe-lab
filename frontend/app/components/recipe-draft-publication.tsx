@@ -281,6 +281,12 @@ export function RecipeDraftPublication({
           become new versions; they never rewrite this snapshot.
         </p>
       )}
+      <p className="draft-publication__retention-disclosure">
+        Published snapshots and their recipe lineage stay public if you later delete your account.
+        Your name is replaced with <strong>Deleted cook</strong>. You can withdraw a snapshot from
+        My recipes before deleting your account; a withdrawn snapshot stays unavailable after the
+        account is gone.
+      </p>
       {dirty ? <p className="draft-publication__save-first">Save your latest changes before publishing.</p> : null}
       {error ? (
         <div className="form-alert draft-publication__alert" role="alert">

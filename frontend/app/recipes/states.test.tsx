@@ -47,12 +47,13 @@ describe("recipe route states", () => {
     expect(screen.queryByText(/private diff service detail/i)).not.toBeInTheDocument();
   });
 
-  it("gives a missing recipe a route back to the collection", () => {
+  it("uses the same neutral unavailable state for every opaque recipe miss", () => {
     render(<RecipeNotFound />);
 
     expect(
-      screen.getByRole("heading", { name: /isn’t in the collection/i }),
+      screen.getByRole("heading", { name: "This recipe isn’t available." }),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/withdraw|moderation|hidden|moved/i)).toBeNull();
     expect(screen.getByRole("link", { name: /browse recipes/i })).toHaveAttribute(
       "href",
       "/recipes",
