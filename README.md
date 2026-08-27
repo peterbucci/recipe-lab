@@ -404,6 +404,28 @@ database name except `recipe_lab_acceptance` (CI) and
 will not overwrite an existing token file. Delete that file after the run. The
 two guard flags acknowledge a disposable target; they do not create one.
 
+### Safe source export
+
+To share source, package an explicit committed revision with the repository's
+fail-closed exporter. Run it only from a clean tree and put both outputs outside
+the checkout:
+
+```powershell
+$revision = git rev-parse --verify 'HEAD^{commit}'
+$shortRevision = $revision.Substring(0, 12)
+$exportDirectory = Join-Path ([System.IO.Path]::GetTempPath()) `
+  ("recipe-lab-source-" + [System.Guid]::NewGuid())
+$archive = Join-Path $exportDirectory "recipe-lab-source-$shortRevision.zip"
+python scripts/package_source.py --ref $revision --output $archive
+```
+
+The command reads tracked blobs from Git rather than the working directory,
+applies the bounded source allowlist, scans before archive creation, reopens and
+scans the completed archive, and emits a SHA-256 manifest next to the ZIP. It
+never overwrites prior output. See [safe source packaging](docs/source-packaging.md)
+for the policy, limits, deterministic-output contract, and credential-rotation
+boundary.
+
 ## Continuous integration
 
 The `CI` GitHub Actions workflow runs on every pull request and every push to
@@ -451,6 +473,12 @@ summaries are retained. RCP-21 remains blocked until that aggregate check
 passes; offline ML evaluation is intentionally independent. See the
 [community release gate](docs/community-release-gate.md) for the exact contract
 and guarded local reproduction.
+
+The independent `Safe source package` job tests the exporter and creates the
+selected CI commit twice in runner-temporary storage to prove deterministic
+archive and manifest bytes. It never uploads either output and always deletes
+them. The stable RCP-32 aggregate check requires this source-safety job alongside
+the deployable application gates.
 
 ## Working agreements
 
