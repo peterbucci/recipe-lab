@@ -115,6 +115,59 @@ jobs:
       - name: Validate Playwright configuration
         run: npx playwright test --list
 
+  source-package:
+    name: Safe source package
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Test fail-closed source packaging
+        run: python -m unittest discover -s scripts/tests -p "test_*.py"
+
+      - name: Verify deterministic committed-source output
+        shell: bash
+        run: |
+          set -euo pipefail
+          first="$RUNNER_TEMP/recipe-lab-source-first.zip"
+          second="$RUNNER_TEMP/recipe-lab-source-second.zip"
+          python scripts/package_source.py \
+            --ref "$GITHUB_SHA" \
+            --output "$first" \
+            > "$RUNNER_TEMP/recipe-lab-source-first-report.json"
+          python scripts/package_source.py \
+            --ref "$GITHUB_SHA" \
+            --output "$second" \
+            > "$RUNNER_TEMP/recipe-lab-source-second-report.json"
+          cmp --silent "$first" "$second"
+          cmp --silent \
+            "$first.manifest.json" \
+            "$second.manifest.json"
+          cmp --silent \
+            "$RUNNER_TEMP/recipe-lab-source-first-report.json" \
+            "$RUNNER_TEMP/recipe-lab-source-second-report.json"
+
+      - name: Remove source package outputs
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          rm -f -- \
+            "$RUNNER_TEMP/recipe-lab-source-first.zip" \
+            "$RUNNER_TEMP/recipe-lab-source-first.zip.manifest.json" \
+            "$RUNNER_TEMP/recipe-lab-source-first-report.json" \
+            "$RUNNER_TEMP/recipe-lab-source-second.zip" \
+            "$RUNNER_TEMP/recipe-lab-source-second.zip.manifest.json" \
+            "$RUNNER_TEMP/recipe-lab-source-second-report.json"
+
   offline-evaluation:
     name: Offline evaluation
     runs-on: ubuntu-latest
@@ -1108,6 +1161,7 @@ jobs:
       - frontend
       - mvp-acceptance
       - rcp32-acceptance
+      - source-package
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -1117,14 +1171,17 @@ jobs:
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           MVP_ACCEPTANCE_RESULT: ${{ needs.mvp-acceptance.result }}
           RCP32_ACCEPTANCE_RESULT: ${{ needs.rcp32-acceptance.result }}
+          SOURCE_PACKAGE_RESULT: ${{ needs.source-package.result }}
         run: |
           if [[ "$BACKEND_RESULT" != "success" \
             || "$FRONTEND_RESULT" != "success" \
             || "$MVP_ACCEPTANCE_RESULT" != "success" \
-            || "$RCP32_ACCEPTANCE_RESULT" != "success" ]]; then
+            || "$RCP32_ACCEPTANCE_RESULT" != "success" \
+            || "$SOURCE_PACKAGE_RESULT" != "success" ]]; then
             echo "Backend quality: $BACKEND_RESULT"
             echo "Frontend quality: $FRONTEND_RESULT"
             echo "MVP acceptance: $MVP_ACCEPTANCE_RESULT"
             echo "RCP-32 acceptance: $RCP32_ACCEPTANCE_RESULT"
+            echo "Safe source package: $SOURCE_PACKAGE_RESULT"
             exit 1
           fi
