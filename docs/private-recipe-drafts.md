@@ -154,10 +154,12 @@ second editable copy; it exists to make publication replayable and to prevent a
 second root or child from the same draft.
 
 Infrastructure backups, when configured, may retain database blocks according
-to the operator's separately documented backup schedule. They are not
+to the bounded schedule in
+[account-data governance](account-data-governance.md). They are not
 browsable or recoverable through the product. RCP-26 does not prescribe that
 schedule or claim that deleting a live row synchronously rewrites historical
-backups; deployment operations must define backup protection and expiry.
+backups; deployment operations must enforce backup protection, deletion replay,
+and expiry before serving a restored copy.
 
 ## Publication boundary
 

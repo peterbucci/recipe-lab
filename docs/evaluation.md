@@ -25,6 +25,13 @@ adoption scorecard. A separate synthetic benchmark exercises the offline
 substitution rules; it does not use this snapshot or recommendation protocol.
 See the [offline substitution rules engine](substitution-engine.md).
 
+Ignored does not mean retained indefinitely. Capturing production or real-member
+data is prohibited until an artifact registry can apply account deletion and a
+bounded expiry to every snapshot and derived report. Current local observed-data
+files are disposable and must be deleted after the experiment; synthetic
+fixtures are the only durable research inputs. See
+[account-data governance](account-data-governance.md).
+
 ## Snapshot contract
 
 The `recipe-lab-evaluation-snapshot-v2` format contains:

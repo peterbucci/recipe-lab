@@ -424,7 +424,9 @@ duplicate candidates, profiles, libraries, recommendations, fork-draft
 creation, and fork publication rechecks use the same rule.
 
 Account deletion requires recent authentication, exact Origin, and the
-session-bound CSRF token. A stale session receives
+session-bound CSRF token. The JSON body must also carry the member's exact
+current handle as `confirmation`, or `DELETE` before a handle is chosen; the
+backend validates it under the locked member row. A stale session receives
 `recent_authentication_required` and must complete a one-time OIDC flow with
 `prompt=login`, `max_age=0`, exact issuer/subject binding, and fresh `auth_time`.
 Missing provider `auth_time` is unknown rather than recent, and future values
@@ -436,6 +438,8 @@ private workflow evidence in one transaction. Immutable public versions remain
 under a constrained `Deleted cook` tombstone with a null handle; already
 withdrawn versions remain unavailable. The complete policy is documented in
 [recipe visibility and account lifecycle](../docs/recipe-visibility-and-account-lifecycle.md).
+The exhaustive table, field, log, backup, and derived-artifact decisions are in
+[account-data governance](../docs/account-data-governance.md).
 
 ## Recipe duplicate preflight
 

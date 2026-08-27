@@ -20,7 +20,8 @@ versions. The account surface adds:
 - `POST /api/auth/logout` to revoke the current application session;
 - `GET /api/auth/reauthenticate?return_to=/relative-path` to require a fresh,
   session-bound provider authentication before a sensitive action; and
-- `DELETE /api/auth/account` to irreversibly remove the current member's
+- `DELETE /api/auth/account` with the exact current handle, or `DELETE` before
+  onboarding, in `confirmation` to irreversibly remove the current member's
   private account data while preserving anonymous public recipe topology.
 
 The browser calls these endpoints through the same-origin Next.js `/api`
@@ -122,10 +123,11 @@ sessions can be revoked independently. Stable errors and logs must not echo
 authorization codes, state, nonce, session/CSRF tokens, provider subjects,
 private emails, or provider response bodies.
 
-The application suppresses callback-query logging in both the FastAPI access
-logger and the Next.js development request logger. Production CDNs, reverse
-proxies, load balancers, and observability tools must likewise drop or redact
-the query string for `/api/auth/callback`; it must never be sent to analytics.
+The production FastAPI server disables HTTP access logs completely so request
+paths, cook handles, search text, and query strings are not retained. The
+application also suppresses callback-query logging in development. Production
+CDNs, reverse proxies, load balancers, and observability tools must apply the
+same no-request-target rule; callback values must never be sent to analytics.
 
 Recipe Lab does not transfer or attribute legacy Demo Cook saves, ratings,
 events, or forks to a member. Catalog Author and Demo Cook remain seeded,
@@ -140,7 +142,8 @@ draft content, and other unreferenced private workflow evidence. Published
 snapshots and fork relationships are not hard-deleted. Their stable author UUID
 resolves only to an irreversible `Deleted cook` tombstone with no profile link.
 See [recipe visibility and account lifecycle](recipe-visibility-and-account-lifecycle.md)
-for the complete retention and unavailable-content contract. Recipe Lab still
+and [account-data governance](account-data-governance.md) for the complete
+database, log, backup, and derived-artifact contract. Recipe Lab still
 does not store passwords, add custom MFA, merge social accounts, or expose
 provider identity data.
 

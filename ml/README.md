@@ -231,6 +231,13 @@ ignored by Git. Reports contain aggregate metrics rather than those raw IDs,
 but are also ignored as generated run artifacts and can include caller-supplied
 dataset labels and limitation text.
 
+This command is a disposable local research tool, not a production export
+path. Do not point it at production or real-member data until Recipe Lab has an
+artifact registry that can bind every included profile to account deletion and
+expiry. Delete local observed-data snapshots and their reports after the run;
+only deliberately synthetic fixtures may be retained. See
+[account-data governance](../docs/account-data-governance.md).
+
 The snapshot embeds one UTC cutoff. Training uses only recipes and events
 strictly before it; events at or after it are held out. Changing the file after
 capture changes its canonical SHA-256 fingerprint.

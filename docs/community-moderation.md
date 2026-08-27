@@ -76,7 +76,10 @@ Every moderator action uses a UUID idempotency key and creates an append-only,
 server-timestamped audit event containing the actor, action, resulting case
 status, resulting visibility state, and optional bounded private note. The
 moderation page and API are unavailable immediately after the grant is revoked
-or the member is suspended.
+or the member is suspended. If that moderator deletes their account, the
+private note and replay fingerprint are scrubbed after the complete tombstone;
+the action, before/after state, target, time, and tombstoned actor remain
+append-only audit evidence.
 
 ## Operator role management
 

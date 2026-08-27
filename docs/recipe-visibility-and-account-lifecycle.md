@@ -94,11 +94,13 @@ remain outside Recipe Lab.
 ## Account deletion and retained topology
 
 `DELETE /api/auth/account` requires a recent authenticated session plus normal
-Origin and CSRF evidence. The settings UI is available before onboarding is
-complete, requires an explicit acknowledgement, and requires either the
-member's exact current handle or `DELETE` when no handle exists. It discloses
-the retention behavior before enabling deletion. The operation commits once and then clears both
-authentication cookies.
+Origin and CSRF evidence. Its JSON body also carries the exact current handle,
+or `DELETE` when no handle exists; the server validates that phrase while the
+member row is locked, so a caller cannot bypass confirmation by skipping the
+settings page. The UI is available before onboarding is complete, requires an
+explicit acknowledgement, and discloses the retention behavior before enabling
+deletion. The operation commits once and then clears both authentication
+cookies.
 
 Deletion immediately makes every application session unusable and removes:
 
@@ -115,6 +117,9 @@ requests remain as catalog-governance evidence, but private request context is
 removed from both the request and its submission event. Database guards allow
 only those exact lifecycle erasures after the member is a complete tombstone;
 review decisions and publication-bound duplicate evidence remain append-only.
+Reports retain only their reason and case topology. A deleting moderator's
+private decision note and replay fingerprint are replaced by fixed anonymous
+values while the action and before/after state remain append-only.
 
 The stable user UUID remains only as a constrained tombstone with status
 `deleted`, no email or handle, a deletion timestamp, and display name
@@ -142,3 +147,5 @@ unknown handle.
 RCP-30 does not add report intake, moderation queues, unlisted sharing,
 automated classification, cascading fork deletion, or hard deletion of
 published snapshots. Those are separate product and governance decisions.
+The exhaustive database, log, backup, and research-artifact rules are in
+[account-data governance and deletion completeness](account-data-governance.md).
