@@ -53,6 +53,49 @@ test.describe("private recipe draft acceptance", () => {
     await page.reload();
     await expect(page.getByLabel("Title")).toHaveValue("Acceptance pantry soup");
 
+    await page.getByLabel("Title").fill("Acceptance interrupted soup");
+    await page.context().clearCookies({ name: "recipe_lab_session" });
+    const expiredSave = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PUT" &&
+        new URL(response.url()).pathname === `/api/recipe-drafts/${draftId}`,
+    );
+    await page.getByRole("button", { name: "Save draft" }).click();
+    expect((await expiredSave).status()).toBe(401);
+    const interruption = page.getByRole("alert", {
+      name: "Your session expired. Your work is still here.",
+    });
+    await expect(interruption).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in in a new tab" })).toHaveAttribute(
+      "target",
+      "_blank",
+    );
+    await expect(page.getByLabel("Title")).toHaveValue("Acceptance interrupted soup");
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      ),
+    ).toBe(false);
+    const interruptedAccessibility = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(interruptedAccessibility.violations).toEqual([]);
+
+    await page.getByRole("button", { name: "Keep editing for now" }).click();
+    await expect(page.getByText(/Sign-in is still required before saving/)).toBeVisible();
+    await expect(page.getByLabel("Title")).toHaveValue("Acceptance interrupted soup");
+    await page.getByRole("button", { name: "Resume sign-in" }).click();
+    await useAcceptanceMember(page, "alice");
+    await page.getByRole("button", { name: "Check sign-in" }).click();
+    await expect(interruption).toHaveCount(0);
+    await expect(page.getByLabel("Title")).toHaveValue("Acceptance interrupted soup");
+
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await expect(page.getByText("Draft saved privately.", { exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel("Title")).toHaveValue("Acceptance interrupted soup");
+
     await useAcceptanceMember(page, "bob");
     const crossOwner = await page.request.get(
       new URL(`/api/recipe-drafts/${draftId}`, baseUrl).toString(),
@@ -64,7 +107,7 @@ test.describe("private recipe draft acceptance", () => {
     await useAcceptanceMember(page, "alice");
     await page.goto(`/account/recipe-drafts/${draftId}`);
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.getByLabel("Title")).toHaveValue("Acceptance pantry soup");
+    await expect(page.getByLabel("Title")).toHaveValue("Acceptance interrupted soup");
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -79,6 +122,6 @@ test.describe("private recipe draft acceptance", () => {
     await expect(page.getByText(/permanently deletes this draft/i)).toBeVisible();
     await page.getByRole("button", { name: "Discard permanently" }).click();
     await expect(page).toHaveURL("/account/recipe-drafts");
-    await expect(page.getByText("Acceptance pantry soup")).toHaveCount(0);
+    await expect(page.getByText("Acceptance interrupted soup")).toHaveCount(0);
   });
 });
