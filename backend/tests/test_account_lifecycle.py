@@ -29,6 +29,7 @@ from app.models import (
     RecipeDuplicateDecision,
     RecipeDuplicatePreflight,
     RecipeLineage,
+    RecipeModerationAuditEvent,
     RecipeModerationCase,
     RecipeRating,
     RecipeReport,
@@ -39,6 +40,7 @@ from app.models import (
     UserSession,
 )
 from app.repositories.account_lifecycle import (
+    DELETED_MODERATION_FINGERPRINT,
     DELETED_REPORT_FINGERPRINT,
     get_account_user_for_update,
 )
@@ -199,9 +201,22 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
         action_id=uuid4(),
         request_fingerprint="9" * 64,
     )
-    db_session.add(retained_report)
+    retained_moderation_event = RecipeModerationAuditEvent(
+        recipe_version_id=version.id,
+        actor_user_id=deleting_user_id,
+        action="hide",
+        previous_status="open",
+        status="open",
+        visibility_state="moderation_hidden",
+        private_note="Private moderator note must be erased.",
+        action_id=uuid4(),
+        request_fingerprint="b" * 64,
+        occurred_at=now,
+    )
+    db_session.add_all([retained_report, retained_moderation_event])
     db_session.flush()
     retained_report_id = retained_report.id
+    retained_moderation_event_id = retained_moderation_event.id
     version_id = version.id
     active_draft_id = active_draft.id
     published_draft_id = published_draft.id
@@ -304,6 +319,7 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
     delete_member_account(
         db_session,
         authenticated=authenticated,
+        confirmation="delete-me",
         recent_auth_ttl_seconds=settings.auth_recent_ttl_seconds,
         now=now,
     )
@@ -336,6 +352,15 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
     assert anonymized_report.reporter_user_id == deleting_user_id
     assert anonymized_report.details is None
     assert anonymized_report.request_fingerprint == DELETED_REPORT_FINGERPRINT
+    anonymized_moderation_event = db_session.get(
+        RecipeModerationAuditEvent,
+        retained_moderation_event_id,
+    )
+    assert anonymized_moderation_event is not None
+    assert anonymized_moderation_event.actor_user_id == deleting_user_id
+    assert anonymized_moderation_event.action == "hide"
+    assert anonymized_moderation_event.private_note is None
+    assert anonymized_moderation_event.request_fingerprint == DELETED_MODERATION_FINGERPRINT
     assert db_session.get(RecipeDraft, active_draft_id) is None
     assert db_session.get(IngredientCatalogRequest, pending_request_id) is None
     retained_request = db_session.get(IngredientCatalogRequest, terminal_request_id)
@@ -382,6 +407,14 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
                 "SET payload = '{}'::jsonb WHERE id = :event_id"
             ),
             {"event_id": terminal_decision_id},
+        )
+    with pytest.raises(DBAPIError, match="append-only"), db_session.begin_nested():
+        db_session.execute(
+            text(
+                "UPDATE recipe_moderation_audit_events "
+                "SET private_note = 'restored private note' WHERE id = :event_id"
+            ),
+            {"event_id": retained_moderation_event_id},
         )
 
 
@@ -472,6 +505,7 @@ def test_account_deletion_waits_for_another_session_before_locking_the_user(
             delete_member_account(
                 session,
                 authenticated=deleting_session,
+                confirmation="concurrent-delete",
                 recent_auth_ttl_seconds=600,
                 now=now,
             )

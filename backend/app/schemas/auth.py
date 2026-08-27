@@ -71,3 +71,11 @@ class AccountProfileUpdateRequest(BaseModel):
         ):
             raise ValueError("Display name must not be blank or contain control characters.")
         return normalized
+
+
+class AccountDeletionRequest(BaseModel):
+    """Exact destructive confirmation supplied by the member."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    confirmation: str = Field(min_length=1, max_length=30)

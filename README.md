@@ -108,7 +108,8 @@ The repository currently provides:
   descendants without leaking hidden parent content;
 - recent-provider-authenticated account deletion that revokes every session,
   erases private identity and activity, and retains immutable public topology
-  only under unlinked `Deleted cook` attribution;
+  only under unlinked `Deleted cook` attribution, backed by a reviewed
+  table/field/artifact governance manifest and schema-drift test;
 - explicit publication rights/community-rules confirmations, private bounded
   member reports, a separate operator-managed moderator role, de-identified
   case review, independent hide/restore state, and append-only decision audits;
@@ -230,7 +231,8 @@ Open:
 - Recipe report API: `POST /api/recipes/{id}/reports`
 - Moderator queue API: `GET /api/moderation/recipe-reports`
 - Account session status: <http://localhost:3000/api/auth/session>
-- Account deletion API: `DELETE /api/auth/account`
+- Account deletion API: `DELETE /api/auth/account` with an exact
+  `confirmation` phrase
 - Interactive API docs: <http://localhost:8000/docs>
 
 Community-moderator grants are deployment operations, not browser actions. Use

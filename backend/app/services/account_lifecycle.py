@@ -20,6 +20,10 @@ class AccountDeletionNotAllowedError(ValueError):
     pass
 
 
+class AccountDeletionConfirmationError(ValueError):
+    pass
+
+
 class RecentAuthenticationRequiredError(ValueError):
     pass
 
@@ -28,6 +32,7 @@ def delete_member_account(
     session: Session,
     *,
     authenticated: AuthenticatedSession,
+    confirmation: str,
     recent_auth_ttl_seconds: int,
     now: datetime,
 ) -> None:
@@ -68,6 +73,8 @@ def delete_member_account(
         or user.status != USER_STATUS_ACTIVE
     ):
         raise AccountDeletionNotAllowedError("Account cannot be deleted.")
+    if confirmation != (user.handle or "DELETE"):
+        raise AccountDeletionConfirmationError("Account deletion confirmation is invalid.")
 
     user.status = USER_STATUS_DELETED
     user.deleted_at = now

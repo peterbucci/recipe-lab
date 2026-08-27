@@ -442,9 +442,11 @@ def test_account_deletion_requires_recent_auth_and_erases_private_identity_state
     _onboard_member(auth_api)
     csrf = auth_api.client.cookies.get(AUTH_CSRF_COOKIE_NAME)
     assert csrf is not None
-    missing_evidence = auth_api.client.delete(
+    missing_evidence = auth_api.client.request(
+        "DELETE",
         "/api/auth/account",
         headers={"Origin": "http://app.example.test", "X-CSRF-Token": csrf},
+        json={"confirmation": "test-cook"},
     )
     assert missing_evidence.status_code == 403
     assert missing_evidence.json()["error"] == {
@@ -467,9 +469,11 @@ def test_account_deletion_requires_recent_auth_and_erases_private_identity_state
         assert stored_session is not None
         stored_session.authenticated_at = datetime.now(UTC) - timedelta(days=1)
 
-    stale = auth_api.client.delete(
+    stale = auth_api.client.request(
+        "DELETE",
         "/api/auth/account",
         headers={"Origin": "http://app.example.test", "X-CSRF-Token": csrf},
+        json={"confirmation": "test-cook"},
     )
     assert stale.status_code == 403
     assert stale.json()["error"] == {
@@ -482,9 +486,30 @@ def test_account_deletion_requires_recent_auth_and_erases_private_identity_state
         assert stored_session is not None
         stored_session.authenticated_at = datetime.now(UTC)
 
-    deleted = auth_api.client.delete(
+    missing_confirmation = auth_api.client.request(
+        "DELETE",
         "/api/auth/account",
         headers={"Origin": "http://app.example.test", "X-CSRF-Token": csrf},
+    )
+    assert missing_confirmation.status_code == 422
+    wrong_confirmation = auth_api.client.request(
+        "DELETE",
+        "/api/auth/account",
+        headers={"Origin": "http://app.example.test", "X-CSRF-Token": csrf},
+        json={"confirmation": "TEST-COOK"},
+    )
+    assert wrong_confirmation.status_code == 400
+    assert wrong_confirmation.json()["error"] == {
+        "code": "account_confirmation_invalid",
+        "message": "Type the current account confirmation phrase exactly.",
+        "issues": [],
+    }
+
+    deleted = auth_api.client.request(
+        "DELETE",
+        "/api/auth/account",
+        headers={"Origin": "http://app.example.test", "X-CSRF-Token": csrf},
+        json={"confirmation": "test-cook"},
     )
     assert deleted.status_code == 204
     assert deleted.headers["cache-control"] == "no-store"
@@ -511,3 +536,38 @@ def test_account_deletion_requires_recent_auth_and_erases_private_identity_state
         assert len(users) == 2
         assert users[0].id == deleted_user_id
         assert users[1].id != deleted_user_id
+
+
+def test_account_deletion_before_onboarding_requires_exact_delete_phrase(
+    auth_api: AuthApi,
+) -> None:
+    state = _start_login(auth_api, return_to="/account/settings")
+    callback = _complete_login(auth_api, state)
+    assert callback.status_code == 303
+    csrf = auth_api.client.cookies.get(AUTH_CSRF_COOKIE_NAME)
+    assert csrf is not None
+    with Session(bind=auth_api.engine) as session, session.begin():
+        stored_session = session.scalar(select(UserSession))
+        assert stored_session is not None
+        stored_session.authenticated_at = datetime.now(UTC)
+
+    rejected = auth_api.client.request(
+        "DELETE",
+        "/api/auth/account",
+        headers={"Origin": "http://app.example.test", "X-CSRF-Token": csrf},
+        json={"confirmation": "delete"},
+    )
+    assert rejected.status_code == 400
+
+    deleted = auth_api.client.request(
+        "DELETE",
+        "/api/auth/account",
+        headers={"Origin": "http://app.example.test", "X-CSRF-Token": csrf},
+        json={"confirmation": "DELETE"},
+    )
+    assert deleted.status_code == 204
+    with Session(bind=auth_api.engine) as session:
+        tombstone = session.scalar(select(User).where(User.account_kind == "member"))
+        assert tombstone is not None
+        assert tombstone.status == "deleted"
+        assert tombstone.handle is None

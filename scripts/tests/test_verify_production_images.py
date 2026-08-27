@@ -90,6 +90,30 @@ class ImageMetadataTests(unittest.TestCase):
                 with self.assertRaisesRegex(image_verifier.VerificationError, message):
                     image_verifier.verify_image_metadata(client, "recipe-lab:test")
 
+    def test_backend_image_must_use_the_guarded_production_launcher(self) -> None:
+        approved = FakeDockerClient(
+            [
+                _result(
+                    stdout=_metadata(command=["python", "-m", "app.production_server"])
+                )
+            ]
+        )
+        image_verifier.verify_image_metadata(
+            approved,
+            "recipe-lab-backend:test",
+            required_command=("python", "-m", "app.production_server"),
+        )
+
+        bypass = FakeDockerClient([_result(stdout=_metadata())])
+        with self.assertRaisesRegex(
+            image_verifier.VerificationError, "approved server launcher"
+        ):
+            image_verifier.verify_image_metadata(
+                bypass,
+                "recipe-lab-backend:test",
+                required_command=("python", "-m", "app.production_server"),
+            )
+
     def test_rejects_unreadable_or_unexpected_inspect_output(self) -> None:
         for payload in ("not-json", "[]", '[{"Config": null}]'):
             with self.subTest(payload=payload):

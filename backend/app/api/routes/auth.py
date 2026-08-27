@@ -32,6 +32,7 @@ from app.repositories.catalog_requests import is_catalog_curator
 from app.repositories.moderation import is_community_moderator
 from app.schemas.auth import (
     AccountCapabilitiesResponse,
+    AccountDeletionRequest,
     AccountProfileUpdateRequest,
     AccountSessionResponse,
     AccountUserResponse,
@@ -45,6 +46,7 @@ from app.services.abuse_limits import (
     enforce_oidc_identity_rate_limit,
 )
 from app.services.account_lifecycle import (
+    AccountDeletionConfirmationError,
     AccountDeletionNotAllowedError,
     RecentAuthenticationRequiredError,
     delete_member_account,
@@ -70,7 +72,7 @@ from app.services.oidc import (
 router = APIRouter(prefix="/auth")
 
 AUTH_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
-    400: {"model": ErrorResponse, "description": "The login callback is invalid."},
+    400: {"model": ErrorResponse, "description": "The authentication request is invalid."},
     401: {"model": ErrorResponse, "description": "Authentication is required."},
     403: {"model": ErrorResponse, "description": "CSRF or Origin evidence is invalid."},
     409: {"model": ErrorResponse, "description": "The selected handle is unavailable."},
@@ -534,11 +536,13 @@ def logout(
     responses=AUTH_ERROR_RESPONSES,
     summary="Delete the current member account",
     description=(
-        "Requires recent provider authentication. Private account data is erased while "
-        "published recipe topology remains attributed to Deleted cook."
+        "Requires recent provider authentication and the exact current handle, or DELETE before "
+        "onboarding, as confirmation. Private account data is erased while published recipe "
+        "topology remains attributed to Deleted cook."
     ),
 )
 def delete_account(
+    payload: AccountDeletionRequest,
     session: SessionDependency,
     settings: SettingsDependency,
     authenticated: CsrfProtectedUntouchedSessionDependency,
@@ -547,6 +551,7 @@ def delete_account(
         delete_member_account(
             session,
             authenticated=authenticated,
+            confirmation=payload.confirmation,
             recent_auth_ttl_seconds=settings.auth_recent_ttl_seconds,
             now=utc_now(),
         )
@@ -557,6 +562,13 @@ def delete_account(
             status_code=403,
             code="recent_authentication_required",
             message="Sign in again before deleting your account.",
+        ) from error
+    except AccountDeletionConfirmationError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=400,
+            code="account_confirmation_invalid",
+            message="Type the current account confirmation phrase exactly.",
         ) from error
     except AccountDeletionNotAllowedError as error:
         session.rollback()

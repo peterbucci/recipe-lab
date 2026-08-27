@@ -212,7 +212,12 @@ def _image_configuration(client: DockerClient, image: str) -> dict[str, Any]:
     return config
 
 
-def verify_image_metadata(client: DockerClient, image: str) -> None:
+def verify_image_metadata(
+    client: DockerClient,
+    image: str,
+    *,
+    required_command: tuple[str, ...] | None = None,
+) -> None:
     config = _image_configuration(client, image)
     user = config.get("User")
     if (
@@ -228,18 +233,23 @@ def verify_image_metadata(client: DockerClient, image: str) -> None:
         raise VerificationError("Production images must declare a Docker health check.")
 
     command_parts = [config.get("Entrypoint"), config.get("Cmd")]
-    command = " ".join(
+    runtime_command = tuple(
         str(value)
         for part in command_parts
         for value in (part if isinstance(part, list) else [part])
         if value is not None
-    ).casefold()
+    )
+    command = " ".join(runtime_command).casefold()
     if (
         "--reload" in command
         or re.search(r"(?:^|\s)(?:run\s+)?dev(?:\s|$)", command)
         or re.search(r"(?:^|\s)--dev(?:\s|$)", command)
     ):
         raise VerificationError("Production images must not run a development server.")
+    if required_command is not None and runtime_command != required_command:
+        raise VerificationError(
+            "The production image must use its approved server launcher."
+        )
 
     environment = config.get("Env")
     if not isinstance(environment, list):
@@ -540,7 +550,11 @@ def verify_production_images(
     if build:
         build_image(docker, backend_tag, backend_build_context, backend_build_file)
         build_image(docker, frontend_tag, frontend_build_context, frontend_build_file)
-    verify_image_metadata(docker, backend_tag)
+    verify_image_metadata(
+        docker,
+        backend_tag,
+        required_command=("python", "-m", "app.production_server"),
+    )
     verify_image_metadata(docker, frontend_tag)
     verify_runtime_contents(docker, backend_tag, frontend_tag)
     verify_invalid_configuration_is_redacted(docker, backend_tag, frontend_tag)

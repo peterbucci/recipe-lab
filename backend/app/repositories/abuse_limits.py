@@ -2,11 +2,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.models.abuse import AbuseRateLimitBucket
+
+EXPIRED_BUCKET_PRUNE_BATCH_SIZE = 256
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +35,33 @@ def record_rate_limit_attempt(
     evidence of an attempted action.
     """
 
+    expired_bucket_keys = (
+        select(
+            AbuseRateLimitBucket.operation,
+            AbuseRateLimitBucket.dimension,
+            AbuseRateLimitBucket.subject_digest,
+            AbuseRateLimitBucket.window_started_at,
+        )
+        .where(AbuseRateLimitBucket.expires_at <= now)
+        .order_by(
+            AbuseRateLimitBucket.expires_at,
+            AbuseRateLimitBucket.operation,
+            AbuseRateLimitBucket.dimension,
+            AbuseRateLimitBucket.subject_digest,
+            AbuseRateLimitBucket.window_started_at,
+        )
+        .limit(EXPIRED_BUCKET_PRUNE_BATCH_SIZE)
+    )
+    session.execute(
+        delete(AbuseRateLimitBucket).where(
+            tuple_(
+                AbuseRateLimitBucket.operation,
+                AbuseRateLimitBucket.dimension,
+                AbuseRateLimitBucket.subject_digest,
+                AbuseRateLimitBucket.window_started_at,
+            ).in_(expired_bucket_keys)
+        )
+    )
     session.execute(
         delete(AbuseRateLimitBucket).where(
             AbuseRateLimitBucket.operation == operation,

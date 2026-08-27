@@ -409,7 +409,9 @@ workflow evidence, and scrubs publication-bound draft shells. Restrictive
 topology and audit foreign keys remain valid through the stable tombstone UUID.
 Public visibility is unchanged: public snapshots stay public under `Deleted
 cook`, while author-withdrawn snapshots become permanently unrestorable. See
-[recipe visibility and account lifecycle](recipe-visibility-and-account-lifecycle.md).
+[recipe visibility and account lifecycle](recipe-visibility-and-account-lifecycle.md)
+and the schema-enforced
+[account-data governance manifest](account-data-governance.md).
 
 Saves and ratings reference exact versions rather than a mutable recipe record.
 Their composite keys allow only one of each interaction per user and version,

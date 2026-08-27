@@ -14,7 +14,10 @@ from app.core.config import Settings
 from app.main import create_app
 from app.middleware.request_body_limit import RequestBodyLimitMiddleware
 from app.models import AbuseRateLimitBucket, User
-from app.repositories.abuse_limits import record_rate_limit_attempt
+from app.repositories.abuse_limits import (
+    EXPIRED_BUCKET_PRUNE_BATCH_SIZE,
+    record_rate_limit_attempt,
+)
 from app.services.abuse_limits import (
     RateLimitPolicy,
     canonical_network_subject,
@@ -287,6 +290,89 @@ def test_oidc_identity_limit_covers_first_account_attempts(migrated_engine: Engi
                 now=now + timedelta(seconds=1),
             )
     assert caught.value.status_code == 429
+    with Session(bind=migrated_engine) as cleanup, cleanup.begin():
+        cleanup.execute(delete(AbuseRateLimitBucket))
+
+
+def test_unrelated_traffic_prunes_expired_pseudonymous_buckets(
+    migrated_engine: Engine,
+) -> None:
+    now = datetime.now(UTC)
+    expired_digests = {f"{index:064x}" for index in range(EXPIRED_BUCKET_PRUNE_BATCH_SIZE + 2)}
+    active_digest = "a" * 64
+    with Session(bind=migrated_engine) as setup, setup.begin():
+        setup.add_all(
+            [
+                AbuseRateLimitBucket(
+                    operation="account_auth",
+                    dimension="identity",
+                    subject_digest=expired_digest,
+                    account_user_id=None,
+                    window_started_at=now - timedelta(minutes=2),
+                    request_count=1,
+                    expires_at=now - timedelta(minutes=1),
+                )
+                for expired_digest in expired_digests
+            ]
+            + [
+                AbuseRateLimitBucket(
+                    operation="interaction",
+                    dimension="network",
+                    subject_digest=active_digest,
+                    account_user_id=None,
+                    window_started_at=now,
+                    request_count=1,
+                    expires_at=now + timedelta(minutes=1),
+                ),
+            ]
+        )
+
+    with Session(bind=migrated_engine) as session, session.begin():
+        record_rate_limit_attempt(
+            session,
+            operation="publication",
+            dimension="network",
+            subject_digest="b" * 64,
+            account_user_id=None,
+            window_started_at=now,
+            expires_at=now + timedelta(minutes=1),
+            now=now,
+        )
+
+    with Session(bind=migrated_engine) as lookup:
+        remaining_expired = set(
+            lookup.scalars(
+                select(AbuseRateLimitBucket.subject_digest).where(
+                    AbuseRateLimitBucket.expires_at <= now
+                )
+            )
+        )
+        remaining = set(lookup.scalars(select(AbuseRateLimitBucket.subject_digest)))
+    assert len(remaining_expired) == 2
+    assert active_digest in remaining
+
+    with Session(bind=migrated_engine) as session, session.begin():
+        record_rate_limit_attempt(
+            session,
+            operation="fork_creation",
+            dimension="network",
+            subject_digest="c" * 64,
+            account_user_id=None,
+            window_started_at=now,
+            expires_at=now + timedelta(minutes=1),
+            now=now,
+        )
+
+    with Session(bind=migrated_engine) as lookup:
+        assert (
+            lookup.scalar(
+                select(func.count())
+                .select_from(AbuseRateLimitBucket)
+                .where(AbuseRateLimitBucket.expires_at <= now)
+            )
+            == 0
+        )
+
     with Session(bind=migrated_engine) as cleanup, cleanup.begin():
         cleanup.execute(delete(AbuseRateLimitBucket))
 
