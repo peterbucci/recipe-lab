@@ -332,11 +332,13 @@ def test_conversion_errors_and_invalid_values_use_stable_error_envelopes(
     )
 
     assert rejected.status_code == 422
+    rejected_correlation_id = rejected.headers["X-Correlation-ID"]
     assert rejected.json() == {
         "error": {
             "code": "package_size_required",
             "message": "A reviewed package size is required.",
             "issues": [],
+            "correlation_id": rejected_correlation_id,
         }
     }
     assert invalid.status_code == 422
@@ -444,11 +446,13 @@ def test_real_conversion_and_catalog_failures_use_stable_envelopes(
     assert unsupported.status_code == 422
     assert unsupported.json()["error"]["code"] == "measurement_conversion_unsupported"
     assert underflow.status_code == 422
+    underflow_correlation_id = underflow.headers["X-Correlation-ID"]
     assert underflow.json() == {
         "error": {
             "code": "measurement_value_out_of_range",
             "message": ("The converted value is smaller than the supported six-decimal precision."),
             "issues": [],
+            "correlation_id": underflow_correlation_id,
         }
     }
     assert smallest_supported.status_code == 200

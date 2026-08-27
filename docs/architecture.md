@@ -483,13 +483,27 @@ locked inputs. Final images omit acceptance harnesses, tests, environment files,
 caches, reports, development dependencies, package managers, and build tools.
 Production settings are validated before binding a port and invalid values are
 never echoed. Backend `/api/health` and frontend `/healthz` are independent
-process-liveness checks, not database or migration readiness.
+process-liveness checks. Backend `/api/readiness` is the separate fail-closed
+PostgreSQL traffic-admission check; it returns only fixed ready or generic
+dependency-unavailable shapes.
 
-The verifier builds, inspects, starts, and health-checks local images on a
-disposable Docker network, then removes them. It has no registry credentials or
+The verifier builds and inspects the local application images, creates a
+disposable PostgreSQL database, applies the current migrations, and proves
+liveness plus readiness on a private Docker network. It then stops the database
+and proves the API remains live while readiness becomes unavailable before it
+removes every container and the network. It has no registry credentials or
 push/upload/deploy path. See
 [locked dependencies and production images](production-images.md) for the
 complete lock, runtime-content, smoke-test, and no-deploy contract.
+
+The backend and same-origin frontend proxy issue opaque per-request UUIDv4
+correlation IDs and ignore or strip inbound IDs. Only six fixed failure event
+names and their exact low-cardinality fields may reach the short-lived
+structured-event sink. Raw access targets, bodies, account-derived identifiers,
+exception text, and user-controlled labels remain prohibited; longer-lived
+metrics must be de-identified aggregates. The complete sink, alert, retention,
+smoke, and rollback contract is in
+[privacy-safe operations and observability](operations-observability.md).
 
 ### Community release boundary
 

@@ -230,14 +230,15 @@ def test_non_database_manifest_classifies_every_required_artifact_surface() -> N
     assert {policy.key for policy in NON_DATABASE_ARTIFACT_POLICIES} == {
         "acceptance_and_test_artifacts",
         "aggregate_evaluation_outputs",
+        "allowlisted_structured_operational_events",
         "browser_auth_cookies",
         "database_replica_wal_and_dead_rows",
+        "deidentified_aggregate_service_metrics",
         "encrypted_database_backups",
         "external_oidc_provider_account",
         "fitted_recommender_process_state",
         "observed_recommender_snapshots",
         "operator_cli_and_support_exports",
-        "privacy_safe_operational_events",
         "raw_operational_access_logs_and_traces",
         "source_and_release_packages",
         "user_uploaded_files_and_derivatives",
@@ -251,3 +252,45 @@ def test_non_database_manifest_classifies_every_required_artifact_surface() -> N
         assert policy.timing.strip()
         assert policy.required_control.strip()
         assert policy.rationale.strip()
+
+
+def test_observability_artifacts_enforce_bounded_privacy_safe_sink_contracts() -> None:
+    policies = {policy.key: policy for policy in NON_DATABASE_ARTIFACT_POLICIES}
+    raw = policies["raw_operational_access_logs_and_traces"]
+    events = policies["allowlisted_structured_operational_events"]
+    aggregates = policies["deidentified_aggregate_service_metrics"]
+
+    assert raw.disposition is DataDisposition.PROHIBIT
+    assert events.disposition is DataDisposition.RETAIN
+    assert aggregates.disposition is DataDisposition.RETAIN
+    assert "7 days" in events.timing
+    assert "30 days" in aggregates.timing
+
+    event_controls = events.required_control.casefold()
+    aggregate_controls = aggregates.required_control.casefold()
+    for prohibited_value in (
+        "raw paths",
+        "query strings",
+        "bodies",
+        "ip addresses",
+        "account-derived ids",
+        "handles",
+        "email",
+        "private text",
+        "caller-supplied",
+    ):
+        assert prohibited_value in event_controls
+        assert prohibited_value in aggregate_controls
+    assert "correlation ids" in aggregate_controls
+    assert "application-issued random uuidv4" in event_controls
+    for event_name in (
+        "authentication_failure",
+        "publication_failure",
+        "database_failure",
+        "application_failure",
+        "recipe_lab.frontend.authentication_failed",
+        "recipe_lab.frontend.recipe_api_unavailable",
+    ):
+        assert event_name in events.account_data
+    assert "only event and correlation_id" in events.account_data
+    assert "only event, correlation_id, and status_code" in events.account_data

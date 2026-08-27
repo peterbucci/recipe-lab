@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { NextRequest } from "next/server";
 
 import {
@@ -25,6 +27,7 @@ const REQUEST_HEADERS_TO_REMOVE = [
   "trailer",
   "transfer-encoding",
   "upgrade",
+  "x-correlation-id",
   ...UNTRUSTED_FORWARDING_HEADERS,
 ];
 
@@ -42,6 +45,63 @@ const RESPONSE_HEADERS_TO_REMOVE = [
 ];
 
 const PROXY_TIMEOUT_MS = 10_000;
+const CORRELATION_HEADER = "X-Correlation-ID";
+const SAFE_CORRELATION_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+type FrontendFailureEvent =
+  | "recipe_lab.frontend.authentication_failed"
+  | "recipe_lab.frontend.recipe_api_unavailable";
+
+function newCorrelationId(): string {
+  return randomUUID();
+}
+
+function trustedCorrelationId(upstream: Response): string {
+  const value = upstream.headers.get(CORRELATION_HEADER);
+  return value !== null && SAFE_CORRELATION_ID.test(value) ? value : newCorrelationId();
+}
+
+function recordFailure(event: FrontendFailureEvent, correlationId: string, statusCode: number) {
+  console.error(
+    JSON.stringify({
+      event,
+      correlation_id: correlationId,
+      status_code: statusCode,
+    }),
+  );
+}
+
+function errorResponse({
+  correlationId,
+  status,
+  code,
+  message,
+}: {
+  correlationId: string;
+  status: number;
+  code: string;
+  message: string;
+}): Response {
+  return Response.json(
+    {
+      error: {
+        code,
+        message,
+        issues: [],
+        correlation_id: correlationId,
+      },
+    },
+    {
+      status,
+      headers: {
+        "Cache-Control": "no-store",
+        [CORRELATION_HEADER]: correlationId,
+        "X-Content-Type-Options": "nosniff",
+      },
+    },
+  );
+}
 
 function backendBaseUrl(): URL {
   const configured = process.env.RECIPE_API_URL ?? "http://localhost:8000";
@@ -107,11 +167,20 @@ function proxyResponse(upstream: Response, method: string): Response {
   });
 }
 
-function callbackErrorResponse(request: NextRequest, upstreamStatus: number): Response {
+function callbackErrorResponse(
+  request: NextRequest,
+  upstreamStatus: number,
+  correlationId: string,
+): Response {
   const errorCode =
     upstreamStatus >= 400 && upstreamStatus < 500
       ? "invalid_login"
       : "authentication_unavailable";
+  recordFailure(
+    "recipe_lab.frontend.authentication_failed",
+    correlationId,
+    upstreamStatus,
+  );
 
   const cookieSecure = request.nextUrl.protocol === "https:" ? "; Secure" : "";
   return new Response(null, {
@@ -122,6 +191,7 @@ function callbackErrorResponse(request: NextRequest, upstreamStatus: number): Re
       Pragma: "no-cache",
       "Referrer-Policy": "no-referrer",
       "Set-Cookie": `recipe_lab_login=; Path=/api/auth/callback; Max-Age=0; HttpOnly; SameSite=Lax${cookieSecure}`,
+      [CORRELATION_HEADER]: correlationId,
       "X-Content-Type-Options": "nosniff",
     },
   });
@@ -207,47 +277,39 @@ export async function proxyApiRequest(
         return callbackRateLimitResponse(request, upstream);
       }
       if (!isSafeCallbackSuccess(request, upstream)) {
-        return callbackErrorResponse(request, upstream.status);
+        return callbackErrorResponse(
+          request,
+          upstream.status,
+          trustedCorrelationId(upstream),
+        );
       }
     }
     return proxyResponse(upstream, request.method);
   } catch (reason) {
+    const correlationId = newCorrelationId();
     if (isAuthCallback) {
-      return callbackErrorResponse(request, 503);
+      return callbackErrorResponse(request, 503, correlationId);
     }
     if (reason instanceof InvalidApiPathError) {
-      return Response.json(
-        {
-          error: {
-            code: "invalid_api_path",
-            message: "The requested API path is invalid.",
-          },
-        },
-        {
-          status: 400,
-          headers: {
-            "Cache-Control": "no-store",
-            "X-Content-Type-Options": "nosniff",
-          },
-        },
-      );
+      return errorResponse({
+        correlationId,
+        status: 400,
+        code: "invalid_api_path",
+        message: "The requested API path is invalid.",
+      });
     }
 
-    return Response.json(
-      {
-        error: {
-          code: "api_unavailable",
-          message: "Recipe Lab could not reach the recipe service.",
-        },
-      },
-      {
-        status: 502,
-        headers: {
-          "Cache-Control": "no-store",
-          "X-Content-Type-Options": "nosniff",
-        },
-      },
+    recordFailure(
+      "recipe_lab.frontend.recipe_api_unavailable",
+      correlationId,
+      502,
     );
+    return errorResponse({
+      correlationId,
+      status: 502,
+      code: "api_unavailable",
+      message: "Recipe Lab could not reach the recipe service.",
+    });
   }
 }
 

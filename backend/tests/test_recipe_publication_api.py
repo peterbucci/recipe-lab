@@ -1,3 +1,5 @@
+import json
+import logging
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -11,6 +13,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, false, func, select
 from sqlalchemy.orm import Session
 
+import app.api.routes.recipe_publications as publication_routes
 import app.services.recipe_duplicate_preflights as duplicate_preflight_service
 import app.services.recipe_publications as publication_service
 from app.api.dependencies import get_session
@@ -40,6 +43,7 @@ from app.repositories.recipes import (
 from app.seeds import load_bundled_catalog, seed_catalog
 from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
 from app.services.preference_events import record_preference_event as actual_record_preference_event
+from app.services.recipe_duplicate_preflights import RecipeDuplicatePreflightCapacityError
 from tests.conftest import make_alembic_config
 from tests.member_session import authenticate_client, create_member_credentials
 
@@ -61,6 +65,14 @@ class PublicationApi:
     engine: Engine
     member: TestClient
     other_member: TestClient
+
+
+def _operation_events(caplog: pytest.LogCaptureFixture) -> list[dict[str, str]]:
+    return [
+        cast(dict[str, str], json.loads(record.getMessage()))
+        for record in caplog.records
+        if record.name == "recipe_lab.operations"
+    ]
 
 
 @pytest.fixture
@@ -261,6 +273,42 @@ def _publish_complete_original(api: PublicationApi) -> UUID:
     )
     assert response.status_code == 201, response.text
     return UUID(cast(str, _json_object(response.json())["recipe_version_id"]))
+
+
+def test_real_publication_unavailability_emits_only_a_correlated_fixed_event(
+    publication_api: PublicationApi,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    draft_id = _create_complete_draft(publication_api)
+
+    def unavailable(*_args: object, **_kwargs: object) -> NoReturn:
+        raise RecipeDuplicatePreflightCapacityError(
+            "private recipe text cook@example.test /private/draft/42"
+        )
+
+    monkeypatch.setattr(
+        publication_routes,
+        "run_recipe_draft_duplicate_preflight",
+        unavailable,
+    )
+    with caplog.at_level(logging.ERROR, logger="recipe_lab.operations"):
+        response = publication_api.member.post(
+            f"/api/recipe-drafts/{draft_id}/duplicate-preflights",
+            headers={"Idempotency-Key": str(uuid4())},
+            json={"revision": 2},
+        )
+
+    assert response.status_code == 503
+    correlation_id = response.headers["X-Correlation-ID"]
+    assert response.json()["error"]["correlation_id"] == correlation_id
+    assert _operation_events(caplog) == [
+        {"correlation_id": correlation_id, "event": "publication_failure"}
+    ]
+    rendered = "\n".join(record.getMessage() for record in caplog.records)
+    assert "private recipe text" not in rendered
+    assert "cook@example.test" not in rendered
+    assert "/private/draft/42" not in rendered
 
 
 def test_original_draft_preflight_publish_and_exact_retry(
@@ -757,12 +805,14 @@ def test_source_unavailable_conflict_preserves_private_fork_draft(
     )
     assert response.status_code == 409
     error = _json_object(_json_object(response.json())["error"])
+    correlation_id = response.headers["X-Correlation-ID"]
     assert error == {
         "code": "recipe_fork_source_unavailable",
         "message": (
             "The public source recipe is no longer available. Your private draft is unchanged."
         ),
         "issues": [],
+        "correlation_id": correlation_id,
     }
     with Session(bind=publication_api.engine) as session:
         draft = session.get(RecipeDraft, UUID(draft_id))
@@ -822,12 +872,14 @@ def test_source_unavailable_preflight_replay_returns_stable_conflict(
         json={"revision": 1},
     )
     assert replay.status_code == 409
+    replay_correlation_id = replay.headers["X-Correlation-ID"]
     assert _json_object(_json_object(replay.json())["error"]) == {
         "code": "recipe_fork_source_unavailable",
         "message": (
             "The public source recipe is no longer available. Your private draft is unchanged."
         ),
         "issues": [],
+        "correlation_id": replay_correlation_id,
     }
     assert publication_api.other_member.get(f"/api/recipe-drafts/{draft_id}").status_code == 200
     with Session(bind=publication_api.engine) as session:
@@ -938,12 +990,13 @@ def test_fork_publication_rolls_back_staged_event_and_retries_once(
         "record_preference_event",
         fail_after_staging_event,
     )
-    with pytest.raises(RuntimeError, match="injected failure after fork event"):
-        publication_api.other_member.post(
-            f"/api/recipe-drafts/{draft_id}/publish",
-            headers={"Idempotency-Key": str(uuid4())},
-            json=payload,
-        )
+    failed = publication_api.other_member.post(
+        f"/api/recipe-drafts/{draft_id}/publish",
+        headers={"Idempotency-Key": str(uuid4())},
+        json=payload,
+    )
+    assert failed.status_code == 500
+    assert _json_object(_json_object(failed.json())["error"])["code"] == "internal_error"
 
     with Session(bind=publication_api.engine) as session:
         draft = session.get(RecipeDraft, UUID(draft_id))
@@ -1302,12 +1355,13 @@ def test_original_publication_rolls_back_every_row_and_preserves_the_draft(
         "fingerprint_and_store_recipe_version",
         fail_after_snapshot_rows,
     )
-    with pytest.raises(RuntimeError, match="injected publication failure"):
-        publication_api.member.post(
-            f"/api/recipe-drafts/{draft_id}/publish",
-            headers={"Idempotency-Key": str(uuid4())},
-            json=payload,
-        )
+    failed = publication_api.member.post(
+        f"/api/recipe-drafts/{draft_id}/publish",
+        headers={"Idempotency-Key": str(uuid4())},
+        json=payload,
+    )
+    assert failed.status_code == 500
+    assert _json_object(_json_object(failed.json())["error"])["code"] == "internal_error"
 
     with Session(bind=publication_api.engine) as session:
         draft = session.get(RecipeDraft, UUID(draft_id))

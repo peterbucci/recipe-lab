@@ -4,7 +4,6 @@ from app.api.abuse import enforce_abuse_rate_limits
 from app.api.routes import (
     actions,
     auth,
-    health,
     ingredient_catalog,
     interactions,
     measurements,
@@ -31,7 +30,6 @@ api_router = APIRouter(
         },
     },
 )
-api_router.include_router(health.router, tags=["health"])
 api_router.include_router(auth.router, tags=["authentication"])
 api_router.include_router(ingredient_catalog.router, tags=["ingredient catalog"])
 api_router.include_router(measurements.router, tags=["measurements"])

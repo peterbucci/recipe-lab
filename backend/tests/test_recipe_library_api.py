@@ -598,11 +598,13 @@ def test_author_visibility_is_idempotent_and_applies_across_public_surfaces(
 
     hidden_detail = recipe_library_api.anonymous.get(f"/api/recipes/{ROOT_ID}")
     assert hidden_detail.status_code == 404
+    hidden_detail_correlation_id = hidden_detail.headers["X-Correlation-ID"]
     assert hidden_detail.json() == {
         "error": {
             "code": "recipe_not_found",
             "message": "The recipe was not found or is not publicly available.",
             "issues": [],
+            "correlation_id": hidden_detail_correlation_id,
         }
     }
     assert str(ROOT_ID) not in hidden_detail.text

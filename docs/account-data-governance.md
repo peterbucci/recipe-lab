@@ -56,7 +56,8 @@ Non-database data is governed even when it has no SQL foreign key:
 | --- | --- |
 | External OIDC provider account | **Retain outside Recipe Lab.** Local issuer/subject mappings are deleted, but the provider's own credentials, recovery factors, and account lifecycle remain with that provider. Recipe Lab must not claim to delete an external identity it does not control. |
 | Production HTTP access logs | **Prohibit.** The production Uvicorn server disables access logging so paths, cook handles, search text, and query strings are not persisted. A CDN, load balancer, reverse proxy, or APM service must enforce the same rule before deployment. |
-| Application and error logs | **Prohibit** raw request/response bodies, cookies, authorization headers, OIDC values, account UUIDs, handles, email, private text, and query strings. **Retain** only separately allowlisted fixed event names and de-identified aggregate service metrics under a bounded operational window. |
+| Structured operational events | **Retain for at most 7 days.** Backend events contain only one of four fixed names plus an application-issued UUIDv4 correlation ID. The two fixed frontend-proxy events may additionally contain numeric status code. Raw paths, query strings, bodies, headers, IP addresses, account-derived IDs, private text, exception text, and caller-supplied labels are prohibited. |
+| De-identified aggregate service metrics | **Retain for at most 30 days.** Fixed metric names may use only reviewed low-cardinality operation, outcome, status-class, dependency, latency-bucket, and deployment labels. Correlation IDs and member-level dimensions are prohibited. |
 | Database replicas, WAL, and dead storage pages | **Retain, then age out.** Restrict access and bound replication, WAL, checkpoint, and vacuum retention. Never expose or restore an older physical image without replaying completed account deletions first. |
 | Database backups | **Retain, then delete.** Production deployment must use encrypted, access-controlled backups with a configured maximum retention of 30 days and automatic expiry. They are never product-browsable. Live deletion does not rewrite immutable historical backup blocks. |
 | Restored databases | **Anonymize/delete before use.** Restore into an isolated network, apply current migrations, and replay every account deletion newer than the backup before health checks or traffic. A deployment without an external durable deletion ledger may not restore a point older than its latest deletion. Destroy failed or superseded restore copies. |
@@ -71,6 +72,10 @@ that long. Operators should choose the shortest recovery window that meets the
 service objective. Changing that maximum, introducing a new log sink, enabling
 observed-member exports, or adding any durable storage is a governance change
 that must update the manifest and its tests before deployment.
+
+The exact event names and fields, correlation contract, operator signals, and
+sink checklist are documented in
+[privacy-safe operations and observability](operations-observability.md).
 
 ## Restore and incident checklist
 

@@ -11,6 +11,9 @@ import {
 
 import { GET, PATCH } from "./route";
 
+const CORRELATION_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
@@ -39,13 +42,19 @@ function mockFetchUntilTimeout() {
   return { fetchMock, timeoutController, timeoutSpy };
 }
 
+function captureOperationalErrors() {
+  return vi.spyOn(console, "error").mockImplementation(() => undefined);
+}
+
 describe("same-origin API boundary", () => {
   it("forwards path, query, cookies, and manual redirects to the private backend", async () => {
     vi.stubEnv("RECIPE_API_URL", "http://recipe-api.internal:8000/");
+    const upstreamCorrelationId = "5a7fd15f-5f6c-4a26-a35a-c12c5647cdea";
     const upstreamHeaders = new Headers({
       Location: "https://identity.example/authorize",
       "Content-Encoding": "gzip",
       "Content-Length": "123",
+      "X-Correlation-ID": upstreamCorrelationId,
     });
     upstreamHeaders.append(
       "Set-Cookie",
@@ -72,6 +81,7 @@ describe("same-origin API boundary", () => {
     expect(response.headers.get("set-cookie")).toContain("recipe_lab_login=flow");
     expect(response.headers.get("content-encoding")).toBeNull();
     expect(response.headers.get("content-length")).toBeNull();
+    expect(response.headers.get("x-correlation-id")).toBe(upstreamCorrelationId);
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
 
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -124,6 +134,7 @@ describe("same-origin API boundary", () => {
       expect(forwarded.headers.get(NETWORK_HEADER)).toBeNull();
       expect(forwarded.headers.get(NETWORK_TIMESTAMP_HEADER)).toBeNull();
       expect(forwarded.headers.get(NETWORK_SIGNATURE_HEADER)).toBeNull();
+      expect(forwarded.headers.get("x-correlation-id")).toBeNull();
       return Response.json({ ok: true });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -137,6 +148,7 @@ describe("same-origin API boundary", () => {
           [NETWORK_HEADER]: "198.51.100.0/24",
           [NETWORK_TIMESTAMP_HEADER]: String(Math.floor(Date.now() / 1000)),
           [NETWORK_SIGNATURE_HEADER]: "0".repeat(64),
+          "X-Correlation-ID": "forged-account-derived-value",
         },
       }),
       { params: Promise.resolve({ path: ["recipes"] }) },
@@ -180,7 +192,9 @@ describe("same-origin API boundary", () => {
 
   it("returns a stable no-store gateway error without exposing internal details", async () => {
     vi.stubEnv("RECIPE_API_URL", "http://recipe-api.internal:8000");
-    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockRejectedValue(new Error("secret host")));
+    const privateCanary = "secret-host-private-draft-session-email@example.test";
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockRejectedValue(new Error(privateCanary)));
+    const consoleError = captureOperationalErrors();
 
     const response = await GET(
       new NextRequest("http://recipe.test/api/recipes"),
@@ -189,12 +203,25 @@ describe("same-origin API boundary", () => {
 
     expect(response.status).toBe(502);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    await expect(response.json()).resolves.toEqual({
+    const payload = await response.json();
+    expect(payload).toMatchObject({
       error: {
         code: "api_unavailable",
         message: "Recipe Lab could not reach the recipe service.",
+        issues: [],
       },
     });
+    expect(payload.error.correlation_id).toMatch(CORRELATION_ID_PATTERN);
+    expect(response.headers.get("x-correlation-id")).toBe(payload.error.correlation_id);
+    expect(consoleError).toHaveBeenCalledOnce();
+    expect(consoleError.mock.calls[0]?.[0]).toBe(
+      JSON.stringify({
+        event: "recipe_lab.frontend.recipe_api_unavailable",
+        correlation_id: payload.error.correlation_id,
+        status_code: 502,
+      }),
+    );
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain(privateCanary);
   });
 
   it.each([
@@ -214,9 +241,12 @@ describe("same-origin API boundary", () => {
     );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({
+    const payload = await response.json();
+    expect(payload).toMatchObject({
       error: { code: "invalid_api_path" },
     });
+    expect(payload.error.correlation_id).toMatch(CORRELATION_ID_PATTERN);
+    expect(response.headers.get("x-correlation-id")).toBe(payload.error.correlation_id);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -228,6 +258,7 @@ describe("same-origin API boundary", () => {
     "turns a callback %i into a safe UI redirect without reflecting provider input",
     async (status, expectedCode) => {
       vi.stubEnv("RECIPE_API_URL", "https://api.example.test");
+      const consoleError = captureOperationalErrors();
       vi.stubGlobal(
         "fetch",
         vi.fn<typeof fetch>().mockResolvedValue(
@@ -259,10 +290,13 @@ describe("same-origin API boundary", () => {
       );
       expect(response.headers.get("cache-control")).toBe("no-store");
       expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+      expect(response.headers.get("x-correlation-id")).toMatch(CORRELATION_ID_PATTERN);
       const serializedHeaders = JSON.stringify([...response.headers.entries()]);
       expect(serializedHeaders).not.toContain("secret-code");
       expect(serializedHeaders).not.toContain("secret-state");
       expect(serializedHeaders).not.toContain("provider-secret");
+      expect(JSON.stringify(consoleError.mock.calls)).not.toContain("provider-secret");
+      expect(consoleError).toHaveBeenCalledOnce();
       await expect(response.text()).resolves.toBe("");
     },
   );
@@ -364,6 +398,7 @@ describe("same-origin API boundary", () => {
     "/\\malicious.example/steal",
   ])("rejects unsafe callback redirect %s", async (location) => {
     vi.stubEnv("RECIPE_API_URL", "https://api.example.test");
+    captureOperationalErrors();
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(
@@ -388,6 +423,7 @@ describe("same-origin API boundary", () => {
 
   it("sanitizes a callback when the backend cannot be reached", async () => {
     vi.stubEnv("RECIPE_API_URL", "https://api.example.test");
+    const consoleError = captureOperationalErrors();
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockRejectedValue(new Error("internal backend details")),
@@ -408,12 +444,15 @@ describe("same-origin API boundary", () => {
       "recipe_lab_login=; Path=/api/auth/callback; Max-Age=0",
     );
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(response.headers.get("x-correlation-id")).toMatch(CORRELATION_ID_PATTERN);
     expect(JSON.stringify([...response.headers.entries()])).not.toContain("provider-secret");
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain("provider-secret");
     await expect(response.text()).resolves.toBe("");
   });
 
   it("bounds an unreachable API request and returns the stable gateway error", async () => {
     vi.stubEnv("RECIPE_API_URL", "https://api.example.test");
+    captureOperationalErrors();
     const { fetchMock, timeoutController, timeoutSpy } = mockFetchUntilTimeout();
 
     const responsePromise = GET(
@@ -433,6 +472,7 @@ describe("same-origin API boundary", () => {
 
   it("bounds an unreachable callback and reaches the sanitized error UI", async () => {
     vi.stubEnv("RECIPE_API_URL", "https://api.example.test");
+    captureOperationalErrors();
     const { fetchMock, timeoutController } = mockFetchUntilTimeout();
 
     const responsePromise = GET(

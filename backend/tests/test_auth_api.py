@@ -1,6 +1,9 @@
+import json
+import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import NoReturn
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 import pytest
@@ -9,6 +12,7 @@ from httpx import Response
 from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
+import app.api.routes.auth as auth_routes
 from app.api.dependencies import get_oidc_client, get_session
 from app.core.config import Settings, get_settings
 from app.core.security import AUTH_CSRF_COOKIE_NAME, token_digest
@@ -16,7 +20,11 @@ from app.main import create_app
 from app.models import AbuseRateLimitBucket, OIDCIdentity, OIDCLoginTransaction, User, UserSession
 from app.models.auth import OIDC_LOGIN_PURPOSE_REAUTHENTICATE
 from app.models.recipe_draft import RecipeDraft
-from app.services.oidc import InvalidOIDCLoginError, VerifiedOIDCIdentity
+from app.services.oidc import (
+    InvalidOIDCLoginError,
+    OIDCProviderUnavailableError,
+    VerifiedOIDCIdentity,
+)
 
 
 class FakeOIDCClient:
@@ -297,14 +305,45 @@ def test_verified_oidc_identity_is_limited_before_another_session_is_created(
 
     assert limited.status_code == 429
     assert 1 <= int(limited.headers["retry-after"]) <= 60
+    limited_correlation_id = limited.headers["X-Correlation-ID"]
     assert limited.json()["error"] == {
         "code": "rate_limit_exceeded",
         "message": "Too many requests. Please try again later.",
         "issues": [],
+        "correlation_id": limited_correlation_id,
     }
     with Session(bind=auth_api.engine) as session:
         assert session.scalar(select(func.count()).select_from(User)) == 1
         assert session.scalar(select(func.count()).select_from(UserSession)) == 1
+
+
+def test_real_auth_unavailability_emits_only_a_correlated_fixed_event(
+    auth_api: AuthApi,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def unavailable(*_args: object, **_kwargs: object) -> NoReturn:
+        raise OIDCProviderUnavailableError(
+            "provider-secret cook@example.test /oauth/token?code=private"
+        )
+
+    monkeypatch.setattr(auth_routes, "begin_oidc_login", unavailable)
+    with caplog.at_level(logging.ERROR, logger="recipe_lab.operations"):
+        response = auth_api.client.get("/api/auth/login")
+
+    assert response.status_code == 503
+    correlation_id = response.headers["X-Correlation-ID"]
+    assert response.json()["error"]["correlation_id"] == correlation_id
+    events = [
+        json.loads(record.getMessage())
+        for record in caplog.records
+        if record.name == "recipe_lab.operations"
+    ]
+    assert events == [{"correlation_id": correlation_id, "event": "authentication_failure"}]
+    rendered = "\n".join(record.getMessage() for record in caplog.records)
+    assert "provider-secret" not in rendered
+    assert "cook@example.test" not in rendered
+    assert "/oauth/token" not in rendered
 
 
 def test_provider_error_consumes_state_and_redacts_details(auth_api: AuthApi) -> None:
@@ -449,10 +488,12 @@ def test_account_deletion_requires_recent_auth_and_erases_private_identity_state
         json={"confirmation": "test-cook"},
     )
     assert missing_evidence.status_code == 403
+    missing_evidence_correlation_id = missing_evidence.headers["X-Correlation-ID"]
     assert missing_evidence.json()["error"] == {
         "code": "recent_authentication_required",
         "message": "Sign in again before deleting your account.",
         "issues": [],
+        "correlation_id": missing_evidence_correlation_id,
     }
     with Session(bind=auth_api.engine) as session, session.begin():
         user = session.scalar(select(User).where(User.account_kind == "member"))
@@ -476,10 +517,12 @@ def test_account_deletion_requires_recent_auth_and_erases_private_identity_state
         json={"confirmation": "test-cook"},
     )
     assert stale.status_code == 403
+    stale_correlation_id = stale.headers["X-Correlation-ID"]
     assert stale.json()["error"] == {
         "code": "recent_authentication_required",
         "message": "Sign in again before deleting your account.",
         "issues": [],
+        "correlation_id": stale_correlation_id,
     }
     with Session(bind=auth_api.engine) as session, session.begin():
         stored_session = session.scalar(select(UserSession))
@@ -499,10 +542,12 @@ def test_account_deletion_requires_recent_auth_and_erases_private_identity_state
         json={"confirmation": "TEST-COOK"},
     )
     assert wrong_confirmation.status_code == 400
+    wrong_confirmation_correlation_id = wrong_confirmation.headers["X-Correlation-ID"]
     assert wrong_confirmation.json()["error"] == {
         "code": "account_confirmation_invalid",
         "message": "Type the current account confirmation phrase exactly.",
         "issues": [],
+        "correlation_id": wrong_confirmation_correlation_id,
     }
 
     deleted = auth_api.client.request(

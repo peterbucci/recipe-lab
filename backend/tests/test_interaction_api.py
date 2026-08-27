@@ -401,11 +401,13 @@ def test_interaction_writes_reject_missing_recipe_versions(
     )
 
     assert response.status_code == 404
+    correlation_id = response.headers["X-Correlation-ID"]
     assert response.json() == {
         "error": {
             "code": "recipe_not_found",
             "message": "The recipe was not found or is not publicly available.",
             "issues": [],
+            "correlation_id": correlation_id,
         }
     }
 

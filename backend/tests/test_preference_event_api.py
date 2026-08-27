@@ -271,11 +271,13 @@ def test_action_keys_are_required_and_conflicting_reuse_does_not_change_state(
 
     assert saved.status_code == 200
     assert conflict.status_code == 409
+    conflict_correlation_id = conflict.headers["X-Correlation-ID"]
     assert conflict.json() == {
         "error": {
             "code": "idempotency_key_conflict",
             "message": "The Idempotency-Key conflicts with an earlier action in this operation.",
             "issues": [],
+            "correlation_id": conflict_correlation_id,
         }
     }
     assert missing_recipe_conflict.status_code == 409
@@ -462,11 +464,12 @@ def test_event_failure_rolls_back_current_state_and_retired_fork_stays_write_fre
         raise RuntimeError("Injected preference-event write failure.")
 
     monkeypatch.setattr(interaction_routes, "record_preference_event", fail_event)
-    with pytest.raises(RuntimeError, match="Injected preference-event write failure"):
-        preference_client.put(
-            f"/api/recipes/{CARROT_ROOT_ID}/save",
-            headers=_action_headers(),
-        )
+    failed = preference_client.put(
+        f"/api/recipes/{CARROT_ROOT_ID}/save",
+        headers=_action_headers(),
+    )
+    assert failed.status_code == 500
+    assert _json_object(_json_object(failed.json())["error"])["code"] == "internal_error"
 
     with Session(bind=seeded_api_engine) as session:
         assert (

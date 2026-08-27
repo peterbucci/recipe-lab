@@ -86,8 +86,10 @@ The repository currently provides:
 - a dedicated `/recipes/{id}/compare` view for variants, with accessible
   before/after values and distinct treatments for additions, removals,
   substitutions, amount changes, metadata changes, and instruction changes;
-- FastAPI health, paginated recipe-browse, and structured recipe-detail
-  endpoints with documented response and error schemas;
+- distinct FastAPI liveness and database-readiness probes, fresh server-issued
+  correlation IDs, privacy-safe fixed failure events, and paginated
+  recipe-browse and structured recipe-detail endpoints with documented response
+  and error schemas;
 - a deterministic structured-diff endpoint that compares recipe metadata,
   ingredients, instruction prose, and reviewed action graphs while preserving
   exact decimal values and resolving every action input on both sides;
@@ -218,6 +220,7 @@ Open:
 - Web app: <http://localhost:3000>
 - Recipe catalog: <http://localhost:3000/recipes>
 - API health check: <http://localhost:8000/api/health>
+- API database readiness check: <http://localhost:8000/api/readiness>
 - Recipe browse API: <http://localhost:8000/api/recipes>
 - Baseline recommendation API: <http://localhost:8000/api/recommendations>
 - Duplicate preflight API: `POST /api/recipes/{id}/duplicate-preflights`
@@ -459,11 +462,15 @@ development commands, root runtime users, missing health checks, embedded
 credential configuration, acceptance/test packages, caches, reports,
 development dependencies, and package/build tools. It also proves that invalid
 production configuration fails without echoing synthetic private values, then
-starts both images and exercises backend `/api/health` plus frontend `/healthz`.
+starts a migrated disposable PostgreSQL database and both images. It proves
+backend `/api/health`, database-backed `/api/readiness`, frontend `/healthz`,
+fresh correlation IDs, and fail-closed readiness after PostgreSQL is stopped.
 Images remain local to the disposable runner, are never uploaded or pushed, and
 are removed after the check. See
 [locked dependencies and production images](docs/production-images.md) for the
-update, build, smoke-test, and no-deploy contracts.
+update, build, smoke-test, and no-deploy contracts. The fixed event allowlist,
+operator signals, retention, redaction, and rollback procedure are in
+[privacy-safe operations and observability](docs/operations-observability.md).
 
 An independent `Offline evaluation` job installs the backend scoring core and
 the `ml` package, runs its static checks and tests, then generates the synthetic
