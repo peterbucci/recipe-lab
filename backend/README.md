@@ -89,6 +89,14 @@ that is not present returns HTTP 404. Both use the documented `ErrorResponse`
 envelope. The response schemas and query constraints are available through
 OpenAPI at `/docs` and `/openapi.json`.
 
+The deterministic repository baseline is committed as `openapi.json`. Run
+`python -m app.openapi_contract check` from this directory to detect drift, or
+`python -m app.openapi_contract write` after an intentional reviewed change.
+Stable operation IDs, the four operation classifications, consumer evidence,
+and the `unknown_pending` external-consumer boundary are documented in
+[backend API contract baseline](../docs/api-contracts.md). This inventory does
+not change ordinary API or database behavior outside its OpenAPI metadata.
+
 Every stored recipe version has an explicit published-state receipt, including
 seed versions backfilled without changing their IDs or topology. Each snapshot
 is immutable, so every ingredient row must reference the curated catalog.
@@ -547,6 +555,7 @@ $env:TEST_DATABASE_URL = "postgresql+psycopg://recipe_lab:recipe_lab@localhost:5
 python -m ruff format --check .
 python -m ruff check .
 python -m mypy app migrations tests
+python -m app.openapi_contract check
 python -m pytest
 ```
 

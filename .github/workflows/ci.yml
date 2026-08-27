@@ -71,6 +71,9 @@ jobs:
       - name: Type-check backend
         run: python -m mypy app migrations tests
 
+      - name: Check backend API contract drift
+        run: python -m app.openapi_contract check
+
       - name: Validate bundled seed catalog
         run: python -m app.seeds validate
 

@@ -61,6 +61,16 @@ visualization remain outside the frontend MVP.
 FastAPI owns validation, application rules, persistence boundaries, and the
 public HTTP contract. Pydantic schemas should not double as SQLAlchemy models.
 
+The deterministic OpenAPI rendering is committed at `backend/openapi.json` and
+checked in CI. Every operation retains a stable, unique operation ID, one of the
+four reviewed classifications (`active_consumer`, `staff_internal`,
+`research_experimental`, or `retired`), and bounded in-repository consumer
+evidence. External-consumer status remains the separate value
+`unknown_pending`; repository evidence cannot prove that deployed callers do
+not exist. The baseline adds no runtime path, database query, or migration. See
+[backend API contract baseline](api-contracts.md) for regeneration and drift
+review.
+
 Recipe reads expose immutable version snapshots. Browse uses bounded
 page-based pagination, literal title/description search, and filters supported
 directly by current relational data. Its deterministic title/version/ID order

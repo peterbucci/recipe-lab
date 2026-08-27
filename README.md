@@ -283,6 +283,7 @@ uv pip check
 python -m ruff format --check .
 python -m ruff check .
 python -m mypy app migrations tests
+python -m app.openapi_contract check
 python -m alembic upgrade head
 python -m alembic check
 python -m pytest
@@ -291,6 +292,13 @@ python -m pytest
 The PostgreSQL tests create and remove a uniquely named schema for each test
 run. Point `TEST_DATABASE_URL` only at a local or otherwise disposable test
 database, never production.
+
+The backend OpenAPI contract is committed at `backend/openapi.json`. From
+`backend`, use `python -m app.openapi_contract check` to detect drift and
+`python -m app.openapi_contract write` only after an intentional contract change
+has been reviewed. The four operation classifications, consumer-evidence rules,
+stable operation-ID policy, and unresolved external-consumer boundary are in
+[backend API contract baseline](docs/api-contracts.md).
 
 Validate the bundled catalog without writing to the database with
 `python -m app.seeds validate`. Seed loading is explicit, transactional, and
@@ -449,7 +457,8 @@ boundary.
 The `CI` GitHub Actions workflow runs on every pull request and every push to
 `main`. Separate backend and frontend jobs make failures easy to locate. The
 backend job starts PostgreSQL 17, applies the migration history, checks for
-uncommitted model changes, and runs the schema tests. Every Python job installs
+uncommitted model changes, runs a separately attributed committed-OpenAPI drift
+check, and runs the schema tests. Every Python job installs
 immutable `uv 0.12.6`, requires the single root `uv.lock` to match both
 workspace members, and uses a frozen package-specific sync followed by
 `uv pip check`. The frontend uses `npm ci` with the committed
