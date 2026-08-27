@@ -185,10 +185,12 @@ def test_mutating_duplicate_routes_require_csrf_and_idempotency(
         json=_payload(),
     )
     assert missing_csrf.status_code == 403
+    missing_csrf_correlation_id = missing_csrf.headers["X-Correlation-ID"]
     assert _json_object(missing_csrf.json())["error"] == {
         "code": "invalid_csrf",
         "message": "The request could not be verified.",
         "issues": [],
+        "correlation_id": missing_csrf_correlation_id,
     }
 
 
@@ -266,10 +268,12 @@ def test_preflight_capacity_failure_is_generic_and_fail_closed(
     )
 
     assert response.status_code == 503
+    correlation_id = response.headers["X-Correlation-ID"]
     assert _json_object(response.json())["error"] == {
         "code": "duplicate_preflight_unavailable",
         "message": "Duplicate preflight is temporarily unavailable. Please try again later.",
         "issues": [],
+        "correlation_id": correlation_id,
     }
 
 
@@ -331,14 +335,15 @@ def test_stale_candidate_evidence_is_generic_for_replay_and_decision_routes(
         },
     )
 
-    expected = {
-        "code": "duplicate_preflight_stale",
-        "message": "The duplicate preflight is no longer current. Run it again.",
-        "issues": [],
-    }
     for response in (preflight_response, decision_response, unavailable_source_response):
         assert response.status_code == 409
-        assert _json_object(response.json())["error"] == expected
+        correlation_id = response.headers["X-Correlation-ID"]
+        assert _json_object(response.json())["error"] == {
+            "code": "duplicate_preflight_stale",
+            "message": "The duplicate preflight is no longer current. Run it again.",
+            "issues": [],
+            "correlation_id": correlation_id,
+        }
         assert str(hidden_candidate_id) not in response.text
         assert hidden_title not in response.text
 

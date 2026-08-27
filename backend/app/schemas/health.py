@@ -6,3 +6,8 @@ from pydantic import BaseModel
 class HealthResponse(BaseModel):
     status: Literal["ok"]
     service: str
+
+
+class ReadinessResponse(BaseModel):
+    status: Literal["ready"]
+    service: str

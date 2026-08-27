@@ -28,6 +28,7 @@ services:
       target: development
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-recipe_lab}:${POSTGRES_PASSWORD:-recipe_lab}@db:5432/${POSTGRES_DB:-recipe_lab}
+      DATABASE_OPERATION_TIMEOUT_SECONDS: ${DATABASE_OPERATION_TIMEOUT_SECONDS:-5}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       APP_ENVIRONMENT: ${APP_ENVIRONMENT:-local}
       AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}

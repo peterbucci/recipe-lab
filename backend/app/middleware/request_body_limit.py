@@ -1,6 +1,8 @@
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.core.observability import CORRELATION_ID_HEADER, correlation_id_from_scope
+
 
 class RequestBodyLimitMiddleware:
     """Reject declared and streamed oversized request bodies before routing."""
@@ -23,6 +25,7 @@ class RequestBodyLimitMiddleware:
 
     @staticmethod
     async def _send_too_large(scope: Scope, receive: Receive, send: Send) -> None:
+        correlation_id = correlation_id_from_scope(scope)
         response = JSONResponse(
             status_code=413,
             content={
@@ -30,8 +33,10 @@ class RequestBodyLimitMiddleware:
                     "code": "request_body_too_large",
                     "message": "The request body is too large.",
                     "issues": [],
+                    "correlation_id": correlation_id,
                 }
             },
+            headers={CORRELATION_ID_HEADER: correlation_id},
         )
         await response(scope, receive, send)
 

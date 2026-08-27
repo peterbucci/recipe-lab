@@ -430,10 +430,12 @@ def test_reports_accept_blank_details_but_only_currently_public_recipes(
         response = _report(moderation_api.reporter_a, recipe_id)
         assert response.status_code == 404
         error = _json_object(_json_object(response.json())["error"])
+        correlation_id = response.headers["X-Correlation-ID"]
         assert error == {
             "code": "recipe_not_found",
             "message": "The recipe was not found or is not publicly available.",
             "issues": [],
+            "correlation_id": correlation_id,
         }
 
 

@@ -149,11 +149,13 @@ def test_request_size_middleware_rejects_declared_and_streamed_bodies() -> None:
     assert accepted.json() == {"size": 8}
     for response in (declared, streamed):
         assert response.status_code == 413
+        correlation_id = response.headers["X-Correlation-ID"]
         assert response.json() == {
             "error": {
                 "code": "request_body_too_large",
                 "message": "The request body is too large.",
                 "issues": [],
+                "correlation_id": correlation_id,
             }
         }
 
@@ -176,11 +178,13 @@ def test_api_error_preserves_retry_after_header() -> None:
 
     assert response.status_code == 429
     assert response.headers["retry-after"] == "17"
+    correlation_id = response.headers["X-Correlation-ID"]
     assert response.json() == {
         "error": {
             "code": "rate_limit_exceeded",
             "message": "Too many requests. Please try again later.",
             "issues": [],
+            "correlation_id": correlation_id,
         }
     }
 

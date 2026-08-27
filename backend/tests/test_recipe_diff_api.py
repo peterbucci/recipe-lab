@@ -362,11 +362,13 @@ def test_root_without_an_explicit_base_returns_a_clear_error(
     response = diff_client.get(f"/api/recipes/{CARROT_ROOT_ID}/diff")
 
     assert response.status_code == 422
+    correlation_id = response.headers["X-Correlation-ID"]
     assert response.json() == {
         "error": {
             "code": "recipe_has_no_parent",
             "message": f"Recipe version {CARROT_ROOT_ID} has no parent to compare.",
             "issues": [],
+            "correlation_id": correlation_id,
         }
     }
 

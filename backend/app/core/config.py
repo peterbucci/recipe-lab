@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     )
 
     database_url: str = "postgresql+psycopg://recipe_lab:recipe_lab@localhost:5432/recipe_lab"
+    database_operation_timeout_seconds: int = Field(default=5, ge=1, le=30)
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     app_environment: Literal["local", "test", "production"] = "local"
 
