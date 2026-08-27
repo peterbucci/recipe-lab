@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
 from unittest import mock
 
 from scripts import verify_production_images as image_verifier
@@ -32,7 +34,7 @@ class FakeDockerClient(image_verifier.DockerClient):
 
     def run(
         self,
-        arguments: tuple[str, ...] | list[str],
+        arguments: Sequence[str],
         *,
         check: bool = True,
     ) -> image_verifier.CommandResult:
@@ -76,13 +78,13 @@ class ImageMetadataTests(unittest.TestCase):
         image_verifier.verify_image_metadata(client, "recipe-lab-backend:test")
 
     def test_rejects_root_development_and_credential_bearing_images(self) -> None:
-        cases = (
-            (dict(user="root"), "non-root"),
-            (dict(command=["uvicorn", "app.main:app", "--reload"]), "development"),
-            (dict(command=["npm", "run", "dev"]), "development"),
-            (dict(command=["node", "server.mjs", "--dev"]), "development"),
-            (dict(environment=["DATABASE_URL=postgresql://private"]), "credential"),
-            (dict(healthcheck={}), "health check"),
+        cases: tuple[tuple[dict[str, Any], str], ...] = (
+            ({"user": "root"}, "non-root"),
+            ({"command": ["uvicorn", "app.main:app", "--reload"]}, "development"),
+            ({"command": ["npm", "run", "dev"]}, "development"),
+            ({"command": ["node", "server.mjs", "--dev"]}, "development"),
+            ({"environment": ["DATABASE_URL=postgresql://private"]}, "credential"),
+            ({"healthcheck": {}}, "health check"),
         )
         for options, message in cases:
             with self.subTest(message=message):
@@ -217,12 +219,16 @@ class BuildAndContentTests(unittest.TestCase):
             "recipe-lab/backend:rcp33d",
         )
         for tag in ("", "--help", "tag with spaces", "tag\nvalue"):
-            with self.subTest(tag=tag):
-                with self.assertRaises(image_verifier.VerificationError):
-                    image_verifier._validate_image_tag(tag)
+            with (
+                self.subTest(tag=tag),
+                self.assertRaises(image_verifier.VerificationError),
+            ):
+                image_verifier._validate_image_tag(tag)
 
 
 class ConfigurationAndHealthTests(unittest.TestCase):
+    correlation_id = "123e4567-e89b-42d3-a456-426614174000"
+
     def test_invalid_configuration_must_fail_without_exposing_the_canary(self) -> None:
         failed = _result(returncode=1, stderr="Configuration is invalid.")
         image_verifier._require_redacted_failure(failed, "private-canary", "backend")
@@ -264,21 +270,171 @@ class ConfigurationAndHealthTests(unittest.TestCase):
                 b'{"status":"degraded"}', "recipe-lab-api"
             )
 
+    def test_backend_readiness_contract_fails_closed_without_database(self) -> None:
+        image_verifier._assert_backend_readiness(
+            200,
+            b'{"status":"ready","service":"recipe-lab-api"}',
+            "recipe-lab-api",
+        )
+        image_verifier._assert_backend_dependency_failure(
+            503,
+            json.dumps(
+                {
+                    "error": {
+                        "code": "dependency_unavailable",
+                        "correlation_id": self.correlation_id,
+                        "issues": [],
+                        "message": (
+                            "A required service dependency is temporarily unavailable."
+                        ),
+                    }
+                }
+            ).encode(),
+            self.correlation_id,
+        )
+
+        with self.assertRaisesRegex(
+            image_verifier.VerificationError, "unavailable dependency"
+        ):
+            image_verifier._assert_backend_readiness(
+                503,
+                b"{}",
+                "recipe-lab-api",
+            )
+        with self.assertRaisesRegex(
+            image_verifier.VerificationError, "did not fail closed"
+        ):
+            image_verifier._assert_backend_dependency_failure(
+                200,
+                b"{}",
+                self.correlation_id,
+            )
+
+    def test_backend_correlation_id_is_a_canonical_uuid4(self) -> None:
+        self.assertEqual(
+            image_verifier._assert_correlation_id(
+                {"x-correlation-id": self.correlation_id}
+            ),
+            self.correlation_id,
+        )
+        for headers in (
+            {},
+            {"x-correlation-id": "123e4567-e89b-12d3-a456-426614174000"},
+            {"x-correlation-id": "private-user-controlled-text"},
+        ):
+            with (
+                self.subTest(headers=headers),
+                self.assertRaises(image_verifier.VerificationError),
+            ):
+                image_verifier._assert_correlation_id(headers)
+
+    def test_backend_correlation_id_must_be_fresh_for_each_smoke_request(self) -> None:
+        seen: set[str] = set()
+        headers = {"x-correlation-id": self.correlation_id}
+
+        self.assertEqual(
+            image_verifier._assert_correlation_id(headers, seen=seen),
+            self.correlation_id,
+        )
+        with self.assertRaisesRegex(image_verifier.VerificationError, "reused"):
+            image_verifier._assert_correlation_id(headers, seen=seen)
+
+    def test_startup_proves_live_ready_and_database_unavailable_states(self) -> None:
+        client = FakeDockerClient()
+        backend_correlation_ids = (
+            "123e4567-e89b-42d3-a456-426614174000",
+            "223e4567-e89b-42d3-a456-426614174000",
+            "323e4567-e89b-42d3-a456-426614174000",
+            "423e4567-e89b-42d3-a456-426614174000",
+        )
+        backend_headers = tuple(
+            {"x-correlation-id": value} for value in backend_correlation_ids
+        )
+        frontend_headers = {
+            "cache-control": "no-store",
+            "content-type": "text/plain; charset=utf-8",
+        }
+        unavailable_body = json.dumps(
+            {
+                "error": {
+                    "code": "dependency_unavailable",
+                    "correlation_id": backend_correlation_ids[3],
+                    "issues": [],
+                    "message": "A required service dependency is temporarily unavailable.",
+                }
+            }
+        ).encode()
+        endpoint_results = (
+            (200, backend_headers[0], b'{"status":"ok","service":"recipe-lab-api"}'),
+            (200, backend_headers[1], b'{"status":"ready","service":"recipe-lab-api"}'),
+            (200, frontend_headers, b"ok\n"),
+            (200, backend_headers[2], b'{"status":"ok","service":"recipe-lab-api"}'),
+            (503, backend_headers[3], unavailable_body),
+        )
+
+        with (
+            mock.patch.object(image_verifier, "_wait_for_container_health"),
+            mock.patch.object(
+                image_verifier,
+                "_published_port",
+                side_effect=(49101, 49102),
+            ),
+            mock.patch.object(
+                image_verifier,
+                "_read_endpoint",
+                side_effect=endpoint_results,
+            ) as read_endpoint,
+        ):
+            image_verifier.verify_startup_and_health(
+                client,
+                "recipe-lab-backend:test",
+                "recipe-lab-frontend:test",
+            )
+
+        commands = [call[0] for call in client.calls]
+        self.assertTrue(
+            any(
+                command[:2] == ("run", "--detach")
+                and image_verifier.DATABASE_IMAGE in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                command[:2] == ("run", "--rm")
+                and command[-3:] == ("alembic", "upgrade", "head")
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(command[:3] == ("stop", "--time", "0") for command in commands)
+        )
+        self.assertEqual(
+            [call.args[1] for call in read_endpoint.call_args_list],
+            [
+                "/api/health",
+                "/api/readiness",
+                "/healthz",
+                "/api/health",
+                "/api/readiness",
+            ],
+        )
+
     def test_startup_cleanup_runs_when_a_health_check_fails(self) -> None:
         client = FakeDockerClient()
-        with mock.patch.object(
-            image_verifier,
-            "_wait_for_container_health",
-            side_effect=image_verifier.VerificationError("health failed"),
+        with (
+            mock.patch.object(
+                image_verifier,
+                "_wait_for_container_health",
+                side_effect=image_verifier.VerificationError("health failed"),
+            ),
+            self.assertRaisesRegex(image_verifier.VerificationError, "health failed"),
         ):
-            with self.assertRaisesRegex(
-                image_verifier.VerificationError, "health failed"
-            ):
-                image_verifier.verify_startup_and_health(
-                    client,
-                    "recipe-lab-backend:test",
-                    "recipe-lab-frontend:test",
-                )
+            image_verifier.verify_startup_and_health(
+                client,
+                "recipe-lab-backend:test",
+                "recipe-lab-frontend:test",
+            )
 
         commands = [call[0][:2] for call in client.calls]
         self.assertIn(("rm", "--force"), commands)

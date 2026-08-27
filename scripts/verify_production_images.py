@@ -4,24 +4,29 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 import json
-from pathlib import Path
 import re
 import subprocess
 import sys
 import time
-from typing import Any, Sequence
-from urllib.error import URLError
-from urllib.request import Request, urlopen
 import uuid
-
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 TOOL_NAME = "recipe-lab-production-image-verifier"
 TOOL_VERSION = "1.0.0"
 PRODUCTION_TARGET = "production"
 BACKEND_CONTAINER_PORT = 8000
 FRONTEND_CONTAINER_PORT = 3000
+DATABASE_CONTAINER_PORT = 5432
+DATABASE_IMAGE = "postgres:17-alpine"
+DATABASE_NAME = "recipe_lab_image_check"
+DATABASE_USER = "recipe_lab_image_check"
+DATABASE_PASSWORD = "recipe-lab-image-check-database-password"
 HEALTH_TIMEOUT_SECONDS = 60.0
 LOCAL_IMAGE_TAG = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/:@-]*\Z")
 FORBIDDEN_IMAGE_ENVIRONMENT_KEYS = frozenset(
@@ -120,8 +125,7 @@ class DockerClient:
         completed = subprocess.run(
             command,
             check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
@@ -392,21 +396,32 @@ def _published_port(client: DockerClient, container: str, container_port: int) -
     raise VerificationError("Docker did not publish the expected health-check port.")
 
 
-def _read_health(
+def _read_endpoint(
     port: int, path: str, *, accept: str
 ) -> tuple[int, dict[str, str], bytes]:
     request = Request(f"http://127.0.0.1:{port}{path}", headers={"Accept": accept})
     try:
-        with urlopen(request, timeout=5) as response:  # noqa: S310 - fixed loopback target
+        with urlopen(request, timeout=5) as response:
             status = response.status
             headers = {
                 name.casefold(): value for name, value in response.headers.items()
             }
             body = response.read(16 * 1024)
+    except HTTPError as error:
+        status = error.code
+        headers = {name.casefold(): value for name, value in error.headers.items()}
+        body = error.read(16 * 1024)
     except (OSError, URLError) as error:
         raise VerificationError(
-            "A production health endpoint could not be reached."
+            "A production service endpoint could not be reached."
         ) from error
+    return status, headers, body
+
+
+def _read_health(
+    port: int, path: str, *, accept: str
+) -> tuple[int, dict[str, str], bytes]:
+    status, headers, body = _read_endpoint(port, path, accept=accept)
     if status != 200:
         raise VerificationError(
             "A production health endpoint returned a non-success status."
@@ -427,6 +442,76 @@ def _assert_backend_health(body: bytes, service: str) -> None:
         )
 
 
+def _assert_backend_readiness(status: int, body: bytes, service: str) -> None:
+    if status != 200:
+        raise VerificationError(
+            "The backend readiness endpoint reported an unavailable dependency."
+        )
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as error:
+        raise VerificationError(
+            "The backend readiness endpoint returned unreadable JSON."
+        ) from error
+    if payload != {"service": service, "status": "ready"}:
+        raise VerificationError(
+            "The backend readiness endpoint returned an unexpected payload."
+        )
+
+
+def _assert_backend_dependency_failure(
+    status: int,
+    body: bytes,
+    correlation_id: str,
+) -> None:
+    if status != 503:
+        raise VerificationError(
+            "The backend readiness endpoint did not fail closed when its database stopped."
+        )
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as error:
+        raise VerificationError(
+            "The unavailable readiness response returned unreadable JSON."
+        ) from error
+    if payload != {
+        "error": {
+            "code": "dependency_unavailable",
+            "correlation_id": correlation_id,
+            "issues": [],
+            "message": "A required service dependency is temporarily unavailable.",
+        }
+    }:
+        raise VerificationError(
+            "The unavailable readiness response exposed an unexpected payload."
+        )
+
+
+def _assert_correlation_id(
+    headers: dict[str, str],
+    *,
+    seen: set[str] | None = None,
+) -> str:
+    value = headers.get("x-correlation-id")
+    if value is None:
+        raise VerificationError("A backend response omitted its correlation ID.")
+    try:
+        correlation_id = uuid.UUID(value)
+    except ValueError as error:
+        raise VerificationError(
+            "A backend response returned an invalid correlation ID."
+        ) from error
+    if correlation_id.version != 4 or str(correlation_id) != value:
+        raise VerificationError(
+            "A backend response returned an invalid correlation ID."
+        )
+    if seen is not None:
+        if value in seen:
+            raise VerificationError("A backend response reused a correlation ID.")
+        seen.add(value)
+    return value
+
+
 def _assert_frontend_health(headers: dict[str, str], body: bytes) -> None:
     if body != b"ok\n":
         raise VerificationError(
@@ -444,16 +529,72 @@ def verify_startup_and_health(
     client: DockerClient,
     backend_image: str,
     frontend_image: str,
+    database_image: str = DATABASE_IMAGE,
 ) -> None:
     suffix = uuid.uuid4().hex
     network = f"recipe-lab-image-check-{suffix}"
+    database = f"recipe-lab-database-check-{suffix}"
     backend = f"recipe-lab-backend-check-{suffix}"
     frontend = f"recipe-lab-frontend-check-{suffix}"
     internal_value = "production-internal-network-image-check-value"
     abuse_value = "production-abuse-rate-limit-image-check-value"
+    database_url = (
+        f"postgresql+psycopg://{DATABASE_USER}:{DATABASE_PASSWORD}"
+        f"@{database}:{DATABASE_CONTAINER_PORT}/{DATABASE_NAME}"
+    )
+    seen_correlation_ids: set[str] = set()
 
     client.run(("network", "create", network))
     try:
+        client.run(
+            (
+                "run",
+                "--detach",
+                "--name",
+                database,
+                "--network",
+                network,
+                "--health-cmd",
+                f"pg_isready --username {DATABASE_USER} --dbname {DATABASE_NAME}",
+                "--health-interval",
+                "1s",
+                "--health-timeout",
+                "3s",
+                "--health-retries",
+                "30",
+                "-e",
+                f"POSTGRES_DB={DATABASE_NAME}",
+                "-e",
+                f"POSTGRES_USER={DATABASE_USER}",
+                "-e",
+                f"POSTGRES_PASSWORD={DATABASE_PASSWORD}",
+                database_image,
+            )
+        )
+        _wait_for_container_health(client, database)
+        client.run(
+            (
+                "run",
+                "--rm",
+                "--network",
+                network,
+                "-e",
+                "APP_ENVIRONMENT=production",
+                "-e",
+                f"ABUSE_RATE_LIMIT_SECRET={abuse_value}",
+                "-e",
+                f"INTERNAL_NETWORK_SIGNAL_SECRET={internal_value}",
+                "-e",
+                f"DATABASE_URL={database_url}",
+                "--entrypoint",
+                "python",
+                backend_image,
+                "-m",
+                "alembic",
+                "upgrade",
+                "head",
+            )
+        )
         client.run(
             (
                 "run",
@@ -471,7 +612,7 @@ def verify_startup_and_health(
                 "-e",
                 f"INTERNAL_NETWORK_SIGNAL_SECRET={internal_value}",
                 "-e",
-                "DATABASE_URL=postgresql+psycopg://image-check:image-check@db:5432/image-check",
+                f"DATABASE_URL={database_url}",
                 "-e",
                 "CORS_ORIGINS=http://127.0.0.1:3000",
                 "-e",
@@ -481,12 +622,20 @@ def verify_startup_and_health(
         )
         _wait_for_container_health(client, backend)
         backend_port = _published_port(client, backend, BACKEND_CONTAINER_PORT)
-        _, _, backend_body = _read_health(
+        _, backend_headers, backend_body = _read_health(
             backend_port,
             "/api/health",
             accept="application/json",
         )
         _assert_backend_health(backend_body, "recipe-lab-api")
+        _assert_correlation_id(backend_headers, seen=seen_correlation_ids)
+        readiness_status, readiness_headers, readiness_body = _read_endpoint(
+            backend_port,
+            "/api/readiness",
+            accept="application/json",
+        )
+        _assert_backend_readiness(readiness_status, readiness_body, "recipe-lab-api")
+        _assert_correlation_id(readiness_headers, seen=seen_correlation_ids)
 
         client.run(
             (
@@ -513,9 +662,33 @@ def verify_startup_and_health(
             accept="text/plain",
         )
         _assert_frontend_health(frontend_headers, frontend_body)
+
+        client.run(("stop", "--time", "0", database))
+        _, degraded_health_headers, degraded_health_body = _read_health(
+            backend_port,
+            "/api/health",
+            accept="application/json",
+        )
+        _assert_backend_health(degraded_health_body, "recipe-lab-api")
+        _assert_correlation_id(degraded_health_headers, seen=seen_correlation_ids)
+        unavailable_status, unavailable_headers, unavailable_body = _read_endpoint(
+            backend_port,
+            "/api/readiness",
+            accept="application/json",
+        )
+        unavailable_correlation_id = _assert_correlation_id(
+            unavailable_headers,
+            seen=seen_correlation_ids,
+        )
+        _assert_backend_dependency_failure(
+            unavailable_status,
+            unavailable_body,
+            unavailable_correlation_id,
+        )
     finally:
         client.run(("rm", "--force", frontend), check=False)
         client.run(("rm", "--force", backend), check=False)
+        client.run(("rm", "--force", database), check=False)
         client.run(("network", "rm", network), check=False)
 
 
@@ -529,11 +702,13 @@ def verify_production_images(
     frontend_dockerfile: Path,
     *,
     build: bool,
+    database_image: str = DATABASE_IMAGE,
     client: DockerClient | None = None,
 ) -> None:
     docker = client or DockerClient()
     backend_tag = _validate_image_tag(backend_image)
     frontend_tag = _validate_image_tag(frontend_image)
+    database_tag = _validate_image_tag(database_image)
     backend_build_context = _resolve_context(repository, backend_context)
     frontend_build_context = _resolve_context(repository, frontend_context)
     backend_build_file = _resolve_dockerfile(
@@ -558,7 +733,7 @@ def verify_production_images(
     verify_image_metadata(docker, frontend_tag)
     verify_runtime_contents(docker, backend_tag, frontend_tag)
     verify_invalid_configuration_is_redacted(docker, backend_tag, frontend_tag)
-    verify_startup_and_health(docker, backend_tag, frontend_tag)
+    verify_startup_and_health(docker, backend_tag, frontend_tag, database_tag)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -570,6 +745,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--frontend-image", required=True, help="Local frontend image tag."
+    )
+    parser.add_argument(
+        "--database-image",
+        default=DATABASE_IMAGE,
+        help="PostgreSQL image used only for the disposable readiness smoke test.",
     )
     parser.add_argument("--backend-context", type=Path, default=Path("."))
     parser.add_argument("--frontend-context", type=Path, default=Path("frontend"))
@@ -602,6 +782,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.backend_dockerfile,
             arguments.frontend_dockerfile,
             build=not arguments.skip_build,
+            database_image=arguments.database_image,
         )
     except VerificationError as error:
         print(f"Production image verification failed: {error}", file=sys.stderr)
