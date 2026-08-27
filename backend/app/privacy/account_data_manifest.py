@@ -1099,19 +1099,54 @@ NON_DATABASE_ARTIFACT_POLICIES: Final[tuple[ArtifactPolicy, ...]] = (
         rationale="Raw access and trace data would become an undeletable shadow account store.",
     ),
     ArtifactPolicy(
-        key="privacy_safe_operational_events",
+        key="allowlisted_structured_operational_events",
         kind=ArtifactKind.LOG,
-        locations=("Allowlisted application event names", "Aggregate service health metrics"),
+        locations=(
+            "Backend recipe_lab.operations logger",
+            "Frontend server console/error structured-event sink",
+        ),
         account_data=(
-            "No account identifier or private free text; fixed events and aggregates only."
+            "Backend events are authentication_failure, publication_failure, database_failure, "
+            "or application_failure with only event and correlation_id. Frontend proxy events are "
+            "recipe_lab.frontend.authentication_failed or "
+            "recipe_lab.frontend.recipe_api_unavailable with only event, correlation_id, and "
+            "status_code."
         ),
         disposition=DataDisposition.RETAIN,
-        timing="Keep only for the documented bounded operational-retention window.",
+        timing="Expire automatically after no more than 7 days.",
         required_control=(
-            "Review fields before emission; reject user IDs, handles, email, request targets, "
-            "payloads, and caller-supplied text."
+            "Enforce those exact event-name and field allowlists before emission. Prohibit raw "
+            "paths, route "
+            "parameters, query strings, request or response bodies, headers, cookies, tokens, IP "
+            "addresses, account-derived IDs, handles, email, private text, exception text, and "
+            "caller-supplied labels. Correlation IDs must be application-issued random UUIDv4 "
+            "values that rotate per request and never encode account or request data."
         ),
-        rationale="De-identified service evidence supports operations without tracking a member.",
+        rationale=(
+            "Short-lived, low-cardinality operational outcomes support incident correlation "
+            "without becoming a shadow member-activity history."
+        ),
+    ),
+    ArtifactPolicy(
+        key="deidentified_aggregate_service_metrics",
+        kind=ArtifactKind.LOG,
+        locations=("Reviewed aggregate metric sink",),
+        account_data=(
+            "Fixed metric names with bounded status, dependency, operation, and deployment labels; "
+            "counts, rates, and bucketed latency only."
+        ),
+        disposition=DataDisposition.RETAIN,
+        timing="Expire automatically after no more than 30 days.",
+        required_control=(
+            "Reject correlation IDs, raw paths, query strings, bodies, headers, IP addresses, "
+            "account-derived IDs, handles, email, private text, unbounded labels, and "
+            "caller-supplied values. Aggregate before export and enforce a minimum cohort size "
+            "where a breakdown could isolate a member."
+        ),
+        rationale=(
+            "Bounded de-identified rates and latency distributions reveal service regressions "
+            "without preserving request-level or member-level histories."
+        ),
     ),
     ArtifactPolicy(
         key="database_replica_wal_and_dead_rows",
