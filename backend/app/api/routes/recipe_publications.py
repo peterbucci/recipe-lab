@@ -77,6 +77,29 @@ PUBLICATION_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
         "description": "Duplicate comparison is temporarily unavailable.",
     },
 }
+DUPLICATE_PREFLIGHT_RESPONSES: dict[int | str, dict[str, object]] = {
+    **PUBLICATION_ERROR_RESPONSES,
+    status.HTTP_201_CREATED: {
+        "description": (
+            "The bounded duplicate comparison was recorded and returned in the response "
+            "body. It is publication evidence, not a separately readable API resource."
+        )
+    },
+}
+DRAFT_PUBLICATION_RESPONSES: dict[int | str, dict[str, object]] = {
+    **PUBLICATION_ERROR_RESPONSES,
+    status.HTTP_201_CREATED: {
+        "description": "The immutable recipe version was published.",
+        "headers": {
+            "Location": {
+                "description": "Approved public Recipe Lab product route.",
+                "schema": {"type": "string"},
+                "x-recipe-lab-route-kind": "product-route",
+                "x-recipe-lab-readable-target": "/recipes/{recipe_version_id}",
+            }
+        },
+    },
+}
 VISIBILITY_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     401: {"model": ErrorResponse, "description": "A valid member session is required."},
     403: {
@@ -172,7 +195,7 @@ def update_authored_recipe_visibility(
     "/recipe-drafts/{draft_id}/duplicate-preflights",
     response_model=RecipeDuplicatePreflightResponse,
     status_code=status.HTTP_201_CREATED,
-    responses=PUBLICATION_ERROR_RESPONSES,
+    responses=DUPLICATE_PREFLIGHT_RESPONSES,
     summary="Check a private draft for structural duplicates",
     description=(
         "Fully validates one current draft and stores a bounded advisory comparison with "
@@ -255,9 +278,6 @@ def create_original_draft_duplicate_preflight(
             message="Duplicate preflight is temporarily unavailable. Please try again later.",
         ) from error
 
-    response.headers["Location"] = (
-        f"/api/recipe-duplicate-preflights/{result.response.acknowledgement.preflight_id}"
-    )
     _private_no_store(response)
     session.commit()
     return result.response
@@ -267,7 +287,7 @@ def create_original_draft_duplicate_preflight(
     "/recipe-drafts/{draft_id}/publish",
     response_model=RecipeDraftPublicationResponse,
     status_code=status.HTTP_201_CREATED,
-    responses=PUBLICATION_ERROR_RESPONSES,
+    responses=DRAFT_PUBLICATION_RESPONSES,
     summary="Publish a private draft as an immutable recipe version",
     description=(
         "Revalidates the complete curated draft and duplicate evidence in one serialized "

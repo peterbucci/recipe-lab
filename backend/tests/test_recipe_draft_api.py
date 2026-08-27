@@ -129,6 +129,10 @@ def test_owner_scoped_revisioned_crud_and_immediate_discard(draft_api: DraftApi)
         "instructions": [],
     }
     assert created.headers["location"] == f"/api/recipe-drafts/{draft_id}"
+    owner_detail = draft_api.member.get(created.headers["location"])
+    assert owner_detail.status_code == 200
+    assert owner_detail.json() == body
+    assert draft_api.other_member.get(created.headers["location"]).status_code == 404
 
     malicious_create = draft_api.member.post(
         "/api/recipe-drafts",

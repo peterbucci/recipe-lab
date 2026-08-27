@@ -356,7 +356,7 @@ def test_report_is_idempotent_once_per_member_and_recipe_and_private(
     receipt = _json_object(created.json())
     assert set(receipt) == {"id", "recipe_version_id", "submitted_at"}
     assert receipt["recipe_version_id"] == str(PUBLIC_RECIPE_ID)
-    assert created.headers["location"].endswith(f"/reports/{receipt['id']}")
+    assert "location" not in created.headers
 
     exact_retry = _report(
         moderation_api.reporter_a,
@@ -367,6 +367,9 @@ def test_report_is_idempotent_once_per_member_and_recipe_and_private(
     )
     assert exact_retry.status_code == 200
     assert exact_retry.json() == created.json()
+    assert exact_retry.headers["cache-control"] == "private, no-store"
+    assert "Cookie" in {value.strip() for value in exact_retry.headers["vary"].split(",")}
+    assert "location" not in exact_retry.headers
 
     conflicting_key = _report(
         moderation_api.reporter_a,
