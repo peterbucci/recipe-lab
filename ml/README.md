@@ -19,10 +19,16 @@ same pure baseline scorer:
 
 ```powershell
 cd ml
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e ../backend -e ".[dev]"
+uv lock --check
+uv sync --frozen --package recipe-lab-evaluation --extra dev
+uv pip check
+..\.venv\Scripts\Activate.ps1
 ```
+
+The root workspace binds `recipe-lab-api` to the reviewed local backend package
+and uses one lock for backend and evaluation dependencies. See
+[locked dependencies and production images](../docs/production-images.md) for
+the update contract.
 
 ## Verify collaborative-filtering data readiness
 
@@ -315,6 +321,10 @@ suites rather than accepting an arbitrary import path.
 ## Checks
 
 ```powershell
+uv lock --check
+uv sync --frozen --package recipe-lab-evaluation --extra dev
+uv pip check
+..\.venv\Scripts\Activate.ps1
 python -m ruff format --check src tests
 python -m ruff check src tests
 python -m mypy src tests

@@ -117,8 +117,10 @@ build, real API requests, guarded local OIDC account creation, operator-managed
 separate roles, and a freshly migrated PostgreSQL database. The gate includes
 migration rollback/re-upgrade, real backup/restore verification, privacy-safe
 end-state evidence, desktop and phone coverage, keyboard/focus checks, and WCAG
-A/AA assertions. The stable aggregate check blocks RCP-21 deployment work and
-does not depend on offline recommendation evaluation. See
+A/AA assertions. The stable aggregate also requires the safe source package and
+locked production-image build, exclusion, startup, and liveness checks before it
+blocks or releases RCP-21 deployment work. It does not depend on offline
+recommendation evaluation. See
 [community release gate](community-release-gate.md).
 
 ## Post-MVP signal baseline

@@ -466,6 +466,29 @@ isolated database; they do not create one. Acceptance runs also refuse to reuse
 an existing frontend server. CI owns and discards its database service after
 the job instead of attempting fragile row-by-row cleanup of immutable history.
 
+### Production artifact boundary
+
+The root Python workspace and `uv.lock` define one frozen dependency graph for
+the API and the offline evaluator; the evaluator's API dependency resolves to
+the local workspace package. `frontend/package-lock.json` independently defines
+the browser application's npm graph. CI checks both locks before use and never
+performs an unbounded dependency upgrade as part of a build.
+
+Backend and frontend Dockerfiles expose explicit `development` and
+`production` targets. Local Compose selects development; the stable
+`Production images` check builds only the non-root production targets from
+locked inputs. Final images omit acceptance harnesses, tests, environment files,
+caches, reports, development dependencies, package managers, and build tools.
+Production settings are validated before binding a port and invalid values are
+never echoed. Backend `/api/health` and frontend `/healthz` are independent
+process-liveness checks, not database or migration readiness.
+
+The verifier builds, inspects, starts, and health-checks local images on a
+disposable Docker network, then removes them. It has no registry credentials or
+push/upload/deploy path. See
+[locked dependencies and production images](production-images.md) for the
+complete lock, runtime-content, smoke-test, and no-deploy contract.
+
 ### Community release boundary
 
 RCP-32 adds a separate fresh-database acceptance job rather than replacing the
@@ -485,8 +508,9 @@ real `pg_dump`/restore copy. Private canaries and credential markers are scanned
 before only the safe summaries are retained; browser captures, request logs,
 manifests, and database dumps are never artifacts. The
 stable `RCP-32 community release gate` check aggregates backend quality,
-frontend quality, `MVP acceptance`, and this canonical journey. Offline model
-evaluation remains independent. See
+frontend quality, `MVP acceptance`, production-image verification, safe source
+packaging, and this canonical journey. Offline model evaluation remains
+independent. See
 [community release gate](community-release-gate.md) for the complete evidence,
 privacy, and local-run contract.
 

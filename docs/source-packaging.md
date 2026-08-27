@@ -38,7 +38,7 @@ of truth for both allowlists and resource bounds. Its SHA-256 fingerprint and
 the active limits are recorded in every manifest. Changing the policy requires
 code review and its tests run in CI.
 
-The version 1 bounds are:
+The version 2 bounds are:
 
 | Bound | Limit |
 | --- | ---: |
@@ -51,7 +51,11 @@ The version 1 bounds are:
 Only regular tracked blobs with mode `100644` or `100755` are eligible. The
 policy explicitly allows the `.github`, `backend`, `docs`, `frontend`, `ml`,
 and `scripts` source trees plus a small set of reviewed root files and source
-extensions. The seven documentation PNGs are opaque to text scanning, so each
+extensions. The root `.dockerignore`, `pyproject.toml`, and `uv.lock` are
+explicit reviewed additions so an exported revision retains its Docker-context
+boundary, Python workspace, and exact dependency graph. Member-local or nested
+lockfiles remain rejected rather than creating a second dependency authority.
+The seven documentation PNGs are opaque to text scanning, so each
 is bound to an explicitly reviewed Git object ID. A changed or new opaque file
 fails until the policy is reviewed.
 
