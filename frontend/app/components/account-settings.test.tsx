@@ -71,7 +71,12 @@ describe("AccountSettings", () => {
         "/api/auth/account",
         expect.objectContaining({
           method: "DELETE",
-          headers: { Accept: "application/json", "X-CSRF-Token": "csrf-value" },
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "X-CSRF-Token": "csrf-value",
+          },
+          body: JSON.stringify({ confirmation: "alice" }),
         }),
       ),
     );
@@ -176,7 +181,10 @@ describe("AccountSettings", () => {
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/auth/account",
-        expect.objectContaining({ method: "DELETE" }),
+        expect.objectContaining({
+          method: "DELETE",
+          body: JSON.stringify({ confirmation: "DELETE" }),
+        }),
       ),
     );
     expect(routerMocks.replace).toHaveBeenCalledWith("/account/deleted");

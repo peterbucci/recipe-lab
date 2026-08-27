@@ -23,6 +23,7 @@ from app.models import (
     RecipeDuplicateCandidate,
     RecipeDuplicateDecision,
     RecipeDuplicatePreflight,
+    RecipeModerationAuditEvent,
     RecipeRating,
     RecipeReport,
     RecipeSave,
@@ -32,6 +33,7 @@ from app.models import (
 )
 
 DELETED_REPORT_FINGERPRINT = hashlib.sha256(b"deleted-account-report").hexdigest()
+DELETED_MODERATION_FINGERPRINT = hashlib.sha256(b"deleted-account-moderation-action").hexdigest()
 
 
 def get_account_user_for_update(session: Session, user_id: UUID) -> User | None:
@@ -198,6 +200,15 @@ def purge_member_private_data(
         update(RecipeReport)
         .where(RecipeReport.reporter_user_id == user_id)
         .values(details=None, request_fingerprint=DELETED_REPORT_FINGERPRINT)
+        .execution_options(**execution_options)
+    )
+    session.execute(
+        update(RecipeModerationAuditEvent)
+        .where(RecipeModerationAuditEvent.actor_user_id == user_id)
+        .values(
+            private_note=None,
+            request_fingerprint=DELETED_MODERATION_FINGERPRINT,
+        )
         .execution_options(**execution_options)
     )
     session.execute(

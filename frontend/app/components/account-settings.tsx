@@ -79,7 +79,7 @@ export function AccountSettings() {
     setError("");
     setRecentAuthenticationRequired(false);
     try {
-      await deleteAccount();
+      await deleteAccount(handleConfirmation);
       await completeDeletion();
       return;
     } catch (reason) {

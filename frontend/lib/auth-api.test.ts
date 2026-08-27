@@ -89,7 +89,7 @@ describe("auth API client", () => {
       updateAccountProfile({ handle: "alice", display_name: "Alice Cook" }),
     ).resolves.toMatchObject({ status: "authenticated" });
     await expect(signOut()).resolves.toBeUndefined();
-    await expect(deleteAccount()).resolves.toBeUndefined();
+    await expect(deleteAccount("alice")).resolves.toBeUndefined();
 
     expect(fetchMock.mock.calls[0]).toEqual([
       "/api/auth/session/profile",
@@ -119,8 +119,10 @@ describe("auth API client", () => {
         method: "DELETE",
         headers: {
           Accept: "application/json",
+          "Content-Type": "application/json",
           "X-CSRF-Token": "token value",
         },
+        body: JSON.stringify({ confirmation: "alice" }),
       }),
     ]);
   });

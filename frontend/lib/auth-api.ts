@@ -313,10 +313,14 @@ export async function signOut(): Promise<void> {
   });
 }
 
-export async function deleteAccount(): Promise<void> {
+export async function deleteAccount(confirmation: string): Promise<void> {
   await authFetch("/api/auth/account", {
     method: "DELETE",
-    headers: memberMutationHeaders(),
+    headers: {
+      "Content-Type": "application/json",
+      ...memberMutationHeaders(),
+    },
+    body: JSON.stringify({ confirmation }),
   });
 }
 
