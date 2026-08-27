@@ -276,14 +276,27 @@ def test_original_draft_preflight_publish_and_exact_retry(
         == 404
     )
 
+    preflight_action_id = str(uuid4())
     preflight = publication_api.member.post(
         f"/api/recipe-drafts/{draft_id}/duplicate-preflights",
-        headers={"Idempotency-Key": str(uuid4())},
+        headers={"Idempotency-Key": preflight_action_id},
         json={"revision": 2},
     )
     assert preflight.status_code == 201
     assert preflight.headers["cache-control"] == "private, no-store"
+    assert "Cookie" in {value.strip() for value in preflight.headers["vary"].split(",")}
+    assert "location" not in preflight.headers
     evidence = _json_object(preflight.json())
+    preflight_retry = publication_api.member.post(
+        f"/api/recipe-drafts/{draft_id}/duplicate-preflights",
+        headers={"Idempotency-Key": preflight_action_id},
+        json={"revision": 2},
+    )
+    assert preflight_retry.status_code == 201
+    assert preflight_retry.json() == preflight.json()
+    assert preflight_retry.headers["cache-control"] == "private, no-store"
+    assert "Cookie" in {value.strip() for value in preflight_retry.headers["vary"].split(",")}
+    assert "location" not in preflight_retry.headers
     acknowledgement = _json_object(evidence["acknowledgement"])
     decision = "continue" if acknowledgement["required"] else None
     publish_payload = {
@@ -328,6 +341,7 @@ def test_original_draft_preflight_publish_and_exact_retry(
     )
     assert retry.status_code == 201
     assert retry.json() == published.json()
+    assert retry.headers["location"] == body["location"]
 
     second_action = publication_api.member.post(
         f"/api/recipe-drafts/{draft_id}/publish",
@@ -336,6 +350,7 @@ def test_original_draft_preflight_publish_and_exact_retry(
     )
     assert second_action.status_code == 201
     assert second_action.json() == published.json()
+    assert second_action.headers["location"] == body["location"]
     assert (
         publication_api.member.put(
             f"/api/recipe-drafts/{draft_id}",
