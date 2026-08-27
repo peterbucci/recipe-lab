@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=75"]
+requires = ["setuptools==80.9.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,8 +9,11 @@ description = "Deterministic offline recommendation evaluation for Recipe Lab"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "recipe-lab-api>=0.1.0",
+  "recipe-lab-api==0.1.0",
 ]
+
+[tool.uv.sources]
+recipe-lab-api = { workspace = true }
 
 [project.scripts]
 recipe-lab-eval = "recipe_lab_evaluation.cli:main"

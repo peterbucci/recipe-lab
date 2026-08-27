@@ -91,6 +91,50 @@ class SourcePackageTestCase(unittest.TestCase):
 
 
 class SuccessfulPackageTests(SourcePackageTestCase):
+    def test_includes_only_the_reviewed_root_dependency_contract_files(self) -> None:
+        self._write(
+            ".dockerignore",
+            ".env*\n.git\n.venv\n",
+        )
+        self._write(
+            "pyproject.toml",
+            '[tool.uv]\nrequired-version = "==0.12.6"\n',
+        )
+        self._write(
+            "uv.lock",
+            'version = 1\nrevision = 3\nrequires-python = ">=3.12"\n',
+        )
+        commit_sha = self._commit("add dependency contract")
+
+        output, report = self._package(revision=commit_sha)
+
+        files = cast(list[dict[str, Any]], report["files"])
+        self.assertEqual(
+            [file_report["path"] for file_report in files],
+            [
+                ".dockerignore",
+                ".gitignore",
+                "README.md",
+                "backend/app.py",
+                "pyproject.toml",
+                "uv.lock",
+            ],
+        )
+        archive_root = f"recipe-lab-{commit_sha[:12]}"
+        with zipfile.ZipFile(output) as archive:
+            self.assertEqual(
+                archive.read(f"{archive_root}/.dockerignore"),
+                b".env*\n.git\n.venv\n",
+            )
+            self.assertEqual(
+                archive.read(f"{archive_root}/pyproject.toml"),
+                b'[tool.uv]\nrequired-version = "==0.12.6"\n',
+            )
+            self.assertEqual(
+                archive.read(f"{archive_root}/uv.lock"),
+                b'version = 1\nrevision = 3\nrequires-python = ">=3.12"\n',
+            )
+
     def test_packages_only_committed_files_and_never_reads_ignored_env(self) -> None:
         ignored_secret = "ignored_" + "SuperSensitiveValue7391"
         self._write(".env", f"CLIENT_SECRET={ignored_secret}\n")
@@ -107,6 +151,7 @@ class SuccessfulPackageTests(SourcePackageTestCase):
         self.assertEqual(scanner["result"], "passed")
         self.assertRegex(scanner["sha256"], r"^[0-9a-f]{64}$")
         policy_report = cast(dict[str, Any], report["policy"])
+        self.assertEqual(policy_report["version"], 2)
         self.assertRegex(policy_report["sha256"], r"^[0-9a-f]{64}$")
         archive_report = cast(dict[str, Any], report["archive"])
         self.assertEqual(
@@ -322,6 +367,13 @@ class RejectedTreeTests(SourcePackageTestCase):
     def test_rejects_nested_env_example(self) -> None:
         self._commit_and_reject(
             "backend/.env.example", "VALUE=hidden\n", "Environment file"
+        )
+
+    def test_rejects_nested_dependency_lock(self) -> None:
+        self._commit_and_reject(
+            "backend/uv.lock",
+            'version = 1\nrevision = 3\nrequires-python = ">=3.12"\n',
+            "File type is not in the export allowlist",
         )
 
     def test_rejects_private_key_filename(self) -> None:

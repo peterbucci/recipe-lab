@@ -1,4 +1,5 @@
 import type { IncomingHttpHeaders } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 
 export function hardenIncomingNetworkHeaders(
   headers: IncomingHttpHeaders,
@@ -10,3 +11,9 @@ export function hardenIncomingNetworkHeaders(
     timestamp?: number;
   },
 ): IncomingHttpHeaders;
+
+export function handleHealthCheck(
+  request: IncomingMessage,
+  response: ServerResponse,
+  path: string,
+): boolean;

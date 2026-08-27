@@ -513,6 +513,10 @@ Start the local Compose database, install the development dependencies, and
 run the backend gate:
 
 ```powershell
+uv lock --check
+uv sync --frozen --package recipe-lab-api --extra dev
+uv pip check
+..\.venv\Scripts\Activate.ps1
 $env:TEST_DATABASE_URL = "postgresql+psycopg://recipe_lab:recipe_lab@localhost:5432/recipe_lab"
 python -m ruff format --check .
 python -m ruff check .
@@ -522,3 +526,6 @@ python -m pytest
 
 Schema tests use real PostgreSQL behavior and create a random isolated schema
 that is dropped after the run. Use a local or disposable test database only.
+The root `uv.lock` is the only Python lock; update and production-image
+procedures are documented in
+[locked dependencies and production images](../docs/production-images.md).

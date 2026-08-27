@@ -7,9 +7,9 @@ FastAPI, and a freshly migrated PostgreSQL database.
 
 The stable GitHub check is named `RCP-32 community release gate`. It succeeds
 only when backend quality, frontend quality, the broad MVP browser regression,
-and the dedicated RCP-32 journey all succeed. Offline recommendation and
-substitution evaluation remains an independent engineering signal and is not a
-deployment prerequisite.
+the dedicated RCP-32 journey, production-image verification, and safe source
+packaging all succeed. Offline recommendation and substitution evaluation
+remains an independent engineering signal and is not a deployment prerequisite.
 
 ## Canonical journey
 
@@ -103,12 +103,12 @@ tests, linting, typing, and the production build.
 Use a new PostgreSQL database named exactly
 `recipe_lab_rcp32_acceptance_local`; do not point this run at a development or
 shared database. Use dedicated loopback ports, for example provider `8200`, API
-`8201`, and frontend `3200`, and set the following in all three process shells:
+`8201`, and frontend `3200`, and set the following shared values in all three
+process shells:
 
 ```powershell
 $env:RCP32_ACCEPTANCE = "1"
 $env:ACCEPTANCE_DATABASE_ISOLATED = "1"
-$env:APP_ENVIRONMENT = "local"
 $env:DATABASE_URL = "postgresql+psycopg://recipe_lab:recipe_lab@127.0.0.1:5432/recipe_lab_rcp32_acceptance_local"
 $env:CORS_ORIGINS = "http://127.0.0.1:3200"
 $env:AUTH_ALLOWED_ORIGINS = "http://127.0.0.1:3200"
@@ -121,11 +121,25 @@ $env:OIDC_CLIENT_ID = "recipe-lab-rcp32"
 $env:OIDC_REDIRECT_URI = "http://127.0.0.1:3200/api/auth/callback"
 $env:OIDC_SCOPES = "openid email profile"
 $env:OIDC_ALLOWED_SIGNING_ALGORITHMS = "RS256"
-$env:INTERNAL_NETWORK_SIGNAL_SECRET = "recipe-lab-local-internal-network-signal-secret"
+$env:INTERNAL_NETWORK_SIGNAL_SECRET = "recipe-lab-rcp32-local-network-signal-secret-2026"
 $env:RCP32_MANIFEST_PATH = Join-Path ([System.IO.Path]::GetTempPath()) "recipe-lab-rcp32-manifest.json"
 $env:RCP32_PROVIDER_LOG = Join-Path ([System.IO.Path]::GetTempPath()) "recipe-lab-rcp32-provider.log"
 $env:RCP32_BACKEND_LOG = Join-Path ([System.IO.Path]::GetTempPath()) "recipe-lab-rcp32-backend.log"
 $env:RCP32_BROWSER_LOG = Join-Path ([System.IO.Path]::GetTempPath()) "recipe-lab-rcp32-browser.log"
+```
+
+Keep the loopback provider and backend in local mode so the guarded HTTP flow
+can use its local cookie contract:
+
+```powershell
+$env:APP_ENVIRONMENT = "local"
+```
+
+In the frontend shell only, select the production server contract before
+building and running Playwright:
+
+```powershell
+$env:APP_ENVIRONMENT = "production"
 ```
 
 Rehearse the migration history and stage the deterministic legacy activity

@@ -5,9 +5,9 @@ import nextEnvironment from "@next/env";
 
 import {
   buildNetworkSignalHeaders,
-  internalNetworkSignalSecret,
   UNTRUSTED_FORWARDING_HEADERS,
 } from "./server/trusted-network-signal.mjs";
+import { runtimeConfiguration } from "./server/runtime-config.mjs";
 
 const { loadEnvConfig } = nextEnvironment;
 
@@ -39,6 +39,26 @@ export function hardenIncomingNetworkHeaders(
   return headers;
 }
 
+export function handleHealthCheck(request, response, path) {
+  if (path !== "/healthz") {
+    return false;
+  }
+  response.setHeader("Cache-Control", "no-store");
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    response.statusCode = 405;
+    response.setHeader("Allow", "GET, HEAD");
+    response.setHeader("Content-Length", "0");
+    response.end();
+    return true;
+  }
+  const body = "ok\n";
+  response.statusCode = 200;
+  response.setHeader("Content-Type", "text/plain; charset=utf-8");
+  response.setHeader("Content-Length", Buffer.byteLength(body));
+  response.end(request.method === "HEAD" ? undefined : body);
+  return true;
+}
+
 async function main() {
   const dev = process.argv.includes("--dev");
   process.env.NODE_ENV = dev ? "development" : "production";
@@ -48,7 +68,10 @@ async function main() {
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error("The frontend port must be an integer between 1 and 65535.");
   }
-  const secret = internalNetworkSignalSecret();
+  const configuration = runtimeConfiguration(process.env, { development: dev });
+  process.env.APP_ENVIRONMENT = configuration.appEnvironment;
+  process.env.RECIPE_API_URL = configuration.recipeApiUrl;
+  const networkSignalValue = configuration.internalNetworkSignalSecret;
   const { default: next } = await import("next");
   const app = next({ dev, hostname, port });
   const handle = app.getRequestHandler();
@@ -56,11 +79,14 @@ async function main() {
 
   createServer((request, response) => {
     const path = new URL(request.url ?? "/", "http://recipe-lab.internal").pathname;
+    if (handleHealthCheck(request, response, path)) {
+      return;
+    }
     hardenIncomingNetworkHeaders(request.headers, {
       remoteAddress: request.socket.remoteAddress,
       method: request.method ?? "GET",
       path,
-      secret,
+      secret: networkSignalValue,
     });
     void handle(request, response).catch(() => {
       if (!response.headersSent) {

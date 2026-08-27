@@ -190,6 +190,11 @@ and [community rules, reporting, and moderation](docs/community-moderation.md).
 
 Requirements: Docker Desktop with Docker Compose.
 
+Compose explicitly builds the `development` targets with source mounts and
+reload behavior. The separate locked `production` targets are verified without
+publishing or deploying them; see
+[locked dependencies and production images](docs/production-images.md).
+
 ```powershell
 Copy-Item .env.example .env
 docker compose build
@@ -242,9 +247,10 @@ Start PostgreSQL first (the `db` Compose service is fine), then run the API:
 
 ```powershell
 cd backend
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
+uv lock --check
+uv sync --frozen --package recipe-lab-api --extra dev
+uv pip check
+..\.venv\Scripts\Activate.ps1
 python -m alembic upgrade head
 python -m app.seeds load
 uvicorn app.main:app --reload
@@ -254,7 +260,7 @@ In another terminal, run the web application:
 
 ```powershell
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
@@ -265,6 +271,10 @@ Run the same backend checks enforced by CI:
 ```powershell
 cd backend
 $env:TEST_DATABASE_URL = "postgresql+psycopg://recipe_lab:recipe_lab@localhost:5432/recipe_lab"
+uv lock --check
+uv sync --frozen --package recipe-lab-api --extra dev
+uv pip check
+..\.venv\Scripts\Activate.ps1
 python -m ruff format --check .
 python -m ruff check .
 python -m mypy app migrations tests
@@ -304,7 +314,10 @@ report without touching a live database:
 
 ```powershell
 cd ml
-python -m pip install -e ../backend -e ".[dev]"
+uv lock --check
+uv sync --frozen --package recipe-lab-evaluation --extra dev
+uv pip check
+..\.venv\Scripts\Activate.ps1
 python -m ruff format --check src tests
 python -m ruff check src tests
 python -m mypy src tests
@@ -431,9 +444,24 @@ boundary.
 The `CI` GitHub Actions workflow runs on every pull request and every push to
 `main`. Separate backend and frontend jobs make failures easy to locate. The
 backend job starts PostgreSQL 17, applies the migration history, checks for
-uncommitted model changes, and runs the schema tests. Python and npm download
-caches are keyed from their dependency files; the frontend uses `npm ci` with
-the committed `package-lock.json`.
+uncommitted model changes, and runs the schema tests. Every Python job installs
+immutable `uv 0.12.6`, requires the single root `uv.lock` to match both
+workspace members, and uses a frozen package-specific sync followed by
+`uv pip check`. The frontend uses `npm ci` with the committed
+`package-lock.json`. Download caches are keyed from those lockfiles and never
+replace their resolution checks.
+
+The independent stable `Production images` job performs clean, no-cache builds
+of both Dockerfile `production` targets. Its reviewed verifier rejects
+development commands, root runtime users, missing health checks, embedded
+credential configuration, acceptance/test packages, caches, reports,
+development dependencies, and package/build tools. It also proves that invalid
+production configuration fails without echoing synthetic private values, then
+starts both images and exercises backend `/api/health` plus frontend `/healthz`.
+Images remain local to the disposable runner, are never uploaded or pushed, and
+are removed after the check. See
+[locked dependencies and production images](docs/production-images.md) for the
+update, build, smoke-test, and no-deploy contracts.
 
 An independent `Offline evaluation` job installs the backend scoring core and
 the `ml` package, runs its static checks and tests, then generates the synthetic
@@ -477,8 +505,8 @@ and guarded local reproduction.
 The independent `Safe source package` job tests the exporter and creates the
 selected CI commit twice in runner-temporary storage to prove deterministic
 archive and manifest bytes. It never uploads either output and always deletes
-them. The stable RCP-32 aggregate check requires this source-safety job alongside
-the deployable application gates.
+them. The stable RCP-32 aggregate check requires this source-safety job and the
+production-image check alongside the deployable application gates.
 
 ## Working agreements
 

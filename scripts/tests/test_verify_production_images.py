@@ -1,0 +1,265 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest import mock
+
+from scripts import verify_production_images as image_verifier
+
+
+def _result(
+    *arguments: str,
+    returncode: int = 0,
+    stdout: str = "",
+    stderr: str = "",
+) -> image_verifier.CommandResult:
+    return image_verifier.CommandResult(
+        arguments=("docker", *arguments),
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
+class FakeDockerClient(image_verifier.DockerClient):
+    def __init__(
+        self, results: list[image_verifier.CommandResult] | None = None
+    ) -> None:
+        self.results = list(results or [])
+        self.calls: list[tuple[tuple[str, ...], bool]] = []
+
+    def run(
+        self,
+        arguments: tuple[str, ...] | list[str],
+        *,
+        check: bool = True,
+    ) -> image_verifier.CommandResult:
+        normalized = tuple(arguments)
+        self.calls.append((normalized, check))
+        if self.results:
+            return self.results.pop(0)
+        return _result(*normalized)
+
+
+def _metadata(
+    *,
+    user: str = "recipe-lab",
+    command: list[str] | None = None,
+    environment: list[str] | None = None,
+    healthcheck: dict[str, object] | None = None,
+) -> str:
+    return json.dumps(
+        [
+            {
+                "Config": {
+                    "User": user,
+                    "Entrypoint": None,
+                    "Cmd": command or ["uvicorn", "app.main:app"],
+                    "Env": environment or ["APP_ENVIRONMENT=production"],
+                    "Healthcheck": (
+                        {"Test": ["CMD", "python", "-c", "health"]}
+                        if healthcheck is None
+                        else healthcheck
+                    ),
+                }
+            }
+        ]
+    )
+
+
+class ImageMetadataTests(unittest.TestCase):
+    def test_accepts_non_root_production_image_without_baked_credentials(self) -> None:
+        client = FakeDockerClient([_result(stdout=_metadata())])
+
+        image_verifier.verify_image_metadata(client, "recipe-lab-backend:test")
+
+    def test_rejects_root_development_and_credential_bearing_images(self) -> None:
+        cases = (
+            (dict(user="root"), "non-root"),
+            (dict(command=["uvicorn", "app.main:app", "--reload"]), "development"),
+            (dict(command=["npm", "run", "dev"]), "development"),
+            (dict(command=["node", "server.mjs", "--dev"]), "development"),
+            (dict(environment=["DATABASE_URL=postgresql://private"]), "credential"),
+            (dict(healthcheck={}), "health check"),
+        )
+        for options, message in cases:
+            with self.subTest(message=message):
+                client = FakeDockerClient([_result(stdout=_metadata(**options))])
+                with self.assertRaisesRegex(image_verifier.VerificationError, message):
+                    image_verifier.verify_image_metadata(client, "recipe-lab:test")
+
+    def test_rejects_unreadable_or_unexpected_inspect_output(self) -> None:
+        for payload in ("not-json", "[]", '[{"Config": null}]'):
+            with self.subTest(payload=payload):
+                client = FakeDockerClient([_result(stdout=payload)])
+                with self.assertRaises(image_verifier.VerificationError):
+                    image_verifier.verify_image_metadata(client, "recipe-lab:test")
+
+
+class BuildAndContentTests(unittest.TestCase):
+    def test_clean_build_targets_production_without_a_push_or_output(self) -> None:
+        client = FakeDockerClient()
+        context = Path.cwd().resolve()
+        dockerfile = (context / "backend" / "Dockerfile").resolve()
+
+        image_verifier.build_image(
+            client,
+            "recipe-lab-backend:test",
+            context,
+            dockerfile,
+        )
+
+        arguments, check = client.calls[0]
+        self.assertTrue(check)
+        self.assertEqual(
+            arguments,
+            (
+                "build",
+                "--no-cache",
+                "--pull",
+                "--target",
+                "production",
+                "--file",
+                str(dockerfile),
+                "--tag",
+                "recipe-lab-backend:test",
+                str(context),
+            ),
+        )
+        self.assertNotIn("--push", arguments)
+        self.assertNotIn("--output", arguments)
+
+    def test_runtime_checks_cover_testing_packages_and_frontend_artifacts(self) -> None:
+        client = FakeDockerClient()
+
+        image_verifier.verify_runtime_contents(
+            client,
+            "recipe-lab-backend:test",
+            "recipe-lab-frontend:test",
+        )
+
+        backend_command = " ".join(client.calls[0][0])
+        frontend_command = " ".join(client.calls[1][0])
+        self.assertIn('root / "app" / "testing"', backend_command)
+        self.assertIn('find_spec("app.testing")', backend_command)
+        self.assertIn('"ensurepip"', backend_command)
+        self.assertIn('"pytest"', backend_command)
+        self.assertIn('which("uv")', backend_command)
+        self.assertIn("${root}/e2e", frontend_command)
+        self.assertIn("node_modules/@playwright", frontend_command)
+        self.assertIn("node_modules/playwright-core", frontend_command)
+        self.assertIn("node_modules/vitest", frontend_command)
+        self.assertIn('"/opt/yarn-v1.22.22"', frontend_command)
+        self.assertIn('["npm", "npx", "yarn", "yarnpkg"]', frontend_command)
+
+    def test_context_resolution_stays_inside_the_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            repository = Path(temporary) / "repository"
+            repository.mkdir()
+            (repository / "backend").mkdir()
+            outside = Path(temporary) / "outside"
+            outside.mkdir()
+            self.assertEqual(
+                image_verifier._resolve_context(repository, Path("backend")),
+                (repository / "backend").resolve(),
+            )
+            with self.assertRaisesRegex(image_verifier.VerificationError, "inside"):
+                image_verifier._resolve_context(repository, outside)
+
+            dockerfile = repository / "backend" / "Dockerfile"
+            dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+            outside_dockerfile = outside / "Dockerfile"
+            outside_dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+            self.assertEqual(
+                image_verifier._resolve_dockerfile(
+                    repository,
+                    repository.resolve(),
+                    Path("backend/Dockerfile"),
+                ),
+                dockerfile.resolve(),
+            )
+            with self.assertRaisesRegex(image_verifier.VerificationError, "inside"):
+                image_verifier._resolve_dockerfile(
+                    repository,
+                    (repository / "backend").resolve(),
+                    outside_dockerfile,
+                )
+
+    def test_image_tags_are_bounded_local_cli_values(self) -> None:
+        self.assertEqual(
+            image_verifier._validate_image_tag("recipe-lab/backend:rcp33d"),
+            "recipe-lab/backend:rcp33d",
+        )
+        for tag in ("", "--help", "tag with spaces", "tag\nvalue"):
+            with self.subTest(tag=tag):
+                with self.assertRaises(image_verifier.VerificationError):
+                    image_verifier._validate_image_tag(tag)
+
+
+class ConfigurationAndHealthTests(unittest.TestCase):
+    def test_invalid_configuration_must_fail_without_exposing_the_canary(self) -> None:
+        failed = _result(returncode=1, stderr="Configuration is invalid.")
+        image_verifier._require_redacted_failure(failed, "private-canary", "backend")
+
+        with self.assertRaisesRegex(image_verifier.VerificationError, "accepted"):
+            image_verifier._require_redacted_failure(
+                _result(returncode=0),
+                "private-canary",
+                "backend",
+            )
+        with self.assertRaisesRegex(image_verifier.VerificationError, "exposed"):
+            image_verifier._require_redacted_failure(
+                _result(returncode=1, stderr="private-canary"),
+                "private-canary",
+                "backend",
+            )
+
+    def test_frontend_health_contract_is_plain_text_private_and_uncached(self) -> None:
+        image_verifier._assert_frontend_health(
+            {
+                "cache-control": "no-store",
+                "content-type": "text/plain; charset=utf-8",
+            },
+            b"ok\n",
+        )
+        with self.assertRaises(image_verifier.VerificationError):
+            image_verifier._assert_frontend_health(
+                {"content-type": "text/plain; charset=utf-8"},
+                b"ok\n",
+            )
+
+    def test_backend_health_contract_is_the_existing_api_payload(self) -> None:
+        image_verifier._assert_backend_health(
+            b'{"status":"ok","service":"recipe-lab-api"}',
+            "recipe-lab-api",
+        )
+        with self.assertRaises(image_verifier.VerificationError):
+            image_verifier._assert_backend_health(
+                b'{"status":"degraded"}', "recipe-lab-api"
+            )
+
+    def test_startup_cleanup_runs_when_a_health_check_fails(self) -> None:
+        client = FakeDockerClient()
+        with mock.patch.object(
+            image_verifier,
+            "_wait_for_container_health",
+            side_effect=image_verifier.VerificationError("health failed"),
+        ):
+            with self.assertRaisesRegex(
+                image_verifier.VerificationError, "health failed"
+            ):
+                image_verifier.verify_startup_and_health(
+                    client,
+                    "recipe-lab-backend:test",
+                    "recipe-lab-frontend:test",
+                )
+
+        commands = [call[0][:2] for call in client.calls]
+        self.assertIn(("rm", "--force"), commands)
+        self.assertIn(("network", "rm"), commands)
+
+
+if __name__ == "__main__":
+    unittest.main()

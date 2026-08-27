@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=75"]
+requires = ["setuptools==80.9.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -35,6 +35,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+exclude = ["app.testing*"]
 
 [tool.setuptools.package-data]
 "app.seeds.data" = ["*.json", "*.md"]
