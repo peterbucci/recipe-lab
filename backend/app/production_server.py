@@ -51,6 +51,7 @@ def main(environment: Mapping[str, str] = os.environ) -> None:
         host="0.0.0.0",
         port=_port(environment),
         reload=False,
+        access_log=False,
     )
 
 

@@ -38,6 +38,7 @@ def test_production_server_is_non_reloading_and_uses_the_configured_port(
         "host": "0.0.0.0",
         "port": 8123,
         "reload": False,
+        "access_log": False,
     }
 
 
