@@ -100,6 +100,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
   const { setBlocked } = useNavigationBlocker();
   const [detail, setDetail] = useState<RecipeDraftDetail | null>(null);
   const [draft, setDraft] = useState<RecipeDraftEditorState | null>(null);
+  const draftRef = useRef<RecipeDraftEditorState | null>(null);
   const [baseline, setBaseline] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState<"save" | "discard" | null>(null);
@@ -124,6 +125,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
       const loaded = await fetchRecipeDraft(draftId, signal);
       const state = hydrateRecipeDraft(loaded);
       setDetail(loaded);
+      draftRef.current = state;
       setDraft(state);
       setBaseline(recipeDraftFingerprint(state));
       setFieldErrors({});
@@ -151,6 +153,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
       .then((loaded) => {
         const state = hydrateRecipeDraft(loaded);
         setDetail(loaded);
+        draftRef.current = state;
         setDraft(state);
         setBaseline(recipeDraftFingerprint(state));
         setFieldErrors({});
@@ -188,6 +191,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
   }, [draft]);
 
   function change(next: RecipeDraftEditorState) {
+    draftRef.current = next;
     setDraft(next);
     setStatus("");
     setFormError("");
@@ -304,12 +308,23 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
         attempt.idempotencyKey,
       );
       const savedState = hydrateRecipeDraft(saved);
+      const savedFingerprint = recipeDraftFingerprint(savedState);
+      const latestDraft = draftRef.current;
+      const hasNewerLocalWork =
+        latestDraft !== null && recipeDraftFingerprint(latestDraft) !== attempt.fingerprint;
       saveAttempt.current = null;
       setDetail(saved);
-      setDraft(savedState);
-      setBaseline(recipeDraftFingerprint(savedState));
+      setBaseline(savedFingerprint);
+      if (!hasNewerLocalWork) {
+        draftRef.current = savedState;
+        setDraft(savedState);
+      }
       setFieldErrors({});
-      setStatus("Draft saved privately.");
+      setStatus(
+        hasNewerLocalWork
+          ? "Earlier changes saved. Your newer edits are still unsaved."
+          : "Draft saved privately.",
+      );
     } catch (reason) {
       setStatus("");
       if (reason instanceof RecipeDraftApiError && reason.code === "recipe_draft_revision_conflict") {
@@ -402,7 +417,8 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
   }
 
   const ingredientOptions = draftIngredientOptions(draft.ingredients);
-  const disabled = pending !== null || publicationBusy;
+  const editorDisabled = pending === "discard" || publicationBusy;
+  const actionDisabled = pending !== null || publicationBusy;
 
   return (
     <main id="main-content" className="page-shell page-shell--detail draft-editor-page">
@@ -444,7 +460,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
           </div>
         ) : null}
 
-        <fieldset className="variant-editor__section" disabled={disabled}>
+        <fieldset className="variant-editor__section" disabled={editorDisabled}>
           <legend>Recipe details</legend>
           <p className="variant-editor__help">A private draft may be untitled and incomplete.</p>
           <div className="draft-editor__details-grid">
@@ -466,7 +482,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
           </div>
         </fieldset>
 
-        <fieldset className="variant-editor__section" disabled={disabled}>
+        <fieldset className="variant-editor__section" disabled={editorDisabled}>
           <legend>Ingredients</legend>
           <p className="variant-editor__help">Use trusted catalog identities. A submitted request stays unresolved until you explicitly choose its approved catalog result.</p>
           <ol className="variant-editor__rows draft-editor__rows">
@@ -521,7 +537,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
           <button id="draft-add-ingredient" className="button button--secondary" type="button" disabled={draft.ingredients.length >= 200} onClick={addIngredient}>Add ingredient</button>
         </fieldset>
 
-        <fieldset className="variant-editor__section" disabled={disabled}>
+        <fieldset className="variant-editor__section" disabled={editorDisabled}>
           <legend>Instructions</legend>
           <p className="variant-editor__help">Keep the readable direction, then optionally describe its trusted cooking actions in order.</p>
           <ol className="variant-editor__rows draft-editor__rows">
@@ -565,7 +581,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
 
         <div className="variant-editor__actions draft-editor__actions">
           <div>
-            <button className="button button--primary" type="submit" disabled={disabled || !dirty}>{pending === "save" ? "Saving…" : dirty ? "Save draft" : "Draft saved"}</button>
+            <button className="button button--primary" type="submit" disabled={actionDisabled || !dirty}>{pending === "save" ? "Saving…" : dirty ? "Save draft" : "Draft saved"}</button>
             <GuardedLink className="button button--secondary" href="/account/recipe-drafts">Back to drafts</GuardedLink>
           </div>
           <p role="status" aria-live="polite">{status || (dirty ? "You have unsaved changes." : "All changes are saved privately.")}</p>
@@ -574,12 +590,12 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
         <section className="draft-editor__danger" aria-labelledby="discard-draft-title">
           <h2 id="discard-draft-title">Discard this draft</h2>
           <p>{DISCARD_COPY}</p>
-          {!confirmDiscard ? <button className="button button--quiet" type="button" disabled={disabled} onClick={() => setConfirmDiscard(true)}>Discard draft…</button> : (
+          {!confirmDiscard ? <button className="button button--quiet" type="button" disabled={actionDisabled} onClick={() => setConfirmDiscard(true)}>Discard draft…</button> : (
             <div className="draft-discard">
               <p><strong>Are you sure?</strong></p>
               <div className="button-row">
-                <button className="button button--danger" type="button" disabled={disabled} onClick={() => void discard()}>{pending === "discard" ? "Discarding…" : "Discard permanently"}</button>
-                <button className="button button--secondary" type="button" disabled={disabled} onClick={() => setConfirmDiscard(false)}>Keep draft</button>
+                <button className="button button--danger" type="button" disabled={actionDisabled} onClick={() => void discard()}>{pending === "discard" ? "Discarding…" : "Discard permanently"}</button>
+                <button className="button button--secondary" type="button" disabled={actionDisabled} onClick={() => setConfirmDiscard(false)}>Keep draft</button>
               </div>
             </div>
           )}

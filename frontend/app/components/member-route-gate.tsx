@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
 
 import { useAuthSession } from "./auth-session-provider";
 import { GuardedLink } from "./navigation-blocker-provider";
@@ -20,13 +19,11 @@ export function MemberRouteGate({
   title,
 }: MemberRouteGateProps) {
   const { state, refreshSession } = useAuthSession();
-  const [entered, setEntered] = useState(false);
   const authenticated = state.phase === "ready" && state.session.status === "authenticated";
-  if (authenticated && !entered) setEntered(true);
 
-  // Once an editor has loaded, never unmount it because a session expires. Its
-  // unsaved state remains available while the member signs in again.
-  if (entered || authenticated) {
+  // The session provider retains the last authenticated UI state during an
+  // interruption, so this branch remains mounted without a render-time latch.
+  if (authenticated) {
     return children;
   }
 
