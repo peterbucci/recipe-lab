@@ -23,7 +23,9 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
+      target: development
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-recipe_lab}:${POSTGRES_PASSWORD:-recipe_lab}@db:5432/${POSTGRES_DB:-recipe_lab}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
@@ -60,7 +62,19 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
+      - ./backend:/workspace/backend
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; response = urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2); raise SystemExit(0 if response.status == 200 else 1)",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
     depends_on:
       db:
         condition: service_healthy
@@ -68,7 +82,9 @@ services:
   frontend:
     build:
       context: ./frontend
+      target: development
     environment:
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-local}
       RECIPE_API_URL: http://backend:8000
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
       INTERNAL_NETWORK_SIGNAL_SECRET: ${INTERNAL_NETWORK_SIGNAL_SECRET:-recipe-lab-local-internal-network-signal-secret}
@@ -78,7 +94,8 @@ services:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:
