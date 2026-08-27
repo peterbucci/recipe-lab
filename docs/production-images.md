@@ -114,13 +114,15 @@ secrets. The frontend production server validates an origin-only
 its port. Configuration failures identify the invalid field without printing
 the supplied value.
 
-The backend container health check calls the existing dependency-independent
+The backend container health check calls the dependency-independent
 `GET /api/health` endpoint on port 8000 and expects the Recipe Lab API status
 payload. The frontend container health check calls `GET /healthz` on port 3000;
 that endpoint returns `ok` as uncached plain text and does not call the backend.
-These are process-liveness checks. Database migration and end-to-end service
-readiness remain explicit responsibilities of RCP-33F and the later release
-rehearsal.
+These are process-liveness checks. The separate backend `GET /api/readiness`
+probe executes one fixed PostgreSQL check. It returns the fixed ready response
+only while the dependency is usable and otherwise fails closed with a generic
+`503 dependency_unavailable` response. Every backend response includes a fresh
+application-issued UUIDv4 `X-Correlation-ID`.
 
 Run the same local verification as CI from the repository root:
 
@@ -136,11 +138,21 @@ python scripts/verify_production_images.py `
 
 The command performs clean production-target builds, rejects root users,
 development commands, missing image health checks, baked credential settings,
-and excluded runtime content, verifies that invalid configuration fails without
-echoing synthetic private values, then starts both images on an isolated Docker
-network and exercises their health endpoints. Containers and the temporary
-network are removed even when verification fails. The command never pushes or
-uploads an image.
+and excluded runtime content, and verifies that invalid configuration fails
+without echoing synthetic private values. It starts a disposable PostgreSQL 17
+container, applies the current migration head through the production backend
+image, and starts both application images on an isolated Docker network. The
+smoke test requires backend liveness, database readiness, frontend liveness,
+and fresh valid correlation headers. It then stops PostgreSQL and requires the
+backend to remain live while readiness returns the generic `503` whose header
+and body correlation IDs match. A timeout or unexpected payload fails the
+gate. All containers and the temporary network are removed even when
+verification fails. The command never pushes or uploads an image.
+
+`--database-image` defaults to the same `postgres:17-alpine` family used by
+local Compose and CI and may select a pre-reviewed local tag. This database is
+disposable verification infrastructure; no dump, volume, log, or database
+artifact is retained.
 
 ## CI and no-deploy boundary
 
@@ -154,3 +166,6 @@ disposable runner job.
 `RCP-32 community release gate` now requires this check alongside backend,
 frontend, MVP, community-journey, and safe-source checks. Passing it authorizes
 only the later RCP-33 release rehearsal; it is not itself a deployment.
+Deployment probe routing, fixed event sinks, initial operator signals,
+retention, smoke testing, and rollback are defined in
+[privacy-safe operations and observability](operations-observability.md).

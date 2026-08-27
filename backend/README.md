@@ -1,7 +1,8 @@
 # Recipe Lab API
 
-FastAPI service for Recipe Lab. It exposes the API health check and owns the
-SQLAlchemy domain model and Alembic migration history.
+FastAPI service for Recipe Lab. It exposes separate process-liveness and
+database-readiness probes, issues privacy-safe per-request correlation IDs, and
+owns the SQLAlchemy domain model and Alembic migration history.
 
 ## Core schema
 
@@ -482,6 +483,27 @@ returns one generic stale conflict; loss of a fork's direct source returns the
 specific source-unavailable conflict while retaining the private draft. See
 [recipe duplicate-candidate preflight](../docs/duplicate-detection.md) for the
 formula, privacy boundary, publication binding, and evaluation limitations.
+
+## Liveness, readiness, and operational evidence
+
+`GET /api/health` is a dependency-independent process-liveness probe.
+`GET /api/readiness` executes one fixed PostgreSQL check and returns `200` only
+when the database is usable; connection and execution failures become the
+generic `503 dependency_unavailable` envelope. Deployments must use readiness
+for traffic admission and liveness for process replacement.
+
+Every response carries a fresh application-issued UUIDv4
+`X-Correlation-ID`. Incoming IDs are never trusted. The backend operational
+logger accepts only fixed failure event names and the correlation ID; it does
+not accept paths, bodies, identifiers, private text, or exception values. The
+production verifier proves ready and database-unavailable states on disposable
+infrastructure. Exact event fields, retention, operator signals, smoke testing,
+and rollback are documented in
+[privacy-safe operations and observability](../docs/operations-observability.md).
+Application database pool, connection, statement, and stalled-TCP waits are
+bounded by `DATABASE_OPERATION_TIMEOUT_SECONDS` (default `5`, range `1`–`30`)
+so a stalled readiness probe cannot occupy a worker indefinitely; migrations
+and test-created engines keep their own explicit settings.
 
 ## Migrations
 
