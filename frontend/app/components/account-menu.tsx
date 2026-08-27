@@ -10,7 +10,7 @@ import { GuardedLink, useNavigationBlocker } from "./navigation-blocker-provider
 export function AccountMenu() {
   const pathname = usePathname();
   const router = useRouter();
-  const { state, refreshSession, replaceSession } = useAuthSession();
+  const { sessionExpired, state, refreshSession, replaceSession } = useAuthSession();
   const { confirmNavigation, setBlocked } = useNavigationBlocker();
   const menuRef = useRef<HTMLDetailsElement>(null);
   const [signOutPending, setSignOutPending] = useState(false);
@@ -63,6 +63,20 @@ export function AccountMenu() {
       >
         Retry account
       </button>
+    );
+  }
+
+  if (sessionExpired) {
+    const returnTo = pathname || "/recipes";
+    return (
+      <GuardedLink
+        className="button button--primary account-sign-in"
+        href={`/sign-in?${new URLSearchParams({ return_to: returnTo }).toString()}`}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Sign in
+      </GuardedLink>
     );
   }
 

@@ -230,10 +230,16 @@ describe("AccountMenu", () => {
     fireEvent.click(screen.getByLabelText("Account menu for Alice Cook"));
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
-    expect(await screen.findByRole("alert", { name: "Session expired" })).toHaveTextContent(
-      "Sign in again",
+    expect(
+      await screen.findByRole("alert", {
+        name: "Your session expired. Your work is still here.",
+      }),
+    ).toHaveTextContent("Sign in in a new tab");
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "rel",
+      "noopener noreferrer",
     );
-    expect(screen.getByRole("link", { name: "Sign in" })).toBeVisible();
   });
 
   it("lets an auth-service error be retried", async () => {

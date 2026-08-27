@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AUTH_SESSION_EXPIRED_EVENT } from "../../lib/auth-api";
 import type { RecipeDraftDetail } from "../../lib/recipe-draft-api";
 import { RecipeDraftApiError } from "../../lib/recipe-draft-api";
-import { AuthSessionProvider } from "./auth-session-provider";
+import { AuthSessionProvider, SessionRecoveryNotice } from "./auth-session-provider";
 import { NavigationBlockerProvider } from "./navigation-blocker-provider";
 import { RecipeDraftEditor } from "./recipe-draft-editor";
 
@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => `/account/recipe-drafts/${DRAFT_ID}`,
   useRouter: () => ({ replace: mocks.replace, refresh: mocks.refresh }),
 }));
 
@@ -47,6 +48,16 @@ const detail: RecipeDraftDetail = {
   updated_at: "2026-08-25T12:00:00Z",
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
+}
+
 function renderEditor() {
   render(
     <NavigationBlockerProvider>
@@ -56,11 +67,17 @@ function renderEditor() {
           user: { id: "member", display_name: "Member", handle: "member" },
         }}
       >
+        <SessionRecoveryNotice />
         <RecipeDraftEditor draftId={DRAFT_ID} measurementUnits={[]} actionTypes={[]} />
       </AuthSessionProvider>
     </NavigationBlockerProvider>,
   );
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("RecipeDraftEditor", () => {
   beforeEach(() => {
@@ -96,17 +113,194 @@ describe("RecipeDraftEditor", () => {
       "target",
       "_blank",
     );
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveFocus());
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.click(screen.getByRole("button", { name: "Reload saved version" }));
+    expect(confirm).toHaveBeenCalledWith(
+      "Replace your unsaved version with the latest saved version?",
+    );
+    expect(mocks.fetchRecipeDraft).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText("Title")).toHaveValue("My unsaved soup");
   });
 
-  it("keeps unsaved editor state mounted when the account session expires", async () => {
+  it("keeps dirty work mounted and restores focus when recovery is postponed", async () => {
     renderEditor();
     const title = await screen.findByLabelText("Title");
+    title.focus();
     fireEvent.change(title, { target: { value: "Keep this private work" } });
 
     fireEvent(window, new Event(AUTH_SESSION_EXPIRED_EVENT));
 
     expect(screen.getByLabelText("Title")).toHaveValue("Keep this private work");
     expect(screen.getByRole("form", { name: "Private recipe draft editor" })).toBeVisible();
+    expect(screen.getByText("You have unsaved changes.")).toBeVisible();
+    const interruption = await screen.findByRole("alert", {
+      name: "Your session expired. Your work is still here.",
+    });
+    await waitFor(() => expect(interruption).toHaveFocus());
+    expect(screen.getByRole("link", { name: "Sign in in a new tab" })).toHaveAttribute(
+      "href",
+      `/sign-in?return_to=%2Faccount%2Frecipe-drafts%2F${DRAFT_ID}`,
+    );
+    expect(screen.getByRole("link", { name: "Sign in in a new tab" })).toHaveAttribute(
+      "target",
+      "_blank",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing for now" }));
+    expect(screen.getByText(/Sign-in is still required before saving/)).toBeVisible();
+    expect(screen.getByLabelText("Title")).toHaveValue("Keep this private work");
+    await waitFor(() => expect(title).toHaveFocus());
+
+    fireEvent.click(screen.getByRole("button", { name: "Resume sign-in" }));
+    const resumed = await screen.findByRole("alert", {
+      name: "Your session expired. Your work is still here.",
+    });
+    await waitFor(() => expect(resumed).toHaveFocus());
+  });
+
+  it("recovers the original editor after sign-in without losing unsaved values", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        status: "authenticated",
+        user: { id: "member", display_name: "Member", handle: "member" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderEditor();
+    const title = await screen.findByLabelText("Title");
+    title.focus();
+    fireEvent.change(title, { target: { value: "Unsaved recovery stew" } });
+    fireEvent(window, new Event(AUTH_SESSION_EXPIRED_EVENT));
+
+    const interruption = await screen.findByRole("alert", {
+      name: "Your session expired. Your work is still here.",
+    });
+    await waitFor(() => expect(interruption).toHaveFocus());
+    fireEvent.click(screen.getByRole("button", { name: "Check sign-in" }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("alert", {
+          name: "Your session expired. Your work is still here.",
+        }),
+      ).toBeNull(),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/session",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(screen.getByLabelText("Title")).toHaveValue("Unsaved recovery stew");
+    expect(screen.getByText("You have unsaved changes.")).toBeVisible();
+    await waitFor(() => expect(title).toHaveFocus());
+  });
+
+  it("keeps recovery available when sign-in is canceled", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(Response.json({ status: "anonymous" })),
+    );
+    renderEditor();
+    const title = await screen.findByLabelText("Title");
+    fireEvent.change(title, { target: { value: "Do not discard this" } });
+    fireEvent(window, new Event(AUTH_SESSION_EXPIRED_EVENT));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Check sign-in" }));
+
+    expect(await screen.findByText("Sign-in is not complete. Your work is still here.")).toBeVisible();
+    expect(screen.getByLabelText("Title")).toHaveValue("Do not discard this");
+    expect(screen.getByRole("button", { name: "Check sign-in" })).toBeEnabled();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("alert", {
+          name: "Your session expired. Your work is still here.",
+        }),
+      ).toHaveFocus(),
+    );
+  });
+
+  it("does not restore a private editor under a different account", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          status: "authenticated",
+          user: { id: "different-member", display_name: "Other Member", handle: "other" },
+        }),
+      ),
+    );
+    renderEditor();
+    const title = await screen.findByLabelText("Title");
+    fireEvent.change(title, { target: { value: "Alice's private unsaved work" } });
+    fireEvent(window, new Event(AUTH_SESSION_EXPIRED_EVENT));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Check sign-in" }));
+
+    expect(
+      await screen.findByText(
+        "A different account is signed in. Sign back in as the account that owns this work.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Title")).toHaveValue("Alice's private unsaved work");
+    expect(
+      screen.getByRole("alert", {
+        name: "Your session expired. Your work is still here.",
+      }),
+    ).toBeVisible();
+  });
+
+  it("does not let a completed save overwrite newer local edits", async () => {
+    const firstSave = deferred<RecipeDraftDetail>();
+    mocks.updateRecipeDraft
+      .mockReturnValueOnce(firstSave.promise)
+      .mockResolvedValueOnce({
+        ...detail,
+        revision: 5,
+        title: "Newer local title",
+        updated_at: "2026-08-25T12:02:00Z",
+      });
+    renderEditor();
+    const title = await screen.findByLabelText("Title");
+    fireEvent.change(title, { target: { value: "Submitted title" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(mocks.updateRecipeDraft).toHaveBeenCalledOnce());
+
+    expect(title).toBeEnabled();
+    fireEvent.change(title, { target: { value: "Newer local title" } });
+    firstSave.resolve({
+      ...detail,
+      revision: 4,
+      title: "Submitted title",
+      updated_at: "2026-08-25T12:01:00Z",
+    });
+
+    expect(
+      await screen.findByText("Earlier changes saved. Your newer edits are still unsaved."),
+    ).toBeVisible();
+    expect(title).toHaveValue("Newer local title");
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(mocks.updateRecipeDraft).toHaveBeenCalledTimes(2));
+    expect(mocks.updateRecipeDraft).toHaveBeenLastCalledWith(
+      DRAFT_ID,
+      expect.objectContaining({ revision: 4, title: "Newer local title" }),
+      "draft-save-key",
+    );
+    expect(await screen.findByText("Draft saved privately.")).toBeVisible();
+  });
+
+  it("keeps newer local edits after a failed save", async () => {
+    const failedSave = deferred<RecipeDraftDetail>();
+    mocks.updateRecipeDraft.mockReturnValue(failedSave.promise);
+    renderEditor();
+    const title = await screen.findByLabelText("Title");
+    fireEvent.change(title, { target: { value: "Submitted title" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(mocks.updateRecipeDraft).toHaveBeenCalledOnce());
+    fireEvent.change(title, { target: { value: "Newer local title" } });
+    failedSave.reject(new RecipeDraftApiError("Temporary save failure.", 503));
+
+    expect(await screen.findByText("Temporary save failure.")).toBeVisible();
+    expect(title).toHaveValue("Newer local title");
   });
 
   it("offers publication review for an original draft", async () => {

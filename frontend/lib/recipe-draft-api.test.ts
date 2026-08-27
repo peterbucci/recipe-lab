@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { AUTH_SESSION_EXPIRED_EVENT } from "./auth-api";
 import {
   createRecipeDraft,
   parseRecipeDraftDetail,
   parseRecipeDraftPage,
   RecipeDraftApiError,
+  updateRecipeDraft,
 } from "./recipe-draft-api";
 
 const DRAFT_ID = "11111111-1111-4111-8111-111111111111";
@@ -77,5 +79,46 @@ describe("private recipe draft API", () => {
         }),
       }),
     );
+  });
+
+  it("announces an expired session while retaining the typed API error", async () => {
+    document.cookie = "recipe_lab_csrf=test-token; path=/";
+    const expired = vi.fn();
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json(
+          {
+            error: {
+              code: "authentication_required",
+              message: "Private provider detail",
+              issues: [],
+            },
+          },
+          { status: 401 },
+        ),
+      ),
+    );
+
+    await expect(
+      updateRecipeDraft(
+        DRAFT_ID,
+        {
+          revision: 1,
+          title: "Unsaved title",
+          description: null,
+          servings: null,
+          ingredients: [],
+          instructions: [],
+        },
+        "save-key",
+      ),
+    ).rejects.toMatchObject({
+      code: "authentication_required",
+      status: 401,
+    });
+    expect(expired).toHaveBeenCalledOnce();
+    window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
   });
 });
