@@ -1,10 +1,11 @@
 from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any, cast
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, delete
+from sqlalchemy import Engine, delete, event
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_session
@@ -67,6 +68,29 @@ def api_client(seeded_api_engine: Engine) -> Iterator[TestClient]:
 
 def _json_object(response_json: object) -> dict[str, Any]:
     return cast(dict[str, Any], response_json)
+
+
+@contextmanager
+def _read_statement_counter(engine: Engine) -> Iterator[list[str]]:
+    statements: list[str] = []
+
+    def capture(
+        _connection: object,
+        _cursor: object,
+        statement: str,
+        _parameters: object,
+        _context: object,
+        _executemany: bool,
+    ) -> None:
+        normalized = statement.lstrip().upper()
+        if normalized.startswith(("SELECT", "WITH")):
+            statements.append(" ".join(statement.casefold().split()))
+
+    event.listen(engine, "before_cursor_execute", capture)
+    try:
+        yield statements
+    finally:
+        event.remove(engine, "before_cursor_execute", capture)
 
 
 def _page(client: TestClient, **params: object) -> dict[str, Any]:
@@ -229,6 +253,35 @@ def test_recipe_detail_returns_ordered_snapshot_and_direct_children(
         item["id"] for item in ingredients if item["display_name"] == "Vegetable oil"
     )
     assert first_actions[1]["ingredient_occurrence_ids"] == [oil_occurrence]
+
+
+def test_seeded_recipe_detail_select_count_has_a_deterministic_ceiling(
+    api_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    captured_runs: list[list[str]] = []
+
+    for _run in range(2):
+        with _read_statement_counter(seeded_api_engine) as statements:
+            response = api_client.get(f"/api/recipes/{CARROT_ROOT_ID}")
+        assert response.status_code == 200
+        captured_runs.append(statements)
+
+    counts = [len(statements) for statements in captured_runs]
+    assert counts[0] == counts[1]
+    assert counts[0] <= 10
+
+    joined_statements = "\n".join(captured_runs[0])
+    for expected_table in (
+        "recipe_versions",
+        "recipe_version_ingredients",
+        "recipe_version_instructions",
+        "recipe_instruction_actions",
+        "recipe_instruction_action_inputs",
+        "recipe_instruction_action_measures",
+        "recipe_ratings",
+    ):
+        assert expected_table in joined_statements
 
 
 def test_inactive_action_type_remains_readable_but_is_not_selectable(

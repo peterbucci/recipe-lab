@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "baseline_id": "rcp-34b-public-performance-v1",
+  "environment": {
+    "profile": "isolated-loopback-production-v1",
+    "reference_runner": "Windows 11 build 26200 x86-64 with Node 22.13.0 and Python 3.12.14",
+    "check_runner": "Ubuntu 24.04 x86-64 with Node 22.23.2 and Python 3.13.15",
+    "browser": "Chromium 151.0.7922.34 through Playwright 1.62.1",
+    "viewport_css_pixels": "1280x720",
+    "frontend": "Next 16.3.1 production build",
+    "backend": "FastAPI served by Uvicorn",
+    "database": "freshly migrated and deterministically seeded PostgreSQL 17.11",
+    "transport": "dedicated loopback HTTP frontend and backend ports",
+    "throttling": "no synthetic CPU or network throttling"
+  },
+  "protocol": {
+    "artifact_privacy": "fixed public route labels and numeric aggregates only",
+    "database": {
+      "fixture": "isolated migrated schema with deterministic bundled seed data",
+      "measured_runs": 2,
+      "aggregation": "SELECT and WITH statement count checked across deterministic request shapes",
+      "budget_policy": "fixed query ceiling enforced by backend tests"
+    },
+    "service": {
+      "warmup_runs_per_route": 3,
+      "measured_runs_per_route": 20,
+      "aggregation": "monotonic request duration summarized as median and nearest-rank p95"
+    },
+    "browser": {
+      "warmup_navigations_per_route": 1,
+      "measured_navigations_per_route": 7,
+      "aggregation": "median of navigation-scoped browser observations",
+      "responsiveness_probe": "per-navigation nearest-rank p95 across eight animation-frame yields",
+      "cache_profile": "one anonymous browser context shared across warmup and measured navigations"
+    },
+    "budget_policy": {
+      "formula": "max(baseline times relative multiplier, baseline plus absolute headroom), rounded upward",
+      "relative_multiplier": 2,
+      "absolute_headroom": {
+        "milliseconds": 250,
+        "cls": 0.05,
+        "bytes": 131072
+      }
+    }
+  },
+  "database_routes": {
+    "public_recipe_catalog_read": {
+      "baseline": {
+        "select_count": 3
+      },
+      "budget": {
+        "select_count": 3
+      }
+    },
+    "public_recipe_detail_read": {
+      "baseline": {
+        "select_count": 8
+      },
+      "budget": {
+        "select_count": 10
+      }
+    }
+  },
+  "service_routes": {
+    "public_recipe_catalog_proxy": {
+      "baseline": {
+        "latency_median_ms": 17.3,
+        "latency_p95_ms": 19.9
+      },
+      "budget": {
+        "latency_median_ms": 267.3,
+        "latency_p95_ms": 269.9
+      }
+    },
+    "public_recipe_detail_proxy": {
+      "baseline": {
+        "latency_median_ms": 28.3,
+        "latency_p95_ms": 32.1
+      },
+      "budget": {
+        "latency_median_ms": 278.3,
+        "latency_p95_ms": 282.1
+      }
+    }
+  },
+  "browser_routes": {
+    "public_home": {
+      "baseline": {
+        "navigation_median_ms": 15.5,
+        "lcp_median_ms": 28,
+        "cls_median": 0,
+        "long_task_total_median_ms": 0,
+        "responsiveness_median_ms": 17.7,
+        "decoded_js_median_bytes": 471126
+      },
+      "budget": {
+        "navigation_median_ms": 265.5,
+        "lcp_median_ms": 278,
+        "cls_median": 0.05,
+        "long_task_total_median_ms": 250,
+        "responsiveness_median_ms": 267.7,
+        "decoded_js_median_bytes": 942252
+      }
+    },
+    "public_recipe_catalog": {
+      "baseline": {
+        "navigation_median_ms": 23.4,
+        "lcp_median_ms": 48,
+        "cls_median": 0,
+        "long_task_total_median_ms": 0,
+        "responsiveness_median_ms": 17.7,
+        "decoded_js_median_bytes": 471126
+      },
+      "budget": {
+        "navigation_median_ms": 273.4,
+        "lcp_median_ms": 298,
+        "cls_median": 0.05,
+        "long_task_total_median_ms": 250,
+        "responsiveness_median_ms": 267.7,
+        "decoded_js_median_bytes": 942252
+      }
+    },
+    "public_recipe_detail": {
+      "baseline": {
+        "navigation_median_ms": 47.6,
+        "lcp_median_ms": 324,
+        "cls_median": 0,
+        "long_task_total_median_ms": 0,
+        "responsiveness_median_ms": 17.6,
+        "decoded_js_median_bytes": 488167
+      },
+      "budget": {
+        "navigation_median_ms": 297.6,
+        "lcp_median_ms": 648,
+        "cls_median": 0.05,
+        "long_task_total_median_ms": 250,
+        "responsiveness_median_ms": 267.6,
+        "decoded_js_median_bytes": 976334
+      }
+    }
+  }
+}
