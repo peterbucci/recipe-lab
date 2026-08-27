@@ -73,6 +73,19 @@ MODERATION_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     422: {"model": ErrorResponse, "description": "The request parameters are invalid."},
     429: {"model": ErrorResponse, "description": "The abuse-control limit was exceeded."},
 }
+REPORT_RECIPE_RESPONSES: dict[int | str, dict[str, object]] = {
+    **MODERATION_ERROR_RESPONSES,
+    status.HTTP_200_OK: {
+        "model": RecipeReportReceipt,
+        "description": "The receipt from an exact idempotent report replay.",
+    },
+    status.HTTP_201_CREATED: {
+        "description": (
+            "The private report was accepted. The receipt is not a separately readable "
+            "API resource."
+        )
+    },
+}
 
 
 def _private_no_store(response: Response) -> None:
@@ -98,7 +111,7 @@ def _case_summary(item: ModerationCaseQueueItem) -> RecipeModerationCaseSummary:
     "/recipes/{recipe_version_id}/reports",
     response_model=RecipeReportReceipt,
     status_code=status.HTTP_201_CREATED,
-    responses=MODERATION_ERROR_RESPONSES,
+    responses=REPORT_RECIPE_RESPONSES,
     summary="Report a public recipe",
     description=(
         "Stores one bounded, private report per member and recipe. Reporter identity and "
@@ -154,7 +167,6 @@ def report_recipe(
 
     if result.state == "reused":
         response.status_code = status.HTTP_200_OK
-    response.headers["Location"] = f"/api/recipes/{recipe_version_id}/reports/{result.report.id}"
     _private_no_store(response)
     return RecipeReportReceipt(
         id=result.report.id,

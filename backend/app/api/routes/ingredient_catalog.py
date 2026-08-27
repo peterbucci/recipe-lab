@@ -69,6 +69,20 @@ CATALOG_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     },
     422: {"model": ErrorResponse, "description": "The request parameters are invalid."},
 }
+INGREDIENT_REQUEST_CREATE_RESPONSES: dict[int | str, dict[str, object]] = {
+    **CATALOG_ERROR_RESPONSES,
+    status.HTTP_201_CREATED: {
+        "description": "The missing-ingredient request was created.",
+        "headers": {
+            "Location": {
+                "description": "Member-readable ingredient-request detail resource.",
+                "schema": {"type": "string"},
+                "x-recipe-lab-route-kind": "api-resource",
+                "x-recipe-lab-readable-target": "/api/ingredient-requests/{request_id}",
+            }
+        },
+    },
+}
 
 
 def _private_no_store(response: Response) -> None:
@@ -136,7 +150,7 @@ def ingredient_catalog(
     "/ingredient-requests",
     response_model=MemberIngredientCatalogRequestResponse,
     status_code=status.HTTP_201_CREATED,
-    responses=CATALOG_ERROR_RESPONSES,
+    responses=INGREDIENT_REQUEST_CREATE_RESPONSES,
     summary="Request a missing curated ingredient",
     description=(
         "Stores bounded member input in a review queue. A pending request is not a catalog "

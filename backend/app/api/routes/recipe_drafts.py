@@ -37,6 +37,20 @@ DRAFT_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     409: {"model": ErrorResponse, "description": "The submitted revision is stale."},
     422: {"model": ErrorResponse, "description": "The private draft content is invalid."},
 }
+DRAFT_CREATE_RESPONSES: dict[int | str, dict[str, object]] = {
+    **DRAFT_ERROR_RESPONSES,
+    status.HTTP_201_CREATED: {
+        "description": "The private recipe draft was created.",
+        "headers": {
+            "Location": {
+                "description": "Owner-readable private draft detail resource.",
+                "schema": {"type": "string"},
+                "x-recipe-lab-route-kind": "api-resource",
+                "x-recipe-lab-readable-target": "/api/recipe-drafts/{draft_id}",
+            }
+        },
+    },
+}
 
 
 def _private_no_store(response: Response) -> None:
@@ -64,7 +78,7 @@ def _revision_conflict() -> ApiError:
     "/recipe-drafts",
     response_model=RecipeDraftDetailResponse,
     status_code=status.HTTP_201_CREATED,
-    responses=DRAFT_ERROR_RESPONSES,
+    responses=DRAFT_CREATE_RESPONSES,
     summary="Create a private recipe draft",
     description=(
         "Creates a blank original draft or copies one exact public immutable recipe "
