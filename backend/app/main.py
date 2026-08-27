@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.logging import install_sensitive_query_redaction
 from app.middleware.privacy_safe_observability import PrivacySafeObservabilityMiddleware
 from app.middleware.request_body_limit import RequestBodyLimitMiddleware
+from app.openapi_contract import install_openapi_contract
 
 
 def create_app() -> FastAPI:
@@ -32,6 +33,7 @@ def create_app() -> FastAPI:
     register_error_handlers(application)
     application.include_router(health.router, prefix="/api", tags=["health"])
     application.include_router(api_router, prefix="/api")
+    install_openapi_contract(application)
     return application
 
 
