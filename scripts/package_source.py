@@ -28,7 +28,7 @@ TOOL_VERSION = "1.0.0"
 SCANNER_NAME = "recipe-lab-source-secret-scan"
 SCANNER_VERSION = "2"
 MANIFEST_SCHEMA_VERSION = 1
-POLICY_VERSION = 1
+POLICY_VERSION = 2
 FIXED_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 MAX_REPORTED_FINDINGS = 20
 
@@ -63,7 +63,15 @@ EXPORT_POLICY = PackagingPolicy(
         {".github", "backend", "docs", "frontend", "ml", "scripts"}
     ),
     allowed_root_files=frozenset(
-        {".env.example", ".gitignore", "README.md", "compose.yaml"}
+        {
+            ".dockerignore",
+            ".env.example",
+            ".gitignore",
+            "README.md",
+            "compose.yaml",
+            "pyproject.toml",
+            "uv.lock",
+        }
     ),
     allowed_extensions=frozenset(
         {
@@ -487,8 +495,9 @@ def _validate_source_path(path: str, policy: PackagingPolicy) -> str:
             raise PackagingError(f"Disallowed source path component: {path!r}.")
 
     top_level = pure_path.parts[0]
+    reviewed_root_file = len(pure_path.parts) == 1 and path in policy.allowed_root_files
     if len(pure_path.parts) == 1:
-        if path not in policy.allowed_root_files:
+        if not reviewed_root_file:
             raise PackagingError(f"Root file is not in the export allowlist: {path!r}.")
     elif top_level not in policy.allowed_top_level_directories:
         raise PackagingError(
@@ -505,7 +514,8 @@ def _validate_source_path(path: str, policy: PackagingPolicy) -> str:
             f"Sensitive or generated file is not exportable: {path!r}."
         )
     if (
-        basename not in policy.allowed_special_basenames
+        not reviewed_root_file
+        and basename not in policy.allowed_special_basenames
         and suffix not in policy.allowed_extensions
     ):
         raise PackagingError(f"File type is not in the export allowlist: {path!r}.")
