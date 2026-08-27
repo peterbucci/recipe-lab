@@ -175,6 +175,7 @@ class SuccessfulPackageTests(SourcePackageTestCase):
 
     def test_preserves_executable_and_regular_modes(self) -> None:
         executable = self._write("scripts/tool.py", "#!/usr/bin/env python3\n")
+        executable.chmod(0o755)
         self._git("add", "scripts/tool.py")
         self._git("update-index", "--chmod=+x", "scripts/tool.py")
         self._git("commit", "--quiet", "-m", "add executable")
