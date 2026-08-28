@@ -115,10 +115,6 @@ EXPORT_POLICY = PackagingPolicy(
             "d22524f68c63d8cde053bf874b0c6fe21a337a71",
         ),
         (
-            "docs/assets/rcp-13a-editor-desktop.png",
-            "f5afdfd8c52fccc7e91ebb614b77be1dbd586e0d",
-        ),
-        (
             "docs/assets/rcp-13a-home-desktop.png",
             "b9812ff36485b1b3736348f230a3b5a663cfc561",
         ),
