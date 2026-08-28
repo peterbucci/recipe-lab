@@ -678,7 +678,7 @@ test.describe("RCP-32 two-user community release gate", () => {
 
         rootRecipeVersionId = await publishDistinctOriginal(alice, aliceDraftId);
         await expect(alice.getByRole("heading", { name: rootTitle, level: 1 })).toBeVisible();
-        await expect(alice.getByText("Version 1", { exact: true })).toBeVisible();
+        await expect(alice.getByText("Version 1", { exact: true })).toHaveCount(0);
         await expect(alice.getByText("Based on", { exact: true })).toHaveCount(0);
         await expect(alice.getByRole("link", { name: "Alice Cook", exact: true }).first()).toHaveAttribute(
           "href",

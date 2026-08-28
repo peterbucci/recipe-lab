@@ -1212,11 +1212,8 @@ h3 {
 .recipe-detail__parent-context {
   max-width: 46rem;
   margin-bottom: 1rem;
-  border-left: 0.2rem solid var(--sage);
-  background: var(--leaf-soft);
-  padding: 0.75rem 0.85rem;
-  color: var(--leaf-dark);
-  font-size: 0.8rem;
+  color: var(--muted);
+  font-size: 0.86rem;
   line-height: 1.55;
 }
 
@@ -1293,24 +1290,22 @@ h3 {
 
 .recipe-interactions {
   margin-top: 1rem;
-  border: 1px solid var(--line);
-  border-radius: 1rem;
-  background: rgb(255 253 249 / 0.72);
-  padding: 1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
 }
 
 .recipe-member-gate {
-  margin-top: 1rem;
-  border-left: 0.22rem solid var(--sage);
-  border-radius: 0.35rem;
-  background: var(--leaf-soft);
-  padding: 0.75rem 0.9rem;
-  color: var(--leaf-dark);
+  margin-top: 0.8rem;
+  color: var(--muted);
 }
 
 .recipe-member-gate p {
   margin: 0;
   font-size: 0.8rem;
+}
+
+.recipe-member-gate .button {
+  margin-top: 0.65rem;
 }
 
 .recipe-interactions__toolbar {
@@ -1558,9 +1553,8 @@ h3 {
 
 .lineage-section {
   margin-top: clamp(3.5rem, 8vw, 5.5rem);
-  border-radius: 1.25rem;
-  background: #eee5d8;
-  padding: clamp(1.5rem, 4vw, 2.5rem);
+  border-top: 1px solid var(--line);
+  padding-top: clamp(2rem, 5vw, 3rem);
 }
 
 .lineage-grid {
@@ -1578,26 +1572,16 @@ h3 {
 
 .lineage-card {
   display: flex;
-  min-height: 8rem;
+  min-height: 6.5rem;
   justify-content: center;
   flex-direction: column;
-  border: 1px solid var(--line);
-  border-radius: 0.85rem;
-  background: rgb(255 253 249 / 0.75);
-  padding: 1rem;
+  border-top: 1px solid var(--line);
+  padding: 1rem 0;
   text-decoration: none;
-  transition:
-    border-color 130ms ease,
-    background-color 130ms ease;
 }
 
 .lineage-grid__item .lineage-card {
   height: 100%;
-}
-
-.lineage-card:hover {
-  border-color: var(--leaf);
-  background: var(--surface);
 }
 
 .lineage-card > span,
@@ -1628,18 +1612,11 @@ h3 {
 }
 
 .lineage-card--current {
-  border: 0.12rem solid var(--leaf);
-  background: var(--leaf-soft);
+  border-top: 0.12rem solid var(--sage);
 }
 
 .lineage-card--unavailable {
-  border-style: dashed;
-  background: var(--surface-soft);
-}
-
-.lineage-card--unavailable:hover {
-  border-color: var(--line);
-  background: var(--surface-soft);
+  color: var(--muted);
 }
 
 .lineage-empty {

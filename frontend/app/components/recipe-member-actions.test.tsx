@@ -108,6 +108,66 @@ describe("RecipeMemberActions", () => {
     expect(mocks.fetchRecipeViewerState).not.toHaveBeenCalled();
   });
 
+  it("offers version creation while saved and rating state is still loading", async () => {
+    const viewerState = deferred<RecipeViewerState | null>();
+    mocks.fetchRecipeViewerState.mockReturnValueOnce(viewerState.promise);
+
+    renderActions(alice);
+
+    expect(screen.getByRole("link", { name: "Make your own version" })).toHaveAttribute(
+      "href",
+      `/recipes/${recipeVersionId}/fork`,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /loading your saved and rating state/i,
+    );
+    expect(screen.queryByRole("region", { name: /save and rate/i })).toBeNull();
+    expect(screen.queryByTestId("view-tracker")).toBeNull();
+    expect(screen.getByRole("button", { name: "Report recipe" })).toBeVisible();
+
+    await act(async () => {
+      viewerState.resolve({
+        recipe_version_id: recipeVersionId,
+        saved: false,
+        rating: null,
+      });
+      await viewerState.promise;
+    });
+
+    expect(await screen.findByText(/not saved; rating none/i)).toBeVisible();
+    expect(screen.getByTestId("view-tracker")).toBeVisible();
+  });
+
+  it("keeps version creation active when saved and rating state fails and retries", async () => {
+    mocks.fetchRecipeViewerState
+      .mockRejectedValueOnce(new Error("viewer state unavailable"))
+      .mockResolvedValueOnce({
+        recipe_version_id: recipeVersionId,
+        saved: true,
+        rating: 4,
+      });
+
+    renderActions(alice);
+
+    expect(
+      await screen.findByText(/couldn’t load your saved and rating state/i),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Make your own version" })).toHaveAttribute(
+      "href",
+      `/recipes/${recipeVersionId}/fork`,
+    );
+    expect(screen.queryByTestId("view-tracker")).toBeNull();
+
+    const retry = screen.getByRole("button", { name: /retry saved and rating state/i });
+    expect(retry).toHaveClass("button--secondary");
+    fireEvent.click(retry);
+
+    expect(screen.getByRole("link", { name: "Make your own version" })).toBeVisible();
+    expect(await screen.findByText(/saved; rating 4/i)).toBeVisible();
+    expect(screen.getByTestId("view-tracker")).toBeVisible();
+    expect(mocks.fetchRecipeViewerState).toHaveBeenCalledTimes(2);
+  });
+
   it("never carries one member’s private state across an account switch", async () => {
     const bobState = deferred<RecipeViewerState | null>();
     mocks.fetchRecipeViewerState
@@ -123,6 +183,7 @@ describe("RecipeMemberActions", () => {
 
     expect(screen.queryByText(/saved; rating 5/i)).toBeNull();
     expect(screen.queryByTestId("view-tracker")).toBeNull();
+    expect(screen.getByRole("link", { name: "Make your own version" })).toBeVisible();
     expect(screen.getByRole("region", { name: /member recipe actions/i })).toHaveTextContent(
       /loading your saved and rating state/i,
     );

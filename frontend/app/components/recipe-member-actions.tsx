@@ -121,36 +121,32 @@ export function RecipeMemberActions({
       </Link>
     );
     gateContent = <p>Finish account setup to save, rate, and make recipe versions.</p>;
-  } else if (viewerState !== null) {
+  } else {
     primaryAction = (
       <Link className="button button--primary" href={forkHref}>
         Make your own version
       </Link>
     );
-    gateContent = null;
-  } else if (privateStateFailed) {
-    primaryAction = (
-      <button
-        className="button button--primary"
-        type="button"
-        onClick={() => {
-          if (memberId !== null) {
-            setPrivateState({ phase: "idle" });
-            setRetryCount((count) => count + 1);
-          }
-        }}
-      >
-        Retry recipe actions
-      </button>
-    );
-    gateContent = <p>We couldn’t load your saved and rating state. Please retry.</p>;
-  } else {
-    primaryAction = (
-      <span className="button button--disabled" aria-disabled="true">
-        Loading your actions…
-      </span>
-    );
-    gateContent = <p role="status">Loading your saved and rating state…</p>;
+    gateContent =
+      viewerState !== null ? null : privateStateFailed ? (
+        <>
+          <p>We couldn’t load your saved and rating state.</p>
+          <button
+            className="button button--secondary"
+            type="button"
+            onClick={() => {
+              if (memberId !== null) {
+                setPrivateState({ phase: "idle" });
+                setRetryCount((count) => count + 1);
+              }
+            }}
+          >
+            Retry saved and rating state
+          </button>
+        </>
+      ) : (
+        <p role="status">Loading your saved and rating state…</p>
+      );
   }
 
   return (

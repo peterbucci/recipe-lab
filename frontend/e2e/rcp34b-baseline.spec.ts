@@ -333,8 +333,14 @@ test.describe("desktop visual state matrix", () => {
   test("recipe detail normal", async ({ page }) => {
     await page.goto(`/recipes/${VARIANT_RECIPE_ID}`);
     await expect(page.getByRole("heading", { name: "Garden Cream Tomato Soup", level: 1 })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Save and rate this recipe" })).toBeVisible();
     await stabilizeVisuals(page);
     await captureBaseline(page, "recipe-detail-normal");
+
+    const history = page.getByRole("heading", { name: "Recipe history", level: 2 });
+    await history.evaluate((heading) => heading.scrollIntoView({ block: "start" }));
+    await expect(history).toBeInViewport();
+    await captureBaseline(page, "recipe-detail-history");
   });
 
   test("recipe comparison normal", async ({ page }) => {
@@ -461,8 +467,14 @@ test.describe("phone visual state matrix", () => {
   test("recipe detail normal", async ({ page }) => {
     await page.goto(`/recipes/${VARIANT_RECIPE_ID}`);
     await expect(page.getByRole("heading", { name: "Garden Cream Tomato Soup", level: 1 })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Save and rate this recipe" })).toBeVisible();
     await stabilizeVisuals(page);
     await captureBaseline(page, "recipe-detail-normal");
+
+    const history = page.getByRole("heading", { name: "Recipe history", level: 2 });
+    await history.evaluate((heading) => heading.scrollIntoView({ block: "start" }));
+    await expect(history).toBeInViewport();
+    await captureBaseline(page, "recipe-detail-history");
   });
 
   test("draft editor validation", async ({ page }) => {

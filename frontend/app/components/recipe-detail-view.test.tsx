@@ -161,7 +161,8 @@ describe("RecipeDetailView", () => {
     expect(
       screen.getByRole("heading", { name: /lower-sugar pecan carrot cake/i, level: 1 }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Version", { selector: ".eyebrow" })).toBeInTheDocument();
+    expect(screen.queryByText("Version", { selector: ".eyebrow" })).toBeNull();
+    expect(screen.queryByText(/version \d+/i)).toBeNull();
     expect(container.querySelector(".recipe-detail__artwork")).toHaveAttribute(
       "aria-hidden",
       "true",
@@ -178,13 +179,13 @@ describe("RecipeDetailView", () => {
       "/recipes/carrot-v2/compare",
     );
     expect(screen.getByText("140 g")).toBeInTheDocument();
-    expect(screen.getByText(/catalog name: granulated sugar/i)).toBeInTheDocument();
+    expect(screen.queryByText(/catalog name:/i)).toBeNull();
     expect(screen.getAllByRole("link", { name: "Second Cook" })[0]).toHaveAttribute(
       "href",
       "/cooks/second-cook",
     );
-    expect(screen.getByText(/Recipe history shows where a version started/i)).toHaveTextContent(
-      "Based on Carrot Walnut Snack Cake by First Cook. Recipe history shows where a version started, not endorsement or ownership.",
+    expect(container.querySelector(".recipe-detail__parent-context")).toHaveTextContent(
+      "Based on Carrot Walnut Snack Cake by First Cook",
     );
     expect(screen.getAllByRole("link", { name: "First Cook" })[0]).toHaveAttribute(
       "href",
@@ -194,10 +195,23 @@ describe("RecipeDetailView", () => {
     const instructions = screen.getByRole("heading", { name: /instructions/i }).closest("section");
     expect(instructions).not.toBeNull();
     expect(within(instructions!).getAllByRole("listitem")).toHaveLength(2);
-    expect(within(instructions!).getAllByText("No cooking actions added.")).toHaveLength(2);
+    expect(within(instructions!).queryByText("No cooking actions added.")).toBeNull();
     expect(within(instructions!).queryByText(/structured actions/i)).toBeNull();
     const recipeHistory = screen.getByRole("list", { name: /recipe history/i });
     expect(within(recipeHistory).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(recipeHistory).getByLabelText("This recipe")).toHaveTextContent(
+      "Lower-Sugar Pecan Carrot Cake",
+    );
+    expect(
+      within(recipeHistory).getByRole("link", {
+        name: "Based on: Carrot Walnut Snack Cake, by First Cook",
+      }),
+    ).toHaveAttribute("href", "/recipes/carrot-v1");
+    expect(
+      within(recipeHistory).getByRole("link", {
+        name: "Another version: Orange Raisin Carrot Cake, by Third Cook",
+      }),
+    ).toHaveAttribute("href", "/recipes/carrot-v3");
   });
 
   it("renders deleted attribution and an unavailable parent without leaking links or comparison", () => {
@@ -217,6 +231,7 @@ describe("RecipeDetailView", () => {
     expect(within(recipeHistory).getAllByRole("listitem")).toHaveLength(2);
     expect(within(recipeHistory).queryByText("Carrot Walnut Snack Cake")).toBeNull();
     expect(within(recipeHistory).queryByText("First Cook")).toBeNull();
+    expect(within(recipeHistory).getByLabelText("This recipe")).toBeInTheDocument();
   });
 
   it("renders the legacy Demo Cook identity without a profile link", () => {
@@ -308,7 +323,8 @@ describe("RecipeDetailView", () => {
     );
 
     expect(screen.getByLabelText(/no ratings yet/i)).toBeInTheDocument();
-    expect(screen.getByText("Original", { selector: ".eyebrow" })).toBeInTheDocument();
+    expect(screen.queryByText("Original", { selector: ".eyebrow" })).toBeNull();
+    expect(screen.queryByText(/version \d+/i)).toBeNull();
     expect(screen.getByText(/does not have another version yet/i)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /see what changed/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /based on/i })).toBeNull();

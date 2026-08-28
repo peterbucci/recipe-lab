@@ -171,8 +171,12 @@ EXPORT_POLICY = PackagingPolicy(
             "80fa2c8f0a9de04cff6897e1bceca437e26fcdc3",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/recipe-detail-history.png",
+            "24d2c39ef3432f8beb642f2c879e87622ef3fe8a",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-normal.png",
-            "b625a82e4d8aff391661495338e2f28371342983",
+            "dbf1e8110d4403ca72e1c89f65aabc111bffbd91",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-moderation-staff-review.png",
@@ -195,8 +199,12 @@ EXPORT_POLICY = PackagingPolicy(
             "fb7c001c7ea26cf53270cf290d261dfeefd62d64",
         ),
         (
+            "frontend/baselines/baseline-phone-chromium/recipe-detail-history.png",
+            "7f26921c133168f98cc20f4ffa5fd87e00e23e74",
+        ),
+        (
             "frontend/baselines/baseline-phone-chromium/recipe-detail-normal.png",
-            "0ea5097df3faa8edda44157d8d1329bacabbe9cd",
+            "289e1b4bf8412c68a04abdef785596dca9f9f47a",
         ),
     ),
 )

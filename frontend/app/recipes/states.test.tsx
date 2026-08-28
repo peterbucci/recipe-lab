@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import RootNotFound from "../not-found";
 import RecipeCompareError from "./[recipeVersionId]/compare/error";
 import RecipeCompareLoading from "./[recipeVersionId]/compare/loading";
+import RecipeDetailError from "./[recipeVersionId]/error";
 import RecipeNotFound from "./[recipeVersionId]/not-found";
 import RecipeDetailLoading from "./[recipeVersionId]/loading";
 import RecipeError from "./error";
@@ -31,6 +32,21 @@ describe("recipe route states", () => {
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(reset).toHaveBeenCalledOnce();
     expect(screen.queryByText(/upstream detail/i)).not.toBeInTheDocument();
+  });
+
+  it("offers recipe-detail recovery without exposing service details", () => {
+    const reset = vi.fn();
+    render(<RecipeDetailError error={new Error("private recipe service detail")} reset={reset} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/couldn’t load this recipe/i);
+    expect(screen.getByText(/temporarily unavailable/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /browse recipes/i })).toHaveAttribute(
+      "href",
+      "/recipes",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+    expect(reset).toHaveBeenCalledOnce();
+    expect(screen.queryByText(/private recipe service detail/i)).not.toBeInTheDocument();
   });
 
   it("offers a comparison retry without exposing service details", () => {
