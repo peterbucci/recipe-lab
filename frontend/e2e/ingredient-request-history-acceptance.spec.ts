@@ -481,6 +481,7 @@ test.describe("member ingredient-request acceptance", () => {
     await page.goto("/recipes?q=carrot");
     await page
       .getByRole("article", { name: "Carrot Walnut Snack Cake", exact: true })
+      .filter({ hasNot: page.locator(".recipe-card__parent") })
       .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
       .click();
     await page

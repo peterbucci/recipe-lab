@@ -29,10 +29,12 @@ async function reachWithKeyboard(
 }
 
 function carrotRootCard(page: Page): Locator {
-  return page.getByRole("article", {
-    name: "Carrot Walnut Snack Cake",
-    exact: true,
-  });
+  return page
+    .getByRole("article", {
+      name: "Carrot Walnut Snack Cake",
+      exact: true,
+    })
+    .filter({ hasNot: page.locator(".recipe-card__parent") });
 }
 
 async function openCarrotRoot(page: Page): Promise<string> {

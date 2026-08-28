@@ -278,6 +278,7 @@ test.describe("RCP-34B public performance baseline", () => {
       await navigateWithoutReportedLocation(page, "/recipes?q=carrot");
       const recipeLink = page
         .getByRole("article", { name: "Carrot Walnut Snack Cake", exact: true })
+        .filter({ hasNot: page.locator(".recipe-card__parent") })
         .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true });
       const recipePath = await recipeLink.getAttribute("href");
       if (!recipePath || !/^\/recipes\/[0-9a-f-]{36}$/i.test(recipePath)) {

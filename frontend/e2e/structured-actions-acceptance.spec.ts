@@ -33,10 +33,12 @@ test.describe("structured cooking action acceptance", () => {
 
     await useAcceptanceMember(page, "alice");
     await page.goto("/recipes?q=carrot");
-    const rootRecipeCard = page.getByRole("article", {
-      name: "Carrot Walnut Snack Cake",
-      exact: true,
-    });
+    const rootRecipeCard = page
+      .getByRole("article", {
+        name: "Carrot Walnut Snack Cake",
+        exact: true,
+      })
+      .filter({ hasNot: page.locator(".recipe-card__parent") });
     await expect(rootRecipeCard).toHaveCount(1);
     await rootRecipeCard
       .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
