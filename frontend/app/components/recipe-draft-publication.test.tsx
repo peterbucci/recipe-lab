@@ -213,6 +213,11 @@ describe("RecipeDraftPublication", () => {
     });
     renderPublication();
 
+    expect(screen.getByRole("link", { name: "Return to your private drafts" })).toHaveAttribute(
+      "href",
+      "/account/recipes?view=drafts",
+    );
+
     fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
     expect(screen.getByRole("alert")).toHaveTextContent(/confirm the community rules/i);
     expect(mocks.preflight).not.toHaveBeenCalled();
@@ -240,7 +245,11 @@ describe("RecipeDraftPublication", () => {
       },
       "publish-key",
     ));
-    expect(mocks.replace).toHaveBeenCalledWith(`/recipes/${RECIPE_ID}`);
+    expect(mocks.replace).toHaveBeenCalledWith("/account/recipes?view=published");
+    expect(screen.getByText("Recipe published. Opening your published recipes…")).toHaveAttribute(
+      "role",
+      "status",
+    );
     expect(mocks.refresh).toHaveBeenCalledOnce();
   });
 
@@ -402,7 +411,7 @@ describe("RecipeDraftPublication", () => {
         "publish-key",
       ),
     );
-    expect(mocks.replace).toHaveBeenCalledWith(`/recipes/${RECIPE_ID}`);
+    expect(mocks.replace).toHaveBeenCalledWith("/account/recipes?view=published");
   });
 
   it("keeps a fork draft in place when its source becomes unavailable", async () => {

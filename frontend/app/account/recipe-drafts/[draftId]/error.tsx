@@ -18,8 +18,8 @@ export default function RecipeDraftEditorError({ reset }: RecipeDraftEditorError
           <button className="button button--primary" type="button" onClick={reset}>
             Try again
           </button>
-          <Link className="button button--secondary" href="/account/recipe-drafts">
-            My recipe drafts
+          <Link className="button button--secondary" href="/account/recipes?view=drafts">
+            My recipes
           </Link>
         </div>
       </section>

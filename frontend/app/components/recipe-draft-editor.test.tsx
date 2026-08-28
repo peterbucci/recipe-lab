@@ -9,6 +9,7 @@ import { NavigationBlockerProvider } from "./navigation-blocker-provider";
 import { RecipeDraftEditor } from "./recipe-draft-editor";
 
 const mocks = vi.hoisted(() => ({
+  discardRecipeDraft: vi.fn(),
   fetchRecipeDraft: vi.fn(),
   refresh: vi.fn(),
   replace: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("../../lib/recipe-draft-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/recipe-draft-api")>();
   return {
     ...actual,
+    discardRecipeDraft: mocks.discardRecipeDraft,
     fetchRecipeDraft: mocks.fetchRecipeDraft,
     updateRecipeDraft: mocks.updateRecipeDraft,
   };
@@ -81,6 +83,7 @@ afterEach(() => {
 
 describe("RecipeDraftEditor", () => {
   beforeEach(() => {
+    mocks.discardRecipeDraft.mockReset().mockResolvedValue(undefined);
     mocks.fetchRecipeDraft.mockReset().mockResolvedValue(detail);
     mocks.updateRecipeDraft.mockReset();
     mocks.refresh.mockReset();
@@ -314,6 +317,26 @@ describe("RecipeDraftEditor", () => {
   it("offers publication review for an original draft", async () => {
     renderEditor();
     expect(await screen.findByRole("button", { name: "Review and publish" })).toBeVisible();
+  });
+
+  it("returns editor backlinks and discard success to the My recipes Drafts view", async () => {
+    renderEditor();
+
+    expect(await screen.findByRole("link", { name: "← My recipes" })).toHaveAttribute(
+      "href",
+      "/account/recipes?view=drafts",
+    );
+    expect(screen.getByRole("link", { name: "Back to drafts" })).toHaveAttribute(
+      "href",
+      "/account/recipes?view=drafts",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Discard draft…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discard permanently" }));
+
+    await waitFor(() =>
+      expect(mocks.discardRecipeDraft).toHaveBeenCalledWith(DRAFT_ID, 3, "draft-save-key"),
+    );
+    expect(mocks.replace).toHaveBeenCalledWith("/account/recipes?view=drafts");
   });
 
   it("offers the persistent publication flow for a source-backed fork draft", async () => {

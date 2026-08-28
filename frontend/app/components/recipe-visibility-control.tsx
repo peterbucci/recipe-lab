@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { AuthApiError } from "../../lib/auth-api";
 import type { RecipeVisibilityState } from "../../lib/recipe-library-api";
@@ -18,7 +18,8 @@ interface RecipeVisibilityControlProps {
 
 function visibilityErrorMessage(reason: unknown): string {
   if (
-    (reason instanceof AuthApiError || reason instanceof RecipeVisibilityApiError) &&
+    (reason instanceof AuthApiError ||
+      reason instanceof RecipeVisibilityApiError) &&
     reason.status === 401
   ) {
     return "Your session expired. Sign in again before changing recipe visibility.";
@@ -42,7 +43,19 @@ export function RecipeVisibilityControl({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const confirmationButtonRef = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef(false);
   const confirmationId = `withdraw-recipe-${recipeVersionId}`;
+
+  useEffect(() => {
+    if (confirming) {
+      confirmationButtonRef.current?.focus();
+    } else if (returnFocus.current) {
+      returnFocus.current = false;
+      triggerRef.current?.focus();
+    }
+  }, [confirming]);
 
   async function changeVisibility(nextState: "published" | "author_withdrawn") {
     if (pending) return;
@@ -68,7 +81,10 @@ export function RecipeVisibilityControl({
   if (state === "moderation_hidden") {
     return (
       <div className="recipe-visibility-control">
-        <p>This recipe is hidden by moderation. Its visibility cannot be changed here.</p>
+        <p>
+          This recipe is hidden by moderation. Its visibility cannot be changed
+          here.
+        </p>
       </div>
     );
   }
@@ -86,8 +102,16 @@ export function RecipeVisibilityControl({
         >
           {pending ? "Restoring…" : "Restore recipe"}
         </button>
-        {error ? <p className="recipe-visibility-control__error" role="alert">{error}</p> : null}
-        {status ? <p className="recipe-visibility-control__status" role="status">{status}</p> : null}
+        {error ? (
+          <p className="recipe-visibility-control__error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {status ? (
+          <p className="recipe-visibility-control__status" role="status">
+            {status}
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -96,6 +120,7 @@ export function RecipeVisibilityControl({
     <div className="recipe-visibility-control">
       {!confirming ? (
         <button
+          ref={triggerRef}
           aria-label={`Withdraw ${recipeTitle}`}
           className="button button--quiet"
           type="button"
@@ -110,13 +135,18 @@ export function RecipeVisibilityControl({
           Withdraw recipe
         </button>
       ) : (
-        <div className="recipe-visibility-control__confirmation" id={confirmationId}>
+        <div
+          className="recipe-visibility-control__confirmation"
+          id={confirmationId}
+        >
           <p>
-            This removes the recipe from public browsing and prevents new activity or versions
-            based on it. Existing public versions remain available and show an unavailable source.
+            This removes the recipe from public browsing and prevents new
+            activity or versions based on it. Existing public versions remain
+            available and show an unavailable source.
           </p>
           <div className="button-row">
             <button
+              ref={confirmationButtonRef}
               aria-label={`Confirm withdrawal of ${recipeTitle}`}
               className="button button--danger"
               type="button"
@@ -130,15 +160,26 @@ export function RecipeVisibilityControl({
               className="button button--quiet"
               type="button"
               disabled={pending}
-              onClick={() => setConfirming(false)}
+              onClick={() => {
+                returnFocus.current = true;
+                setConfirming(false);
+              }}
             >
               Cancel
             </button>
           </div>
         </div>
       )}
-      {error ? <p className="recipe-visibility-control__error" role="alert">{error}</p> : null}
-      {status ? <p className="recipe-visibility-control__status" role="status">{status}</p> : null}
+      {error ? (
+        <p className="recipe-visibility-control__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {status ? (
+        <p className="recipe-visibility-control__status" role="status">
+          {status}
+        </p>
+      ) : null}
     </div>
   );
 }

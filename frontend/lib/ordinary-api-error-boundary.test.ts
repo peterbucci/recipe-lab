@@ -56,7 +56,7 @@ const cases: Array<{
   {
     name: "recipe libraries",
     fallbackCode: "recipe_library_api_error",
-    request: () => fetchMyRecipeLibrary(),
+    request: () => fetchMyRecipeLibrary({ view: "drafts" }),
   },
   {
     name: "recipe publication",
