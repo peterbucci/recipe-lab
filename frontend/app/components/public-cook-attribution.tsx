@@ -1,13 +1,13 @@
 import Link from "next/link";
 
-import type { PublicUserReference } from "../../lib/recipe-api";
+import type { RecipeSummary } from "../../lib/recipe-api";
 
 interface PublicCookAttributionProps {
-  author: PublicUserReference;
+  author: RecipeSummary["author"];
 }
 
 export function PublicCookAttribution({ author }: PublicCookAttributionProps) {
-  if (author.handle === null) {
+  if (!author.handle) {
     return <span>{author.display_name}</span>;
   }
 

@@ -1,37 +1,29 @@
+import type { operations } from "./api-contracts/generated";
+import {
+  ApiTransportError,
+  type PublicApiErrorContract,
+} from "./api-transport/core";
+import { serverApiRequest } from "./api-transport/server";
 import type { RecipeViewerState } from "./recipe-viewer-state";
 import type { RecipeInstructionAction } from "./structured-action";
 import type { RecipeIngredientMeasure } from "./structured-measure";
 
 export type { RecipeIngredientMeasure } from "./structured-measure";
 
-export interface PublicUserReference {
-  id: string;
-  handle: string | null;
-  display_name: string;
-}
+type BrowseRecipesOperation = operations["browse_recipes_api_recipes_get"];
+export type RecipePage =
+  BrowseRecipesOperation["responses"][200]["content"]["application/json"];
+export type RecipeSummary = RecipePage["items"][number];
+export type PublicUserReference = Omit<
+  RecipeSummary["author"],
+  "handle"
+> & {
+  readonly handle: string | null;
+};
+export type RecipeVersionReference = NonNullable<RecipeSummary["parent"]>;
 
 export interface ActivePublicUserReference extends PublicUserReference {
   handle: string;
-}
-
-export interface RecipeSummary {
-  id: string;
-  lineage_id: string;
-  parent_version_id: string | null;
-  version_number: number;
-  title: string;
-  description: string | null;
-  servings: string;
-  created_at: string;
-  author: PublicUserReference;
-  parent: RecipeVersionReference | null;
-}
-
-export interface RecipeVersionReference {
-  id: string;
-  version_number: number;
-  title: string;
-  author: PublicUserReference;
 }
 
 export interface RecipeIngredient {
@@ -113,14 +105,6 @@ export interface RecipeDiff {
   has_changes: boolean;
 }
 
-export interface RecipePage {
-  items: RecipeSummary[];
-  page: number;
-  page_size: number;
-  total: number;
-  total_pages: number;
-}
-
 interface RecipePageQuery {
   isVariant?: boolean;
   page?: number;
@@ -142,6 +126,11 @@ const KNOWN_RECIPE_ERROR_CODES = new Set([
   "recipe_not_found",
   "validation_error",
 ]);
+
+const RECIPE_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "recipe_api_error",
+  knownCodes: KNOWN_RECIPE_ERROR_CODES,
+};
 
 function knownRecipeErrorCode(value: unknown): string {
   return typeof value === "string" && KNOWN_RECIPE_ERROR_CODES.has(value)
@@ -232,21 +221,36 @@ export async function fetchRecipePage({
   pageSize = 12,
   query,
 }: RecipePageQuery = {}): Promise<RecipePage> {
-  const url = apiUrl("/api/recipes");
-  url.searchParams.set("page", String(page));
-  url.searchParams.set("page_size", String(pageSize));
+  const searchParams = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  });
   if (query) {
-    url.searchParams.set("q", query);
+    searchParams.set("q", query);
   }
   if (isVariant !== undefined) {
-    url.searchParams.set("is_variant", String(isVariant));
+    searchParams.set("is_variant", String(isVariant));
   }
 
-  const response = await apiFetch(url);
-  if (!response.ok) {
-    throw await apiError(response);
+  try {
+    const response = await serverApiRequest(
+      `/api/recipes?${searchParams.toString()}`,
+      {
+        errorContract: RECIPE_ERROR_CONTRACT,
+        kind: "query",
+      },
+    );
+    return response.data as RecipePage;
+  } catch (error) {
+    if (error instanceof ApiTransportError) {
+      throw new RecipeApiError(
+        recipeErrorMessage(error.status),
+        error.status,
+        error.code,
+      );
+    }
+    throw error;
   }
-  return (await response.json()) as RecipePage;
 }
 
 export async function fetchRecipe(
