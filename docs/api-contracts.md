@@ -121,6 +121,35 @@ the HTTP method, path, and schema remain the same.
 
 The committed snapshot is a baseline, not compatibility analysis by itself.
 Reviewers must still decide whether a diff is additive, breaking, incorrectly
-classified, missing evidence, or an intentional retirement. Later generated
-TypeScript types or clients must consume the stable operation IDs and the
-reviewed OpenAPI schema; RCP-34A does not introduce those runtime consumers.
+classified, missing evidence, or an intentional retirement.
+
+## Frontend generated types
+
+RCP-34G generates one committed TypeScript file at
+[`frontend/lib/api-contracts/generated.ts`](../frontend/lib/api-contracts/generated.ts)
+from `backend/openapi.json`. The file contains compile-time request, response,
+and operation types. It is not a second HTTP client and does not replace runtime
+validation.
+
+From `frontend`, regenerate and check it with:
+
+```powershell
+npm run api:contracts:generate
+npm run api:contracts:check
+```
+
+CI runs the check and fails when the OpenAPI snapshot and generated TypeScript
+file differ. When a backend contract changes intentionally, regenerate the file
+and review both diffs together. Intentional breaking changes must be called out
+in the pull request or release note. Automated comparison between released API
+versions is deferred until Recipe Lab has an independently released API or an
+external client to protect.
+
+The recipe-report client is the first consumer. Its ordinary request and
+response types now come from OpenAPI, while its private receipt parser still
+rejects unexpected response fields. Other clients move when their own story
+changes them; they do not block this foundation.
+
+Generated types do not own requests. The shared Recipe Lab transport remains
+responsible for same-origin routing, sessions, CSRF, idempotency, request
+fingerprints, cancellation, and recovery behavior.
