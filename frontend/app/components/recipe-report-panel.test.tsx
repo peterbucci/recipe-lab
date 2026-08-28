@@ -80,7 +80,12 @@ describe("RecipeReportPanel", () => {
       target: { value: "Repeated affiliate links" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Submit private report" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("could not submit");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "could not confirm whether your report was received",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "safely check the same report",
+    );
     expect(screen.queryByText(/99999999|canonical|uuid|operator|policy/i)).toBeNull();
     expect(screen.getByLabelText("Additional details (optional)")).toHaveValue(
       "Repeated affiliate links",
@@ -90,5 +95,61 @@ describe("RecipeReportPanel", () => {
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Report received"));
     expect(mocks.key).toHaveBeenCalledOnce();
     expect(mocks.submit).toHaveBeenCalledTimes(2);
+  });
+
+  it("rotates the protected attempt only when normalized intent changes", async () => {
+    mocks.key
+      .mockReset()
+      .mockReturnValueOnce("report-key-one")
+      .mockReturnValueOnce("report-key-two");
+    mocks.submit.mockRejectedValue(
+      new RecipeReportApiError(
+        "The result is unknown.",
+        503,
+        "report_service_unavailable",
+      ),
+    );
+    render(<RecipeReportPanel recipeVersionId={RECIPE_ID} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Report recipe" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Spam or misleading content" }));
+    const details = screen.getByLabelText("Additional details (optional)");
+    fireEvent.change(details, { target: { value: "  Repeated affiliate links  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit private report" }));
+    await screen.findByRole("alert");
+
+    fireEvent.change(details, { target: { value: "Repeated affiliate links" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit private report" }));
+    await waitFor(() => expect(mocks.submit).toHaveBeenCalledTimes(2));
+    expect(mocks.submit.mock.calls[0]?.[2]).toBe("report-key-one");
+    expect(mocks.submit.mock.calls[1]?.[2]).toBe("report-key-one");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Something else" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit private report" }));
+    await waitFor(() => expect(mocks.submit).toHaveBeenCalledTimes(3));
+    expect(mocks.submit.mock.calls[2]?.[2]).toBe("report-key-two");
+    expect(mocks.key).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats an existing report as a successful private review", async () => {
+    mocks.submit.mockRejectedValue(
+      new RecipeReportApiError(
+        "You already reported this recipe.",
+        409,
+        "recipe_already_reported",
+      ),
+    );
+    render(<RecipeReportPanel recipeVersionId={RECIPE_ID} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Report recipe" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Spam or misleading content" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit private report" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "existing report is still in review",
+      ),
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

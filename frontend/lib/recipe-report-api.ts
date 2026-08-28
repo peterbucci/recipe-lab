@@ -1,4 +1,11 @@
-import { memberMutationHeaders, notifySessionExpired } from "./auth-api";
+import { browserApiRequest } from "./api-transport/browser";
+import {
+  ApiTransportError,
+  createRequestFingerprint,
+  type ApiAuthenticationRecovery,
+  type ApiMutationOutcome,
+  type PublicApiErrorContract,
+} from "./api-transport/core";
 
 export const RECIPE_REPORT_DETAILS_MAX_LENGTH = 1_000;
 
@@ -12,6 +19,7 @@ export type RecipeReportReason =
 const KNOWN_RECIPE_REPORT_ERROR_CODES = new Set([
   "abuse_protection_unavailable",
   "account_setup_required",
+  "api_unavailable",
   "authentication_required",
   "idempotency_key_conflict",
   "invalid_csrf",
@@ -25,11 +33,10 @@ const KNOWN_RECIPE_REPORT_ERROR_CODES = new Set([
   "validation_error",
 ]);
 
-function knownRecipeReportErrorCode(value: unknown): string {
-  return typeof value === "string" && KNOWN_RECIPE_REPORT_ERROR_CODES.has(value)
-    ? value
-    : "recipe_report_api_error";
-}
+const RECIPE_REPORT_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "recipe_report_api_error",
+  knownCodes: KNOWN_RECIPE_REPORT_ERROR_CODES,
+};
 
 export interface RecipeReportInput {
   reason: RecipeReportReason;
@@ -46,18 +53,27 @@ export class RecipeReportApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly retryAfterSeconds: number | null;
+  readonly outcome: ApiMutationOutcome;
+  readonly authenticationRecovery: ApiAuthenticationRecovery;
 
   constructor(
     message: string,
     status: number,
     code = "recipe_report_api_error",
     retryAfterSeconds: number | null = null,
+    outcome: ApiMutationOutcome =
+      status >= 400 && status < 500 && status !== 408
+        ? "rejected"
+        : "unknown",
+    authenticationRecovery: ApiAuthenticationRecovery = null,
   ) {
     super(message);
     this.name = "RecipeReportApiError";
     this.status = status;
     this.code = code;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.outcome = outcome;
+    this.authenticationRecovery = authenticationRecovery;
   }
 }
 
@@ -117,43 +133,61 @@ export function parseRecipeReportReceipt(
   };
 }
 
-function retryAfterSeconds(response: Response): number | null {
-  const value = response.headers.get("Retry-After");
-  if (!value || !/^\d+$/.test(value)) return null;
-  const seconds = Number(value);
-  return Number.isSafeInteger(seconds) && seconds >= 0 ? seconds : null;
-}
-
-async function reportError(response: Response): Promise<RecipeReportApiError> {
-  let code = "recipe_report_api_error";
-  try {
-    const payload: unknown = await response.json();
-    if (isRecord(payload) && isRecord(payload.error)) {
-      code = knownRecipeReportErrorCode(payload.error.code);
-    }
-  } catch {
-    // Keep the stable fallback rather than exposing an upstream response body.
-  }
-  const retryAfter = retryAfterSeconds(response);
+function reportErrorMessage(
+  status: number,
+  code: string,
+  retryAfter: number | null,
+): string {
   const message =
-    response.status === 401
+    status === 401
       ? "Your session expired. Sign in again before reporting this recipe."
-      : response.status === 404
+      : status === 404
         ? "This recipe is no longer available to report."
-        : response.status === 409 && code === "recipe_already_reported"
+        : status === 409 && code === "recipe_already_reported"
           ? "You already reported this recipe."
-          : response.status === 409
+          : status === 409
             ? "This report could not be submitted again. Refresh the recipe before trying again."
-            : response.status === 413
+            : status === 413
               ? "That report is too large. Shorten the details and try again."
-              : response.status === 422
+              : status === 422
                 ? "Review the report reason and details, then try again."
-                : response.status === 429
-                  ? retryAfter
+                : status === 429
+                  ? retryAfter !== null
                     ? `Too many reports were submitted. Try again in ${retryAfter} seconds.`
                     : "Too many reports were submitted. Please wait before trying again."
                   : "Recipe Lab could not submit this report. Please try again.";
-  return new RecipeReportApiError(message, response.status, code, retryAfter);
+  return message;
+}
+
+function fromTransportError(error: ApiTransportError): RecipeReportApiError {
+  if (error.reason === "invalid_response") return invalidResponse();
+  return new RecipeReportApiError(
+    reportErrorMessage(error.status, error.code, error.retryAfterSeconds),
+    error.status,
+    error.code,
+    error.retryAfterSeconds,
+    error.outcome ?? "unknown",
+    error.authenticationRecovery,
+  );
+}
+
+function normalizedReportInput(input: RecipeReportInput): RecipeReportInput {
+  return {
+    reason: input.reason,
+    details: input.details?.trim() || null,
+  };
+}
+
+async function recipeReportRequestFingerprint(
+  recipeVersionId: string,
+  input: RecipeReportInput,
+): Promise<string> {
+  return createRequestFingerprint({
+    payload: { details: input.details, reason: input.reason },
+    recipe_version_id: recipeVersionId,
+    schema: "recipe-lab.recipe-report-request",
+    version: 1,
+  });
 }
 
 export async function submitRecipeReport(
@@ -161,29 +195,59 @@ export async function submitRecipeReport(
   input: RecipeReportInput,
   idempotencyKey: string,
 ): Promise<RecipeReportReceipt> {
-  const response = await fetch(
-    `/api/recipes/${encodeURIComponent(recipeVersionId)}/reports`,
-    {
-      method: "POST",
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "Idempotency-Key": idempotencyKey,
-        ...memberMutationHeaders(),
-      },
-      body: JSON.stringify(input),
-    },
-  );
-  if (!response.ok) {
-    if (response.status === 401) notifySessionExpired();
-    throw await reportError(response);
+  if (
+    typeof idempotencyKey !== "string" ||
+    idempotencyKey.trim().length === 0 ||
+    idempotencyKey.length > 200
+  ) {
+    throw new RecipeReportApiError(
+      "Recipe Lab could not prepare this report. Please try again.",
+      0,
+      "invalid_idempotency_key",
+      null,
+      "rejected",
+    );
   }
+  const normalizedInput = normalizedReportInput(input);
+  let requestFingerprint: string;
   try {
-    return parseRecipeReportReceipt(await response.json(), recipeVersionId);
+    requestFingerprint = await recipeReportRequestFingerprint(
+      recipeVersionId,
+      normalizedInput,
+    );
+  } catch {
+    throw new RecipeReportApiError(
+      "Recipe Lab could not prepare this report. Please try again.",
+      0,
+      "recipe_report_request_unavailable",
+      null,
+      "rejected",
+    );
+  }
+
+  try {
+    const response = await browserApiRequest(
+      `/api/recipes/${encodeURIComponent(recipeVersionId)}/reports`,
+      {
+        body: JSON.stringify(normalizedInput),
+        csrf: "member",
+        errorContract: RECIPE_REPORT_ERROR_CONTRACT,
+        headers: { "Content-Type": "application/json" },
+        identity: { idempotencyKey, requestFingerprint },
+        kind: "mutation",
+        method: "POST",
+      },
+    );
+    return parseRecipeReportReceipt(response.data, recipeVersionId);
   } catch (error) {
     if (error instanceof RecipeReportApiError) throw error;
-    throw invalidResponse();
+    if (error instanceof ApiTransportError) throw fromTransportError(error);
+    throw new RecipeReportApiError(
+      "Recipe Lab could not submit this report. Please try again.",
+      0,
+      "recipe_report_api_error",
+      null,
+      "unknown",
+    );
   }
 }
