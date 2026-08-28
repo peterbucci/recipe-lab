@@ -7,7 +7,11 @@ from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor
 from app.repositories.auth import get_user_by_handle
 from app.repositories.recipe_drafts import RecipeDraftBrowseItem
-from app.repositories.recipe_libraries import browse_my_recipes, browse_my_saved_recipes
+from app.repositories.recipe_libraries import (
+    MyRecipeLibraryView,
+    browse_my_recipes,
+    browse_my_saved_recipes,
+)
 from app.repositories.recipes import browse_public_recipe_versions_by_author
 from app.schemas.errors import ErrorResponse
 from app.schemas.recipe_drafts import RecipeDraftSummaryResponse
@@ -31,6 +35,10 @@ PRIVATE_LIBRARY_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     401: {"model": ErrorResponse, "description": "A valid member session is required."},
     403: {"model": ErrorResponse, "description": "Account setup is incomplete."},
     422: {"model": ErrorResponse, "description": "A page parameter is invalid."},
+}
+MY_RECIPE_LIBRARY_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
+    **PRIVATE_LIBRARY_ERROR_RESPONSES,
+    422: {"model": ErrorResponse, "description": "A view or page parameter is invalid."},
 }
 
 
@@ -99,13 +107,19 @@ def public_cook_profile(
 @router.get(
     "/my/recipes",
     response_model=MyRecipeLibraryResponse,
-    responses=PRIVATE_LIBRARY_ERROR_RESPONSES,
-    summary="List my current drafts and published recipes",
+    responses=MY_RECIPE_LIBRARY_ERROR_RESPONSES,
+    summary="List one view of my recipes",
+    description=(
+        "Returns independently paginated active drafts, current publications, or "
+        "author-withdrawn publications. Moderation-hidden authored recipes remain in the "
+        "published view with their accurate visibility state."
+    ),
 )
 def my_recipe_library(
     response: Response,
     session: SessionDependency,
     authenticated: RequiredAuthenticatedSessionDependency,
+    view: Annotated[MyRecipeLibraryView, Query()],
     page: Annotated[int, Query(ge=1, le=1_000_000)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> MyRecipeLibraryResponse:
@@ -113,6 +127,7 @@ def my_recipe_library(
     stored = browse_my_recipes(
         session,
         actor_user_id=actor_id,
+        view=view,
         offset=(page - 1) * page_size,
         limit=page_size,
     )

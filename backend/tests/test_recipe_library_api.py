@@ -39,6 +39,7 @@ HIDDEN_PARENT_ID = UUID("7d000000-0000-4000-8000-000000000021")
 PUBLIC_CHILD_ID = UUID("7d000000-0000-4000-8000-000000000022")
 DRAFT_A_ID = UUID("7d000000-0000-4000-8000-000000000031")
 DRAFT_B_ID = UUID("7d000000-0000-4000-8000-000000000032")
+DRAFT_A_SECOND_ID = UUID("7d000000-0000-4000-8000-000000000033")
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,6 +270,15 @@ def recipe_library_api(empty_postgres_engine: Engine) -> Iterator[RecipeLibraryA
                     created_at=start + timedelta(minutes=6),
                     updated_at=start + timedelta(minutes=7),
                 ),
+                RecipeDraft(
+                    id=DRAFT_A_SECOND_ID,
+                    author_user_id=MEMBER_A_ID,
+                    title="Alpha second private draft",
+                    status="active",
+                    revision=1,
+                    created_at=start + timedelta(minutes=7),
+                    updated_at=start + timedelta(minutes=8),
+                ),
                 RecipeSave(
                     user_id=MEMBER_A_ID,
                     recipe_version_id=CHILD_ID,
@@ -412,39 +422,101 @@ def test_unpublished_direct_parent_metadata_never_leaks(
 def test_private_libraries_are_actor_scoped_paginated_and_do_not_leak_account_data(
     recipe_library_api: RecipeLibraryApi,
 ) -> None:
-    assert recipe_library_api.anonymous.get("/api/my/recipes").status_code == 401
+    assert (
+        recipe_library_api.anonymous.get("/api/my/recipes", params={"view": "drafts"}).status_code
+        == 401
+    )
     assert recipe_library_api.anonymous.get("/api/my/saved-recipes").status_code == 401
 
-    mine = recipe_library_api.member_a.get("/api/my/recipes", params={"page_size": 100})
-    assert mine.status_code == 200
-    assert mine.headers["cache-control"] == "private, no-store"
-    assert "Cookie" in mine.headers["vary"]
-    body = _json_object(mine.json())
-    assert body["total"] == 4
-    draft_items = [item for item in body["items"] if item["kind"] == "draft"]
-    published_items = [item for item in body["items"] if item["kind"] == "published"]
-    assert [item["draft"]["id"] for item in draft_items] == [str(DRAFT_A_ID)]
+    drafts_page_one = recipe_library_api.member_a.get(
+        "/api/my/recipes",
+        params={"view": "drafts", "page": 1, "page_size": 1},
+    )
+    assert drafts_page_one.status_code == 200
+    assert drafts_page_one.headers["cache-control"] == "private, no-store"
+    assert "Cookie" in drafts_page_one.headers["vary"]
+    drafts_page_one_body = _json_object(drafts_page_one.json())
+    assert drafts_page_one_body["total"] == 2
+    assert drafts_page_one_body["total_pages"] == 2
+    assert [item["draft"]["id"] for item in drafts_page_one_body["items"]] == [str(DRAFT_A_ID)]
+    assert all(item["kind"] == "draft" for item in drafts_page_one_body["items"])
+
+    drafts_page_two_body = _json_object(
+        recipe_library_api.member_a.get(
+            "/api/my/recipes",
+            params={"view": "drafts", "page": 2, "page_size": 1},
+        ).json()
+    )
+    assert drafts_page_two_body["total"] == 2
+    assert [item["draft"]["id"] for item in drafts_page_two_body["items"]] == [
+        str(DRAFT_A_SECOND_ID)
+    ]
+
+    published_page_one_body = _json_object(
+        recipe_library_api.member_a.get(
+            "/api/my/recipes",
+            params={"view": "published", "page": 1, "page_size": 2},
+        ).json()
+    )
+    assert published_page_one_body["total"] == 3
+    assert published_page_one_body["total_pages"] == 2
+    assert [item["recipe"]["id"] for item in published_page_one_body["items"]] == [
+        str(PUBLIC_CHILD_ID),
+        str(GRANDCHILD_ID),
+    ]
+    published_page_two_body = _json_object(
+        recipe_library_api.member_a.get(
+            "/api/my/recipes",
+            params={"view": "published", "page": 2, "page_size": 2},
+        ).json()
+    )
+    assert [item["recipe"]["id"] for item in published_page_two_body["items"]] == [str(ROOT_ID)]
+    published_items = [
+        *published_page_one_body["items"],
+        *published_page_two_body["items"],
+    ]
     assert {item["recipe"]["id"] for item in published_items} == {
         str(ROOT_ID),
         str(GRANDCHILD_ID),
         str(PUBLIC_CHILD_ID),
     }
+    assert all(item["kind"] == "published" for item in published_items)
     assert all(item["visibility_state"] == "published" for item in published_items)
     assert all(item["recipe"]["author"]["id"] == str(MEMBER_A_ID) for item in published_items)
 
-    other = recipe_library_api.member_b.get(
-        "/api/my/recipes",
-        params={"page_size": 100, "user_id": str(MEMBER_A_ID)},
+    withdrawn_body = _json_object(
+        recipe_library_api.member_a.get(
+            "/api/my/recipes", params={"view": "withdrawn", "page_size": 100}
+        ).json()
     )
-    assert other.status_code == 200
-    other_body = _json_object(other.json())
-    assert other_body["total"] == 2
-    assert [item["draft"]["id"] for item in other_body["items"] if item["kind"] == "draft"] == [
-        str(DRAFT_B_ID)
-    ]
-    assert {
-        item["recipe"]["id"] for item in other_body["items"] if item["kind"] == "published"
-    } == {str(CHILD_ID)}
+    assert withdrawn_body["items"] == []
+    assert withdrawn_body["total"] == 0
+    assert withdrawn_body["total_pages"] == 0
+
+    other_drafts = recipe_library_api.member_b.get(
+        "/api/my/recipes",
+        params={
+            "view": "drafts",
+            "page_size": 100,
+            "user_id": str(MEMBER_A_ID),
+        },
+    )
+    assert other_drafts.status_code == 200
+    other_drafts_body = _json_object(other_drafts.json())
+    assert other_drafts_body["total"] == 1
+    assert [item["draft"]["id"] for item in other_drafts_body["items"]] == [str(DRAFT_B_ID)]
+    other_published_body = _json_object(
+        recipe_library_api.member_b.get(
+            "/api/my/recipes",
+            params={
+                "view": "published",
+                "page_size": 100,
+                "user_id": str(MEMBER_A_ID),
+            },
+        ).json()
+    )
+    assert other_published_body["total"] == 1
+    assert {item["recipe"]["id"] for item in other_published_body["items"]} == {str(CHILD_ID)}
 
     saves = recipe_library_api.member_a.get(
         "/api/my/saved-recipes",
@@ -479,12 +551,18 @@ def test_private_libraries_are_actor_scoped_paginated_and_do_not_leak_account_da
             for nested in value:
                 assert_public_safe(nested)
 
-    assert_public_safe(body)
+    assert_public_safe(drafts_page_one_body)
+    assert_public_safe(drafts_page_two_body)
+    assert_public_safe(published_page_one_body)
+    assert_public_safe(published_page_two_body)
+    assert_public_safe(withdrawn_body)
     assert_public_safe(saves_body)
 
     for path in (
-        "/api/my/recipes?page=0",
-        "/api/my/recipes?page_size=101",
+        "/api/my/recipes?page=1",
+        "/api/my/recipes?view=unknown",
+        "/api/my/recipes?view=drafts&page=0",
+        "/api/my/recipes?view=published&page_size=101",
         "/api/my/saved-recipes?page=1000001",
     ):
         assert recipe_library_api.member_a.get(path).status_code == 422
@@ -620,14 +698,27 @@ def test_author_visibility_is_idempotent_and_applies_across_public_surfaces(
     assert "Alpha original" not in diff.text
 
     mine = _json_object(
-        recipe_library_api.member_a.get("/api/my/recipes", params={"page_size": 100}).json()
+        recipe_library_api.member_a.get(
+            "/api/my/recipes",
+            params={"view": "withdrawn", "page_size": 100},
+        ).json()
     )
+    assert mine["total"] == 1
     root_item = next(
         item
         for item in mine["items"]
         if item["kind"] == "published" and item["recipe"]["id"] == str(ROOT_ID)
     )
     assert root_item["visibility_state"] == "author_withdrawn"
+    published_after_withdrawal = _json_object(
+        recipe_library_api.member_a.get(
+            "/api/my/recipes",
+            params={"view": "published", "page_size": 100},
+        ).json()
+    )
+    assert str(ROOT_ID) not in {
+        item["recipe"]["id"] for item in published_after_withdrawal["items"]
+    }
     saves = _json_object(
         recipe_library_api.member_a.get(
             "/api/my/saved-recipes",
@@ -752,7 +843,10 @@ def test_author_cannot_restore_moderation_hidden_recipe_or_clear_withdrawal_axis
         assert publication.moderation_hidden_at is not None
 
     mine = _json_object(
-        recipe_library_api.member_a.get("/api/my/recipes", params={"page_size": 100}).json()
+        recipe_library_api.member_a.get(
+            "/api/my/recipes",
+            params={"view": "published", "page_size": 100},
+        ).json()
     )
     root_item = next(
         item
@@ -760,6 +854,13 @@ def test_author_cannot_restore_moderation_hidden_recipe_or_clear_withdrawal_axis
         if item["kind"] == "published" and item["recipe"]["id"] == str(ROOT_ID)
     )
     assert root_item["visibility_state"] == "moderation_hidden"
+    withdrawn_view = _json_object(
+        recipe_library_api.member_a.get(
+            "/api/my/recipes",
+            params={"view": "withdrawn", "page_size": 100},
+        ).json()
+    )
+    assert str(ROOT_ID) not in {item["recipe"]["id"] for item in withdrawn_view["items"]}
 
 
 @contextmanager
@@ -786,25 +887,31 @@ def _select_counter(engine: Engine) -> Iterator[list[str]]:
 
 
 @pytest.mark.parametrize(
-    ("client_name", "path", "maximum_selects"),
+    ("client_name", "path", "view", "maximum_selects"),
     [
-        ("anonymous", "/api/recipes", 3),
-        ("anonymous", "/api/cooks/member_alpha", 4),
-        ("member_a", "/api/my/recipes", 8),
-        ("member_a", "/api/my/saved-recipes", 6),
+        ("anonymous", "/api/recipes", None, 3),
+        ("anonymous", "/api/cooks/member_alpha", None, 4),
+        ("member_a", "/api/my/recipes", "drafts", 8),
+        ("member_a", "/api/my/recipes", "published", 8),
+        ("member_a", "/api/my/recipes", "withdrawn", 8),
+        ("member_a", "/api/my/saved-recipes", None, 6),
     ],
 )
 def test_card_queries_are_bounded_independently_of_page_size(
     recipe_library_api: RecipeLibraryApi,
     client_name: str,
     path: str,
+    view: str | None,
     maximum_selects: int,
 ) -> None:
     client = cast(TestClient, getattr(recipe_library_api, client_name))
     counts: list[int] = []
     for page_size in (1, 50):
+        params: dict[str, str | int] = {"page_size": page_size}
+        if view is not None:
+            params["view"] = view
         with _select_counter(recipe_library_api.engine) as statements:
-            response = client.get(path, params={"page_size": page_size})
+            response = client.get(path, params=params)
         assert response.status_code == 200
         counts.append(len(statements))
         assert len(statements) <= maximum_selects
@@ -843,6 +950,7 @@ def test_openapi_documents_public_identity_and_private_library_contracts(
     assert {
         "PublicUserReference",
         "PublicCookProfileResponse",
+        "MyRecipeLibraryView",
         "MyRecipeLibraryResponse",
         "SavedRecipeLibraryResponse",
     } <= set(schemas)
@@ -851,5 +959,17 @@ def test_openapi_documents_public_identity_and_private_library_contracts(
         "handle",
         "display_name",
     }
+    my_recipes_parameters = paths["/api/my/recipes"]["get"]["parameters"]
+    view_parameter = next(
+        parameter for parameter in my_recipes_parameters if parameter["name"] == "view"
+    )
+    assert view_parameter["in"] == "query"
+    assert view_parameter["required"] is True
+    assert view_parameter["schema"] == {"$ref": "#/components/schemas/MyRecipeLibraryView"}
+    assert schemas["MyRecipeLibraryView"]["enum"] == [
+        "drafts",
+        "published",
+        "withdrawn",
+    ]
     assert "401" in paths["/api/my/recipes"]["get"]["responses"]
     assert "401" in paths["/api/my/saved-recipes"]["get"]["responses"]
