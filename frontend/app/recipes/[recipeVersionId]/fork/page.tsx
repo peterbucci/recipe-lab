@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { fetchRecipe, isRecipeVersionId } from "../../../../lib/recipe-api";
+import { isRecipeVersionId } from "../../../../lib/recipe-api";
 import { RecipeDraftStarter } from "../../../components/recipe-draft-starter";
 
 export const dynamic = "force-dynamic";
@@ -21,10 +21,5 @@ export default async function RecipeForkPage({ params }: RecipeForkPageProps) {
     notFound();
   }
 
-  const recipe = await fetchRecipe(recipeVersionId);
-  if (recipe === null) {
-    notFound();
-  }
-
-  return <RecipeDraftStarter recipeTitle={recipe.title} sourceVersionId={recipe.id} />;
+  return <RecipeDraftStarter sourceVersionId={recipeVersionId.toLowerCase()} />;
 }

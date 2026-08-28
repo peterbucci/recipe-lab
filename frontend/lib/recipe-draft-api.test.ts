@@ -6,11 +6,14 @@ import {
   discardRecipeDraft,
   parseRecipeDraftDetail,
   parseRecipeDraftPage,
+  recipeDraftCreationRequestFingerprint,
   RecipeDraftApiError,
   updateRecipeDraft,
 } from "./recipe-draft-api";
 
 const DRAFT_ID = "11111111-1111-4111-8111-111111111111";
+const SOURCE_ID = "22222222-2222-4222-8222-222222222222";
+const ACTION_ID = "33333333-3333-4333-8333-333333333333";
 
 const blankDetail = {
   id: DRAFT_ID,
@@ -62,24 +65,129 @@ describe("private recipe draft API", () => {
     })).toThrow(RecipeDraftApiError);
   });
 
-  it("creates an original draft with CSRF protection", async () => {
+  it("creates an original draft through the shared mutation transport", async () => {
     document.cookie = "recipe_lab_csrf=test-token; path=/";
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(Response.json(blankDetail, { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(createRecipeDraft(null)).resolves.toMatchObject({ id: DRAFT_ID });
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/recipe-drafts",
-      expect.objectContaining({
-        method: "POST",
-        cache: "no-store",
-        credentials: "same-origin",
-        body: JSON.stringify({ source_version_id: null }),
-        headers: expect.objectContaining({
-          "X-CSRF-Token": "test-token",
-        }),
-      }),
+    await expect(createRecipeDraft(null, ACTION_ID)).resolves.toMatchObject({ id: DRAFT_ID });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [target, init] = fetchMock.mock.calls[0];
+    const headers = new Headers(init?.headers);
+    expect(target).toBe("/api/recipe-drafts");
+    expect(init).toMatchObject({
+      method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
+      body: JSON.stringify({ source_version_id: null }),
+    });
+    expect(headers.get("Accept")).toBe("application/json");
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(headers.get("Idempotency-Key")).toBe(ACTION_ID);
+    expect(headers.get("X-CSRF-Token")).toBe("test-token");
+  });
+
+  it("keeps blank and source fingerprints distinct while canonicalizing UUID casing", async () => {
+    const blank = await recipeDraftCreationRequestFingerprint(null);
+    const source = await recipeDraftCreationRequestFingerprint(SOURCE_ID);
+    const uppercaseSource = await recipeDraftCreationRequestFingerprint(
+      SOURCE_ID.toUpperCase(),
     );
+
+    expect(blank).toMatch(/^[0-9a-f]{64}$/);
+    expect(source).toMatch(/^[0-9a-f]{64}$/);
+    expect(source).not.toBe(blank);
+    expect(uppercaseSource).toBe(source);
+  });
+
+  it("sends the canonical source payload with the caller's persisted action key", async () => {
+    document.cookie = "recipe_lab_csrf=test-token; path=/";
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        { ...blankDetail, source_version_id: SOURCE_ID },
+        { status: 201 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createRecipeDraft(SOURCE_ID.toUpperCase(), ACTION_ID);
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init?.body).toBe(JSON.stringify({ source_version_id: SOURCE_ID }));
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBe(ACTION_ID);
+  });
+
+  it("exposes a lost response as unknown and recovers with the same action key", async () => {
+    document.cookie = "recipe_lab_csrf=test-token; path=/";
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new TypeError("private network detail"))
+      .mockResolvedValueOnce(Response.json(blankDetail, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const lost = await createRecipeDraft(null, ACTION_ID).catch(
+      (reason: unknown) => reason,
+    );
+    expect(lost).toBeInstanceOf(RecipeDraftApiError);
+    expect(lost).toMatchObject({
+      code: "network_error",
+      outcome: "unknown",
+      status: 0,
+    });
+    await expect(createRecipeDraft(null, ACTION_ID)).resolves.toMatchObject({
+      id: DRAFT_ID,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(
+      fetchMock.mock.calls.map(([, init]) =>
+        new Headers(init?.headers).get("Idempotency-Key"),
+      ),
+    ).toEqual([ACTION_ID, ACTION_ID]);
+  });
+
+  it("treats a malformed success as ambiguous and does not retry automatically", async () => {
+    document.cookie = "recipe_lab_csrf=test-token; path=/";
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({ ...blankDetail, id: "private-server-junk" }, { status: 201 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(createRecipeDraft(null, ACTION_ID)).rejects.toMatchObject({
+      code: "invalid_recipe_draft_response",
+      outcome: "unknown",
+      status: 502,
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("does not accept a valid-looking draft from a different creation intent", async () => {
+    document.cookie = "recipe_lab_csrf=test-token; path=/";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json(
+          { ...blankDetail, source_version_id: SOURCE_ID },
+          { status: 201 },
+        ),
+      ),
+    );
+
+    await expect(createRecipeDraft(null, ACTION_ID)).rejects.toMatchObject({
+      code: "invalid_recipe_draft_response",
+      outcome: "unknown",
+    });
+  });
+
+  it("rejects an invalid action key before dispatch", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(createRecipeDraft(null, "not-a-uuid")).rejects.toMatchObject({
+      code: "invalid_idempotency_key",
+      outcome: "rejected",
+      status: 0,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("announces an expired session while retaining the typed API error", async () => {

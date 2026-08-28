@@ -51,7 +51,7 @@ const cases: Array<{
   {
     name: "private recipe drafts",
     fallbackCode: "recipe_draft_api_error",
-    request: () => createRecipeDraft(null),
+    request: () => createRecipeDraft(null, RECIPE_ID),
   },
   {
     name: "recipe libraries",
