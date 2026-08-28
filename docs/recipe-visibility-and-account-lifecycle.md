@@ -34,9 +34,10 @@ updates to immutable publication evidence.
 ## Author withdrawal and restoration
 
 An active, onboarded member manages authored snapshots through My Recipes.
-`GET /api/my/recipes` includes all of that member's published, withdrawn, and
-moderation-hidden versions and adds `visibility_state` to the private library
-entry. Public recipe response objects do not expose lifecycle state.
+`GET /api/my/recipes?view=published` includes that member's published and
+moderation-hidden versions, while `view=withdrawn` contains author-withdrawn
+versions. Both add `visibility_state` to the private library entry. Public
+recipe response objects do not expose lifecycle state.
 
 `PUT /api/recipes/{recipe_version_id}/visibility` accepts one desired author
 state:

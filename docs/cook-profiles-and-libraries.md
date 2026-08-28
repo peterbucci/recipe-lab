@@ -73,19 +73,22 @@ The two private endpoints accept no user identifier. They derive the member
 solely from the active Recipe Lab session, return `Cache-Control: private,
 no-store`, and vary on the session cookie:
 
-- `GET /api/my/recipes` database-pages one recent activity stream containing
-  the current member's active private drafts and every authored publication.
-  Discriminated entries keep draft data separate from recipe summaries; private
-  publication entries additionally identify `published`, `author_withdrawn`, or
-  `moderation_hidden` visibility. The UI labels each item as an original or fork,
-  labels drafts as private, and is the author-only withdraw/restore surface.
+- `GET /api/my/recipes` requires `view=drafts|published|withdrawn`. Each view is
+  filtered, sorted, counted, and paginated by the server. Drafts contains only
+  active private drafts. Published contains `published` and
+  `moderation_hidden` recipes with an accurate private `visibility_state`.
+  Withdrawn contains only `author_withdrawn` recipes. The UI labels drafts as
+  private, preserves direct-parent provenance where available, and provides the
+  author-only withdraw/restore controls without calling each card separately.
 - `GET /api/my/saved-recipes` database-pages only public versions currently
   saved by the current member, ordered by the server-recorded save time.
 
-The matching web routes are `/account/recipes` and
-`/account/saved-recipes`. Signed-out visitors use the existing account gate.
-One member cannot select another member's drafts, authored-library entries, or
-saves by changing a query parameter or URL because no such selector exists.
+The matching web routes are `/account/recipes?view=...` and
+`/account/saved-recipes`. The former `/account/recipe-drafts` collection route
+redirects to the Drafts view while individual editor URLs remain stable.
+Signed-out visitors use the existing account gate. One member cannot select
+another member's drafts, authored-library entries, or saves by changing a query
+parameter or URL because no such selector exists.
 
 Recipe withdrawal and deletion do not add follows, comments, feeds, messages,
 notifications, public email, analytics, profile images, or a moderation queue.
