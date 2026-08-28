@@ -46,7 +46,7 @@ stored data.
 ## Operation classifications
 
 The snapshot records these as `x-recipe-lab-classification` and
-`x-recipe-lab-consumer-evidence`. Its 45 OpenAPI operations have exactly one of
+`x-recipe-lab-consumer-evidence`. Its 42 OpenAPI operations have exactly one of
 four classifications:
 
 | Classification | OpenAPI operations | Meaning |
@@ -54,7 +54,7 @@ four classifications:
 | `active_consumer` | 32 | A current in-repository product workflow calls the operation. Its evidence identifies the maintained consumer boundary. |
 | `staff_internal` | 8 | The operation supports a bounded curator, moderator, or operator workflow rather than an ordinary cook-facing workflow. Staff-only does not mean unreviewed or safe to remove. The four separately inventoried framework routes use this classification too. |
 | `research_experimental` | 2 | The operation is limited to an explicitly identified research or experimental boundary. It is not evidence of a supported consumer product claim. |
-| `retired` | 3 | No maintained in-repository product consumer remains. The operation is retained temporarily pending an external-consumer, deprecation, or removal decision, and new consumers must not depend on it. It may still return a functional response. |
+| `retired` | 0 | No maintained in-repository product consumer remains. A deployed operation stays in this class until an external-consumer, deprecation, or removal decision is reviewed; new consumers must not depend on it. |
 
 These labels describe the present contract and its known in-repository use. They
 do not authorize a behavior change. Reclassification is itself inventory drift
@@ -63,10 +63,9 @@ and must be reviewed with updated evidence.
 Classification describes consumers, not implementation quality. In particular,
 measurement conversion is `research_experimental` because the evidence audit
 found no production frontend caller; its conversion rules remain reviewed and
-tested. Likewise, `retired` applies only to the three identified legacy HTTP
-adapters. It does not retire the still-used duplicate evidence/services, the
-active saved-draft duplicate client, or the review and publication workflow
-that consumes its results.
+tested. Removing the former legacy HTTP adapters does not retire the still-used
+duplicate evidence/services, the active saved-draft duplicate client, or the
+review and publication workflow that consumes its results.
 
 ## Consumer evidence and the external boundary
 
@@ -85,6 +84,31 @@ may be removed solely because its in-repository consumer evidence is empty. Use
 a reviewed deprecation or compatibility response when removal cannot be proven
 safe. Retired operations also name their active replacements through
 `x-recipe-lab-successor-operation-ids`.
+
+### RCP-34E pre-deployment removal decision
+
+RCP-34E removed these three previously retired operations rather than retaining
+temporary `410 Gone` responses:
+
+- `POST /api/recipes/{recipe_version_id}/variants`;
+- `POST /api/recipes/{recipe_version_id}/duplicate-preflights`; and
+- `POST /api/recipe-duplicate-preflights/{preflight_id}/decision`.
+
+This is a reviewed pre-deployment removal, not an inference from missing access
+logs. The production-deployment story RCP-21 remains open and explicitly depends
+on completion of the RCP-34 through RCP-36 prelaunch epics. A fresh repository
+search found no maintained frontend, service-to-service, script, or end-to-end
+caller, and RCP-34D had already removed the isolated frontend workflow. The
+operations therefore never formed a deployed external contract, so a runtime
+deprecation window or `410` compatibility shim would preserve dead behavior
+without protecting a caller. The active replacements are private draft creation,
+revisioned saving, draft-scoped duplicate preflight, and atomic draft publication.
+
+This decision does not authorize removing the duplicate evidence tables,
+decisions, fingerprints, scoring, publication receipts, lineage, migration
+history, or fork events used by the active workflow. If deployment evidence ever
+contradicts the pre-deployment premise, removal must stop and return to an
+explicit compatibility decision.
 
 ## Stable operation IDs and drift review
 

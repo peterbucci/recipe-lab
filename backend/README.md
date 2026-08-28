@@ -287,16 +287,6 @@ so production and offline formulas share one implementation. See
 and [offline recommendation evaluation](../docs/evaluation.md) for the split,
 metrics, reproducibility, and data-limitations contract.
 
-## Legacy direct variant endpoint
-
-`POST /api/recipes/{recipe_version_id}/variants` is intentionally disabled and
-returns a write-free `409 recipe_variant_publication_requires_draft`. Account
-mode never turns an edit payload directly into a public child. Members instead
-copy the exact public source into a private draft, save and review that draft,
-and publish it through the authenticated draft-publication transaction below.
-This removes the former one-step path without discarding the reusable internal
-copying and fingerprint contracts.
-
 ## Private recipe drafts
 
 RCP-26 stores private authoring state outside `recipe_versions`. The endpoints
@@ -455,14 +445,12 @@ The exhaustive table, field, log, backup, and derived-artifact decisions are in
 The maintained browser uses
 `POST /api/recipe-drafts/{draft_id}/duplicate-preflights` with the saved
 revision and supports both original and source-backed drafts.
-`POST /api/recipes/{recipe_version_id}/duplicate-preflights` remains a retired
-backend compatibility adapter without a maintained product client; it prepares
-an in-memory proposed child without inserting one. Both adapters require an
-onboarded member, Origin/CSRF evidence, and a UUID `Idempotency-Key`. The service
-builds the proposed `recipe-structure-v1` fingerprint and compares it only with
-publicly readable stored fingerprints. A source-backed review binds the exact
-direct parent, excludes it from ordinary candidate results, and separately
-reports an explainable no-change warning when its canonical structure matches.
+The adapter requires an onboarded member, Origin/CSRF evidence, and a UUID
+`Idempotency-Key`. The service builds the proposed `recipe-structure-v1`
+fingerprint and compares it only with publicly readable stored fingerprints. A
+source-backed review binds the exact direct parent, excludes it from ordinary
+candidate results, and separately reports an explainable no-change warning when
+its canonical structure matches.
 It returns `exact_duplicate`, `probable_duplicate`, or `distinct`, at most five
 public candidates, at most three fixed explanation reasons per candidate, and
 a stable acknowledgement.
@@ -482,17 +470,15 @@ non-exact work units. Budget overflow fails closed with one generic `503`
 response; the service never returns partial candidate evidence.
 
 Draft publication binds the revision, optional source, policy, result digest,
-and optional `continue` directly inside its atomic transaction. The retired
-backend compatibility route
-`POST /api/recipe-duplicate-preflights/{preflight_id}/decision` can still record
-a standalone `continue` or `revise` choice until its removal is reviewed, but no
-maintained product client calls it. Preflights, bounded
-candidate evidence, and decisions are append-only, actor-scoped, and
-idempotent; they are not recommendation events. Publication receipts are also
-append-only and bind an exact publish retry to its original result. Replays and
-publication recheck public candidate and source availability. Candidate drift
-returns one generic stale conflict; loss of a fork's direct source returns the
-specific source-unavailable conflict while retaining the private draft. See
+and optional `continue` directly inside its atomic transaction. Revising means
+editing and saving the draft, which invalidates the prior review. There is no
+standalone decision endpoint. Preflights, bounded candidate evidence, and
+publication-bound decisions are append-only, actor-scoped, and idempotent; they
+are not recommendation events. Publication receipts are also append-only and
+bind an exact publish retry to its original result. Replays and publication
+recheck public candidate and source availability. Candidate drift returns one
+generic stale conflict; loss of a fork's direct source returns the specific
+source-unavailable conflict while retaining the private draft. See
 [recipe duplicate-candidate preflight](../docs/duplicate-detection.md) for the
 formula, privacy boundary, publication binding, and evaluation limitations.
 

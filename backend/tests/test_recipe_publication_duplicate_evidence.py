@@ -340,8 +340,14 @@ def test_publication_rejects_a_stale_candidate_set_without_writing_a_root(
         ),
     )
     assert competing_publish.status_code == 201
+    competing_version_id = UUID(
+        cast(str, _json_object(competing_publish.json())["recipe_version_id"])
+    )
 
     with Session(bind=duplicate_evidence_api.engine) as session:
+        competing_version = session.get(RecipeVersion, competing_version_id)
+        assert competing_version is not None
+        competing_title = competing_version.title
         versions_before = session.scalar(select(func.count()).select_from(RecipeVersion)) or 0
         lineages_before = session.scalar(select(func.count()).select_from(RecipeLineage)) or 0
         publications_before = (
@@ -360,6 +366,8 @@ def test_publication_rejects_a_stale_candidate_set_without_writing_a_root(
     assert _json_object(_json_object(stale.json())["error"])["code"] == (
         "duplicate_preflight_stale"
     )
+    assert str(competing_version_id) not in stale.text
+    assert competing_title not in stale.text
 
     with Session(bind=duplicate_evidence_api.engine) as session:
         assert (

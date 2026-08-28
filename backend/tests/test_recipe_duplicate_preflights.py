@@ -1,6 +1,5 @@
 import json
-from collections.abc import Callable, Sequence
-from datetime import UTC, datetime
+from collections.abc import Sequence
 from decimal import Decimal
 from hashlib import sha256
 from typing import Any, cast
@@ -12,21 +11,15 @@ from sqlalchemy.orm import Session
 import app.services.recipe_duplicate_preflights as preflight_service
 from app.models import (
     RecipeDuplicateCandidate,
-    RecipeDuplicateDecision,
     RecipeDuplicatePreflight,
     RecipeStructuralFingerprint,
 )
 from app.repositories.recipe_duplicates import (
-    RecipeDuplicateAcknowledgementConflictError,
     RecipeDuplicateCandidateWrite,
-    RecipeDuplicateDecisionStoreResult,
-    RecipeDuplicatePreflightNotFoundError,
     RecipeDuplicatePreflightStoreResult,
     RecipeDuplicateStorageConflictError,
 )
 from app.repositories.recipes import PublicRecipeDuplicateCandidate
-from app.schemas.recipe_duplicates import RecipeDuplicateDecisionRequest
-from app.schemas.recipe_forks import RecipeForkRequest
 from app.services.recipe_duplicate_scoring import DUPLICATE_CANDIDATE_PARAMETER_HASH
 from app.services.recipe_fingerprints import (
     CanonicalUnit,
@@ -38,7 +31,6 @@ from app.services.recipe_fingerprints import (
     StructuralMeasure,
     build_structural_fingerprint,
 )
-from app.services.recipe_forks import PreparedRecipeFork
 
 
 def _required(value: StructuralFingerprint | None) -> StructuralFingerprint:
@@ -75,30 +67,6 @@ def _structure(
                 )
             ),
         ),
-    )
-
-
-def _prepared(source_version_id: UUID, fingerprint: StructuralFingerprint) -> PreparedRecipeFork:
-    return PreparedRecipeFork(
-        source_version_id=source_version_id,
-        lineage_id=uuid4(),
-        title="Display-only title does not affect structural identity",
-        description="Free-form prose is excluded from duplicate scoring.",
-        servings=Decimal("4.00"),
-        structure=_structure(),
-        structural_fingerprint=fingerprint,
-        _ingredient_drafts=(),
-        _instruction_drafts=(),
-    )
-
-
-def _payload(*, title: str = "A proposed recipe") -> RecipeForkRequest:
-    return RecipeForkRequest(
-        title=title,
-        description="Human-readable prose.",
-        servings=Decimal("4.00"),
-        ingredient_edits=[],
-        instruction_edits=[],
     )
 
 
@@ -177,10 +145,9 @@ def _install_store(
     monkeypatch.setattr(preflight_service, "get_public_recipe_version_titles", fake_titles)
 
 
-def _install_creation_dependencies(
+def _install_core_dependencies(
     monkeypatch: pytest.MonkeyPatch,
     *,
-    prepared: PreparedRecipeFork,
     candidates: list[PublicRecipeDuplicateCandidate],
     source_fingerprint: RecipeStructuralFingerprint | None,
 ) -> None:
@@ -188,11 +155,6 @@ def _install_creation_dependencies(
         preflight_service,
         "get_recipe_duplicate_preflight_by_action",
         lambda *_args, **_kwargs: None,
-    )
-    monkeypatch.setattr(
-        preflight_service,
-        "prepare_recipe_fork",
-        lambda *_args, **_kwargs: prepared,
     )
     monkeypatch.setattr(
         preflight_service,
@@ -272,10 +234,8 @@ def test_exact_preflight_is_bounded_explainable_and_warns_on_parent_no_change(
         )
         for index, candidate_id in enumerate(reversed(candidate_ids))
     ]
-    prepared = _prepared(source_id, fingerprint)
-    _install_creation_dependencies(
+    _install_core_dependencies(
         monkeypatch,
-        prepared=prepared,
         candidates=candidates,
         source_fingerprint=_stored_fingerprint(source_id, fingerprint),
     )
@@ -285,12 +245,13 @@ def test_exact_preflight_is_bounded_explainable_and_warns_on_parent_no_change(
     }
     _install_store(monkeypatch, titles=titles, capture=capture)
 
-    result = preflight_service.run_recipe_duplicate_preflight(
+    result = preflight_service.run_structural_recipe_duplicate_preflight(
         cast(Session, object()),
+        subject_fingerprint=fingerprint,
         source_version_id=source_id,
         actor_user_id=actor_id,
         action_id=uuid4(),
-        payload=_payload(),
+        request_fingerprint="1" * 64,
     )
 
     assert result.state == "created"
@@ -324,9 +285,8 @@ def test_preflight_fails_closed_before_scoring_an_over_capacity_public_catalog(
         )
         for _ in range(preflight_service.MAX_PUBLIC_DUPLICATE_COMPARISONS + 1)
     ]
-    _install_creation_dependencies(
+    _install_core_dependencies(
         monkeypatch,
-        prepared=_prepared(source_id, fingerprint),
         candidates=candidates,
         source_fingerprint=None,
     )
@@ -345,12 +305,13 @@ def test_preflight_fails_closed_before_scoring_an_over_capacity_public_catalog(
         preflight_service.RecipeDuplicatePreflightCapacityError,
         match="temporarily unavailable",
     ):
-        preflight_service.run_recipe_duplicate_preflight(
+        preflight_service.run_structural_recipe_duplicate_preflight(
             cast(Session, object()),
+            subject_fingerprint=fingerprint,
             source_version_id=source_id,
             actor_user_id=uuid4(),
             action_id=uuid4(),
-            payload=_payload(),
+            request_fingerprint="2" * 64,
         )
 
 
@@ -399,9 +360,8 @@ def test_preflight_fails_closed_when_aggregate_pair_work_exceeds_budget(
         )
         for _ in range(2)
     ]
-    _install_creation_dependencies(
+    _install_core_dependencies(
         monkeypatch,
-        prepared=_prepared(source_id, subject),
         candidates=candidates,
         source_fingerprint=None,
     )
@@ -417,12 +377,13 @@ def test_preflight_fails_closed_when_aggregate_pair_work_exceeds_budget(
     )
 
     with pytest.raises(preflight_service.RecipeDuplicatePreflightCapacityError):
-        preflight_service.run_recipe_duplicate_preflight(
+        preflight_service.run_structural_recipe_duplicate_preflight(
             cast(Session, object()),
+            subject_fingerprint=subject,
             source_version_id=source_id,
             actor_user_id=uuid4(),
             action_id=uuid4(),
-            payload=_payload(),
+            request_fingerprint="3" * 64,
         )
 
 
@@ -461,9 +422,8 @@ def test_preflight_classifies_probable_and_confirms_payload_before_exact(
         fingerprint=candidate_fingerprint,
         digest=digest,
     )
-    _install_creation_dependencies(
+    _install_core_dependencies(
         monkeypatch,
-        prepared=_prepared(source_id, subject),
         candidates=[candidate],
         source_fingerprint=None,
     )
@@ -474,12 +434,13 @@ def test_preflight_classifies_probable_and_confirms_payload_before_exact(
         capture=capture,
     )
 
-    result = preflight_service.run_recipe_duplicate_preflight(
+    result = preflight_service.run_structural_recipe_duplicate_preflight(
         cast(Session, object()),
+        subject_fingerprint=subject,
         source_version_id=source_id,
         actor_user_id=uuid4(),
         action_id=uuid4(),
-        payload=_payload(),
+        request_fingerprint="4" * 64,
     )
 
     assert result.response.classification == expected
@@ -667,322 +628,3 @@ def test_source_optional_core_replays_idempotently_and_rejects_key_reuse(
             action_id=action_id,
             request_fingerprint="3" * 64,
         )
-
-
-def test_preflight_replay_is_stable_and_conflicting_key_reuse_is_rejected(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    source_id = uuid4()
-    actor_id = uuid4()
-    action_id = uuid4()
-    fingerprint = _required(build_structural_fingerprint(_structure()))
-    prepared = _prepared(source_id, fingerprint)
-    _install_creation_dependencies(
-        monkeypatch,
-        prepared=prepared,
-        candidates=[],
-        source_fingerprint=_stored_fingerprint(source_id, fingerprint),
-    )
-    capture: list[RecipeDuplicatePreflight] = []
-    _install_store(
-        monkeypatch,
-        titles={source_id: "Direct parent"},
-        capture=capture,
-    )
-    first = preflight_service.run_recipe_duplicate_preflight(
-        cast(Session, object()),
-        source_version_id=source_id,
-        actor_user_id=actor_id,
-        action_id=action_id,
-        payload=_payload(),
-    )
-    stored = capture[0]
-    monkeypatch.setattr(
-        preflight_service,
-        "get_recipe_duplicate_preflight_by_action",
-        lambda *_args, **_kwargs: stored,
-    )
-    monkeypatch.setattr(
-        preflight_service,
-        "prepare_recipe_fork",
-        cast(Callable[..., PreparedRecipeFork], lambda *_args, **_kwargs: pytest.fail()),
-    )
-
-    replay = preflight_service.run_recipe_duplicate_preflight(
-        cast(Session, object()),
-        source_version_id=source_id,
-        actor_user_id=actor_id,
-        action_id=action_id,
-        payload=_payload(),
-    )
-    assert replay.state == "reused"
-    assert replay.response == first.response
-
-    with pytest.raises(RecipeDuplicateStorageConflictError):
-        preflight_service.run_recipe_duplicate_preflight(
-            cast(Session, object()),
-            source_version_id=source_id,
-            actor_user_id=actor_id,
-            action_id=action_id,
-            payload=_payload(title="A conflicting request"),
-        )
-
-
-def test_replay_and_decision_fail_stale_when_a_returned_candidate_is_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    source_id = uuid4()
-    candidate_id = uuid4()
-    actor_id = uuid4()
-    action_id = uuid4()
-    fingerprint = _required(build_structural_fingerprint(_structure()))
-    prepared = _prepared(source_id, fingerprint)
-    candidate = _public_candidate(
-        candidate_id,
-        title="A public candidate that later becomes unavailable",
-        fingerprint=fingerprint,
-    )
-    _install_creation_dependencies(
-        monkeypatch,
-        prepared=prepared,
-        candidates=[candidate],
-        source_fingerprint=None,
-    )
-    capture: list[RecipeDuplicatePreflight] = []
-    _install_store(
-        monkeypatch,
-        titles={source_id: "Public source", candidate_id: candidate.title},
-        capture=capture,
-    )
-    created = preflight_service.run_recipe_duplicate_preflight(
-        cast(Session, object()),
-        source_version_id=source_id,
-        actor_user_id=actor_id,
-        action_id=action_id,
-        payload=_payload(),
-    )
-    stored = capture[0]
-    assert created.response.candidates[0].public_recipe_version_id == candidate_id
-
-    monkeypatch.setattr(
-        preflight_service,
-        "get_public_recipe_version_titles",
-        lambda _session, ids: {source_id: "Public source"} if source_id in ids else {},
-    )
-    monkeypatch.setattr(
-        preflight_service,
-        "get_recipe_duplicate_preflight_by_action",
-        lambda *_args, **_kwargs: stored,
-    )
-    with pytest.raises(
-        preflight_service.RecipeDuplicatePreflightStaleError,
-        match="no longer current",
-    ) as replay_error:
-        preflight_service.run_recipe_duplicate_preflight(
-            cast(Session, object()),
-            source_version_id=source_id,
-            actor_user_id=actor_id,
-            action_id=action_id,
-            payload=_payload(),
-        )
-    assert str(candidate_id) not in str(replay_error.value)
-    assert candidate.title not in str(replay_error.value)
-
-    monkeypatch.setattr(
-        preflight_service,
-        "get_recipe_duplicate_preflight_by_id",
-        lambda *_args, **_kwargs: stored,
-    )
-    monkeypatch.setattr(
-        preflight_service,
-        "store_recipe_duplicate_decision",
-        lambda *_args, **_kwargs: pytest.fail(
-            "an unavailable candidate must fail before a decision is stored"
-        ),
-    )
-    with pytest.raises(
-        preflight_service.RecipeDuplicatePreflightStaleError,
-        match="no longer current",
-    ) as decision_error:
-        preflight_service.record_recipe_duplicate_decision(
-            cast(Session, object()),
-            preflight_id=stored.id,
-            actor_user_id=actor_id,
-            action_id=uuid4(),
-            payload=RecipeDuplicateDecisionRequest(
-                policy_version=created.response.acknowledgement.policy_version,
-                result_digest=created.response.acknowledgement.result_digest,
-                decision="continue",
-            ),
-        )
-    assert str(candidate_id) not in str(decision_error.value)
-    assert candidate.title not in str(decision_error.value)
-
-
-def test_unavailable_source_is_rejected_before_preparation(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    source_id = uuid4()
-    monkeypatch.setattr(
-        preflight_service,
-        "get_recipe_duplicate_preflight_by_action",
-        lambda *_args, **_kwargs: None,
-    )
-    monkeypatch.setattr(
-        preflight_service,
-        "get_public_recipe_version_titles",
-        lambda *_args, **_kwargs: {},
-    )
-    monkeypatch.setattr(
-        preflight_service,
-        "prepare_recipe_fork",
-        cast(Callable[..., PreparedRecipeFork], lambda *_args, **_kwargs: pytest.fail()),
-    )
-
-    with pytest.raises(preflight_service.RecipeDuplicatePreflightUnavailableError):
-        preflight_service.run_recipe_duplicate_preflight(
-            cast(Session, object()),
-            source_version_id=source_id,
-            actor_user_id=uuid4(),
-            action_id=uuid4(),
-            payload=_payload(),
-        )
-
-
-def test_decision_is_actor_scoped_and_stale_acknowledgement_is_generic(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    source_id = uuid4()
-    actor_id = uuid4()
-    fingerprint = _required(build_structural_fingerprint(_structure()))
-    prepared = _prepared(source_id, fingerprint)
-    _install_creation_dependencies(
-        monkeypatch,
-        prepared=prepared,
-        candidates=[],
-        source_fingerprint=_stored_fingerprint(source_id, fingerprint),
-    )
-    capture: list[RecipeDuplicatePreflight] = []
-    _install_store(
-        monkeypatch,
-        titles={source_id: "Direct parent"},
-        capture=capture,
-    )
-    created = preflight_service.run_recipe_duplicate_preflight(
-        cast(Session, object()),
-        source_version_id=source_id,
-        actor_user_id=actor_id,
-        action_id=uuid4(),
-        payload=_payload(),
-    )
-    stored_preflight = capture[0]
-    monkeypatch.setattr(
-        preflight_service,
-        "get_recipe_duplicate_preflight_by_id",
-        lambda *_args, **_kwargs: stored_preflight,
-    )
-
-    def stale_store(_session: Session, **_kwargs: Any) -> RecipeDuplicateDecisionStoreResult:
-        raise RecipeDuplicateAcknowledgementConflictError("stale")
-
-    monkeypatch.setattr(preflight_service, "store_recipe_duplicate_decision", stale_store)
-    with pytest.raises(preflight_service.RecipeDuplicatePreflightStaleError):
-        preflight_service.record_recipe_duplicate_decision(
-            cast(Session, object()),
-            preflight_id=stored_preflight.id,
-            actor_user_id=actor_id,
-            action_id=uuid4(),
-            payload=RecipeDuplicateDecisionRequest(
-                policy_version=created.response.acknowledgement.policy_version,
-                result_digest="f" * 64,
-                decision="continue",
-            ),
-        )
-
-    monkeypatch.setattr(
-        preflight_service,
-        "get_recipe_duplicate_preflight_by_id",
-        lambda *_args, **_kwargs: None,
-    )
-    with pytest.raises(RecipeDuplicatePreflightNotFoundError):
-        preflight_service.record_recipe_duplicate_decision(
-            cast(Session, object()),
-            preflight_id=stored_preflight.id,
-            actor_user_id=uuid4(),
-            action_id=uuid4(),
-            payload=RecipeDuplicateDecisionRequest(
-                policy_version=created.response.acknowledgement.policy_version,
-                result_digest=created.response.acknowledgement.result_digest,
-                decision="revise",
-            ),
-        )
-
-
-def test_current_decision_returns_immutable_audit_timestamp(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    source_id = uuid4()
-    actor_id = uuid4()
-    fingerprint = _required(build_structural_fingerprint(_structure()))
-    prepared = _prepared(source_id, fingerprint)
-    _install_creation_dependencies(
-        monkeypatch,
-        prepared=prepared,
-        candidates=[],
-        source_fingerprint=_stored_fingerprint(source_id, fingerprint),
-    )
-    capture: list[RecipeDuplicatePreflight] = []
-    _install_store(
-        monkeypatch,
-        titles={source_id: "Direct parent"},
-        capture=capture,
-    )
-    created = preflight_service.run_recipe_duplicate_preflight(
-        cast(Session, object()),
-        source_version_id=source_id,
-        actor_user_id=actor_id,
-        action_id=uuid4(),
-        payload=_payload(),
-    )
-    preflight = capture[0]
-    monkeypatch.setattr(
-        preflight_service,
-        "get_recipe_duplicate_preflight_by_id",
-        lambda *_args, **_kwargs: preflight,
-    )
-    recorded_at = datetime(2026, 8, 25, tzinfo=UTC)
-
-    def store_decision(_session: Session, **kwargs: Any) -> RecipeDuplicateDecisionStoreResult:
-        decision = RecipeDuplicateDecision(
-            id=uuid4(),
-            preflight_id=cast(UUID, kwargs["preflight_id"]),
-            actor_user_id=cast(UUID, kwargs["actor_user_id"]),
-            action_id=cast(UUID, kwargs["action_id"]),
-            decision=cast(str, kwargs["decision"]),
-            acknowledged_policy_version=cast(str, kwargs["acknowledged_policy_version"]),
-            acknowledged_result_digest=cast(str, kwargs["acknowledged_result_digest"]),
-            created_at=recorded_at,
-        )
-        return RecipeDuplicateDecisionStoreResult(decision=decision, state="created")
-
-    monkeypatch.setattr(
-        preflight_service,
-        "store_recipe_duplicate_decision",
-        store_decision,
-    )
-    result = preflight_service.record_recipe_duplicate_decision(
-        cast(Session, object()),
-        preflight_id=preflight.id,
-        actor_user_id=actor_id,
-        action_id=uuid4(),
-        payload=RecipeDuplicateDecisionRequest(
-            policy_version=created.response.acknowledgement.policy_version,
-            result_digest=created.response.acknowledgement.result_digest,
-            decision="revise",
-        ),
-    )
-
-    assert result.state == "created"
-    assert result.response.preflight_id == preflight.id
-    assert result.response.decision == "revise"
-    assert result.response.recorded_at == recorded_at

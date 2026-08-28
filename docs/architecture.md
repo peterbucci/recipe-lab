@@ -322,10 +322,9 @@ same transaction as the immutable version.
 
 RCP-25E consumes those fingerprints through a separate public-only advisory
 preflight. A source-optional structural core accepts a completed fingerprint;
-the retired backend compatibility adapter can prepare a proposed child without
-taking a long-lived lineage lock, while the maintained publication adapter loads
-one saved original or source-backed draft revision. No temporary recipe row is inserted. Fork
-publication takes the lineage lock only inside the final transaction and
+the maintained publication adapter loads one saved original or source-backed
+draft revision. No temporary recipe row is inserted. Fork publication takes the
+lineage lock only inside the final transaction and
 verifies that the stored fingerprint is byte-identical to the prepared draft
 fingerprint before commit. `recipe-duplicate-preflight-policy-v1` pins candidate
 selection, public visibility, ordering, work limits, direct-parent semantics,
@@ -334,12 +333,13 @@ digest candidates are confirmed against canonical JSON, while non-exact public
 candidates are scored from curated ingredient multisets, one-scale normalized
 quantities, and ordered structured actions. The response is capped at five
 candidates and three fixed reasons per candidate. Current browse, detail,
-replay, decision, and candidate reads share an explicit public-read predicate
-so future draft visibility cannot be filtered only after scoring.
+replay, publication, and candidate reads share an explicit public-read
+predicate so future draft visibility cannot be filtered only after scoring.
 
 `recipe_duplicate_preflights`, `recipe_duplicate_candidates`, and
 `recipe_duplicate_decisions` retain only bounded versioned evidence and the
-author's acknowledged continue-or-revise choice. Database triggers reject
+author's publication-bound `continue` choice. Historical `revise` choices from
+the removed adapter remain readable. Database triggers reject
 mutation; composite foreign keys bind candidate policy/fingerprint versions and
 decision actor/policy/digest to their preflight; and bounded JSON checks enforce
 the explanation families. No prose or canonical payload is copied into the

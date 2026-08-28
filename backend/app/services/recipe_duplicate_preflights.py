@@ -1,8 +1,8 @@
 """Member-scoped, advisory duplicate preflight orchestration.
 
-The service prepares a variant without inserting it, compares only its canonical
-structure with publicly readable immutable recipe snapshots, and stores a bounded
-audit record. It never writes recommendation signals or changes publication state.
+The service compares a validated draft fingerprint with publicly readable immutable
+recipe snapshots and stores a bounded audit record. It never writes recommendation
+signals or changes publication state.
 """
 
 from __future__ import annotations
@@ -27,7 +27,6 @@ from app.models import (
 from app.repositories.recipe_duplicates import (
     RecipeDuplicateAcknowledgementConflictError,
     RecipeDuplicateCandidateWrite,
-    RecipeDuplicateDecisionStoreResult,
     RecipeDuplicatePreflightNotFoundError,
     RecipeDuplicatePreflightStoreResult,
     RecipeDuplicateStorageConflictError,
@@ -45,17 +44,12 @@ from app.repositories.recipes import (
 from app.schemas.recipe_duplicates import (
     DuplicateCandidateClassification,
     DuplicateClassification,
-    DuplicateDecision,
     RecipeDuplicateAcknowledgementResponse,
     RecipeDuplicateCandidateResponse,
-    RecipeDuplicateDecisionRequest,
-    RecipeDuplicateDecisionResponse,
     RecipeDuplicatePreflightResponse,
     RecipeDuplicateReasonResponse,
     RecipeDuplicateWarningResponse,
 )
-from app.schemas.recipe_forks import RecipeForkRequest
-from app.services.preference_events import recipe_fork_request_fingerprint
 from app.services.recipe_duplicate_scoring import (
     DUPLICATE_CANDIDATE_PARAMETER_HASH,
     DUPLICATE_CANDIDATE_SCORING_ALGORITHM_VERSION,
@@ -79,7 +73,6 @@ from app.services.recipe_fingerprints import (
     STRUCTURAL_FINGERPRINT_ALGORITHM_VERSION,
     StructuralFingerprint,
 )
-from app.services.recipe_forks import prepare_recipe_fork
 
 RECIPE_DUPLICATE_POLICY_VERSION = "recipe-duplicate-preflight-policy-v1"
 RECIPE_DUPLICATE_RESULT_SCHEMA = "recipe-lab.recipe-duplicate-preflight-result"
@@ -196,12 +189,6 @@ class RecipeDuplicatePreflightCapacityError(RuntimeError):
 @dataclass(frozen=True, slots=True)
 class RecipeDuplicatePreflightServiceResult:
     response: RecipeDuplicatePreflightResponse
-    state: str
-
-
-@dataclass(frozen=True, slots=True)
-class RecipeDuplicateDecisionServiceResult:
-    response: RecipeDuplicateDecisionResponse
     state: str
 
 
@@ -685,95 +672,3 @@ def revalidate_recipe_duplicate_publication_evidence(
             "Duplicate preflight is no longer current."
         ) from error
     return preflight, stored.decision
-
-
-def run_recipe_duplicate_preflight(
-    session: Session,
-    *,
-    source_version_id: UUID,
-    actor_user_id: UUID,
-    action_id: UUID,
-    payload: RecipeForkRequest,
-) -> RecipeDuplicatePreflightServiceResult:
-    """Adapt a proposed fork into the source-optional structural preflight core."""
-
-    request_fingerprint = recipe_fork_request_fingerprint(source_version_id, payload)
-    replay = _replay_recipe_duplicate_preflight(
-        session,
-        actor_user_id=actor_user_id,
-        action_id=action_id,
-        request_fingerprint=request_fingerprint,
-    )
-    if replay is not None:
-        return replay
-
-    if source_version_id not in get_public_recipe_version_titles(
-        session,
-        {source_version_id},
-    ):
-        raise RecipeDuplicatePreflightUnavailableError("Public recipe not found.")
-
-    prepared = prepare_recipe_fork(
-        session,
-        source_version_id=source_version_id,
-        payload=payload,
-    )
-    if prepared is None:
-        raise RecipeDuplicatePreflightUnavailableError("Public recipe not found.")
-
-    return run_structural_recipe_duplicate_preflight(
-        session,
-        subject_fingerprint=prepared.structural_fingerprint,
-        source_version_id=source_version_id,
-        actor_user_id=actor_user_id,
-        action_id=action_id,
-        request_fingerprint=request_fingerprint,
-    )
-
-
-def record_recipe_duplicate_decision(
-    session: Session,
-    *,
-    preflight_id: UUID,
-    actor_user_id: UUID,
-    action_id: UUID,
-    payload: RecipeDuplicateDecisionRequest,
-) -> RecipeDuplicateDecisionServiceResult:
-    """Record an advisory author choice against current actor-owned evidence."""
-
-    preflight = get_recipe_duplicate_preflight_by_id(
-        session,
-        actor_user_id=actor_user_id,
-        preflight_id=preflight_id,
-    )
-    if preflight is None:
-        raise RecipeDuplicatePreflightNotFoundError("Duplicate preflight not found.")
-
-    response = _response_from_stored(session, preflight)
-    if not response.acknowledgement.required:
-        raise RecipeDuplicateDecisionNotRequiredError(
-            "A distinct result does not require an author decision."
-        )
-    try:
-        stored: RecipeDuplicateDecisionStoreResult = store_recipe_duplicate_decision(
-            session,
-            preflight_id=preflight_id,
-            actor_user_id=actor_user_id,
-            action_id=action_id,
-            decision=payload.decision,
-            acknowledged_policy_version=payload.policy_version,
-            acknowledged_result_digest=payload.result_digest,
-        )
-    except RecipeDuplicateAcknowledgementConflictError as error:
-        raise RecipeDuplicatePreflightStaleError(
-            "Duplicate preflight is no longer current."
-        ) from error
-
-    return RecipeDuplicateDecisionServiceResult(
-        response=RecipeDuplicateDecisionResponse(
-            preflight_id=preflight_id,
-            decision=cast(DuplicateDecision, stored.decision.decision),
-            recorded_at=stored.decision.created_at,
-        ),
-        state=stored.state,
-    )

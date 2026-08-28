@@ -41,7 +41,6 @@ _MODERATION_ACTION_PATH = re.compile(
     rf"^/api/moderation/recipe-reports/{_IDENTIFIER_PATH_PART}/actions$"
 )
 _INTERACTION_PATH = re.compile(rf"^/api/recipes/{_IDENTIFIER_PATH_PART}/(?:view|save|rating)$")
-_LEGACY_FORK_PATH = re.compile(rf"^/api/recipes/{_IDENTIFIER_PATH_PART}/variants$")
 
 NETWORK_HEADER = "x-recipe-lab-client-network"
 NETWORK_TIMESTAMP_HEADER = "x-recipe-lab-network-timestamp"
@@ -117,12 +116,6 @@ def classify_rate_limited_request(
             operation="interaction",
             account_limit=settings.abuse_rate_limit_interaction_account,
             network_limit=settings.abuse_rate_limit_interaction_network,
-        )
-    if normalized_method == "POST" and _LEGACY_FORK_PATH.fullmatch(normalized_path):
-        return RateLimitPolicy(
-            operation="fork_creation",
-            account_limit=settings.abuse_rate_limit_fork_account,
-            network_limit=settings.abuse_rate_limit_fork_network,
         )
     return None
 

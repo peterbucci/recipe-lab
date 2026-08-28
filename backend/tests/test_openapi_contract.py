@@ -31,7 +31,6 @@ BACKEND_ROOT = REPOSITORY_ROOT / "backend"
 EXPECTED_CLASSIFICATION_COUNTS = {
     "active_consumer": 32,
     "research_experimental": 2,
-    "retired": 3,
     "staff_internal": 8,
 }
 
@@ -80,9 +79,9 @@ def test_registry_freezes_every_operation_with_stable_unique_metadata() -> None:
     document = create_app().openapi()
     operations = _operations(document)
 
-    assert len(OPERATION_CONTRACTS) == 45
-    assert len(operations) == 45
-    assert len({operation["operationId"] for operation in operations}) == 45
+    assert len(OPERATION_CONTRACTS) == 42
+    assert len(operations) == 42
+    assert len({operation["operationId"] for operation in operations}) == 42
     assert (
         Counter(operation["x-recipe-lab-classification"] for operation in operations)
         == EXPECTED_CLASSIFICATION_COUNTS
@@ -100,26 +99,29 @@ def test_registry_freezes_every_operation_with_stable_unique_metadata() -> None:
             assert (REPOSITORY_ROOT / relative_path).is_file()
 
 
-def test_retired_operations_name_reviewed_active_successors() -> None:
+def test_retired_operations_and_legacy_only_schemas_are_absent() -> None:
     document = create_app().openapi()
     operations = _operations(document)
-    operation_ids = {operation["operationId"] for operation in operations}
-    retired = [
-        operation
-        for operation in operations
-        if operation["x-recipe-lab-classification"] == "retired"
-    ]
+    paths = document["paths"]
+    components = document["components"]
+    assert isinstance(paths, dict)
+    assert isinstance(components, dict)
+    schemas = components["schemas"]
+    assert isinstance(schemas, dict)
 
-    assert len(retired) == 3
-    for operation in retired:
-        successors = operation["x-recipe-lab-successor-operation-ids"]
-        assert isinstance(successors, list)
-        assert successors
-        assert set(successors) <= operation_ids
-        for successor in successors:
-            matching = [item for item in operations if item["operationId"] == successor]
-            assert len(matching) == 1
-            assert matching[0]["x-recipe-lab-classification"] == "active_consumer"
+    assert not any(
+        operation["x-recipe-lab-classification"] == "retired" for operation in operations
+    )
+    assert {
+        "/api/recipes/{recipe_version_id}/variants",
+        "/api/recipes/{recipe_version_id}/duplicate-preflights",
+        "/api/recipe-duplicate-preflights/{preflight_id}/decision",
+    }.isdisjoint(paths)
+    assert {
+        "RecipeForkRequest",
+        "RecipeDuplicateDecisionRequest",
+        "RecipeDuplicateDecisionResponse",
+    }.isdisjoint(schemas)
 
 
 def test_framework_routes_are_separately_inventoried_and_reachable() -> None:

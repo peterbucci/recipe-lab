@@ -242,7 +242,6 @@ Open:
 - Recipe browse API: <http://localhost:8000/api/recipes>
 - Research-preview baseline ranking API (no consumer UI):
   <http://localhost:8000/api/recommendations>
-- Duplicate preflight API: `POST /api/recipes/{id}/duplicate-preflights`
 - Private draft API: `POST` or `GET /api/recipe-drafts`
 - Draft similarity API: `POST /api/recipe-drafts/{id}/duplicate-preflights`
 - Draft publication API: `POST /api/recipe-drafts/{id}/publish`

@@ -5,9 +5,7 @@
 Recipe Lab runs a reusable, advisory duplicate check before a structurally
 authored recipe is published. Its core accepts a completed fingerprint plus an
 optional direct source. The maintained product adapter loads one saved original
-or source-backed draft revision. A retired backend compatibility adapter can
-still prepare a proposed child in memory until its route is removed under the
-separate API-lifecycle story. A source-backed review binds the draft's exact
+or source-backed draft revision. A source-backed review binds the draft's exact
 direct parent and applies the no-change contract.
 
 The check answers a narrow structural question. It does not decide authorship,
@@ -23,10 +21,8 @@ The browser calls
 `POST /api/recipe-drafts/{draft_id}/duplicate-preflights`, which accepts
 `{ "revision": <saved_revision> }` and its own UUID `Idempotency-Key`. It
 requires the active draft to belong to the session member, prepares its complete
-saved aggregate, and supplies `source_version_id` only for a fork.
-`POST /api/recipes/{source_version_id}/duplicate-preflights` remains a retired,
-backend-only validated-edit compatibility adapter with no maintained product
-client. Both adapters call the same source-optional structural core. The service:
+saved aggregate, and supplies `source_version_id` only for a fork. The draft
+adapter calls the same source-optional structural core. The service:
 
 1. verifies any source is publicly readable and any draft is private to the
    active author;
@@ -113,10 +109,9 @@ supported `published` state. Seeded versions are backfilled into that state
 without changing their stable IDs or lineage topology. Candidate lookup starts
 from this explicit shared predicate, so private drafts cannot enter the scorer
 and later visibility states can be added without filtering secrets after
-comparison. A replay, compatibility decision, or publication rechecks every
-returned candidate. If any evidence is no longer public or the policy version
-has changed, the API returns one generic stale-result conflict and does not
-repeat prior candidate details.
+comparison. A replay or publication rechecks every returned candidate. If any
+evidence is no longer public or the policy version has changed, the API returns
+one generic stale-result conflict and does not repeat prior candidate details.
 
 ## Acknowledgement and author decision
 
@@ -136,11 +131,10 @@ Every response carries this stable acknowledgement envelope:
 it is false only for a distinct result. It does not make the review optional.
 For an exact, probable, or direct-parent no-change result, the author can
 explicitly continue or revise. The maintained browser flow sends that choice in
-the saved draft's publication envelope. The retired backend compatibility route
-`POST /api/recipe-duplicate-preflights/{preflight_id}/decision` can still record
-the same choice against the exact policy version and result digest until API
-removal is reviewed; no maintained product client calls it. A compatibility
-decision is advisory and does not create or publish a recipe by itself.
+the saved draft's publication envelope. A `continue` decision is stored only as
+part of the atomic publication transaction. Choosing `revise` means editing and
+saving the draft, which invalidates the revision-bound preflight; there is no
+standalone decision endpoint.
 
 The browser pauses inline, shows neutral explanations and public candidate
 links in a draft-safe new tab, and requires an acknowledgement before an
@@ -188,8 +182,9 @@ Migration `20260825_0012` adds three append-only tables:
 - `recipe_duplicate_candidates` stores at most five public candidate pairs with
   rank, basis-point score, at most three reason codes, and exact-payload
   confirmation; and
-- `recipe_duplicate_decisions` stores one actor-owned continue-or-revise choice
-  for an acknowledged result.
+- `recipe_duplicate_decisions` stores an actor-owned `continue` choice written
+  atomically with publication. Historical `revise` rows created before the
+  retired adapter was removed remain readable under the preserved migrations.
 
 Database triggers reject update, delete, and truncate operations. Composite
 foreign keys bind candidate policy/fingerprint versions and decision actor,

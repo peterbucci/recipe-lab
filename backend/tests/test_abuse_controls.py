@@ -99,11 +99,19 @@ def test_protected_actions_have_explicit_policies(
     assert policy.operation == operation
 
 
-def test_unrelated_reads_are_not_counted() -> None:
+def test_unrelated_reads_and_removed_variant_route_are_not_counted() -> None:
     assert (
         classify_rate_limited_request(
             method="GET",
             path="/api/recipes",
+            settings=_settings(),
+        )
+        is None
+    )
+    assert (
+        classify_rate_limited_request(
+            method="POST",
+            path=f"/api/recipes/{uuid4()}/variants",
             settings=_settings(),
         )
         is None

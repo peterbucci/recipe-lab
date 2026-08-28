@@ -221,12 +221,6 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
         "active_consumer",
         "frontend/lib/recipe-publication-api.ts",
     ),
-    ("POST", "/api/recipe-duplicate-preflights/{preflight_id}/decision"): _operation(
-        "create_recipe_duplicate_decision_api_recipe_duplicate_preflights__preflight_id__decision_post",
-        "retired",
-        "docs/api-contracts.md",
-        successors=("publish_original_draft_api_recipe_drafts__draft_id__publish_post",),
-    ),
     ("GET", "/api/recipes"): _operation(
         "browse_recipes_api_recipes_get",
         "active_consumer",
@@ -241,14 +235,6 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
         "recipe_diff_api_recipes__recipe_version_id__diff_get",
         "active_consumer",
         "frontend/lib/recipe-api.ts",
-    ),
-    ("POST", "/api/recipes/{recipe_version_id}/duplicate-preflights"): _operation(
-        "create_recipe_duplicate_preflight_api_recipes__recipe_version_id__duplicate_preflights_post",
-        "retired",
-        "docs/api-contracts.md",
-        successors=(
-            "create_original_draft_duplicate_preflight_api_recipe_drafts__draft_id__duplicate_preflights_post",
-        ),
     ),
     ("PUT", "/api/recipes/{recipe_version_id}/rating"): _operation(
         "rate_recipe_for_current_user_api_recipes__recipe_version_id__rating_put",
@@ -269,16 +255,6 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
         "save_recipe_for_current_user_api_recipes__recipe_version_id__save_put",
         "active_consumer",
         "frontend/lib/interaction-api.ts",
-    ),
-    ("POST", "/api/recipes/{recipe_version_id}/variants"): _operation(
-        "create_recipe_variant_api_recipes__recipe_version_id__variants_post",
-        "retired",
-        "docs/api-contracts.md",
-        successors=(
-            "create_private_recipe_draft_api_recipe_drafts_post",
-            "save_private_recipe_draft_api_recipe_drafts__draft_id__put",
-            "publish_original_draft_api_recipe_drafts__draft_id__publish_post",
-        ),
     ),
     ("POST", "/api/recipes/{recipe_version_id}/view"): _operation(
         "record_recipe_view_for_current_user_api_recipes__recipe_version_id__view_post",

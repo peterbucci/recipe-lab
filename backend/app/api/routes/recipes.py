@@ -6,12 +6,11 @@ from pydantic import StringConstraints
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
-    CsrfProtectedSessionDependency,
     OptionalAuthenticatedSessionDependency,
     SessionDependency,
 )
 from app.api.errors import ApiError
-from app.api.member_context import lock_active_member_actor, recipe_viewer_state_response
+from app.api.member_context import recipe_viewer_state_response
 from app.models import RecipeIngredient, RecipeInstruction, RecipeVersion
 from app.repositories.recipe_diffs import (
     get_direct_substitution_pairs,
@@ -69,28 +68,6 @@ DETAIL_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     404: {
         "model": ErrorResponse,
         "description": "The requested recipe does not exist or is not publicly available.",
-    },
-}
-FORK_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
-    401: {
-        "model": ErrorResponse,
-        "description": "A valid member session is required.",
-    },
-    403: {
-        "model": ErrorResponse,
-        "description": "CSRF or Origin evidence is invalid, or account setup is incomplete.",
-    },
-    404: {
-        "model": ErrorResponse,
-        "description": "The source recipe does not exist or is not publicly available.",
-    },
-    409: {
-        "model": ErrorResponse,
-        "description": "The Idempotency-Key has already been used for a different action.",
-    },
-    422: {
-        "model": ErrorResponse,
-        "description": "The request shape, identifier, or recipe edits are invalid.",
     },
 }
 DIFF_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
@@ -330,31 +307,4 @@ def recipe_diff(
         base=base,
         target=target,
         substitution_pairs=substitution_pairs,
-    )
-
-
-@router.post(
-    "/{recipe_version_id}/variants",
-    responses=FORK_ERROR_RESPONSES,
-    summary="Route variant publication through private drafts",
-    description=(
-        "The legacy direct-write endpoint is intentionally disabled so it cannot create "
-        "an unreviewed public child. Create a private source-backed draft and publish it "
-        "through the authenticated draft publication workflow instead."
-    ),
-)
-def create_recipe_variant(
-    recipe_version_id: UUID,
-    session: SessionDependency,
-    authenticated: CsrfProtectedSessionDependency,
-) -> None:
-    lock_active_member_actor(session, authenticated)
-    session.rollback()
-    raise ApiError(
-        status_code=409,
-        code="recipe_variant_publication_requires_draft",
-        message=(
-            "Direct variant publication is unavailable. Create a private source-backed "
-            "draft and use its reviewed publication workflow."
-        ),
     )

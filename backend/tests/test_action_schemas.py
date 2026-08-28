@@ -2,7 +2,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ValidationError
 
 from app.schemas.actions import (
     AddedIngredientOccurrenceReference,
@@ -10,7 +10,6 @@ from app.schemas.actions import (
     StructuredActionInput,
 )
 from app.schemas.measurements import ExactMeasureInput, RangeMeasureInput
-from app.schemas.recipe_forks import AddInstruction, RecipeForkRequest, SetInstructionActions
 
 
 def _exact(value: str, unit_id: object) -> dict[str, object]:
@@ -71,50 +70,3 @@ def test_structured_action_rejects_qualitative_parameters_and_duplicate_refs() -
                 ],
             }
         )
-
-
-def test_instruction_edits_require_nonempty_actions_for_new_or_replaced_sequences() -> None:
-    adapter: TypeAdapter[AddInstruction | SetInstructionActions] = TypeAdapter(
-        AddInstruction | SetInstructionActions
-    )
-    with pytest.raises(ValidationError):
-        adapter.validate_python({"op": "add", "text": "Mix thoroughly.", "actions": []})
-    with pytest.raises(ValidationError):
-        adapter.validate_python(
-            {
-                "op": "set_actions",
-                "recipe_instruction_id": str(uuid4()),
-                "actions": [],
-            }
-        )
-
-
-def test_fork_request_rejects_duplicate_added_ingredient_edit_refs() -> None:
-    edit_ref = "added-ingredient-1"
-    ingredient_id = uuid4()
-    unit_id = uuid4()
-    payload = {
-        "title": "Duplicate refs",
-        "description": None,
-        "servings": "1",
-        "ingredient_edits": [
-            {
-                "op": "add",
-                "edit_ref": edit_ref,
-                "ingredient_id": str(ingredient_id),
-                "display_name": "Ingredient",
-                "measure": _exact("1", unit_id),
-            },
-            {
-                "op": "add",
-                "edit_ref": edit_ref,
-                "ingredient_id": str(ingredient_id),
-                "display_name": "Ingredient",
-                "measure": _exact("2", unit_id),
-            },
-        ],
-        "instruction_edits": [],
-    }
-
-    with pytest.raises(ValidationError, match="edit_ref values must be unique"):
-        RecipeForkRequest.model_validate(payload)
