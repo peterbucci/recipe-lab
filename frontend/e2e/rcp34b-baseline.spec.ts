@@ -212,7 +212,31 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   );
 }
 
-async function sanitizeVisibleTechnicalIdentifiers(page: Page): Promise<void> {
+type BaselineCaptureOptions = {
+  allowedVisibleTechnicalIdentifiers?: readonly string[];
+};
+
+async function sanitizeVisibleTechnicalIdentifiers(
+  page: Page,
+  options: BaselineCaptureOptions = {},
+): Promise<void> {
+  const visibleTextBeforeSanitizing = await page.locator("body").innerText();
+  const visibleTechnicalIdentifiers = [
+    ...new Set(
+      (visibleTextBeforeSanitizing.match(
+        /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
+      ) ?? []).map((identifier) => identifier.toLowerCase()),
+    ),
+  ].sort();
+  const allowedVisibleTechnicalIdentifiers = [
+    ...new Set(
+      (options.allowedVisibleTechnicalIdentifiers ?? []).map((identifier) =>
+        identifier.toLowerCase(),
+      ),
+    ),
+  ].sort();
+  expect(visibleTechnicalIdentifiers).toEqual(allowedVisibleTechnicalIdentifiers);
+
   await page.evaluate(() => {
     const uuidPattern = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -230,8 +254,12 @@ async function sanitizeVisibleTechnicalIdentifiers(page: Page): Promise<void> {
   );
 }
 
-async function captureBaseline(page: Page, name: string): Promise<void> {
-  await sanitizeVisibleTechnicalIdentifiers(page);
+async function captureBaseline(
+  page: Page,
+  name: string,
+  options: BaselineCaptureOptions = {},
+): Promise<void> {
+  await sanitizeVisibleTechnicalIdentifiers(page, options);
   await expectNoHorizontalOverflow(page);
   await expectNoAccessibilityViolations(page);
   await expect(page).toHaveScreenshot(`${name}.png`);
@@ -352,7 +380,9 @@ test.describe("desktop visual state matrix", () => {
     await page.goto("/catalog/ingredient-requests");
     await expect(page.getByRole("heading", { name: "Sunberry tomato", level: 2 })).toBeVisible();
     await stabilizeVisuals(page);
-    await captureBaseline(page, "ingredient-request-staff-review");
+    await captureBaseline(page, "ingredient-request-staff-review", {
+      allowedVisibleTechnicalIdentifiers: ["70000000-0000-4000-8000-000000000001"],
+    });
   });
 
   test("recipe moderation staff review", async ({ page }) => {
@@ -376,7 +406,7 @@ test.describe("desktop visual state matrix", () => {
     await expect(
       page
         .getByRole("alert")
-        .filter({ hasText: "The synthetic recipe library is temporarily unavailable." }),
+        .filter({ hasText: "Recipe Lab could not load your recipes. Please try again." }),
     ).toBeVisible();
     await stabilizeVisuals(page);
     await captureBaseline(page, "private-workspace-failure");

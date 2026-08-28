@@ -305,15 +305,15 @@ async function publishReviewedFork(
   const review = page.getByRole("region", {
     name:
       classification === "exact_duplicate"
-        ? "This version keeps the same recipe structure"
-        : "Review similar recipe structures",
+        ? "Your version matches the recipe it is based on"
+        : "Review similar recipes",
   });
   await expect(review).toBeVisible();
   const acknowledgement = review.getByRole("checkbox", {
     name:
       classification === "exact_duplicate"
-        ? /direct-parent no-change warning/i
-        : /reviewed these advisory results/i,
+        ? /matches the recipe it is based on.*publish it anyway/i
+        : /reviewed these similar recipes/i,
   });
   await activateWithKeyboard(page, acknowledgement, "Space");
   await expect(acknowledgement).toBeChecked();

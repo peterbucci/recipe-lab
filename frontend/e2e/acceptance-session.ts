@@ -145,7 +145,7 @@ export async function continueRecipeDuplicateReviewIfRequired(
     throw new Error("Duplicate preflight acceptance response has an invalid acknowledgement.");
   }
   await page
-    .getByRole("checkbox", { name: /reviewed these advisory results/i })
+    .getByRole("checkbox", { name: /reviewed these similar recipes/i })
     .check();
   await page.getByRole("button", { name: "Create my version anyway" }).click();
 }

@@ -80,7 +80,7 @@ async function finishOriginalPublication(
   const preflightBody = (await preflight.json()) as { classification?: unknown };
   if (preflightBody.classification !== "distinct") {
     const review = page.getByRole("region", {
-      name: /review (?:an existing structural match|similar recipe structures)/i,
+      name: /review (?:a very similar recipe|similar recipes)/i,
     });
     await review.getByRole("checkbox", { name: /publish my recipe anyway/i }).check();
     await review.getByRole("button", { name: "Publish recipe anyway" }).click();
@@ -145,10 +145,12 @@ async function publishUnchangedFork(
   });
 
   const review = page.getByRole("region", {
-    name: "This version keeps the same recipe structure",
+    name: "Your version matches the recipe it is based on",
   });
   await review
-    .getByRole("checkbox", { name: /direct-parent no-change warning/i })
+    .getByRole("checkbox", {
+      name: /matches the recipe it is based on.*publish it anyway/i,
+    })
     .check();
   const publicationResponse = page.waitForResponse(
     (response) =>
