@@ -171,10 +171,10 @@ test.describe("structured cooking action acceptance", () => {
     await expect(page).toHaveURL(/\/recipes\/[0-9a-f-]+$/i);
 
     await page.getByRole("link", { name: "See what changed", exact: true }).click();
-    const changedInstruction = page.getByRole("article", { name: "Updated instruction" }).first();
-    await expect(changedInstruction).toContainText("Prose changed");
-    await expect(changedInstruction).toContainText("Action order changed");
-    await expect(changedInstruction).toContainText("Duration changed");
+    const changedInstruction = page.getByRole("article", { name: "Update step 1", exact: true });
+    await expect(changedInstruction).toContainText("Wording changed");
+    await expect(changedInstruction).toContainText("Order within the step changed");
+    await expect(changedInstruction).toContainText("Timing changed");
     await expect(changedInstruction).toContainText("Temperature changed");
     await expectNoAccessibilityViolations(page);
   });

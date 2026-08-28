@@ -216,11 +216,16 @@ test.describe("cross-user fork publication acceptance", () => {
 
     await page.getByRole("link", { name: "See what changed", exact: true }).click();
     await expect(
-      page.getByRole("heading", { name: `What changed in ${childTitle}` }),
+      page.getByRole("heading", { name: `How ${childTitle} changed`, level: 1 }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("list", { name: "Changes at a glance" })
+        .getByText(`Change title from ${sourceTitle} to ${childTitle}.`, { exact: true }),
     ).toBeVisible();
     const titleChange = page.getByRole("article", { name: "Title" });
-    await expect(titleChange).toContainText(sourceTitle);
-    await expect(titleChange).toContainText(childTitle);
+    await expect(titleChange.locator("del")).toContainText(sourceTitle);
+    await expect(titleChange.locator("ins")).toContainText(childTitle);
 
     const source = await page.request.get(`/api/recipes/${sourceId}`);
     expect(source.status()).toBe(200);
