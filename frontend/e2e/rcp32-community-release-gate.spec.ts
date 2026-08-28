@@ -913,19 +913,25 @@ test.describe("RCP-32 two-user community release gate", () => {
           ).toHaveAttribute("href", "/cooks/rcp32_bob");
           await publicPage.getByRole("link", { name: "See what changed", exact: true }).click();
           await expect(
-            publicPage.getByRole("heading", { name: `What changed in ${childTitle}` }),
+            publicPage.getByRole("heading", {
+              name: `How ${childTitle} changed`,
+              level: 1,
+            }),
           ).toBeVisible();
+          const summary = publicPage.getByRole("list", { name: "Changes at a glance" });
+          await expect(summary).toContainText(
+            `Change ${requestedIngredient} from 100 g to 200 g.`,
+          );
+          await expect(summary).toContainText(`Update step 1: ${childDirection}`);
           const ingredientChange = publicPage.getByRole("article", {
-            name: requestedIngredient,
+            name: `Change ${requestedIngredient} from 100 g to 200 g`,
           });
           await expect(ingredientChange).toContainText("Amount changed");
           await expect(ingredientChange).toContainText("100 g");
           await expect(ingredientChange).toContainText("200 g");
-          const instructionChange = publicPage
-            .getByRole("article", { name: "Updated instruction" })
-            .first();
-          await expect(instructionChange).toContainText("Prose changed");
-          await expect(instructionChange).toContainText("Duration changed");
+          const instructionChange = publicPage.getByRole("article", { name: "Update step 1" });
+          await expect(instructionChange).toContainText("Wording changed");
+          await expect(instructionChange).toContainText("Timing changed");
           await expect(instructionChange).toContainText(rootDirection);
           await expect(instructionChange).toContainText(childDirection);
           await expect(instructionChange).toContainText("10 min");
