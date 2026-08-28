@@ -24,6 +24,9 @@ interface RecipeReportPanelProps {
 }
 
 function reportErrorMessage(error: RecipeReportApiError | null): string {
+  if (error?.outcome === "unknown") {
+    return "Recipe Lab could not confirm whether your report was received. Try again to safely check the same report; your details are still here.";
+  }
   if (error?.status === 401) {
     return "Your session expired. Sign in again before reporting this recipe.";
   }
