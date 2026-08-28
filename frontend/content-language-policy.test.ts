@@ -459,7 +459,8 @@ function formatViolations(violations: readonly Violation[]): string {
 
 describe("public product language policy", () => {
   it("keeps public positioning limited to the shipped cook experience", () => {
-    const read = (path: string) => readFileSync(resolve(REPOSITORY_ROOT, path), "utf8");
+    const read = (path: string) =>
+      readFileSync(resolve(REPOSITORY_ROOT, path), "utf8").replace(/\r\n/g, "\n");
     const readme = read("README.md");
 
     expect(readme).toContain(
