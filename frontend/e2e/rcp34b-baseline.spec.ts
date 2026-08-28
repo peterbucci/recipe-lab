@@ -296,6 +296,13 @@ test.afterEach(async ({ context }) => {
 test.describe("desktop visual state matrix", () => {
   test.beforeEach(async ({}, testInfo) => desktopOnly(testInfo));
 
+  test("home normal", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Recipes change. Recipe Lab keeps track." })).toBeVisible();
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "home-normal");
+  });
+
   test("home and account navigation normal", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Recipes change. Recipe Lab keeps track." })).toBeVisible();
@@ -425,6 +432,13 @@ test.describe("desktop visual state matrix", () => {
 
 test.describe("phone visual state matrix", () => {
   test.beforeEach(async ({}, testInfo) => phoneOnly(testInfo));
+
+  test("home normal", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Recipes change. Recipe Lab keeps track." })).toBeVisible();
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "home-normal");
+  });
 
   test("home and account navigation normal", async ({ page }) => {
     await page.goto("/");

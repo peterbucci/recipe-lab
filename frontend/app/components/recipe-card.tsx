@@ -20,20 +20,11 @@ export function RecipeCard({
   visibilityLabel,
 }: RecipeCardProps) {
   const titleId = `recipe-card-title-${recipe.id}`;
-  const versionLabel = recipe.parent_version_id
-    ? `Version ${recipe.version_number}`
-    : "Original";
 
   return (
     <li className="recipe-grid__item">
       <article className="recipe-card" aria-labelledby={titleId}>
-        <RecipeArtwork className="recipe-card__artwork" lineageKey={recipe.lineage_id} />
         <div className="recipe-card__body">
-          <div className="recipe-card__meta">
-            <span className="version-badge">{versionLabel}</span>
-            {visibilityLabel ? <span>{visibilityLabel}</span> : null}
-            <span>{formatServings(recipe.servings)}</span>
-          </div>
           <h3 id={titleId}>
             {publiclyAccessible ? (
               <Link href={`/recipes/${recipe.id}`}>{recipe.title}</Link>
@@ -41,12 +32,15 @@ export function RecipeCard({
               recipe.title
             )}
           </h3>
-          <p className="recipe-card__attribution">
-            By <PublicCookAttribution author={recipe.author} />
-          </p>
-          <p className="recipe-card__description">
-            {recipe.description ?? "No description provided."}
-          </p>
+          <div className="recipe-card__summary">
+            <p className="recipe-card__attribution">
+              By <PublicCookAttribution author={recipe.author} />
+            </p>
+            <p className="recipe-card__servings">{formatServings(recipe.servings)}</p>
+          </div>
+          {recipe.description ? (
+            <p className="recipe-card__description">{recipe.description}</p>
+          ) : null}
           {recipe.parent ? (
             <p className="recipe-card__parent">
               Based on{" "}
@@ -57,13 +51,10 @@ export function RecipeCard({
           ) : recipe.parent_version_id ? (
             <p className="recipe-card__parent">Source unavailable</p>
           ) : null}
-          {publiclyAccessible ? (
-            <span className="text-link recipe-card__link-hint" aria-hidden="true">
-              View recipe <span aria-hidden="true">→</span>
-            </span>
-          ) : null}
+          {visibilityLabel ? <p className="recipe-card__status">{visibilityLabel}</p> : null}
           {actions ? <div className="recipe-card__actions">{actions}</div> : null}
         </div>
+        <RecipeArtwork className="recipe-card__artwork" lineageKey={recipe.lineage_id} />
       </article>
     </li>
   );

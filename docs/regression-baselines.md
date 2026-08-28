@@ -86,7 +86,8 @@ image is produced from the same sanitized fixture contract.
 
 | Surface or state | Desktop snapshot | Phone snapshot |
 | --- | --- | --- |
-| Home and account navigation, normal | `home-account-navigation` | `home-account-navigation` |
+| Home, normal | `home-normal` | `home-normal` |
+| Home with account navigation open | `home-account-navigation` | `home-account-navigation` |
 | Catalog, normal | `catalog-normal` | `catalog-normal` |
 | Catalog, empty | `catalog-empty` | — |
 | Recipe detail, normal | `recipe-detail-normal` | `recipe-detail-normal` |

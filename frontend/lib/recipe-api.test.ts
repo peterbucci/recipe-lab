@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -85,10 +87,15 @@ describe("recipe API client", () => {
     expect(String(url)).toBe(
       "http://api.example.test/api/recipes?page=2&page_size=12&q=carrot+%26+pecan&is_variant=true",
     );
-    expect(options).toEqual({
+    expect(options).toMatchObject({
       cache: "no-store",
-      headers: { Accept: "application/json" },
+      method: "GET",
+      redirect: "error",
     });
+    const headers = new Headers(options?.headers);
+    expect(headers.get("Accept")).toBe("application/json");
+    expect(headers.has("Cookie")).toBe(false);
+    expect(headers.has("X-CSRF-Token")).toBe(false);
   });
 
   it("sends an explicit false variant filter when browsing original recipes", async () => {

@@ -4,13 +4,21 @@ async function activateWithKeyboard(
   page: Page,
   control: Locator,
 ): Promise<void> {
+  await reachWithKeyboard(page, control);
+  await expect(control).toBeFocused();
+  await page.keyboard.press("Enter");
+}
+
+async function reachWithKeyboard(
+  page: Page,
+  control: Locator,
+): Promise<void> {
   for (let step = 0; step < 80; step += 1) {
     if (
       await control.evaluate(
         (element) => element === element.ownerDocument.activeElement,
       )
     ) {
-      await page.keyboard.press("Enter");
       return;
     }
     await page.keyboard.press("Tab");
@@ -21,10 +29,12 @@ async function activateWithKeyboard(
 }
 
 function carrotRootCard(page: Page): Locator {
-  return page.getByRole("article", {
-    name: "Carrot Walnut Snack Cake",
-    exact: true,
-  });
+  return page
+    .getByRole("article", {
+      name: "Carrot Walnut Snack Cake",
+      exact: true,
+    })
+    .filter({ hasNot: page.locator(".recipe-card__parent") });
 }
 
 async function openCarrotRoot(page: Page): Promise<string> {
@@ -73,17 +83,14 @@ test("browses, searches, and opens a structured recipe anonymously", async ({
     page.getByRole("heading", { name: "Find something to cook", level: 1 }),
   ).toBeVisible();
 
-  const recipeType = page.getByRole("navigation", { name: "Recipe type" });
-  await page.getByLabel(/search recipes/i).fill("carrot");
+  await page.getByLabel(/search by recipe name/i).fill("carrot");
   await page.getByRole("button", { name: /^search$/i }).click();
   await expect(
     page.getByRole("heading", { name: /results for “carrot”/i }),
   ).toBeVisible();
 
-  await recipeType
-    .getByRole("link", { name: "Originals", exact: true })
-    .click();
-  await expect(page).toHaveURL("/recipes?q=carrot&type=originals");
+  await expect(page).toHaveURL("/recipes?q=carrot");
+  await expect(page.getByRole("navigation", { name: "Recipe type" })).toHaveCount(0);
   await expect(
     carrotRootCard(page).getByRole("link", {
       name: "Carrot Walnut Snack Cake",
@@ -91,25 +98,54 @@ test("browses, searches, and opens a structured recipe anonymously", async ({
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", {
-      name: "Lower-Sugar Pecan Carrot Cake",
+    carrotRootCard(page).getByRole("link", {
+      name: "Recipe Lab Demo Catalog",
       exact: true,
     }),
-  ).toHaveCount(0);
-
-  await recipeType.getByRole("link", { name: "Versions", exact: true }).click();
-  await expect(page).toHaveURL("/recipes?q=carrot&type=versions");
+  ).toHaveAttribute("href", /\/cooks\//);
   await expect(
     page.getByRole("link", {
       name: "Lower-Sugar Pecan Carrot Cake",
       exact: true,
     }),
   ).toBeVisible();
+  await expect(
+    page
+      .getByRole("article", { name: "Lower-Sugar Pecan Carrot Cake", exact: true })
+      .locator(".recipe-card__parent"),
+  ).toContainText("Based on Carrot Walnut Snack Cake");
+  await expect(carrotRootCard(page).getByText(/^original$/i)).toHaveCount(0);
+  await expect(page.getByText(/^version \d+$/i)).toHaveCount(0);
 
-  await recipeType.getByRole("link", { name: "All", exact: true }).click();
-  await carrotRootCard(page)
-    .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
-    .click();
+  const artwork = carrotRootCard(page).locator(".recipe-card__artwork");
+  await artwork.scrollIntoViewIfNeeded();
+  const artworkBox = await artwork.boundingBox();
+  if (!artworkBox) {
+    throw new Error("The recipe card artwork was not available to click.");
+  }
+  const artworkHitTarget = await page.evaluate(
+    ({ x, y }) => {
+      const target = document.elementFromPoint(x, y);
+      const link = target instanceof Element ? target.closest("a") : null;
+      return {
+        href: link?.getAttribute("href") ?? null,
+        label: link?.textContent?.trim() ?? null,
+      };
+    },
+    { x: artworkBox.x + 12, y: artworkBox.y + 12 },
+  );
+  expect(artworkHitTarget).toEqual({
+    href: expect.stringMatching(/^\/recipes\//),
+    label: "Carrot Walnut Snack Cake",
+  });
+
+  const carrotTitle = carrotRootCard(page).getByRole("link", {
+    name: "Carrot Walnut Snack Cake",
+    exact: true,
+  });
+  await carrotTitle.focus();
+  await expect(carrotTitle).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(
     page.getByRole("heading", { name: /ingredients/i }),
   ).toBeVisible();
@@ -130,6 +166,43 @@ test("browses, searches, and opens a structured recipe anonymously", async ({
   expect(recordedViews).toBe(0);
 });
 
+test("reaches a chosen recipe from home using only the keyboard", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const exploreRecipes = page
+    .getByRole("navigation", { name: "Primary navigation" })
+    .getByRole("link", { name: "Explore recipes", exact: true });
+  await activateWithKeyboard(page, exploreRecipes);
+  await expect(page).toHaveURL("/recipes");
+
+  const search = page.getByRole("searchbox", {
+    name: "Search by recipe name",
+  });
+  await reachWithKeyboard(page, search);
+  await expect(search).toBeFocused();
+  await page.keyboard.type("carrot");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL("/recipes?q=carrot");
+
+  const chosenRecipe = carrotRootCard(page).getByRole("link", {
+    name: "Carrot Walnut Snack Cake",
+    exact: true,
+  });
+  await reachWithKeyboard(page, chosenRecipe);
+  await expect(chosenRecipe).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  await expect(page).toHaveURL(/\/recipes\/[^/]+$/);
+  await expect(
+    page.getByRole("heading", {
+      name: "Carrot Walnut Snack Cake",
+      level: 1,
+    }),
+  ).toBeVisible();
+});
+
 test("keeps the plain-language homepage readable at a phone viewport", async ({
   page,
 }) => {
@@ -146,13 +219,9 @@ test("keeps the plain-language homepage readable at a phone viewport", async ({
     page.getByRole("link", { name: "Explore recipes", exact: true }).first(),
   ).toBeVisible();
 
-  const conceptHeadings = page.locator(".home-concept__version strong");
-  await expect(conceptHeadings).toHaveCount(2);
-  for (const heading of await conceptHeadings.all()) {
-    const box = await heading.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.width).toBeGreaterThan(200);
-  }
+  await expect(page.getByRole("heading", { name: "Choose a recipe" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your version" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "See what changed" })).toBeVisible();
   expect(
     await page.evaluate(
       () =>
@@ -160,6 +229,42 @@ test("keeps the plain-language homepage readable at a phone viewport", async ({
         document.documentElement.clientWidth,
     ),
   ).toBe(false);
+});
+
+test("keeps the stacked home hero consistent across tablet and phone widths", async ({
+  page,
+}) => {
+  for (const viewport of [
+    { width: 980, height: 1_100 },
+    { width: 790, height: 1_100 },
+    { width: 500, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+
+    const heroBox = await page.locator(".home-hero").boundingBox();
+    const copyBox = await page.locator(".home-hero__copy").boundingBox();
+    const artworkBox = await page.locator(".home-hero__visual").boundingBox();
+    const buttonBox = await page
+      .locator(".home-hero")
+      .getByRole("link", { name: "Explore recipes", exact: true })
+      .boundingBox();
+    expect(heroBox).not.toBeNull();
+    expect(copyBox).not.toBeNull();
+    expect(artworkBox).not.toBeNull();
+    expect(buttonBox).not.toBeNull();
+    const heroCenter = heroBox!.x + heroBox!.width / 2;
+    const copyCenter = copyBox!.x + copyBox!.width / 2;
+    const artworkCenter = artworkBox!.x + artworkBox!.width / 2;
+    const buttonCenter = buttonBox!.x + buttonBox!.width / 2;
+    expect(Math.abs(copyCenter - heroCenter)).toBeLessThanOrEqual(1);
+    expect(Math.abs(artworkCenter - heroCenter)).toBeLessThanOrEqual(1);
+    expect(Math.abs(buttonCenter - heroCenter)).toBeLessThanOrEqual(1);
+    expect(buttonBox!.width).toBeLessThan(copyBox!.width / 2);
+    expect(artworkBox!.y).toBeGreaterThan(copyBox!.y + copyBox!.height);
+    await expect(page.locator(".home-hero__copy")).toHaveCSS("text-align", "center");
+  }
 });
 
 test("compares the seeded carrot variant with its parent without signing in", async ({
