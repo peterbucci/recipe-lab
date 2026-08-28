@@ -649,15 +649,40 @@ async function handleApi(request, response, url) {
       sendError(response, 401, "session_expired", "Your session expired. Sign in again to continue.");
       return;
     }
-    sendJson(response, 200, {
-      items: [
-        { kind: "draft", draft: draftListItem },
+    const view = url.searchParams.get("view");
+    const itemsByView = {
+      drafts: [{ kind: "draft", draft: draftListItem }],
+      published: [
         { kind: "published", recipe: rootSummary, visibility_state: "published" },
-        { kind: "published", recipe: variantSummary, visibility_state: "published" },
+        {
+          kind: "published",
+          recipe: variantSummary,
+          visibility_state: "moderation_hidden",
+        },
       ],
+      withdrawn: [
+        {
+          kind: "published",
+          recipe: childSummary,
+          visibility_state: "author_withdrawn",
+        },
+      ],
+    };
+    const items = itemsByView[view];
+    if (!items) {
+      sendError(
+        response,
+        422,
+        "validation_error",
+        "Choose drafts, published, or withdrawn.",
+      );
+      return;
+    }
+    sendJson(response, 200, {
+      items,
       page: 1,
       page_size: 12,
-      total: 3,
+      total: items.length,
       total_pages: 1,
     });
     return;
