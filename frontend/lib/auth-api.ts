@@ -26,9 +26,7 @@ export interface AuthenticatedAuthSession {
 }
 
 export type AuthSession =
-  | AnonymousAuthSession
-  | OnboardingAuthSession
-  | AuthenticatedAuthSession;
+  AnonymousAuthSession | OnboardingAuthSession | AuthenticatedAuthSession;
 
 export interface AccountProfileInput {
   handle: string;
@@ -97,7 +95,9 @@ function parseUser(value: unknown): AccountUser | null {
   };
 }
 
-function parseCapabilities(value: unknown): AccountCapabilities | null | undefined {
+function parseCapabilities(
+  value: unknown,
+): AccountCapabilities | null | undefined {
   if (value === undefined) {
     return undefined;
   }
@@ -158,31 +158,98 @@ export function parseAuthSession(value: unknown): AuthSession {
   );
 }
 
-function parseValidationIssues(value: unknown): ApiValidationIssue[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
+const KNOWN_AUTH_ERROR_CODES = new Set([
+  "account_confirmation_invalid",
+  "account_setup_required",
+  "abuse_protection_unavailable",
+  "authentication_required",
+  "authentication_unavailable",
+  "handle_unavailable",
+  "invalid_csrf",
+  "invalid_identifier",
+  "invalid_login",
+  "invalid_return_path",
+  "rate_limit_exceeded",
+  "recent_authentication_required",
+  "validation_error",
+]);
 
-  return value.flatMap((issue) => {
-    if (
-      !isRecord(issue) ||
-      !Array.isArray(issue.location) ||
-      !issue.location.every(
-        (part) => typeof part === "string" || typeof part === "number",
-      ) ||
-      typeof issue.message !== "string" ||
-      typeof issue.type !== "string"
-    ) {
-      return [];
-    }
-    return [
-      {
-        location: issue.location as Array<string | number>,
-        message: issue.message,
-        type: issue.type,
-      },
-    ];
-  });
+type ProfileValidationField = "display_name" | "handle";
+
+function safeAuthErrorCode(value: unknown): string {
+  return typeof value === "string" && KNOWN_AUTH_ERROR_CODES.has(value)
+    ? value
+    : "auth_api_error";
+}
+
+function safeProfileIssueLocation(
+  value: unknown,
+): ["body", ProfileValidationField] | null {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 2 ||
+    value[0] !== "body" ||
+    (value[1] !== "handle" && value[1] !== "display_name")
+  ) {
+    return null;
+  }
+  return ["body", value[1]];
+}
+
+function safeProfileIssueMessage(field: ProfileValidationField): string {
+  return field === "handle"
+    ? "Use a handle with 3–30 lowercase letters, numbers, underscores, or hyphens."
+    : "Enter a display name with 1–120 visible characters.";
+}
+
+function parseValidationIssues(value: unknown): ApiValidationIssue[] {
+  if (!Array.isArray(value) || value.length > 20) return [];
+
+  const seen = new Set<ProfileValidationField>();
+  const issues: ApiValidationIssue[] = [];
+  for (const issue of value) {
+    if (!isRecord(issue)) continue;
+    const location = safeProfileIssueLocation(issue.location);
+    if (!location) continue;
+    const field = location[1];
+    if (seen.has(field)) continue;
+    seen.add(field);
+    issues.push({
+      location,
+      message: safeProfileIssueMessage(field),
+      type: "validation_error",
+    });
+  }
+  return issues;
+}
+
+function safeAuthErrorMessage(status: number, code: string): string {
+  if (status === 401 || code === "authentication_required") {
+    return "Your session expired. Sign in again to continue.";
+  }
+  if (code === "handle_unavailable") return "That handle is unavailable.";
+  if (code === "recent_authentication_required") {
+    return "Sign in again to verify your identity before continuing.";
+  }
+  if (code === "account_confirmation_invalid") {
+    return "The confirmation did not match. Nothing was changed.";
+  }
+  if (status === 422 || code === "validation_error") {
+    return "Some account details need attention. Review them and try again.";
+  }
+  if (status === 403 || code === "invalid_csrf") {
+    return "Recipe Lab could not verify this account request. Refresh the page and try again.";
+  }
+  if (status === 429 || code === "rate_limit_exceeded") {
+    return "Too many account requests were made. Please try again later.";
+  }
+  if (
+    code === "authentication_unavailable" ||
+    code === "abuse_protection_unavailable"
+  ) {
+    return "Account access is temporarily unavailable. Please try again.";
+  }
+  return "Recipe Lab could not update your account.";
 }
 
 function isErrorPayload(value: unknown): value is ApiErrorPayload {
@@ -190,26 +257,26 @@ function isErrorPayload(value: unknown): value is ApiErrorPayload {
 }
 
 async function apiError(response: Response): Promise<AuthApiError> {
-  let message = "Recipe Lab could not update your account.";
   let code = "auth_api_error";
   let issues: ApiValidationIssue[] = [];
 
   try {
     const payload: unknown = await response.json();
     if (isErrorPayload(payload) && isRecord(payload.error)) {
-      if (typeof payload.error.message === "string") {
-        message = payload.error.message;
-      }
-      if (typeof payload.error.code === "string") {
-        code = payload.error.code;
-      }
-      issues = parseValidationIssues(payload.error.issues);
+      code = safeAuthErrorCode(payload.error.code);
+      if (code === "validation_error")
+        issues = parseValidationIssues(payload.error.issues);
     }
   } catch {
     // Keep the stable fallback instead of exposing an upstream response body.
   }
 
-  return new AuthApiError(message, response.status, code, issues);
+  return new AuthApiError(
+    safeAuthErrorMessage(response.status, code),
+    response.status,
+    code,
+    issues,
+  );
 }
 
 export function notifySessionExpired() {
@@ -239,7 +306,9 @@ async function authFetch(path: string, init: RequestInit): Promise<Response> {
   return response;
 }
 
-export async function fetchAuthSession(signal?: AbortSignal): Promise<AuthSession> {
+export async function fetchAuthSession(
+  signal?: AbortSignal,
+): Promise<AuthSession> {
   const response = await authFetch("/api/auth/session", {
     method: "GET",
     signal,

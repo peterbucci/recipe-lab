@@ -41,18 +41,18 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
         <div className="recipe-detail__hero">
           <RecipeArtwork className="recipe-detail__artwork" lineageKey={recipe.lineage_id} />
           <div className="recipe-detail__intro">
-            <p className="eyebrow">{isVariation ? "Variation" : "Original"}</p>
+            <p className="eyebrow">{isVariation ? "Version" : "Original"}</p>
             <h1>{recipe.title}</h1>
             <p className="recipe-detail__attribution">
               By <PublicCookAttribution author={recipe.author} />
             </p>
             {recipe.parent ? (
               <p className="recipe-detail__parent-context">
-                This fork is based directly on{" "}
+                Based on{" "}
                 <Link href={`/recipes/${recipe.parent.id}`}>{recipe.parent.title}</Link>
                 {" by "}
                 <PublicCookAttribution author={recipe.parent.author} />
-                . Lineage describes the recipe relationship, not endorsement or ownership.
+                . Recipe history shows where a version started, not endorsement or ownership.
               </p>
             ) : isVariation ? (
               <p className="recipe-detail__parent-context">Source unavailable</p>
@@ -125,7 +125,7 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
                 <RecipeInstructionActions
                   actions={instruction.actions}
                   ingredients={recipe.ingredients}
-                  label={`Structured actions for step ${index + 1}`}
+                  label={`Cooking actions for step ${index + 1}`}
                 />
               </li>
             ))}
@@ -136,13 +136,13 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
       <section className="lineage-section" aria-labelledby="lineage-heading">
         <div className="section-heading">
           <div>
-            <h2 id="lineage-heading">More versions of this recipe</h2>
+            <h2 id="lineage-heading">Recipe history</h2>
           </div>
           <p>
             See the recipe this one is based on and other versions made directly from it.
           </p>
         </div>
-        <ul className="lineage-grid" aria-label="More versions of this recipe">
+        <ul className="lineage-grid" aria-label="Recipe history">
           {recipe.parent ? (
             <li className="lineage-grid__item">
               <VersionLink label="Based on" version={recipe.parent} />

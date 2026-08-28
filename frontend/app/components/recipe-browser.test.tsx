@@ -66,7 +66,7 @@ describe("RecipeBrowser", () => {
       "/recipes/recipe-two",
     );
     expect(screen.getByText(/^original$/i)).toBeInTheDocument();
-    expect(screen.getByText(/^fork · version 2$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^version 2$/i)).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Alice Cook" })[0]).toHaveAttribute(
       "href",
       "/cooks/alice",

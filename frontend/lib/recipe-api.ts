@@ -63,18 +63,10 @@ export interface RecipeDetail extends RecipeSummary {
 export type RecipeFieldName = "title" | "description" | "servings";
 
 export type RecipeIngredientChangedField =
-  | "ingredient"
-  | "display_name"
-  | "measure"
-  | "preparation_notes";
+  "ingredient" | "display_name" | "measure" | "preparation_notes";
 
 export type RecipeInstructionChangedField =
-  | "text"
-  | "actions"
-  | "inputs"
-  | "action_order"
-  | "duration"
-  | "temperature";
+  "text" | "actions" | "inputs" | "action_order" | "duration" | "temperature";
 
 export interface RecipeFieldChange {
   field: RecipeFieldName;
@@ -143,6 +135,31 @@ interface ApiErrorPayload {
   };
 }
 
+const KNOWN_RECIPE_ERROR_CODES = new Set([
+  "invalid_identifier",
+  "recipe_has_no_parent",
+  "recipe_lineage_mismatch",
+  "recipe_not_found",
+  "validation_error",
+]);
+
+function knownRecipeErrorCode(value: unknown): string {
+  return typeof value === "string" && KNOWN_RECIPE_ERROR_CODES.has(value)
+    ? value
+    : "recipe_api_error";
+}
+
+function recipeErrorMessage(status: number): string {
+  if (status === 401) return "Your session expired. Sign in again to continue.";
+  if (status === 403) return "This recipe is not available to your account.";
+  if (status === 404) return "This recipe is no longer available.";
+  if (status === 422) return "Review the recipe request and try again.";
+  if (status === 429) {
+    return "Recipe Lab is receiving too many recipe requests. Please wait and try again.";
+  }
+  return "The recipe service could not complete this request.";
+}
+
 export class RecipeApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -156,7 +173,9 @@ export class RecipeApiError extends Error {
 }
 
 export function isRecipeVersionId(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }
 
 function apiBaseUrl(): string {
@@ -176,24 +195,26 @@ function isErrorPayload(value: unknown): value is ApiErrorPayload {
 }
 
 async function apiError(response: Response): Promise<RecipeApiError> {
-  let message = "The recipe service could not complete this request.";
   let code = "recipe_api_error";
 
   try {
     const payload: unknown = await response.json();
-    if (isErrorPayload(payload) && typeof payload.error === "object" && payload.error !== null) {
-      if (typeof payload.error.message === "string") {
-        message = payload.error.message;
-      }
-      if (typeof payload.error.code === "string") {
-        code = payload.error.code;
-      }
+    if (
+      isErrorPayload(payload) &&
+      typeof payload.error === "object" &&
+      payload.error !== null
+    ) {
+      code = knownRecipeErrorCode(payload.error.code);
     }
   } catch {
     // Keep the stable user-facing fallback when an upstream response is not JSON.
   }
 
-  return new RecipeApiError(message, response.status, code);
+  return new RecipeApiError(
+    recipeErrorMessage(response.status),
+    response.status,
+    code,
+  );
 }
 
 async function apiFetch(url: URL): Promise<Response> {
@@ -228,7 +249,9 @@ export async function fetchRecipePage({
   return (await response.json()) as RecipePage;
 }
 
-export async function fetchRecipe(recipeVersionId: string): Promise<RecipeDetail | null> {
+export async function fetchRecipe(
+  recipeVersionId: string,
+): Promise<RecipeDetail | null> {
   const response = await apiFetch(
     apiUrl(`/api/recipes/${encodeURIComponent(recipeVersionId)}`),
   );
@@ -242,7 +265,9 @@ export async function fetchRecipe(recipeVersionId: string): Promise<RecipeDetail
   return { ...payload, viewer_state: null };
 }
 
-export async function fetchRecipeDiff(recipeVersionId: string): Promise<RecipeDiff | null> {
+export async function fetchRecipeDiff(
+  recipeVersionId: string,
+): Promise<RecipeDiff | null> {
   const response = await apiFetch(
     apiUrl(`/api/recipes/${encodeURIComponent(recipeVersionId)}/diff`),
   );

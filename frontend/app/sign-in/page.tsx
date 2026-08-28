@@ -25,9 +25,8 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         <p className="eyebrow">Your account</p>
         <h1 id="sign-in-title">Sign in to Recipe Lab</h1>
         <p className="lede">
-          Sign in to save and rate recipes, get recommendations shaped by your activity, and
-          make recipe versions tied to your account. You can still browse every public recipe
-          without an account.
+          Sign in to save and rate recipes, create your own versions, and keep private drafts
+          tied to your account. You can still browse every public recipe without an account.
         </p>
         <div className="button-row auth-card__actions">
           <a className="button button--primary" href={signInHref(returnTo)}>

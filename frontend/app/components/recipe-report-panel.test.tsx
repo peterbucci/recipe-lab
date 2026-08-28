@@ -62,7 +62,10 @@ describe("RecipeReportPanel", () => {
   it("keeps form content and the same attempt key for a safe retry", async () => {
     mocks.submit
       .mockRejectedValueOnce(
-        new RecipeReportApiError("Recipe Lab could not submit this report.", 503),
+        new RecipeReportApiError(
+          "Canonical UUID 99999999-9999-4999-8999-999999999999 failed an operator policy check.",
+          503,
+        ),
       )
       .mockResolvedValueOnce({
         id: "22222222-2222-4222-8222-222222222222",
@@ -78,6 +81,7 @@ describe("RecipeReportPanel", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Submit private report" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("could not submit");
+    expect(screen.queryByText(/99999999|canonical|uuid|operator|policy/i)).toBeNull();
     expect(screen.getByLabelText("Additional details (optional)")).toHaveValue(
       "Repeated affiliate links",
     );

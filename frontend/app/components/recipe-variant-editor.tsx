@@ -90,6 +90,31 @@ interface FieldErrorProps {
   message?: string;
 }
 
+function variantFailureMessage(error: unknown, kind: "duplicate" | "variant"): string {
+  if (kind === "duplicate") {
+    if (error instanceof RecipeDuplicateApiError && error.status === 401) {
+      return "Your session expired. Your draft is still here; sign in again to continue.";
+    }
+    if (
+      error instanceof RecipeDuplicateApiError &&
+      error.code === "recipe_fork_source_unavailable"
+    ) {
+      return "The recipe this version is based on is no longer available. Your draft is still here.";
+    }
+    return "Recipe Lab could not check this version for similar recipes right now. Your draft is still here; please try again.";
+  }
+  if (error instanceof VariantApiError && error.status === 401) {
+    return "Your session expired. Your version was not created; sign in again to continue.";
+  }
+  if (error instanceof VariantApiError && error.status === 404) {
+    return "The recipe you started from is no longer available. Your version was not created.";
+  }
+  if (error instanceof VariantApiError && error.status === 422) {
+    return "Some recipe fields need attention. Review your version and try again.";
+  }
+  return "Recipe Lab could not create your version. Your edits are still here; please try again.";
+}
+
 function FieldError({ id, message }: FieldErrorProps) {
   return message ? (
     <p id={id} className="variant-field-error">
@@ -360,7 +385,7 @@ export function RecipeVariantEditor({
       setDuplicateAcknowledged(false);
       setDuplicateDecisionFailure(null);
       decisionAttemptRef.current = null;
-      setStatusMessage("Your draft changed. Check its recipe structure again when ready.");
+      setStatusMessage("Your draft changed. Check for similar recipes again when ready.");
     }
   }
 
@@ -455,15 +480,7 @@ export function RecipeVariantEditor({
     setDuplicateUnavailable(null);
     setDuplicateAcknowledged(false);
     setDuplicateDecisionFailure(null);
-    setApiError(
-      kind === "duplicate"
-        ? error instanceof RecipeDuplicateApiError
-          ? error.message
-          : "Recipe Lab could not check this version right now. Your draft is still here; please try again."
-        : error instanceof VariantApiError
-          ? error.message
-          : "The recipe service could not create your version. Please try again.",
-    );
+    setApiError(variantFailureMessage(error, kind));
     focusErrorSummary();
   }
 
@@ -503,9 +520,7 @@ export function RecipeVariantEditor({
     setDuplicateDecisionFailure(null);
     setDuplicateUnavailable(unavailable);
     setApiError("");
-    setStatusMessage(
-      "The advisory similarity review could not be completed. Your draft is still here.",
-    );
+    setStatusMessage("Similar recipes could not be checked. Your draft is still here.");
   }
 
   function finishUnavailableDecision(
@@ -614,7 +629,7 @@ export function RecipeVariantEditor({
         setPendingOperation(null);
         setDuplicateReview(null);
         setDuplicateAcknowledged(false);
-        setStatusMessage("Your draft changed. Check its recipe structure again when ready.");
+        setStatusMessage("Your draft changed. Check for similar recipes again when ready.");
         return;
       }
 
@@ -698,7 +713,7 @@ export function RecipeVariantEditor({
     if (!preserveFallback) {
       setDuplicateUnavailable(null);
     }
-    setStatusMessage("Checking this version's recipe structure…");
+    setStatusMessage("Checking for similar recipes…");
 
     if (preflightAttemptRef.current?.fingerprint !== unavailable.payloadFingerprint) {
       preflightAttemptRef.current = {
@@ -718,7 +733,7 @@ export function RecipeVariantEditor({
         setPending(false);
         setPendingOperation(null);
         setDuplicateUnavailable(null);
-        setStatusMessage("Your draft changed. Check its recipe structure again when ready.");
+        setStatusMessage("Your draft changed. Check for similar recipes again when ready.");
         return;
       }
 
@@ -735,7 +750,7 @@ export function RecipeVariantEditor({
       submittingRef.current = false;
       setPending(false);
       setPendingOperation(null);
-      setStatusMessage("Review the advisory recipe-structure results before continuing.");
+      setStatusMessage("Review the similar recipes before continuing.");
     } catch (error) {
       finishUnavailablePreflight(error, unavailable);
     }
@@ -1191,7 +1206,7 @@ export function RecipeVariantEditor({
                                 ? instruction.actions
                                     .map((action) => action.actionType?.canonical_verb ?? "Action needed")
                                     .join(" → ")
-                                : "No structured actions mapped"}
+                                : "No cooking actions added"}
                             </small>
                           </div>
                         ) : null}
@@ -1331,7 +1346,7 @@ export function RecipeVariantEditor({
             }
           >
             {pendingOperation === "preflight"
-              ? "Checking recipe structure…"
+              ? "Checking for similar recipes…"
               : pendingOperation === "create"
                 ? "Creating your version…"
                 : activeDuplicateReview

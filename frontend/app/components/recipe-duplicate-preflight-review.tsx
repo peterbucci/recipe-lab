@@ -30,7 +30,30 @@ interface RecipeDuplicateUnavailableProps {
 }
 
 function classificationLabel(classification: "exact_duplicate" | "probable_duplicate") {
-  return classification === "exact_duplicate" ? "Structural match" : "Similar structure";
+  return classification === "exact_duplicate" ? "Very close match" : "Similar recipe";
+}
+
+const REASON_COPY: Readonly<Record<string, string>> = {
+  exact_structural_match: "The ingredients, amounts, and cooking actions match.",
+  same_ingredient_multiset: "The recipes use the same ingredients in the same counts.",
+  same_curated_ingredient_multiset: "The recipes use the same ingredients in the same counts.",
+  overlapping_ingredient_multisets: "The recipes share many of the same ingredients.",
+  different_ingredient_multisets: "Some ingredients differ.",
+  proportionally_scaled_quantities: "The matching ingredient amounts use one consistent scale.",
+  matching_quantities: "The ingredient amounts match.",
+  partially_matching_quantities: "Some ingredient amounts match.",
+  different_quantities: "Some ingredient amounts differ.",
+  matching_structured_actions: "The cooking actions, timing, and temperatures match.",
+  similar_structured_action_flow: "The order of cooking actions is similar.",
+  matching_structure: "The ingredients, amounts, and cooking actions are similar.",
+  different_action_types: "Some cooking actions differ.",
+  different_action_order: "The cooking actions appear in a different order.",
+  different_ordered_inputs: "Some cooking actions use ingredients in a different order.",
+  different_duration_or_temperature: "Some cooking times or temperatures differ.",
+};
+
+function reasonCopy(code: string): string {
+  return REASON_COPY[code] ?? "Recipe details contributed to this match.";
 }
 
 export function RecipeDuplicatePreflightReview({
@@ -66,10 +89,10 @@ export function RecipeDuplicatePreflightReview({
   }, [decisionFailure]);
 
   const heading = result.same_lineage_no_change
-    ? "This version keeps the same recipe structure"
+    ? "Your version matches the recipe it is based on"
     : result.classification === "exact_duplicate"
-      ? "Review an existing structural match"
-      : "Review similar recipe structures";
+      ? "Review a very similar recipe"
+      : "Review similar recipes";
 
   return (
     <section
@@ -79,19 +102,19 @@ export function RecipeDuplicatePreflightReview({
       aria-busy={pending}
     >
       <div className="duplicate-preflight-review__intro">
-        <p className="eyebrow">Advisory similarity review</p>
+        <p className="eyebrow">Similar recipes</p>
         <h2 ref={headingRef} id={headingId} tabIndex={-1}>
           {heading}
         </h2>
         {publishingFork && result.same_lineage_no_change ? (
           <p>
-            Recipe Lab compared this saved draft with its exact direct parent. Publishing
-            still creates a separate immutable child and never changes or merges the source.
+            Recipe Lab compared this saved draft with the recipe it is based on. Publishing still
+            creates a separate version and never changes or merges the starting recipe.
           </p>
         ) : (
           <p>
-            Recipe Lab compares curated ingredients, normalized amounts, and structured
-            cooking actions. This review does not merge recipes or prevent you from making
+            Recipe Lab compares approved ingredients, amounts, and the order of cooking actions.
+            This review does not merge recipes or prevent you from making
             {publishingFork
               ? " your version public."
               : publishing
@@ -103,7 +126,7 @@ export function RecipeDuplicatePreflightReview({
 
       {result.warnings.map((warning) => (
         <p className="duplicate-preflight-review__warning" key={warning.code}>
-          {warning.message}
+          Your version matches the recipe it is based on.
         </p>
       ))}
 
@@ -127,7 +150,7 @@ export function RecipeDuplicatePreflightReview({
               </div>
               <ul aria-label={`Why ${candidate.title} was included`}>
                 {candidate.reasons.map((reason) => (
-                  <li key={reason.code}>{reason.message}</li>
+                  <li key={reason.code}>{reasonCopy(reason.code)}</li>
                 ))}
               </ul>
             </li>
@@ -148,12 +171,12 @@ export function RecipeDuplicatePreflightReview({
               />
               <span>
                 {publishing
-                  ? publishingFork
+                    ? publishingFork
                     ? result.same_lineage_no_change
-                      ? "I reviewed the direct-parent no-change warning and want to publish my version anyway."
-                      : "I reviewed these advisory results and want to publish my version anyway."
-                    : "I reviewed these advisory results and want to publish my recipe anyway."
-                  : "I reviewed these advisory results and want to create my version anyway."}
+                      ? "I understand that my version matches the recipe it is based on and want to publish it anyway."
+                      : "I reviewed these similar recipes and want to publish my version anyway."
+                    : "I reviewed these similar recipes and want to publish my recipe anyway."
+                  : "I reviewed these similar recipes and want to create my version anyway."}
               </span>
             </label>
             <div className="duplicate-preflight-review__actions">
@@ -187,11 +210,11 @@ export function RecipeDuplicatePreflightReview({
             <p role="status" aria-live="polite">
               {pendingDecision === "continue"
                 ? publishing
-                  ? `Revalidating your review and publishing one immutable ${publishingFork ? "version" : "recipe"}.`
+                  ? `Rechecking similar recipes and publishing your ${publishingFork ? "version" : "recipe"}.`
                   : "Recording your choice before creating the version."
                 : pendingDecision === "revise"
                   ? "Recording your choice and keeping every draft field."
-                  : "Choose whether to continue with this structure or return to editing."}
+                  : "Choose whether to continue or return to editing."}
             </p>
           </>
         ) : (
@@ -200,7 +223,7 @@ export function RecipeDuplicatePreflightReview({
               Your review choice could not be confirmed
             </h3>
             <p>
-              The advisory results above remain visible, but Recipe Lab could not confirm
+              The similar-recipes results above remain visible, but Recipe Lab could not confirm
               whether your choice was recorded. You can retry the same choice or
               explicitly continue without confirming the review decision.
             </p>
@@ -261,14 +284,14 @@ export function RecipeDuplicateUnavailable({
       aria-busy={pending}
     >
       <div className="duplicate-preflight-review__intro">
-        <p className="eyebrow">Advisory similarity review</p>
+        <p className="eyebrow">Similar recipes</p>
         <h2 ref={headingRef} id={headingId} tabIndex={-1}>
-          Similarity review could not be completed
+          Similar recipes could not be checked
         </h2>
         <p>
-          Recipe Lab could not complete the structural comparison right now. This does
-          not mean your version is distinct. Your entire draft is still here, and you can
-          retry the review or explicitly continue without it.
+          Recipe Lab could not check for similar recipes right now. This does not mean your
+          version is different. Your entire draft is still here, and you can retry the check or
+          explicitly continue without it.
         </p>
       </div>
       <div className="duplicate-preflight-review__actions">
@@ -278,7 +301,7 @@ export function RecipeDuplicateUnavailable({
           disabled={pending}
           onClick={onRetry}
         >
-          {pendingAction === "retry" ? "Retrying similarity review…" : "Retry similarity review"}
+          {pendingAction === "retry" ? "Checking similar recipes again…" : "Check similar recipes again"}
         </button>
         <button
           className="button button--secondary"
@@ -287,16 +310,16 @@ export function RecipeDuplicateUnavailable({
           onClick={onCreateWithoutReview}
         >
           {pendingAction === "create"
-            ? "Creating without similarity review…"
-            : "Create without similarity review"}
+            ? "Creating without checking similar recipes…"
+            : "Create without checking similar recipes"}
         </button>
       </div>
       <p className="duplicate-preflight-unavailable__status" role="status" aria-live="polite">
         {pendingAction === "retry"
-          ? "Retrying the advisory structural comparison."
+          ? "Checking for similar recipes again."
           : pendingAction === "create"
-            ? "Creating your version without a completed similarity review."
-            : "No similarity classification was produced."}
+            ? "Creating your version without a completed similar-recipes check."
+            : "No similar-recipes result is available."}
       </p>
     </section>
   );

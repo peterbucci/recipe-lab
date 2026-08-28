@@ -160,7 +160,9 @@ test.describe("structured cooking action acceptance", () => {
     if (preflightBody.classification !== "distinct") {
       const review = page.locator(".duplicate-preflight-review");
       await review
-        .getByRole("checkbox", { name: /publish my version anyway|direct-parent no-change warning/i })
+        .getByRole("checkbox", {
+          name: /publish my version anyway|matches the recipe it is based on.*publish it anyway/i,
+        })
         .check();
       await review.getByRole("button", { name: "Publish version anyway" }).click();
     }

@@ -23,6 +23,21 @@ interface RecipeReportPanelProps {
   recipeVersionId: string;
 }
 
+function reportErrorMessage(error: RecipeReportApiError | null): string {
+  if (error?.status === 401) {
+    return "Your session expired. Sign in again before reporting this recipe.";
+  }
+  if (error?.status === 404) return "This recipe is no longer available to report.";
+  if (error?.status === 413) return "That report is too large. Shorten the details and try again.";
+  if (error?.status === 422) return "Review the report reason and details, then try again.";
+  if (error?.status === 429) {
+    return error.retryAfterSeconds === null
+      ? "Too many reports were submitted. Please wait before trying again."
+      : `Too many reports were submitted. Try again in ${error.retryAfterSeconds} seconds.`;
+  }
+  return "Recipe Lab could not submit this report. Please try again.";
+}
+
 interface Attempt {
   fingerprint: string;
   idempotencyKey: string;
@@ -75,7 +90,7 @@ export function RecipeReportPanel({ recipeVersionId }: RecipeReportPanelProps) {
         setStatus("You already reported this recipe. The existing report is still in review.");
         window.setTimeout(() => successRef.current?.focus(), 0);
       } else {
-        setError(apiError?.message ?? "Recipe Lab could not submit this report. Please try again.");
+        setError(reportErrorMessage(apiError));
         setStatus("");
         window.setTimeout(() => errorRef.current?.focus(), 0);
       }

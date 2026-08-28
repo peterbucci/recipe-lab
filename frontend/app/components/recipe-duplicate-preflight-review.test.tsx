@@ -63,12 +63,12 @@ describe("RecipeDuplicatePreflightReview", () => {
     );
 
     const region = screen.getByRole("region", {
-      name: "Review similar recipe structures",
+      name: "Review similar recipes",
     });
     await waitFor(() =>
       expect(
         within(region).getByRole("heading", {
-          name: "Review similar recipe structures",
+          name: "Review similar recipes",
         }),
       ).toHaveFocus(),
     );
@@ -84,7 +84,7 @@ describe("RecipeDuplicatePreflightReview", () => {
       within(region).getByRole("list", {
         name: "Why Public carrot cake was included",
       }),
-    ).toHaveTextContent("structured action flow is similar");
+    ).toHaveTextContent("order of cooking actions is similar");
     expect(region).not.toHaveTextContent(/private|owner|timing|total candidates/i);
   });
 
@@ -113,7 +113,7 @@ describe("RecipeDuplicatePreflightReview", () => {
     expect(continueButton).toBeDisabled();
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: /reviewed these advisory results/i,
+        name: /reviewed these similar recipes/i,
       }),
     );
     expect(acknowledge).toHaveBeenCalledWith(true);
@@ -138,7 +138,7 @@ describe("RecipeDuplicatePreflightReview", () => {
     expect(revise).toHaveBeenCalledOnce();
   });
 
-  it("uses explicit immutable-publication language for an original draft", () => {
+  it("uses cook-facing publication language for an original draft", () => {
     render(
       <RecipeDuplicatePreflightReview
         mode="publication"
@@ -157,14 +157,14 @@ describe("RecipeDuplicatePreflightReview", () => {
 
     expect(
       screen.getByRole("checkbox", {
-        name: "I reviewed these advisory results and want to publish my recipe anyway.",
+        name: "I reviewed these similar recipes and want to publish my recipe anyway.",
       }),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Publish recipe anyway" })).toBeDisabled();
-    expect(screen.queryByRole("button", { name: /without similarity review/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /without checking similar recipes/i })).toBeNull();
   });
 
-  it("presents a direct-parent no-change warning without inventing a candidate", () => {
+  it("presents a cook-facing unchanged-version warning without inventing a candidate", () => {
     render(
       <RecipeDuplicatePreflightReview
         result={result({
@@ -192,9 +192,10 @@ describe("RecipeDuplicatePreflightReview", () => {
 
     expect(
       screen.getByRole("region", {
-        name: "This version keeps the same recipe structure",
+        name: "Your version matches the recipe it is based on",
       }),
-    ).toHaveTextContent("unchanged from its direct parent");
+    ).toHaveTextContent("Your version matches the recipe it is based on.");
+    expect(screen.queryByText(/direct parent|canonical|immutable/i)).toBeNull();
     expect(screen.queryByRole("list", { name: "Public recipe matches" })).toBeNull();
   });
 
@@ -285,21 +286,21 @@ describe("RecipeDuplicateUnavailable", () => {
     );
 
     const region = screen.getByRole("region", {
-      name: "Similarity review could not be completed",
+      name: "Similar recipes could not be checked",
     });
     await waitFor(() =>
       expect(
         within(region).getByRole("heading", {
-          name: "Similarity review could not be completed",
+          name: "Similar recipes could not be checked",
         }),
       ).toHaveFocus(),
     );
-    expect(region).toHaveTextContent("does not mean your version is distinct");
-    expect(region).toHaveTextContent("No similarity classification was produced.");
-    fireEvent.click(within(region).getByRole("button", { name: "Retry similarity review" }));
+    expect(region).toHaveTextContent("does not mean your version is different");
+    expect(region).toHaveTextContent("No similar-recipes result is available.");
+    fireEvent.click(within(region).getByRole("button", { name: "Check similar recipes again" }));
     fireEvent.click(
       within(region).getByRole("button", {
-        name: "Create without similarity review",
+          name: "Create without checking similar recipes",
       }),
     );
     expect(retry).toHaveBeenCalledOnce();

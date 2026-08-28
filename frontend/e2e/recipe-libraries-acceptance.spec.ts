@@ -116,12 +116,14 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
       const catalogAuthor = page.getByRole("link", { name: "Recipe Lab Demo Catalog" }).first();
       await expect(catalogAuthor).toHaveAttribute("href", "/cooks/recipe-lab-catalog");
       await expect(page.getByText("Original", { exact: true }).first()).toBeVisible();
-      const forkCard = page
+      const versionCard = page
         .getByRole("article")
-        .filter({ hasText: /fork · version/i })
+        .filter({
+          has: page.locator(".version-badge", { hasText: /^Version \d+$/ }),
+        })
         .first();
-      await expect(forkCard).toBeVisible();
-      const parentAttribution = forkCard.locator(".recipe-card__parent");
+      await expect(versionCard).toBeVisible();
+      const parentAttribution = versionCard.locator(".recipe-card__parent");
       await expect(parentAttribution).toHaveText(
         /^Based on .+ by Recipe Lab Demo Catalog$/,
       );

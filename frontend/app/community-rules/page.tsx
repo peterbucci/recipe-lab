@@ -13,8 +13,8 @@ export default function CommunityRulesPage() {
         <p className="eyebrow">Recipe Lab community</p>
         <h1>Community rules</h1>
         <p>
-          Recipe Lab is a place to share useful recipes, learn from other cooks, and build clear
-          recipe lineages. These rules apply to every published recipe and member interaction.
+          Recipe Lab is a place to share useful recipes, learn from other cooks, and keep clear
+          recipe history. These rules apply to every published recipe and member interaction.
         </p>
       </header>
       <div className="policy-page__sections">
@@ -22,7 +22,8 @@ export default function CommunityRulesPage() {
           <h2 id="rules-share">Share work you have the right to publish</h2>
           <p>
             Publish recipes you created or are allowed to share. Do not copy protected text or
-            claim another cook’s work as your own. Forks must keep their Recipe Lab lineage.
+            claim another cook’s work as your own. Versions based on another recipe must keep
+            that connection in their recipe history.
           </p>
         </section>
         <section aria-labelledby="rules-safe">
@@ -52,7 +53,8 @@ export default function CommunityRulesPage() {
           <h2 id="rules-publishing">Your publishing acknowledgement</h2>
           <p>
             Before publishing, you must confirm that you accept these rules and have the right to
-            share the recipe. Published versions are immutable; later changes create a new version.
+            share the recipe. A published version cannot be edited; later changes create a new
+            version.
           </p>
         </section>
       </div>

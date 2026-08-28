@@ -61,6 +61,8 @@ describe("RecipeDraftStarter", () => {
     mocks.createRecipeDraft.mockResolvedValue({ id: DRAFT_ID });
     renderStarter("authenticated");
 
+    expect(screen.getByText(/will not appear in search, activity, or public recipe pages/i)).toBeVisible();
+    expect(screen.queryByText(/recommend/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Create private draft" }));
 
     await waitFor(() => expect(mocks.createRecipeDraft).toHaveBeenCalledWith(SOURCE_ID));

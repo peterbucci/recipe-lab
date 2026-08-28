@@ -1,7 +1,4 @@
-import {
-  memberMutationHeaders,
-  notifySessionExpired,
-} from "./auth-api";
+import { memberMutationHeaders, notifySessionExpired } from "./auth-api";
 import {
   parseRecipeViewerState,
   type RatingValue,
@@ -15,6 +12,40 @@ interface ApiErrorPayload {
     code?: unknown;
     message?: unknown;
   };
+}
+
+const KNOWN_INTERACTION_ERROR_CODES = new Set([
+  "abuse_protection_unavailable",
+  "account_setup_required",
+  "activity_unavailable",
+  "authentication_required",
+  "idempotency_key_conflict",
+  "invalid_csrf",
+  "invalid_identifier",
+  "rate_limit_exceeded",
+  "recipe_not_found",
+  "validation_error",
+]);
+
+function knownInteractionErrorCode(value: unknown): string {
+  return typeof value === "string" && KNOWN_INTERACTION_ERROR_CODES.has(value)
+    ? value
+    : "interaction_api_error";
+}
+
+function interactionErrorMessage(status: number): string {
+  if (status === 401) return "Your session expired. Sign in again to continue.";
+  if (status === 403) {
+    return "Recipe Lab could not verify this recipe activity request. Refresh the page and try again.";
+  }
+  if (status === 404) return "This recipe is no longer available.";
+  if (status === 409)
+    return "Your recipe activity changed. Refresh the recipe and try again.";
+  if (status === 422) return "Review this recipe activity and try again.";
+  if (status === 429) {
+    return "Too many recipe activity requests were made. Please wait and try again.";
+  }
+  return "The recipe service could not update your recipe activity.";
 }
 
 export class InteractionApiError extends Error {
@@ -41,24 +72,26 @@ function isErrorPayload(value: unknown): value is ApiErrorPayload {
 }
 
 async function apiError(response: Response): Promise<InteractionApiError> {
-  let message = "The recipe service could not update your recipe activity.";
   let code = "interaction_api_error";
 
   try {
     const payload: unknown = await response.json();
-    if (isErrorPayload(payload) && typeof payload.error === "object" && payload.error !== null) {
-      if (typeof payload.error.message === "string") {
-        message = payload.error.message;
-      }
-      if (typeof payload.error.code === "string") {
-        code = payload.error.code;
-      }
+    if (
+      isErrorPayload(payload) &&
+      typeof payload.error === "object" &&
+      payload.error !== null
+    ) {
+      code = knownInteractionErrorCode(payload.error.code);
     }
   } catch {
     // Keep the stable user-facing fallback when the upstream body is not JSON.
   }
 
-  return new InteractionApiError(message, response.status, code);
+  return new InteractionApiError(
+    interactionErrorMessage(response.status),
+    response.status,
+    code,
+  );
 }
 
 async function interactionRequest(
@@ -174,13 +207,20 @@ export async function fetchRecipeViewerState(
 
   try {
     const payload: unknown = await response.json();
-    if (typeof payload !== "object" || payload === null || !("viewer_state" in payload)) {
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("viewer_state" in payload)
+    ) {
       throw new TypeError("Missing viewer state.");
     }
     const viewerState = parseRecipeViewerState(
       (payload as Record<string, unknown>).viewer_state,
     );
-    if (viewerState !== null && viewerState.recipe_version_id !== recipeVersionId) {
+    if (
+      viewerState !== null &&
+      viewerState.recipe_version_id !== recipeVersionId
+    ) {
       throw new TypeError("Private state belongs to a different recipe.");
     }
     return viewerState;

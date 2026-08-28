@@ -63,7 +63,7 @@ export function RecipeDraftStarter({ recipeTitle, sourceVersionId }: RecipeDraft
           </p>
           <div className="draft-starter__privacy">
             <strong>Private by default</strong>
-            <p>This draft will not appear in search, recommendations, activity, or public recipe pages.</p>
+            <p>This draft will not appear in search, activity, or public recipe pages.</p>
           </div>
           {error ? <p className="form-alert" role="alert">{error}</p> : null}
           <div className="button-row">

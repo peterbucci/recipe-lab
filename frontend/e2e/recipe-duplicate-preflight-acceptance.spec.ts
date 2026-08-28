@@ -105,15 +105,18 @@ test.describe("recipe duplicate preflight acceptance", () => {
     expect((await preflightResponse).status()).toBe(201);
 
     const review = page.getByRole("region", {
-      name: "This version keeps the same recipe structure",
+      name: "Your version matches the recipe it is based on",
     });
     await expect(review).toBeVisible();
     await expect(
       review.getByRole("heading", {
-        name: "This version keeps the same recipe structure",
+        name: "Your version matches the recipe it is based on",
       }),
     ).toBeFocused();
-    await expect(review).toContainText(/advisory/i);
+    await expect(review).toContainText(
+      "Recipe Lab compared this saved draft with the recipe it is based on.",
+    );
+    await expect(review).not.toContainText(/canonical|direct parent|immutable/i);
     await expect(review).not.toContainText(/plagiar|copied|stolen/i);
     const continueButton = review.getByRole("button", {
       name: "Publish version anyway",
@@ -147,7 +150,7 @@ test.describe("recipe duplicate preflight acceptance", () => {
     ).toEqual([]);
 
     const acknowledgement = review.getByRole("checkbox", {
-      name: /direct-parent no-change warning/i,
+      name: /matches the recipe it is based on.*publish it anyway/i,
     });
     await acknowledgement.focus();
     await page.keyboard.press("Space");
@@ -184,10 +187,10 @@ test.describe("recipe duplicate preflight acceptance", () => {
     });
     await confirmPublicationRequirements(page);
     await page.getByRole("button", { name: "Review and publish version", exact: true }).click();
-    const review = page.getByRole("region", { name: "Review similar recipe structures" });
+    const review = page.getByRole("region", { name: "Review similar recipes" });
     await expect(review).toBeVisible();
     await expect(
-      review.getByRole("heading", { name: "Review similar recipe structures" }),
+      review.getByRole("heading", { name: "Review similar recipes" }),
     ).toBeFocused();
     const candidateLink = review.getByRole("link", {
       name: new RegExp(PUBLIC_CANDIDATE_TITLE, "i"),
@@ -244,7 +247,7 @@ test.describe("recipe duplicate preflight acceptance", () => {
     await expect(page.getByText("Draft saved privately.", { exact: true })).toBeVisible();
     await confirmPublicationRequirements(page);
     await page.getByRole("button", { name: "Review and publish version", exact: true }).click();
-    const review = page.getByRole("region", { name: "Review similar recipe structures" });
+    const review = page.getByRole("region", { name: "Review similar recipes" });
     await expect(review.getByRole("link", { name: new RegExp(PUBLIC_CANDIDATE_TITLE) })).toBeVisible();
     await review
       .getByRole("checkbox", { name: /publish my version anyway/i })
@@ -253,7 +256,9 @@ test.describe("recipe duplicate preflight acceptance", () => {
 
     const alert = page.locator(".draft-publication__alert");
     await expect(alert).toBeVisible();
-    await expect(alert).toContainText("The public source recipe is no longer available");
+    await expect(alert).toContainText(
+      "The recipe this version is based on is no longer available",
+    );
     await expect(page.getByRole("link", { name: new RegExp(PUBLIC_CANDIDATE_TITLE) })).toHaveCount(
       0,
     );

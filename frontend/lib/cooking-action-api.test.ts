@@ -41,7 +41,9 @@ describe("cooking action API", () => {
 
   it("rejects malformed and duplicate catalog identities", () => {
     expect(() =>
-      parseCookingActionTypeResponse({ items: [{ ...mix, key: "Mix things" }] }),
+      parseCookingActionTypeResponse({
+        items: [{ ...mix, key: "Mix things" }],
+      }),
     ).toThrow("invalid cooking action response");
     expect(() =>
       parseCookingActionTypeResponse({ items: [mix, { ...mix, key: "fold" }] }),
@@ -71,20 +73,39 @@ describe("cooking action API", () => {
         .mockResolvedValueOnce(
           new Response(
             JSON.stringify({
-              error: { code: "catalog_unavailable", message: "Try again shortly." },
+              error: {
+                code: "catalog_unavailable",
+                message: "Try again shortly.",
+              },
             }),
             { status: 503, headers: { "Content-Type": "application/json" } },
           ),
         )
-        .mockResolvedValueOnce(new Response("private gateway details", { status: 502 })),
+        .mockResolvedValueOnce(
+          new Response("private gateway details", { status: 502 }),
+        )
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              error: {
+                code: "internal_operator_policy_failure",
+                message:
+                  "Canonical action UUID 99999999-9999-4999-8999-999999999999 failed an operator policy.",
+              },
+            },
+            { status: 503 },
+          ),
+        ),
     );
 
     await expect(fetchCookingActionTypes()).rejects.toMatchObject({
       code: "catalog_unavailable",
-      message: "Try again shortly.",
+      message: "The cooking action service could not complete this request.",
       status: 503,
     });
-    const error = await fetchCookingActionTypes().catch((reason: unknown) => reason);
+    const error = await fetchCookingActionTypes().catch(
+      (reason: unknown) => reason,
+    );
     expect(error).toBeInstanceOf(CookingActionApiError);
     expect(error).toMatchObject({
       code: "cooking_action_api_error",
@@ -92,5 +113,17 @@ describe("cooking action API", () => {
       status: 502,
     });
     expect(String(error)).not.toContain("private gateway details");
+
+    const hostileError = await fetchCookingActionTypes().catch(
+      (reason: unknown) => reason,
+    );
+    expect(hostileError).toMatchObject({
+      code: "cooking_action_api_error",
+      message: "The cooking action service could not complete this request.",
+      status: 503,
+    });
+    expect(
+      `${String(hostileError)} ${JSON.stringify(hostileError)}`,
+    ).not.toMatch(/99999999|canonical|uuid|operator|policy|internal_/i);
   });
 });

@@ -182,18 +182,20 @@ canonicalized.
 An exact action-key retry returns that child; a changed source or payload with
 the same key is rejected. Different action keys remain distinct authored forks.
 
-Recommendation reads are a separate, read-only application service exposed by
-`GET /api/recommendations`. The `baseline-v1` service aggregates current ratings
-and saves with distinct-user view and fork support, applies the documented
-Bayesian and candidate-wide normalization rules, and optionally adds a bounded
-canonical-ingredient Jaccard match against positive history belonging only to
-the signed-in member. Signed-out requests have no private history and use the
-deterministic global ranking. It excludes the current member's exact interacted
+The API-only recommendation research preview is a separate, read-only
+application service exposed by `GET /api/recommendations`. The `baseline-v1`
+service aggregates current ratings and saves with distinct-user view and fork
+support, applies the documented Bayesian and candidate-wide normalization rules,
+and optionally adds a bounded canonical-ingredient Jaccard match against positive
+history belonging only to the signed-in member. Both request types use aggregate
+activity for publicly readable recipes; signed-out requests load no
+account-specific history and use the deterministic global ranking. It excludes
+the current member's exact interacted
 versions, rounds scores to six decimal places, and
 uses fixed component/title/version/ID tie-breaks. The response exposes a recipe
 summary, score, components, and short reason, never raw events or user
 identifiers. The full formula is recorded in
-[baseline recommendations](recommendations.md).
+[baseline recommendation research preview](recommendations.md).
 
 ### Database
 
@@ -577,11 +579,12 @@ privacy, and local-run contract.
 ### ML workspace
 
 The `ml` directory is a separate Python distribution and is never imported by
-the request-serving application. Its offline evaluator consumes a versioned
-catalog-and-event snapshot, applies one strict UTC cutoff, reconstructs
-point-in-time preference state, and compares every registered approach with
-`baseline-v1`. The production recommendation adapter and evaluator share the
-same database-free baseline scorer; SQL loading remains outside that core.
+the request-serving application. Its offline engineering research evaluator
+consumes a versioned catalog-and-event snapshot, applies one strict UTC cutoff,
+reconstructs point-in-time preference state, and compares every registered
+approach with `baseline-v1`. The API-only research-preview recommendation
+endpoint and evaluator share the same database-free baseline scorer; SQL loading
+remains outside that core.
 
 The built-in `content-v1` adapter fits only in memory from the catalog and
 training prefix. It represents each version with canonical ingredient IDs,

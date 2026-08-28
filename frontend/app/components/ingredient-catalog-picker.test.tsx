@@ -11,6 +11,7 @@ import type {
 } from "../../lib/ingredient-catalog-api";
 import {
   fetchMyIngredientRequest,
+  IngredientCatalogApiError,
   searchCatalogIngredients,
   submitMissingIngredientRequest,
 } from "../../lib/ingredient-catalog-api";
@@ -151,6 +152,8 @@ describe("IngredientCatalogPicker", () => {
     const onSelection = vi.fn();
     render(<PickerHarness onSelection={onSelection} />);
 
+    expect(screen.getByText(/approved ingredient names and alternate names/i)).toBeVisible();
+    expect(screen.queryByText(/canonical names/i)).toBeNull();
     const search = screen.getByRole("searchbox", { name: "Ingredient" });
     fireEvent.change(search, { target: { value: "White sugar" } });
     fireEvent.keyDown(search, { key: "Enter" });
@@ -216,7 +219,12 @@ describe("IngredientCatalogPicker", () => {
   });
 
   it("keeps the selected identity and query visible after a lookup failure", async () => {
-    vi.mocked(searchCatalogIngredients).mockRejectedValue(new Error("offline"));
+    vi.mocked(searchCatalogIngredients).mockRejectedValue(
+      new IngredientCatalogApiError(
+        "Canonical UUID 99999999-9999-4999-8999-999999999999 failed an operator policy check.",
+        503,
+      ),
+    );
     render(
       <PickerHarness
         initialValue={{
@@ -234,6 +242,7 @@ describe("IngredientCatalogPicker", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The ingredient catalog could not be searched. Please try again.",
     );
+    expect(screen.queryByText(/99999999|canonical|uuid|operator|policy/i)).toBeNull();
     expect(search).toHaveValue("almond");
     expect(screen.getByText("Selected catalog ingredient")).toBeInTheDocument();
     expect(screen.getByText("Pecan", { selector: "strong" })).toBeInTheDocument();

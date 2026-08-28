@@ -79,7 +79,7 @@ function sameName(left: string, right: string): boolean {
 }
 
 function initialVariantTitle(sourceTitle: string): string {
-  const suffix = " variation";
+  const suffix = " version";
   const source = normalized(sourceTitle);
   if (source.length + suffix.length <= TITLE_MAX_LENGTH) {
     return `${source}${suffix}`;

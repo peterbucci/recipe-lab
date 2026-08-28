@@ -101,7 +101,7 @@ test.describe("original recipe publication acceptance", () => {
     const preflightBody = await preflight.json() as { classification?: unknown };
     if (preflightBody.classification !== "distinct") {
       const review = page.getByRole("region", {
-        name: /review (?:an existing structural match|similar recipe structures)/i,
+        name: /review (?:a very similar recipe|similar recipes)/i,
       });
       await expect(review).toBeVisible();
       await review

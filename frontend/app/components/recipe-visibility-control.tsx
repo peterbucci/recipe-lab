@@ -16,6 +16,22 @@ interface RecipeVisibilityControlProps {
   state: RecipeVisibilityState;
 }
 
+function visibilityErrorMessage(reason: unknown): string {
+  if (
+    (reason instanceof AuthApiError || reason instanceof RecipeVisibilityApiError) &&
+    reason.status === 401
+  ) {
+    return "Your session expired. Sign in again before changing recipe visibility.";
+  }
+  if (reason instanceof RecipeVisibilityApiError && reason.status === 404) {
+    return "This recipe is no longer available in your account.";
+  }
+  if (reason instanceof RecipeVisibilityApiError && reason.status === 409) {
+    return "This recipe’s visibility changed. Refresh your recipes and try again.";
+  }
+  return "Recipe Lab could not change this recipe’s public visibility. Try again.";
+}
+
 export function RecipeVisibilityControl({
   onChanged,
   recipeTitle,
@@ -43,13 +59,7 @@ export function RecipeVisibilityControl({
       );
       await onChanged(result.state);
     } catch (reason) {
-      if (reason instanceof AuthApiError) {
-        setError("Your session expired. Sign in again before changing recipe visibility.");
-      } else if (reason instanceof RecipeVisibilityApiError) {
-        setError(reason.message);
-      } else {
-        setError("Recipe Lab could not change this recipe’s public visibility. Try again.");
-      }
+      setError(visibilityErrorMessage(reason));
     } finally {
       setPending(false);
     }
@@ -66,7 +76,7 @@ export function RecipeVisibilityControl({
   if (state === "author_withdrawn") {
     return (
       <div className="recipe-visibility-control">
-        <p>This snapshot is visible only in your recipe library.</p>
+        <p>This recipe is visible only in your recipe library.</p>
         <button
           aria-label={`Restore ${recipeTitle}`}
           className="button button--secondary"
@@ -102,8 +112,8 @@ export function RecipeVisibilityControl({
       ) : (
         <div className="recipe-visibility-control__confirmation" id={confirmationId}>
           <p>
-            This removes the snapshot from public browsing and prevents new activity or forks.
-            Existing public descendants remain available and show an unavailable source.
+            This removes the recipe from public browsing and prevents new activity or versions
+            based on it. Existing public versions remain available and show an unavailable source.
           </p>
           <div className="button-row">
             <button

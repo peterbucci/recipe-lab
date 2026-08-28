@@ -3,11 +3,11 @@
 ## Purpose and boundary
 
 `collaborative-v1` is a deterministic, user-neighborhood recommender that Recipe
-Lab fits and evaluates offline. It tests whether signed interaction patterns add
-value beyond both the production `baseline-v1` scorer and the offline
-`content-v1` model. It is not imported by FastAPI, is not exposed in the
-frontend, does not change the product database, and is never trained or served
-in a product request.
+Lab fits and evaluates as offline engineering research. It tests whether signed
+interaction patterns add value beyond both the API-only research-preview
+`baseline-v1` scorer and the offline `content-v1` model. It is not imported by
+FastAPI, is not exposed in the frontend, does not change the product database,
+and is never trained or served in a product request.
 
 The collaborative experiment is opt-in:
 

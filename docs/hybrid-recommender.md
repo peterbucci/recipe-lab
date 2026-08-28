@@ -2,12 +2,12 @@
 
 ## Purpose and boundary
 
-`hybrid-v1` is a deterministic offline rank-fusion experiment. It combines the
-existing production-aligned `baseline-v1` order with the offline `content-v1`
-and `collaborative-v1` orders, while retaining explicit cold-start routes and a
-short explanation for every ranked item. It does not replace the recommendation
-API strategy, run in FastAPI, appear in the frontend, persist a model, or change
-the database.
+`hybrid-v1` is a deterministic rank-fusion experiment conducted only as offline
+engineering research. It combines the API-only research-preview `baseline-v1`
+order with the offline `content-v1` and `collaborative-v1` orders, while retaining
+explicit cold-start routes and a short explanation for every ranked item. It
+does not replace the recommendation API strategy, run in FastAPI, appear in the
+frontend, persist a model, or change the database.
 
 Run the complete comparison suite with:
 
@@ -48,9 +48,9 @@ component_score(r) = (W - r + 1) / W
 A candidate outside that component's first `W` receives zero. When `N = 1`,
 the only candidate receives one from each applicable component. An empty
 candidate set returns no recommendations. The 50-item window matches the
-product baseline's documented request limit; for larger evaluator candidate
-pools this is an explicit top-window rank-fusion approximation, not a claim
-that positions below 50 have equal model affinity.
+research-preview baseline's documented request limit; for larger evaluator
+candidate pools this is an explicit top-window rank-fusion approximation, not a
+claim that positions below 50 have equal model affinity.
 
 Write `B`, `C`, and `CF` for the normalized baseline, content, and collaborative
 rank scores. They are comparable because every component uses the same `W`,

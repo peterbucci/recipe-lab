@@ -60,7 +60,7 @@ async function finishOriginalPublication(
   const body = (await preflight.json()) as { classification?: unknown };
   if (body.classification !== "distinct") {
     const review = page.getByRole("region", {
-      name: /review (?:an existing structural match|similar recipe structures)/i,
+      name: /review (?:a very similar recipe|similar recipes)/i,
     });
     await review.getByRole("checkbox", { name: /publish my recipe anyway/i }).check();
     await review.getByRole("button", { name: "Publish recipe anyway" }).click();
@@ -131,10 +131,9 @@ test.describe("cross-user fork publication acceptance", () => {
     await expect(
       page.getByRole("heading", { name: "Publish your version without changing its source." }),
     ).toBeVisible();
-    await expect(page.getByRole("link", { name: "exact public source version" })).toHaveAttribute(
-      "href",
-      `/recipes/${sourceId}`,
-    );
+    await expect(
+      page.getByRole("link", { name: "the public recipe you started from" }),
+    ).toHaveAttribute("href", `/recipes/${sourceId}`);
     await page.getByLabel("Title", { exact: true }).fill(childTitle);
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
     await expect(page.getByText("Draft saved privately.", { exact: true })).toBeVisible();
@@ -156,15 +155,16 @@ test.describe("cross-user fork publication acceptance", () => {
     });
 
     const review = page.getByRole("region", {
-      name: "This version keeps the same recipe structure",
+      name: "Your version matches the recipe it is based on",
     });
-    await expect(review).toContainText(
-      "This version has the same canonical structure as its direct parent.",
-    );
+    await expect(review).toContainText("Your version matches the recipe it is based on.");
+    await expect(review).not.toContainText(/canonical|direct parent|immutable/i);
     const publishAnyway = review.getByRole("button", { name: "Publish version anyway" });
     await expect(publishAnyway).toBeDisabled();
     await review
-      .getByRole("checkbox", { name: /direct-parent no-change warning/i })
+      .getByRole("checkbox", {
+        name: /matches the recipe it is based on.*publish it anyway/i,
+      })
       .check();
 
     await page.setViewportSize({ width: 390, height: 844 });

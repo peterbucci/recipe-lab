@@ -22,7 +22,9 @@ afterEach(() => {
 
 describe("auth API client", () => {
   it("parses only the documented public session DTO", () => {
-    expect(parseAuthSession({ status: "anonymous" })).toEqual({ status: "anonymous" });
+    expect(parseAuthSession({ status: "anonymous" })).toEqual({
+      status: "anonymous",
+    });
     expect(
       parseAuthSession({
         status: "authenticated",
@@ -32,12 +34,18 @@ describe("auth API client", () => {
           handle: "alice",
           email: "not-copied@example.test",
         },
-        capabilities: { review_ingredient_requests: true, moderate_recipe_reports: false },
+        capabilities: {
+          review_ingredient_requests: true,
+          moderate_recipe_reports: false,
+        },
       }),
     ).toEqual({
       status: "authenticated",
       user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
-      capabilities: { review_ingredient_requests: true, moderate_recipe_reports: false },
+      capabilities: {
+        review_ingredient_requests: true,
+        moderate_recipe_reports: false,
+      },
     });
     expect(() =>
       parseAuthSession({
@@ -49,15 +57,18 @@ describe("auth API client", () => {
       parseAuthSession({
         status: "authenticated",
         user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
-        capabilities: { review_ingredient_requests: "yes", moderate_recipe_reports: false },
+        capabilities: {
+          review_ingredient_requests: "yes",
+          moderate_recipe_reports: false,
+        },
       }),
     ).toThrow(AuthApiError);
   });
 
   it("loads account status through the same-origin boundary without caching", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      Response.json({ status: "anonymous" }),
-    );
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ status: "anonymous" }));
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(fetchAuthSession()).resolves.toEqual({ status: "anonymous" });
@@ -135,14 +146,18 @@ describe("auth API client", () => {
 
     const error = await signOut().catch((reason: unknown) => reason);
 
-    expect(error).toMatchObject({ status: 401, code: "csrf_token_unavailable" });
+    expect(error).toMatchObject({
+      status: 401,
+      code: "csrf_token_unavailable",
+    });
     expect(listener).toHaveBeenCalledOnce();
     expect(fetchMock).not.toHaveBeenCalled();
     window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, listener);
   });
 
-  it("preserves safe validation errors and does not expose a non-JSON body", async () => {
+  it("preserves known account codes without retaining backend messages", async () => {
     document.cookie = `${CSRF_COOKIE_NAME}=token; Path=/`;
+    const internalId = "99999999-9999-4999-8999-999999999999";
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
@@ -150,23 +165,30 @@ describe("auth API client", () => {
           {
             error: {
               code: "handle_unavailable",
-              message: "That handle is unavailable.",
+              message: `Canonical handle policy ${internalId} rejected this operator request.`,
               issues: [],
             },
           },
           { status: 409 },
         ),
       )
-      .mockResolvedValueOnce(new Response("private upstream details", { status: 502 }));
+      .mockResolvedValueOnce(
+        new Response("private upstream details", { status: 502 }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      updateAccountProfile({ handle: "alice", display_name: "Alice" }),
-    ).rejects.toMatchObject({
+    const handleError = await updateAccountProfile({
+      handle: "alice",
+      display_name: "Alice",
+    }).catch((reason: unknown) => reason);
+    expect(handleError).toMatchObject({
       status: 409,
       code: "handle_unavailable",
       message: "That handle is unavailable.",
     });
+    expect(`${String(handleError)} ${JSON.stringify(handleError)}`).not.toMatch(
+      /canonical|policy|operator|99999999/i,
+    );
     await expect(signOut()).rejects.toMatchObject({
       status: 502,
       code: "auth_api_error",
@@ -174,8 +196,9 @@ describe("auth API client", () => {
     });
   });
 
-  it("keeps structured backend validation locations", async () => {
+  it("keeps only safe profile validation paths and replaces hostile issue details", async () => {
     document.cookie = `${CSRF_COOKIE_NAME}=token; Path=/`;
+    const internalId = "99999999-9999-4999-8999-999999999999";
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(
@@ -183,12 +206,22 @@ describe("auth API client", () => {
           {
             error: {
               code: "validation_error",
-              message: "The request parameters are invalid.",
+              message: `Canonical account policy ${internalId} failed.`,
               issues: [
                 {
                   location: ["body", "handle"],
-                  message: "String should match pattern.",
-                  type: "string_pattern_mismatch",
+                  message: `Operator UUID ${internalId} failed the canonical policy.`,
+                  type: "internal_handle_policy_failure",
+                },
+                {
+                  location: ["body", "display_name"],
+                  message: "Private operator detail.",
+                  type: "internal_display_name_policy_failure",
+                },
+                {
+                  location: ["body", internalId],
+                  message: "Private identifier detail.",
+                  type: "internal_error",
                 },
               ],
             },
@@ -205,14 +238,107 @@ describe("auth API client", () => {
 
     expect(error).toMatchObject({
       code: "validation_error",
+      message:
+        "Some account details need attention. Review them and try again.",
       issues: [
         {
           location: ["body", "handle"],
-          message: "String should match pattern.",
-          type: "string_pattern_mismatch",
+          message:
+            "Use a handle with 3–30 lowercase letters, numbers, underscores, or hyphens.",
+          type: "validation_error",
+        },
+        {
+          location: ["body", "display_name"],
+          message: "Enter a display name with 1–120 visible characters.",
+          type: "validation_error",
         },
       ],
     });
+    expect(`${String(error)} ${JSON.stringify(error)}`).not.toMatch(
+      /canonical|policy|operator|private|99999999|internal_/i,
+    );
+  });
+
+  it("drops unknown backend codes and preserves session and recent-authentication behavior", async () => {
+    document.cookie = `${CSRF_COOKIE_NAME}=token; Path=/`;
+    const internalId = "99999999-9999-4999-8999-999999999999";
+    const expired = vi.fn();
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              error: {
+                code: "private_operator_policy_failure",
+                message: `Account UUID ${internalId} failed canonical policy.`,
+                issues: [],
+              },
+            },
+            { status: 409 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              error: {
+                code: "authentication_required",
+                message: `Session UUID ${internalId} expired.`,
+                issues: [],
+              },
+            },
+            { status: 401 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              error: {
+                code: "recent_authentication_required",
+                message: `Operator policy ${internalId} requires reauthentication.`,
+                issues: [],
+              },
+            },
+            { status: 403 },
+          ),
+        ),
+    );
+
+    const unknown = await updateAccountProfile({
+      handle: "alice",
+      display_name: "Alice",
+    }).catch((reason: unknown) => reason);
+    expect(unknown).toMatchObject({
+      status: 409,
+      code: "auth_api_error",
+      message: "Recipe Lab could not update your account.",
+      issues: [],
+    });
+
+    const unauthorized = await fetchAuthSession().catch(
+      (reason: unknown) => reason,
+    );
+    expect(unauthorized).toMatchObject({
+      status: 401,
+      code: "authentication_required",
+      message: "Your session expired. Sign in again to continue.",
+    });
+    expect(expired).toHaveBeenCalledOnce();
+
+    const recentAuthentication = await deleteAccount("alice").catch(
+      (reason: unknown) => reason,
+    );
+    expect(recentAuthentication).toMatchObject({
+      status: 403,
+      code: "recent_authentication_required",
+      message: "Sign in again to verify your identity before continuing.",
+    });
+    expect(
+      `${String(unknown)} ${JSON.stringify(unknown)} ${String(unauthorized)} ${JSON.stringify(unauthorized)} ${String(recentAuthentication)} ${JSON.stringify(recentAuthentication)}`,
+    ).not.toMatch(/canonical|policy|operator|99999999|private_operator/i);
+    window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
   });
 });
 
@@ -232,7 +358,9 @@ describe("auth URL helpers", () => {
   });
 
   it("decodes cookie values without losing embedded equals signs", () => {
-    expect(readCookie("wanted", "other=one; wanted=a%3Db; third=three")).toBe("a=b");
+    expect(readCookie("wanted", "other=one; wanted=a%3Db; third=three")).toBe(
+      "a=b",
+    );
     expect(readCookie("missing", "other=one")).toBeNull();
   });
 });

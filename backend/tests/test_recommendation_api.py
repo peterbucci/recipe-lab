@@ -608,6 +608,20 @@ def test_openapi_documents_the_bounded_read_only_recommendation_contract(
     schemas = cast(dict[str, Any], cast(dict[str, Any], document["components"])["schemas"])
 
     operation = paths["/api/recommendations"]["get"]
+    assert operation["summary"] == "Research preview: get deterministic baseline rankings"
+    assert operation["description"].startswith(
+        "Research-preview API only; Recipe Lab has no consumer recommendation surface."
+    )
+    assert (
+        "Every request uses aggregate activity for publicly readable recipes."
+        in operation["description"]
+    )
+    assert (
+        "Signed-in personalization additionally uses only the active member's private history"
+        in (operation["description"])
+    )
+    assert operation["x-recipe-lab-classification"] == "research_experimental"
+    assert operation["x-recipe-lab-consumer-evidence"] == ["docs/recommendations.md"]
     responses = operation["responses"]
     assert responses["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/RecipeRecommendationsResponse"

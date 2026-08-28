@@ -115,7 +115,7 @@ test.describe("MVP acceptance", () => {
     await page.reload();
     await expect(page.getByLabel("Title", { exact: true })).toHaveValue(draftTitle);
     await expect(walnutRow.getByText("Pecan", { exact: true })).toBeVisible();
-    await expect(page.getByText(/private fork draft/i)).toBeVisible();
+    await expect(page.getByText(/private version draft/i)).toBeVisible();
     expect(sourceRecipeVersionId).toMatch(/^[0-9a-f-]{36}$/i);
   });
 

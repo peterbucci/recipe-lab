@@ -8,9 +8,7 @@ import type {
 } from "./recipe-api";
 
 export type RecipeVisibilityState =
-  | "published"
-  | "author_withdrawn"
-  | "moderation_hidden";
+  "published" | "author_withdrawn" | "moderation_hidden";
 
 export interface PublicCookProfilePage {
   cook: ActivePublicUserReference;
@@ -54,11 +52,33 @@ interface ApiErrorPayload {
   error?: { code?: unknown; message?: unknown };
 }
 
+const KNOWN_RECIPE_LIBRARY_ERROR_CODES = new Set([
+  "abuse_protection_unavailable",
+  "account_setup_required",
+  "authentication_required",
+  "cook_not_found",
+  "invalid_identifier",
+  "rate_limit_exceeded",
+  "recipe_library_unavailable",
+  "validation_error",
+]);
+
+function knownRecipeLibraryErrorCode(value: unknown): string {
+  return typeof value === "string" &&
+    KNOWN_RECIPE_LIBRARY_ERROR_CODES.has(value)
+    ? value
+    : "recipe_library_api_error";
+}
+
 export class RecipeLibraryApiError extends Error {
   readonly status: number;
   readonly code: string;
 
-  constructor(message: string, status: number, code = "recipe_library_api_error") {
+  constructor(
+    message: string,
+    status: number,
+    code = "recipe_library_api_error",
+  ) {
     super(message);
     this.name = "RecipeLibraryApiError";
     this.status = status;
@@ -73,7 +93,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isUuid(value: unknown): value is string {
   return (
     typeof value === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    )
   );
 }
 
@@ -81,7 +103,11 @@ function isTimestamp(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
 
-function boundedText(value: unknown, maximum: number, allowBlank = false): value is string {
+function boundedText(
+  value: unknown,
+  maximum: number,
+  allowBlank = false,
+): value is string {
   return (
     typeof value === "string" &&
     value.length <= maximum &&
@@ -91,7 +117,7 @@ function boundedText(value: unknown, maximum: number, allowBlank = false): value
 
 function invalidResponse(): RecipeLibraryApiError {
   return new RecipeLibraryApiError(
-    "Recipe Lab received an invalid recipe library response.",
+    "Recipe Lab could not load this recipe library. Please try again.",
     502,
     "invalid_recipe_library_response",
   );
@@ -100,7 +126,9 @@ function invalidResponse(): RecipeLibraryApiError {
 const DEMO_COOK_ID = "1fc5b3b8-cf73-54ce-b5d6-ed3c30df9fd9";
 const DEMO_COOK_DISPLAY_NAME = "Demo Cook";
 
-export function parsePublicUserReference(value: unknown): PublicUserReference | null {
+export function parsePublicUserReference(
+  value: unknown,
+): PublicUserReference | null {
   if (
     !isRecord(value) ||
     !isUuid(value.id) ||
@@ -118,7 +146,8 @@ export function parsePublicUserReference(value: unknown): PublicUserReference | 
   if (value.handle === null) {
     const isDeletedCook = value.display_name === "Deleted cook";
     const isDemoCook =
-      value.id === DEMO_COOK_ID && value.display_name === DEMO_COOK_DISPLAY_NAME;
+      value.id === DEMO_COOK_ID &&
+      value.display_name === DEMO_COOK_DISPLAY_NAME;
     if (!isDeletedCook && !isDemoCook) return null;
   }
   return {
@@ -164,7 +193,8 @@ export function parseRecipeSummary(value: unknown): RecipeSummary | null {
     return null;
   }
   const author = parsePublicUserReference(value.author);
-  const parent = value.parent === null ? null : parseVersionReference(value.parent);
+  const parent =
+    value.parent === null ? null : parseVersionReference(value.parent);
   if (
     !author ||
     (value.parent !== null && !parent) ||
@@ -218,9 +248,13 @@ function parseDraft(value: unknown): RecipeDraftListItem | null {
   };
 }
 
-function parsePageEnvelope(
-  value: unknown,
-): { items: unknown[]; page: number; page_size: number; total: number; total_pages: number } {
+function parsePageEnvelope(value: unknown): {
+  items: unknown[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+} {
   if (
     !isRecord(value) ||
     !Array.isArray(value.items) ||
@@ -245,7 +279,9 @@ function parsePageEnvelope(
   };
 }
 
-export function parsePublicCookProfilePage(value: unknown): PublicCookProfilePage {
+export function parsePublicCookProfilePage(
+  value: unknown,
+): PublicCookProfilePage {
   const envelope = parsePageEnvelope(value);
   if (!isRecord(value)) throw invalidResponse();
   const cook = parsePublicUserReference(value.cook);
@@ -253,7 +289,10 @@ export function parsePublicCookProfilePage(value: unknown): PublicCookProfilePag
   if (!cook || cook.handle === null || items.some((item) => item === null)) {
     throw invalidResponse();
   }
-  const activeCook: ActivePublicUserReference = { ...cook, handle: cook.handle };
+  const activeCook: ActivePublicUserReference = {
+    ...cook,
+    handle: cook.handle,
+  };
   return { ...envelope, cook: activeCook, items: items as RecipeSummary[] };
 }
 
@@ -281,7 +320,9 @@ export function parseMyRecipeLibraryPage(value: unknown): MyRecipeLibraryPage {
   return { ...envelope, items: items as MyRecipeLibraryItem[] };
 }
 
-export function parseSavedRecipeLibraryPage(value: unknown): SavedRecipeLibraryPage {
+export function parseSavedRecipeLibraryPage(
+  value: unknown,
+): SavedRecipeLibraryPage {
   const envelope = parsePageEnvelope(value);
   const items = envelope.items.map((item): SavedRecipeLibraryItem | null => {
     if (!isRecord(item) || !isTimestamp(item.saved_at)) return null;
@@ -293,24 +334,34 @@ export function parseSavedRecipeLibraryPage(value: unknown): SavedRecipeLibraryP
 }
 
 async function apiError(response: Response): Promise<RecipeLibraryApiError> {
-  let message = "Recipe Lab could not load this recipe library.";
   let code = "recipe_library_api_error";
   try {
     const payload: unknown = await response.json();
     if (isRecord(payload) && isRecord((payload as ApiErrorPayload).error)) {
       const error = (payload as ApiErrorPayload).error!;
-      if (typeof error.message === "string") message = error.message;
-      if (typeof error.code === "string") code = error.code;
+      code = knownRecipeLibraryErrorCode(error.code);
     }
   } catch {
     // Keep the stable fallback instead of exposing an upstream response body.
   }
+  const message =
+    response.status === 401
+      ? "Your session expired. Sign in again to load your recipes."
+      : response.status === 403
+        ? "This recipe library is not available to your account."
+        : response.status === 404
+          ? "This recipe library could not be found."
+          : response.status === 429
+            ? "Recipe Lab is receiving too many requests. Please wait before refreshing your recipes."
+            : "Recipe Lab could not load this recipe library. Please try again.";
   return new RecipeLibraryApiError(message, response.status, code);
 }
 
 function apiBaseUrl(): string {
   const configured =
-    process.env.RECIPE_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    process.env.RECIPE_API_URL ??
+    process.env.NEXT_PUBLIC_API_URL ??
+    "http://localhost:8000";
   return configured.trim().replace(/\/+$/, "");
 }
 
@@ -323,16 +374,25 @@ export async function fetchPublicCookProfile({
   page?: number;
   pageSize?: number;
 }): Promise<PublicCookProfilePage | null> {
-  const url = new URL(`/api/cooks/${encodeURIComponent(handle)}`, `${apiBaseUrl()}/`);
+  const url = new URL(
+    `/api/cooks/${encodeURIComponent(handle)}`,
+    `${apiBaseUrl()}/`,
+  );
   url.searchParams.set("page", String(page));
   url.searchParams.set("page_size", String(pageSize));
-  const response = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
+  const response = await fetch(url, {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  });
   if (response.status === 404) return null;
   if (!response.ok) throw await apiError(response);
   return parsePublicCookProfilePage(await response.json());
 }
 
-async function memberFetch(path: string, signal?: AbortSignal): Promise<Response> {
+async function memberFetch(
+  path: string,
+  signal?: AbortSignal,
+): Promise<Response> {
   const response = await fetch(path, {
     cache: "no-store",
     credentials: "same-origin",
@@ -347,15 +407,25 @@ async function memberFetch(path: string, signal?: AbortSignal): Promise<Response
 }
 
 function pageQuery(page: number, pageSize: number): string {
-  return new URLSearchParams({ page: String(page), page_size: String(pageSize) }).toString();
+  return new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  }).toString();
 }
 
 export async function fetchMyRecipeLibrary({
   page = 1,
   pageSize = 12,
   signal,
-}: { page?: number; pageSize?: number; signal?: AbortSignal } = {}): Promise<MyRecipeLibraryPage> {
-  const response = await memberFetch(`/api/my/recipes?${pageQuery(page, pageSize)}`, signal);
+}: {
+  page?: number;
+  pageSize?: number;
+  signal?: AbortSignal;
+} = {}): Promise<MyRecipeLibraryPage> {
+  const response = await memberFetch(
+    `/api/my/recipes?${pageQuery(page, pageSize)}`,
+    signal,
+  );
   return parseMyRecipeLibraryPage(await response.json());
 }
 
@@ -363,7 +433,14 @@ export async function fetchSavedRecipeLibrary({
   page = 1,
   pageSize = 12,
   signal,
-}: { page?: number; pageSize?: number; signal?: AbortSignal } = {}): Promise<SavedRecipeLibraryPage> {
-  const response = await memberFetch(`/api/my/saved-recipes?${pageQuery(page, pageSize)}`, signal);
+}: {
+  page?: number;
+  pageSize?: number;
+  signal?: AbortSignal;
+} = {}): Promise<SavedRecipeLibraryPage> {
+  const response = await memberFetch(
+    `/api/my/saved-recipes?${pageQuery(page, pageSize)}`,
+    signal,
+  );
   return parseSavedRecipeLibraryPage(await response.json());
 }

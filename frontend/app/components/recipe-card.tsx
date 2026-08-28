@@ -21,7 +21,7 @@ export function RecipeCard({
 }: RecipeCardProps) {
   const titleId = `recipe-card-title-${recipe.id}`;
   const versionLabel = recipe.parent_version_id
-    ? `Fork · Version ${recipe.version_number}`
+    ? `Version ${recipe.version_number}`
     : "Original";
 
   return (

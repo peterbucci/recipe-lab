@@ -77,6 +77,18 @@ describe("recipe visibility API", () => {
             { error: { code: "moderation_hidden", message: "private moderation detail" } },
             { status: 409 },
           ),
+        )
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              error: {
+                code: "visibility_service_unavailable",
+                message:
+                  "Canonical UUID 99999999-9999-4999-8999-999999999999 failed an operator policy check.",
+              },
+            },
+            { status: 503 },
+          ),
         ),
     );
 
@@ -88,5 +100,16 @@ describe("recipe visibility API", () => {
       status: 409,
       message: "This recipe’s visibility changed. Refresh your recipes and try again.",
     });
+    const unavailable = await updateRecipeVisibility(RECIPE_ID, "published").catch(
+      (reason: unknown) => reason,
+    );
+    expect(unavailable).toMatchObject({
+      status: 503,
+      code: "visibility_service_unavailable",
+      message: "Recipe Lab could not change this recipe’s public visibility. Try again.",
+    });
+    expect(`${String(unavailable)} ${JSON.stringify(unavailable)}`).not.toMatch(
+      /99999999|canonical|uuid|operator|policy/i,
+    );
   });
 });

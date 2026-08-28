@@ -538,7 +538,7 @@ describe("RecipeVariantEditor", () => {
       within(form).getByText(/every numeric unit from the curated catalog/i),
     ).toBeInTheDocument();
     expect(within(form).getByLabelText(/^title$/i)).toHaveValue(
-      "Carrot Walnut Snack Cake variation",
+      "Carrot Walnut Snack Cake version",
     );
     expect(within(form).getByLabelText(/^description$/i)).toHaveValue(
       "A softly spiced snack cake.",
@@ -682,9 +682,9 @@ describe("RecipeVariantEditor", () => {
       preflightRequest.resolve(duplicatePreflight("probable_duplicate"));
       await preflightRequest.promise;
     });
-    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    await screen.findByRole("heading", { name: "Review similar recipes" });
     fireEvent.click(
-      screen.getByRole("checkbox", { name: /reviewed these advisory results/i }),
+      screen.getByRole("checkbox", { name: /reviewed these similar recipes/i }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Create my version anyway" }));
     await waitFor(() => expect(recordRecipeDuplicateDecision).toHaveBeenCalledOnce());
@@ -1226,7 +1226,7 @@ describe("RecipeVariantEditor", () => {
   it("preserves the draft and stays on the editor after a backend 422", async () => {
     vi.mocked(createRecipeVariant).mockRejectedValue(
       new VariantApiError(
-        "That catalog ingredient selection is no longer available.",
+        "Canonical occurrence 99999999-9999-4999-8999-999999999999 failed an operator policy check.",
         422,
         "invalid_recipe_edits",
       ),
@@ -1248,9 +1248,10 @@ describe("RecipeVariantEditor", () => {
     const alert = await screen.findByRole("alert");
     expect(
       within(alert).getByText(
-        "That catalog ingredient selection is no longer available.",
+        "Some recipe fields need attention. Review your version and try again.",
       ),
     ).toBeInTheDocument();
+    expect(within(alert).queryByText(/99999999|canonical|occurrence|operator|policy/i)).toBeNull();
     expect(title).toHaveValue("Tropical carrot cake");
     const selectedIngredient = within(walnuts)
       .getByText("Selected catalog ingredient")
@@ -1274,7 +1275,7 @@ describe("RecipeVariantEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
 
     const heading = await screen.findByRole("heading", {
-      name: "Review an existing structural match",
+      name: "Review a very similar recipe",
     });
     await waitFor(() => expect(heading).toHaveFocus());
     expect(createRecipeVariant).not.toHaveBeenCalled();
@@ -1284,7 +1285,7 @@ describe("RecipeVariantEditor", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("checkbox", { name: /reviewed these advisory results/i }),
+      screen.getByRole("checkbox", { name: /reviewed these similar recipes/i }),
     );
     const continueButton = screen.getByRole("button", {
       name: "Create my version anyway",
@@ -1324,7 +1325,7 @@ describe("RecipeVariantEditor", () => {
     fireEvent.change(title, { target: { value: "Keep this probable-match draft" } });
 
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
-    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    await screen.findByRole("heading", { name: "Review similar recipes" });
     fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
 
     await waitFor(() => expect(recordRecipeDuplicateDecision).toHaveBeenCalledOnce());
@@ -1335,7 +1336,7 @@ describe("RecipeVariantEditor", () => {
     );
     await waitFor(() => expect(title).toHaveFocus());
     expect(title).toHaveValue("Keep this probable-match draft");
-    expect(screen.queryByRole("region", { name: /similar recipe structures/i })).toBeNull();
+    expect(screen.queryByRole("region", { name: /similar recipes/i })).toBeNull();
     expect(createRecipeVariant).not.toHaveBeenCalled();
   });
 
@@ -1348,14 +1349,14 @@ describe("RecipeVariantEditor", () => {
 
     const submit = screen.getByRole("button", { name: /^create my version$/i });
     fireEvent.click(submit);
-    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    await screen.findByRole("heading", { name: "Review similar recipes" });
     fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
     await waitFor(() => expect(recordRecipeDuplicateDecision).toHaveBeenCalledOnce());
 
     fireEvent.click(submit);
-    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    await screen.findByRole("heading", { name: "Review similar recipes" });
     fireEvent.click(
-      screen.getByRole("checkbox", { name: /reviewed these advisory results/i }),
+      screen.getByRole("checkbox", { name: /reviewed these similar recipes/i }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Create my version anyway" }));
 
@@ -1390,7 +1391,7 @@ describe("RecipeVariantEditor", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
     await screen.findByRole("region", {
-      name: "This version keeps the same recipe structure",
+      name: "Your version matches the recipe it is based on",
     });
     fireEvent.change(screen.getByLabelText(/^title$/i), {
       target: { value: "A newly revised title" },
@@ -1398,7 +1399,7 @@ describe("RecipeVariantEditor", () => {
 
     expect(
       screen.queryByRole("region", {
-        name: "This version keeps the same recipe structure",
+        name: "Your version matches the recipe it is based on",
       }),
     ).toBeNull();
     expect(screen.getByLabelText(/^title$/i)).toHaveValue("A newly revised title");
@@ -1436,23 +1437,23 @@ describe("RecipeVariantEditor", () => {
       fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
 
       const fallback = await screen.findByRole("region", {
-        name: "Similarity review could not be completed",
+        name: "Similar recipes could not be checked",
       });
       await waitFor(() =>
         expect(
           within(fallback).getByRole("heading", {
-            name: "Similarity review could not be completed",
+            name: "Similar recipes could not be checked",
           }),
         ).toHaveFocus(),
       );
-      expect(fallback).toHaveTextContent("does not mean your version is distinct");
+      expect(fallback).toHaveTextContent("does not mean your version is different");
       expect(title).toHaveValue("Preserved unavailable draft");
       expect(createRecipeVariant).not.toHaveBeenCalled();
       expect(recordRecipeDuplicateDecision).not.toHaveBeenCalled();
 
       fireEvent.click(
         within(fallback).getByRole("button", {
-          name: "Create without similarity review",
+          name: "Create without checking similar recipes",
         }),
       );
       await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
@@ -1480,11 +1481,11 @@ describe("RecipeVariantEditor", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
     const fallback = await screen.findByRole("region", {
-      name: "Similarity review could not be completed",
+      name: "Similar recipes could not be checked",
     });
     expect(createRecipeVariant).not.toHaveBeenCalled();
     fireEvent.click(
-      within(fallback).getByRole("button", { name: "Retry similarity review" }),
+      within(fallback).getByRole("button", { name: "Check similar recipes again" }),
     );
 
     await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
@@ -1542,9 +1543,9 @@ describe("RecipeVariantEditor", () => {
     const alert = await screen.findByRole("alert");
     expect(title).toHaveValue("Preserve this title");
     expect(createRecipeVariant).not.toHaveBeenCalled();
-    expect(screen.queryByRole("region", { name: /recipe structure/i })).toBeNull();
+    expect(screen.queryByRole("region", { name: /similar recipes/i })).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Create without similarity review" }),
+      screen.queryByRole("button", { name: "Create without checking similar recipes" }),
     ).toBeNull();
     await waitFor(() => expect(alert).toHaveFocus());
   });
@@ -1566,21 +1567,21 @@ describe("RecipeVariantEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
     await screen.findByRole("link", { name: /Public carrot cake candidate/i });
     fireEvent.click(
-      screen.getByRole("checkbox", { name: /reviewed these advisory results/i }),
+      screen.getByRole("checkbox", { name: /reviewed these similar recipes/i }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Create my version anyway" }));
 
     await screen.findByRole("alert");
     expect(screen.queryByRole("link", { name: /Public carrot cake candidate/i })).toBeNull();
     expect(screen.getByLabelText(/^title$/i)).toHaveValue(
-      "Carrot Walnut Snack Cake variation",
+      "Carrot Walnut Snack Cake version",
     );
     expect(createRecipeVariant).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
-    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    await screen.findByRole("heading", { name: "Review similar recipes" });
     fireEvent.click(
-      screen.getByRole("checkbox", { name: /reviewed these advisory results/i }),
+      screen.getByRole("checkbox", { name: /reviewed these similar recipes/i }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Create my version anyway" }));
     await waitFor(() => expect(createRecipeVariant).toHaveBeenCalledOnce());
@@ -1625,9 +1626,9 @@ describe("RecipeVariantEditor", () => {
     renderEditor();
 
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
-    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    await screen.findByRole("heading", { name: "Review similar recipes" });
     fireEvent.click(
-      screen.getByRole("checkbox", { name: /reviewed these advisory results/i }),
+      screen.getByRole("checkbox", { name: /reviewed these similar recipes/i }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Create my version anyway" }));
     const failureHeading = await screen.findByRole("heading", {
@@ -1663,9 +1664,9 @@ describe("RecipeVariantEditor", () => {
     renderEditor();
 
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
-    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    await screen.findByRole("heading", { name: "Review similar recipes" });
     fireEvent.click(
-      screen.getByRole("checkbox", { name: /reviewed these advisory results/i }),
+      screen.getByRole("checkbox", { name: /reviewed these similar recipes/i }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Create my version anyway" }));
     await screen.findByRole("heading", {
@@ -1699,7 +1700,7 @@ describe("RecipeVariantEditor", () => {
     fireEvent.change(title, { target: { value: "Keep this decision-failure draft" } });
 
     fireEvent.click(screen.getByRole("button", { name: /^create my version$/i }));
-    await screen.findByRole("heading", { name: "Review similar recipe structures" });
+    await screen.findByRole("heading", { name: "Review similar recipes" });
     fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
     await screen.findByRole("heading", {
       name: "Your review choice could not be confirmed",
@@ -1712,7 +1713,7 @@ describe("RecipeVariantEditor", () => {
 
     await waitFor(() => expect(title).toHaveFocus());
     expect(title).toHaveValue("Keep this decision-failure draft");
-    expect(screen.queryByRole("region", { name: /similar recipe structures/i })).toBeNull();
+    expect(screen.queryByRole("region", { name: /similar recipes/i })).toBeNull();
     expect(createRecipeVariant).not.toHaveBeenCalled();
   });
 
