@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CSRF_COOKIE_NAME } from "../../lib/auth-api";
+import {
+  AUTH_SESSION_EXPIRED_EVENT,
+  CSRF_COOKIE_NAME,
+} from "../../lib/auth-api";
 import { AccountMenu } from "./account-menu";
 import {
   AuthSessionProvider,
@@ -240,6 +243,47 @@ describe("AccountMenu", () => {
       "rel",
       "noopener noreferrer",
     );
+  });
+
+  it.each([
+    ["a blank draft", "/recipes/new"],
+    [
+      "an exact-source draft",
+      "/recipes/11111111-1111-4111-8111-111111111111/fork",
+    ],
+  ])("uses same-tab sign-in recovery for %s", async (_label, pathname) => {
+    routerMocks.pathname = pathname;
+    render(
+      <AuthSessionProvider
+        initialSession={{
+          status: "authenticated",
+          user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
+        }}
+      >
+        <SessionRecoveryNotice />
+      </AuthSessionProvider>,
+    );
+
+    fireEvent(window, new Event(AUTH_SESSION_EXPIRED_EVENT));
+
+    const interruption = await screen.findByRole("alert", {
+      name: "Your session expired. Your work is still here.",
+    });
+    expect(interruption).toHaveTextContent(
+      "Continue sign-in in this tab. Recipe Lab will retry the same private-draft request when you return.",
+    );
+    const signIn = screen.getByRole("link", { name: "Continue to sign in" });
+    expect(signIn).toHaveAttribute(
+      "href",
+      `/sign-in?${new URLSearchParams({ return_to: pathname }).toString()}`,
+    );
+    expect(signIn).not.toHaveAttribute("target");
+    expect(signIn).not.toHaveAttribute("rel");
+    expect(screen.queryByRole("button", { name: "Check sign-in" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Keep editing for now" })).toBeNull();
+    await waitFor(() => expect(interruption).toHaveFocus());
+    signIn.focus();
+    expect(signIn).toHaveFocus();
   });
 
   it("lets an auth-service error be retried", async () => {

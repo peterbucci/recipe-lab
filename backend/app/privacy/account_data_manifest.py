@@ -545,8 +545,8 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
     ),
     _table(
         "recipe_drafts",
-        "author_user_id source_version_id status revision title description servings id created_at "
-        "updated_at",
+        "author_user_id source_version_id creation_action_id creation_request_fingerprint status "
+        "revision title description servings id created_at updated_at",
         foreign_keys=(
             "recipe_drafts(author_user_id)->users(id)",
             "recipe_drafts(source_version_id)->recipe_versions(id)",
@@ -565,18 +565,21 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
                 "Erase private draft content from the published source shell.",
             ),
             _column_policy(
-                "author_user_id source_version_id status revision id created_at updated_at",
+                "author_user_id source_version_id creation_action_id "
+                "creation_request_fingerprint status revision id created_at updated_at",
                 DataDisposition.RETAIN,
-                "A content-free published shell preserves publication idempotency and topology.",
+                "A content-free published shell preserves bounded creation/publication "
+                "idempotency and topology.",
             ),
         ),
         row_policies=(
             _row_policy(
-                "active draft",
+                "active or discarded draft shell",
                 DataDisposition.DELETE,
-                "author_user_id equals the deleted user id and status is active",
+                "author_user_id equals the deleted user id and status is active or discarded",
                 "Inside the account-deletion transaction.",
-                "Unpublished authoring state has no public retention purpose.",
+                "Unpublished authoring state and its terminal retry binding have no public "
+                "retention purpose after account deletion.",
             ),
             _row_policy(
                 "published source draft",
@@ -587,8 +590,9 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
             ),
         ),
         scope=(
-            "Delete active drafts. Retain a content-free published shell only where publication "
-            "idempotency and source linkage require it; erase title, description, and servings."
+            "Delete active drafts and discarded shells. Retain a content-free published shell "
+            "only where publication idempotency and source linkage require it; erase title, "
+            "description, and servings."
         ),
         rationale="Private work is erased while immutable publication topology stays valid.",
         embedded_content_columns="title description",

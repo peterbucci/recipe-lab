@@ -44,8 +44,6 @@ test.describe("structured cooking action acceptance", () => {
       .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
       .click();
     await page.getByRole("link", { name: "Make your own version", exact: true }).click();
-    await expect(page.getByRole("heading", { name: /make carrot walnut snack cake your own/i })).toBeVisible();
-    await page.getByRole("button", { name: "Create private draft", exact: true }).click();
     await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
 
     await page.getByLabel("Title", { exact: true }).fill(draftTitle);

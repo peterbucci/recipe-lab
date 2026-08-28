@@ -94,7 +94,7 @@ test.describe("cross-user fork publication acceptance", () => {
 
     await useAcceptanceMember(page, "alice");
     await page.goto("/recipes/new");
-    await page.getByRole("button", { name: "Start writing", exact: true }).click();
+    await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
     await fillCompleteRecipe(page, sourceTitle);
     const sourceDraftId = new URL(page.url()).pathname.split("/").at(-1)!;
     const sourcePreflight = page.waitForResponse(
@@ -111,10 +111,6 @@ test.describe("cross-user fork publication acceptance", () => {
 
     await useAcceptanceMember(page, "bob");
     await page.goto(`/recipes/${sourceId}/fork`);
-    await expect(
-      page.getByRole("heading", { name: `Make ${sourceTitle} your own.` }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Create private draft", exact: true }).click();
     await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
     const forkDraftId = new URL(page.url()).pathname.split("/").at(-1)!;
 

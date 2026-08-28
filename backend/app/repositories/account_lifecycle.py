@@ -117,7 +117,7 @@ def purge_member_private_data(
         delete(RecipeDraft)
         .where(
             RecipeDraft.author_user_id == user_id,
-            RecipeDraft.status == "active",
+            RecipeDraft.status.in_(("active", "discarded")),
         )
         .execution_options(**execution_options)
     )

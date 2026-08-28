@@ -152,14 +152,23 @@ export function useAuthSession(): AuthSessionContextValue {
   return context;
 }
 
+function isDraftCreationRoute(pathname: string): boolean {
+  return (
+    pathname === "/recipes/new" ||
+    (pathname.startsWith("/recipes/") && pathname.endsWith("/fork"))
+  );
+}
+
 export function SessionRecoveryNotice() {
   const pathname = usePathname();
   const { recoverSession, sessionExpired } = useAuthSession();
+  const sameTabSignIn = isDraftCreationRoute(pathname);
+  const initialRecoveryMessage = sameTabSignIn
+    ? "Continue sign-in in this tab. Recipe Lab will retry the same private-draft request when you return."
+    : "Open sign-in in a new tab. This page will keep your unsaved work.";
   const [checking, setChecking] = useState(false);
   const [dismissed, setDismissed] = useState(false);
-  const [message, setMessage] = useState(
-    "Open sign-in in a new tab. This page will keep your unsaved work.",
-  );
+  const [message, setMessage] = useState(initialRecoveryMessage);
   const checkingRef = useRef(false);
   const noticeRef = useRef<HTMLElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -203,14 +212,14 @@ export function SessionRecoveryNotice() {
       previousFocusRef.current =
         document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setDismissed(false);
-      setMessage("Open sign-in in a new tab. This page will keep your unsaved work.");
+      setMessage(initialRecoveryMessage);
       window.setTimeout(() => noticeRef.current?.focus(), 0);
     } else if (!sessionExpired && wasExpiredRef.current) {
       recoveryStartedRef.current = false;
       window.setTimeout(restorePreviousFocus, 0);
     }
     wasExpiredRef.current = sessionExpired;
-  }, [restorePreviousFocus, sessionExpired]);
+  }, [initialRecoveryMessage, restorePreviousFocus, sessionExpired]);
 
   useEffect(() => {
     if (!sessionExpired) {
@@ -269,34 +278,42 @@ export function SessionRecoveryNotice() {
           <a
             className="button button--primary"
             href={signInHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => {
-              recoveryStartedRef.current = true;
-              setMessage("Finish signing in in the new tab, then return here.");
-            }}
+            target={sameTabSignIn ? undefined : "_blank"}
+            rel={sameTabSignIn ? undefined : "noopener noreferrer"}
+            onClick={
+              sameTabSignIn
+                ? undefined
+                : () => {
+                    recoveryStartedRef.current = true;
+                    setMessage("Finish signing in in the new tab, then return here.");
+                  }
+            }
           >
-            Sign in in a new tab
+            {sameTabSignIn ? "Continue to sign in" : "Sign in in a new tab"}
           </a>
-          <button
-            className="button button--secondary"
-            type="button"
-            disabled={checking}
-            onClick={() => void checkRecovery()}
-          >
-            {checking ? "Checking sign-in…" : "Check sign-in"}
-          </button>
-          <button
-            className="button button--quiet"
-            type="button"
-            onClick={() => {
-              recoveryStartedRef.current = false;
-              setDismissed(true);
-              window.setTimeout(restorePreviousFocus, 0);
-            }}
-          >
-            Keep editing for now
-          </button>
+          {sameTabSignIn ? null : (
+            <>
+              <button
+                className="button button--secondary"
+                type="button"
+                disabled={checking}
+                onClick={() => void checkRecovery()}
+              >
+                {checking ? "Checking sign-in…" : "Check sign-in"}
+              </button>
+              <button
+                className="button button--quiet"
+                type="button"
+                onClick={() => {
+                  recoveryStartedRef.current = false;
+                  setDismissed(true);
+                  window.setTimeout(restorePreviousFocus, 0);
+                }}
+              >
+                Keep editing for now
+              </button>
+            </>
+          )}
         </div>
       </div>
     </aside>

@@ -153,3 +153,21 @@ changes them; they do not block this foundation.
 Generated types do not own requests. The shared Recipe Lab transport remains
 responsible for same-origin routing, sessions, CSRF, idempotency, request
 fingerprints, cancellation, and recovery behavior.
+
+## Shared browser mutation headers
+
+Browser callers give the shared transport a mutation identity containing an
+opaque idempotency key and a lowercase SHA-256 request fingerprint. The
+transport validates both, overwrites any caller-supplied `Idempotency-Key` with
+the identity value, and obtains `X-CSRF-Token` from the current member session.
+The browser supplies the same-origin session cookie through normal credential
+handling; callers never copy a cookie into request options. JSON consumers add
+`Content-Type: application/json`, while the transport supplies
+`Accept: application/json` unless the caller already set it.
+
+The request fingerprint is client-side attempt identity, not a trusted request
+header. Feature endpoints that persist replay evidence, including private draft
+creation, recompute their versioned canonical fingerprint on the server. This
+keeps equality and conflict decisions under server control while the shared
+transport owns the transmitted `Idempotency-Key`, CSRF header, same-origin
+route, no-store behavior, deadline, and redirect rejection.

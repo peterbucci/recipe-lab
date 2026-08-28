@@ -71,8 +71,6 @@ test.describe("MVP acceptance", () => {
     await expect(page.getByText("Saved to your account.", { exact: true })).toBeVisible();
 
     await activateWithKeyboard(page, page.getByRole("link", { name: "Make your own version", exact: true }));
-    await expect(page.getByRole("heading", { name: /make carrot walnut snack cake your own/i })).toBeVisible();
-    await page.getByRole("button", { name: "Create private draft", exact: true }).click();
     await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
     await page.setViewportSize({ width: 390, height: 844 });
     await expectNoAccessibilityViolations(page);

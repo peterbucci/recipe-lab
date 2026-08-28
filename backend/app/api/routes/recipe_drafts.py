@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Query, Response, status
+from fastapi import APIRouter, Body, Header, Query, Response, status
 
 from app.api.dependencies import (
     CsrfProtectedSessionDependency,
@@ -21,6 +21,7 @@ from app.schemas.recipe_drafts import (
 )
 from app.services.recipe_drafts import (
     InvalidRecipeDraftError,
+    RecipeDraftCreationIdempotencyConflictError,
     RecipeDraftRevisionConflictError,
     create_recipe_draft,
     discard_recipe_draft,
@@ -29,6 +30,16 @@ from app.services.recipe_drafts import (
 )
 
 router = APIRouter()
+
+DraftCreationActionHeader = Annotated[
+    UUID,
+    Header(
+        alias="Idempotency-Key",
+        description=(
+            "Opaque UUID that binds one member to one blank-or-source draft creation intent."
+        ),
+    ),
+]
 
 DRAFT_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     401: {"model": ErrorResponse, "description": "A valid member session is required."},
@@ -39,8 +50,12 @@ DRAFT_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
 }
 DRAFT_CREATE_RESPONSES: dict[int | str, dict[str, object]] = {
     **DRAFT_ERROR_RESPONSES,
+    409: {
+        "model": ErrorResponse,
+        "description": "The Idempotency-Key conflicts with an earlier creation intent.",
+    },
     status.HTTP_201_CREATED: {
-        "description": "The private recipe draft was created.",
+        "description": "The private recipe draft was created or safely recovered.",
         "headers": {
             "Location": {
                 "description": "Owner-readable private draft detail resource.",
@@ -81,8 +96,9 @@ def _revision_conflict() -> ApiError:
     responses=DRAFT_CREATE_RESPONSES,
     summary="Create a private recipe draft",
     description=(
-        "Creates a blank original draft or copies one exact public immutable recipe "
-        "snapshot. Authorship always comes from the active member session."
+        "Creates a blank original draft or copies one exact public immutable recipe snapshot. "
+        "The required Idempotency-Key recovers the same active draft after an ambiguous "
+        "response. Authorship always comes from the active member session."
     ),
 )
 def create_private_recipe_draft(
@@ -90,13 +106,23 @@ def create_private_recipe_draft(
     response: Response,
     session: SessionDependency,
     authenticated: CsrfProtectedSessionDependency,
+    creation_action_id: DraftCreationActionHeader,
 ) -> RecipeDraftDetailResponse:
     actor_id = lock_active_member_actor(session, authenticated)
-    draft = create_recipe_draft(
-        session,
-        author_user_id=actor_id,
-        source_version_id=payload.source_version_id,
-    )
+    try:
+        draft = create_recipe_draft(
+            session,
+            author_user_id=actor_id,
+            creation_action_id=creation_action_id,
+            source_version_id=payload.source_version_id,
+        )
+    except RecipeDraftCreationIdempotencyConflictError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=409,
+            code="idempotency_key_conflict",
+            message="The Idempotency-Key conflicts with an earlier draft creation intent.",
+        ) from error
     if draft is None:
         session.rollback()
         raise ApiError(
@@ -256,8 +282,9 @@ def save_private_recipe_draft(
     responses=DRAFT_ERROR_RESPONSES,
     summary="Permanently discard my private recipe draft",
     description=(
-        "Immediately and irreversibly deletes the draft and all private draft content when "
-        "the submitted revision is current. No application-level tombstone is retained."
+        "Immediately and irreversibly deletes all private draft content when the submitted "
+        "revision is current. A content-free terminal shell retains only bounded retry and "
+        "lineage metadata."
     ),
 )
 def delete_private_recipe_draft(

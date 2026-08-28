@@ -51,10 +51,15 @@ recipe. This makes browser navigation the view boundary instead of counting
 server rendering, prefetching, or unrelated recipe reads.
 
 The dedicated `/recipes/{recipeVersionId}/fork` server route verifies the public
-source and presents an explicit private-draft starter. Its POST asks the backend
-to copy that exact immutable snapshot, then routes to
-`/account/recipe-drafts/{draftId}`. The unified editor keeps raw entered values
-in local state, validates them without resetting the form, and saves one full
+source and presents a member-gated private-draft boundary. Once the gate
+succeeds, the browser immediately posts one member-scoped creation action that
+asks the backend to copy that exact immutable snapshot, then replaces the route
+with `/account/recipe-drafts/{draftId}`. `/recipes/new` uses the same boundary
+for a source-less draft. One bounded browser attempt survives retry, reload, and
+a same-tab authentication return until a valid draft ID is known; the server's
+member/action binding recovers an unknown outcome without duplicating the draft.
+The unified editor keeps raw entered values in local state, validates them
+without resetting the form, and saves one full
 ordered snapshot under an optimistic revision. API validation and revision
 errors leave browser values in place. Saving never creates a public version,
 lineage, fingerprint, or event. A separate review-and-publish action can turn a
@@ -387,13 +392,23 @@ unresolved slot instead has an owner-scoped ingredient-request reference and no
 canonical identity. This permits incomplete private work without weakening any
 published-snapshot constraint.
 
+Creation evidence is stored on the draft row. A unique member/action binding
+and server-computed fingerprint distinguish a blank intent from each exact
+source intent. Replay resolves that binding before source visibility is read,
+so a lost response can recover the already-created active draft after later
+source withdrawal. Reusing the action for changed input, a discarded shell, or
+a published shell is a terminal conflict rather than permission to create a
+second draft.
+
 Draft reads are scoped by both stable ID and the session-selected active member;
 another member and a nonexistent draft both return `404`. Full saves and
 discards require the expected optimistic revision. A successful save replaces
 the aggregate atomically and increments its revision once, while a stale write
 returns `409` without merging or partially persisting fields. Discard hard
-deletes the aggregate and its children from the live database; there is no
-product trash or restore surface.
+deletes every private content child and erases the row's authored fields, then
+retains a hidden, content-free `discarded` shell solely to keep its creation
+binding terminal. There is no product trash or restore surface, and account
+deletion removes that unpublished shell.
 
 Because drafts never occupy `recipe_versions`, they are absent by construction
 from public browse, detail, lineage, diff, profile, fingerprint, duplicate,

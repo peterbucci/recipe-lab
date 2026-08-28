@@ -27,7 +27,6 @@ test.describe("original recipe publication acceptance", () => {
     const title = "Acceptance Kneaded Pecan Bite";
     await useAcceptanceMember(page, "alice");
     await page.goto("/recipes/new");
-    await page.getByRole("button", { name: "Start writing", exact: true }).click();
     await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
     const draftId = new URL(page.url()).pathname.split("/").at(-1)!;
 

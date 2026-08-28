@@ -487,10 +487,6 @@ test.describe("member ingredient-request acceptance", () => {
     await page
       .getByRole("link", { name: "Make your own version", exact: true })
       .click();
-    await expect(
-      page.getByRole("heading", { name: /make carrot walnut snack cake your own/i, level: 1 }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Create private draft", exact: true }).click();
     await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
 
     const draftTitle = `Acceptance trusted-request carrot cake ${runId}`;

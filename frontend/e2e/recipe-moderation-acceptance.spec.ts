@@ -51,7 +51,25 @@ test.describe("recipe reporting and moderation acceptance", () => {
     const recipe = await firstPublicRecipe(page);
     const privateDetails = `<img src="x" onerror="window.__rcp31_pwned = true"> RCP31 private report ${crypto.randomUUID().slice(0, 8)}`;
 
-    await applyAcceptanceMember(page, "alice");
+    const alice = await applyAcceptanceMember(page, "alice");
+    const hiddenReplayKey = crypto.randomUUID();
+    const draftBeforeHiding = await page.request.post(
+      new URL("/api/recipe-drafts", baseUrl).toString(),
+      {
+        data: { source_version_id: recipe.id },
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Idempotency-Key": hiddenReplayKey,
+          Origin: baseUrl,
+          "X-CSRF-Token": alice.csrf_token,
+        },
+      },
+    );
+    expect(draftBeforeHiding.status(), await draftBeforeHiding.text()).toBe(201);
+    const draftBeforeHidingBody = (await draftBeforeHiding.json()) as { id?: unknown };
+    expect(draftBeforeHidingBody.id).toMatch(/^[0-9a-f-]{36}$/i);
+
     await page.goto(`/recipes/${recipe.id}`);
     await page.getByRole("button", { name: "Report recipe", exact: true }).click();
     await page.getByRole("radio", { name: "Spam or misleading content", exact: true }).check();
@@ -122,6 +140,41 @@ test.describe("recipe reporting and moderation acceptance", () => {
     expect(hiddenDetail.status()).toBe(404);
     await hiddenContext.close();
 
+    await applyAcceptanceMember(page, "alice");
+    const replayAfterHiding = await page.request.post(
+      new URL("/api/recipe-drafts", baseUrl).toString(),
+      {
+        data: { source_version_id: recipe.id },
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Idempotency-Key": hiddenReplayKey,
+          Origin: baseUrl,
+          "X-CSRF-Token": alice.csrf_token,
+        },
+      },
+    );
+    expect(replayAfterHiding.status(), await replayAfterHiding.text()).toBe(201);
+    expect(await replayAfterHiding.json()).toMatchObject({ id: draftBeforeHidingBody.id });
+    const newIntentAfterHiding = await page.request.post(
+      new URL("/api/recipe-drafts", baseUrl).toString(),
+      {
+        data: { source_version_id: recipe.id },
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Idempotency-Key": crypto.randomUUID(),
+          Origin: baseUrl,
+          "X-CSRF-Token": alice.csrf_token,
+        },
+      },
+    );
+    expect(newIntentAfterHiding.status()).toBe(404);
+    expect(await newIntentAfterHiding.json()).toMatchObject({
+      error: { code: "recipe_source_not_found" },
+    });
+
+    await applyAcceptanceMember(page, "moderator");
     await expect(page.getByRole("button", { name: "Restore recipe", exact: true })).toBeEnabled();
     const restoreResponse = page.waitForResponse(
       (response) =>

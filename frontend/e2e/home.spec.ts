@@ -386,9 +386,6 @@ test("requires sign-in for save, rate, recorded-view, and fork actions", async (
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Create private draft", exact: true }),
-  ).toHaveCount(0);
-  await expect(
     page.getByRole("link", { name: "Sign in to continue", exact: true }),
   ).toHaveAttribute(
     "href",
@@ -436,9 +433,6 @@ test("requires account setup before exposing member recipe actions", async ({
       level: 1,
     }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Create private draft", exact: true }),
-  ).toHaveCount(0);
 });
 
 test("keeps the anonymous recipe detail gate usable at a phone viewport", async ({
@@ -526,6 +520,7 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
   const recipeVersionId = await openCarrotRoot(page);
   await page.route("**/api/recipe-drafts", async (route) => {
     expect(route.request().method()).toBe("POST");
+    expect(route.request().headers()["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/i);
     expect(route.request().postDataJSON()).toEqual({
       source_version_id: recipeVersionId,
     });
@@ -559,9 +554,6 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
   });
 
   await page.goto(`/recipes/${recipeVersionId}/fork`);
-  await page
-    .getByRole("button", { name: "Create private draft", exact: true })
-    .click();
   await expect(page).toHaveURL(`/account/recipe-drafts/${draftId}`);
   await page
     .getByRole("button", { name: "Add ingredient", exact: true })

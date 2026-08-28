@@ -439,7 +439,7 @@ export type paths = {
         readonly put?: never;
         /**
          * Create a private recipe draft
-         * @description Creates a blank original draft or copies one exact public immutable recipe snapshot. Authorship always comes from the active member session.
+         * @description Creates a blank original draft or copies one exact public immutable recipe snapshot. The required Idempotency-Key recovers the same active draft after an ambiguous response. Authorship always comes from the active member session.
          */
         readonly post: operations["create_private_recipe_draft_api_recipe_drafts_post"];
         readonly delete?: never;
@@ -465,7 +465,7 @@ export type paths = {
         readonly post?: never;
         /**
          * Permanently discard my private recipe draft
-         * @description Immediately and irreversibly deletes the draft and all private draft content when the submitted revision is current. No application-level tombstone is retained.
+         * @description Immediately and irreversibly deletes all private draft content when the submitted revision is current. A content-free terminal shell retains only bounded retry and lineage metadata.
          */
         readonly delete: operations["delete_private_recipe_draft_api_recipe_drafts__draft_id__delete"];
         readonly options?: never;
@@ -4451,7 +4451,9 @@ export interface operations {
     readonly create_private_recipe_draft_api_recipe_drafts_post: {
         readonly parameters: {
             readonly query?: never;
-            readonly header?: {
+            readonly header: {
+                /** @description Opaque UUID that binds one member to one blank-or-source draft creation intent. */
+                readonly "Idempotency-Key": string;
                 readonly "X-CSRF-Token"?: string | null;
             };
             readonly path?: never;
@@ -4463,7 +4465,7 @@ export interface operations {
             };
         };
         readonly responses: {
-            /** @description The private recipe draft was created. */
+            /** @description The private recipe draft was created or safely recovered. */
             readonly 201: {
                 headers: {
                     /** @description Owner-readable private draft detail resource. */
@@ -4501,7 +4503,7 @@ export interface operations {
                     readonly "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description The submitted revision is stale. */
+            /** @description The Idempotency-Key conflicts with an earlier creation intent. */
             readonly 409: {
                 headers: {
                     readonly [name: string]: unknown;

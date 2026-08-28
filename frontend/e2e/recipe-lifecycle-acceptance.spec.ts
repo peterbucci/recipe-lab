@@ -100,7 +100,7 @@ async function finishOriginalPublication(
 async function publishOriginal(page: Page, memberName: MemberName, title: string): Promise<string> {
   await applyAcceptanceMember(page, memberName);
   await page.goto("/recipes/new");
-  await page.getByRole("button", { name: "Start writing", exact: true }).click();
+  await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
   await fillCompleteRecipe(page, title);
   const draftId = new URL(page.url()).pathname.split("/").at(-1)!;
   const preflightResponse = page.waitForResponse(
@@ -122,7 +122,6 @@ async function publishUnchangedFork(
   childTitle: string,
 ): Promise<string> {
   await page.goto(`/recipes/${sourceId}/fork`);
-  await page.getByRole("button", { name: "Create private draft", exact: true }).click();
   await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
   const draftId = new URL(page.url()).pathname.split("/").at(-1)!;
   await page.getByLabel("Title", { exact: true }).fill(childTitle);
@@ -181,9 +180,19 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
     const childTitle = `RCP30 lifecycle child ${runId}`;
     const sourceId = await publishOriginal(page, "alice", sourceTitle);
 
-    await applyAcceptanceMember(page, "bob");
-    const childId = await publishUnchangedFork(page, sourceId, childTitle);
     const bobHeaders = await csrfHeaders(page, "bob");
+    const withdrawnReplayKey = crypto.randomUUID();
+    const draftBeforeWithdrawal = await page.request.post("/api/recipe-drafts", {
+      data: { source_version_id: sourceId },
+      headers: { ...bobHeaders, "Idempotency-Key": withdrawnReplayKey },
+    });
+    expect(draftBeforeWithdrawal.status(), await draftBeforeWithdrawal.text()).toBe(201);
+    const draftBeforeWithdrawalBody = (await draftBeforeWithdrawal.json()) as {
+      id?: unknown;
+    };
+    expect(draftBeforeWithdrawalBody.id).toMatch(/^[0-9a-f-]{36}$/i);
+
+    const childId = await publishUnchangedFork(page, sourceId, childTitle);
     const unauthorized = await page.request.put(`/api/recipes/${sourceId}/visibility`, {
       data: { state: "author_withdrawn" },
       headers: bobHeaders,
@@ -207,6 +216,24 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
     await expect(sourceCard.getByText("Withdrawn", { exact: true })).toBeVisible();
     await expect(sourceCard.getByRole("link", { name: sourceTitle, exact: true })).toHaveCount(0);
 
+    const replayHeaders = await csrfHeaders(page, "bob");
+    const replayAfterWithdrawal = await page.request.post("/api/recipe-drafts", {
+      data: { source_version_id: sourceId },
+      headers: { ...replayHeaders, "Idempotency-Key": withdrawnReplayKey },
+    });
+    expect(replayAfterWithdrawal.status(), await replayAfterWithdrawal.text()).toBe(201);
+    expect(await replayAfterWithdrawal.json()).toMatchObject({
+      id: draftBeforeWithdrawalBody.id,
+    });
+    const newIntentAfterWithdrawal = await page.request.post("/api/recipe-drafts", {
+      data: { source_version_id: sourceId },
+      headers: { ...replayHeaders, "Idempotency-Key": crypto.randomUUID() },
+    });
+    expect(newIntentAfterWithdrawal.status()).toBe(404);
+    expect(await newIntentAfterWithdrawal.json()).toMatchObject({
+      error: { code: "recipe_source_not_found" },
+    });
+
     const unavailableSource = await page.request.get(`/api/recipes/${sourceId}`);
     expect(unavailableSource.status()).toBe(404);
     await page.goto(`/recipes?q=${encodeURIComponent(sourceTitle)}`);
@@ -220,6 +247,7 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
     await expect(page.getByText(sourceTitle, { exact: true })).toHaveCount(0);
     await expectNoAccessibilityViolations(page);
 
+    await applyAcceptanceMember(page, "alice");
     await page.goto("/account/recipes");
     sourceCard = page.getByRole("article", { name: sourceTitle, exact: true });
     const restoreResponse = page.waitForResponse(

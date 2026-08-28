@@ -210,7 +210,11 @@ def _single_ingredient_payload(
 
 
 def _create_complete_draft(api: PublicationApi) -> str:
-    created = api.member.post("/api/recipe-drafts", json={"source_version_id": None})
+    created = api.member.post(
+        "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={"source_version_id": None},
+    )
     assert created.status_code == 201
     draft_id = str(_json_object(created.json())["id"])
     saved = api.member.put(
@@ -541,6 +545,7 @@ def test_cross_user_fork_publication_preserves_lineage_authorship_and_event(
     source_id = _publish_complete_original(publication_api)
     created = publication_api.other_member.post(
         "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
         json={"source_version_id": str(source_id)},
     )
     assert created.status_code == 201
@@ -623,6 +628,7 @@ def test_cross_user_fork_publication_preserves_lineage_authorship_and_event(
     )
     second_draft = publication_api.other_member.post(
         "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
         json={"source_version_id": str(source_id)},
     )
     second_draft_id = str(_json_object(second_draft.json())["id"])
@@ -785,6 +791,7 @@ def test_source_unavailable_conflict_preserves_private_fork_draft(
     source_id = _publish_complete_original(publication_api)
     created = publication_api.other_member.post(
         "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
         json={"source_version_id": str(source_id)},
     )
     draft_id = str(_json_object(created.json())["id"])
@@ -845,6 +852,7 @@ def test_source_unavailable_preflight_replay_returns_stable_conflict(
     source_id = _publish_complete_original(publication_api)
     created = publication_api.other_member.post(
         "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
         json={"source_version_id": str(source_id)},
     )
     draft_id = str(_json_object(created.json())["id"])
@@ -904,6 +912,7 @@ def test_existing_fork_event_action_conflicts_without_partial_publication(
     source_id = _publish_complete_original(publication_api)
     created = publication_api.other_member.post(
         "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
         json={"source_version_id": str(source_id)},
     )
     draft_id = str(_json_object(created.json())["id"])
@@ -965,6 +974,7 @@ def test_fork_publication_rolls_back_staged_event_and_retries_once(
     source_id = _publish_complete_original(publication_api)
     created = publication_api.other_member.post(
         "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
         json={"source_version_id": str(source_id)},
     )
     draft_id = str(_json_object(created.json())["id"])
@@ -1054,6 +1064,7 @@ def test_seeded_source_fork_normalizes_curated_measurement_labels_before_publica
 ) -> None:
     created = publication_api.other_member.post(
         "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
         json={"source_version_id": str(CARROT_ROOT_ID)},
     )
     assert created.status_code == 201, created.text
@@ -1102,6 +1113,7 @@ def test_concurrent_sibling_publications_allocate_distinct_lineage_numbers(
     root_id = _publish_complete_original(publication_api)
     first_child_draft = publication_api.other_member.post(
         "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
         json={"source_version_id": str(root_id)},
     )
     first_child_draft_id = str(_json_object(first_child_draft.json())["id"])
@@ -1120,10 +1132,12 @@ def test_concurrent_sibling_publications_allocate_distinct_lineage_numbers(
 
     root_sibling_draft = publication_api.member.post(
         "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
         json={"source_version_id": str(root_id)},
     )
     child_sibling_draft = publication_api.other_member.post(
         "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
         json={"source_version_id": str(root_id)},
     )
     root_sibling_draft_id = str(_json_object(root_sibling_draft.json())["id"])
@@ -1230,6 +1244,7 @@ def test_publication_rejects_incomplete_and_stale_drafts(
 ) -> None:
     blank = publication_api.member.post(
         "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
         json={"source_version_id": None},
     )
     blank_id = _json_object(blank.json())["id"]
@@ -1256,6 +1271,7 @@ def test_publication_rejects_incomplete_and_stale_drafts(
 
     sourceful = publication_api.member.post(
         "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
         json={"source_version_id": str(CARROT_ROOT_ID)},
     )
     sourceful_id = str(_json_object(sourceful.json())["id"])

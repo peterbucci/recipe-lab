@@ -3,6 +3,14 @@ import {
   memberMutationHeaders,
   notifySessionExpired,
 } from "./auth-api";
+import { browserApiRequest } from "./api-transport/browser";
+import {
+  ApiTransportError,
+  createRequestFingerprint,
+  type ApiAuthenticationRecovery,
+  type ApiMutationOutcome,
+  type PublicApiErrorContract,
+} from "./api-transport/core";
 import type { CatalogActionTypeSummary } from "./cooking-action-api";
 import type { CatalogIngredient } from "./ingredient-catalog-api";
 import type { CatalogUnitSummary } from "./measurement-unit-api";
@@ -160,18 +168,27 @@ export class RecipeDraftApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly issues: ApiValidationIssue[];
+  readonly outcome: ApiMutationOutcome | null;
+  readonly authenticationRecovery: ApiAuthenticationRecovery;
+  readonly retryAfterSeconds: number | null;
 
   constructor(
     message: string,
     status: number,
     code = "recipe_draft_api_error",
     issues: ApiValidationIssue[] = [],
+    outcome: ApiMutationOutcome | null = null,
+    authenticationRecovery: ApiAuthenticationRecovery = null,
+    retryAfterSeconds: number | null = null,
   ) {
     super(message);
     this.name = "RecipeDraftApiError";
     this.status = status;
     this.code = code;
     this.issues = issues;
+    this.outcome = outcome;
+    this.authenticationRecovery = authenticationRecovery;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -613,6 +630,70 @@ function parseIssues(value: unknown): ApiValidationIssue[] {
   });
 }
 
+const RECIPE_DRAFT_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "recipe_draft_api_error",
+  knownCodes: KNOWN_RECIPE_DRAFT_ERROR_CODES,
+  parseIssues,
+};
+
+function draftCreationErrorMessage(
+  status: number,
+  code: string,
+  retryAfterSeconds: number | null,
+): string {
+  if (status === 401 || code === "authentication_required") {
+    return "Your session expired. Sign in again, then try again to recover the same private draft.";
+  }
+  if (code === "account_setup_required") {
+    return "Finish setting up your account, then try again to recover the same private draft.";
+  }
+  if (status === 403 || code === "invalid_csrf") {
+    return "Recipe Lab could not verify this draft request. Refresh the page and try again.";
+  }
+  if (status === 404 && code === "recipe_source_not_found") {
+    return "The recipe you started from is no longer available. No draft was created.";
+  }
+  if (status === 409 && code === "idempotency_key_conflict") {
+    return "Recipe Lab could not safely match this draft attempt. Try again to start a new private draft.";
+  }
+  if (status === 429 || code === "rate_limit_exceeded") {
+    return retryAfterSeconds === null
+      ? "Too many draft requests were made. Please wait, then try again."
+      : `Too many draft requests were made. Try again in ${retryAfterSeconds} seconds.`;
+  }
+  return "Recipe Lab could not start this private draft. Try again to recover the same draft.";
+}
+
+function fromDraftCreationTransportError(
+  error: ApiTransportError,
+): RecipeDraftApiError {
+  return new RecipeDraftApiError(
+    draftCreationErrorMessage(
+      error.status,
+      error.code,
+      error.retryAfterSeconds,
+    ),
+    error.status,
+    error.code,
+    error.issues,
+    error.outcome ?? "unknown",
+    error.authenticationRecovery,
+    error.retryAfterSeconds,
+  );
+}
+
+export function recipeDraftCreationRequestFingerprint(
+  sourceVersionId: string | null,
+): Promise<string> {
+  const normalizedSourceVersionId = sourceVersionId?.toLowerCase() ?? null;
+  return createRequestFingerprint({
+    intent: normalizedSourceVersionId === null ? "blank" : "source",
+    schema: "recipe-draft-creation",
+    source_version_id: normalizedSourceVersionId,
+    version: 1,
+  });
+}
+
 function draftErrorMessage(status: number, code: string): string {
   if (status === 401) {
     return "Your session expired. Your private draft is still here; sign in again to continue.";
@@ -681,16 +762,74 @@ function mutationHeaders(idempotencyKey: string): Record<string, string> {
 
 export async function createRecipeDraft(
   sourceVersionId: string | null,
+  idempotencyKey: string,
 ): Promise<RecipeDraftDetail> {
-  const response = await draftFetch("/api/recipe-drafts", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...memberMutationHeaders(),
-    },
-    body: JSON.stringify({ source_version_id: sourceVersionId }),
-  });
-  return parseRecipeDraftDetail(await response.json());
+  if (!isUuid(idempotencyKey)) {
+    throw new RecipeDraftApiError(
+      "Recipe Lab could not safely prepare this private draft. Try again to recover the same draft.",
+      0,
+      "invalid_idempotency_key",
+      [],
+      "rejected",
+    );
+  }
+  const normalizedSourceVersionId = sourceVersionId?.toLowerCase() ?? null;
+  let requestFingerprint: string;
+  try {
+    requestFingerprint = await recipeDraftCreationRequestFingerprint(
+      normalizedSourceVersionId,
+    );
+  } catch {
+    throw new RecipeDraftApiError(
+      "Recipe Lab could not safely prepare this private draft. Try again to recover the same draft.",
+      0,
+      "draft_creation_request_unavailable",
+      [],
+      "rejected",
+    );
+  }
+
+  try {
+    const response = await browserApiRequest("/api/recipe-drafts", {
+      body: JSON.stringify({ source_version_id: normalizedSourceVersionId }),
+      csrf: "member",
+      errorContract: RECIPE_DRAFT_ERROR_CONTRACT,
+      headers: { "Content-Type": "application/json" },
+      identity: { idempotencyKey, requestFingerprint },
+      kind: "mutation",
+      method: "POST",
+    });
+    try {
+      const draft = parseRecipeDraftDetail(response.data);
+      if (draft.source_version_id !== normalizedSourceVersionId) {
+        throw invalidResponse();
+      }
+      return draft;
+    } catch (error) {
+      if (error instanceof RecipeDraftApiError) {
+        throw new RecipeDraftApiError(
+          error.message,
+          error.status,
+          error.code,
+          error.issues,
+          "unknown",
+        );
+      }
+      throw error;
+    }
+  } catch (error) {
+    if (error instanceof RecipeDraftApiError) throw error;
+    if (error instanceof ApiTransportError) {
+      throw fromDraftCreationTransportError(error);
+    }
+    throw new RecipeDraftApiError(
+      "Recipe Lab could not start this private draft. Try again to recover the same draft.",
+      0,
+      "recipe_draft_api_error",
+      [],
+      "unknown",
+    );
+  }
 }
 
 export async function browseRecipeDrafts({
