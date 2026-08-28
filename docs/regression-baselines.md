@@ -7,11 +7,11 @@ claim.
 
 Three complementary lanes remain deliberately separate:
 
-| Lane | Data and runtime | What it proves | Retained evidence |
-| --- | --- | --- | --- |
-| Sanitized visual/accessibility baseline | Invented, static fixture data in an immutable Playwright container | Stable rendering, required states, responsive layouts, keyboard paths, and automated WCAG checks | A public aggregate JSON report for 7 days; sanitized actual/diff PNGs for 7 days only when the check fails |
-| Public performance baseline | Freshly migrated and seeded PostgreSQL 17, the backend, and a production Next.js build on loopback | Pre-refactor API latency/query counts, selected JavaScript sizes, and public-page responsiveness remain within reviewed budgets | The committed aggregate baseline; an ignored aggregate observation during a run |
-| RCP-32 community acceptance | Disposable accounts and a guarded local identity provider | Real authentication, authorization, community state transitions, deletion, backup/restore, and privacy behavior | Only the existing identifier-free summaries; no private browser or service diagnostics |
+| Lane                                    | Data and runtime                                                                                   | What it proves                                                                                                                  | Retained evidence                                                                                          |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Sanitized visual/accessibility baseline | Invented, static fixture data in an immutable Playwright container                                 | Stable rendering, required states, responsive layouts, keyboard paths, and automated WCAG checks                                | A public aggregate JSON report for 7 days; sanitized actual/diff PNGs for 7 days only when the check fails |
+| Public performance baseline             | Freshly migrated and seeded PostgreSQL 17, the backend, and a production Next.js build on loopback | Pre-refactor API latency/query counts, selected JavaScript sizes, and public-page responsiveness remain within reviewed budgets | The committed aggregate baseline; an ignored aggregate observation during a run                            |
+| RCP-32 community acceptance             | Disposable accounts and a guarded local identity provider                                          | Real authentication, authorization, community state transitions, deletion, backup/restore, and privacy behavior                 | Only the existing identifier-free summaries; no private browser or service diagnostics                     |
 
 The stable `RCP-32 community release gate` requires all three through its
 existing MVP and RCP-32 prerequisites plus the separate
@@ -45,21 +45,21 @@ for the upstream image boundary.
 
 The fixture fixes every input that would otherwise introduce pixel drift:
 
-| Input | Canonical value |
-| --- | --- |
-| Projects | `baseline-desktop-chromium`, `baseline-phone-chromium` |
-| Node.js | 22.23.2 in CI |
-| Desktop viewport and screen | 1440 by 900 CSS pixels |
-| Phone viewport and screen | 390 by 844 CSS pixels, mobile/touch enabled |
-| Device pixel ratio | 1 |
-| Locale and time zone | `en-US`, UTC |
-| Color and motion | Light color scheme, `prefers-reduced-motion: reduce` |
-| Clock | `2026-08-27T12:00:00.000Z` |
-| Randomness | Seeded Web Crypto UUID sequence and fixed `Math.random` |
-| Identities | Reviewed UUID constants and the invented `Baseline Cook` / `baseline-cook` account |
-| Content | Reviewed synthetic recipe, draft, request, comparison, and moderation fixtures only |
-| Fonts | The Geist WOFF2 shipped with pinned Next.js 16.3.1, injected under deterministic test aliases |
-| Network | New loopback-only servers for every run; service workers blocked |
+| Input                       | Canonical value                                                                               |
+| --------------------------- | --------------------------------------------------------------------------------------------- |
+| Projects                    | `baseline-desktop-chromium`, `baseline-phone-chromium`                                        |
+| Node.js                     | 22.23.2 in CI                                                                                 |
+| Desktop viewport and screen | 1440 by 900 CSS pixels                                                                        |
+| Phone viewport and screen   | 390 by 844 CSS pixels, mobile/touch enabled                                                   |
+| Device pixel ratio          | 1                                                                                             |
+| Locale and time zone        | `en-US`, UTC                                                                                  |
+| Color and motion            | Light color scheme, `prefers-reduced-motion: reduce`                                          |
+| Clock                       | `2026-08-27T12:00:00.000Z`                                                                    |
+| Randomness                  | Seeded Web Crypto UUID sequence and fixed `Math.random`                                       |
+| Identities                  | Reviewed UUID constants and the invented `Baseline Cook` / `baseline-cook` account            |
+| Content                     | Reviewed synthetic recipe, draft, request, comparison, and moderation fixtures only           |
+| Fonts                       | The Geist WOFF2 shipped with pinned Next.js 16.3.1, injected under deterministic test aliases |
+| Network                     | New loopback-only servers for every run; service workers blocked                              |
 
 The harness first asserts the production CSS font-family variables, then
 installs the deterministic aliases and waits for `document.fonts.ready`. This
@@ -84,22 +84,22 @@ Expected images are stored at
 state matrix; phone covers the critical responsive surfaces. Every listed
 image is produced from the same sanitized fixture contract.
 
-| Surface or state | Desktop snapshot | Phone snapshot |
-| --- | --- | --- |
-| Home, normal | `home-normal` | `home-normal` |
-| Home with account navigation open | `home-account-navigation` | `home-account-navigation` |
-| Catalog, normal | `catalog-normal` | `catalog-normal` |
-| Catalog, empty | `catalog-empty` | — |
-| Recipe detail, normal | `recipe-detail-normal` | `recipe-detail-normal` |
-| Recipe comparison, normal | `recipe-comparison-normal` | — |
-| My Recipes, normal | `my-recipes-normal` | — |
-| Draft editor with validation | `draft-editor-validation` | `draft-editor-validation` |
-| Similarity and publication review | `draft-similarity-publication-review` | — |
-| Ingredient request and staff review | `ingredient-request-staff-review` | — |
-| Recipe moderation staff review | `recipe-moderation-staff-review` | — |
-| Private workspace, loading | `private-workspace-loading` | — |
-| Private workspace, failure | `private-workspace-failure` | — |
-| Private workspace, expired session | `private-workspace-expired-session` | — |
+| Surface or state                    | Desktop snapshot                      | Phone snapshot             |
+| ----------------------------------- | ------------------------------------- | -------------------------- |
+| Home, normal                        | `home-normal`                         | `home-normal`              |
+| Home with account navigation open   | `home-account-navigation`             | `home-account-navigation`  |
+| Catalog, normal                     | `catalog-normal`                      | `catalog-normal`           |
+| Catalog, empty                      | `catalog-empty`                       | —                          |
+| Recipe detail, normal               | `recipe-detail-normal`                | `recipe-detail-normal`     |
+| Recipe comparison, normal           | `recipe-comparison-normal`            | `recipe-comparison-normal` |
+| My Recipes, normal                  | `my-recipes-normal`                   | —                          |
+| Draft editor with validation        | `draft-editor-validation`             | `draft-editor-validation`  |
+| Similarity and publication review   | `draft-similarity-publication-review` | —                          |
+| Ingredient request and staff review | `ingredient-request-staff-review`     | —                          |
+| Recipe moderation staff review      | `recipe-moderation-staff-review`      | —                          |
+| Private workspace, loading          | `private-workspace-loading`           | —                          |
+| Private workspace, failure          | `private-workspace-failure`           | —                          |
+| Private workspace, expired session  | `private-workspace-expired-session`   | —                          |
 
 Normal, loading, empty, failure, validation, review, publication, and
 expired-session behavior are therefore represented where they apply without
@@ -251,25 +251,25 @@ The measurement protocol is:
 
 The fixed route inventory is:
 
-| Kind | Route labels | Baseline metrics |
-| --- | --- | --- |
-| Database | `public_recipe_catalog_read`, `public_recipe_detail_read` | Exact repeated SELECT/WITH count: catalog 3 with ceiling 3; detail 8 with ceiling 10 |
-| Service | `public_recipe_catalog_proxy`, `public_recipe_detail_proxy` | Latency median and p95, milliseconds |
-| Browser | `public_home`, `public_recipe_catalog`, `public_recipe_detail` | Navigation median, LCP median, CLS median, long-task-total median, responsiveness median, and decoded-JavaScript median bytes |
+| Kind     | Route labels                                                   | Baseline metrics                                                                                                              |
+| -------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Database | `public_recipe_catalog_read`, `public_recipe_detail_read`      | Exact repeated SELECT/WITH count: catalog 3 with ceiling 3; detail 8 with ceiling 10                                          |
+| Service  | `public_recipe_catalog_proxy`, `public_recipe_detail_proxy`    | Latency median and p95, milliseconds                                                                                          |
+| Browser  | `public_home`, `public_recipe_catalog`, `public_recipe_detail` | Navigation median, LCP median, CLS median, long-task-total median, responsiveness median, and decoded-JavaScript median bytes |
 
 The initial measured values and budgets are below. Each cell is
 `baseline → budget`; timing values are milliseconds.
 
-| Service route | Latency median | Latency p95 |
-| --- | ---: | ---: |
-| Catalog proxy | 17.3 → 267.3 | 19.9 → 269.9 |
-| Recipe-detail proxy | 28.3 → 278.3 | 32.1 → 282.1 |
+| Service route       | Latency median |  Latency p95 |
+| ------------------- | -------------: | -----------: |
+| Catalog proxy       |   17.3 → 267.3 | 19.9 → 269.9 |
+| Recipe-detail proxy |   28.3 → 278.3 | 32.1 → 282.1 |
 
-| Browser route | Navigation | LCP | CLS | Long-task total | Responsiveness | Decoded JS bytes |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Home | 15.5 → 265.5 | 28 → 278 | 0 → 0.05 | 0 → 250 | 17.7 → 267.7 | 471,126 → 942,252 |
-| Catalog | 23.4 → 273.4 | 48 → 298 | 0 → 0.05 | 0 → 250 | 17.7 → 267.7 | 471,126 → 942,252 |
-| Recipe detail | 47.6 → 297.6 | 324 → 648 | 0 → 0.05 | 0 → 250 | 17.6 → 267.6 | 488,167 → 976,334 |
+| Browser route |   Navigation |       LCP |      CLS | Long-task total | Responsiveness |  Decoded JS bytes |
+| ------------- | -----------: | --------: | -------: | --------------: | -------------: | ----------------: |
+| Home          | 15.5 → 265.5 |  28 → 278 | 0 → 0.05 |         0 → 250 |   17.7 → 267.7 | 471,126 → 942,252 |
+| Catalog       | 23.4 → 273.4 |  48 → 298 | 0 → 0.05 |         0 → 250 |   17.7 → 267.7 | 471,126 → 942,252 |
+| Recipe detail | 47.6 → 297.6 | 324 → 648 | 0 → 0.05 |         0 → 250 |   17.6 → 267.6 | 488,167 → 976,334 |
 
 Baseline and budget values live together in the committed JSON. For measured
 latency/browser values, each budget is

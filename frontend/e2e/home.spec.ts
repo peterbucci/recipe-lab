@@ -9,10 +9,7 @@ async function activateWithKeyboard(
   await page.keyboard.press("Enter");
 }
 
-async function reachWithKeyboard(
-  page: Page,
-  control: Locator,
-): Promise<void> {
+async function reachWithKeyboard(page: Page, control: Locator): Promise<void> {
   for (let step = 0; step < 80; step += 1) {
     if (
       await control.evaluate(
@@ -53,6 +50,43 @@ async function openCarrotRoot(page: Page): Promise<string> {
   return decodeURIComponent(match[1]);
 }
 
+async function expectCarrotComparisonToExplainItsChanges(page: Page) {
+  const summary = page.getByRole("list", { name: "Changes at a glance" });
+  await expect(summary).toBeVisible();
+  await expect(
+    summary.getByText("Use 100 g Pecan instead of 100 g Walnut.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    summary.getByText("Change White sugar from 180 g to 140 g.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("article", {
+      name: "Use Pecan instead of Walnut",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("article", {
+      name: "Change White sugar from 180 g to 140 g",
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  const visibleText = await page.locator("body").innerText();
+  expect(visibleText).not.toMatch(
+    /\bversion\s+\d+\b|catalog name|ingredient \d+:|structured cooking actions|(^|\n)ingredient inputs changed($|\n)|(^|\n)actions changed($|\n)/im,
+  );
+  expect(visibleText).not.toMatch(
+    /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i,
+  );
+
+  return summary;
+}
+
 test("browses, searches, and opens a structured recipe anonymously", async ({
   page,
 }) => {
@@ -90,7 +124,9 @@ test("browses, searches, and opens a structured recipe anonymously", async ({
   ).toBeVisible();
 
   await expect(page).toHaveURL("/recipes?q=carrot");
-  await expect(page.getByRole("navigation", { name: "Recipe type" })).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "Recipe type" }),
+  ).toHaveCount(0);
   await expect(
     carrotRootCard(page).getByRole("link", {
       name: "Carrot Walnut Snack Cake",
@@ -111,7 +147,10 @@ test("browses, searches, and opens a structured recipe anonymously", async ({
   ).toBeVisible();
   await expect(
     page
-      .getByRole("article", { name: "Lower-Sugar Pecan Carrot Cake", exact: true })
+      .getByRole("article", {
+        name: "Lower-Sugar Pecan Carrot Cake",
+        exact: true,
+      })
       .locator(".recipe-card__parent"),
   ).toContainText("Based on Carrot Walnut Snack Cake");
   await expect(carrotRootCard(page).getByText(/^original$/i)).toHaveCount(0);
@@ -321,9 +360,15 @@ test("keeps the plain-language homepage readable at a phone viewport", async ({
     page.getByRole("link", { name: "Explore recipes", exact: true }).first(),
   ).toBeVisible();
 
-  await expect(page.getByRole("heading", { name: "Choose a recipe" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Your version" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "See what changed" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Choose a recipe" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Your version" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "See what changed" }),
+  ).toBeVisible();
   expect(
     await page.evaluate(
       () =>
@@ -365,7 +410,10 @@ test("keeps the stacked home hero consistent across tablet and phone widths", as
     expect(Math.abs(buttonCenter - heroCenter)).toBeLessThanOrEqual(1);
     expect(buttonBox!.width).toBeLessThan(copyBox!.width / 2);
     expect(artworkBox!.y).toBeGreaterThan(copyBox!.y + copyBox!.height);
-    await expect(page.locator(".home-hero__copy")).toHaveCSS("text-align", "center");
+    await expect(page.locator(".home-hero__copy")).toHaveCSS(
+      "text-align",
+      "center",
+    );
   }
 });
 
@@ -393,41 +441,36 @@ test("compares the seeded carrot variant with its parent without signing in", as
   }
   const targetRecipeVersionId = decodeURIComponent(targetMatch[1]);
 
-  await page
-    .getByRole("link", { name: "See what changed", exact: true })
-    .click();
+  const compareLink = page.getByRole("link", {
+    name: "See what changed",
+    exact: true,
+  });
+  await reachWithKeyboard(page, compareLink);
+  await expect(compareLink).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(page).toHaveURL(`/recipes/${targetRecipeVersionId}/compare`);
   await expect(
     page.getByRole("heading", {
-      name: "What changed in Lower-Sugar Pecan Carrot Cake",
+      name: "How Lower-Sugar Pecan Carrot Cake changed",
       level: 1,
     }),
   ).toBeVisible();
 
-  const sugarChange = page.getByRole("article", {
-    name: "White sugar",
-    exact: true,
-  });
-  await expect(
-    sugarChange.getByText("Amount changed", { exact: true }),
-  ).toBeVisible();
-  await expect(sugarChange.getByText("180 g", { exact: true })).toBeVisible();
-  await expect(sugarChange.getByText("140 g", { exact: true })).toBeVisible();
-  const substitution = page.getByRole("article", {
-    name: "Walnut replaced with Pecan",
-  });
-  await expect(
-    substitution.getByText("Substitution", { exact: true }),
-  ).toBeVisible();
-  await expect(substitution.getByText("Walnut", { exact: true })).toBeVisible();
-  await expect(substitution.getByText("Pecan", { exact: true })).toBeVisible();
+  await expectCarrotComparisonToExplainItsChanges(page);
 
-  const parentLink = page
-    .getByRole("navigation", { name: "Compared recipes" })
-    .getByRole("link", {
-      name: /starting recipe.*carrot walnut snack cake.*version 1/i,
-    });
+  const comparedRecipes = page.getByRole("navigation", {
+    name: "Compared recipes",
+  });
+  const parentLink = comparedRecipes.getByRole("link", {
+    name: /starting recipe.*carrot walnut snack cake/i,
+  });
+  await expect(
+    comparedRecipes.getByRole("link", {
+      name: /this recipe.*lower-sugar pecan carrot cake/i,
+    }),
+  ).toBeVisible();
   await parentLink.focus();
+  await expect(parentLink).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(`/recipes/${parentRecipeVersionId}`);
 });
@@ -442,16 +485,30 @@ test("keeps the seeded recipe comparison usable at a phone viewport", async ({
       name: /another version.*lower-sugar pecan carrot cake.*by/i,
     })
     .click();
-  await page
-    .getByRole("link", { name: "See what changed", exact: true })
-    .click();
-  await expect(page.getByText("Before", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("After", { exact: true }).first()).toBeVisible();
+  const compareLink = page.getByRole("link", {
+    name: "See what changed",
+    exact: true,
+  });
+  await reachWithKeyboard(page, compareLink);
+  await expect(compareLink).toBeFocused();
+  await page.keyboard.press("Enter");
 
-  const comparison = await page.locator(".recipe-diff-view").boundingBox();
-  expect(comparison).not.toBeNull();
-  expect(comparison!.x).toBeGreaterThanOrEqual(0);
-  expect(comparison!.x + comparison!.width).toBeLessThanOrEqual(390);
+  const summary = await expectCarrotComparisonToExplainItsChanges(page);
+  await summary.scrollIntoViewIfNeeded();
+  await expect(summary).toBeInViewport();
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth ===
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+
+  const sourceLink = page
+    .getByRole("navigation", { name: "Compared recipes" })
+    .getByRole("link", { name: /starting recipe.*carrot walnut snack cake/i });
+  await sourceLink.focus();
+  await expect(sourceLink).toBeFocused();
 });
 
 test("requires sign-in for save, rate, recorded-view, and fork actions", async ({
@@ -622,7 +679,9 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
   const recipeVersionId = await openCarrotRoot(page);
   await page.route("**/api/recipe-drafts", async (route) => {
     expect(route.request().method()).toBe("POST");
-    expect(route.request().headers()["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(route.request().headers()["idempotency-key"]).toMatch(
+      /^[0-9a-f-]{36}$/i,
+    );
     expect(route.request().postDataJSON()).toEqual({
       source_version_id: recipeVersionId,
     });
