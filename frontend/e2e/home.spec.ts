@@ -285,7 +285,8 @@ test("identifies a source and starts a private version with the keyboard on a ph
     }),
   ).toBeVisible();
   await expect(page.locator(".recipe-detail__parent-context")).toHaveText(
-    "Based on Carrot Walnut Snack Cake by Recipe Lab Demo Catalog",
+    "Based on Carrot Walnut Snack Cake by Recipe Lab Demo Catalog. " +
+      "Recipe history shows where a version started, not endorsement or ownership.",
   );
 
   const sourceVersionId = new URL(page.url()).pathname.split("/").at(-1);

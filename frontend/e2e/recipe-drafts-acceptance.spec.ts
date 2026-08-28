@@ -55,6 +55,11 @@ test.describe("private recipe draft acceptance", () => {
     const alice = await useAcceptanceMember(page, "alice");
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/account/recipe-drafts");
+    await expect(page).toHaveURL("/account/recipes?view=drafts");
+    await expect(page.getByRole("link", { name: "Drafts", exact: true })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     const startOriginal = page
       .getByRole("link", { name: "Start a new recipe", exact: true })
       .first();
@@ -161,7 +166,7 @@ test.describe("private recipe draft acceptance", () => {
     await page.getByRole("button", { name: "Discard draft…" }).click();
     await expect(page.getByText(/permanently deletes this draft/i)).toBeVisible();
     await page.getByRole("button", { name: "Discard permanently" }).click();
-    await expect(page).toHaveURL("/account/recipe-drafts");
+    await expect(page).toHaveURL("/account/recipes?view=drafts");
     await expect(page.getByText("Acceptance interrupted soup")).toHaveCount(0);
 
     const discardedReplay = await page.request.post(
@@ -217,7 +222,7 @@ test.describe("private recipe draft acceptance", () => {
 
   test("rapid activation creates one bound private draft", async ({ page }) => {
     await useAcceptanceMember(page, "alice");
-    await page.goto("/account/recipe-drafts");
+    await page.goto("/account/recipes?view=drafts");
     const before = await activeDraftIds(page);
     const attempts: Array<{ body: unknown; key: string | undefined }> = [];
     const recordAttempt = (request: Request) => {
