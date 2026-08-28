@@ -96,7 +96,8 @@ describe("cook profile and private recipe libraries", () => {
       "href",
       "/cooks/alice",
     );
-    expect(within(list).getByText("Version 2", { exact: true })).toBeVisible();
+    expect(within(list).queryByText(/^version \d+$/i)).not.toBeInTheDocument();
+    expect(within(list).getAllByText("4 servings")).toHaveLength(2);
     expect(within(list).getByText(/based on/i)).toHaveTextContent(
       "Based on Catalog tomato soup by Recipe Lab catalog",
     );
@@ -178,8 +179,10 @@ describe("cook profile and private recipe libraries", () => {
     const forkArticle = within(list).getByRole("link", { name: "Creamy tomato soup" }).closest("article");
     expect(originalArticle).not.toBeNull();
     expect(forkArticle).not.toBeNull();
-    expect(within(originalArticle!).getByText("Original", { exact: true })).toBeVisible();
-    expect(within(forkArticle!).getByText("Version 2", { exact: true })).toBeVisible();
+    expect(within(originalArticle!).queryByText(/^original$/i)).not.toBeInTheDocument();
+    expect(within(forkArticle!).queryByText(/^version \d+$/i)).not.toBeInTheDocument();
+    expect(within(originalArticle!).getByText("4 servings")).toBeVisible();
+    expect(within(forkArticle!).getByText("4 servings")).toBeVisible();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/my/recipes?page=1&page_size=12",
       expect.objectContaining({ credentials: "same-origin" }),

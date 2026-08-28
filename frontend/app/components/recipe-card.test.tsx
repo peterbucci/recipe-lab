@@ -41,7 +41,34 @@ describe("RecipeCard", () => {
     expect(recipeLink).not.toContainElement(authorLink);
     expect(recipeLink).not.toContainElement(saveButton);
     expect(within(card).queryByText(/no description provided/i)).not.toBeInTheDocument();
-    expect(within(card).getByText("Original")).toBeInTheDocument();
+    expect(within(card).getByText("8 servings")).toBeInTheDocument();
+    expect(within(card).queryByText(/^original$/i)).not.toBeInTheDocument();
+    expect(within(card).queryByText(/^version \d+$/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps parent context without labeling the card as a version", () => {
+    render(
+      <RecipeCard
+        recipe={recipe({
+          id: "recipe-two",
+          parent_version_id: "recipe-one",
+          version_number: 2,
+          title: "Lower-Sugar Pecan Carrot Cake",
+          parent: {
+            id: "recipe-one",
+            title: "Carrot Walnut Snack Cake",
+            version_number: 1,
+            author: { id: "cook-one", handle: "alice", display_name: "Alice Cook" },
+          },
+        })}
+      />,
+    );
+
+    const card = screen.getByRole("article", { name: "Lower-Sugar Pecan Carrot Cake" });
+    expect(within(card).getByText(/based on/i)).toHaveTextContent(
+      "Based on Carrot Walnut Snack Cake by Alice Cook",
+    );
+    expect(within(card).queryByText(/^version 2$/i)).not.toBeInTheDocument();
   });
 
   it("does not link a private recipe title", () => {

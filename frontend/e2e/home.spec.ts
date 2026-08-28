@@ -73,17 +73,14 @@ test("browses, searches, and opens a structured recipe anonymously", async ({
     page.getByRole("heading", { name: "Find something to cook", level: 1 }),
   ).toBeVisible();
 
-  const recipeType = page.getByRole("navigation", { name: "Recipe type" });
   await page.getByLabel(/search by recipe name/i).fill("carrot");
   await page.getByRole("button", { name: /^search$/i }).click();
   await expect(
     page.getByRole("heading", { name: /results for “carrot”/i }),
   ).toBeVisible();
 
-  await recipeType
-    .getByRole("link", { name: "Originals", exact: true })
-    .click();
-  await expect(page).toHaveURL("/recipes?q=carrot&type=originals");
+  await expect(page).toHaveURL("/recipes?q=carrot");
+  await expect(page.getByRole("navigation", { name: "Recipe type" })).toHaveCount(0);
   await expect(
     carrotRootCard(page).getByRole("link", {
       name: "Carrot Walnut Snack Cake",
@@ -101,7 +98,14 @@ test("browses, searches, and opens a structured recipe anonymously", async ({
       name: "Lower-Sugar Pecan Carrot Cake",
       exact: true,
     }),
-  ).toHaveCount(0);
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("article", { name: "Lower-Sugar Pecan Carrot Cake", exact: true })
+      .locator(".recipe-card__parent"),
+  ).toContainText("Based on Carrot Walnut Snack Cake");
+  await expect(carrotRootCard(page).getByText(/^original$/i)).toHaveCount(0);
+  await expect(page.getByText(/^version \d+$/i)).toHaveCount(0);
 
   const artwork = carrotRootCard(page).locator(".recipe-card__artwork");
   await artwork.scrollIntoViewIfNeeded();
@@ -125,16 +129,6 @@ test("browses, searches, and opens a structured recipe anonymously", async ({
     label: "Carrot Walnut Snack Cake",
   });
 
-  await recipeType.getByRole("link", { name: "Versions", exact: true }).click();
-  await expect(page).toHaveURL("/recipes?q=carrot&type=versions");
-  await expect(
-    page.getByRole("link", {
-      name: "Lower-Sugar Pecan Carrot Cake",
-      exact: true,
-    }),
-  ).toBeVisible();
-
-  await recipeType.getByRole("link", { name: "All", exact: true }).click();
   const carrotTitle = carrotRootCard(page).getByRole("link", {
     name: "Carrot Walnut Snack Cake",
     exact: true,
@@ -190,16 +184,40 @@ test("keeps the plain-language homepage readable at a phone viewport", async ({
   ).toBe(false);
 });
 
-test("keeps the stacked home artwork aligned with its copy", async ({ page }) => {
-  await page.setViewportSize({ width: 900, height: 1_100 });
-  await page.goto("/");
+test("keeps the stacked home hero consistent across tablet and phone widths", async ({
+  page,
+}) => {
+  for (const viewport of [
+    { width: 980, height: 1_100 },
+    { width: 790, height: 1_100 },
+    { width: 500, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
 
-  const copyBox = await page.locator(".home-hero__copy").boundingBox();
-  const artworkBox = await page.locator(".home-hero__visual").boundingBox();
-  expect(copyBox).not.toBeNull();
-  expect(artworkBox).not.toBeNull();
-  expect(Math.abs(copyBox!.x - artworkBox!.x)).toBeLessThanOrEqual(1);
-  expect(artworkBox!.y).toBeGreaterThan(copyBox!.y + copyBox!.height);
+    const heroBox = await page.locator(".home-hero").boundingBox();
+    const copyBox = await page.locator(".home-hero__copy").boundingBox();
+    const artworkBox = await page.locator(".home-hero__visual").boundingBox();
+    const buttonBox = await page
+      .locator(".home-hero")
+      .getByRole("link", { name: "Explore recipes", exact: true })
+      .boundingBox();
+    expect(heroBox).not.toBeNull();
+    expect(copyBox).not.toBeNull();
+    expect(artworkBox).not.toBeNull();
+    expect(buttonBox).not.toBeNull();
+    const heroCenter = heroBox!.x + heroBox!.width / 2;
+    const copyCenter = copyBox!.x + copyBox!.width / 2;
+    const artworkCenter = artworkBox!.x + artworkBox!.width / 2;
+    const buttonCenter = buttonBox!.x + buttonBox!.width / 2;
+    expect(Math.abs(copyCenter - heroCenter)).toBeLessThanOrEqual(1);
+    expect(Math.abs(artworkCenter - heroCenter)).toBeLessThanOrEqual(1);
+    expect(Math.abs(buttonCenter - heroCenter)).toBeLessThanOrEqual(1);
+    expect(buttonBox!.width).toBeLessThan(copyBox!.width / 2);
+    expect(artworkBox!.y).toBeGreaterThan(copyBox!.y + copyBox!.height);
+    await expect(page.locator(".home-hero__copy")).toHaveCSS("text-align", "center");
+  }
 });
 
 test("compares the seeded carrot variant with its parent without signing in", async ({

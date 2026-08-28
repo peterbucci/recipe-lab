@@ -1,9 +1,5 @@
 import type { Metadata } from "next";
 
-import {
-  isVariantForRecipeBrowseType,
-  parseRecipeBrowseType,
-} from "../../lib/recipe-browse-query";
 import { fetchRecipePage } from "../../lib/recipe-api";
 import { RecipeBrowser } from "../components/recipe-browser";
 
@@ -18,7 +14,6 @@ interface RecipeBrowsePageProps {
   searchParams: Promise<{
     page?: string | string[];
     q?: string | string[];
-    type?: string | string[];
   }>;
 }
 
@@ -39,13 +34,11 @@ export default async function RecipeBrowsePage({ searchParams }: RecipeBrowsePag
   const parameters = await searchParams;
   const query = firstValue(parameters.q).trim();
   const page = pageNumber(parameters.page);
-  const recipeType = parseRecipeBrowseType(parameters.type);
-  const isVariant = isVariantForRecipeBrowseType(recipeType);
-  const data = await fetchRecipePage({ isVariant, page, pageSize: 12, query });
+  const data = await fetchRecipePage({ page, pageSize: 12, query });
 
   return (
     <main id="main-content" className="page-shell">
-      <RecipeBrowser data={data} query={query} recipeType={recipeType} />
+      <RecipeBrowser data={data} query={query} />
     </main>
   );
 }

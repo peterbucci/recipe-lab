@@ -1,10 +1,6 @@
 import Link from "next/link";
 
-import {
-  isVariantForRecipeBrowseType,
-  recipeBrowseHref,
-  type RecipeBrowseType,
-} from "../../lib/recipe-browse-query";
+import { recipeBrowseHref } from "../../lib/recipe-browse-query";
 import type { RecipePage } from "../../lib/recipe-api";
 import { Pagination } from "./pagination";
 import { RecipeCard } from "./recipe-card";
@@ -13,46 +9,24 @@ import { RecipeSearch } from "./recipe-search";
 interface RecipeBrowserProps {
   data: RecipePage;
   query: string;
-  recipeType: RecipeBrowseType;
 }
 
-interface RecipeFilter {
-  label: string;
-  recipeType: RecipeBrowseType;
-}
-
-const recipeFilters: RecipeFilter[] = [
-  { label: "All", recipeType: "all" },
-  { label: "Originals", recipeType: "originals" },
-  { label: "Versions", recipeType: "versions" },
-];
-
-function emptyHeading(query: string, isVariant?: boolean): string {
+function emptyHeading(query: string): string {
   if (query) {
     return "No recipes matched that search.";
-  }
-  if (isVariant === true) {
-    return "No versions are available yet.";
-  }
-  if (isVariant === false) {
-    return "No original recipes are available yet.";
   }
   return "No recipes are available yet.";
 }
 
-function emptyMessage(query: string, isVariant?: boolean): string {
+function emptyMessage(query: string): string {
   if (query) {
     return "Try a broader recipe title or a word from the description.";
-  }
-  if (isVariant !== undefined) {
-    return "Choose another filter to see the recipes that are available.";
   }
   return "Recipes will appear here when they are added.";
 }
 
-export function RecipeBrowser({ data, query, recipeType }: RecipeBrowserProps) {
+export function RecipeBrowser({ data, query }: RecipeBrowserProps) {
   const beyondLastPage = data.total > 0 && data.items.length === 0;
-  const isVariant = isVariantForRecipeBrowseType(recipeType);
 
   return (
     <>
@@ -62,22 +36,7 @@ export function RecipeBrowser({ data, query, recipeType }: RecipeBrowserProps) {
       </header>
 
       <div className="catalog-toolbar">
-        <RecipeSearch query={query} recipeType={recipeType} />
-        <nav className="button-row recipe-filters" aria-label="Recipe type">
-          {recipeFilters.map((filter) => {
-            const active = filter.recipeType === recipeType;
-            return (
-              <Link
-                aria-current={active ? "page" : undefined}
-                className={`button ${active ? "button--primary" : "button--secondary"}`}
-                href={recipeBrowseHref(1, query, filter.recipeType)}
-                key={filter.label}
-              >
-                {filter.label}
-              </Link>
-            );
-          })}
-        </nav>
+        <RecipeSearch query={query} />
       </div>
 
       <section className="catalog-results" aria-labelledby="catalog-results-heading">
@@ -94,13 +53,10 @@ export function RecipeBrowser({ data, query, recipeType }: RecipeBrowserProps) {
 
         {data.total === 0 ? (
           <div className="empty-state">
-            <h3>{emptyHeading(query, isVariant)}</h3>
-            <p>{emptyMessage(query, isVariant)}</p>
+            <h3>{emptyHeading(query)}</h3>
+            <p>{emptyMessage(query)}</p>
             {query ? (
-              <Link
-                className="button button--secondary"
-                href={recipeBrowseHref(1, "", recipeType)}
-              >
+              <Link className="button button--secondary" href={recipeBrowseHref(1, "")}>
                 Clear search
               </Link>
             ) : null}
@@ -111,7 +67,7 @@ export function RecipeBrowser({ data, query, recipeType }: RecipeBrowserProps) {
             <p>The collection currently has {data.total_pages} pages of recipes.</p>
             <Link
               className="button button--secondary"
-              href={recipeBrowseHref(1, query, recipeType)}
+              href={recipeBrowseHref(1, query)}
             >
               Return to the first page
             </Link>
@@ -129,7 +85,6 @@ export function RecipeBrowser({ data, query, recipeType }: RecipeBrowserProps) {
         <Pagination
           currentPage={data.page}
           query={query}
-          recipeType={recipeType}
           totalPages={data.total_pages}
         />
       ) : null}
