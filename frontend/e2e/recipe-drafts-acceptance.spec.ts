@@ -372,8 +372,20 @@ test.describe("private recipe draft acceptance", () => {
       await continueSignIn.evaluate((link) => link.hasAttribute("target")),
     ).toBe(false);
     expect(page.context().pages()).toHaveLength(1);
+    const anonymousSessionCheck = page.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        request.method() === "GET" &&
+        new URL(response.url()).pathname === "/api/auth/session"
+      );
+    });
     await continueSignIn.click();
     await expect(page).toHaveURL("/sign-in?return_to=%2Frecipes%2Fnew");
+    const anonymousSessionResponse = await anonymousSessionCheck;
+    expect(anonymousSessionResponse.status()).toBe(200);
+    await expect(anonymousSessionResponse.json()).resolves.toMatchObject({
+      status: "anonymous",
+    });
     expect(page.context().pages()).toHaveLength(1);
     const persistedKeys = await page.evaluate(() =>
       Object.entries(window.sessionStorage)
