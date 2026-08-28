@@ -189,7 +189,7 @@ describe("RecipeDraftPublication", () => {
     const dirtyPublication = renderPublication({ dirty: true });
     expect(screen.getByRole("button", { name: "Review and publish" })).toBeDisabled();
     expect(screen.getByText("Save your latest changes before publishing.")).toBeVisible();
-    expect(screen.getByText(/published snapshots and their recipe lineage stay public/i)).toHaveTextContent(
+    expect(screen.getByText(/published recipes and their recipe history stay public/i)).toHaveTextContent(
       /Deleted cook.*withdraw/i,
     );
     dirtyPublication.unmount();
@@ -298,7 +298,7 @@ describe("RecipeDraftPublication", () => {
     mocks.publish
       .mockRejectedValueOnce(
         new RecipePublicationApiError(
-          "Recipe Lab could not publish this recipe right now. Your saved draft is still here.",
+          "Canonical occurrence 99999999-9999-4999-8999-999999999999 failed publication.",
           503,
           "recipe_publication_unavailable",
         ),
@@ -317,6 +317,10 @@ describe("RecipeDraftPublication", () => {
     fireEvent.click(screen.getByRole("button", { name: "Publish recipe anyway" }));
     const retry = await screen.findByRole("button", { name: "Retry publication" });
     expect(mocks.publish).toHaveBeenCalledOnce();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Recipe Lab could not publish this recipe. Your saved draft is still here.",
+    );
+    expect(screen.queryByText(/canonical|occurrence|99999999/i)).toBeNull();
 
     const communityRules = screen
       .getAllByRole("checkbox", { name: /agree to the community rules/i })
@@ -352,12 +356,12 @@ describe("RecipeDraftPublication", () => {
 
     confirmPublication();
     fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
-    expect(await screen.findByRole("button", { name: "Retry similarity review" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Check similar recipes again" })).toBeVisible();
     expect(screen.queryByRole("button", { name: /publish without/i })).toBeNull();
     expect(screen.getByRole("heading", { name: "Publish this original recipe." })).toBeVisible();
   });
 
-  it("requires an explicit direct-parent no-change decision before publishing a fork", async () => {
+  it("requires an explicit unchanged-version decision before publishing a version", async () => {
     mocks.preflight.mockResolvedValue(directParentNoChangePreflight());
     mocks.publish.mockResolvedValue({
       recipe_version_id: RECIPE_ID,
@@ -372,9 +376,10 @@ describe("RecipeDraftPublication", () => {
     fireEvent.click(screen.getByRole("button", { name: "Review and publish version" }));
 
     const acknowledgement = await screen.findByRole("checkbox", {
-      name: /direct-parent no-change warning/i,
+      name: /matches the recipe it is based on/i,
     });
-    expect(screen.getByText(/same canonical structure as its direct parent/i)).toBeVisible();
+    expect(screen.getByText("Your version matches the recipe it is based on.")).toBeVisible();
+    expect(screen.queryByText(/direct parent|canonical|immutable/i)).toBeNull();
     const publishAnyway = screen.getByRole("button", { name: "Publish version anyway" });
     expect(publishAnyway).toBeDisabled();
     fireEvent.click(acknowledgement);
@@ -413,11 +418,11 @@ describe("RecipeDraftPublication", () => {
 
     confirmPublication();
     fireEvent.click(screen.getByRole("button", { name: "Review and publish version" }));
-    fireEvent.click(await screen.findByRole("checkbox", { name: /direct-parent no-change warning/i }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: /matches the recipe it is based on/i }));
     fireEvent.click(screen.getByRole("button", { name: "Publish version anyway" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "The public source recipe is no longer available. Your private draft is unchanged.",
+      "The recipe this version is based on is no longer available. Your private draft is unchanged.",
     );
     expect(screen.getByRole("button", { name: "Check source and retry" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Check source page" })).toHaveAttribute(

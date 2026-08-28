@@ -44,11 +44,7 @@ function RecipeDraftWorkspaceInner() {
       setPageNumber(result.page);
     } catch (reason) {
       if (reason instanceof DOMException && reason.name === "AbortError") return;
-      setError(
-        reason instanceof RecipeDraftApiError
-          ? reason.message
-          : "Recipe Lab could not load your private drafts. Please try again.",
-      );
+      setError("Recipe Lab could not load your private drafts. Please try again.");
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -63,11 +59,7 @@ function RecipeDraftWorkspaceInner() {
       })
       .catch((reason: unknown) => {
         if (reason instanceof DOMException && reason.name === "AbortError") return;
-        setError(
-          reason instanceof RecipeDraftApiError || reason instanceof AuthApiError
-            ? reason.message
-            : "Recipe Lab could not load your private drafts. Please try again.",
-        );
+        setError("Recipe Lab could not load your private drafts. Please try again.");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -94,12 +86,13 @@ function RecipeDraftWorkspaceInner() {
     } catch (reason) {
       if (reason instanceof RecipeDraftApiError && reason.code === "recipe_draft_revision_conflict") {
         setError("This draft changed in another tab. It was not discarded. Refresh the list and review it first.");
+      } else if (
+        (reason instanceof RecipeDraftApiError || reason instanceof AuthApiError) &&
+        reason.status === 401
+      ) {
+        setError("Your session expired. This draft was not discarded. Sign in again to continue.");
       } else {
-        setError(
-          reason instanceof RecipeDraftApiError || reason instanceof AuthApiError
-            ? reason.message
-            : "Recipe Lab could not discard this draft. It is still private and intact.",
-        );
+        setError("Recipe Lab could not discard this draft. It is still private and intact.");
       }
     } finally {
       discardInFlight.current = false;
@@ -124,7 +117,7 @@ function RecipeDraftWorkspaceInner() {
       </header>
 
       <p className="draft-library__privacy">
-        Drafts do not appear in public recipes, search, recommendations, ratings, saves, or activity.
+        Drafts do not appear in public recipes, search, ratings, saves, or activity.
       </p>
       {status ? <p className="form-status" role="status">{status}</p> : null}
       {error ? (
@@ -156,7 +149,7 @@ function RecipeDraftWorkspaceInner() {
                 <li key={draft.id} className="draft-library__card">
                   <div className="draft-library__card-heading">
                     <div>
-                      <span className="draft-library__kind">{draft.source_version_id ? "Fork draft" : "Original draft"}</span>
+                      <span className="draft-library__kind">{draft.source_version_id ? "Your version draft" : "Original recipe draft"}</span>
                       <h2>{label}</h2>
                     </div>
                     <span>Private</span>

@@ -239,7 +239,13 @@ describe("recipe library API", () => {
       vi.fn<typeof fetch>()
         .mockResolvedValueOnce(
           Response.json(
-            { error: { code: "authentication_required", message: "Sign in first." } },
+            {
+              error: {
+                code: "authentication_required",
+                message:
+                  "Canonical UUID 99999999-9999-4999-8999-999999999999 failed an operator policy check.",
+              },
+            },
             { status: 401 },
           ),
         )
@@ -248,6 +254,14 @@ describe("recipe library API", () => {
 
     const unauthorized = await fetchMyRecipeLibrary().catch((reason: unknown) => reason);
     expect(unauthorized).toBeInstanceOf(RecipeLibraryApiError);
+    expect(unauthorized).toMatchObject({
+      status: 401,
+      code: "authentication_required",
+      message: "Your session expired. Sign in again to load your recipes.",
+    });
+    expect(`${String(unauthorized)} ${JSON.stringify(unauthorized)}`).not.toMatch(
+      /99999999|canonical|uuid|operator|policy/i,
+    );
     expect(expired).toHaveBeenCalledOnce();
     await expect(fetchMyRecipeLibrary()).rejects.toMatchObject({
       code: "invalid_recipe_library_response",

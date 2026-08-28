@@ -13,7 +13,7 @@ export function RecipeInstructionActions({
   label,
 }: RecipeInstructionActionsProps) {
   if (actions.length === 0) {
-    return <p className="instruction-actions__unmapped">Structured actions not mapped.</p>;
+    return <p className="instruction-actions__unmapped">No cooking actions added.</p>;
   }
 
   const ingredientById = new Map(ingredients.map((ingredient) => [ingredient.id, ingredient]));
@@ -26,7 +26,7 @@ export function RecipeInstructionActions({
             const ingredient = ingredientById.get(id);
             return ingredient
               ? `Ingredient ${ingredient.display_order + 1}: ${ingredient.display_name}`
-              : `Ingredient occurrence ${id}`;
+              : "Ingredient unavailable";
           });
           return (
             <li key={action.id}>

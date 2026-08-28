@@ -288,7 +288,7 @@ describe("RecipeDraftEditor", () => {
     expect(await screen.findByText("Draft saved privately.")).toBeVisible();
   });
 
-  it("keeps newer local edits after a failed save", async () => {
+  it("keeps newer local edits and hides backend details after a failed save", async () => {
     const failedSave = deferred<RecipeDraftDetail>();
     mocks.updateRecipeDraft.mockReturnValue(failedSave.promise);
     renderEditor();
@@ -297,9 +297,17 @@ describe("RecipeDraftEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
     await waitFor(() => expect(mocks.updateRecipeDraft).toHaveBeenCalledOnce());
     fireEvent.change(title, { target: { value: "Newer local title" } });
-    failedSave.reject(new RecipeDraftApiError("Temporary save failure.", 503));
+    failedSave.reject(
+      new RecipeDraftApiError(
+        "Canonical occurrence 99999999-9999-4999-8999-999999999999 failed.",
+        503,
+      ),
+    );
 
-    expect(await screen.findByText("Temporary save failure.")).toBeVisible();
+    expect(
+      await screen.findByText("Recipe Lab could not save this draft. Your edits are still here."),
+    ).toBeVisible();
+    expect(screen.queryByText(/canonical|occurrence|99999999/i)).toBeNull();
     expect(title).toHaveValue("Newer local title");
   });
 
@@ -322,7 +330,7 @@ describe("RecipeDraftEditor", () => {
       }),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Review and publish version" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "exact public source version" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "the public recipe you started from" })).toHaveAttribute(
       "href",
       `/recipes/${sourceId}`,
     );

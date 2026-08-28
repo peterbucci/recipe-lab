@@ -10,7 +10,6 @@ import {
 import {
   type CatalogIngredientPage,
   type CatalogIngredientSelection,
-  IngredientCatalogApiError,
   type MissingIngredientRequest,
   searchCatalogIngredients,
   selectionForCatalogIngredient,
@@ -105,11 +104,7 @@ export function IngredientCatalogPicker({
       }
       setResultPage(null);
       setSearchStatus("");
-      setSearchError(
-        reason instanceof IngredientCatalogApiError
-          ? reason.message
-          : "The ingredient catalog could not be searched. Please try again.",
-      );
+      setSearchError("The ingredient catalog could not be searched. Please try again.");
     } finally {
       if (sequence === searchSequenceRef.current) {
         setSearching(false);
@@ -151,8 +146,8 @@ export function IngredientCatalogPicker({
     <div className="ingredient-picker">
       <label htmlFor={`${idPrefix}-search`}>{label}</label>
       <small id={helpId}>
-        Search canonical names and curated aliases, then choose a result. Typed search text is
-        never added to the recipe by itself.
+        Search approved ingredient names and alternate names, then choose a result. Typed search
+        text is never added to the recipe by itself.
       </small>
 
       {value ? (

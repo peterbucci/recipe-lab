@@ -91,7 +91,7 @@ function boundedText(value: unknown, maximum: number, allowBlank = false): value
 
 function invalidResponse(): RecipeLibraryApiError {
   return new RecipeLibraryApiError(
-    "Recipe Lab received an invalid recipe library response.",
+    "Recipe Lab could not load this recipe library. Please try again.",
     502,
     "invalid_recipe_library_response",
   );
@@ -293,18 +293,28 @@ export function parseSavedRecipeLibraryPage(value: unknown): SavedRecipeLibraryP
 }
 
 async function apiError(response: Response): Promise<RecipeLibraryApiError> {
-  let message = "Recipe Lab could not load this recipe library.";
   let code = "recipe_library_api_error";
   try {
     const payload: unknown = await response.json();
     if (isRecord(payload) && isRecord((payload as ApiErrorPayload).error)) {
       const error = (payload as ApiErrorPayload).error!;
-      if (typeof error.message === "string") message = error.message;
-      if (typeof error.code === "string") code = error.code;
+      if (typeof error.code === "string" && /^[a-z][a-z0-9_]{0,99}$/.test(error.code)) {
+        code = error.code;
+      }
     }
   } catch {
     // Keep the stable fallback instead of exposing an upstream response body.
   }
+  const message =
+    response.status === 401
+      ? "Your session expired. Sign in again to load your recipes."
+      : response.status === 403
+        ? "This recipe library is not available to your account."
+        : response.status === 404
+          ? "This recipe library could not be found."
+          : response.status === 429
+            ? "Recipe Lab is receiving too many requests. Please wait before refreshing your recipes."
+            : "Recipe Lab could not load this recipe library. Please try again.";
   return new RecipeLibraryApiError(message, response.status, code);
 }
 

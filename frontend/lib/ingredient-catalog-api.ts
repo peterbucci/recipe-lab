@@ -539,6 +539,90 @@ async function apiError(
   return new IngredientCatalogApiError(message, response.status, code, issues);
 }
 
+async function catalogSearchError(response: Response): Promise<IngredientCatalogApiError> {
+  let code = "ingredient_catalog_api_error";
+  try {
+    const payload: unknown = await response.json();
+    if (
+      isErrorPayload(payload) &&
+      isRecord(payload.error) &&
+      typeof payload.error.code === "string" &&
+      /^[a-z][a-z0-9_]{0,99}$/.test(payload.error.code)
+    ) {
+      code = payload.error.code;
+    }
+  } catch {
+    // Keep the stable cook-facing fallback and never expose the response body.
+  }
+  const message =
+    response.status === 429
+      ? "The ingredient catalog is receiving too many searches. Please wait and try again."
+      : "The ingredient catalog could not be searched. Please try again.";
+  return new IngredientCatalogApiError(message, response.status, code);
+}
+
+async function memberIngredientError(
+  response: Response,
+  fallback: string,
+): Promise<IngredientCatalogApiError> {
+  let code = "ingredient_catalog_api_error";
+  let issues: ApiValidationIssue[] = [];
+  try {
+    const payload: unknown = await response.json();
+    if (isErrorPayload(payload) && isRecord(payload.error)) {
+      if (
+        typeof payload.error.code === "string" &&
+        /^[a-z][a-z0-9_]{0,99}$/.test(payload.error.code)
+      ) {
+        code = payload.error.code;
+      }
+      if (Array.isArray(payload.error.issues) && payload.error.issues.length <= 20) {
+        issues = payload.error.issues.flatMap((issue) => {
+          if (!isRecord(issue) || !Array.isArray(issue.location)) return [];
+          const location = issue.location;
+          const safeLocation = location.every(
+            (part) =>
+              (typeof part === "string" &&
+                ["body", "proposed_name", "context"].includes(part)) ||
+              (typeof part === "number" && Number.isInteger(part) && part >= 0 && part <= 20),
+          );
+          if (!safeLocation) return [];
+          const field = location.at(-1);
+          return [
+            {
+              location: location as Array<string | number>,
+              message:
+                field === "proposed_name"
+                  ? "Review the proposed ingredient name."
+                  : field === "context"
+                    ? "Review the ingredient context."
+                    : "Review this field and try again.",
+              type: "validation_error",
+            },
+          ];
+        });
+      }
+    }
+  } catch {
+    // Keep the stable member-facing fallback and never expose the response body.
+  }
+  const message =
+    response.status === 401
+      ? "Your session expired. Sign in again to continue."
+      : response.status === 404
+        ? "This ingredient request is no longer available."
+        : response.status === 409 && code === "ingredient_request_conflict"
+          ? "That ingredient is already approved or has a pending request."
+          : response.status === 409
+            ? "This ingredient request changed. Refresh it before trying again."
+            : response.status === 422
+              ? "Review the ingredient request fields and try again."
+              : response.status === 429
+                ? "Too many ingredient requests were made. Please wait and try again."
+                : fallback;
+  return new IngredientCatalogApiError(message, response.status, code, issues);
+}
+
 export async function searchCatalogIngredients({
   query = "",
   page = 1,
@@ -567,7 +651,7 @@ export async function searchCatalogIngredients({
     signal,
   });
   if (!response.ok) {
-    throw await apiError(response, "The ingredient catalog could not be searched.");
+    throw await catalogSearchError(response);
   }
   return parseCatalogPage(await response.json());
 }
@@ -590,7 +674,10 @@ export async function submitMissingIngredientRequest(
     if (response.status === 401) {
       notifySessionExpired();
     }
-    throw await apiError(response, "The ingredient request could not be submitted.");
+    throw await memberIngredientError(
+      response,
+      "The ingredient request could not be submitted. Please try again.",
+    );
   }
   return parseMissingIngredientRequest(await response.json());
 }
@@ -628,7 +715,10 @@ export async function browseMyIngredientRequests({
     signal,
   });
   if (!response.ok) {
-    throw await apiError(response, "Your ingredient requests could not be loaded.");
+    throw await memberIngredientError(
+      response,
+      "Your ingredient requests could not be loaded. Please try again.",
+    );
   }
   return parseMemberIngredientRequestPage(await response.json());
 }
@@ -648,7 +738,10 @@ export async function fetchMyIngredientRequest(
     },
   );
   if (!response.ok) {
-    throw await apiError(response, "The ingredient request could not be loaded.");
+    throw await memberIngredientError(
+      response,
+      "The ingredient request could not be loaded. Please try again.",
+    );
   }
   return parseMemberIngredientRequest(await response.json());
 }

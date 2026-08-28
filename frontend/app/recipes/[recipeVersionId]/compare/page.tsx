@@ -28,8 +28,8 @@ function NoParentComparison({ recipeVersionId }: { recipeVersionId: string }) {
         <p className="eyebrow">Original recipe</p>
         <h1>This is the starting recipe.</h1>
         <p>
-          Comparisons are available on variations, where Recipe Lab shows what changed from the
-          version they started from.
+          Comparisons are available on versions based on another recipe, where Recipe Lab shows
+          what changed from the version they started from.
         </p>
         <Link
           className="button button--primary"

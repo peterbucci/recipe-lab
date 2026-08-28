@@ -88,16 +88,15 @@ function isErrorPayload(value: unknown): value is ApiErrorPayload {
 }
 
 async function apiError(response: Response): Promise<VariantApiError> {
-  let message = "The recipe service could not create your version.";
   let code = "variant_api_error";
 
   try {
     const payload: unknown = await response.json();
     if (isErrorPayload(payload) && typeof payload.error === "object" && payload.error !== null) {
-      if (typeof payload.error.message === "string") {
-        message = payload.error.message;
-      }
-      if (typeof payload.error.code === "string") {
+      if (
+        typeof payload.error.code === "string" &&
+        /^[a-z][a-z0-9_]{0,99}$/.test(payload.error.code)
+      ) {
         code = payload.error.code;
       }
     }
@@ -105,6 +104,18 @@ async function apiError(response: Response): Promise<VariantApiError> {
     // Keep the stable user-facing fallback when the upstream body is not JSON.
   }
 
+  const message =
+    response.status === 401
+      ? "Your session expired. Your version was not created; sign in again to continue."
+      : response.status === 404
+        ? "The recipe you started from is no longer available. Your version was not created."
+        : response.status === 409 && code === "recipe_variant_publication_requires_draft"
+          ? "Save this version as a private draft before publishing it."
+          : response.status === 409
+            ? "This version changed before it could be created. Refresh the recipe and try again."
+            : response.status === 422
+              ? "Some recipe fields need attention. Review your version and try again."
+              : "Recipe Lab could not create your version. Your edits are still here; please try again.";
   return new VariantApiError(message, response.status, code);
 }
 
@@ -142,7 +153,7 @@ export async function createRecipeVariant(
     return { ...payload, viewer_state: viewerState };
   } catch {
     throw new VariantApiError(
-      "Recipe Lab received an invalid recipe response.",
+      "Recipe Lab could not confirm that your version was created. Check My recipes before trying again.",
       502,
       "invalid_variant_response",
     );

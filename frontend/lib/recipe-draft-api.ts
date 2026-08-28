@@ -486,35 +486,106 @@ export function parseRecipeDraftPage(value: unknown): RecipeDraftPage {
   };
 }
 
-function parseIssues(value: unknown): ApiValidationIssue[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((issue) =>
-    isRecord(issue) &&
-    Array.isArray(issue.location) &&
-    issue.location.every((part) => typeof part === "string" || typeof part === "number") &&
-    typeof issue.message === "string" &&
-    typeof issue.type === "string"
-      ? [{ location: issue.location as Array<string | number>, message: issue.message, type: issue.type }]
-      : [],
+const SAFE_DRAFT_ISSUE_PARTS = new Set([
+  "body",
+  "revision",
+  "title",
+  "description",
+  "servings",
+  "ingredients",
+  "selection",
+  "ingredient_id",
+  "ingredient_request_id",
+  "preparation_notes",
+  "measure",
+  "mode",
+  "kind",
+  "value",
+  "minimum",
+  "maximum",
+  "unit",
+  "unit_id",
+  "package_size_id",
+  "instructions",
+  "text",
+  "actions",
+  "action_type_id",
+  "action_type",
+  "ingredient_refs",
+  "inputs",
+  "duration",
+  "temperature",
+]);
+
+function safeIssueLocation(value: unknown): Array<string | number> | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 8) return null;
+  const safe = value.every(
+    (part) =>
+      (typeof part === "string" && SAFE_DRAFT_ISSUE_PARTS.has(part)) ||
+      (typeof part === "number" && Number.isInteger(part) && part >= 0 && part <= 200),
   );
+  return safe ? (value as Array<string | number>) : null;
+}
+
+function safeIssueMessage(location: readonly (string | number)[]): string {
+  const path = location[0] === "body" ? location.slice(1) : location;
+  if (path[0] === "title") return "Review the recipe title.";
+  if (path[0] === "description") return "Review the recipe description.";
+  if (path[0] === "servings") return "Review the serving amount.";
+  if (path[0] === "ingredients") return "Review this ingredient.";
+  if (path[0] === "instructions" && path.includes("actions")) {
+    return "Review this cooking action.";
+  }
+  if (path[0] === "instructions") return "Review this instruction.";
+  return "Review this field and try again.";
+}
+
+function parseIssues(value: unknown): ApiValidationIssue[] {
+  if (!Array.isArray(value) || value.length > 200) return [];
+  return value.flatMap((issue) => {
+    if (!isRecord(issue)) return [];
+    const location = safeIssueLocation(issue.location);
+    if (!location) return [];
+    return [{ location, message: safeIssueMessage(location), type: "validation_error" }];
+  });
+}
+
+function draftErrorMessage(status: number, code: string): string {
+  if (status === 401) {
+    return "Your session expired. Your private draft is still here; sign in again to continue.";
+  }
+  if (status === 403) {
+    return "Recipe Lab could not verify this draft request. Refresh the page and try again.";
+  }
+  if (status === 404 && code === "recipe_source_not_found") {
+    return "The recipe you started from is no longer available. No draft was created.";
+  }
+  if (status === 404) return "This private draft is no longer available.";
+  if (status === 409 && code === "recipe_draft_revision_conflict") {
+    return "This draft changed in another tab. Refresh it before trying again.";
+  }
+  if (status === 422) {
+    return "Some draft fields need attention. Review them and try again.";
+  }
+  return "Recipe Lab could not complete this private draft request. Please try again.";
 }
 
 async function apiError(response: Response): Promise<RecipeDraftApiError> {
-  let message = "Recipe Lab could not complete the private draft request.";
   let code = "recipe_draft_api_error";
   let issues: ApiValidationIssue[] = [];
   try {
     const payload: unknown = await response.json();
     if (isRecord(payload) && isRecord((payload as ApiErrorPayload).error)) {
       const error = (payload as ApiErrorPayload).error!;
-      if (typeof error.message === "string") message = error.message;
-      if (typeof error.code === "string") code = error.code;
+      if (typeof error.code === "string" && /^[a-z][a-z0-9_]{0,99}$/.test(error.code)) {
+        code = error.code;
+      }
       issues = parseIssues(error.issues);
     }
   } catch {
     // Keep the stable private-draft fallback.
   }
-  return new RecipeDraftApiError(message, response.status, code, issues);
+  return new RecipeDraftApiError(draftErrorMessage(response.status, code), response.status, code, issues);
 }
 
 async function draftFetch(path: string, init: RequestInit = {}): Promise<Response> {

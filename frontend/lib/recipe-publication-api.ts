@@ -60,31 +60,113 @@ function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): 
   return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
 }
 
+const SAFE_DRAFT_ISSUE_PARTS = new Set([
+  "body",
+  "revision",
+  "title",
+  "description",
+  "servings",
+  "ingredients",
+  "selection",
+  "ingredient_id",
+  "ingredient_request_id",
+  "preparation_notes",
+  "measure",
+  "mode",
+  "kind",
+  "value",
+  "minimum",
+  "maximum",
+  "unit",
+  "unit_id",
+  "package_size_id",
+  "instructions",
+  "text",
+  "actions",
+  "action_type_id",
+  "action_type",
+  "ingredient_refs",
+  "inputs",
+  "duration",
+  "temperature",
+]);
+
+function safeIssueLocation(value: unknown): Array<string | number> | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 8) return null;
+  const safe = value.every(
+    (part) =>
+      (typeof part === "string" && SAFE_DRAFT_ISSUE_PARTS.has(part)) ||
+      (typeof part === "number" && Number.isInteger(part) && part >= 0 && part <= 200),
+  );
+  return safe ? (value as Array<string | number>) : null;
+}
+
+function safeIssueMessage(location: readonly (string | number)[]): string {
+  const path = location[0] === "body" ? location.slice(1) : location;
+  if (path[0] === "title") return "Review the recipe title.";
+  if (path[0] === "description") return "Review the recipe description.";
+  if (path[0] === "servings") return "Review the serving amount.";
+  if (path[0] === "ingredients") return "Review this ingredient.";
+  if (path[0] === "instructions" && path.includes("actions")) {
+    return "Review this cooking action.";
+  }
+  if (path[0] === "instructions") return "Review this instruction.";
+  return "Review this field and try again.";
+}
+
 function parseIssues(value: unknown): ApiValidationIssue[] {
   if (!Array.isArray(value) || value.length > 200) return [];
   return value.flatMap((item) => {
-    if (
-      !isRecord(item) ||
-      !Array.isArray(item.location) ||
-      !item.location.every((part) => typeof part === "string" || typeof part === "number") ||
-      typeof item.message !== "string" ||
-      item.message.length > 500 ||
-      typeof item.type !== "string" ||
-      item.type.length > 100
-    ) {
-      return [];
-    }
-    return [{
-      location: item.location as Array<string | number>,
-      message: item.message,
-      type: item.type,
-    }];
+    if (!isRecord(item)) return [];
+    const location = safeIssueLocation(item.location);
+    if (!location) return [];
+    return [{ location, message: safeIssueMessage(location), type: "validation_error" }];
   });
+}
+
+function safePublicationMessage(status: number, code: string): string {
+  if (status === 401) {
+    return "Your session expired. Your draft is still here; sign in again before publishing.";
+  }
+  if (status === 403) {
+    return "Recipe Lab could not verify this publication request. Refresh the page and try again.";
+  }
+  if (status === 404 && code === "duplicate_preflight_not_found") {
+    return "The similar recipes check expired. Check again before publishing.";
+  }
+  if (status === 404) return "This private draft is no longer available. It was not published.";
+  if (status === 409 && code === "recipe_fork_source_unavailable") {
+    return "The recipe this version is based on is no longer available. Your private draft is unchanged.";
+  }
+  if (status === 409 && code === "recipe_draft_revision_conflict") {
+    return "This draft changed. Save or reload it before publishing.";
+  }
+  if (
+    status === 409 &&
+    (code === "duplicate_preflight_stale" ||
+      code === "duplicate_decision_required" ||
+      code === "duplicate_decision_not_required")
+  ) {
+    return "The similar recipes check changed. Review the latest results before publishing.";
+  }
+  if (status === 409) {
+    return "This publication request is no longer current. Refresh your draft before trying again.";
+  }
+  if (status === 422) {
+    return "Some draft fields need attention. Review them before publishing.";
+  }
+  if (status === 429) {
+    return "Too many publication attempts were made. Your draft is still here; please try again later.";
+  }
+  if (status === 503 && code === "duplicate_preflight_unavailable") {
+    return "Similar recipes could not be checked right now. Your draft is still here; please try again.";
+  }
+  return "Recipe Lab could not publish this recipe. Your draft is still here; please try again.";
 }
 
 function invalidPublicationResponse(): RecipePublicationApiError {
   return new RecipePublicationApiError(
-    "Recipe Lab received an invalid publication response.",
+    "Recipe Lab could not confirm that this recipe was published. Your draft is still here; check My recipes before trying again.",
     502,
     "invalid_recipe_publication_response",
   );
@@ -114,26 +196,26 @@ export function parseRecipeDraftPublication(
 }
 
 async function publicationError(response: Response): Promise<RecipePublicationApiError> {
-  let message = "Recipe Lab could not publish this recipe. Your draft is still here.";
   let code = "recipe_publication_api_error";
   let issues: ApiValidationIssue[] = [];
   try {
     const payload: unknown = await response.json();
     if (isRecord(payload) && isRecord((payload as ApiErrorPayload).error)) {
       const error = (payload as ApiErrorPayload).error!;
-      if (typeof error.message === "string" && error.message.length <= 500) message = error.message;
-      if (typeof error.code === "string" && error.code.length <= 100) code = error.code;
+      if (typeof error.code === "string" && /^[a-z][a-z0-9_]{0,99}$/.test(error.code)) {
+        code = error.code;
+      }
       issues = parseIssues(error.issues);
     }
   } catch {
     // Keep the stable draft-preserving fallback.
   }
-  if (response.status === 401) {
-    message = "Your session expired. Your draft is still here; sign in again before publishing.";
-  } else if (response.status === 409 && code === "recipe_fork_source_unavailable") {
-    message = "The public source recipe is no longer available. Your private draft is unchanged.";
-  }
-  return new RecipePublicationApiError(message, response.status, code, issues);
+  return new RecipePublicationApiError(
+    safePublicationMessage(response.status, code),
+    response.status,
+    code,
+    issues,
+  );
 }
 
 export function duplicateReviewForPublication(

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   fetchMyRecipeLibrary,
-  RecipeLibraryApiError,
   type MyRecipeLibraryPage,
   type RecipeVisibilityState,
 } from "../../lib/recipe-library-api";
@@ -15,6 +14,7 @@ import { RecipeCard } from "./recipe-card";
 import { RecipeVisibilityControl } from "./recipe-visibility-control";
 
 const RETURN_TO = "/account/recipes";
+const LIBRARY_ERROR = "Recipe Lab could not load your recipes. Please try again.";
 
 function formatActivity(timestamp: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(timestamp));
@@ -42,11 +42,7 @@ function MyRecipeLibraryInner() {
       setPageNumber(result.page);
     } catch (reason) {
       if (reason instanceof DOMException && reason.name === "AbortError") return;
-      setError(
-        reason instanceof RecipeLibraryApiError
-          ? reason.message
-          : "Recipe Lab could not load your recipes. Please try again.",
-      );
+      setError(LIBRARY_ERROR);
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -61,11 +57,7 @@ function MyRecipeLibraryInner() {
       })
       .catch((reason: unknown) => {
         if (reason instanceof DOMException && reason.name === "AbortError") return;
-        setError(
-          reason instanceof RecipeLibraryApiError
-            ? reason.message
-            : "Recipe Lab could not load your recipes. Please try again.",
-        );
+        setError(LIBRARY_ERROR);
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -107,15 +99,15 @@ function MyRecipeLibraryInner() {
         <div>
           <p className="eyebrow">Your recipe workspace</p>
           <h1>My recipes</h1>
-          <p>Find your drafts and published snapshots, and manage which recipes are public.</p>
+          <p>Find your drafts and published recipes, and manage which recipes are public.</p>
         </div>
         <GuardedLink className="button button--primary" href="/recipes/new">
           Start a new recipe
         </GuardedLink>
       </header>
       <p className="member-library__privacy">
-        Private drafts are visible only to you. Withdrawn and moderation-hidden snapshots remain
-        in this private library, but their public pages are unavailable.
+        Private drafts are visible only to you. Withdrawn recipes and recipes hidden after review
+        remain in this private library, but their public pages are unavailable.
       </p>
 
       {error ? (
@@ -195,7 +187,7 @@ function MyRecipeLibraryInner() {
                   <li className="member-library__draft-card" key={`draft-${draft.id}`}>
                     <article aria-labelledby={`my-draft-${draft.id}`}>
                       <div className="member-library__card-meta">
-                        <span>{draft.source_version_id ? "Fork draft" : "Original draft"}</span>
+                        <span>{draft.source_version_id ? "Your version draft" : "Original recipe draft"}</span>
                         <span>Private</span>
                       </div>
                       <h3 id={`my-draft-${draft.id}`}>{title}</h3>

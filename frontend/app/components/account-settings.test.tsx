@@ -53,6 +53,8 @@ describe("AccountSettings", () => {
     renderSettings();
 
     expect(screen.getByRole("heading", { name: "Delete account" })).toBeVisible();
+    expect(screen.getByText(/their recipe history remains clear/i)).toBeVisible();
+    expect(screen.queryByText(/forks remain intact/i)).not.toBeInTheDocument();
     expect(screen.getByText(/recipes that are public when you delete/i)).toHaveTextContent(
       /Deleted cook.*withdrew stay unavailable permanently/i,
     );

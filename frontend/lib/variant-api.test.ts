@@ -138,7 +138,8 @@ describe("variant API client", () => {
     expect(submitted).not.toHaveProperty("version_number");
   });
 
-  it("preserves the backend error status, code, and safe message", async () => {
+  it("preserves the backend status and code without exposing its message", async () => {
+    const internalId = "99999999-9999-4999-8999-999999999999";
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(
@@ -146,8 +147,7 @@ describe("variant API client", () => {
           JSON.stringify({
             error: {
               code: "invalid_recipe_edits",
-              message:
-                'Ingredient "Dragon fruit" is not in the curated catalog and cannot be published.',
+              message: `Canonical occurrence ${internalId} failed an operator policy check.`,
               issues: [],
             },
           }),
@@ -164,9 +164,11 @@ describe("variant API client", () => {
     expect(error).toMatchObject({
       status: 422,
       code: "invalid_recipe_edits",
-      message:
-        'Ingredient "Dragon fruit" is not in the curated catalog and cannot be published.',
+      message: "Some recipe fields need attention. Review your version and try again.",
     });
+    expect(`${String(error)} ${JSON.stringify(error)}`).not.toMatch(
+      /99999999|canonical|occurrence|operator|policy/i,
+    );
   });
 
   it("uses a stable fallback for a non-JSON service failure", async () => {
@@ -188,7 +190,8 @@ describe("variant API client", () => {
     expect(error).toMatchObject({
       status: 503,
       code: "variant_api_error",
-      message: "The recipe service could not create your version.",
+      message:
+        "Recipe Lab could not create your version. Your edits are still here; please try again.",
     });
     expect(String(error)).not.toContain("upstream gateway details");
   });

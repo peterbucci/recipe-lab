@@ -61,6 +61,13 @@ interface SaveAttempt {
 const DISCARD_COPY =
   "Discard permanently deletes this draft and its private content immediately. It cannot be restored.";
 
+function draftLoadErrorMessage(reason: unknown): string {
+  if (reason instanceof RecipeDraftApiError && reason.status === 404) {
+    return "This private draft was not found. It may have been discarded, or it may belong to another account.";
+  }
+  return "Recipe Lab could not open this private draft. Please try again.";
+}
+
 function FieldError({ id, message }: { id: string; message?: string }) {
   return message ? <p id={id} className="variant-field-error">{message}</p> : null;
 }
@@ -134,13 +141,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
       return true;
     } catch (reason) {
       if (reason instanceof DOMException && reason.name === "AbortError") return false;
-      setLoadError(
-        reason instanceof RecipeDraftApiError && reason.status === 404
-          ? "This private draft was not found. It may have been discarded, or it may belong to another account."
-          : reason instanceof RecipeDraftApiError
-            ? reason.message
-          : "Recipe Lab could not open this private draft. Please try again.",
-      );
+      setLoadError(draftLoadErrorMessage(reason));
       return false;
     } finally {
       if (!signal?.aborted) setLoading(false);
@@ -162,13 +163,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
       })
       .catch((reason: unknown) => {
         if (reason instanceof DOMException && reason.name === "AbortError") return;
-        setLoadError(
-          reason instanceof RecipeDraftApiError && reason.status === 404
-            ? "This private draft was not found. It may have been discarded, or it may belong to another account."
-            : reason instanceof RecipeDraftApiError
-              ? reason.message
-              : "Recipe Lab could not open this private draft. Please try again.",
-        );
+        setLoadError(draftLoadErrorMessage(reason));
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -336,11 +331,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
       ) {
         setFormError("Your session expired. Your edits are still here. Sign in again before saving.");
       } else {
-        setFormError(
-          reason instanceof RecipeDraftApiError || reason instanceof AuthApiError
-            ? reason.message
-            : "Recipe Lab could not save this draft. Your edits are still here.",
-        );
+        setFormError("Recipe Lab could not save this draft. Your edits are still here.");
       }
       window.setTimeout(() => errorSummaryRef.current?.focus(), 0);
     } finally {
@@ -369,12 +360,13 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
       if (reason instanceof RecipeDraftApiError && reason.code === "recipe_draft_revision_conflict") {
         setConflict(true);
         setFormError("This draft changed in another tab. It was not discarded, and your version is still here.");
+      } else if (
+        (reason instanceof RecipeDraftApiError || reason instanceof AuthApiError) &&
+        reason.status === 401
+      ) {
+        setFormError("Your session expired. This draft was not discarded. Sign in again to continue.");
       } else {
-        setFormError(
-          reason instanceof RecipeDraftApiError || reason instanceof AuthApiError
-            ? reason.message
-            : "Recipe Lab could not discard this draft. It is still private and intact.",
-        );
+        setFormError("Recipe Lab could not discard this draft. It is still private and intact.");
       }
       pendingRef.current = false;
       setPending(null);
@@ -426,19 +418,19 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
         <GuardedLink href="/account/recipe-drafts">← My recipe drafts</GuardedLink>
       </nav>
       <header className="page-intro page-intro--editor">
-        <p className="eyebrow">{detail.source_version_id ? "Private fork draft" : "Private original draft"}</p>
+        <p className="eyebrow">{detail.source_version_id ? "Private version draft" : "Private original recipe draft"}</p>
         <h1>{draft.title.trim() || "Untitled recipe"}</h1>
         <p>
           Save incomplete work as often as you like. Nothing here is public.
           {detail.source_version_id ? (
-            <> This draft stays connected to its <GuardedLink href={`/recipes/${detail.source_version_id}`}>exact public source version</GuardedLink>.</>
+            <> This draft is based on <GuardedLink href={`/recipes/${detail.source_version_id}`}>the public recipe you started from</GuardedLink>.</>
           ) : null}
         </p>
       </header>
 
       <p className="draft-editor__privacy">
-        <strong>Private draft</strong> · Revision {detail.revision}. Publishing creates a separate
-        immutable public snapshot.
+        <strong>Private draft</strong> · Only you can see it. Publishing creates a separate public
+        recipe version.
       </p>
       <p className="visually-hidden" role="status" aria-live="polite">{announcement}</p>
 

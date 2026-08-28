@@ -58,7 +58,7 @@ function isTimestamp(value: unknown): value is string {
 
 function invalidResponse(): RecipeReportApiError {
   return new RecipeReportApiError(
-    "Recipe Lab received an invalid report response.",
+    "Recipe Lab could not confirm that the report was received. Please check before trying again.",
     502,
     "invalid_recipe_report_response",
   );
@@ -93,15 +93,14 @@ function retryAfterSeconds(response: Response): number | null {
 }
 
 async function reportError(response: Response): Promise<RecipeReportApiError> {
-  let message = "Recipe Lab could not submit this report. Please try again.";
   let code = "recipe_report_api_error";
   try {
     const payload: unknown = await response.json();
     if (isRecord(payload) && isRecord(payload.error)) {
-      if (typeof payload.error.message === "string" && payload.error.message.length <= 500) {
-        message = payload.error.message;
-      }
-      if (typeof payload.error.code === "string" && payload.error.code.length <= 100) {
+      if (
+        typeof payload.error.code === "string" &&
+        /^[a-z][a-z0-9_]{0,99}$/.test(payload.error.code)
+      ) {
         code = payload.error.code;
       }
     }
@@ -109,15 +108,24 @@ async function reportError(response: Response): Promise<RecipeReportApiError> {
     // Keep the stable fallback rather than exposing an upstream response body.
   }
   const retryAfter = retryAfterSeconds(response);
-  if (response.status === 401) {
-    message = "Your session expired. Sign in again before reporting this recipe.";
-  } else if (response.status === 413) {
-    message = "That report is too large. Shorten the details and try again.";
-  } else if (response.status === 429) {
-    message = retryAfter
-      ? `Too many reports were submitted. Try again in ${retryAfter} seconds.`
-      : "Too many reports were submitted. Please wait before trying again.";
-  }
+  const message =
+    response.status === 401
+      ? "Your session expired. Sign in again before reporting this recipe."
+      : response.status === 404
+        ? "This recipe is no longer available to report."
+        : response.status === 409 && code === "recipe_already_reported"
+          ? "You already reported this recipe."
+          : response.status === 409
+            ? "This report could not be submitted again. Refresh the recipe before trying again."
+            : response.status === 413
+              ? "That report is too large. Shorten the details and try again."
+              : response.status === 422
+                ? "Review the report reason and details, then try again."
+                : response.status === 429
+                  ? retryAfter
+                    ? `Too many reports were submitted. Try again in ${retryAfter} seconds.`
+                    : "Too many reports were submitted. Please wait before trying again."
+                  : "Recipe Lab could not submit this report. Please try again.";
   return new RecipeReportApiError(message, response.status, code, retryAfter);
 }
 

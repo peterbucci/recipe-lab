@@ -96,7 +96,7 @@ describe("cook profile and private recipe libraries", () => {
       "href",
       "/cooks/alice",
     );
-    expect(within(list).getByText("Fork · Version 2", { exact: true })).toBeVisible();
+    expect(within(list).getByText("Version 2", { exact: true })).toBeVisible();
     expect(within(list).getByText(/based on/i)).toHaveTextContent(
       "Based on Catalog tomato soup by Recipe Lab catalog",
     );
@@ -168,7 +168,7 @@ describe("cook profile and private recipe libraries", () => {
     authenticated(<MyRecipeLibrary />);
 
     const list = await screen.findByRole("list", { name: "My recipes" });
-    expect(within(list).getByText("Fork draft", { exact: true })).toBeVisible();
+    expect(within(list).getByText("Your version draft", { exact: true })).toBeVisible();
     expect(within(list).getByText("Private", { exact: true })).toBeVisible();
     expect(within(list).getByRole("link", { name: "Resume draft" })).toHaveAttribute(
       "href",
@@ -179,11 +179,35 @@ describe("cook profile and private recipe libraries", () => {
     expect(originalArticle).not.toBeNull();
     expect(forkArticle).not.toBeNull();
     expect(within(originalArticle!).getByText("Original", { exact: true })).toBeVisible();
-    expect(within(forkArticle!).getByText("Fork · Version 2", { exact: true })).toBeVisible();
+    expect(within(forkArticle!).getByText("Version 2", { exact: true })).toBeVisible();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/my/recipes?page=1&page_size=12",
       expect.objectContaining({ credentials: "same-origin" }),
     );
+  });
+
+  it("keeps My recipes errors cook-facing when the service returns private details", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json(
+          {
+            error: {
+              code: "recipe_library_unavailable",
+              message:
+                "Canonical UUID 99999999-9999-4999-8999-999999999999 failed an operator policy check.",
+            },
+          },
+          { status: 503 },
+        ),
+      ),
+    );
+    authenticated(<MyRecipeLibrary />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Recipe Lab could not load your recipes. Please try again.",
+    );
+    expect(screen.queryByText(/99999999|canonical|uuid|operator|policy/i)).toBeNull();
   });
 
   it("renders Deleted cook and an unavailable source without profile or source links", () => {
@@ -239,7 +263,7 @@ describe("cook profile and private recipe libraries", () => {
     const list = await screen.findByRole("list", { name: "My recipes" });
     expect(within(list).getByRole("link", { name: "Alice’s tomato soup" })).toBeVisible();
     fireEvent.click(within(list).getByRole("button", { name: "Withdraw Alice’s tomato soup" }));
-    expect(within(list).getByText(/existing public descendants remain available/i)).toBeVisible();
+    expect(within(list).getByText(/existing public versions remain available/i)).toBeVisible();
     fireEvent.click(
       within(list).getByRole("button", {
         name: "Confirm withdrawal of Alice’s tomato soup",
@@ -261,6 +285,49 @@ describe("cook profile and private recipe libraries", () => {
     expect(
       within(list).getByRole("button", { name: "Restore Alice’s tomato soup" }),
     ).toBeVisible();
+  });
+
+  it("keeps visibility failures cook-facing without exposing service details", async () => {
+    document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
+    const publicPage = {
+      items: [{ kind: "published", recipe: original(), visibility_state: "published" }],
+      page: 1,
+      page_size: 12,
+      total: 1,
+      total_pages: 1,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(Response.json(publicPage))
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              error: {
+                code: "visibility_service_unavailable",
+                message:
+                  "Canonical UUID 99999999-9999-4999-8999-999999999999 failed an operator policy check.",
+              },
+            },
+            { status: 503 },
+          ),
+        ),
+    );
+    authenticated(<MyRecipeLibrary />);
+
+    const list = await screen.findByRole("list", { name: "My recipes" });
+    fireEvent.click(within(list).getByRole("button", { name: "Withdraw Alice’s tomato soup" }));
+    fireEvent.click(
+      within(list).getByRole("button", {
+        name: "Confirm withdrawal of Alice’s tomato soup",
+      }),
+    );
+
+    expect(await within(list).findByRole("alert")).toHaveTextContent(
+      "Recipe Lab could not change this recipe’s public visibility. Try again.",
+    );
+    expect(within(list).queryByText(/99999999|canonical|uuid|operator|policy/i)).toBeNull();
   });
 
   it("keeps a moderation-hidden snapshot discoverable without author controls", async () => {

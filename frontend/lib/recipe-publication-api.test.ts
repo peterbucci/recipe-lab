@@ -127,8 +127,59 @@ describe("recipe publication API", () => {
     expect(error).toMatchObject({
       status: 409,
       code: "recipe_fork_source_unavailable",
-      message: "The public source recipe is no longer available. Your private draft is unchanged.",
+      message:
+        "The recipe this version is based on is no longer available. Your private draft is unchanged.",
     });
     expect(String(error)).not.toContain("private operator detail");
+  });
+
+  it("keeps validation failures free of backend messages and identifiers", async () => {
+    const internalId = "99999999-9999-4999-8999-999999999999";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json(
+          {
+            error: {
+              code: "invalid_recipe_draft",
+              message: `Canonical ingredient occurrence ${internalId} cannot be published.`,
+              issues: [
+                {
+                  location: ["body", "instructions", 0, "actions", 0, "action_type_id"],
+                  message: `Action policy UUID ${internalId} is invalid.`,
+                  type: "internal_action_policy_failure",
+                },
+                {
+                  location: ["body", internalId],
+                  message: "Private operator detail",
+                  type: "internal_error",
+                },
+              ],
+            },
+          },
+          { status: 422 },
+        ),
+      ),
+    );
+
+    const error = await publishRecipeDraft(DRAFT_ID, request, ACTION_ID).catch(
+      (reason: unknown) => reason,
+    );
+    expect(error).toMatchObject({
+      status: 422,
+      code: "invalid_recipe_draft",
+      message: "Some draft fields need attention. Review them before publishing.",
+      issues: [
+        {
+          location: ["body", "instructions", 0, "actions", 0, "action_type_id"],
+          message: "Review this cooking action.",
+          type: "validation_error",
+        },
+      ],
+    });
+    expect(`${String(error)} ${JSON.stringify(error)}`).not.toContain(internalId);
+    expect(`${String(error)} ${JSON.stringify(error)}`).not.toMatch(
+      /canonical|occurrence|operator|policy/i,
+    );
   });
 });

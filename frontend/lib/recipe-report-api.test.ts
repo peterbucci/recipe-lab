@@ -94,6 +94,18 @@ describe("recipe report API", () => {
             { error: { code: "authentication_required", message: "Private identity detail" } },
             { status: 401 },
           ),
+        )
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              error: {
+                code: "report_service_unavailable",
+                message:
+                  "Canonical UUID 99999999-9999-4999-8999-999999999999 failed an operator policy check.",
+              },
+            },
+            { status: 503 },
+          ),
         ),
     );
 
@@ -110,6 +122,19 @@ describe("recipe report API", () => {
       status: 401,
       message: "Your session expired. Sign in again before reporting this recipe.",
     });
+    const unavailable = await submitRecipeReport(
+      RECIPE_ID,
+      { reason: "spam", details: null },
+      ACTION_ID,
+    ).catch((reason: unknown) => reason);
+    expect(unavailable).toMatchObject({
+      status: 503,
+      code: "report_service_unavailable",
+      message: "Recipe Lab could not submit this report. Please try again.",
+    });
+    expect(`${String(unavailable)} ${JSON.stringify(unavailable)}`).not.toMatch(
+      /99999999|canonical|uuid|operator|policy/i,
+    );
     expect(expired).toHaveBeenCalledOnce();
     window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
   });

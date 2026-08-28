@@ -131,7 +131,7 @@ export function StructuredActionEditor({
       disabled={disabled}
       aria-describedby={`${helpId}${errors.actions ? ` ${actionsErrorId}` : ""}`}
     >
-      <legend>Structured actions</legend>
+      <legend>Cooking actions</legend>
       <p id={helpId} className="structured-action__help">
         Choose trusted actions in the order they happen. Ingredient inputs refer to this recipe’s
         specific ingredient rows.

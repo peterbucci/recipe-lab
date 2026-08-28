@@ -135,8 +135,8 @@ export function AccountSettings() {
             saves, ratings, and other private activity. Every signed-in session is ended.
           </p>
           <p>
-            Recipes that are public when you delete your account stay public so recipe history and
-            forks remain intact. Their author becomes <strong>Deleted cook</strong>. Recipes you
+            Recipes that are public when you delete your account stay public so their recipe
+            history remains clear. Their author becomes <strong>Deleted cook</strong>. Recipes you
             withdrew stay unavailable permanently because there will no longer be an account that
             can restore them. Restore anything you want public before deleting your account.
           </p>

@@ -244,7 +244,7 @@ describe("StructuredActionEditor", () => {
     );
 
     expect(
-      screen.getByRole("group", { name: "Structured actions" }),
+      screen.getByRole("group", { name: "Cooking actions" }),
     ).toHaveAccessibleDescription(/Add at least one action\./);
 
     expect(screen.getByRole("combobox", { name: "Cooking action" })).toHaveAccessibleDescription(

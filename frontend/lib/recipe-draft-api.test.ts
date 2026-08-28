@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AUTH_SESSION_EXPIRED_EVENT } from "./auth-api";
 import {
   createRecipeDraft,
+  discardRecipeDraft,
   parseRecipeDraftDetail,
   parseRecipeDraftPage,
   RecipeDraftApiError,
@@ -117,8 +118,93 @@ describe("private recipe draft API", () => {
     ).rejects.toMatchObject({
       code: "authentication_required",
       status: 401,
+      message: "Your session expired. Your private draft is still here; sign in again to continue.",
     });
     expect(expired).toHaveBeenCalledOnce();
     window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
+  });
+
+  it("keeps save and discard failures free of backend messages and identifiers", async () => {
+    document.cookie = "recipe_lab_csrf=test-token; path=/";
+    const internalId = "99999999-9999-4999-8999-999999999999";
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              error: {
+                code: "invalid_recipe_draft",
+                message: `Canonical ingredient occurrence ${internalId} failed validation.`,
+                issues: [
+                  {
+                    location: ["body", "ingredients", 0, "selection", "ingredient_id"],
+                    message: `Ingredient UUID ${internalId} is not canonical.`,
+                    type: "internal_catalog_policy_failure",
+                  },
+                  {
+                    location: ["body", internalId],
+                    message: "Private operator detail",
+                    type: "internal_error",
+                  },
+                ],
+              },
+            },
+            { status: 422 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              error: {
+                code: "recipe_draft_not_found",
+                message: `Recipe draft ${internalId} was not found.`,
+                issues: [],
+              },
+            },
+            { status: 404 },
+          ),
+        ),
+    );
+
+    const saveError = await updateRecipeDraft(
+      DRAFT_ID,
+      {
+        revision: 1,
+        title: "Unsaved title",
+        description: null,
+        servings: null,
+        ingredients: [],
+        instructions: [],
+      },
+      "save-key",
+    ).catch((reason: unknown) => reason);
+    expect(saveError).toMatchObject({
+      status: 422,
+      code: "invalid_recipe_draft",
+      message: "Some draft fields need attention. Review them and try again.",
+      issues: [
+        {
+          location: ["body", "ingredients", 0, "selection", "ingredient_id"],
+          message: "Review this ingredient.",
+          type: "validation_error",
+        },
+      ],
+    });
+    expect(`${String(saveError)} ${JSON.stringify(saveError)}`).not.toContain(internalId);
+    expect(`${String(saveError)} ${JSON.stringify(saveError)}`).not.toMatch(
+      /canonical|occurrence|operator|policy/i,
+    );
+
+    const discardError = await discardRecipeDraft(DRAFT_ID, 1, "discard-key").catch(
+      (reason: unknown) => reason,
+    );
+    expect(discardError).toMatchObject({
+      status: 404,
+      code: "recipe_draft_not_found",
+      message: "This private draft is no longer available.",
+    });
+    expect(`${String(discardError)} ${JSON.stringify(discardError)}`).not.toContain(internalId);
   });
 });

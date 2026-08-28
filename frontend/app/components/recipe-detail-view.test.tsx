@@ -155,13 +155,13 @@ beforeEach(() => {
 });
 
 describe("RecipeDetailView", () => {
-  it("keeps anonymous browsing, detail, lineage, and comparison public", () => {
+  it("keeps anonymous browsing, detail, recipe history, and comparison public", () => {
     const { container } = renderDetail(detail());
 
     expect(
       screen.getByRole("heading", { name: /lower-sugar pecan carrot cake/i, level: 1 }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Variation", { selector: ".eyebrow" })).toBeInTheDocument();
+    expect(screen.getByText("Version", { selector: ".eyebrow" })).toBeInTheDocument();
     expect(container.querySelector(".recipe-detail__artwork")).toHaveAttribute(
       "aria-hidden",
       "true",
@@ -183,8 +183,8 @@ describe("RecipeDetailView", () => {
       "href",
       "/cooks/second-cook",
     );
-    expect(screen.getByText(/this fork is based directly on/i)).toHaveTextContent(
-      "This fork is based directly on Carrot Walnut Snack Cake by First Cook. Lineage describes the recipe relationship, not endorsement or ownership.",
+    expect(screen.getByText(/Recipe history shows where a version started/i)).toHaveTextContent(
+      "Based on Carrot Walnut Snack Cake by First Cook. Recipe history shows where a version started, not endorsement or ownership.",
     );
     expect(screen.getAllByRole("link", { name: "First Cook" })[0]).toHaveAttribute(
       "href",
@@ -194,8 +194,10 @@ describe("RecipeDetailView", () => {
     const instructions = screen.getByRole("heading", { name: /instructions/i }).closest("section");
     expect(instructions).not.toBeNull();
     expect(within(instructions!).getAllByRole("listitem")).toHaveLength(2);
-    const lineage = screen.getByRole("list", { name: /more versions of this recipe/i });
-    expect(within(lineage).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(instructions!).getAllByText("No cooking actions added.")).toHaveLength(2);
+    expect(within(instructions!).queryByText(/structured actions/i)).toBeNull();
+    const recipeHistory = screen.getByRole("list", { name: /recipe history/i });
+    expect(within(recipeHistory).getAllByRole("listitem")).toHaveLength(3);
   });
 
   it("renders deleted attribution and an unavailable parent without leaking links or comparison", () => {
@@ -211,10 +213,10 @@ describe("RecipeDetailView", () => {
     expect(screen.queryByRole("link", { name: "Deleted cook" })).toBeNull();
     expect(screen.getAllByText("Source unavailable", { exact: true })).toHaveLength(2);
     expect(screen.queryByRole("link", { name: /see what changed/i })).toBeNull();
-    const lineage = screen.getByRole("list", { name: /more versions of this recipe/i });
-    expect(within(lineage).getAllByRole("listitem")).toHaveLength(2);
-    expect(within(lineage).queryByText("Carrot Walnut Snack Cake")).toBeNull();
-    expect(within(lineage).queryByText("First Cook")).toBeNull();
+    const recipeHistory = screen.getByRole("list", { name: /recipe history/i });
+    expect(within(recipeHistory).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(recipeHistory).queryByText("Carrot Walnut Snack Cake")).toBeNull();
+    expect(within(recipeHistory).queryByText("First Cook")).toBeNull();
   });
 
   it("renders the legacy Demo Cook identity without a profile link", () => {
@@ -273,14 +275,15 @@ describe("RecipeDetailView", () => {
       display_unit: "minutes",
       display: "5 minutes",
     };
-    const fold = structuredAction("fold", "fold", 1, ["salt-line"]);
+    const unavailableIngredientId = "99999999-9999-4999-8999-999999999999";
+    const fold = structuredAction("fold", "fold", 1, [unavailableIngredientId]);
     fold.action_type.active = false;
     recipe.instructions[0].actions = [fold, mix];
 
     renderDetail(recipe);
 
     expect(screen.getByText("Heat the oven and prepare the pan.")).toBeInTheDocument();
-    const actions = screen.getByRole("list", { name: "Structured actions for step 1" });
+    const actions = screen.getByRole("list", { name: "Cooking actions for step 1" });
     const rendered = within(actions).getAllByRole("listitem");
     expect(rendered).toHaveLength(2);
     expect(within(rendered[0]).getByText("mix")).toBeInTheDocument();
@@ -288,9 +291,11 @@ describe("RecipeDetailView", () => {
     expect(within(rendered[0]).getByText("Duration: 5 minutes")).toBeInTheDocument();
     expect(within(rendered[1]).getByText("fold")).toBeInTheDocument();
     expect(within(rendered[1]).getByText("Historical action")).toBeInTheDocument();
+    expect(within(rendered[1]).getByText("Inputs: Ingredient unavailable")).toBeInTheDocument();
+    expect(actions).not.toHaveTextContent(unavailableIngredientId);
   });
 
-  it("renders honest empty aggregate and lineage states without exposing private controls", () => {
+  it("renders honest empty aggregate and recipe-history states without exposing private controls", () => {
     renderDetail(
       detail({
         average_rating: null,

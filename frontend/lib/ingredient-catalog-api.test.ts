@@ -142,7 +142,7 @@ describe("ingredient catalog API client", () => {
     });
   });
 
-  it("preserves a bounded duplicate message from the standard error envelope", async () => {
+  it("maps a duplicate request to stable member-facing copy", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(
@@ -150,7 +150,8 @@ describe("ingredient catalog API client", () => {
           JSON.stringify({
             error: {
               code: "ingredient_request_conflict",
-              message: "That ingredient already exists or has a pending request.",
+              message:
+                "Canonical UUID 99999999-9999-4999-8999-999999999999 failed an operator policy check.",
               issues: [],
             },
           }),
@@ -159,14 +160,19 @@ describe("ingredient catalog API client", () => {
       ),
     );
 
-    await expect(
-      submitMissingIngredientRequest({ proposed_name: "Pecan", context: null }),
-    ).rejects.toEqual(
+    const error = await submitMissingIngredientRequest({
+      proposed_name: "Pecan",
+      context: null,
+    }).catch((reason: unknown) => reason);
+    expect(error).toEqual(
       expect.objectContaining({
         status: 409,
         code: "ingredient_request_conflict",
-        message: "That ingredient already exists or has a pending request.",
+        message: "That ingredient is already approved or has a pending request.",
       }),
+    );
+    expect(`${String(error)} ${JSON.stringify(error)}`).not.toMatch(
+      /99999999|canonical|uuid|operator|policy/i,
     );
   });
 
@@ -190,6 +196,37 @@ describe("ingredient catalog API client", () => {
     ).rejects.toBeInstanceOf(IngredientCatalogApiError);
     expect(expired).toHaveBeenCalledOnce();
     window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
+  });
+
+  it("hides ingredient-search backend messages and identifiers", async () => {
+    const internalId = "99999999-9999-4999-8999-999999999999";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json(
+          {
+            error: {
+              code: "catalog_search_unavailable",
+              message: `Canonical UUID ${internalId} failed an operator policy check.`,
+              issues: [],
+            },
+          },
+          { status: 503 },
+        ),
+      ),
+    );
+
+    const error = await searchCatalogIngredients({ query: "pecan" }).catch(
+      (reason: unknown) => reason,
+    );
+    expect(error).toMatchObject({
+      status: 503,
+      code: "catalog_search_unavailable",
+      message: "The ingredient catalog could not be searched. Please try again.",
+    });
+    expect(`${String(error)} ${JSON.stringify(error)}`).not.toMatch(
+      /99999999|canonical|uuid|operator|policy/i,
+    );
   });
 
   it("loads a member's filtered request history and its trusted resolution detail", async () => {

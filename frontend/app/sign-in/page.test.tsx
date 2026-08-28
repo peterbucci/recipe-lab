@@ -13,6 +13,8 @@ describe("SignInPage", () => {
 
     expect(screen.getByRole("heading", { name: "Sign in to Recipe Lab" })).toBeVisible();
     expect(screen.getByText(/save and rate recipes/i)).toBeVisible();
+    expect(screen.getByText(/create your own versions/i)).toBeVisible();
+    expect(screen.queryByText(/recommend/i)).toBeNull();
     expect(screen.queryByText(/demo/i)).toBeNull();
     expect(screen.getByRole("link", { name: "Continue to sign in" })).toHaveAttribute(
       "href",
