@@ -6,15 +6,24 @@ import {
   type ApiMutationOutcome,
   type PublicApiErrorContract,
 } from "./api-transport/core";
+import type { operations } from "./api-contracts/generated";
 
 export const RECIPE_REPORT_DETAILS_MAX_LENGTH = 1_000;
 
-export type RecipeReportReason =
-  | "spam"
-  | "harassment"
-  | "dangerous_content"
-  | "intellectual_property"
-  | "other";
+type RecipeReportOperation =
+  operations["report_recipe_api_recipes__recipe_version_id__reports_post"];
+type RecipeReportResponses = RecipeReportOperation["responses"];
+
+export type RecipeReportInput =
+  RecipeReportOperation["requestBody"]["content"]["application/json"];
+export type RecipeReportReceipt =
+  | RecipeReportResponses[200]["content"]["application/json"]
+  | RecipeReportResponses[201]["content"]["application/json"];
+export type RecipeReportReason = RecipeReportInput["reason"];
+type NormalizedRecipeReportInput = {
+  details: string | null;
+  reason: RecipeReportReason;
+};
 
 const KNOWN_RECIPE_REPORT_ERROR_CODES = new Set([
   "abuse_protection_unavailable",
@@ -37,17 +46,6 @@ const RECIPE_REPORT_ERROR_CONTRACT: PublicApiErrorContract = {
   fallbackCode: "recipe_report_api_error",
   knownCodes: KNOWN_RECIPE_REPORT_ERROR_CODES,
 };
-
-export interface RecipeReportInput {
-  reason: RecipeReportReason;
-  details: string | null;
-}
-
-export interface RecipeReportReceipt {
-  id: string;
-  recipe_version_id: string;
-  submitted_at: string;
-}
 
 export class RecipeReportApiError extends Error {
   readonly status: number;
@@ -171,7 +169,9 @@ function fromTransportError(error: ApiTransportError): RecipeReportApiError {
   );
 }
 
-function normalizedReportInput(input: RecipeReportInput): RecipeReportInput {
+function normalizedReportInput(
+  input: RecipeReportInput,
+): NormalizedRecipeReportInput {
   return {
     reason: input.reason,
     details: input.details?.trim() || null,
@@ -180,7 +180,7 @@ function normalizedReportInput(input: RecipeReportInput): RecipeReportInput {
 
 async function recipeReportRequestFingerprint(
   recipeVersionId: string,
-  input: RecipeReportInput,
+  input: NormalizedRecipeReportInput,
 ): Promise<string> {
   return createRequestFingerprint({
     payload: { details: input.details, reason: input.reason },
