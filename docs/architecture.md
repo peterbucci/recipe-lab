@@ -20,6 +20,29 @@ same-origin Next.js `/api` proxy, which forwards to `RECIPE_API_URL`. Rating
 writes refresh the server-rendered aggregate after success. Local CORS
 configuration permits the exact `localhost` and `127.0.0.1` development origins.
 
+RCP-34F introduces a staged application-specific transport under
+`frontend/lib/api-transport`. Its browser entry point is an explicit client
+boundary that accepts only relative `/api/...` targets, always uses the
+same-origin proxy, and centralizes no-store requests, CSRF, session-expiry
+signals, idempotency keys, safe public error envelopes, request deadlines, and
+an error-on-redirect policy that prevents protected mutations from following a
+response to another origin.
+Its server entry point resolves the existing `RECIPE_API_URL`, then
+`NEXT_PUBLIC_API_URL`, then local-development precedence at request time. It
+accepts only an HTTP(S) origin and refuses browser cookies or CSRF headers.
+Shared core code performs one request attempt and classifies a failed mutation
+as either definitely rejected or outcome unknown; timeout, abort after dispatch,
+network failure, upstream 5xx, and an unreadable success receipt are never
+blindly retried.
+
+Recipe reporting is the first bounded consumer. Its existing module remains the
+compatibility facade and retains the strict receipt validator that rejects any
+reporter identity or additive private field. A manual retry of an unknown result
+reuses the same idempotency key for the same normalized intent, while changed
+intent rotates the key. Other feature clients stay on their characterized paths
+until later migration stories. The hardened streaming `/api` route remains a
+separate security proxy; the shared JSON transport does not replace or wrap it.
+
 Each event-producing browser action generates an opaque UUID and retains it
 while retrying the same desired save state, rating value, or validated fork
 draft. Changing the intended action rotates the key. The view tracker posts
