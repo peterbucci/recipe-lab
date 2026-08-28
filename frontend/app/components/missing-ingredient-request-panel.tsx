@@ -145,7 +145,7 @@ export function MissingIngredientRequestPanel({
         </button>
       </div>
 
-      <div className="variant-field">
+      <div className="recipe-form-field">
         <label htmlFor={`${idPrefix}-request-name`}>Proposed ingredient name</label>
         <input
           id={`${idPrefix}-request-name`}
@@ -166,13 +166,13 @@ export function MissingIngredientRequestPanel({
         />
         <small id={nameHelpId}>Use the clearest common name you know.</small>
         {fieldErrors.proposedName ? (
-          <p id={nameErrorId} className="variant-field-error">
+          <p id={nameErrorId} className="recipe-form-field-error">
             {fieldErrors.proposedName}
           </p>
         ) : null}
       </div>
 
-      <div className="variant-field">
+      <div className="recipe-form-field">
         <label htmlFor={`${idPrefix}-request-context`}>Short context (optional)</label>
         <textarea
           id={`${idPrefix}-request-context`}
@@ -193,7 +193,7 @@ export function MissingIngredientRequestPanel({
           characters.
         </small>
         {fieldErrors.context ? (
-          <p id={contextErrorId} className="variant-field-error">
+          <p id={contextErrorId} className="recipe-form-field-error">
             {fieldErrors.context}
           </p>
         ) : null}

@@ -11,11 +11,11 @@ export const metadata: Metadata = {
   description: "Start with a recipe you like and change only what you want.",
 };
 
-interface RecipeVariantPageProps {
+interface RecipeForkPageProps {
   params: Promise<{ recipeVersionId: string }>;
 }
 
-export default async function RecipeVariantPage({ params }: RecipeVariantPageProps) {
+export default async function RecipeForkPage({ params }: RecipeForkPageProps) {
   const { recipeVersionId } = await params;
   if (!isRecipeVersionId(recipeVersionId)) {
     notFound();

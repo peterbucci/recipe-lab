@@ -22,7 +22,10 @@ vi.mock("../../lib/recipe-draft-api", async (importOriginal) => {
 const SOURCE_ID = "11111111-1111-4111-8111-111111111111";
 const DRAFT_ID = "22222222-2222-4222-8222-222222222222";
 
-function renderStarter(status: "anonymous" | "authenticated") {
+function renderStarter(
+  status: "anonymous" | "authenticated",
+  sourceVersionId: string | null = SOURCE_ID,
+) {
   render(
     <NavigationBlockerProvider>
       <AuthSessionProvider
@@ -35,7 +38,10 @@ function renderStarter(status: "anonymous" | "authenticated") {
               }
         }
       >
-        <RecipeDraftStarter recipeTitle="Tomato Soup" sourceVersionId={SOURCE_ID} />
+        <RecipeDraftStarter
+          sourceVersionId={sourceVersionId}
+          {...(sourceVersionId ? { recipeTitle: "Tomato Soup" } : {})}
+        />
       </AuthSessionProvider>
     </NavigationBlockerProvider>,
   );
@@ -57,6 +63,16 @@ describe("RecipeDraftStarter", () => {
     expect(screen.queryByRole("button", { name: "Create private draft" })).toBeNull();
   });
 
+  it("preserves the original-recipe return target for anonymous cooks", () => {
+    renderStarter("anonymous", null);
+
+    expect(screen.getByRole("link", { name: "Sign in to continue" })).toHaveAttribute(
+      "href",
+      "/sign-in?return_to=%2Frecipes%2Fnew",
+    );
+    expect(screen.queryByRole("button", { name: "Start writing" })).toBeNull();
+  });
+
   it("creates an exact-source draft and replaces the starter route", async () => {
     mocks.createRecipeDraft.mockResolvedValue({ id: DRAFT_ID });
     renderStarter("authenticated");
@@ -66,6 +82,16 @@ describe("RecipeDraftStarter", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create private draft" }));
 
     await waitFor(() => expect(mocks.createRecipeDraft).toHaveBeenCalledWith(SOURCE_ID));
+    expect(mocks.replace).toHaveBeenCalledWith(`/account/recipe-drafts/${DRAFT_ID}`);
+  });
+
+  it("creates an original private draft without a source and opens it", async () => {
+    mocks.createRecipeDraft.mockResolvedValue({ id: DRAFT_ID });
+    renderStarter("authenticated", null);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start writing" }));
+
+    await waitFor(() => expect(mocks.createRecipeDraft).toHaveBeenCalledWith(null));
     expect(mocks.replace).toHaveBeenCalledWith(`/account/recipe-drafts/${DRAFT_ID}`);
   });
 });

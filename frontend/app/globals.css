@@ -2051,11 +2051,11 @@ h3 {
   line-height: 1.65;
 }
 
-.variant-editor {
+.draft-editor {
   max-width: 70rem;
 }
 
-.variant-error-summary {
+.draft-editor__error-summary {
   margin-bottom: 2rem;
   border: 1px solid var(--focus);
   border-left-width: 0.25rem;
@@ -2064,23 +2064,23 @@ h3 {
   padding: 1rem 1.1rem;
 }
 
-.variant-error-summary h2 {
+.draft-editor__error-summary h2 {
   margin-bottom: 0.45rem;
   font-size: 1.1rem;
   letter-spacing: -0.015em;
 }
 
-.variant-error-summary p,
-.variant-error-summary ul {
+.draft-editor__error-summary p,
+.draft-editor__error-summary ul {
   margin-bottom: 0;
   font-size: 0.85rem;
 }
 
-.variant-error-summary ul {
+.draft-editor__error-summary ul {
   padding-left: 1.2rem;
 }
 
-.variant-editor__section {
+.draft-editor__section {
   margin: 0 0 1rem;
   border: 1px solid var(--line);
   border-radius: 1rem;
@@ -2088,7 +2088,7 @@ h3 {
   padding: clamp(1.1rem, 3vw, 1.6rem);
 }
 
-.variant-editor__section > legend {
+.draft-editor__section > legend {
   margin-bottom: 0.55rem;
   padding: 0;
   font-size: clamp(1.4rem, 2.5vw, 1.8rem);
@@ -2097,7 +2097,7 @@ h3 {
   letter-spacing: -0.03em;
 }
 
-.variant-editor__help {
+.draft-editor__help {
   max-width: 48rem;
   margin-bottom: 1.5rem;
   color: var(--muted);
@@ -2105,30 +2105,20 @@ h3 {
   line-height: 1.6;
 }
 
-.variant-details-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(10rem, 0.28fr);
-  gap: 1rem;
-}
-
-.variant-field {
+.recipe-form-field {
   min-width: 0;
 }
 
-.variant-field--wide {
-  grid-column: 1 / -1;
-}
-
-.variant-field label {
+.recipe-form-field label {
   display: block;
   margin-bottom: 0.4rem;
   font-size: 0.8rem;
   font-weight: 700;
 }
 
-.variant-field input,
-.variant-field textarea,
-.variant-field select {
+.recipe-form-field input,
+.recipe-form-field textarea,
+.recipe-form-field select {
   width: 100%;
   min-width: 0;
   min-height: 2.75rem;
@@ -2139,26 +2129,25 @@ h3 {
   padding: 0.65rem 0.75rem;
 }
 
-.variant-field textarea {
+.recipe-form-field textarea {
   min-height: 4.75rem;
   line-height: 1.5;
   resize: vertical;
 }
 
-.variant-field input:hover,
-.variant-field textarea:hover,
-.variant-field select:hover {
+.recipe-form-field input:hover,
+.recipe-form-field textarea:hover,
+.recipe-form-field select:hover {
   border-color: var(--leaf);
 }
 
-.variant-field input[aria-invalid="true"],
-.variant-field textarea[aria-invalid="true"],
-.variant-field select[aria-invalid="true"] {
+.recipe-form-field input[aria-invalid="true"],
+.recipe-form-field textarea[aria-invalid="true"],
+.recipe-form-field select[aria-invalid="true"] {
   border-color: var(--focus);
 }
 
-.variant-field > small,
-.variant-row__source small {
+.recipe-form-field > small {
   display: block;
   margin-top: 0.3rem;
   color: var(--muted);
@@ -2166,7 +2155,7 @@ h3 {
   line-height: 1.45;
 }
 
-.variant-field-error {
+.recipe-form-field-error {
   margin: 0.35rem 0 0;
   color: var(--focus);
   font-size: 0.78rem;
@@ -2346,7 +2335,7 @@ h3 {
   line-height: 1.45;
 }
 
-.ingredient-request-panel .variant-field + .variant-field {
+.ingredient-request-panel .recipe-form-field + .recipe-form-field {
   margin-top: 0.7rem;
 }
 
@@ -2613,101 +2602,6 @@ h3 {
   margin-top: 0.85rem;
 }
 
-.variant-editor__rows {
-  margin-bottom: 1rem;
-}
-
-.variant-row,
-.variant-instruction-list > li {
-  min-width: 0;
-  margin: 0;
-  border: 1px solid var(--line);
-  border-radius: 0.8rem;
-  background: var(--surface);
-  padding: 1rem;
-}
-
-.variant-row + .variant-row,
-.variant-instruction-list > li + li {
-  margin-top: 0.65rem;
-}
-
-.variant-row > legend {
-  padding: 0 0.35rem;
-  color: var(--leaf);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.variant-row__source {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.variant-row__source > div {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.25rem 0.65rem;
-}
-
-.variant-row__source strong,
-.variant-row__source small {
-  grid-column: 2;
-}
-
-.variant-row__change-summary {
-  color: var(--clay-dark);
-  font-weight: 700;
-}
-
-.variant-row__source strong {
-  display: block;
-  font-size: 1rem;
-}
-
-.variant-row__status {
-  display: inline-flex;
-  width: fit-content;
-  align-items: center;
-  align-self: center;
-  border-radius: 999px;
-  background: var(--surface-soft);
-  color: var(--muted);
-  padding: 0.22rem 0.5rem;
-  font-size: 0.65rem;
-  font-weight: 800;
-  letter-spacing: 0.045em;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
-.variant-row__status--changed {
-  background: var(--clay-soft);
-  color: var(--clay-dark);
-}
-
-.variant-row__fields {
-  margin-top: 1rem;
-  border-top: 1px solid var(--line);
-  padding-top: 1rem;
-}
-
-.variant-row__edit {
-  min-width: max-content;
-}
-
-.variant-ingredient-grid {
-  display: grid;
-  align-items: start;
-  grid-template-columns: minmax(14rem, 1fr) minmax(20rem, 1.35fr);
-  gap: 0.85rem;
-}
-
 .structured-measure {
   min-width: 0;
   margin: 0;
@@ -2940,87 +2834,13 @@ h3 {
   color: var(--clay-dark);
 }
 
-.variant-row__remove {
-  margin-top: 0.75rem;
-  color: var(--clay-dark);
-  padding-inline: 0.75rem;
-}
-
-.variant-row--removed {
-  border-color: #c9a899;
-  background: var(--clay-soft);
-}
-
-.variant-removed-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.25rem;
-  gap: 1rem;
-}
-
-.variant-removed-row p {
-  margin-bottom: 0;
-  color: var(--muted);
-  font-size: 0.84rem;
-}
-
-.variant-instruction-list {
-  margin: 0 0 1rem;
-  padding: 0;
-  list-style: none;
-}
-
-.variant-instruction-list > li {
-  padding: 1rem;
-}
-
-.variant-instruction__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.variant-instruction__header > div {
-  min-width: 0;
-}
-
-.variant-instruction__header .variant-row__status {
-  margin-left: 0.55rem;
-}
-
-.variant-instruction__summary {
-  display: -webkit-box;
-  max-width: 47rem;
-  margin: 0.55rem 0 0;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.55;
-  -webkit-line-clamp: 2;
-}
-
-.variant-instruction__summary p,
-.variant-instruction__summary small {
-  display: block;
-  margin: 0;
-}
-
-.variant-instruction__summary small {
-  margin-top: 0.25rem;
-  color: var(--leaf-dark);
-  font-weight: 700;
-}
-
-.variant-editor__section:disabled {
+.draft-editor__section:disabled {
   opacity: 0.72;
 }
 
-.variant-editor__section:disabled input,
-.variant-editor__section:disabled textarea,
-.variant-editor__section:disabled button {
+.draft-editor__section:disabled input,
+.draft-editor__section:disabled textarea,
+.draft-editor__section:disabled button {
   cursor: not-allowed;
 }
 
@@ -3193,7 +3013,7 @@ h3 {
   line-height: 1.5;
 }
 
-.variant-editor__actions {
+.draft-editor__actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3206,13 +3026,13 @@ h3 {
   gap: 1rem;
 }
 
-.variant-editor__actions > div {
+.draft-editor__actions > div {
   display: flex;
   flex-wrap: wrap;
   gap: 0.65rem;
 }
 
-.variant-editor__actions > p {
+.draft-editor__actions > p {
   margin-bottom: 0;
   color: var(--leaf-dark);
   font-size: 0.82rem;
@@ -4182,8 +4002,6 @@ h3 {
     gap: 0.3rem;
   }
 
-  .variant-details-grid,
-  .variant-ingredient-grid,
   .structured-measure__numeric-grid,
   .structured-measure__numeric-grid--range {
     grid-template-columns: 1fr;
@@ -4224,27 +4042,18 @@ h3 {
     width: 100%;
   }
 
-  .variant-field--wide {
-    grid-column: auto;
-  }
-
-  .variant-removed-row,
-  .variant-row__source,
-  .variant-instruction__header,
-  .variant-editor__actions,
+  .draft-editor__actions,
   .duplicate-preflight-candidate__heading {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .variant-removed-row .button,
-  .variant-row__edit,
-  .variant-editor__actions .button,
+  .draft-editor__actions .button,
   .duplicate-preflight-review__actions .button {
     width: 100%;
   }
 
-  .variant-editor__actions > p {
+  .draft-editor__actions > p {
     min-height: 1.2rem;
   }
 
@@ -4337,7 +4146,7 @@ h3 {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
-  .variant-editor__actions > div {
+  .draft-editor__actions > div {
     display: grid;
     width: 100%;
   }
