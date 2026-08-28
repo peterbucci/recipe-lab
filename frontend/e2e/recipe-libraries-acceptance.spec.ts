@@ -64,7 +64,7 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
       const headers = await csrfHeaders(page, "alice");
       const created = await page.request.post(apiUrl("/api/recipe-drafts"), {
         data: { source_version_id: null },
-        headers,
+        headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
       });
       expect(created.status(), await created.text()).toBe(201);
       draft = (await created.json()) as DraftResponse;

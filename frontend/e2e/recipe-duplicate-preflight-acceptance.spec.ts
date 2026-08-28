@@ -42,7 +42,6 @@ async function openCarrotFork(page: Page): Promise<string> {
   await page
     .getByRole("link", { name: "Make your own version", exact: true })
     .click();
-  await page.getByRole("button", { name: "Create private draft", exact: true }).click();
   await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
   return new URL(page.url()).pathname.split("/").at(-1)!;
 }

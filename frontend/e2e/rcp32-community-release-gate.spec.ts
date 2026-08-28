@@ -472,7 +472,6 @@ test.describe("RCP-32 two-user community release gate", () => {
       let aliceDraftId = "";
       await test.step("preserve Alice's draft while she requests a missing ingredient", async () => {
         await alice.goto("/recipes/new");
-        await alice.getByRole("button", { name: "Start writing", exact: true }).click();
         await expect(alice).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
         aliceDraftId = requireUuid(new URL(alice.url()).pathname.split("/").at(-1), "Alice draft ID");
         await alice.getByLabel("Title", { exact: true }).fill(rootTitle);
@@ -760,10 +759,6 @@ test.describe("RCP-32 two-user community release gate", () => {
 
       await test.step("record Bob's explicit exact unchanged-fork continue decision", async () => {
         await bob.goto(`/recipes/${rootRecipeVersionId}/fork`);
-        await expect(
-          bob.getByRole("heading", { name: `Make ${rootTitle} your own.` }),
-        ).toBeVisible();
-        await bob.getByRole("button", { name: "Create private draft", exact: true }).click();
         await expect(bob).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
         const exactDraftId = requireUuid(
           new URL(bob.url()).pathname.split("/").at(-1),
@@ -789,7 +784,6 @@ test.describe("RCP-32 two-user community release gate", () => {
       let bobChildDraftId = "";
       await test.step("publish Bob's real probable duplicate with controlled amount and action changes", async () => {
         await bob.goto(`/recipes/${rootRecipeVersionId}/fork`);
-        await bob.getByRole("button", { name: "Create private draft", exact: true }).click();
         await expect(bob).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
         bobChildDraftId = requireUuid(
           new URL(bob.url()).pathname.split("/").at(-1),
