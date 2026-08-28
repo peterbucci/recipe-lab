@@ -53,7 +53,7 @@ describe("RecipeBrowser", () => {
     );
 
     const search = screen.getByRole("search");
-    expect(within(search).getByLabelText(/search recipes/i)).toHaveValue("carrot");
+    expect(within(search).getByLabelText(/search by recipe name/i)).toHaveValue("carrot");
     expect(within(search).getByRole("link", { name: /clear/i })).toHaveAttribute(
       "href",
       "/recipes",
@@ -71,7 +71,7 @@ describe("RecipeBrowser", () => {
       "href",
       "/cooks/alice",
     );
-    expect(screen.getByText(/no description provided/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no description provided/i)).not.toBeInTheDocument();
     const filters = screen.getByRole("navigation", { name: /recipe type/i });
     expect(within(filters).getByRole("link", { name: "All" })).toHaveAttribute(
       "aria-current",

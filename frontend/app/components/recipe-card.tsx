@@ -27,13 +27,7 @@ export function RecipeCard({
   return (
     <li className="recipe-grid__item">
       <article className="recipe-card" aria-labelledby={titleId}>
-        <RecipeArtwork className="recipe-card__artwork" lineageKey={recipe.lineage_id} />
         <div className="recipe-card__body">
-          <div className="recipe-card__meta">
-            <span className="version-badge">{versionLabel}</span>
-            {visibilityLabel ? <span>{visibilityLabel}</span> : null}
-            <span>{formatServings(recipe.servings)}</span>
-          </div>
           <h3 id={titleId}>
             {publiclyAccessible ? (
               <Link href={`/recipes/${recipe.id}`}>{recipe.title}</Link>
@@ -44,9 +38,9 @@ export function RecipeCard({
           <p className="recipe-card__attribution">
             By <PublicCookAttribution author={recipe.author} />
           </p>
-          <p className="recipe-card__description">
-            {recipe.description ?? "No description provided."}
-          </p>
+          {recipe.description ? (
+            <p className="recipe-card__description">{recipe.description}</p>
+          ) : null}
           {recipe.parent ? (
             <p className="recipe-card__parent">
               Based on{" "}
@@ -57,13 +51,14 @@ export function RecipeCard({
           ) : recipe.parent_version_id ? (
             <p className="recipe-card__parent">Source unavailable</p>
           ) : null}
-          {publiclyAccessible ? (
-            <span className="text-link recipe-card__link-hint" aria-hidden="true">
-              View recipe <span aria-hidden="true">→</span>
-            </span>
-          ) : null}
+          <div className="recipe-card__meta">
+            <span className="version-badge">{versionLabel}</span>
+            {visibilityLabel ? <span>{visibilityLabel}</span> : null}
+            <span>{formatServings(recipe.servings)}</span>
+          </div>
           {actions ? <div className="recipe-card__actions">{actions}</div> : null}
         </div>
+        <RecipeArtwork className="recipe-card__artwork" lineageKey={recipe.lineage_id} />
       </article>
     </li>
   );

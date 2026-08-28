@@ -74,7 +74,7 @@ test("browses, searches, and opens a structured recipe anonymously", async ({
   ).toBeVisible();
 
   const recipeType = page.getByRole("navigation", { name: "Recipe type" });
-  await page.getByLabel(/search recipes/i).fill("carrot");
+  await page.getByLabel(/search by recipe name/i).fill("carrot");
   await page.getByRole("button", { name: /^search$/i }).click();
   await expect(
     page.getByRole("heading", { name: /results for “carrot”/i }),
@@ -91,11 +91,39 @@ test("browses, searches, and opens a structured recipe anonymously", async ({
     }),
   ).toBeVisible();
   await expect(
+    carrotRootCard(page).getByRole("link", {
+      name: "Recipe Lab Demo Catalog",
+      exact: true,
+    }),
+  ).toHaveAttribute("href", /\/cooks\//);
+  await expect(
     page.getByRole("link", {
       name: "Lower-Sugar Pecan Carrot Cake",
       exact: true,
     }),
   ).toHaveCount(0);
+
+  const artwork = carrotRootCard(page).locator(".recipe-card__artwork");
+  await artwork.scrollIntoViewIfNeeded();
+  const artworkBox = await artwork.boundingBox();
+  if (!artworkBox) {
+    throw new Error("The recipe card artwork was not available to click.");
+  }
+  const artworkHitTarget = await page.evaluate(
+    ({ x, y }) => {
+      const target = document.elementFromPoint(x, y);
+      const link = target instanceof Element ? target.closest("a") : null;
+      return {
+        href: link?.getAttribute("href") ?? null,
+        label: link?.textContent?.trim() ?? null,
+      };
+    },
+    { x: artworkBox.x + 12, y: artworkBox.y + 12 },
+  );
+  expect(artworkHitTarget).toEqual({
+    href: expect.stringMatching(/^\/recipes\//),
+    label: "Carrot Walnut Snack Cake",
+  });
 
   await recipeType.getByRole("link", { name: "Versions", exact: true }).click();
   await expect(page).toHaveURL("/recipes?q=carrot&type=versions");
@@ -107,9 +135,13 @@ test("browses, searches, and opens a structured recipe anonymously", async ({
   ).toBeVisible();
 
   await recipeType.getByRole("link", { name: "All", exact: true }).click();
-  await carrotRootCard(page)
-    .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
-    .click();
+  const carrotTitle = carrotRootCard(page).getByRole("link", {
+    name: "Carrot Walnut Snack Cake",
+    exact: true,
+  });
+  await carrotTitle.focus();
+  await expect(carrotTitle).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(
     page.getByRole("heading", { name: /ingredients/i }),
   ).toBeVisible();
@@ -146,13 +178,9 @@ test("keeps the plain-language homepage readable at a phone viewport", async ({
     page.getByRole("link", { name: "Explore recipes", exact: true }).first(),
   ).toBeVisible();
 
-  const conceptHeadings = page.locator(".home-concept__version strong");
-  await expect(conceptHeadings).toHaveCount(2);
-  for (const heading of await conceptHeadings.all()) {
-    const box = await heading.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.width).toBeGreaterThan(200);
-  }
+  await expect(page.getByRole("heading", { name: "Choose a recipe" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your version" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "See what changed" })).toBeVisible();
   expect(
     await page.evaluate(
       () =>

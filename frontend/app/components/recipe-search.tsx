@@ -11,10 +11,10 @@ export function RecipeSearch({ query, recipeType }: RecipeSearchProps) {
   return (
     <form className="recipe-search" action="/recipes" method="get" role="search">
       <label className="recipe-search__label" htmlFor="recipe-search-input">
-        Search recipes
+        Search by recipe name
       </label>
-      <p className="recipe-search__help" id="recipe-search-help">
-        Search recipe titles and descriptions.
+      <p className="visually-hidden" id="recipe-search-help">
+        Search recipe titles and descriptions
       </p>
       <div className="recipe-search__controls">
         {recipeType !== "all" ? <input name="type" type="hidden" value={recipeType} /> : null}

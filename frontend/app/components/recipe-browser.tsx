@@ -58,16 +58,30 @@ export function RecipeBrowser({ data, query, recipeType }: RecipeBrowserProps) {
     <>
       <header className="page-intro">
         <h1>Find something to cook</h1>
-        <p>
-          Browse recipes and versions made from them. Start with an original recipe, or choose a
-          version and see how it differs.
-        </p>
+        <p>Search by name or description, then open the recipe that sounds good.</p>
       </header>
 
-      <RecipeSearch query={query} recipeType={recipeType} />
+      <div className="catalog-toolbar">
+        <RecipeSearch query={query} recipeType={recipeType} />
+        <nav className="button-row recipe-filters" aria-label="Recipe type">
+          {recipeFilters.map((filter) => {
+            const active = filter.recipeType === recipeType;
+            return (
+              <Link
+                aria-current={active ? "page" : undefined}
+                className={`button ${active ? "button--primary" : "button--secondary"}`}
+                href={recipeBrowseHref(1, query, filter.recipeType)}
+                key={filter.label}
+              >
+                {filter.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
 
       <section className="catalog-results" aria-labelledby="catalog-results-heading">
-        <div className="section-heading section-heading--compact">
+        <div className="section-heading section-heading--compact catalog-results__heading">
           <div>
             <h2 id="catalog-results-heading">
               {query ? `Results for “${query}”` : "Recipes"}
@@ -76,21 +90,6 @@ export function RecipeBrowser({ data, query, recipeType }: RecipeBrowserProps) {
               {data.total} {data.total === 1 ? "recipe" : "recipes"}
             </p>
           </div>
-          <nav className="button-row" aria-label="Recipe type">
-            {recipeFilters.map((filter) => {
-              const active = filter.recipeType === recipeType;
-              return (
-                <Link
-                  aria-current={active ? "page" : undefined}
-                  className={`button ${active ? "button--primary" : "button--secondary"}`}
-                  href={recipeBrowseHref(1, query, filter.recipeType)}
-                  key={filter.label}
-                >
-                  {filter.label}
-                </Link>
-              );
-            })}
-          </nav>
         </div>
 
         {data.total === 0 ? (
