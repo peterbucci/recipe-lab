@@ -6,12 +6,11 @@ import {
   submitMissingIngredientRequest,
 } from "./ingredient-catalog-api";
 import { createRecipeDraft } from "./recipe-draft-api";
-import { createRecipeDuplicatePreflight } from "./recipe-duplicate-api";
+import { createRecipeDraftDuplicatePreflight } from "./recipe-duplicate-api";
 import { fetchMyRecipeLibrary } from "./recipe-library-api";
 import { publishRecipeDraft } from "./recipe-publication-api";
 import { submitRecipeReport } from "./recipe-report-api";
 import { updateRecipeVisibility } from "./recipe-visibility-api";
-import { createRecipeVariant } from "./variant-api";
 
 const RECIPE_ID = "11111111-1111-4111-8111-111111111111";
 const DRAFT_ID = "22222222-2222-4222-8222-222222222222";
@@ -28,14 +27,6 @@ const HOSTILE_ERROR = {
       },
     ],
   },
-};
-
-const variantInput = {
-  title: "Private recipe version",
-  description: null,
-  servings: "1",
-  ingredient_edits: [],
-  instruction_edits: [],
 };
 
 const cases: Array<{
@@ -103,15 +94,10 @@ const cases: Array<{
     request: () => updateRecipeVisibility(RECIPE_ID, "author_withdrawn"),
   },
   {
-    name: "recipe versions",
-    fallbackCode: "variant_api_error",
-    request: () => createRecipeVariant(RECIPE_ID, variantInput, "variant-key"),
-  },
-  {
     name: "similar recipe checks",
     fallbackCode: "recipe_duplicate_api_error",
     request: () =>
-      createRecipeDuplicatePreflight(RECIPE_ID, variantInput, "preflight-key"),
+      createRecipeDraftDuplicatePreflight(DRAFT_ID, 1, "preflight-key"),
   },
 ];
 

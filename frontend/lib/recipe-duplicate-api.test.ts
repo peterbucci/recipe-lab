@@ -4,27 +4,15 @@ import { AUTH_SESSION_EXPIRED_EVENT } from "./auth-api";
 import {
   RecipeDuplicateApiError,
   createRecipeDraftDuplicatePreflight,
-  createRecipeDuplicatePreflight,
-  parseRecipeDuplicateDecision,
   parseRecipeDuplicatePreflight,
-  recordRecipeDuplicateDecision,
   type RecipeDuplicatePreflight,
 } from "./recipe-duplicate-api";
-import type { RecipeVariantCreateRequest } from "./variant-api";
 
 const SOURCE_ID = "11111111-1111-4111-8111-111111111111";
 const PREFLIGHT_ID = "22222222-2222-4222-8222-222222222222";
 const CANDIDATE_ID = "33333333-3333-4333-8333-333333333333";
 const ACTION_ID = "44444444-4444-4444-8444-444444444444";
 const RESULT_DIGEST = "a".repeat(64);
-
-const recipePayload: RecipeVariantCreateRequest = {
-  title: "A careful variation",
-  description: null,
-  servings: "4.00",
-  ingredient_edits: [],
-  instruction_edits: [],
-};
 
 function preflightResponse(
   classification: "exact_duplicate" | "probable_duplicate" | "distinct" =
@@ -192,23 +180,6 @@ describe("recipe duplicate response parsing", () => {
     );
   });
 
-  it("rejects permissive non-ISO decision timestamps and unexpected fields", () => {
-    expect(() =>
-      parseRecipeDuplicateDecision({
-        preflight_id: PREFLIGHT_ID,
-        decision: "continue",
-        recorded_at: "1",
-      }),
-    ).toThrow(RecipeDuplicateApiError);
-    expect(() =>
-      parseRecipeDuplicateDecision({
-        preflight_id: PREFLIGHT_ID,
-        decision: "continue",
-        recorded_at: "2026-08-25T12:00:00Z",
-        private_owner_id: SOURCE_ID,
-      }),
-    ).toThrow(RecipeDuplicateApiError);
-  });
 });
 
 describe("recipe duplicate API client", () => {
@@ -235,66 +206,6 @@ describe("recipe duplicate API client", () => {
     );
   });
 
-  it("posts a preflight with member mutation evidence and parses the result", async () => {
-    const responsePayload = preflightResponse("probable_duplicate");
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify(responsePayload), {
-        status: 201,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(
-      createRecipeDuplicatePreflight(SOURCE_ID, recipePayload, ACTION_ID),
-    ).resolves.toEqual(responsePayload);
-    expect(fetchMock).toHaveBeenCalledWith(
-      `/api/recipes/${SOURCE_ID}/duplicate-preflights`,
-      {
-        method: "POST",
-        cache: "no-store",
-        credentials: "same-origin",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "Idempotency-Key": ACTION_ID,
-          "X-CSRF-Token": "test-csrf-token",
-        },
-        body: JSON.stringify(recipePayload),
-      },
-    );
-  });
-
-  it("posts the acknowledgement decision and verifies its response identity", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          preflight_id: PREFLIGHT_ID,
-          decision: "continue",
-          recorded_at: "2026-08-25T12:00:00Z",
-        }),
-        { status: 201, headers: { "Content-Type": "application/json" } },
-      ),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    const decision = {
-      policy_version: "recipe-duplicate-preflight-policy-v1",
-      result_digest: RESULT_DIGEST,
-      decision: "continue" as const,
-    };
-    await expect(
-      recordRecipeDuplicateDecision(PREFLIGHT_ID, decision, ACTION_ID),
-    ).resolves.toMatchObject({ preflight_id: PREFLIGHT_ID, decision: "continue" });
-    expect(fetchMock).toHaveBeenCalledWith(
-      `/api/recipe-duplicate-preflights/${PREFLIGHT_ID}/decision`,
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify(decision),
-      }),
-    );
-  });
-
   it("uses a generic failure message and announces an expired session", async () => {
     const expired = vi.fn();
     window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
@@ -313,9 +224,9 @@ describe("recipe duplicate API client", () => {
       ),
     );
 
-    const error = await createRecipeDuplicatePreflight(
+    const error = await createRecipeDraftDuplicatePreflight(
       SOURCE_ID,
-      recipePayload,
+      7,
       ACTION_ID,
     ).catch((reason: unknown) => reason);
     expect(error).toMatchObject({
