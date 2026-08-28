@@ -1,7 +1,5 @@
 import json
 from collections.abc import Iterator
-from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -11,7 +9,6 @@ from sqlalchemy import Engine, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 import app.api.routes.interactions as interaction_routes
-import app.api.routes.recipes as recipe_routes
 from app.api.dependencies import get_session
 from app.main import create_app
 from app.models import (
@@ -39,26 +36,11 @@ CARROT_ROOT_ID = seed_uuid(
     "recipe-version",
     "carrot-walnut-snack-cake-v1",
 )
-CARROT_PECAN_ID = seed_uuid(
-    DATASET_ID,
-    "recipe-version",
-    "lower-sugar-pecan-carrot-cake-v2",
-)
 MEMBER_USER_ID = UUID("77000000-0000-4000-8000-000000000003")
 
 
 def _action_headers(action_id: UUID | None = None) -> dict[str, str]:
     return {"Idempotency-Key": str(action_id or uuid4())}
-
-
-def _fork_payload(*, title: str = "Preference Event Carrot Cake") -> dict[str, object]:
-    return {
-        "title": title,
-        "description": "A variant used to verify preference-event semantics.",
-        "servings": "8.00",
-        "ingredient_edits": [],
-        "instruction_edits": [],
-    }
 
 
 def _clear_member_activity(engine: Engine) -> None:
@@ -171,18 +153,6 @@ def _event_by_action(
     if event_type is not None:
         statement = statement.where(PreferenceEvent.event_type == event_type)
     return session.scalar(statement)
-
-
-def _member_fork_count(engine: Engine) -> int:
-    with Session(bind=engine) as session:
-        return (
-            session.scalar(
-                select(func.count())
-                .select_from(RecipeVersion)
-                .where(RecipeVersion.created_by_user_id == MEMBER_USER_ID)
-            )
-            or 0
-        )
 
 
 def test_explicit_view_action_is_timestamped_and_exact_replays_are_deduplicated(
@@ -377,85 +347,7 @@ def test_save_and_rating_actions_record_typed_history_without_reapplying_old_ret
     assert _event_count(seeded_api_engine) == 4
 
 
-def test_retired_fork_route_is_write_free_for_replays_and_payload_changes(
-    preference_client: TestClient,
-    seeded_api_engine: Engine,
-) -> None:
-    action_id = uuid4()
-    payload = _fork_payload()
-    first = preference_client.post(
-        f"/api/recipes/{CARROT_ROOT_ID}/variants",
-        headers=_action_headers(action_id),
-        json=payload,
-    )
-    equivalent_retry_payload = {**payload, "servings": "8.0"}
-    replay = preference_client.post(
-        f"/api/recipes/{CARROT_ROOT_ID}/variants",
-        headers=_action_headers(action_id),
-        json=equivalent_retry_payload,
-    )
-
-    assert {first.status_code, replay.status_code} == {409}
-    assert {
-        _json_object(_json_object(response.json())["error"])["code"] for response in (first, replay)
-    } == {"recipe_variant_publication_requires_draft"}
-    assert _member_fork_count(seeded_api_engine) == 0
-    assert _event_count(seeded_api_engine) == 0
-
-    conflict = preference_client.post(
-        f"/api/recipes/{CARROT_ROOT_ID}/variants",
-        headers=_action_headers(action_id),
-        json=_fork_payload(title="Changed after the first action"),
-    )
-    assert conflict.status_code == 409
-    assert (
-        _json_object(_json_object(conflict.json())["error"])["code"]
-        == "recipe_variant_publication_requires_draft"
-    )
-    assert _member_fork_count(seeded_api_engine) == 0
-    assert _event_count(seeded_api_engine) == 0
-
-
-def test_concurrent_requests_to_retired_fork_route_remain_write_free(
-    seeded_api_engine: Engine,
-    test_member_credentials: MemberCredentials,
-) -> None:
-    start = Barrier(2)
-    action_id = uuid4()
-    payload = _fork_payload(title="Concurrent Preference Event Cake")
-
-    def submit() -> tuple[int, str]:
-        application = create_app()
-
-        def override_session() -> Iterator[Session]:
-            with Session(bind=seeded_api_engine) as session:
-                yield session
-
-        application.dependency_overrides[get_session] = override_session
-        with TestClient(application) as client:
-            authenticate_client(client, test_member_credentials)
-            start.wait(timeout=10)
-            response = client.post(
-                f"/api/recipes/{CARROT_ROOT_ID}/variants",
-                headers=_action_headers(action_id),
-                json=payload,
-            )
-            return (
-                response.status_code,
-                _json_object(_json_object(response.json())["error"])["code"],
-            )
-
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        futures = [executor.submit(submit) for _ in range(2)]
-        results = [future.result(timeout=30) for future in futures]
-
-    assert {result[0] for result in results} == {409}
-    assert {result[1] for result in results} == {"recipe_variant_publication_requires_draft"}
-    assert _member_fork_count(seeded_api_engine) == 0
-    assert _event_count(seeded_api_engine) == 0
-
-
-def test_event_failure_rolls_back_current_state_and_retired_fork_stays_write_free(
+def test_event_failure_rolls_back_current_interaction_state(
     monkeypatch: pytest.MonkeyPatch,
     preference_client: TestClient,
     seeded_api_engine: Engine,
@@ -479,17 +371,6 @@ def test_event_failure_rolls_back_current_state_and_retired_fork_stays_write_fre
             )
             is None
         )
-    assert _event_count(seeded_api_engine) == 0
-
-    monkeypatch.setattr(recipe_routes, "record_preference_event", fail_event, raising=False)
-    blocked = preference_client.post(
-        f"/api/recipes/{CARROT_ROOT_ID}/variants",
-        headers=_action_headers(),
-        json=_fork_payload(),
-    )
-
-    assert blocked.status_code == 409
-    assert _member_fork_count(seeded_api_engine) == 0
     assert _event_count(seeded_api_engine) == 0
 
 
@@ -545,14 +426,6 @@ def test_cors_and_openapi_document_only_the_bounded_action_contract(
         assert operation["responses"]["409"]["content"]["application/json"]["schema"][
             "$ref"
         ].endswith("/ErrorResponse")
-
-    retired_fork_operation = paths["/api/recipes/{recipe_version_id}/variants"]["post"]
-    assert not any(
-        parameter["name"] == "Idempotency-Key" for parameter in retired_fork_operation["parameters"]
-    )
-    assert retired_fork_operation["responses"]["409"]["content"]["application/json"]["schema"][
-        "$ref"
-    ].endswith("/ErrorResponse")
 
     assert paths["/api/recipes/{recipe_version_id}/view"]["post"]["responses"]["204"]["description"]
     assert not any("preference" in path.casefold() for path in paths)

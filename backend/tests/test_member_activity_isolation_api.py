@@ -125,16 +125,6 @@ def _activity_counts(engine: Engine) -> tuple[int, int, int, int]:
         )
 
 
-def _fork_payload() -> dict[str, object]:
-    return {
-        "title": "Member fork",
-        "description": "A member-owned variant.",
-        "servings": "8.00",
-        "ingredient_edits": [],
-        "instruction_edits": [],
-    }
-
-
 def test_anonymous_reads_are_public_but_every_mutation_is_rejected_without_rows(
     member_activity_api: MemberActivityApi,
 ) -> None:
@@ -178,9 +168,8 @@ def test_anonymous_reads_are_public_but_every_mutation_is_rejected_without_rows(
             json={"rating": 5},
         ),
         member_activity_api.anonymous.post(
-            f"/api/recipes/{CARROT_ROOT_ID}/variants",
-            headers=_headers(),
-            json=_fork_payload(),
+            "/api/recipe-drafts",
+            json={"source_version_id": str(CARROT_ROOT_ID)},
         ),
     ]
     assert {response.status_code for response in mutations} == {401}
@@ -321,28 +310,25 @@ def test_actor_spoof_payloads_and_incomplete_accounts_cannot_mutate(
         ),
     ]
     assert {response.status_code for response in spoofed_mutations} == {422}
-    blocked_legacy_fork = member_activity_api.member_a.post(
-        f"/api/recipes/{CARROT_ROOT_ID}/variants",
-        headers=_headers(),
-        json={**_fork_payload(), "created_by_user_id": str(MEMBER_B_ID)},
+    blocked_actor_spoof = member_activity_api.member_a.post(
+        "/api/recipe-drafts",
+        json={
+            "source_version_id": str(CARROT_ROOT_ID),
+            "created_by_user_id": str(MEMBER_B_ID),
+        },
     )
-    assert blocked_legacy_fork.status_code == 409
-    assert (
-        _json_object(_json_object(blocked_legacy_fork.json())["error"])["code"]
-        == "recipe_variant_publication_requires_draft"
-    )
+    assert blocked_actor_spoof.status_code == 422
 
     incomplete_view = member_activity_api.incomplete.post(
         f"/api/recipes/{CARROT_ROOT_ID}/view",
         headers=_headers(),
     )
-    incomplete_fork = member_activity_api.incomplete.post(
-        f"/api/recipes/{CARROT_ROOT_ID}/variants",
-        headers=_headers(),
-        json=_fork_payload(),
+    incomplete_draft = member_activity_api.incomplete.post(
+        "/api/recipe-drafts",
+        json={"source_version_id": str(CARROT_ROOT_ID)},
     )
     assert incomplete_view.status_code == 403
-    assert incomplete_fork.status_code == 403
+    assert incomplete_draft.status_code == 403
     assert _json_object(incomplete_view.json())["error"]["code"] == "account_setup_required"
-    assert _json_object(incomplete_fork.json())["error"]["code"] == "account_setup_required"
+    assert _json_object(incomplete_draft.json())["error"]["code"] == "account_setup_required"
     assert _activity_counts(member_activity_api.engine) == before

@@ -1,7 +1,4 @@
-import hashlib
-import json
 from dataclasses import dataclass
-from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -9,7 +6,6 @@ from sqlalchemy.orm import Session
 
 from app.models import PreferenceEvent
 from app.repositories.preference_events import add_preference_event, get_preference_event
-from app.schemas.recipe_forks import RecipeForkRequest
 
 type PreferenceEventType = Literal["view", "save", "rating", "fork"]
 
@@ -84,34 +80,3 @@ def record_preference_event(
         related_recipe_version_id=related_recipe_version_id,
         request_fingerprint=intent.request_fingerprint,
     )
-
-
-def _canonical_value(value: object) -> object:
-    if isinstance(value, Decimal):
-        return format(value.normalize(), "f")
-    if isinstance(value, UUID):
-        return str(value)
-    if isinstance(value, dict):
-        return {str(key): _canonical_value(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_canonical_value(item) for item in value]
-    return value
-
-
-def recipe_fork_request_fingerprint(
-    source_recipe_version_id: UUID,
-    payload: RecipeForkRequest,
-) -> str:
-    """Hash a normalized, validated fork request without retaining its free-form content."""
-
-    canonical_request = {
-        "payload": _canonical_value(payload.model_dump(mode="python")),
-        "source_recipe_version_id": str(source_recipe_version_id),
-    }
-    encoded = json.dumps(
-        canonical_request,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()

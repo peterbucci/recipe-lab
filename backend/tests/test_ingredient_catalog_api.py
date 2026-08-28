@@ -23,7 +23,6 @@ from app.models import (
     IngredientAlias,
     IngredientCatalogAuditEvent,
     IngredientCatalogRequest,
-    RecipeVersion,
 )
 from app.schemas.ingredient_catalog import MemberIngredientCatalogRequestResponse
 from app.seeds import load_bundled_catalog, seed_catalog
@@ -37,11 +36,6 @@ from tests.member_session import (
 
 DATASET_ID = "recipe-lab-demo-v1"
 CHICKPEA_ID = seed_uuid(DATASET_ID, "ingredient", "chickpea")
-CARROT_ROOT_ID = seed_uuid(
-    DATASET_ID,
-    "recipe-version",
-    "carrot-walnut-snack-cake-v1",
-)
 MEMBER_ID = UUID("79000000-0000-4000-8000-000000000001")
 OTHER_MEMBER_ID = UUID("79000000-0000-4000-8000-000000000002")
 CURATOR_ID = UUID("79000000-0000-4000-8000-000000000003")
@@ -328,41 +322,10 @@ def test_request_submission_requires_member_csrf_and_stays_out_of_catalog(
 
     search = catalog_api.anonymous.get("/api/ingredients", params={"q": "Romanesco leaf"})
     assert _json_object(search.json())["items"] == []
-    pending_publication = catalog_api.member.post(
-        f"/api/recipes/{CARROT_ROOT_ID}/variants",
-        headers={"Idempotency-Key": str(uuid4())},
-        json={
-            "title": "Pending identity must fail",
-            "description": None,
-            "servings": "8.00",
-            "ingredient_edits": [
-                {
-                    "op": "add",
-                    "ingredient_id": body["id"],
-                    "display_name": "Romanesco leaf",
-                    "measure": {"kind": "qualitative", "value": "unspecified"},
-                }
-            ],
-            "instruction_edits": [],
-        },
-    )
-    assert pending_publication.status_code == 409
-    assert (
-        _json_object(_json_object(pending_publication.json())["error"])["code"]
-        == "recipe_variant_publication_requires_draft"
-    )
     with Session(bind=catalog_api.engine) as session:
         assert session.scalar(select(func.count()).select_from(IngredientCatalogRequest)) == 1
         events = list(session.scalars(select(IngredientCatalogAuditEvent)))
         assert [event.event_type for event in events] == ["submitted"]
-        assert (
-            session.scalar(
-                select(func.count())
-                .select_from(RecipeVersion)
-                .where(RecipeVersion.title == "Pending identity must fail")
-            )
-            == 0
-        )
 
 
 def test_request_input_is_bounded_and_csrf_failure_creates_no_rows(

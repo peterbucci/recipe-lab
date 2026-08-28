@@ -301,7 +301,12 @@ def test_real_publication_unavailability_emits_only_a_correlated_fixed_event(
 
     assert response.status_code == 503
     correlation_id = response.headers["X-Correlation-ID"]
-    assert response.json()["error"]["correlation_id"] == correlation_id
+    assert _json_object(response.json())["error"] == {
+        "code": "duplicate_preflight_unavailable",
+        "message": "Duplicate preflight is temporarily unavailable. Please try again later.",
+        "issues": [],
+        "correlation_id": correlation_id,
+    }
     assert _operation_events(caplog) == [
         {"correlation_id": correlation_id, "event": "publication_failure"}
     ]
@@ -893,7 +898,7 @@ def test_source_unavailable_preflight_replay_returns_stable_conflict(
         )
 
 
-def test_legacy_fork_event_action_conflicts_without_partial_publication(
+def test_existing_fork_event_action_conflicts_without_partial_publication(
     publication_api: PublicationApi,
 ) -> None:
     source_id = _publish_complete_original(publication_api)
@@ -1278,23 +1283,9 @@ def test_publication_rejects_incomplete_and_stale_drafts(
     )
 
 
-def test_legacy_direct_variant_publication_is_a_write_free_rcp28_boundary(
+def test_publication_openapi_documents_only_current_draft_operations(
     publication_api: PublicationApi,
 ) -> None:
-    with Session(bind=publication_api.engine) as session:
-        before = session.scalar(select(func.count()).select_from(RecipeVersion)) or 0
-    blocked = publication_api.member.post(
-        f"/api/recipes/{CARROT_ROOT_ID}/variants",
-        headers={"Idempotency-Key": str(uuid4())},
-        json={"unexpected": "legacy payload is not interpreted"},
-    )
-    assert blocked.status_code == 409
-    assert _json_object(_json_object(blocked.json())["error"])["code"] == (
-        "recipe_variant_publication_requires_draft"
-    )
-    with Session(bind=publication_api.engine) as session:
-        assert (session.scalar(select(func.count()).select_from(RecipeVersion)) or 0) == before
-
     document = _json_object(publication_api.member.get("/openapi.json").json())
     schemas = _json_object(_json_object(document["components"])["schemas"])
     assert "RecipeOriginalPublicationRequest" in schemas

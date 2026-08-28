@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -11,7 +12,15 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_session
 from app.main import create_app
-from app.models import RecipeDraft
+from app.models import (
+    IngredientPackageSize,
+    MeasurementUnit,
+    RecipeDraft,
+    RecipeIngredient,
+    RecipeLineage,
+    RecipeVersion,
+    RecipeVersionPublication,
+)
 from app.seeds import load_bundled_catalog, seed_catalog
 from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
 from tests.conftest import make_alembic_config
@@ -24,7 +33,10 @@ CARROT_ROOT_ID = seed_uuid(
     "carrot-walnut-snack-cake-v1",
 )
 CHICKPEA_ID = seed_uuid(DATASET_ID, "ingredient", "chickpea")
+WALNUT_ID = seed_uuid(DATASET_ID, "ingredient", "walnut")
 GRAM_ID = measurement_uuid("unit", "g")
+CAN_ID = measurement_uuid("unit", "can")
+CELSIUS_ID = measurement_uuid("unit", "celsius")
 MIX_ID = action_uuid("action-type", "mix")
 MEMBER_ID = UUID("7b000000-0000-4000-8000-000000000001")
 OTHER_MEMBER_ID = UUID("7b000000-0000-4000-8000-000000000002")
@@ -275,6 +287,127 @@ def test_exact_source_clone_and_curated_full_replacement(draft_api: DraftApi) ->
     assert action["ingredient_occurrence_ids"] == [ingredient["id"]]
 
 
+def test_source_clone_preserves_historical_package_metadata_but_rejects_reselection(
+    draft_api: DraftApi,
+) -> None:
+    package_size_id = uuid4()
+    source_lineage_id = uuid4()
+    source_version_id = uuid4()
+    with Session(bind=draft_api.engine) as session, session.begin():
+        package_unit = session.get(MeasurementUnit, CAN_ID)
+        assert package_unit is not None
+        session.add(
+            IngredientPackageSize(
+                id=package_size_id,
+                ingredient_id=WALNUT_ID,
+                package_unit_id=CAN_ID,
+                content_unit_id=GRAM_ID,
+                content_value=Decimal("400.000000"),
+                label="400 g historical draft test can",
+                active=True,
+                provenance="Reviewed historical draft-copy regression fixture.",
+            )
+        )
+        session.add(
+            RecipeLineage(
+                id=source_lineage_id,
+                created_by_user_id=MEMBER_ID,
+            )
+        )
+        session.flush()
+        session.add(
+            RecipeVersion(
+                id=source_version_id,
+                lineage_id=source_lineage_id,
+                parent_version_id=None,
+                created_by_user_id=MEMBER_ID,
+                version_number=1,
+                title="Historical package metadata source",
+                description=None,
+                servings=Decimal("1.00"),
+            )
+        )
+        session.flush()
+        session.add(
+            RecipeIngredient(
+                recipe_version_id=source_version_id,
+                ingredient_id=WALNUT_ID,
+                name="Walnut",
+                measure_mode="exact",
+                quantity_min=Decimal("1.0000"),
+                quantity_max=None,
+                measurement_unit_id=CAN_ID,
+                unit_display="can",
+                package_size_id=package_size_id,
+                preparation_notes=None,
+                display_order=0,
+            )
+        )
+        session.flush()
+        package_unit.active = False
+        package_size = session.get(IngredientPackageSize, package_size_id)
+        assert package_size is not None
+        package_size.active = False
+        session.flush()
+        session.add(
+            RecipeVersionPublication(
+                recipe_version_id=source_version_id,
+                actor_user_id=MEMBER_ID,
+                state_changed_by_user_id=MEMBER_ID,
+            )
+        )
+
+    copied = draft_api.member.post(
+        "/api/recipe-drafts",
+        json={"source_version_id": str(source_version_id)},
+    )
+    assert copied.status_code == 201, copied.text
+    copied_walnut = next(
+        _json_object(item)
+        for item in cast(list[object], _json_object(copied.json())["ingredients"])
+        if _json_object(_json_object(_json_object(item)["selection"])["ingredient"])["id"]
+        == str(WALNUT_ID)
+    )
+    copied_measure = _json_object(copied_walnut["measure"])
+    assert copied_measure["package_size_id"] == str(package_size_id)
+    assert _json_object(copied_measure["unit"])["id"] == str(CAN_ID)
+    assert _json_object(copied_measure["unit"])["active"] is False
+
+    blank = draft_api.member.post(
+        "/api/recipe-drafts",
+        json={"source_version_id": None},
+    )
+    assert blank.status_code == 201
+    blank_id = _json_object(blank.json())["id"]
+    rejected = draft_api.member.put(
+        f"/api/recipe-drafts/{blank_id}",
+        json={
+            **_blank_update(revision=1, title="Inactive package unit selection"),
+            "ingredients": [
+                {
+                    "ref": "walnut-slot",
+                    "selection": {
+                        "kind": "catalog",
+                        "ingredient_id": str(WALNUT_ID),
+                        "display_name": "Walnut",
+                    },
+                    "measure": {
+                        "kind": "exact",
+                        "value": "1.0000",
+                        "unit_id": str(CAN_ID),
+                        "package_size_id": str(package_size_id),
+                    },
+                    "preparation_notes": None,
+                }
+            ],
+        },
+    )
+    assert rejected.status_code == 422
+    unchanged = _json_object(draft_api.member.get(f"/api/recipe-drafts/{blank_id}").json())
+    assert unchanged["revision"] == 1
+    assert unchanged["ingredients"] == []
+
+
 def test_unresolved_requests_remain_separate_and_owner_scoped(draft_api: DraftApi) -> None:
     own_request = draft_api.member.post(
         "/api/ingredient-requests",
@@ -366,6 +499,20 @@ def test_unresolved_requests_remain_separate_and_owner_scoped(draft_api: DraftAp
     assert current["revision"] == 2
     assert current["instructions"] == []
 
+    preflight = draft_api.member.post(
+        f"/api/recipe-drafts/{draft_id}/duplicate-preflights",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={"revision": 2},
+    )
+    assert preflight.status_code == 422
+    with Session(bind=draft_api.engine) as session:
+        assert (
+            session.scalar(
+                select(RecipeVersion).where(RecipeVersion.title == "Waiting for catalog review")
+            )
+            is None
+        )
+
 
 def test_unknown_curated_identities_are_rejected_without_mutation(
     draft_api: DraftApi,
@@ -426,6 +573,28 @@ def test_unknown_curated_identities_are_rejected_without_mutation(
                             "action_type_id": str(uuid4()),
                             "ingredient_refs": ["ingredient-slot"],
                             "duration": None,
+                            "temperature": None,
+                        }
+                    ],
+                }
+            ],
+        },
+        {
+            **_blank_update(revision=1, title="Wrong action measure dimension"),
+            "ingredients": [valid_ingredient],
+            "instructions": [
+                {
+                    "ref": "instruction",
+                    "text": "Use a temperature where a duration is required.",
+                    "actions": [
+                        {
+                            "action_type_id": str(MIX_ID),
+                            "ingredient_refs": ["ingredient-slot"],
+                            "duration": {
+                                "kind": "exact",
+                                "value": "1.0000",
+                                "unit_id": str(CELSIUS_ID),
+                            },
                             "temperature": None,
                         }
                     ],

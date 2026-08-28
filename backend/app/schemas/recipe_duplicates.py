@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -75,15 +74,3 @@ class RecipeDuplicatePreflightResponse(RecipeDuplicateSchema):
     candidates: list[RecipeDuplicateCandidateResponse] = Field(max_length=5)
     warnings: list[RecipeDuplicateWarningResponse] = Field(max_length=1)
     acknowledgement: RecipeDuplicateAcknowledgementResponse
-
-
-class RecipeDuplicateDecisionRequest(RecipeDuplicateSchema):
-    policy_version: PolicyVersion
-    result_digest: Sha256Digest
-    decision: DuplicateDecision
-
-
-class RecipeDuplicateDecisionResponse(RecipeDuplicateSchema):
-    preflight_id: UUID
-    decision: DuplicateDecision
-    recorded_at: datetime
