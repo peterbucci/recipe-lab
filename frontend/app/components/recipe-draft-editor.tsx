@@ -69,7 +69,7 @@ function draftLoadErrorMessage(reason: unknown): string {
 }
 
 function FieldError({ id, message }: { id: string; message?: string }) {
-  return message ? <p id={id} className="variant-field-error">{message}</p> : null;
+  return message ? <p id={id} className="recipe-form-field-error">{message}</p> : null;
 }
 
 function ingredientMeasureErrors(
@@ -434,9 +434,9 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
       </p>
       <p className="visually-hidden" role="status" aria-live="polite">{announcement}</p>
 
-      <form className="variant-editor draft-editor" aria-label="Private recipe draft editor" noValidate onSubmit={(event) => void save(event)}>
+      <form className="draft-editor" aria-label="Private recipe draft editor" noValidate onSubmit={(event) => void save(event)}>
         {formError ? (
-          <div ref={errorSummaryRef} className="variant-error-summary" role="alert" tabIndex={-1}>
+          <div ref={errorSummaryRef} className="draft-editor__error-summary" role="alert" tabIndex={-1}>
             <h2>Your draft was not saved</h2>
             <p>{formError}</p>
             {Object.keys(fieldErrors).length ? <p>{Object.keys(fieldErrors).length} field{Object.keys(fieldErrors).length === 1 ? " needs" : "s need"} attention.</p> : null}
@@ -452,21 +452,21 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
           </div>
         ) : null}
 
-        <fieldset className="variant-editor__section" disabled={editorDisabled}>
+        <fieldset className="draft-editor__section" disabled={editorDisabled}>
           <legend>Recipe details</legend>
-          <p className="variant-editor__help">A private draft may be untitled and incomplete.</p>
+          <p className="draft-editor__help">A private draft may be untitled and incomplete.</p>
           <div className="draft-editor__details-grid">
-            <div className="variant-field draft-editor__title-field">
+            <div className="recipe-form-field draft-editor__title-field">
               <label htmlFor="draft-title">Title</label>
               <input id="draft-title" value={draft.title} maxLength={200} aria-invalid={Boolean(fieldErrors.title)} aria-describedby={fieldErrors.title ? "draft-title-error" : undefined} onChange={(event) => change({ ...draft, title: event.target.value })} />
               <FieldError id="draft-title-error" message={fieldErrors.title} />
             </div>
-            <div className="variant-field">
+            <div className="recipe-form-field">
               <label htmlFor="draft-servings">Servings</label>
               <input id="draft-servings" value={draft.servings} inputMode="decimal" aria-invalid={Boolean(fieldErrors.servings)} aria-describedby={fieldErrors.servings ? "draft-servings-error" : undefined} onChange={(event) => change({ ...draft, servings: event.target.value })} />
               <FieldError id="draft-servings-error" message={fieldErrors.servings} />
             </div>
-            <div className="variant-field draft-editor__description-field">
+            <div className="recipe-form-field draft-editor__description-field">
               <label htmlFor="draft-description">Description</label>
               <textarea id="draft-description" value={draft.description} maxLength={2000} rows={4} aria-invalid={Boolean(fieldErrors.description)} aria-describedby={fieldErrors.description ? "draft-description-error" : undefined} onChange={(event) => change({ ...draft, description: event.target.value })} />
               <FieldError id="draft-description-error" message={fieldErrors.description} />
@@ -474,10 +474,10 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
           </div>
         </fieldset>
 
-        <fieldset className="variant-editor__section" disabled={editorDisabled}>
+        <fieldset className="draft-editor__section" disabled={editorDisabled}>
           <legend>Ingredients</legend>
-          <p className="variant-editor__help">Use trusted catalog identities. A submitted request stays unresolved until you explicitly choose its approved catalog result.</p>
-          <ol className="variant-editor__rows draft-editor__rows">
+          <p className="draft-editor__help">Use trusted catalog identities. A submitted request stays unresolved until you explicitly choose its approved catalog result.</p>
+          <ol className="draft-editor__rows">
             {draft.ingredients.map((ingredient, index) => {
               const selectionError = fieldErrors[draftIngredientFieldKey(ingredient.key, "selection")];
               const notesError = fieldErrors[draftIngredientFieldKey(ingredient.key, "preparationNotes")];
@@ -516,7 +516,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
                     />
                     <FieldError id={`draft-${ingredient.key}-selection-error`} message={selectionError} />
                     <IngredientAmountControl idPrefix={`draft-${ingredient.key}-measure`} label="Amount" contextLabel={rowLabel} value={ingredient.measure} units={measurementUnits} errors={ingredientMeasureErrors(fieldErrors, ingredient.key)} onChange={(measure) => replaceIngredient(ingredient.key, { ...ingredient, measure })} />
-                    <div className="variant-field">
+                    <div className="recipe-form-field">
                       <label htmlFor={`draft-${ingredient.key}-notes`}>Preparation notes <span>(optional)</span></label>
                       <input id={`draft-${ingredient.key}-notes`} value={ingredient.preparationNotes} maxLength={1000} aria-invalid={Boolean(notesError)} aria-describedby={notesError ? `draft-${ingredient.key}-notes-error` : undefined} placeholder="finely chopped" onChange={(event) => replaceIngredient(ingredient.key, { ...ingredient, preparationNotes: event.target.value })} />
                       <FieldError id={`draft-${ingredient.key}-notes-error`} message={notesError} />
@@ -529,10 +529,10 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
           <button id="draft-add-ingredient" className="button button--secondary" type="button" disabled={draft.ingredients.length >= 200} onClick={addIngredient}>Add ingredient</button>
         </fieldset>
 
-        <fieldset className="variant-editor__section" disabled={editorDisabled}>
+        <fieldset className="draft-editor__section" disabled={editorDisabled}>
           <legend>Instructions</legend>
-          <p className="variant-editor__help">Keep the readable direction, then optionally describe its trusted cooking actions in order.</p>
-          <ol className="variant-editor__rows draft-editor__rows">
+          <p className="draft-editor__help">Keep the readable direction, then optionally describe its trusted cooking actions in order.</p>
+          <ol className="draft-editor__rows">
             {draft.instructions.map((instruction, index) => {
               const textError = fieldErrors[draftInstructionFieldKey(instruction.key)];
               const rowLabel = `Step ${index + 1}`;
@@ -545,7 +545,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
                       <button id={`draft-${instruction.key}-instruction-move-down`} className="button button--quiet" type="button" disabled={index === draft.instructions.length - 1} onClick={() => moveInstruction(index, 1)}>Move down<span className="visually-hidden"> {rowLabel.toLowerCase()}</span></button>
                       <button className="button button--quiet" type="button" onClick={() => removeInstruction(index)}>Remove<span className="visually-hidden"> {rowLabel.toLowerCase()}</span></button>
                     </div>
-                    <div className="variant-field">
+                    <div className="recipe-form-field">
                       <label htmlFor={`draft-${instruction.key}-instruction-text`}>Human-readable direction</label>
                       <textarea id={`draft-${instruction.key}-instruction-text`} value={instruction.text} maxLength={5000} rows={4} aria-invalid={Boolean(textError)} aria-describedby={textError ? `draft-${instruction.key}-instruction-text-error` : undefined} onChange={(event) => replaceInstruction(instruction.key, { ...instruction, text: event.target.value })} />
                       <FieldError id={`draft-${instruction.key}-instruction-text-error`} message={textError} />
@@ -571,7 +571,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
           sourceVersionId={detail.source_version_id}
         />
 
-        <div className="variant-editor__actions draft-editor__actions">
+        <div className="draft-editor__actions">
           <div>
             <button className="button button--primary" type="submit" disabled={actionDisabled || !dirty}>{pending === "save" ? "Saving…" : dirty ? "Save draft" : "Draft saved"}</button>
             <GuardedLink className="button button--secondary" href="/account/recipe-drafts">Back to drafts</GuardedLink>

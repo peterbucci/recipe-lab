@@ -1,6 +1,5 @@
 import { memberMutationHeaders, notifySessionExpired } from "./auth-api";
 import { isRecipeVersionId } from "./recipe-api";
-import type { RecipeVariantCreateRequest } from "./variant-api";
 
 export type RecipeDuplicateClassification =
   "exact_duplicate" | "probable_duplicate" | "distinct";
@@ -40,18 +39,6 @@ export interface RecipeDuplicatePreflight {
     message: string;
   }>;
   acknowledgement: RecipeDuplicateAcknowledgement;
-}
-
-export interface RecipeDuplicateDecisionInput {
-  policy_version: string;
-  result_digest: string;
-  decision: RecipeDuplicateDecision;
-}
-
-export interface RecipeDuplicateDecisionRecord {
-  preflight_id: string;
-  decision: RecipeDuplicateDecision;
-  recorded_at: string;
 }
 
 interface ApiErrorPayload {
@@ -105,8 +92,6 @@ const POLICY_VERSION_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
 const REASON_CODE_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const SCORE_PATTERN = /^(?:0|1)\.\d{6}$/;
-const ISO_TIMESTAMP_PATTERN =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -367,33 +352,6 @@ export function parseRecipeDuplicatePreflight(
   };
 }
 
-export function parseRecipeDuplicateDecision(
-  value: unknown,
-): RecipeDuplicateDecisionRecord {
-  if (
-    !isRecord(value) ||
-    !hasExactKeys(value, ["preflight_id", "decision", "recorded_at"]) ||
-    typeof value.preflight_id !== "string" ||
-    !isRecipeVersionId(value.preflight_id) ||
-    (value.decision !== "continue" && value.decision !== "revise") ||
-    typeof value.recorded_at !== "string" ||
-    value.recorded_at.length > 64 ||
-    !ISO_TIMESTAMP_PATTERN.test(value.recorded_at) ||
-    Number.isNaN(Date.parse(value.recorded_at))
-  ) {
-    throw new RecipeDuplicateApiError(
-      "Recipe Lab received an invalid similarity decision response.",
-      502,
-      "invalid_recipe_duplicate_decision_response",
-    );
-  }
-  return {
-    preflight_id: value.preflight_id,
-    decision: value.decision,
-    recorded_at: value.recorded_at,
-  };
-}
-
 function isErrorPayload(value: unknown): value is ApiErrorPayload {
   return isRecord(value) && "error" in value;
 }
@@ -453,19 +411,6 @@ async function duplicateMutation(
   }
 }
 
-export async function createRecipeDuplicatePreflight(
-  sourceRecipeVersionId: string,
-  payload: RecipeVariantCreateRequest,
-  idempotencyKey: string,
-): Promise<RecipeDuplicatePreflight> {
-  const result = await duplicateMutation(
-    `/api/recipes/${encodeURIComponent(sourceRecipeVersionId)}/duplicate-preflights`,
-    payload,
-    idempotencyKey,
-  );
-  return parseRecipeDuplicatePreflight(result);
-}
-
 export async function createRecipeDraftDuplicatePreflight(
   draftId: string,
   revision: number,
@@ -477,28 +422,4 @@ export async function createRecipeDraftDuplicatePreflight(
     idempotencyKey,
   );
   return parseRecipeDuplicatePreflight(result);
-}
-
-export async function recordRecipeDuplicateDecision(
-  preflightId: string,
-  payload: RecipeDuplicateDecisionInput,
-  idempotencyKey: string,
-): Promise<RecipeDuplicateDecisionRecord> {
-  const result = await duplicateMutation(
-    `/api/recipe-duplicate-preflights/${encodeURIComponent(preflightId)}/decision`,
-    payload,
-    idempotencyKey,
-  );
-  const parsed = parseRecipeDuplicateDecision(result);
-  if (
-    parsed.preflight_id !== preflightId ||
-    parsed.decision !== payload.decision
-  ) {
-    throw new RecipeDuplicateApiError(
-      "Recipe Lab received an invalid similarity decision response.",
-      502,
-      "invalid_recipe_duplicate_decision_response",
-    );
-  }
-  return parsed;
 }

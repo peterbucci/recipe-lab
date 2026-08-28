@@ -134,7 +134,7 @@ export function StructuredMeasureControl({
 
       {value.mode === "exact" ? (
         <div className="structured-measure__numeric-grid">
-          <div className="variant-field">
+          <div className="recipe-form-field">
             <label htmlFor={`${idPrefix}-amount`}>{policy.numericLabel}</label>
             <input
               id={`${idPrefix}-amount`}
@@ -146,7 +146,7 @@ export function StructuredMeasureControl({
             />
             <FieldError id={`${idPrefix}-amount-error`} message={errors.amount} />
           </div>
-          <div className="variant-field">
+          <div className="recipe-form-field">
             <label htmlFor={`${idPrefix}-unit`}>Unit</label>
             <select
               id={`${idPrefix}-unit`}
@@ -174,7 +174,7 @@ export function StructuredMeasureControl({
 
       {value.mode === "range" ? (
         <div className="structured-measure__numeric-grid structured-measure__numeric-grid--range">
-          <div className="variant-field">
+          <div className="recipe-form-field">
             <label htmlFor={`${idPrefix}-minimum`}>Minimum {policy.numericLabel.toLowerCase()}</label>
             <input
               id={`${idPrefix}-minimum`}
@@ -186,7 +186,7 @@ export function StructuredMeasureControl({
             />
             <FieldError id={`${idPrefix}-minimum-error`} message={errors.minimum} />
           </div>
-          <div className="variant-field">
+          <div className="recipe-form-field">
             <label htmlFor={`${idPrefix}-maximum`}>Maximum {policy.numericLabel.toLowerCase()}</label>
             <input
               id={`${idPrefix}-maximum`}
@@ -198,7 +198,7 @@ export function StructuredMeasureControl({
             />
             <FieldError id={`${idPrefix}-maximum-error`} message={errors.maximum} />
           </div>
-          <div className="variant-field">
+          <div className="recipe-form-field">
             <label htmlFor={`${idPrefix}-unit`}>Unit</label>
             <select
               id={`${idPrefix}-unit`}

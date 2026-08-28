@@ -155,7 +155,7 @@ export function StructuredActionEditor({
               <fieldset className="structured-action__card">
                 <legend>Action {index + 1}</legend>
                 <div className="structured-action__toolbar">
-                  <div className="variant-field structured-action__type">
+                  <div className="recipe-form-field structured-action__type">
                     <label htmlFor={`${actionId}-type`}>Cooking action</label>
                     <select
                       id={`${actionId}-type`}

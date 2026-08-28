@@ -11,8 +11,6 @@ The artwork is decorative and family-stable; it is not presented as recipe photo
 
 ![Recipe detail](assets/rcp-13a-detail-desktop.png)
 
-![Compact variation editor](assets/rcp-13a-editor-desktop.png)
-
 ![Cooking-first comparison](assets/rcp-13a-comparison-desktop.png)
 
 ## Phone

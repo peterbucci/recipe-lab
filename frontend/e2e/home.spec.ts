@@ -281,7 +281,7 @@ test("requires sign-in for save, rate, recorded-view, and fork actions", async (
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("form", { name: /make .* your own/i }),
+    page.getByRole("button", { name: "Create private draft", exact: true }),
   ).toHaveCount(0);
   await expect(
     page.getByRole("link", { name: "Sign in to continue", exact: true }),
@@ -332,7 +332,7 @@ test("requires account setup before exposing member recipe actions", async ({
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("form", { name: /make .* your own/i }),
+    page.getByRole("button", { name: "Create private draft", exact: true }),
   ).toHaveCount(0);
 });
 
@@ -502,7 +502,7 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
       display_name: "Pecan",
     },
   });
-  const errorSummary = page.locator(".variant-error-summary");
+  const errorSummary = page.locator(".draft-editor__error-summary");
   await expect(errorSummary).toContainText(
     "Recipe Lab could not save this draft. Your edits are still here.",
   );

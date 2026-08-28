@@ -452,10 +452,12 @@ The exhaustive table, field, log, backup, and derived-artifact decisions are in
 
 ## Recipe duplicate preflight
 
-`POST /api/recipes/{recipe_version_id}/duplicate-preflights` retains the legacy
-in-memory variant adapter without inserting a child. The publication adapter is
+The maintained browser uses
 `POST /api/recipe-drafts/{draft_id}/duplicate-preflights` with the saved
-revision and supports both original and source-backed drafts. Both require an
+revision and supports both original and source-backed drafts.
+`POST /api/recipes/{recipe_version_id}/duplicate-preflights` remains a retired
+backend compatibility adapter without a maintained product client; it prepares
+an in-memory proposed child without inserting one. Both adapters require an
 onboarded member, Origin/CSRF evidence, and a UUID `Idempotency-Key`. The service
 builds the proposed `recipe-structure-v1` fingerprint and compares it only with
 publicly readable stored fingerprints. A source-backed review binds the exact
@@ -479,10 +481,12 @@ and fixed work budgets: 500 public comparisons, 200 ingredient occurrences,
 non-exact work units. Budget overflow fails closed with one generic `503`
 response; the service never returns partial candidate evidence.
 
-`POST /api/recipe-duplicate-preflights/{preflight_id}/decision` records a
-standalone legacy-variant-flow `continue` or `revise` choice. Draft publication
-instead binds the revision, optional source, policy, result digest, and optional
-`continue` directly inside its atomic transaction. Preflights, bounded
+Draft publication binds the revision, optional source, policy, result digest,
+and optional `continue` directly inside its atomic transaction. The retired
+backend compatibility route
+`POST /api/recipe-duplicate-preflights/{preflight_id}/decision` can still record
+a standalone `continue` or `revise` choice until its removal is reviewed, but no
+maintained product client calls it. Preflights, bounded
 candidate evidence, and decisions are append-only, actor-scoped, and
 idempotent; they are not recommendation events. Publication receipts are also
 append-only and bind an exact publish retry to its original result. Replays and
