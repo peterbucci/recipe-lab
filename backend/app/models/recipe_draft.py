@@ -30,8 +30,13 @@ if TYPE_CHECKING:
 
 
 RECIPE_DRAFT_STATUS_ACTIVE = "active"
+RECIPE_DRAFT_STATUS_DISCARDED = "discarded"
 RECIPE_DRAFT_STATUS_PUBLISHED = "published"
-RECIPE_DRAFT_STATUSES = (RECIPE_DRAFT_STATUS_ACTIVE, RECIPE_DRAFT_STATUS_PUBLISHED)
+RECIPE_DRAFT_STATUSES = (
+    RECIPE_DRAFT_STATUS_ACTIVE,
+    RECIPE_DRAFT_STATUS_DISCARDED,
+    RECIPE_DRAFT_STATUS_PUBLISHED,
+)
 
 RECIPE_DRAFT_SELECTION_CATALOG = "catalog"
 RECIPE_DRAFT_SELECTION_REQUEST = "request"
@@ -59,7 +64,22 @@ class RecipeDraft(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
             name="description_valid",
         ),
         CheckConstraint("servings IS NULL OR servings > 0", name="servings_positive"),
+        CheckConstraint(
+            "(creation_action_id IS NULL AND creation_request_fingerprint IS NULL) OR "
+            "(creation_action_id IS NOT NULL AND creation_request_fingerprint IS NOT NULL)",
+            name="creation_evidence_shape_valid",
+        ),
+        CheckConstraint(
+            "creation_request_fingerprint IS NULL OR "
+            "creation_request_fingerprint ~ '^[0-9a-f]{64}$'",
+            name="creation_request_fingerprint_sha256",
+        ),
         UniqueConstraint("id", "author_user_id", name="uq_recipe_drafts_id_author"),
+        UniqueConstraint(
+            "author_user_id",
+            "creation_action_id",
+            name="uq_recipe_drafts_author_creation_action",
+        ),
         UniqueConstraint(
             "id",
             "author_user_id",
@@ -84,6 +104,14 @@ class RecipeDraft(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     source_version_id: Mapped[UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("recipe_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    creation_action_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+    )
+    creation_request_fingerprint: Mapped[str | None] = mapped_column(
+        String(64),
         nullable=True,
     )
     status: Mapped[str] = mapped_column(

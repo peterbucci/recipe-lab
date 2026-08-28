@@ -1,13 +1,16 @@
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
+from threading import Barrier
 from typing import Any, cast
 from uuid import UUID, uuid4
 
 import pytest
 from alembic import command
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_session
@@ -23,6 +26,10 @@ from app.models import (
 )
 from app.seeds import load_bundled_catalog, seed_catalog
 from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
+from app.services.recipe_drafts import (
+    create_recipe_draft,
+    recipe_draft_creation_request_fingerprint,
+)
 from tests.conftest import make_alembic_config
 from tests.member_session import authenticate_client, create_member_credentials
 
@@ -111,17 +118,24 @@ def _blank_update(*, revision: int, title: str) -> dict[str, object]:
     }
 
 
+def _creation_headers(action_id: UUID | None = None) -> dict[str, str]:
+    return {"Idempotency-Key": str(action_id or uuid4())}
+
+
 def test_owner_scoped_revisioned_crud_and_immediate_discard(draft_api: DraftApi) -> None:
     assert (
         draft_api.anonymous.post(
             "/api/recipe-drafts",
+            headers=_creation_headers(),
             json={"source_version_id": None},
         ).status_code
         == 401
     )
 
+    creation_action_id = uuid4()
     created = draft_api.member.post(
         "/api/recipe-drafts",
+        headers=_creation_headers(creation_action_id),
         json={"source_version_id": None},
     )
     assert created.status_code == 201
@@ -148,6 +162,7 @@ def test_owner_scoped_revisioned_crud_and_immediate_discard(draft_api: DraftApi)
 
     malicious_create = draft_api.member.post(
         "/api/recipe-drafts",
+        headers=_creation_headers(),
         json={
             "source_version_id": None,
             "author_user_id": str(OTHER_MEMBER_ID),
@@ -220,13 +235,190 @@ def test_owner_scoped_revisioned_crud_and_immediate_discard(draft_api: DraftApi)
     assert discarded.status_code == 204
     assert discarded.headers["cache-control"] == "private, no-store"
     assert draft_api.member.get(f"/api/recipe-drafts/{draft_id}").status_code == 404
+    replay_after_discard = draft_api.member.post(
+        "/api/recipe-drafts",
+        headers=_creation_headers(creation_action_id),
+        json={"source_version_id": None},
+    )
+    assert replay_after_discard.status_code == 409
+    assert _json_object(_json_object(replay_after_discard.json())["error"])["code"] == (
+        "idempotency_key_conflict"
+    )
     with Session(bind=draft_api.engine) as session:
-        assert session.scalar(select(RecipeDraft).where(RecipeDraft.id == draft_id)) is None
+        shell = session.scalar(select(RecipeDraft).where(RecipeDraft.id == draft_id))
+        assert shell is not None
+        assert shell.status == "discarded"
+        assert shell.creation_action_id == creation_action_id
+        assert shell.title == ""
+        assert shell.description is None
+        assert shell.servings is None
+
+
+def test_creation_requires_uuid_key_and_replays_one_actor_scoped_intent(
+    draft_api: DraftApi,
+) -> None:
+    missing = draft_api.member.post(
+        "/api/recipe-drafts",
+        json={"source_version_id": None},
+    )
+    malformed = draft_api.member.post(
+        "/api/recipe-drafts",
+        headers={"Idempotency-Key": "not-a-uuid"},
+        json={"source_version_id": None},
+    )
+    assert missing.status_code == malformed.status_code == 422
+    assert recipe_draft_creation_request_fingerprint(None) != (
+        recipe_draft_creation_request_fingerprint(CARROT_ROOT_ID)
+    )
+
+    action_id = uuid4()
+    created = draft_api.member.post(
+        "/api/recipe-drafts",
+        headers=_creation_headers(action_id),
+        json={"source_version_id": None},
+    )
+    replayed = draft_api.member.post(
+        "/api/recipe-drafts",
+        headers=_creation_headers(action_id),
+        json={"source_version_id": None},
+    )
+    assert created.status_code == replayed.status_code == 201
+    assert created.json() == replayed.json()
+
+    changed_intent = draft_api.member.post(
+        "/api/recipe-drafts",
+        headers=_creation_headers(action_id),
+        json={"source_version_id": str(CARROT_ROOT_ID)},
+    )
+    assert changed_intent.status_code == 409
+    assert _json_object(_json_object(changed_intent.json())["error"])["code"] == (
+        "idempotency_key_conflict"
+    )
+
+    other_actor = draft_api.other_member.post(
+        "/api/recipe-drafts",
+        headers=_creation_headers(action_id),
+        json={"source_version_id": None},
+    )
+    assert other_actor.status_code == 201
+    assert _json_object(other_actor.json())["id"] != _json_object(created.json())["id"]
+
+    with Session(bind=draft_api.engine) as session:
+        bound = list(
+            session.scalars(select(RecipeDraft).where(RecipeDraft.creation_action_id == action_id))
+        )
+        assert len(bound) == 2
+        assert {draft.author_user_id for draft in bound} == {MEMBER_ID, OTHER_MEMBER_ID}
+        assert all(
+            draft.creation_request_fingerprint is not None
+            and len(draft.creation_request_fingerprint) == 64
+            and draft.creation_request_fingerprint == draft.creation_request_fingerprint.casefold()
+            for draft in bound
+        )
+
+
+def test_concurrent_identical_creation_retries_copy_one_source_draft(
+    draft_api: DraftApi,
+) -> None:
+    action_id = uuid4()
+    barrier = Barrier(3)
+
+    def create() -> tuple[int, object]:
+        barrier.wait()
+        response = draft_api.member.post(
+            "/api/recipe-drafts",
+            headers=_creation_headers(action_id),
+            json={"source_version_id": str(CARROT_ROOT_ID)},
+        )
+        return response.status_code, response.json()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        requests = [executor.submit(create) for _index in range(2)]
+        barrier.wait()
+        responses = [request.result(timeout=20) for request in requests]
+
+    assert responses[0][0] == responses[1][0] == 201
+    assert responses[0][1] == responses[1][1]
+    assert len(cast(list[object], _json_object(responses[0][1])["ingredients"])) == 9
+    with Session(bind=draft_api.engine) as session:
+        count = session.scalar(
+            select(func.count())
+            .select_from(RecipeDraft)
+            .where(
+                RecipeDraft.author_user_id == MEMBER_ID,
+                RecipeDraft.creation_action_id == action_id,
+            )
+        )
+        assert count == 1
+
+
+def test_repository_creation_race_reuses_one_bound_shell(draft_api: DraftApi) -> None:
+    action_id = uuid4()
+    barrier = Barrier(3)
+
+    def store() -> UUID:
+        with Session(bind=draft_api.engine, expire_on_commit=False) as session, session.begin():
+            barrier.wait()
+            draft = create_recipe_draft(
+                session,
+                author_user_id=MEMBER_ID,
+                creation_action_id=action_id,
+                source_version_id=CARROT_ROOT_ID,
+            )
+            assert draft is not None
+            return draft.id
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        requests = [executor.submit(store) for _index in range(2)]
+        barrier.wait()
+        draft_ids = [request.result(timeout=20) for request in requests]
+
+    assert draft_ids[0] == draft_ids[1]
+    detail = draft_api.member.get(f"/api/recipe-drafts/{draft_ids[0]}")
+    assert detail.status_code == 200
+    assert len(cast(list[object], _json_object(detail.json())["ingredients"])) == 9
+
+
+def test_creation_replay_precedes_source_visibility_recheck(draft_api: DraftApi) -> None:
+    action_id = uuid4()
+    created = draft_api.member.post(
+        "/api/recipe-drafts",
+        headers=_creation_headers(action_id),
+        json={"source_version_id": str(CARROT_ROOT_ID)},
+    )
+    assert created.status_code == 201
+
+    with Session(bind=draft_api.engine) as session, session.begin():
+        publication = session.get(RecipeVersionPublication, CARROT_ROOT_ID)
+        assert publication is not None
+        withdrawn_at = datetime.now(UTC)
+        publication.state = "author_withdrawn"
+        publication.author_withdrawn_at = withdrawn_at
+        publication.state_changed_at = withdrawn_at
+
+    replayed = draft_api.member.post(
+        "/api/recipe-drafts",
+        headers=_creation_headers(action_id),
+        json={"source_version_id": str(CARROT_ROOT_ID)},
+    )
+    assert replayed.status_code == 201
+    assert replayed.json() == created.json()
+
+    new_attempt = draft_api.member.post(
+        "/api/recipe-drafts",
+        headers=_creation_headers(),
+        json={"source_version_id": str(CARROT_ROOT_ID)},
+    )
+    assert new_attempt.status_code == 404
+    assert _json_object(_json_object(new_attempt.json())["error"])["code"] == (
+        "recipe_source_not_found"
+    )
 
 
 def test_exact_source_clone_and_curated_full_replacement(draft_api: DraftApi) -> None:
     created = draft_api.member.post(
         "/api/recipe-drafts",
+        headers=_creation_headers(),
         json={"source_version_id": str(CARROT_ROOT_ID)},
     )
     assert created.status_code == 201
@@ -359,6 +551,7 @@ def test_source_clone_preserves_historical_package_metadata_but_rejects_reselect
 
     copied = draft_api.member.post(
         "/api/recipe-drafts",
+        headers=_creation_headers(),
         json={"source_version_id": str(source_version_id)},
     )
     assert copied.status_code == 201, copied.text
@@ -375,6 +568,7 @@ def test_source_clone_preserves_historical_package_metadata_but_rejects_reselect
 
     blank = draft_api.member.post(
         "/api/recipe-drafts",
+        headers=_creation_headers(),
         json={"source_version_id": None},
     )
     assert blank.status_code == 201
@@ -423,6 +617,7 @@ def test_unresolved_requests_remain_separate_and_owner_scoped(draft_api: DraftAp
 
     created = draft_api.member.post(
         "/api/recipe-drafts",
+        headers=_creation_headers(),
         json={"source_version_id": None},
     )
     draft_id = _json_object(created.json())["id"]
@@ -519,6 +714,7 @@ def test_unknown_curated_identities_are_rejected_without_mutation(
 ) -> None:
     created = draft_api.member.post(
         "/api/recipe-drafts",
+        headers=_creation_headers(),
         json={"source_version_id": None},
     )
     assert created.status_code == 201

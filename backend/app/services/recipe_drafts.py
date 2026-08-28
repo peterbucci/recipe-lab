@@ -1,3 +1,5 @@
+import hashlib
+import json
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Literal, cast
@@ -6,6 +8,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models import (
+    RECIPE_DRAFT_STATUS_DISCARDED,
     MeasurementUnit,
     RecipeDraft,
     RecipeDraftIngredient,
@@ -18,7 +21,9 @@ from app.repositories.catalog_requests import get_catalog_request
 from app.repositories.ingredients import curated_display_label, get_ingredient
 from app.repositories.recipe_drafts import (
     get_owned_recipe_draft,
+    get_owned_recipe_draft_by_creation_action,
     get_public_recipe_snapshot_for_draft,
+    insert_recipe_draft_shell,
 )
 from app.schemas.actions import (
     ActionNumericMeasureResponse,
@@ -62,6 +67,14 @@ class InvalidRecipeDraftError(ValueError):
 
 class RecipeDraftRevisionConflictError(ValueError):
     """Raised when a stale editor attempts to replace or discard a newer revision."""
+
+
+class RecipeDraftCreationIdempotencyConflictError(RuntimeError):
+    """Raised when one creation action cannot safely resolve to an active draft."""
+
+
+RECIPE_DRAFT_CREATION_FINGERPRINT_SCHEMA = "recipe-draft-creation"
+RECIPE_DRAFT_CREATION_FINGERPRINT_VERSION = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -359,9 +372,22 @@ def create_recipe_draft(
     session: Session,
     *,
     author_user_id: UUID,
+    creation_action_id: UUID,
     source_version_id: UUID | None,
 ) -> RecipeDraft | None:
-    """Create a blank original or copy one exact public immutable source."""
+    """Create or recover one blank/or-source draft for a member-scoped action."""
+
+    request_fingerprint = recipe_draft_creation_request_fingerprint(source_version_id)
+    existing = get_owned_recipe_draft_by_creation_action(
+        session,
+        author_user_id=author_user_id,
+        creation_action_id=creation_action_id,
+    )
+    if existing is not None:
+        return _resolve_recipe_draft_creation_replay(
+            existing,
+            request_fingerprint=request_fingerprint,
+        )
 
     source = None
     if source_version_id is not None:
@@ -369,17 +395,36 @@ def create_recipe_draft(
         if source is None:
             return None
 
-    draft = RecipeDraft(
+    inserted_id = insert_recipe_draft_shell(
+        session,
         author_user_id=author_user_id,
+        creation_action_id=creation_action_id,
+        creation_request_fingerprint=request_fingerprint,
         source_version_id=source.id if source is not None else None,
-        status="active",
-        revision=1,
         title=source.title if source is not None else "",
         description=source.description if source is not None else None,
         servings=source.servings if source is not None else None,
     )
-    session.add(draft)
-    session.flush()
+    if inserted_id is None:
+        concurrent = get_owned_recipe_draft_by_creation_action(
+            session,
+            author_user_id=author_user_id,
+            creation_action_id=creation_action_id,
+        )
+        if concurrent is None:
+            raise RuntimeError("The draft creation idempotency conflict could not be resolved.")
+        return _resolve_recipe_draft_creation_replay(
+            concurrent,
+            request_fingerprint=request_fingerprint,
+        )
+
+    draft = get_owned_recipe_draft(
+        session,
+        author_user_id=author_user_id,
+        draft_id=inserted_id,
+    )
+    if draft is None:
+        raise RuntimeError("The newly inserted private draft shell could not be reloaded.")
     if source is None:
         return draft
 
@@ -470,6 +515,35 @@ def create_recipe_draft(
     return draft
 
 
+def recipe_draft_creation_request_fingerprint(source_version_id: UUID | None) -> str:
+    """Hash one versioned canonical blank-or-source creation intent."""
+
+    document = {
+        "intent": "blank" if source_version_id is None else "source",
+        "schema": RECIPE_DRAFT_CREATION_FINGERPRINT_SCHEMA,
+        "source_version_id": str(source_version_id) if source_version_id is not None else None,
+        "version": RECIPE_DRAFT_CREATION_FINGERPRINT_VERSION,
+    }
+    canonical = json.dumps(document, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _resolve_recipe_draft_creation_replay(
+    draft: RecipeDraft,
+    *,
+    request_fingerprint: str,
+) -> RecipeDraft:
+    if draft.creation_request_fingerprint != request_fingerprint:
+        raise RecipeDraftCreationIdempotencyConflictError(
+            "The draft creation action is already bound to another request."
+        )
+    if draft.status != "active":
+        raise RecipeDraftCreationIdempotencyConflictError(
+            "The draft creation action is already bound to a completed draft."
+        )
+    return draft
+
+
 def replace_recipe_draft(
     session: Session,
     *,
@@ -533,7 +607,10 @@ def discard_recipe_draft(
     session.flush()
     draft.ingredients.clear()
     session.flush()
-    session.delete(draft)
+    draft.title = ""
+    draft.description = None
+    draft.servings = None
+    draft.status = RECIPE_DRAFT_STATUS_DISCARDED
     session.flush()
     return True
 

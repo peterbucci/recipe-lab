@@ -7826,9 +7826,21 @@
         "x-recipe-lab-external-consumer-status": "unknown_pending"
       },
       "post": {
-        "description": "Creates a blank original draft or copies one exact public immutable recipe snapshot. Authorship always comes from the active member session.",
+        "description": "Creates a blank original draft or copies one exact public immutable recipe snapshot. The required Idempotency-Key recovers the same active draft after an ambiguous response. Authorship always comes from the active member session.",
         "operationId": "create_private_recipe_draft_api_recipe_drafts_post",
         "parameters": [
+          {
+            "description": "Opaque UUID that binds one member to one blank-or-source draft creation intent.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Opaque UUID that binds one member to one blank-or-source draft creation intent.",
+              "format": "uuid",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          },
           {
             "in": "header",
             "name": "X-CSRF-Token",
@@ -7865,7 +7877,7 @@
                 }
               }
             },
-            "description": "The private recipe draft was created.",
+            "description": "The private recipe draft was created or safely recovered.",
             "headers": {
               "Location": {
                 "description": "Owner-readable private draft detail resource.",
@@ -7915,7 +7927,7 @@
                 }
               }
             },
-            "description": "The submitted revision is stale."
+            "description": "The Idempotency-Key conflicts with an earlier creation intent."
           },
           "413": {
             "content": {
@@ -7961,7 +7973,7 @@
     },
     "/api/recipe-drafts/{draft_id}": {
       "delete": {
-        "description": "Immediately and irreversibly deletes the draft and all private draft content when the submitted revision is current. No application-level tombstone is retained.",
+        "description": "Immediately and irreversibly deletes all private draft content when the submitted revision is current. A content-free terminal shell retains only bounded retry and lineage metadata.",
         "operationId": "delete_private_recipe_draft_api_recipe_drafts__draft_id__delete",
         "parameters": [
           {

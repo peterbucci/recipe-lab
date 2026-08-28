@@ -137,7 +137,11 @@ def _create_complete_draft(
     occurrence_count: int,
     scale: int = 1,
 ) -> UUID:
-    created = client.post("/api/recipe-drafts", json={"source_version_id": None})
+    created = client.post(
+        "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={"source_version_id": None},
+    )
     assert created.status_code == 201
     draft_id = UUID(cast(str, _json_object(created.json())["id"]))
     saved = client.put(

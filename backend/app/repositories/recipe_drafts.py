@@ -1,8 +1,10 @@
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
 from app.models import (
@@ -100,6 +102,62 @@ def get_owned_recipe_draft_for_publication(
             RecipeDraft.status.in_(("active", "published")),
         )
         .with_for_update(of=RecipeDraft)
+    )
+
+
+def get_owned_recipe_draft_by_creation_action(
+    session: Session,
+    *,
+    author_user_id: UUID,
+    creation_action_id: UUID,
+) -> RecipeDraft | None:
+    """Resolve one member-scoped creation attempt, including a completed draft shell."""
+
+    return session.scalar(
+        select(RecipeDraft)
+        .options(*_draft_detail_options())
+        .where(
+            RecipeDraft.author_user_id == author_user_id,
+            RecipeDraft.creation_action_id == creation_action_id,
+        )
+    )
+
+
+def insert_recipe_draft_shell(
+    session: Session,
+    *,
+    author_user_id: UUID,
+    creation_action_id: UUID,
+    creation_request_fingerprint: str,
+    source_version_id: UUID | None,
+    title: str,
+    description: str | None,
+    servings: Decimal | None,
+) -> UUID | None:
+    """Win one actor/action binding before any source aggregate rows are copied."""
+
+    draft_id = uuid4()
+    return session.scalar(
+        postgresql_insert(RecipeDraft)
+        .values(
+            id=draft_id,
+            author_user_id=author_user_id,
+            source_version_id=source_version_id,
+            creation_action_id=creation_action_id,
+            creation_request_fingerprint=creation_request_fingerprint,
+            status="active",
+            revision=1,
+            title=title,
+            description=description,
+            servings=servings,
+        )
+        .on_conflict_do_nothing(
+            index_elements=[
+                RecipeDraft.author_user_id,
+                RecipeDraft.creation_action_id,
+            ]
+        )
+        .returning(RecipeDraft.id)
     )
 
 

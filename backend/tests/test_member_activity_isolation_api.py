@@ -169,6 +169,7 @@ def test_anonymous_reads_are_public_but_every_mutation_is_rejected_without_rows(
         ),
         member_activity_api.anonymous.post(
             "/api/recipe-drafts",
+            headers=_headers(),
             json={"source_version_id": str(CARROT_ROOT_ID)},
         ),
     ]
@@ -312,6 +313,7 @@ def test_actor_spoof_payloads_and_incomplete_accounts_cannot_mutate(
     assert {response.status_code for response in spoofed_mutations} == {422}
     blocked_actor_spoof = member_activity_api.member_a.post(
         "/api/recipe-drafts",
+        headers=_headers(),
         json={
             "source_version_id": str(CARROT_ROOT_ID),
             "created_by_user_id": str(MEMBER_B_ID),
@@ -325,6 +327,7 @@ def test_actor_spoof_payloads_and_incomplete_accounts_cannot_mutate(
     )
     incomplete_draft = member_activity_api.incomplete.post(
         "/api/recipe-drafts",
+        headers=_headers(),
         json={"source_version_id": str(CARROT_ROOT_ID)},
     )
     assert incomplete_view.status_code == 403

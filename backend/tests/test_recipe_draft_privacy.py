@@ -67,6 +67,7 @@ def test_private_draft_is_absent_from_every_public_and_signal_query(
     draft = create_recipe_draft(
         db_session,
         author_user_id=author.id,
+        creation_action_id=uuid4(),
         source_version_id=None,
     )
     assert draft is not None
@@ -121,5 +122,10 @@ def test_private_draft_is_absent_from_every_public_and_signal_query(
         draft_id=draft.id,
         expected_revision=2,
     )
-    assert db_session.get(RecipeDraft, draft.id) is None
+    discarded = db_session.get(RecipeDraft, draft.id)
+    assert discarded is not None
+    assert discarded.status == "discarded"
+    assert discarded.title == ""
+    assert discarded.description is None
+    assert discarded.servings is None
     assert {model: _count(db_session, model) for model in signal_models} == counts_before
