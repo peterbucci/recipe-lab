@@ -39,11 +39,13 @@ RECOMMENDATION_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     "",
     response_model=RecipeRecommendationsResponse,
     responses=RECOMMENDATION_ERROR_RESPONSES,
-    summary="Get explainable baseline recommendations",
+    summary="Research preview: get deterministic baseline rankings",
     description=(
+        "Research-preview API only; Recipe Lab has no consumer recommendation surface. "
         "Ranks recipe versions with the deterministic baseline-v1 quality, popularity, "
-        "and canonical-ingredient similarity formula. Signed-out requests use the deterministic "
-        "global ranking; signed-in requests use only that member's private history."
+        "and canonical-ingredient similarity formula. Every request uses aggregate activity for "
+        "publicly readable recipes. Signed-in personalization additionally uses only the active "
+        "member's private history; signed-out requests load no account-specific history."
     ),
 )
 def get_recommendations(

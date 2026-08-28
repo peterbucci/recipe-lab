@@ -10933,7 +10933,7 @@
     },
     "/api/recommendations": {
       "get": {
-        "description": "Ranks recipe versions with the deterministic baseline-v1 quality, popularity, and canonical-ingredient similarity formula. Signed-out requests use the deterministic global ranking; signed-in requests use only that member's private history.",
+        "description": "Research-preview API only; Recipe Lab has no consumer recommendation surface. Ranks recipe versions with the deterministic baseline-v1 quality, popularity, and canonical-ingredient similarity formula. Every request uses aggregate activity for publicly readable recipes. Signed-in personalization additionally uses only the active member's private history; signed-out requests load no account-specific history.",
         "operationId": "get_recommendations_api_recommendations_get",
         "parameters": [
           {
@@ -10993,7 +10993,7 @@
             "description": "A durable account, identity, or network rate limit was exceeded."
           }
         },
-        "summary": "Get explainable baseline recommendations",
+        "summary": "Research preview: get deterministic baseline rankings",
         "tags": [
           "recommendations"
         ],
