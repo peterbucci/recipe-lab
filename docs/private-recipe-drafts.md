@@ -63,6 +63,17 @@ session; mutations additionally require the session-bound CSRF token and a
 trusted exact Origin. Every response containing draft data is private and
 non-cacheable.
 
+Draft creation additionally requires a UUID `Idempotency-Key`. The server
+scopes that opaque action to the authenticated member and fingerprints the
+versioned request body, whose only field is `source_version_id` with either
+`null` or one lowercase UUID. Repeating the same action and
+payload returns the same active draft; reusing it for a different source or for
+a blank draft instead returns `409` and creates nothing. The replay lookup
+happens before the source is read again, so an ambiguous first response can
+recover its already-created private draft even when the public source is later
+withdrawn or hidden. A new creation action against that unavailable source
+still returns `404`.
+
 Draft lookups are scoped by both stable draft ID and session member. A draft
 owned by someone else is indistinguishable from a missing draft and returns
 `404`, including update and discard attempts. Listing never computes an
@@ -136,13 +147,60 @@ warning for reloads, closing the page, browser history navigation, and
 client-side application links. A confirmed save or discard clears the warning;
 a failed save does not.
 
+Opening `/recipes/new` or an eligible `/recipes/{recipeVersionId}/fork` route
+starts creation immediately after the member gate succeeds. There is no second
+confirmation screen. While the request is in flight the page exposes a status,
+and an ambiguous failure leaves a focused, retryable error without creating a
+fresh intent. A definitive terminal-binding conflict retires that completed
+attempt and makes one bounded request with a fresh key; if that request also
+fails, the focused retry action starts from another fresh key. Once a valid
+draft ID is known the browser replaces the starter route with the owner-only
+editor route, so Back does not return to a creation page and silently create
+another draft.
+
+The browser keeps one bounded creation attempt in tab-scoped `sessionStorage`,
+under
+`recipe-lab:draft-creation-attempt:v1:<encoded actor>:<encoded intent>`. The
+intent is `blank` or `source:<lowercase source UUID>`, and the exact stored
+record is `{ actor_id, idempotency_key, intent, version: 1 }`. It therefore
+contains only a schema version, actor ID, intent label, and opaque UUID; it
+contains no recipe body, source title, cookie, or CSRF token. This lifetime
+survives retry, reload, and a same-tab sign-in return, but ends when that tab's
+session storage is cleared. The browser removes the attempt after it validates
+a draft response and learns the stable draft ID, or after the server
+definitively reports that the binding already belongs to a discarded or
+published draft. An unknown outcome keeps the attempt so the next request does
+not guess whether the first request committed. Blank creation and each exact
+source use different browser intent scopes and server fingerprints, so
+changing intent uses a different binding. Server-side member scoping remains
+the authority for ownership and replay.
+
+Server bindings have no wall-clock expiry while their draft row exists. An
+active binding lives for the draft's authoring lifetime; discard keeps the
+content-free terminal shell described below; publication keeps the completed
+shell and receipt. Account deletion applies the narrower retention rules in
+[account-data governance](account-data-governance.md). Browser-attempt expiry
+therefore never authorizes reuse of a server-bound action.
+
 ## Discard and retention
 
 Discard is immediate and irreversible in the live application database. After
-the owner and expected revision are verified, one transaction deletes the
-draft and all child content. It is removed from the member's list and later
-reads return `404`. Recipe Lab provides no trash, undo, restore endpoint, or
-soft-deleted copy of the recipe body.
+the owner and expected revision are verified, one transaction deletes every
+ingredient, instruction, action, and measure row; erases title, description,
+and servings; and marks the remaining row `discarded`. It is removed from the
+member's list and later reads, edits, and discards return `404`. Recipe Lab
+provides no trash, undo, restore endpoint, or soft-deleted copy of the recipe
+body.
+
+The content-free discarded shell retains only bounded ownership, optional
+source, stable-ID, revision, timestamp, status, and creation-binding evidence.
+That evidence makes the original member/action binding terminal: replaying the
+creation action returns `409` instead of silently creating another draft. An
+automatic starter treats that exact terminal response as permission to retire
+the browser key and begin one new creation intent; it never rotates a key for a
+timeout, lost response, or other ambiguous failure. An account-deletion
+transaction removes the member's discarded shells because they have no public
+retention purpose.
 
 Successful publication uses a different terminal policy. It retains the
 completed draft with `status = published` and an immutable
@@ -150,8 +208,9 @@ completed draft with `status = published` and an immutable
 draft revision, duplicate-review evidence, public version, and publication
 time. Published drafts are excluded from the active list, and ordinary draft
 read, edit, and discard operations return `404`. The retained state is not a
-second editable copy; it exists to make publication replayable and to prevent a
-second root or child from the same draft.
+second editable copy; its creation binding is terminal, and it exists to make
+publication replayable and to prevent a second root or child from the same
+draft.
 
 Infrastructure backups, when configured, may retain database blocks according
 to the bounded schedule in
@@ -241,9 +300,9 @@ text as catalog identity.
 Acceptance coverage includes owner-versus-other-member `404` behavior,
 authentication and CSRF failures, stale-revision conflicts, exact fork copying,
 arbitrary-identity rejection, request-status and resolution preservation,
-discard deletion, and private/non-signal exclusion. Publication coverage adds
-original-versus-source-backed topology and owner checks, revision and
-curated-identity revalidation, source-aware advisory review, explicit
+discarded-content erasure, and private/non-signal exclusion. Publication
+coverage adds original-versus-source-backed topology and owner checks,
+revision and curated-identity revalidation, source-aware advisory review, explicit
 direct-parent no-change acknowledgement, rollback on every failure, exact
 idempotent replay, changed-intent conflict, source-loss preservation, one-root
 or one-child enforcement, retained-draft sealing, public visibility, immutable
@@ -255,3 +314,11 @@ validation preservation, keyboard ordering, accessible error focus and
 announcements, phone layouts, two-tab conflicts, both hard-navigation and
 client-navigation unsaved-change warnings, source-loss recovery, and successful
 publish navigation to the stable public location.
+
+Creation-specific checks cover concurrent identical requests, changed-payload
+conflicts, a lost response followed by retry with the same body and action, a
+reload and same-tab sign-in return, replay after both author withdrawal and
+moderator hiding, rejection of a new intent after either visibility change,
+terminal replay after discard, keyboard activation of original and fork entry
+points, phone layout, a loading-only intermediate state, focused retry, and the
+absence of the removed confirmation control.
