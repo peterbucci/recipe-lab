@@ -18,13 +18,12 @@ function VersionLink({ label, version }: { label: string; version: RecipeVersion
       <span>{label}</span>
       <strong>
         <Link
-          aria-label={`${label}: ${version.title}, version ${version.version_number}, by ${version.author.display_name}`}
+          aria-label={`${label}: ${version.title}, by ${version.author.display_name}`}
           href={`/recipes/${version.id}`}
         >
           {version.title}
         </Link>
       </strong>
-      <small>Version {version.version_number}</small>
       <small>
         By <PublicCookAttribution author={version.author} />
       </small>
@@ -41,7 +40,6 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
         <div className="recipe-detail__hero">
           <RecipeArtwork className="recipe-detail__artwork" lineageKey={recipe.lineage_id} />
           <div className="recipe-detail__intro">
-            <p className="eyebrow">{isVariation ? "Version" : "Original"}</p>
             <h1>{recipe.title}</h1>
             <p className="recipe-detail__attribution">
               By <PublicCookAttribution author={recipe.author} />
@@ -52,7 +50,6 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
                 <Link href={`/recipes/${recipe.parent.id}`}>{recipe.parent.title}</Link>
                 {" by "}
                 <PublicCookAttribution author={recipe.parent.author} />
-                . Recipe history shows where a version started, not endorsement or ownership.
               </p>
             ) : isVariation ? (
               <p className="recipe-detail__parent-context">Source unavailable</p>
@@ -65,10 +62,6 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
                 <div>
                   <dt>Makes</dt>
                   <dd>{formatServings(recipe.servings)}</dd>
-                </div>
-                <div>
-                  <dt>Version</dt>
-                  <dd>{recipe.version_number}</dd>
                 </div>
               </dl>
               <RatingSummary average={recipe.average_rating} count={recipe.rating_count} />
@@ -91,23 +84,17 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
             <span>{recipe.ingredients.length} items</span>
           </div>
           <ul className="ingredient-list">
-            {recipe.ingredients.map((ingredient) => {
-              const authoredAlias =
-                ingredient.display_name.trim().toLowerCase() !==
-                ingredient.canonical_name.trim().toLowerCase();
-              return (
-                <li key={ingredient.id}>
-                  <span className="ingredient-list__amount">
-                    {formatIngredientMeasure(ingredient.measure)}
-                  </span>
-                  <span className="ingredient-list__name">
-                    <strong>{ingredient.display_name}</strong>
-                    {ingredient.preparation_notes ? <small>{ingredient.preparation_notes}</small> : null}
-                    {authoredAlias ? <small>Catalog name: {ingredient.canonical_name}</small> : null}
-                  </span>
-                </li>
-              );
-            })}
+            {recipe.ingredients.map((ingredient) => (
+              <li key={ingredient.id}>
+                <span className="ingredient-list__amount">
+                  {formatIngredientMeasure(ingredient.measure)}
+                </span>
+                <span className="ingredient-list__name">
+                  <strong>{ingredient.display_name}</strong>
+                  {ingredient.preparation_notes ? <small>{ingredient.preparation_notes}</small> : null}
+                </span>
+              </li>
+            ))}
           </ul>
         </section>
 
@@ -122,11 +109,13 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
             {recipe.instructions.map((instruction, index) => (
               <li key={instruction.id}>
                 <p>{instruction.text}</p>
-                <RecipeInstructionActions
-                  actions={instruction.actions}
-                  ingredients={recipe.ingredients}
-                  label={`Cooking actions for step ${index + 1}`}
-                />
+                {instruction.actions.length > 0 ? (
+                  <RecipeInstructionActions
+                    actions={instruction.actions}
+                    ingredients={recipe.ingredients}
+                    label={`Cooking actions for step ${index + 1}`}
+                  />
+                ) : null}
               </li>
             ))}
           </ol>
@@ -152,7 +141,6 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
               <article className="lineage-card lineage-card--unavailable">
                 <span>Based on</span>
                 <strong>Source unavailable</strong>
-                <small>The source recipe cannot be viewed.</small>
               </article>
             </li>
           ) : null}
@@ -160,11 +148,10 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
             <div
               className="lineage-card lineage-card--current"
               aria-current="page"
-              aria-label="Current recipe version"
+              aria-label="This recipe"
             >
-              <span>This version</span>
+              <span>This recipe</span>
               <strong>{recipe.title}</strong>
-              <small>Version {recipe.version_number}</small>
               <small>
                 By <PublicCookAttribution author={recipe.author} />
               </small>
