@@ -20,7 +20,11 @@ const targetVersion = {
   id: "22222222-2222-4222-8222-222222222222",
   version_number: 2,
   title: "Lower-Sugar Pecan Carrot Cake",
-  author: { id: "cook-two", handle: "second-cook", display_name: "Second Cook" },
+  author: {
+    id: "cook-two",
+    handle: "second-cook",
+    display_name: "Second Cook",
+  },
 };
 
 function ingredient(
@@ -30,7 +34,8 @@ function ingredient(
   unit: string | null,
   overrides: Partial<RecipeIngredient> = {},
 ): RecipeIngredient {
-  const amount = quantity?.replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1") ?? null;
+  const amount =
+    quantity?.replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1") ?? null;
   return {
     id,
     ingredient_id: `catalog-${id}`,
@@ -147,10 +152,16 @@ function mixedDiff(): RecipeDiff {
       ],
       modified: [
         {
-          before: ingredient("sugar-before-row", "White sugar", "180.0000", "g", {
-            canonical_name: "Granulated sugar",
-            display_order: 2,
-          }),
+          before: ingredient(
+            "sugar-before-row",
+            "White sugar",
+            "180.0000",
+            "g",
+            {
+              canonical_name: "Granulated sugar",
+              display_order: 2,
+            },
+          ),
           after: ingredient("sugar-after-row", "White sugar", "140.0000", "g", {
             canonical_name: "Granulated sugar",
             preparation_notes: "divided",
@@ -166,7 +177,11 @@ function mixedDiff(): RecipeDiff {
       removed: [instruction("cool-step", "Cool completely before slicing.", 2)],
       modified: [
         {
-          before: instruction("bake-before-step", "Bake until the center is set.", 1),
+          before: instruction(
+            "bake-before-step",
+            "Bake until the center is set.",
+            1,
+          ),
           after: instruction(
             "bake-after-step",
             "Bake gently until the center is just set.",
@@ -196,70 +211,107 @@ describe("RecipeDiffView", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "What changed in Lower-Sugar Pecan Carrot Cake",
+        name: "How Lower-Sugar Pecan Carrot Cake changed",
         level: 1,
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("10 changes from Carrot Walnut Snack Cake."),
-    ).toBeInTheDocument();
-    expect(
       screen.getByText(
-        "See how this recipe differs from Carrot Walnut Snack Cake. This comparison covers recipe details, ingredients, and instructions.",
+        "Compared with Carrot Walnut Snack Cake. Start with the main cooking changes, then review every recorded detail below.",
       ),
     ).toBeInTheDocument();
 
-    const highlights = screen.getByRole("list", { name: "Change highlights" });
-    expect(within(highlights).getByText("4 ingredient changes")).toBeInTheDocument();
-    expect(within(highlights).getByText("3 instruction changes")).toBeInTheDocument();
-    expect(within(highlights).getByText("3 other detail changes")).toBeInTheDocument();
+    const highlights = screen.getByRole("list", {
+      name: "Changes at a glance",
+    });
+    expect(
+      within(highlights).getByText("Use 90 g Pecan instead of 100 g Walnut."),
+    ).toBeInTheDocument();
+    expect(
+      within(highlights).getByText("Change White sugar from 180 g to 140 g."),
+    ).toBeInTheDocument();
+    expect(
+      within(highlights).getByText("Add Orange zest (1 tbsp)."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("7 more changes are listed below."),
+    ).toBeInTheDocument();
 
-    const versions = screen.getByRole("navigation", { name: "Compared recipes" });
+    const versions = screen.getByRole("navigation", {
+      name: "Compared recipes",
+    });
     expect(
       within(versions).getByRole("link", {
-        name: /starting recipe.*carrot walnut snack cake.*version 1/i,
+        name: /starting recipe.*carrot walnut snack cake/i,
       }),
     ).toHaveAttribute("href", `/recipes/${baseVersion.id}`);
     expect(
       within(versions).getByRole("link", {
-        name: /this version.*lower-sugar pecan carrot cake.*version 2/i,
+        name: /this recipe.*lower-sugar pecan carrot cake/i,
       }),
     ).toHaveAttribute("href", `/recipes/${targetVersion.id}`);
+    expect(screen.queryByText(/version \d+/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/direct parent/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/before · parent/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/after · variant/i)).not.toBeInTheDocument();
 
     expect(
-      screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent),
-    ).toEqual(["Ingredient changes", "Instruction changes", "Other details"]);
+      screen
+        .getAllByRole("heading", { level: 2 })
+        .map((heading) => heading.textContent),
+    ).toEqual([
+      "Changes at a glance",
+      "Ingredient changes",
+      "Cooking step changes",
+      "Recipe details",
+    ]);
+    expect(document.body).not.toHaveTextContent(/Catalog name:/i);
+    expect(document.body).not.toHaveTextContent(/Ingredient \d+:/i);
+    expect(document.body).not.toHaveTextContent(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i,
+    );
   });
 
   it("preserves every old and new recipe detail value", () => {
     render(<RecipeDiffView diff={mixedDiff()} />);
 
-    const details = sectionNamed("Other details");
+    const details = sectionNamed("Recipe details");
     const titleChange = within(details).getByRole("article", { name: "Title" });
     expect(within(titleChange).getByText("Title changed")).toBeInTheDocument();
-    expect(within(titleChange).getByText("Before")).toBeInTheDocument();
-    expect(within(titleChange).getByText("After")).toBeInTheDocument();
-    expect(within(titleChange).getByText(baseVersion.title).closest("del")).not.toBeNull();
-    expect(within(titleChange).getByText(targetVersion.title).closest("ins")).not.toBeNull();
+    expect(
+      within(titleChange).getByText("Starting recipe"),
+    ).toBeInTheDocument();
+    expect(within(titleChange).getByText("This recipe")).toBeInTheDocument();
+    expect(
+      within(titleChange).getByText(baseVersion.title).closest("del"),
+    ).not.toBeNull();
+    expect(
+      within(titleChange).getByText(targetVersion.title).closest("ins"),
+    ).not.toBeNull();
 
     const descriptionChange = within(details).getByRole("article", {
       name: "Description",
     });
-    expect(within(descriptionChange).getByText("Description changed")).toBeInTheDocument();
-    expect(within(descriptionChange).getByText("Not provided").closest("del")).not.toBeNull();
     expect(
-      within(descriptionChange).getByText(
-        "The original cake with less sugar and toasted pecans.",
-      ).closest("ins"),
+      within(descriptionChange).getByText("Description changed"),
+    ).toBeInTheDocument();
+    expect(
+      within(descriptionChange).getByText("Not provided").closest("del"),
+    ).not.toBeNull();
+    expect(
+      within(descriptionChange)
+        .getByText("The original cake with less sugar and toasted pecans.")
+        .closest("ins"),
     ).not.toBeNull();
 
     const yieldChange = within(details).getByRole("article", { name: "Yield" });
     expect(within(yieldChange).getByText("Yield changed")).toBeInTheDocument();
-    expect(within(yieldChange).getByText("8 servings").closest("del")).not.toBeNull();
-    expect(within(yieldChange).getByText("6 servings").closest("ins")).not.toBeNull();
+    expect(
+      within(yieldChange).getByText("8 servings").closest("del"),
+    ).not.toBeNull();
+    expect(
+      within(yieldChange).getByText("6 servings").closest("ins"),
+    ).not.toBeNull();
   });
 
   it("gives additions, removals, substitutions, amounts, and preparation changes distinct text", () => {
@@ -268,87 +320,163 @@ describe("RecipeDiffView", () => {
     const ingredients = sectionNamed("Ingredient changes");
 
     const substitution = within(ingredients).getByRole("article", {
-      name: "Walnut replaced with Pecan",
+      name: "Use Pecan instead of Walnut",
     });
     expect(within(substitution).getByText("Substitution")).toBeInTheDocument();
-    expect(within(substitution).getByText("Amount changed")).toBeInTheDocument();
-    expect(within(substitution).getByText("Preparation changed")).toBeInTheDocument();
-    expect(within(substitution).getByText("Original ingredient")).toBeInTheDocument();
-    expect(within(substitution).getByText("Replacement ingredient")).toBeInTheDocument();
-    expect(within(substitution).getByText("Walnut").closest("del")).not.toBeNull();
-    expect(within(substitution).getByText("Pecan").closest("ins")).not.toBeNull();
-    expect(within(substitution).getByText("100 g")).toBeInTheDocument();
-    expect(within(substitution).getByText("90 g")).toBeInTheDocument();
-    expect(within(substitution).getByText(/preparation: roughly chopped/i)).toBeInTheDocument();
     expect(
-      within(substitution).getByText(/preparation: toasted and chopped/i),
+      within(substitution).getByText("Amount changed"),
     ).toBeInTheDocument();
+    expect(
+      within(substitution).getByText("Preparation changed"),
+    ).toBeInTheDocument();
+    expect(
+      within(substitution).getByText("Starting ingredient"),
+    ).toBeInTheDocument();
+    expect(within(substitution).getByText("Use instead")).toBeInTheDocument();
+    const removedWalnutLabels = within(substitution).getAllByText("Walnut");
+    expect(removedWalnutLabels).toHaveLength(2);
+    expect(
+      removedWalnutLabels.every((label) => label.closest("del") !== null),
+    ).toBe(true);
+    const addedPecanLabels = within(substitution).getAllByText("Pecan");
+    expect(addedPecanLabels).toHaveLength(2);
+    expect(
+      addedPecanLabels.every((label) => label.closest("ins") !== null),
+    ).toBe(true);
+    expect(
+      within(substitution).getByText("100 g").closest("del"),
+    ).not.toBeNull();
+    expect(
+      within(substitution).getByText("90 g").closest("ins"),
+    ).not.toBeNull();
+    expect(
+      within(substitution)
+        .getByText(/preparation: roughly chopped/i)
+        .closest("del"),
+    ).not.toBeNull();
+    expect(
+      within(substitution)
+        .getByText(/preparation: toasted and chopped/i)
+        .closest("ins"),
+    ).not.toBeNull();
 
     const amountChange = within(ingredients).getByRole("article", {
-      name: "White sugar",
+      name: "Change White sugar from 180 g to 140 g",
     });
-    expect(within(amountChange).getByText("Amount changed")).toBeInTheDocument();
-    expect(within(amountChange).getByText("Preparation changed")).toBeInTheDocument();
-    expect(within(amountChange).getByText("Before")).toBeInTheDocument();
-    expect(within(amountChange).getByText("After")).toBeInTheDocument();
-    expect(within(amountChange).getByText("180 g")).toBeInTheDocument();
-    expect(within(amountChange).getByText("140 g")).toBeInTheDocument();
-    expect(within(amountChange).getByText(/preparation: divided/i)).toBeInTheDocument();
+    expect(
+      within(amountChange).getByText("Amount changed"),
+    ).toBeInTheDocument();
+    expect(
+      within(amountChange).getByText("Preparation changed"),
+    ).toBeInTheDocument();
+    expect(
+      within(amountChange).getByText("Starting recipe"),
+    ).toBeInTheDocument();
+    expect(within(amountChange).getByText("This recipe")).toBeInTheDocument();
+    expect(
+      within(amountChange).getByText("180 g").closest("del"),
+    ).not.toBeNull();
+    expect(
+      within(amountChange).getByText("140 g").closest("ins"),
+    ).not.toBeNull();
+    expect(
+      within(amountChange)
+        .getByText(/preparation: divided/i)
+        .closest("ins"),
+    ).not.toBeNull();
 
-    const addition = within(ingredients).getByRole("article", { name: "Orange zest" });
+    const addition = within(ingredients).getByRole("article", {
+      name: "Add Orange zest",
+    });
     expect(within(addition).getByText("Added")).toBeInTheDocument();
     expect(within(addition).getByText("New ingredient")).toBeInTheDocument();
-    expect(within(addition).getByText("Orange zest").closest("ins")).not.toBeNull();
+    expect(
+      within(addition).getByText("Orange zest").closest("ins"),
+    ).not.toBeNull();
     expect(within(addition).getByText("1 tbsp").closest("ins")).not.toBeNull();
-    expect(within(addition).getByText(/preparation: finely grated/i)).toBeInTheDocument();
+    expect(
+      within(addition).getByText(/preparation: finely grated/i),
+    ).toBeInTheDocument();
 
-    const removal = within(ingredients).getByRole("article", { name: "Baking soda" });
+    const removal = within(ingredients).getByRole("article", {
+      name: "Remove Baking soda",
+    });
     expect(within(removal).getByText("Removed")).toBeInTheDocument();
     expect(within(removal).getByText("Removed ingredient")).toBeInTheDocument();
-    expect(within(removal).getByText("Baking soda").closest("del")).not.toBeNull();
+    expect(
+      within(removal).getByText("Baking soda").closest("del"),
+    ).not.toBeNull();
     expect(within(removal).getByText("0.5 tsp").closest("del")).not.toBeNull();
   });
 
   it("distinguishes added, removed, and modified instructions", () => {
     render(<RecipeDiffView diff={mixedDiff()} />);
 
-    const instructions = sectionNamed("Instruction changes");
+    const instructions = sectionNamed("Cooking step changes");
     const changed = within(instructions).getByRole("article", {
-      name: "Updated instruction",
+      name: "Update step 2",
     });
-    expect(within(changed).getByText("Prose changed")).toBeInTheDocument();
-    expect(within(changed).getByText("Before")).toBeInTheDocument();
-    expect(within(changed).getByText("After")).toBeInTheDocument();
+    expect(within(changed).getByText("Wording changed")).toBeInTheDocument();
+    expect(within(changed).getByText("Starting recipe")).toBeInTheDocument();
+    expect(within(changed).getByText("This recipe")).toBeInTheDocument();
     expect(
       within(changed).getByText("Bake until the center is set.").closest("del"),
     ).not.toBeNull();
     expect(
-      within(changed).getByText("Bake gently until the center is just set.").closest("ins"),
+      within(changed)
+        .getByText("Bake gently until the center is just set.")
+        .closest("ins"),
     ).not.toBeNull();
 
-    const added = within(instructions).getByRole("article", { name: "Step 4" });
-    expect(within(added).getByText("Instruction added")).toBeInTheDocument();
-    expect(within(added).getByText("New instruction")).toBeInTheDocument();
-    expect(within(added).getByText("Serve with yogurt.").closest("ins")).not.toBeNull();
-
-    const removed = within(instructions).getByRole("article", { name: "Step 3" });
-    expect(within(removed).getByText("Instruction removed")).toBeInTheDocument();
-    expect(within(removed).getByText("Removed instruction")).toBeInTheDocument();
+    const added = within(instructions).getByRole("article", {
+      name: "Add step 4",
+    });
+    expect(within(added).getByText("Cooking step added")).toBeInTheDocument();
+    expect(within(added).getByText("New cooking step")).toBeInTheDocument();
     expect(
-      within(removed).getByText("Cool completely before slicing.").closest("del"),
+      within(added).getByText("Serve with yogurt.").closest("ins"),
+    ).not.toBeNull();
+
+    const removed = within(instructions).getByRole("article", {
+      name: "Remove step 3",
+    });
+    expect(
+      within(removed).getByText("Cooking step removed"),
+    ).toBeInTheDocument();
+    expect(
+      within(removed).getByText("Removed cooking step"),
+    ).toBeInTheDocument();
+    expect(
+      within(removed)
+        .getByText("Cool completely before slicing.")
+        .closest("del"),
     ).not.toBeNull();
   });
 
   it("renders every structural action change against full base and target ingredient context", () => {
     const diff = mixedDiff();
-    const baseSugar = ingredient("base-sugar-row", "White sugar", "180.0000", "g", {
-      display_order: 2,
-    });
-    const targetZest = ingredient("target-zest-row", "Orange zest", "1.0000", "tbsp", {
-      display_order: 4,
-    });
+    const baseSugar = ingredient(
+      "base-sugar-row",
+      "White sugar",
+      "180.0000",
+      "g",
+      {
+        display_order: 2,
+      },
+    );
+    const targetZest = ingredient(
+      "target-zest-row",
+      "Orange zest",
+      "1.0000",
+      "tbsp",
+      {
+        display_order: 4,
+      },
+    );
     diff.ingredient_context = { base: [baseSugar], target: [targetZest] };
-    const beforeAction = structuredAction("before-mix", "mix", 0, [baseSugar.id]);
+    const beforeAction = structuredAction("before-mix", "mix", 0, [
+      baseSugar.id,
+    ]);
     beforeAction.duration = {
       kind: "exact",
       value: "5.0000",
@@ -365,7 +493,9 @@ describe("RecipeDiffView", () => {
       display_unit: "minutes",
       display: "5 minutes",
     };
-    const afterAction = structuredAction("after-fold", "fold", 0, [targetZest.id]);
+    const afterAction = structuredAction("after-fold", "fold", 0, [
+      targetZest.id,
+    ]);
     afterAction.temperature = {
       kind: "exact",
       value: "180.0000",
@@ -384,7 +514,9 @@ describe("RecipeDiffView", () => {
     };
     diff.instructions.modified = [
       {
-        before: instruction("before-step", "Mix the batter.", 0, [beforeAction]),
+        before: instruction("before-step", "Mix the batter.", 0, [
+          beforeAction,
+        ]),
         after: instruction("after-step", "Fold in the zest.", 0, [afterAction]),
         changed_fields: [
           "text",
@@ -399,24 +531,48 @@ describe("RecipeDiffView", () => {
 
     render(<RecipeDiffView diff={diff} />);
 
-    const changed = screen.getByRole("article", { name: "Updated instruction" });
+    const changed = screen.getByRole("article", { name: "Update step 1" });
     for (const label of [
-      "Prose changed",
-      "Actions changed",
-      "Ingredient inputs changed",
-      "Action order changed",
-      "Duration changed",
+      "Wording changed",
+      "Cooking actions changed",
+      "Ingredients used in the step changed",
+      "Order within the step changed",
+      "Timing changed",
       "Temperature changed",
     ]) {
       expect(within(changed).getByText(label)).toBeInTheDocument();
     }
-    expect(within(changed).getByText("Inputs: Ingredient 3: White sugar")).toBeInTheDocument();
-    expect(within(changed).getByText("Duration: 5 minutes")).toBeInTheDocument();
-    expect(within(changed).getByText("Inputs: Ingredient 5: Orange zest")).toBeInTheDocument();
-    expect(within(changed).getByText("Temperature: 180 °C")).toBeInTheDocument();
-    expect(within(changed).queryByText("Unavailable ingredient occurrence")).toBeNull();
-    expect(within(changed).getByText("Mix the batter.").closest(".recipe-diff-instruction"))
-      .toHaveProperty("tagName", "DIV");
+    expect(
+      within(changed).getByText("With White sugar").closest("del"),
+    ).not.toBeNull();
+    expect(
+      within(changed).getByText("For 5 minutes").closest("del"),
+    ).not.toBeNull();
+    expect(
+      within(changed).getByText("With Orange zest").closest("ins"),
+    ).not.toBeNull();
+    expect(
+      within(changed).getByText("At 180 °C").closest("ins"),
+    ).not.toBeNull();
+    expect(
+      within(changed).getByRole("list", {
+        name: "Cooking actions in the starting recipe",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(changed).getByRole("list", {
+        name: "Cooking actions in this recipe",
+      }),
+    ).toBeInTheDocument();
+    expect(within(changed).queryByText(/Ingredient \d+:/)).toBeNull();
+    expect(
+      within(changed).queryByText(/[0-9a-f]{8}-[0-9a-f-]{27}/i),
+    ).toBeNull();
+    expect(
+      within(changed)
+        .getByText("Mix the batter.")
+        .closest(".recipe-diff-instruction"),
+    ).toHaveProperty("tagName", "DIV");
   });
 
   it("labels every comparison article with its visible heading", () => {
@@ -433,9 +589,11 @@ describe("RecipeDiffView", () => {
       );
     }
 
-    expect(articleNamed("What changed in Lower-Sugar Pecan Carrot Cake")).toBeInTheDocument();
-    expect(articleNamed("Walnut replaced with Pecan")).toBeInTheDocument();
-    expect(articleNamed("Updated instruction")).toBeInTheDocument();
+    expect(
+      articleNamed("How Lower-Sugar Pecan Carrot Cake changed"),
+    ).toBeInTheDocument();
+    expect(articleNamed("Use Pecan instead of Walnut")).toBeInTheDocument();
+    expect(articleNamed("Update step 2")).toBeInTheDocument();
     expect(articleNamed("Title")).toBeInTheDocument();
   });
 
@@ -447,14 +605,33 @@ describe("RecipeDiffView", () => {
 
     render(<RecipeDiffView diff={diff} />);
 
-    expect(screen.getByText("1 change from Carrot Walnut Snack Cake.")).toBeInTheDocument();
-    const highlights = screen.getByRole("list", { name: "Change highlights" });
-    expect(within(highlights).getByText("1 other detail change")).toBeInTheDocument();
-    expect(within(highlights).queryByText(/ingredient/i)).not.toBeInTheDocument();
-    expect(within(highlights).queryByText(/instruction/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Other details" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Ingredient changes" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Instruction changes" })).not.toBeInTheDocument();
+    const overview = sectionNamed("Changes at a glance");
+    expect(
+      within(overview).getByText("1 change", { exact: true }),
+    ).toBeInTheDocument();
+    const highlights = screen.getByRole("list", {
+      name: "Changes at a glance",
+    });
+    expect(
+      within(highlights).getByText(
+        "Change yield from 8 servings to 6 servings.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(highlights).queryByText(/ingredient/i),
+    ).not.toBeInTheDocument();
+    expect(
+      within(highlights).queryByText(/cooking step/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Recipe details" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Ingredient changes" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Cooking step changes" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders an honest no-change state without empty change groups", () => {
@@ -468,16 +645,32 @@ describe("RecipeDiffView", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "No changes from the starting recipe",
+        name: "This recipe matches the starting recipe.",
         level: 2,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/matches carrot walnut snack cake/i)).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Ingredient changes" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Instruction changes" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Other details" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("list", { name: "Change highlights" })).not.toBeInTheDocument();
-    expect(screen.queryByText(/^0 changes? from/i)).not.toBeInTheDocument();
+    expect(
+      screen
+        .getByRole("heading", {
+          name: "This recipe matches the starting recipe.",
+        })
+        .closest("section"),
+    ).toHaveTextContent(
+      "It has the same recipe details, ingredients, and cooking steps as Carrot Walnut Snack Cake.",
+    );
+    expect(
+      screen.queryByRole("heading", { name: "Ingredient changes" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Cooking step changes" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Recipe details" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("list", { name: "Changes at a glance" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/^0 changes?$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/\boriginal\b/i)).not.toBeInTheDocument();
   });
 });
