@@ -86,7 +86,7 @@ describe("recipe report API", () => {
     expect(headers.get("X-CSRF-Token")).toBe("test-token");
   });
 
-  it("accepts an exact 200 replay through the compatibility facade", async () => {
+  it("accepts an exact 200 replay and normalizes omitted details", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json(
         { id: REPORT_ID, recipe_version_id: RECIPE_ID, submitted_at: SUBMITTED_AT },
@@ -97,7 +97,7 @@ describe("recipe report API", () => {
 
     const receipt = await submitRecipeReport(
       RECIPE_ID,
-      { reason: "spam", details: "   " },
+      { reason: "spam" },
       ACTION_ID,
     );
 

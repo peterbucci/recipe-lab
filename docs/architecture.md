@@ -94,6 +94,12 @@ not exist. The baseline adds no runtime path, database query, or migration. See
 [backend API contract baseline](api-contracts.md) for regeneration and drift
 review.
 
+The frontend commits one generated TypeScript view of that OpenAPI snapshot.
+Generated request and response types remove duplicate handwritten shapes, but
+they do not make network requests or replace runtime validation. The recipe
+report client is the first migrated consumer. The shared transport continues to
+own routing, session and CSRF handling, idempotency, cancellation, and recovery.
+
 Recipe reads expose immutable version snapshots. Browse uses bounded
 page-based pagination, literal title/description search, and filters supported
 directly by current relational data. Its deterministic title/version/ID order

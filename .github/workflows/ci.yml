@@ -110,6 +110,9 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Check generated frontend API contract drift
+        run: npm run api:contracts:check
+
       - name: Lint frontend
         run: npm run lint
 
