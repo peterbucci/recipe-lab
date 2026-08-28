@@ -192,7 +192,7 @@ test.describe("cross-user fork publication acceptance", () => {
 
     await expect(page).toHaveURL(published.location as string);
     await expect(page.getByRole("heading", { name: childTitle, level: 1 })).toBeVisible();
-    await expect(page.getByText("Version 2", { exact: true })).toBeVisible();
+    await expect(page.getByText("Version 2", { exact: true })).toHaveCount(0);
     await expect(page.getByText("Based on", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: /Based on.*Acceptance Parent Pecan Round/i })).toHaveAttribute(
       "href",

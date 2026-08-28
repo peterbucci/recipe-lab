@@ -130,7 +130,7 @@ test.describe("original recipe publication acceptance", () => {
 
     await expect(page).toHaveURL(publicationBody.location as string);
     await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
-    await expect(page.getByText("Version 1", { exact: true })).toBeVisible();
+    await expect(page.getByText("Version 1", { exact: true })).toHaveCount(0);
     await expect(page.getByText("Based on", { exact: true })).toHaveCount(0);
     expect(
       (await new AxeBuilder({ page })

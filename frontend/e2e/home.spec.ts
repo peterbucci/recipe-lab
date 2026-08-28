@@ -160,7 +160,7 @@ test("browses, searches, and opens a structured recipe anonymously", async ({
   ).toHaveCount(0);
   await expect(
     page.getByRole("link", {
-      name: /another version.*lower-sugar pecan carrot cake.*version 2/i,
+      name: /another version.*lower-sugar pecan carrot cake.*by/i,
     }),
   ).toBeVisible();
   expect(recordedViews).toBe(0);
@@ -201,6 +201,108 @@ test("reaches a chosen recipe from home using only the keyboard", async ({
       level: 1,
     }),
   ).toBeVisible();
+});
+
+test("identifies a source and starts a private version with the keyboard on a phone", async ({
+  page,
+}) => {
+  const draftId = "99999999-9999-4999-8999-999999999996";
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.context().addCookies([
+    {
+      name: "recipe_lab_csrf",
+      value: "csrf-value",
+      domain: "127.0.0.1",
+      path: "/",
+      sameSite: "Lax",
+    },
+  ]);
+  await page.route("**/api/auth/session", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "authenticated",
+        user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
+      }),
+    });
+  });
+
+  await page.goto("/recipes?q=carrot");
+  await page
+    .getByRole("link", {
+      name: "Lower-Sugar Pecan Carrot Cake",
+      exact: true,
+    })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Lower-Sugar Pecan Carrot Cake",
+      level: 1,
+    }),
+  ).toBeVisible();
+  await expect(page.locator(".recipe-detail__parent-context")).toHaveText(
+    "Based on Carrot Walnut Snack Cake by Recipe Lab Demo Catalog",
+  );
+
+  const sourceVersionId = new URL(page.url()).pathname.split("/").at(-1);
+  if (!sourceVersionId) {
+    throw new Error("Could not read the source recipe version identifier.");
+  }
+  const draft = {
+    id: draftId,
+    source_version_id: sourceVersionId,
+    status: "active",
+    revision: 1,
+    title: "",
+    description: null,
+    servings: null,
+    ingredients: [],
+    instructions: [],
+    created_at: "2026-08-25T12:00:00Z",
+    updated_at: "2026-08-25T12:00:00Z",
+  };
+  await page.route("**/api/recipe-drafts", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    expect(route.request().headers()["idempotency-key"]).toMatch(
+      /^[0-9a-f-]{36}$/i,
+    );
+    expect(route.request().postDataJSON()).toEqual({
+      source_version_id: sourceVersionId,
+    });
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify(draft),
+    });
+  });
+  await page.route(`**/api/recipe-drafts/${draftId}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(draft),
+    });
+  });
+
+  const makeVersion = page.getByRole("link", {
+    name: "Make your own version",
+    exact: true,
+  });
+  await reachWithKeyboard(page, makeVersion);
+  await expect(makeVersion).toBeFocused();
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(`/account/recipe-drafts/${draftId}`);
 });
 
 test("keeps the plain-language homepage readable at a phone viewport", async ({
@@ -274,7 +376,7 @@ test("compares the seeded carrot variant with its parent without signing in", as
 
   await page
     .getByRole("link", {
-      name: /another version.*lower-sugar pecan carrot cake.*version 2/i,
+      name: /another version.*lower-sugar pecan carrot cake.*by/i,
     })
     .click();
   await expect(
@@ -337,7 +439,7 @@ test("keeps the seeded recipe comparison usable at a phone viewport", async ({
   await openCarrotRoot(page);
   await page
     .getByRole("link", {
-      name: /another version.*lower-sugar pecan carrot cake.*version 2/i,
+      name: /another version.*lower-sugar pecan carrot cake.*by/i,
     })
     .click();
   await page
