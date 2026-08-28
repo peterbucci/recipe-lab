@@ -13,9 +13,16 @@ export default function RecipeCompareError({ retry }: RecipeCompareErrorProps) {
       <div className="error-state" role="alert">
         <p className="eyebrow">Something went wrong</p>
         <h1>We couldn’t load this comparison.</h1>
-        <p>The recipe service may be temporarily unavailable. Try again or browse the catalog.</p>
+        <p>
+          This comparison may be temporarily unavailable. Try again or browse
+          recipes.
+        </p>
         <div className="button-row">
-          <button className="button button--primary" type="button" onClick={retry}>
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={retry}
+          >
             Try again
           </button>
           <Link className="button button--secondary" href="/recipes">

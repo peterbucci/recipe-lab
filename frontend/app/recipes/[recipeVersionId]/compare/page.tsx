@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "What changed",
-  description: "See the cooking changes between this recipe and the version it started from.",
+  description:
+    "See the cooking changes between this recipe and the version it started from.",
 };
 
 interface RecipeComparePageProps {
@@ -25,11 +26,11 @@ function NoParentComparison({ recipeVersionId }: { recipeVersionId: string }) {
   return (
     <main id="main-content" className="state-page">
       <div className="empty-state empty-state--large">
-        <p className="eyebrow">Original recipe</p>
-        <h1>This is the starting recipe.</h1>
+        <p className="eyebrow">Starting recipe</p>
+        <h1>There isn’t an earlier recipe to compare.</h1>
         <p>
-          Comparisons are available on versions based on another recipe, where Recipe Lab shows
-          what changed from the version they started from.
+          This recipe wasn’t based on another recipe, so there are no earlier
+          changes to show.
         </p>
         <Link
           className="button button--primary"
@@ -42,7 +43,9 @@ function NoParentComparison({ recipeVersionId }: { recipeVersionId: string }) {
   );
 }
 
-export default async function RecipeComparePage({ params }: RecipeComparePageProps) {
+export default async function RecipeComparePage({
+  params,
+}: RecipeComparePageProps) {
   const { recipeVersionId } = await params;
   if (!isRecipeVersionId(recipeVersionId)) {
     notFound();
@@ -52,7 +55,10 @@ export default async function RecipeComparePage({ params }: RecipeComparePagePro
   try {
     diff = await fetchRecipeDiff(recipeVersionId);
   } catch (error) {
-    if (error instanceof RecipeApiError && error.code === "recipe_has_no_parent") {
+    if (
+      error instanceof RecipeApiError &&
+      error.code === "recipe_has_no_parent"
+    ) {
       return <NoParentComparison recipeVersionId={recipeVersionId} />;
     }
     throw error;
