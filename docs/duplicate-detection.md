@@ -4,10 +4,11 @@
 
 Recipe Lab runs a reusable, advisory duplicate check before a structurally
 authored recipe is published. Its core accepts a completed fingerprint plus an
-optional direct source. The legacy variant adapter prepares a proposed child in
-memory, while the draft-publication adapter loads one saved original or
-source-backed revision. A source-backed review binds the draft's exact direct
-parent and applies the no-change contract.
+optional direct source. The maintained product adapter loads one saved original
+or source-backed draft revision. A retired backend compatibility adapter can
+still prepare a proposed child in memory until its route is removed under the
+separate API-lifecycle story. A source-backed review binds the draft's exact
+direct parent and applies the no-change contract.
 
 The check answers a narrow structural question. It does not decide authorship,
 originality, copyright, plagiarism, culinary equivalence, or which recipe is
@@ -18,14 +19,14 @@ a separate curation workflow and shares neither these records nor this policy.
 
 ## Preflight flow
 
-`POST /api/recipes/{source_version_id}/duplicate-preflights` retains the legacy
-validated-edit adapter plus a member-scoped UUID `Idempotency-Key`. For a saved
-original or fork draft,
-`POST /api/recipe-drafts/{draft_id}/duplicate-preflights` accepts
+The browser calls
+`POST /api/recipe-drafts/{draft_id}/duplicate-preflights`, which accepts
 `{ "revision": <saved_revision> }` and its own UUID `Idempotency-Key`. It
 requires the active draft to belong to the session member, prepares its complete
-saved aggregate, and supplies `source_version_id` only for a fork. Both adapters
-call the same source-optional structural core. The service:
+saved aggregate, and supplies `source_version_id` only for a fork.
+`POST /api/recipes/{source_version_id}/duplicate-preflights` remains a retired,
+backend-only validated-edit compatibility adapter with no maintained product
+client. Both adapters call the same source-optional structural core. The service:
 
 1. verifies any source is publicly readable and any draft is private to the
    active author;
@@ -112,7 +113,7 @@ supported `published` state. Seeded versions are backfilled into that state
 without changing their stable IDs or lineage topology. Candidate lookup starts
 from this explicit shared predicate, so private drafts cannot enter the scorer
 and later visibility states can be added without filtering secrets after
-comparison. A replay, standalone decision, or publication rechecks every
+comparison. A replay, compatibility decision, or publication rechecks every
 returned candidate. If any evidence is no longer public or the policy version
 has changed, the API returns one generic stale-result conflict and does not
 repeat prior candidate details.
@@ -134,10 +135,12 @@ Every response carries this stable acknowledgement envelope:
 `required` describes whether this classification requires an author decision;
 it is false only for a distinct result. It does not make the review optional.
 For an exact, probable, or direct-parent no-change result, the author can
-explicitly continue or revise. The standalone variant route
-`POST /api/recipe-duplicate-preflights/{preflight_id}/decision` records that
-choice against the exact policy version and result digest. The decision is
-advisory; it does not create or publish a recipe by itself.
+explicitly continue or revise. The maintained browser flow sends that choice in
+the saved draft's publication envelope. The retired backend compatibility route
+`POST /api/recipe-duplicate-preflights/{preflight_id}/decision` can still record
+the same choice against the exact policy version and result digest until API
+removal is reviewed; no maintained product client calls it. A compatibility
+decision is advisory and does not create or publish a recipe by itself.
 
 The browser pauses inline, shows neutral explanations and public candidate
 links in a draft-safe new tab, and requires an acknowledgement before an

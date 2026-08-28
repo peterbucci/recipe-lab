@@ -322,9 +322,9 @@ same transaction as the immutable version.
 
 RCP-25E consumes those fingerprints through a separate public-only advisory
 preflight. A source-optional structural core accepts a completed fingerprint;
-the legacy in-memory fork adapter prepares a proposed child without taking a
-long-lived lineage lock, while the publication adapter loads one saved original
-or source-backed draft revision. No temporary recipe row is inserted. Fork
+the retired backend compatibility adapter can prepare a proposed child without
+taking a long-lived lineage lock, while the maintained publication adapter loads
+one saved original or source-backed draft revision. No temporary recipe row is inserted. Fork
 publication takes the lineage lock only inside the final transaction and
 verifies that the stored fingerprint is byte-identical to the prepared draft
 fingerprint before commit. `recipe-duplicate-preflight-policy-v1` pins candidate

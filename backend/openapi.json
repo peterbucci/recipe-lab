@@ -9406,7 +9406,7 @@
         ],
         "x-recipe-lab-classification": "retired",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/app/components/recipe-variant-editor.tsx"
+          "docs/api-contracts.md"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-successor-operation-ids": [
@@ -9907,7 +9907,7 @@
         ],
         "x-recipe-lab-classification": "retired",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/app/components/recipe-variant-editor.tsx"
+          "docs/api-contracts.md"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-successor-operation-ids": [
@@ -10640,7 +10640,7 @@
         ],
         "x-recipe-lab-classification": "retired",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/app/components/recipe-variant-editor.tsx"
+          "docs/api-contracts.md"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-successor-operation-ids": [

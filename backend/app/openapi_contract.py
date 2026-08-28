@@ -224,7 +224,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("POST", "/api/recipe-duplicate-preflights/{preflight_id}/decision"): _operation(
         "create_recipe_duplicate_decision_api_recipe_duplicate_preflights__preflight_id__decision_post",
         "retired",
-        "frontend/app/components/recipe-variant-editor.tsx",
+        "docs/api-contracts.md",
         successors=("publish_original_draft_api_recipe_drafts__draft_id__publish_post",),
     ),
     ("GET", "/api/recipes"): _operation(
@@ -245,7 +245,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("POST", "/api/recipes/{recipe_version_id}/duplicate-preflights"): _operation(
         "create_recipe_duplicate_preflight_api_recipes__recipe_version_id__duplicate_preflights_post",
         "retired",
-        "frontend/app/components/recipe-variant-editor.tsx",
+        "docs/api-contracts.md",
         successors=(
             "create_original_draft_duplicate_preflight_api_recipe_drafts__draft_id__duplicate_preflights_post",
         ),
@@ -273,7 +273,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("POST", "/api/recipes/{recipe_version_id}/variants"): _operation(
         "create_recipe_variant_api_recipes__recipe_version_id__variants_post",
         "retired",
-        "frontend/app/components/recipe-variant-editor.tsx",
+        "docs/api-contracts.md",
         successors=(
             "create_private_recipe_draft_api_recipe_drafts_post",
             "save_private_recipe_draft_api_recipe_drafts__draft_id__put",

@@ -65,8 +65,8 @@ measurement conversion is `research_experimental` because the evidence audit
 found no production frontend caller; its conversion rules remain reviewed and
 tested. Likewise, `retired` applies only to the three identified legacy HTTP
 adapters. It does not retire the still-used duplicate evidence/services, the
-mixed-consumer frontend duplicate module, or request types that active code
-still imports.
+active saved-draft duplicate client, or the review and publication workflow
+that consumes its results.
 
 ## Consumer evidence and the external boundary
 
