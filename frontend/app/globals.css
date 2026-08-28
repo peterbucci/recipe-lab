@@ -3790,7 +3790,7 @@ h3 {
 
   .home-hero__visual {
     width: min(100%, 38rem);
-    margin: 0 auto;
+    margin: 0;
   }
 
   .recipe-detail__hero {

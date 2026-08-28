@@ -190,6 +190,18 @@ test("keeps the plain-language homepage readable at a phone viewport", async ({
   ).toBe(false);
 });
 
+test("keeps the stacked home artwork aligned with its copy", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 1_100 });
+  await page.goto("/");
+
+  const copyBox = await page.locator(".home-hero__copy").boundingBox();
+  const artworkBox = await page.locator(".home-hero__visual").boundingBox();
+  expect(copyBox).not.toBeNull();
+  expect(artworkBox).not.toBeNull();
+  expect(Math.abs(copyBox!.x - artworkBox!.x)).toBeLessThanOrEqual(1);
+  expect(artworkBox!.y).toBeGreaterThan(copyBox!.y + copyBox!.height);
+});
+
 test("compares the seeded carrot variant with its parent without signing in", async ({
   page,
 }) => {
