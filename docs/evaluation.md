@@ -3,9 +3,10 @@
 ## Purpose and boundary
 
 Recipe Lab evaluates recommendation approaches against the deterministic
-`baseline-v1` before treating a more complex approach as an improvement. The
-evaluator is an offline package under `ml/`; it is not imported by FastAPI,
-does not run in the request path, and does not persist or deploy a model.
+`baseline-v1` only as offline engineering research. Any measured improvement by
+a more complex approach remains experimental. The evaluator is an offline
+package under `ml/`; it is not imported by FastAPI, does not run in the request
+path, and does not persist or deploy a model.
 
 Every run consumes one immutable, versioned JSON snapshot. Local snapshots are
 ignored by Git because they contain stable opaque activity IDs. Reports are
@@ -138,10 +139,10 @@ All published metric values use six decimal places with `ROUND_HALF_UP`.
 
 `baseline-v1` is mandatory and is added automatically to every evaluation. Its
 offline adapter reconstructs point-in-time saves, ratings, views, and forks,
-then calls the same database-free scorer used by the production recommendation
-API. A model adapter receives only training data, a derived seed, a profile ID,
-and the complete ordered candidate IDs. It must return unique candidate IDs and
-cannot see held-out labels.
+then calls the same database-free scorer used by the API-only research-preview
+recommendation endpoint. A model adapter receives only training data, a derived
+seed, a profile ID, and the complete ordered candidate IDs. It must return
+unique candidate IDs and cannot see held-out labels.
 
 Each non-baseline result reports raw metrics and deltas from the baseline at the
 same K. Model IDs are unique, and `baseline-v1` is reserved so a comparison

@@ -3,12 +3,12 @@
 ## Purpose and boundary
 
 `content-v1` is a deterministic content-based recommender that Recipe Lab fits
-and evaluates offline. It represents recipe versions with structured catalog
-features, derives signed profiles from the training prefix of preference
-events, and ranks the evaluator's complete candidate set. It is not used by
-FastAPI, is not exposed in the frontend, and does not produce or deploy a model
-artifact. The production recommendation endpoint continues to use
-[`baseline-v1`](recommendations.md).
+and evaluates as offline engineering research. It represents recipe versions
+with structured catalog features, derives signed profiles from the training
+prefix of preference events, and ranks the evaluator's complete candidate set.
+It is not used by FastAPI, is not exposed in the frontend, and does not produce
+or deploy a model artifact. The API-only research-preview recommendation
+endpoint uses [`baseline-v1`](recommendations.md).
 
 The command-line evaluator always runs `content-v1` and automatically includes
 `baseline-v1`, so every CLI report contains the content result, the reference

@@ -1,12 +1,14 @@
-# Baseline recommendations
+# Baseline recommendation research preview
 
 ## Purpose and boundary
 
-`baseline-v1` is a deterministic, request-time recommender with an anonymous
-global cold start and optional signed-in member personalization. It establishes
-the explainable reference point used by Recipe Lab's
-offline evaluator for every comparison model, including `content-v1`. It does
-not train a model, persist a user profile or recommendation artifact, introduce
+`GET /api/recommendations` and its deterministic `baseline-v1` strategy are an
+API-only research preview. Recipe Lab has no consumer recommendation shelf or
+other member-facing recommendation surface, and the endpoint is not evidence
+for a sign-in, onboarding, home-page, or product-positioning promise. It remains
+online as the tested deterministic reference point used by Recipe Lab's offline
+evaluator for every comparison model, including `content-v1`. It does not train
+a model, persist a user profile or recommendation artifact, introduce
 randomness, or depend on a clock.
 
 `GET /api/recommendations?limit=10` returns up to the requested number of
@@ -15,9 +17,11 @@ short reason plus the six scoring components. The response identifies the
 strategy as `baseline-v1`, reports whether positive history personalized the
 ranking, and publishes the weights and quality prior it used. The read uses the
 existing catalog, current saves and ratings, and the privacy-bounded preference
-events. A signed-in request reads only that member's private history. A
-signed-out request reads no personal history and sets `personalized` to false;
-it does not create anonymous tracking or return additional personal data.
+events. Every request uses the aggregate activity for publicly readable recipes.
+A signed-in request additionally reads only the active member's private history
+for personalization. A signed-out request loads no account-specific history and
+sets `personalized` to false; it does not create anonymous tracking or return
+additional personal data.
 
 `limit` defaults to 10 and accepts values from 1 through 50. An invalid value
 returns the standard HTTP 422 error envelope. Public cold-start requests do not
@@ -26,13 +30,40 @@ depend on the seeded Demo Cook identity.
 Because the same URL may vary by the private member session, the API marks every
 recommendation response `private, no-store` and varies it by cookie. No
 recommendation result is embedded in a shared cache or public server-rendered
-page, and this story adds no recommendation UI.
+page, and there is no recommendation UI.
 
-The endpoint is API-only in this milestone. It does not add a frontend surface,
-a database migration, or an offline training job. The separate offline harness
-reconstructs point-in-time state from immutable event snapshots and calls the
-same pure scorer for the baseline comparison; the API never imports or runs
-that harness or the offline `content-v1` model.
+The endpoint has no frontend surface, database migration, or offline training
+dependency. The separate offline harness reconstructs point-in-time state from
+immutable event snapshots and calls the same pure scorer for the baseline
+comparison; the API never imports or runs that harness or the offline
+`content-v1` model.
+
+## Actual-member data use, retention, and deletion
+
+The global component aggregates every currently stored rating, active save, and
+distinct-user fork or view event for publicly readable recipes. That aggregate
+can include activity from actual members as well as retained legacy or demo
+activity. A signed-out request uses only this aggregate ranking and does not
+load an account-specific profile. A signed-in request additionally reads only
+the active member's current saves and ratings plus that member's view, save,
+rating, and fork preference events. Exact recipes already present in that
+member's activity are excluded from the returned ranking.
+
+Scoring happens in memory for the current request. Recipe Lab does not store the
+returned order, scores, explanations, a derived member profile, or fitted model
+state, and the response is `private, no-store`. Current save and rating rows
+remain only as account activity until changed or deleted. Append-only preference
+events remain for the lifetime of the account. Account deletion removes that
+member's saves, ratings, and preference events in the deletion transaction, and
+the backup policy requires deleted account data to age out within the documented
+30-day maximum and to be reapplied before a restored database serves traffic.
+
+Observed-member ML snapshots, retained row-level evaluation outputs, and online
+fitted member state remain prohibited until a reviewed artifact registry can
+enforce member binding, deletion propagation, and bounded expiry. The offline
+experiments described below therefore do not represent a shipped learned
+strategy. See [account-data governance](account-data-governance.md) for the
+authoritative database, backup, export, and derived-artifact rules.
 
 ## Global score
 
@@ -166,8 +197,8 @@ outcome evidence remain insufficient to claim that personalization improves
 recommendation quality. Legacy Demo Cook activity may still contribute to the
 same aggregate popularity and rating signals as other historical activity, but
 it is never used as a member's personal history or transferred to an account.
-`baseline-v1` remains an explainable product and evaluation baseline. It
-deliberately has no recency model, popularity
+`baseline-v1` remains an explainable online research-preview and evaluation
+baseline. It deliberately has no recency model, popularity
 dampening, semantic ingredient representation, collaborative signal, or
 training pipeline. The [offline evaluation harness](evaluation.md) measures it
 with a fixed-cutoff protocol and compares it with the
@@ -177,4 +208,4 @@ readiness-gated
 experiments also feed the evaluator-only
 [offline `hybrid-v1` rank fusion](hybrid-recommender.md). Its human-readable
 reasons are tested model details, not API output. None of these experiments
-replaces this production strategy or adds a serving dependency.
+replaces this online research-preview strategy or adds a serving dependency.

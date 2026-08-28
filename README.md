@@ -1,12 +1,12 @@
 # Recipe Lab
 
 Recipe Lab is a portfolio project for exploring a simple idea: recipes should be
-structured, versioned objects that people can fork, compare, save, and rate.
-Once the product records meaningful interactions, those signals can support
-personalized recipe and ingredient-substitution recommendations.
+structured, versioned objects whose history stays understandable as cooks make
+changes.
 
-The repository is deliberately **MVP first**. Recommendation models are not part
-of the initial product milestone.
+**Find recipes, make your own version, compare what changed, and follow recipe
+history.** Those are the current public product capabilities. Recipe Lab does
+not currently present recommendations or automatic substitutions to cooks.
 
 ## Product sequence
 
@@ -16,27 +16,30 @@ A user should be able to:
 
 1. Browse a small, curated recipe catalog.
 2. View structured ingredients, quantities, units, and instructions.
-3. Fork a recipe into a new variant.
-4. See an exact diff between a variant and its parent.
-5. Save and rate variants.
-6. Navigate a recipe's variant lineage.
+3. Make a recipe into your own version.
+4. See an exact comparison with the version it is based on.
+5. Save and rate versions.
+6. Follow a recipe's history.
 
-The concrete proof point is: fork a carrot cake, reduce its sugar, replace
-walnuts with pecans, and preserve both the changes and the parent relationship.
+The concrete proof point is: make your own version of a carrot cake, reduce its
+sugar, replace walnuts with pecans, and preserve both the changes and what it is
+based on.
 
-### Product data before ML
+### Research preview: deterministic ranking data
 
 Recipe Lab now has the schema needed to connect authored recipe text to
 canonical ingredients, aliases, broad categories, dietary flags, allergens,
 and directed substitution relationships. A curated, deterministic demo catalog
 now exercises that structure. The product also records privacy-bounded,
 timestamped view, save, rating, and fork events with retry-safe action IDs.
-Those signals now feed a deterministic, documented `baseline-v1` recommendation
-read. Signed-in requests use only that member's private history; signed-out
-requests use the deterministic global cold-start ranking. The baseline is
-request-time scoring, not a trained ML system.
+Those signals can be read by the API-only, research-preview `baseline-v1`
+ranking endpoint. Every request uses aggregate activity for publicly readable
+recipes. Signed-in personalization additionally uses only the active member's
+account-specific history; signed-out requests load no account-specific history.
+The baseline is request-time scoring, not a trained ML system, and it is not
+exposed as a consumer recommendation surface.
 
-### ML after useful signals exist
+### Offline research, not shipped product
 
 The ML roadmap begins with a transparent popularity or rule-based baseline,
 which is now available as the comparison point for later work. A separate
@@ -50,12 +53,17 @@ uses signed interaction overlap, falls back to `content-v1` for sparse evidence,
 and records aggregate training provenance in its offline report. The offline
 `hybrid-v1` experiment now fuses baseline, content, and collaborative ranks with
 explicit cold-start routes and a conservative same-split adoption decision. The
-generated cohort retains the simpler approach and is not real-user or quality
-evidence. A separate offline `substitution-rules-v1` engine now evaluates
+generated cohort retains the simpler approach and is not real-user or product
+quality evidence. A separate offline `substitution-rules-v1` engine evaluates
 curated direct replacements, declared dietary/allergen constraints, recipe
 context, and explicit preference weights before any learned substitution
-ranking is attempted. Online learned serving remains separate work; no approach
-should be considered better without a comparable evaluation report.
+ranking is attempted. These offline strategies are engineering experiments, not
+shipped product features. Online learned serving remains separate work; no
+approach should be considered better without a comparable evaluation report.
+
+See [product language and recommendation boundary](docs/product-language.md)
+for the cook-facing terminology, research-preview rules, actual-member data
+boundary, and explicit staff/diagnostic exceptions.
 
 ## Repository layout
 
@@ -122,7 +130,11 @@ The repository currently provides:
   saves, ratings, and forks, with typed context and UUID action-key replay
   protection scoped by member and operation rather than free-form tracking
   data;
-- a read-only `baseline-v1` recommendation API with documented Bayesian quality,
+
+Research-preview engineering capabilities, which are not consumer product
+surfaces, include:
+
+- a read-only `baseline-v1` ranking API with documented Bayesian quality,
   normalized support, and bounded canonical-ingredient similarity signals,
   isolated signed-in history, deterministic anonymous cold-start ordering, and
   a short reason for every result;
@@ -147,6 +159,9 @@ The repository currently provides:
   relationship evidence, recipe context, and explicit preference weights, and
   emits ratio-or-guidance, provenance-or-confidence, explanations, and an
   unknown-metadata caution;
+
+Core data and platform capabilities also include:
+
 - a PostgreSQL-backed SQLAlchemy domain model for users, recipe lineages,
   immutable recipe-version snapshots, ingredients, instructions, saves, and
   ratings plus their separate interaction history;
@@ -225,7 +240,8 @@ Open:
 - API health check: <http://localhost:8000/api/health>
 - API database readiness check: <http://localhost:8000/api/readiness>
 - Recipe browse API: <http://localhost:8000/api/recipes>
-- Baseline recommendation API: <http://localhost:8000/api/recommendations>
+- Research-preview baseline ranking API (no consumer UI):
+  <http://localhost:8000/api/recommendations>
 - Duplicate preflight API: `POST /api/recipes/{id}/duplicate-preflights`
 - Private draft API: `POST` or `GET /api/recipe-drafts`
 - Draft similarity API: `POST /api/recipe-drafts/{id}/duplicate-preflights`
@@ -565,7 +581,8 @@ output.
 
 - Keep recipe data normalized enough to compare variants without hiding the
   original author intent.
-- Preserve lineage: every variant points to its direct parent.
+- Preserve recipe history: every version remains linked to the version it is
+  based on.
 - Prefer explainable baselines over premature model complexity.
 - Treat seed recipes, ingredient metadata, and evaluation datasets as versioned
   project assets with documented provenance.
@@ -574,8 +591,8 @@ output.
 
 See [MVP scope](docs/mvp-scope.md) and [architecture](docs/architecture.md) for
 the initial boundaries and component responsibilities. The exact scoring and
-cold-start contract is documented in
-[baseline recommendations](docs/recommendations.md). The fixed-cutoff metrics
+cold-start contract for the API-only research preview is documented in
+[baseline ranking research](docs/recommendations.md). The fixed-cutoff metrics
 and report contract are documented in
 [offline recommendation evaluation](docs/evaluation.md), and the structured
 features, signed profile, and cold-start formula are documented in
