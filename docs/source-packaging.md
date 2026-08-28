@@ -55,9 +55,13 @@ extensions. The root `.dockerignore`, `pyproject.toml`, and `uv.lock` are
 explicit reviewed additions so an exported revision retains its Docker-context
 boundary, Python workspace, and exact dependency graph. Member-local or nested
 lockfiles remain rejected rather than creating a second dependency authority.
-The seven documentation PNGs are opaque to text scanning, so each
-is bound to an explicitly reviewed Git object ID. A changed or new opaque file
-fails until the policy is reviewed.
+Reviewed documentation images and committed RCP-34B visual-regression goldens
+are opaque to text scanning, so every eligible PNG is bound to an explicitly
+reviewed Git object ID. A changed or new opaque file fails until both the image
+and the corresponding `reviewed_opaque_git_objects` entry are reviewed. This is
+intentional: accepting a screenshot change and authorizing that binary for a
+source package are one review decision, not an automatic side effect of running
+Playwright.
 
 The command rejects rather than silently omits:
 
@@ -115,3 +119,17 @@ the pull-request commit twice, and compares the archive and manifest bytes. It
 writes only to the runner's temporary directory, never uploads the package, and
 deletes every generated file even when the job fails. The stable RCP-32
 aggregate gate also requires this job to pass.
+
+RCP-34B expected screenshots under `frontend/baselines/` are committed source,
+not generated CI diagnostics. After an intentional golden update, reviewers
+must inspect every changed image, calculate its Git blob ID with
+`git hash-object -- <path>`, and add or replace the exact path/object pair in
+`EXPORT_POLICY`. The source-packaging tests must then pass before the revision
+is eligible for export. Actual and diff PNGs, Playwright JSON output,
+performance observations, and performance baseline candidates remain under
+`frontend/test-results/`; the exporter rejects that tree and those files must
+never be promoted into the opaque allowlist. The reviewed public performance
+baseline in `docs/baselines/` is UTF-8 JSON and therefore receives both normal
+secret-scan passes rather than opaque treatment. See
+[deterministic regression baselines](regression-baselines.md) for the visual and
+performance review workflow.

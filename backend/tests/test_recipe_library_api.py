@@ -811,6 +811,23 @@ def test_card_queries_are_bounded_independently_of_page_size(
     assert max(counts) - min(counts) <= 1
 
 
+def test_seeded_public_catalog_select_count_matches_performance_baseline(
+    recipe_library_api: RecipeLibraryApi,
+) -> None:
+    counts: list[int] = []
+
+    for page_size in (1, 50):
+        with _select_counter(recipe_library_api.engine) as statements:
+            response = recipe_library_api.anonymous.get(
+                "/api/recipes",
+                params={"page_size": page_size},
+            )
+        assert response.status_code == 200
+        counts.append(len(statements))
+
+    assert counts == [3, 3]
+
+
 def test_openapi_documents_public_identity_and_private_library_contracts(
     recipe_library_api: RecipeLibraryApi,
 ) -> None:

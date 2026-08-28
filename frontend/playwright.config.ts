@@ -52,6 +52,10 @@ if (isAcceptanceRun) {
 
 export default defineConfig({
   testDir: "./e2e",
+  // The deterministic visual suite owns a dedicated fixture server, runtime,
+  // reporter, and browser matrix. Keep it out of the ordinary acceptance run;
+  // it is executed separately through playwright.baseline.config.ts.
+  testIgnore: "rcp34b-baseline.spec.ts",
   fullyParallel: true,
   forbidOnly: isCi,
   retries: isRcp32Acceptance ? 0 : isCi ? 2 : 0,

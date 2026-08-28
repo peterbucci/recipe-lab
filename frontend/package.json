@@ -11,6 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:baseline": "npm run build && playwright test --config=playwright.baseline.config.ts",
+    "test:e2e:baseline:update": "npm run build && playwright test --config=playwright.baseline.config.ts --update-snapshots=all",
     "test:e2e:release-gate": "playwright test e2e/rcp32-community-release-gate.spec.ts"
   },
   "dependencies": {

@@ -515,6 +515,36 @@ metrics must be de-identified aggregates. The complete sink, alert, retention,
 smoke, and rollback contract is in
 [privacy-safe operations and observability](operations-observability.md).
 
+### Regression evidence boundary
+
+RCP-34B separates safe public regression evidence from authenticated release
+evidence. The visual/accessibility runner never starts FastAPI, PostgreSQL, or
+OIDC. A local fixture server supplies reviewed invented recipes, accounts,
+drafts, failures, loading states, and staff states to two fixed Chromium
+projects. Its clock, UUID/random sources, locale, time zone, fonts, motion,
+viewports, screen sizes, and device scale factor are fixed. CI runs it twice in
+an immutable Playwright 1.62.1 Ubuntu 24.04 image and fails on either mismatch,
+accessibility violation, keyboard-path failure, or horizontal overflow.
+
+The fixture is intentionally incapable of proving authentication,
+authorization, persistence, or account isolation. In return, its only
+retainable output is safe for public review: a fixed-schema aggregate JSON and,
+on failure, synthetic actual/diff PNGs. The runner disables traces, videos,
+automatic screenshots, HTML output, and network logging; CI uploads exact files
+rather than its output directory. Expected PNGs are reviewed source objects,
+and the source exporter binds each opaque image to its Git object ID.
+
+Performance remains a separate real-stack measurement. Before the broad MVP
+browser journey mutates state, the fixed Ubuntu 24.04 acceptance job measures
+only reviewed public service and page routes against a freshly migrated and
+seeded PostgreSQL 17 database and a production frontend build. The committed
+JSON records aggregate medians, tails, query counts, selected bundle sizes,
+responsiveness, and explicit budgets. Check mode emits an ignored public
+observation; capture mode emits an ignored candidate and never changes the
+committed baseline. See
+[deterministic regression baselines](regression-baselines.md) for the exact
+matrix, environment, privacy contract, budgets, update review, and retention.
+
 ### Community release boundary
 
 RCP-32 adds a separate fresh-database acceptance job rather than replacing the
@@ -535,8 +565,12 @@ before only the safe summaries are retained; browser captures, request logs,
 manifests, and database dumps are never artifacts. The
 stable `RCP-32 community release gate` check aggregates backend quality,
 frontend quality, `MVP acceptance`, production-image verification, safe source
-packaging, and this canonical journey. Offline model evaluation remains
-independent. See
+packaging, the independent RCP-34B visual/accessibility check, and this
+canonical journey. The public performance comparison is required inside MVP
+acceptance before its stateful flow. RCP-32's destruction of private browser
+captures, request logs, manifests, and database dumps is unchanged; the
+synthetic RCP-34B artifact allowlist never applies to that job. Offline model
+evaluation remains independent. See
 [community release gate](community-release-gate.md) for the complete evidence,
 privacy, and local-run contract.
 

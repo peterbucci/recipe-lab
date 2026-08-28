@@ -168,6 +168,9 @@ The repository currently provides:
   source-aware similarity review, records an explicit advisory continue when
   needed, and atomically creates one immutable snapshot plus a durable
   publication receipt;
+- deterministic sanitized desktop/phone visual baselines with fixed browser,
+  fonts, locale, time, IDs, fixtures, keyboard/accessibility checks, and a
+  public performance budget recorded before frontend refactoring;
 - Alembic migrations and database-level lineage, ordering, rating, event
   privacy, and uniqueness constraints;
 - PostgreSQL and local development services through Docker Compose.
@@ -320,6 +323,7 @@ npm run typecheck
 npm test
 npm run build
 npx playwright test --list
+npm run test:e2e:baseline -- --list
 ```
 
 Run the offline evaluation checks and reproduce the synthetic verification
@@ -396,6 +400,17 @@ Ordinary browser flows stay anonymous: they can browse, inspect, and compare
 recipes without creating private activity. Authenticated activity is covered by
 the guarded acceptance run below.
 
+The separate RCP-34B suite captures only sanitized invented states. Run its
+single-pass comparison from `frontend` with
+`npm run test:e2e:baseline`; use
+`npm run test:e2e:baseline:update` only after an intentional UI change has been
+reviewed. CI uses the pinned Playwright 1.62.1 Noble container and compares the
+complete suite twice, so an image produced on a different browser, OS, or font
+stack is not an authoritative golden. The exact desktop/phone state matrix,
+fixture privacy contract, accessibility checks, screenshot review procedure,
+performance budgets, and artifact-retention rules are in
+[deterministic regression baselines](docs/regression-baselines.md).
+
 The canonical MVP journey intentionally writes real member activity and an
 immutable recipe variant, so it is skipped during ordinary local browser runs.
 CI provisions short-lived sessions for five synthetic members, including a
@@ -465,6 +480,15 @@ workspace members, and uses a frozen package-specific sync followed by
 `package-lock.json`. Download caches are keyed from those lockfiles and never
 replace their resolution checks.
 
+The required `RCP-34B deterministic baselines` job runs the synthetic
+visual/accessibility suite in an immutable linux/amd64 Playwright 1.62.1 Noble
+image with bundled Chromium 151.0.7922.34. It fixes the two viewports and all
+environmental inputs and requires two successful comparisons while stability
+is being established. It uploads only a privacy-reviewed public aggregate JSON
+for 7 days and, on failure, sanitized actual/diff PNGs for 7 days. It never
+uploads traces, video, HTML reports, network logs, expected images, fixture
+responses, or a whole browser-output directory.
+
 The independent stable `Production images` job performs clean, no-cache builds
 of both Dockerfile `production` targets. Its reviewed verifier rejects
 development commands, root runtime users, missing health checks, embedded
@@ -504,7 +528,11 @@ isolation across browse → save → fork → edit → compare, including the 18
 140 g sugar change, Walnut-to-Pecan substitution, keyboard navigation, and
 WCAG A/AA checks. The temporary raw-token fixture is deleted after the suite
 and is never uploaded with diagnostics. M1 is not considered complete unless
-this job passes.
+this job passes. Before that state-mutating journey, the same fixed Ubuntu 24.04
+job checks the committed RCP-34B public performance baseline against the fresh
+seeded stack. API latency, bounded query counts, selected production JavaScript
+sizes, and public-page responsiveness must remain within their reviewed
+budgets; an ignored aggregate observation is never promoted automatically.
 
 The later stable `RCP-32 community release gate` is the deployment handoff for
 the account-backed community product. A separate fresh-database job creates
@@ -516,7 +544,10 @@ rollback and re-upgrade, stages fixed legacy Demo Cook activity to prove that
 account creation never claims it, verifies a real backup/restore, and scans
 retained evidence for private values. Only identifier-free aggregate JSON
 summaries are retained. RCP-21 remains blocked until that aggregate check
-passes; offline ML evaluation is intentionally independent. See the
+passes. The aggregate also explicitly requires the independent RCP-34B
+visual/accessibility result and the MVP job that owns the public performance
+check; the private RCP-32 job and its no-raw-artifact policy are unchanged.
+Offline ML evaluation is intentionally independent. See the
 [community release gate](docs/community-release-gate.md) for the exact contract
 and guarded local reproduction.
 
@@ -524,7 +555,11 @@ The independent `Safe source package` job tests the exporter and creates the
 selected CI commit twice in runner-temporary storage to prove deterministic
 archive and manifest bytes. It never uploads either output and always deletes
 them. The stable RCP-32 aggregate check requires this source-safety job and the
-production-image check alongside the deployable application gates.
+production-image check alongside the deployable application gates. Committed
+RCP-34B golden PNGs are opaque source objects: each new or changed image must be
+visually reviewed and bound to its exact Git object ID in the export policy.
+Generated actual/diff images and performance observations remain rejected test
+output.
 
 ## Working agreements
 

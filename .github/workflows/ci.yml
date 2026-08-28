@@ -125,6 +125,78 @@ jobs:
       - name: Validate Playwright configuration
         run: npx playwright test --list
 
+  rcp34b-baselines:
+    name: RCP-34B deterministic baselines
+    # Playwright 1.62.1 on Ubuntu 24.04 (Noble), pinned to the linux/amd64
+    # manifest published at mcr.microsoft.com/playwright:v1.62.1-noble.
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac
+      options: --ipc=host
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22.23.2"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install exact frontend dependencies
+        run: npm ci
+
+      - name: Verify pinned Playwright and Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(npx playwright --version)" = "Version 1.62.1"
+          browser_version="$(node - <<'NODE'
+          const { chromium } = require("@playwright/test");
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            process.stdout.write(browser.version());
+            await browser.close();
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+          )"
+          test "$browser_version" = "151.0.7922.34"
+
+      - name: Compare deterministic visual and accessibility baselines twice
+        run: npm run test:e2e:baseline -- --repeat-each=2
+
+      - name: Upload public baseline aggregate
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: rcp34b-public-baseline-aggregate
+          path: frontend/test-results/baseline/results.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload sanitized visual differences
+        if: ${{ failure() && !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: rcp34b-sanitized-visual-differences
+          path: |
+            frontend/test-results/baseline/artifacts/**/*-actual.png
+            frontend/test-results/baseline/artifacts/**/*-diff.png
+          if-no-files-found: ignore
+          retention-days: 7
+
   production-images:
     name: Production images
     runs-on: ubuntu-latest
@@ -748,7 +820,7 @@ jobs:
     needs:
       - backend
       - frontend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       DATABASE_URL: postgresql+psycopg://recipe_lab:recipe_lab@127.0.0.1:5432/recipe_lab_acceptance
@@ -764,7 +836,8 @@ jobs:
       INTERNAL_NETWORK_SIGNAL_SECRET: recipe-lab-ci-internal-network-signal-secret
     services:
       postgres:
-        image: postgres:17-alpine
+        # PostgreSQL 17.11 Alpine 3.24, pinned to the linux/amd64 manifest.
+        image: postgres:17.11-alpine@sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee
         env:
           POSTGRES_DB: recipe_lab_acceptance
           POSTGRES_USER: recipe_lab
@@ -801,7 +874,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: "3.13.15"
 
       - name: Set up locked Python resolver
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
@@ -813,7 +886,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: "22.23.2"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -824,6 +897,28 @@ jobs:
           uv sync --frozen --package recipe-lab-api
           uv pip check
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Verify pinned public performance runtimes
+        working-directory: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(python --version 2>&1)" = "Python 3.13.15"
+          test "$(node --version)" = "v22.23.2"
+          python - <<'PY'
+          import os
+
+          from sqlalchemy import create_engine, text
+
+          engine = create_engine(os.environ["DATABASE_URL"])
+          try:
+              with engine.connect() as connection:
+                  version = connection.scalar(text("SHOW server_version"))
+              if version != "17.11":
+                  raise SystemExit("The public performance database version is not pinned.")
+          finally:
+              engine.dispose()
+          PY
 
       - name: Install frontend dependencies
         working-directory: frontend
@@ -871,6 +966,13 @@ jobs:
           done
           cat "$RUNNER_TEMP/recipe-lab-backend.log"
           exit 1
+
+      - name: Check public performance baseline
+        working-directory: frontend
+        env:
+          RCP34B_PERFORMANCE: "1"
+          RCP34B_PERFORMANCE_MODE: check
+        run: npx playwright test e2e/public-performance-baseline.spec.ts --project=chromium
 
       - name: Run MVP browser acceptance suite
         working-directory: frontend
@@ -1252,6 +1354,7 @@ jobs:
       - frontend
       - mvp-acceptance
       - production-images
+      - rcp34b-baselines
       - rcp32-acceptance
       - source-package
     runs-on: ubuntu-latest
@@ -1263,6 +1366,7 @@ jobs:
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           MVP_ACCEPTANCE_RESULT: ${{ needs.mvp-acceptance.result }}
           PRODUCTION_IMAGES_RESULT: ${{ needs.production-images.result }}
+          RCP34B_BASELINES_RESULT: ${{ needs.rcp34b-baselines.result }}
           RCP32_ACCEPTANCE_RESULT: ${{ needs.rcp32-acceptance.result }}
           SOURCE_PACKAGE_RESULT: ${{ needs.source-package.result }}
         run: |
@@ -1270,12 +1374,14 @@ jobs:
             || "$FRONTEND_RESULT" != "success" \
             || "$MVP_ACCEPTANCE_RESULT" != "success" \
             || "$PRODUCTION_IMAGES_RESULT" != "success" \
+            || "$RCP34B_BASELINES_RESULT" != "success" \
             || "$RCP32_ACCEPTANCE_RESULT" != "success" \
             || "$SOURCE_PACKAGE_RESULT" != "success" ]]; then
             echo "Backend quality: $BACKEND_RESULT"
             echo "Frontend quality: $FRONTEND_RESULT"
             echo "MVP acceptance: $MVP_ACCEPTANCE_RESULT"
             echo "Production images: $PRODUCTION_IMAGES_RESULT"
+            echo "RCP-34B deterministic baselines: $RCP34B_BASELINES_RESULT"
             echo "RCP-32 acceptance: $RCP32_ACCEPTANCE_RESULT"
             echo "Safe source package: $SOURCE_PACKAGE_RESULT"
             exit 1

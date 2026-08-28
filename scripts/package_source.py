@@ -126,6 +126,74 @@ EXPORT_POLICY = PackagingPolicy(
             "docs/assets/rcp-13a-home-phone.png",
             "aae4cad63a144996119c07aa3cddcd6fd3f8517b",
         ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/catalog-empty.png",
+            "1824a9ab2c00aa2b2e43c53693dc578b688056f3",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/catalog-normal.png",
+            "58057d0ce9ba7a5e132ba11b00aac15b2d3dd1cf",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/draft-editor-validation.png",
+            "0e4fb4bbcdfe056085721cb3808f572a0a0788ab",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/draft-similarity-publication-review.png",
+            "260319ee2b26c5855d77e7dda069225e0fb0c5cd",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/home-account-navigation.png",
+            "5b481e7b63bfc0e5a7ceb8d7fac72003492616c4",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/ingredient-request-staff-review.png",
+            "c9432a759446765826d63ee0163babc96dd55304",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/my-recipes-normal.png",
+            "4bc9f6f9e531b130d01a03bbdeb697be40dbab09",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/private-workspace-expired-session.png",
+            "1d90f1ceafb21089244138ff87fb3b420485ce0d",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/private-workspace-failure.png",
+            "fbd3b7451e8170ff030d5afba53c1dea230736b8",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/private-workspace-loading.png",
+            "2313ba19799c90bb1b68ed122a9e7fc1aa64f018",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/recipe-comparison-normal.png",
+            "80fa2c8f0a9de04cff6897e1bceca437e26fcdc3",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/recipe-detail-normal.png",
+            "8bbf7b180cdc6fd336dd4a8b061c78defd243eaa",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/recipe-moderation-staff-review.png",
+            "c75ce18a7eb9fcbb475f61b9e20ef8baf2ca1259",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/catalog-normal.png",
+            "f8333372d997ff81f82ef08f998cdf0e03819ac6",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/draft-editor-validation.png",
+            "a10d7e6db66d62ad9e197288ebb74703a160c8d4",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/home-account-navigation.png",
+            "5e553768aaeaca4843cffae2a3ad4e7655b91c06",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/recipe-detail-normal.png",
+            "9833c7a42845cd9e13897e2e3a0b2f139d29d6d3",
+        ),
     ),
 )
 
@@ -615,10 +683,28 @@ def _looks_like_lfs_pointer(data: bytes) -> bool:
     )
 
 
+def _reviewed_opaque_objects(policy: PackagingPolicy) -> dict[str, str]:
+    opaque_objects: dict[str, str] = {}
+    for path, object_id in policy.reviewed_opaque_git_objects:
+        if any(character in path for character in "*?[]{}"):
+            raise PackagingError(
+                "Opaque-file policy entries must use literal paths, not wildcards."
+            )
+        _validate_source_path(path, policy)
+        if not path.endswith(".png"):
+            raise PackagingError(f"Invalid opaque-file policy entry: {path!r}.")
+        if path in opaque_objects:
+            raise PackagingError(f"Duplicate opaque-file policy entry: {path!r}.")
+        if re.fullmatch(r"[0-9a-f]{40,64}", object_id) is None:
+            raise PackagingError(f"Invalid opaque-file Git object ID: {path!r}.")
+        opaque_objects[path] = object_id
+    return opaque_objects
+
+
 def _read_sources(
     repository: Path, tree_entries: list[TreeEntry], policy: PackagingPolicy
 ) -> list[SourceEntry]:
-    opaque_objects = dict(policy.reviewed_opaque_git_objects)
+    opaque_objects = _reviewed_opaque_objects(policy)
     sources: list[SourceEntry] = []
     for entry in tree_entries:
         data = _run_git(repository, "cat-file", "blob", entry.object_id)

@@ -633,6 +633,111 @@ class RejectedTreeTests(SourcePackageTestCase):
             )
 
 
+class OpaquePngPolicyTests(SourcePackageTestCase):
+    def _policy_with_reviewed_png(
+        self, path: str, object_id: str
+    ) -> package_module.PackagingPolicy:
+        return package_module.replace(
+            package_module.EXPORT_POLICY,
+            reviewed_opaque_git_objects=(
+                *package_module.EXPORT_POLICY.reviewed_opaque_git_objects,
+                (path, object_id),
+            ),
+        )
+
+    def test_every_workspace_png_matches_one_literal_policy_object(self) -> None:
+        repository = SCRIPT_PATH.parents[1]
+        listed = subprocess.run(
+            [
+                "git",
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "--",
+                "*.png",
+            ],
+            cwd=repository,
+            check=True,
+            capture_output=True,
+        ).stdout
+        paths = sorted(
+            value.decode("utf-8") for value in listed.rstrip(b"\0").split(b"\0")
+        )
+        actual_objects = {
+            path: subprocess.run(
+                ["git", "hash-object", "--", path],
+                cwd=repository,
+                check=True,
+                capture_output=True,
+            )
+            .stdout.decode("ascii")
+            .strip()
+            for path in paths
+        }
+        reviewed_entries = package_module.EXPORT_POLICY.reviewed_opaque_git_objects
+        reviewed_objects = dict(reviewed_entries)
+
+        self.assertEqual(len(reviewed_entries), len(reviewed_objects))
+        self.assertTrue(
+            all(
+                not any(character in path for character in "*?[]{}")
+                for path in reviewed_objects
+            )
+        )
+        self.assertEqual(reviewed_objects, actual_objects)
+
+    def test_unreviewed_png_is_rejected(self) -> None:
+        self._write("frontend/baselines/unreviewed.png", b"\x89PNG\r\n\x1a\nnew")
+        self._commit("add unreviewed png")
+
+        with self.assertRaisesRegex(package_module.PackagingError, "reviewed object"):
+            self._package()
+
+    def test_exact_reviewed_png_blob_is_exported(self) -> None:
+        path = "frontend/baselines/test-reviewed.png"
+        contents = b"\x89PNG\r\n\x1a\nreviewed fixture"
+        self._write(path, contents)
+        commit_id = self._commit("add reviewed png")
+        object_id = (
+            self._git("rev-parse", f"{commit_id}:{path}").stdout.decode("ascii").strip()
+        )
+        policy = self._policy_with_reviewed_png(path, object_id)
+
+        output, report = self._package(revision=commit_id, policy=policy)
+
+        policy_report = cast(dict[str, Any], report["policy"])
+        self.assertEqual(policy_report["reviewed_opaque_entries"], 1)
+        archive_root = f"recipe-lab-{commit_id[:12]}"
+        with zipfile.ZipFile(output) as archive:
+            self.assertEqual(archive.read(f"{archive_root}/{path}"), contents)
+
+    def test_changed_reviewed_png_blob_is_rejected(self) -> None:
+        path = "frontend/baselines/test-reviewed.png"
+        self._write(path, b"\x89PNG\r\n\x1a\nfirst reviewed fixture")
+        first_commit = self._commit("add first reviewed png")
+        reviewed_object_id = (
+            self._git("rev-parse", f"{first_commit}:{path}")
+            .stdout.decode("ascii")
+            .strip()
+        )
+        self._write(path, b"\x89PNG\r\n\x1a\nchanged fixture")
+        changed_commit = self._commit("change reviewed png")
+        policy = self._policy_with_reviewed_png(path, reviewed_object_id)
+
+        with self.assertRaisesRegex(package_module.PackagingError, "reviewed object"):
+            self._package(revision=changed_commit, policy=policy)
+
+    def test_wildcard_cannot_authorize_pngs(self) -> None:
+        wildcard_policy = self._policy_with_reviewed_png(
+            "frontend/baselines/**/*.png", "a" * 40
+        )
+
+        with self.assertRaisesRegex(package_module.PackagingError, "literal paths"):
+            self._package(policy=wildcard_policy)
+
+
 class LimitAndPathTests(SourcePackageTestCase):
     def test_path_validator_rejects_portability_decoys(self) -> None:
         invalid_paths = (
