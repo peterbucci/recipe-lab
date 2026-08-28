@@ -101,7 +101,8 @@ const RULES: ReadonlyArray<{ id: RuleId; pattern: RegExp }> = [
   },
   {
     id: "staff-identifiers",
-    pattern: /\b(?:case|member|recipe|request|user) (?:id|identifier|uuid)\b/i,
+    pattern:
+      /\b(?:case|member|recipe|request|user) (?:id|identifier|uuid)\b|\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,
   },
 ];
 
@@ -159,6 +160,8 @@ function collectPublicCopy(source: string, fileName = "surface.tsx"): CopyFragme
     string,
     ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction
   >();
+  const staticValueDefinitions = new Map<string, ts.Expression>();
+  const resolvingStaticValues = new Set<string>();
   const publicHelperNames = new Set<string>();
 
   function add(node: ts.Node, text: string) {
@@ -171,8 +174,22 @@ function collectPublicCopy(source: string, fileName = "surface.tsx"): CopyFragme
     fragments.push({ line, text: normalized });
   }
 
-  function collectLiterals(node: ts.Node | undefined): void {
+  function collectLiterals(node: ts.Node | undefined, resolveStaticIdentifiers = true): void {
     if (!node) return;
+    if (ts.isIdentifier(node)) {
+      if (!resolveStaticIdentifiers) return;
+      const initializer = staticValueDefinitions.get(node.text);
+      if (
+        initializer &&
+        isStaticCopyExpression(initializer) &&
+        !resolvingStaticValues.has(node.text)
+      ) {
+        resolvingStaticValues.add(node.text);
+        collectLiterals(initializer);
+        resolvingStaticValues.delete(node.text);
+      }
+      return;
+    }
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
       add(node, node.text);
       return;
@@ -180,9 +197,34 @@ function collectPublicCopy(source: string, fileName = "surface.tsx"): CopyFragme
     if (ts.isTemplateExpression(node)) {
       add(node.head, node.head.text);
       for (const span of node.templateSpans) {
-        collectLiterals(span.expression);
+        collectLiterals(span.expression, resolveStaticIdentifiers);
         add(span.literal, span.literal.text);
       }
+      return;
+    }
+    if (ts.isConditionalExpression(node)) {
+      collectLiterals(node.whenTrue, resolveStaticIdentifiers);
+      collectLiterals(node.whenFalse, resolveStaticIdentifiers);
+      return;
+    }
+    if (ts.isBinaryExpression(node)) {
+      if (node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+        collectLiterals(node.right, resolveStaticIdentifiers);
+        return;
+      }
+      if (
+        node.operatorToken.kind === ts.SyntaxKind.PlusToken ||
+        node.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+        node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+        node.operatorToken.kind === ts.SyntaxKind.CommaToken
+      ) {
+        collectLiterals(node.left, resolveStaticIdentifiers);
+        collectLiterals(node.right, resolveStaticIdentifiers);
+      }
+      return;
+    }
+    if (ts.isCallExpression(node)) {
+      for (const argument of node.arguments) collectLiterals(argument, false);
       return;
     }
     if (ts.isJsxText(node)) {
@@ -195,6 +237,61 @@ function collectPublicCopy(source: string, fileName = "surface.tsx"): CopyFragme
       return;
     }
     ts.forEachChild(node, collectLiterals);
+  }
+
+  function isStaticCopyExpression(
+    node: ts.Expression,
+    seen = new Set<string>(),
+  ): boolean {
+    if (
+      ts.isStringLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      ts.isTemplateExpression(node) ||
+      ts.isJsxElement(node) ||
+      ts.isJsxSelfClosingElement(node) ||
+      ts.isJsxFragment(node)
+    ) {
+      return true;
+    }
+    if (
+      ts.isParenthesizedExpression(node) ||
+      ts.isAsExpression(node) ||
+      ts.isTypeAssertionExpression(node) ||
+      ts.isNonNullExpression(node) ||
+      ts.isSatisfiesExpression(node)
+    ) {
+      return isStaticCopyExpression(node.expression, seen);
+    }
+    if (ts.isConditionalExpression(node)) {
+      return (
+        isStaticCopyExpression(node.whenTrue, new Set(seen)) ||
+        isStaticCopyExpression(node.whenFalse, new Set(seen))
+      );
+    }
+    if (ts.isBinaryExpression(node)) {
+      if (
+        node.operatorToken.kind !== ts.SyntaxKind.PlusToken &&
+        node.operatorToken.kind !== ts.SyntaxKind.AmpersandAmpersandToken &&
+        node.operatorToken.kind !== ts.SyntaxKind.BarBarToken &&
+        node.operatorToken.kind !== ts.SyntaxKind.QuestionQuestionToken &&
+        node.operatorToken.kind !== ts.SyntaxKind.CommaToken
+      ) {
+        return false;
+      }
+      return (
+        isStaticCopyExpression(node.left, new Set(seen)) ||
+        isStaticCopyExpression(node.right, new Set(seen))
+      );
+    }
+    if (ts.isIdentifier(node)) {
+      if (seen.has(node.text)) return false;
+      const initializer = staticValueDefinitions.get(node.text);
+      if (!initializer) return false;
+      const nextSeen = new Set(seen);
+      nextSeen.add(node.text);
+      return isStaticCopyExpression(initializer, nextSeen);
+    }
+    return false;
   }
 
   function collectReferencedHelpers(node: ts.Node | undefined, names = publicHelperNames): void {
@@ -248,6 +345,15 @@ function collectPublicCopy(source: string, fileName = "surface.tsx"): CopyFragme
     ) {
       helperDefinitions.set(node.name.text, node.initializer);
       if (node.name.text === "generateMetadata") publicHelperNames.add(node.name.text);
+    }
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      ts.isVariableDeclarationList(node.parent) &&
+      (node.parent.flags & ts.NodeFlags.Const) !== 0
+    ) {
+      staticValueDefinitions.set(node.name.text, node.initializer);
     }
     if (ts.isJsxAttribute(node)) {
       if (isCopyName(node.name.getText(sourceFile))) {
@@ -433,6 +539,34 @@ describe("public product language policy", () => {
     expect(staff.map(({ rule }) => rule)).toEqual(["consumer-recommendation-language"]);
   });
 
+  it("checks UUID-shaped copy and statically initialized rendered aliases", () => {
+    const visibleUuid = "99999999-9999-4999-8999-999999999999";
+    const hiddenUuid = "88888888-8888-4888-8888-888888888888";
+    const violations = findViolations(
+      "app/components/example.tsx",
+      `
+        const forkHref = "/recipes/example/fork";
+        const hiddenRecipeId = "${hiddenUuid}";
+        export function Example() {
+          const cta = "Fork this recipe";
+          const visibleRecipeReference = "${visibleUuid}";
+          return <>{forkHref ? <span>Ready</span> : null}<button>{cta}</button><p>{visibleRecipeReference}</p></>;
+        }
+      `,
+    );
+
+    expect(violations.map(({ rule }) => rule)).toEqual([
+      "internal-recipe-language",
+      "staff-identifiers",
+    ]);
+    expect(violations.map(({ text }) => text)).toEqual([
+      "Fork this recipe",
+      visibleUuid,
+    ]);
+    expect(formatViolations(violations)).not.toContain(hiddenUuid);
+    expect(formatViolations(violations)).not.toContain("/recipes/example/fork");
+  });
+
   it("checks custom copy props and static metadata objects", () => {
     const violations = findViolations(
       "app/components/example.tsx",
@@ -516,6 +650,17 @@ describe("public product language policy", () => {
       `,
     );
     expect(dynamicOnly).toEqual([]);
+
+    const runtimeAlias = findViolations(
+      "app/components/example.tsx",
+      `
+        export function Example() {
+          const cta = loadRuntimeCopy();
+          return <p>{cta}</p>;
+        }
+      `,
+    );
+    expect(runtimeAlias).toEqual([]);
 
     const staticFrame = findViolations(
       "app/components/example.tsx",
