@@ -9,6 +9,28 @@ export type RecipeReportReason =
   | "intellectual_property"
   | "other";
 
+const KNOWN_RECIPE_REPORT_ERROR_CODES = new Set([
+  "abuse_protection_unavailable",
+  "account_setup_required",
+  "authentication_required",
+  "idempotency_key_conflict",
+  "invalid_csrf",
+  "invalid_identifier",
+  "rate_limit_exceeded",
+  "rate_limited",
+  "recipe_already_reported",
+  "recipe_not_found",
+  "recipe_report_conflict",
+  "report_service_unavailable",
+  "validation_error",
+]);
+
+function knownRecipeReportErrorCode(value: unknown): string {
+  return typeof value === "string" && KNOWN_RECIPE_REPORT_ERROR_CODES.has(value)
+    ? value
+    : "recipe_report_api_error";
+}
+
 export interface RecipeReportInput {
   reason: RecipeReportReason;
   details: string | null;
@@ -46,14 +68,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+function hasExactKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
-  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+  return (
+    actual.length === expected.length &&
+    actual.every((key, index) => key === expected[index])
+  );
 }
 
 function isTimestamp(value: unknown): value is string {
-  return typeof value === "string" && value.length <= 100 && !Number.isNaN(Date.parse(value));
+  return (
+    typeof value === "string" &&
+    value.length <= 100 &&
+    !Number.isNaN(Date.parse(value))
+  );
 }
 
 function invalidResponse(): RecipeReportApiError {
@@ -97,12 +129,7 @@ async function reportError(response: Response): Promise<RecipeReportApiError> {
   try {
     const payload: unknown = await response.json();
     if (isRecord(payload) && isRecord(payload.error)) {
-      if (
-        typeof payload.error.code === "string" &&
-        /^[a-z][a-z0-9_]{0,99}$/.test(payload.error.code)
-      ) {
-        code = payload.error.code;
-      }
+      code = knownRecipeReportErrorCode(payload.error.code);
     }
   } catch {
     // Keep the stable fallback rather than exposing an upstream response body.

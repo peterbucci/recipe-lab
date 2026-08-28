@@ -3,9 +3,7 @@ import { isRecipeVersionId } from "./recipe-api";
 import type { RecipeVariantCreateRequest } from "./variant-api";
 
 export type RecipeDuplicateClassification =
-  | "exact_duplicate"
-  | "probable_duplicate"
-  | "distinct";
+  "exact_duplicate" | "probable_duplicate" | "distinct";
 export type RecipeDuplicateCandidateClassification = Exclude<
   RecipeDuplicateClassification,
   "distinct"
@@ -62,6 +60,31 @@ interface ApiErrorPayload {
   };
 }
 
+const KNOWN_RECIPE_DUPLICATE_ERROR_CODES = new Set([
+  "abuse_protection_unavailable",
+  "account_setup_required",
+  "authentication_required",
+  "duplicate_decision_not_required",
+  "duplicate_preflight_not_found",
+  "duplicate_preflight_stale",
+  "duplicate_preflight_unavailable",
+  "idempotency_key_conflict",
+  "invalid_csrf",
+  "invalid_identifier",
+  "invalid_recipe_edits",
+  "rate_limit_exceeded",
+  "recipe_fork_source_unavailable",
+  "recipe_not_found",
+  "validation_error",
+]);
+
+function knownRecipeDuplicateErrorCode(value: unknown): string {
+  return typeof value === "string" &&
+    KNOWN_RECIPE_DUPLICATE_ERROR_CODES.has(value)
+    ? value
+    : "recipe_duplicate_api_error";
+}
+
 export class RecipeDuplicateApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -89,10 +112,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+function hasExactKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
-  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+  return (
+    actual.length === expected.length &&
+    actual.every((key, index) => key === expected[index])
+  );
 }
 
 function isBoundedText(value: unknown, maximum: number): value is string {
@@ -147,7 +176,10 @@ function parseCandidate(value: unknown): RecipeDuplicateCandidate | null {
     return null;
   }
   const parsedReasons = reasons as RecipeDuplicateReason[];
-  if (new Set(parsedReasons.map((reason) => reason.code)).size !== parsedReasons.length) {
+  if (
+    new Set(parsedReasons.map((reason) => reason.code)).size !==
+    parsedReasons.length
+  ) {
     return null;
   }
 
@@ -160,7 +192,9 @@ function parseCandidate(value: unknown): RecipeDuplicateCandidate | null {
   };
 }
 
-function parseAcknowledgement(value: unknown): RecipeDuplicateAcknowledgement | null {
+function parseAcknowledgement(
+  value: unknown,
+): RecipeDuplicateAcknowledgement | null {
   if (
     !isRecord(value) ||
     !hasExactKeys(value, [
@@ -206,7 +240,9 @@ function parseAcknowledgement(value: unknown): RecipeDuplicateAcknowledgement | 
   };
 }
 
-function candidatesAreInStableOrder(candidates: RecipeDuplicateCandidate[]): boolean {
+function candidatesAreInStableOrder(
+  candidates: RecipeDuplicateCandidate[],
+): boolean {
   for (let index = 1; index < candidates.length; index += 1) {
     const previous = candidates[index - 1];
     const current = candidates[index];
@@ -237,7 +273,9 @@ function candidatesAreInStableOrder(candidates: RecipeDuplicateCandidate[]): boo
   return true;
 }
 
-export function parseRecipeDuplicatePreflight(value: unknown): RecipeDuplicatePreflight {
+export function parseRecipeDuplicatePreflight(
+  value: unknown,
+): RecipeDuplicatePreflight {
   const invalid = () =>
     new RecipeDuplicateApiError(
       "Recipe Lab received an invalid similarity review response.",
@@ -289,8 +327,8 @@ export function parseRecipeDuplicatePreflight(value: unknown): RecipeDuplicatePr
   }
 
   const parsedCandidates = candidates as RecipeDuplicateCandidate[];
-  const candidateIds = parsedCandidates.map(
-    (candidate) => candidate.public_recipe_version_id.toLowerCase(),
+  const candidateIds = parsedCandidates.map((candidate) =>
+    candidate.public_recipe_version_id.toLowerCase(),
   );
   const isDistinct = value.classification === "distinct";
   if (
@@ -304,10 +342,13 @@ export function parseRecipeDuplicatePreflight(value: unknown): RecipeDuplicatePr
     acknowledgement.required === isDistinct ||
     (isDistinct && (parsedCandidates.length !== 0 || warnings.length !== 0)) ||
     value.same_lineage_no_change !== (warnings.length === 1) ||
-    (value.same_lineage_no_change && value.classification !== "exact_duplicate") ||
+    (value.same_lineage_no_change &&
+      value.classification !== "exact_duplicate") ||
     (value.classification === "exact_duplicate" &&
       !value.same_lineage_no_change &&
-      !parsedCandidates.some((candidate) => candidate.classification === "exact_duplicate")) ||
+      !parsedCandidates.some(
+        (candidate) => candidate.classification === "exact_duplicate",
+      )) ||
     (value.classification === "probable_duplicate" &&
       (parsedCandidates.length === 0 ||
         !parsedCandidates.every(
@@ -357,17 +398,14 @@ function isErrorPayload(value: unknown): value is ApiErrorPayload {
   return isRecord(value) && "error" in value;
 }
 
-async function duplicateApiError(response: Response): Promise<RecipeDuplicateApiError> {
+async function duplicateApiError(
+  response: Response,
+): Promise<RecipeDuplicateApiError> {
   let code = "recipe_duplicate_api_error";
   try {
     const payload: unknown = await response.json();
-    if (
-      isErrorPayload(payload) &&
-      isRecord(payload.error) &&
-      typeof payload.error.code === "string" &&
-      payload.error.code.length <= 100
-    ) {
-      code = payload.error.code;
+    if (isErrorPayload(payload) && isRecord(payload.error)) {
+      code = knownRecipeDuplicateErrorCode(payload.error.code);
     }
   } catch {
     // Keep a stable message and never expose an upstream response body.
@@ -377,7 +415,7 @@ async function duplicateApiError(response: Response): Promise<RecipeDuplicateApi
       ? "Your session expired. Sign in again to continue."
       : response.status === 409 && code === "recipe_fork_source_unavailable"
         ? "The public source recipe is no longer available. Your private draft is unchanged."
-      : "Recipe Lab could not check this version right now. Your draft is still here; please try again.";
+        : "Recipe Lab could not check this version right now. Your draft is still here; please try again.";
   return new RecipeDuplicateApiError(message, response.status, code);
 }
 
@@ -452,7 +490,10 @@ export async function recordRecipeDuplicateDecision(
     idempotencyKey,
   );
   const parsed = parseRecipeDuplicateDecision(result);
-  if (parsed.preflight_id !== preflightId || parsed.decision !== payload.decision) {
+  if (
+    parsed.preflight_id !== preflightId ||
+    parsed.decision !== payload.decision
+  ) {
     throw new RecipeDuplicateApiError(
       "Recipe Lab received an invalid similarity decision response.",
       502,

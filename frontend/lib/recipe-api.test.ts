@@ -24,13 +24,21 @@ const noChangeDiff: RecipeDiff = {
     id: "11111111-1111-4111-8111-111111111111",
     version_number: 1,
     title: "Carrot Walnut Snack Cake",
-    author: { id: "cook-one", handle: "first-cook", display_name: "First Cook" },
+    author: {
+      id: "cook-one",
+      handle: "first-cook",
+      display_name: "First Cook",
+    },
   },
   target_version: {
     id: "22222222-2222-4222-8222-222222222222",
     version_number: 2,
     title: "Copied Carrot Walnut Snack Cake",
-    author: { id: "cook-two", handle: "second-cook", display_name: "Second Cook" },
+    author: {
+      id: "cook-two",
+      handle: "second-cook",
+      display_name: "Second Cook",
+    },
   },
   metadata_changes: [],
   ingredients: { added: [], removed: [], replaced: [], modified: [] },
@@ -46,7 +54,9 @@ afterEach(() => {
 
 describe("recipe API client", () => {
   it("recognizes canonical recipe version identifiers before requesting detail", () => {
-    expect(isRecipeVersionId("29454eba-3a4e-5380-b48c-c49dc3697b17")).toBe(true);
+    expect(isRecipeVersionId("29454eba-3a4e-5380-b48c-c49dc3697b17")).toBe(
+      true,
+    );
     expect(isRecipeVersionId("not-a-recipe-id")).toBe(false);
     expect(isRecipeVersionId("29454eba3a4e5380b48cc49dc3697b17")).toBe(false);
   });
@@ -62,7 +72,12 @@ describe("recipe API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      fetchRecipePage({ isVariant: true, page: 2, pageSize: 12, query: "carrot & pecan" }),
+      fetchRecipePage({
+        isVariant: true,
+        page: 2,
+        pageSize: 12,
+        query: "carrot & pecan",
+      }),
     ).resolves.toEqual(emptyPage);
 
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -107,12 +122,19 @@ describe("recipe API client", () => {
     await fetchRecipePage({ isVariant: undefined });
 
     const [url] = fetchMock.mock.calls[0];
-    expect(String(url)).toBe("http://api.example.test/api/recipes?page=1&page_size=12");
+    expect(String(url)).toBe(
+      "http://api.example.test/api/recipes?page=1&page_size=12",
+    );
   });
 
   it("maps a missing recipe to null", async () => {
     vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
-    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 404 })));
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(new Response(null, { status: 404 })),
+    );
 
     await expect(fetchRecipe("missing/id")).resolves.toBeNull();
     expect(fetch).toHaveBeenCalledWith(
@@ -131,11 +153,15 @@ describe("recipe API client", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(fetchRecipeDiff("variant/id?draft=true")).resolves.toEqual(noChangeDiff);
+    await expect(fetchRecipeDiff("variant/id?draft=true")).resolves.toEqual(
+      noChangeDiff,
+    );
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledWith(
-      new URL("http://api.example.test/api/recipes/variant%2Fid%3Fdraft%3Dtrue/diff"),
+      new URL(
+        "http://api.example.test/api/recipes/variant%2Fid%3Fdraft%3Dtrue/diff",
+      ),
       {
         cache: "no-store",
         headers: { Accept: "application/json" },
@@ -179,7 +205,7 @@ describe("recipe API client", () => {
     expect(error).toBeInstanceOf(RecipeApiError);
     expect(error).toMatchObject({
       code: "recipe_has_no_parent",
-      message: "This recipe version has no parent to compare.",
+      message: "Review the recipe request and try again.",
       status: 422,
     });
   });
@@ -209,26 +235,62 @@ describe("recipe API client", () => {
     expect(String(error)).not.toContain("private upstream details");
   });
 
-  it("preserves the documented API error without exposing response internals", async () => {
+  it("preserves documented codes without exposing response internals", async () => {
     vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(
         new Response(
           JSON.stringify({
-            error: { code: "validation_error", message: "The request parameters are invalid." },
+            error: {
+              code: "validation_error",
+              message: "The request parameters are invalid.",
+            },
           }),
           { status: 422, headers: { "Content-Type": "application/json" } },
         ),
       ),
     );
 
-    const error = await fetchRecipePage({ page: 1 }).catch((reason: unknown) => reason);
+    const error = await fetchRecipePage({ page: 1 }).catch(
+      (reason: unknown) => reason,
+    );
     expect(error).toBeInstanceOf(RecipeApiError);
     expect(error).toMatchObject({
       code: "validation_error",
-      message: "The request parameters are invalid.",
+      message: "Review the recipe request and try again.",
       status: 422,
     });
+  });
+
+  it("drops hostile internal recipe error codes and messages", async () => {
+    vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
+    const internalId = "99999999-9999-4999-8999-999999999999";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json(
+          {
+            error: {
+              code: "internal_operator_policy_failure",
+              message: `Canonical recipe UUID ${internalId} failed an operator policy.`,
+            },
+          },
+          { status: 503 },
+        ),
+      ),
+    );
+
+    const error = await fetchRecipePage({ page: 1 }).catch(
+      (reason: unknown) => reason,
+    );
+    expect(error).toMatchObject({
+      code: "recipe_api_error",
+      message: "The recipe service could not complete this request.",
+      status: 503,
+    });
+    expect(`${String(error)} ${JSON.stringify(error)}`).not.toMatch(
+      /99999999|canonical|uuid|operator|policy|internal_/i,
+    );
   });
 });

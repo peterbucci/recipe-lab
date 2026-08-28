@@ -37,9 +37,13 @@ describe("measurement unit API", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(fetchMeasurementUnits("ingredient_amount")).resolves.toEqual([gram]);
+    await expect(fetchMeasurementUnits("ingredient_amount")).resolves.toEqual([
+      gram,
+    ]);
     expect(fetchMock).toHaveBeenCalledWith(
-      new URL("http://api.example.test/api/measurement-units?semantic=ingredient_amount"),
+      new URL(
+        "http://api.example.test/api/measurement-units?semantic=ingredient_amount",
+      ),
       { cache: "no-store", headers: { Accept: "application/json" } },
     );
   });
@@ -47,7 +51,13 @@ describe("measurement unit API", () => {
   it("rejects malformed or duplicate catalog identities", () => {
     expect(
       parseMeasurementUnitResponse({
-        items: [{ ...gram, id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", dimension: "package" }],
+        items: [
+          {
+            ...gram,
+            id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            dimension: "package",
+          },
+        ],
       }).items[0].dimension,
     ).toBe("package");
     expect(() =>
@@ -61,7 +71,9 @@ describe("measurement unit API", () => {
       }),
     );
     expect(() =>
-      parseMeasurementUnitResponse({ items: [{ ...gram, display_style: "abbreviation" }] }),
+      parseMeasurementUnitResponse({
+        items: [{ ...gram, display_style: "abbreviation" }],
+      }),
     ).toThrow("invalid measurement unit response");
     expect(() =>
       parseMeasurementUnitResponse({ items: [{ ...gram, symbol: null }] }),
@@ -93,17 +105,36 @@ describe("measurement unit API", () => {
         .mockResolvedValueOnce(
           new Response(
             JSON.stringify({
-              error: { code: "invalid_semantic", message: "Choose a supported semantic." },
+              error: {
+                code: "invalid_semantic",
+                message: "Choose a supported semantic.",
+              },
             }),
             { status: 422, headers: { "Content-Type": "application/json" } },
           ),
         )
-        .mockResolvedValueOnce(new Response("private gateway details", { status: 503 })),
+        .mockResolvedValueOnce(
+          new Response("private gateway details", { status: 503 }),
+        )
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              error: {
+                code: "internal_operator_policy_failure",
+                message:
+                  "Canonical unit UUID 99999999-9999-4999-8999-999999999999 failed an operator policy.",
+              },
+            },
+            { status: 503 },
+          ),
+        ),
     );
 
-    await expect(fetchMeasurementUnits("action_duration")).rejects.toMatchObject({
+    await expect(
+      fetchMeasurementUnits("action_duration"),
+    ).rejects.toMatchObject({
       code: "invalid_semantic",
-      message: "Choose a supported semantic.",
+      message: "Review the measurement selection and try again.",
       status: 422,
     });
     const error = await fetchMeasurementUnits("temperature").catch(
@@ -116,5 +147,17 @@ describe("measurement unit API", () => {
       status: 503,
     });
     expect(String(error)).not.toContain("private gateway details");
+
+    const hostileError = await fetchMeasurementUnits("ingredient_amount").catch(
+      (reason: unknown) => reason,
+    );
+    expect(hostileError).toMatchObject({
+      code: "measurement_unit_api_error",
+      message: "The measurement unit service could not complete this request.",
+      status: 503,
+    });
+    expect(
+      `${String(hostileError)} ${JSON.stringify(hostileError)}`,
+    ).not.toMatch(/99999999|canonical|uuid|operator|policy|internal_/i);
   });
 });

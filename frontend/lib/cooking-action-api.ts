@@ -19,6 +19,29 @@ interface ApiErrorPayload {
   };
 }
 
+const KNOWN_COOKING_ACTION_ERROR_CODES = new Set([
+  "abuse_protection_unavailable",
+  "catalog_unavailable",
+  "invalid_identifier",
+  "rate_limit_exceeded",
+  "validation_error",
+]);
+
+function knownCookingActionErrorCode(value: unknown): string {
+  return typeof value === "string" &&
+    KNOWN_COOKING_ACTION_ERROR_CODES.has(value)
+    ? value
+    : "cooking_action_api_error";
+}
+
+function cookingActionErrorMessage(status: number): string {
+  if (status === 422) return "Review the cooking action request and try again.";
+  if (status === 429) {
+    return "The cooking action catalog is receiving too many requests. Please wait and try again.";
+  }
+  return "The cooking action service could not complete this request.";
+}
+
 export class CookingActionApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -42,12 +65,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isUuid(value: unknown): value is string {
   return (
     typeof value === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    )
   );
 }
 
 function isBoundedText(value: unknown, maxLength: number): value is string {
-  return typeof value === "string" && value.trim().length > 0 && value.length <= maxLength;
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    value.length <= maxLength
+  );
 }
 
 function parseCatalogActionType(value: unknown): CatalogActionType | null {
@@ -72,7 +101,9 @@ function parseCatalogActionType(value: unknown): CatalogActionType | null {
   };
 }
 
-export function parseCookingActionTypeResponse(value: unknown): CookingActionTypeResponse {
+export function parseCookingActionTypeResponse(
+  value: unknown,
+): CookingActionTypeResponse {
   if (!isRecord(value) || !Array.isArray(value.items)) {
     throw new CookingActionApiError(
       "Recipe Lab received an invalid cooking action response.",
@@ -93,7 +124,10 @@ export function parseCookingActionTypeResponse(value: unknown): CookingActionTyp
   const typedItems = items as CatalogActionType[];
   const uniqueIds = new Set(typedItems.map((item) => item.id));
   const uniqueKeys = new Set(typedItems.map((item) => item.key));
-  if (uniqueIds.size !== typedItems.length || uniqueKeys.size !== typedItems.length) {
+  if (
+    uniqueIds.size !== typedItems.length ||
+    uniqueKeys.size !== typedItems.length
+  ) {
     throw new CookingActionApiError(
       "Recipe Lab received an invalid cooking action response.",
       502,
@@ -117,24 +151,22 @@ function isErrorPayload(value: unknown): value is ApiErrorPayload {
 }
 
 async function apiError(response: Response): Promise<CookingActionApiError> {
-  let message = "The cooking action service could not complete this request.";
   let code = "cooking_action_api_error";
 
   try {
     const payload: unknown = await response.json();
     if (isErrorPayload(payload) && isRecord(payload.error)) {
-      if (typeof payload.error.message === "string") {
-        message = payload.error.message;
-      }
-      if (typeof payload.error.code === "string") {
-        code = payload.error.code;
-      }
+      code = knownCookingActionErrorCode(payload.error.code);
     }
   } catch {
     // Keep the stable fallback when the upstream body is not JSON.
   }
 
-  return new CookingActionApiError(message, response.status, code);
+  return new CookingActionApiError(
+    cookingActionErrorMessage(response.status),
+    response.status,
+    code,
+  );
 }
 
 export async function fetchCookingActionTypes(): Promise<CatalogActionType[]> {

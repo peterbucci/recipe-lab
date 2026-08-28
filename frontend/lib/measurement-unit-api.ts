@@ -1,17 +1,10 @@
 export type UnitDimension =
-  | "mass"
-  | "volume"
-  | "count"
-  | "time"
-  | "temperature"
-  | "package";
+  "mass" | "volume" | "count" | "time" | "temperature" | "package";
 
 export type MeasurementDisplayStyle = "symbol" | "word" | "hidden";
 
 export type MeasurementSemantic =
-  | "ingredient_amount"
-  | "action_duration"
-  | "temperature";
+  "ingredient_amount" | "action_duration" | "temperature";
 
 export interface CatalogUnit {
   id: string;
@@ -39,6 +32,42 @@ interface ApiErrorPayload {
   };
 }
 
+const KNOWN_MEASUREMENT_UNIT_ERROR_CODES = new Set([
+  "abuse_protection_unavailable",
+  "ingredient_density_ambiguous",
+  "ingredient_density_required",
+  "invalid_identifier",
+  "invalid_semantic",
+  "measurement_conversion_unsupported",
+  "measurement_error",
+  "measurement_metadata_mismatch",
+  "measurement_semantic_mismatch",
+  "measurement_unit_inactive",
+  "measurement_unit_not_found",
+  "measurement_value_out_of_range",
+  "package_size_inactive",
+  "package_size_not_found",
+  "package_size_required",
+  "rate_limit_exceeded",
+  "validation_error",
+]);
+
+function knownMeasurementUnitErrorCode(value: unknown): string {
+  return typeof value === "string" &&
+    KNOWN_MEASUREMENT_UNIT_ERROR_CODES.has(value)
+    ? value
+    : "measurement_unit_api_error";
+}
+
+function measurementUnitErrorMessage(status: number): string {
+  if (status === 404) return "That measurement option is no longer available.";
+  if (status === 422) return "Review the measurement selection and try again.";
+  if (status === 429) {
+    return "The measurement catalog is receiving too many requests. Please wait and try again.";
+  }
+  return "The measurement unit service could not complete this request.";
+}
+
 export class MeasurementUnitApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -62,12 +91,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isUuid(value: unknown): value is string {
   return (
     typeof value === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    )
   );
 }
 
 function isBoundedText(value: unknown, maxLength: number): value is string {
-  return typeof value === "string" && value.trim().length > 0 && value.length <= maxLength;
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    value.length <= maxLength
+  );
 }
 
 function isNonBlankText(value: unknown): value is string {
@@ -123,7 +158,9 @@ function parseCatalogUnit(value: unknown): CatalogUnit | null {
   };
 }
 
-export function parseMeasurementUnitResponse(value: unknown): MeasurementUnitResponse {
+export function parseMeasurementUnitResponse(
+  value: unknown,
+): MeasurementUnitResponse {
   if (!isRecord(value) || !Array.isArray(value.items)) {
     throw new MeasurementUnitApiError(
       "Recipe Lab received an invalid measurement unit response.",
@@ -166,24 +203,22 @@ function isErrorPayload(value: unknown): value is ApiErrorPayload {
 }
 
 async function apiError(response: Response): Promise<MeasurementUnitApiError> {
-  let message = "The measurement unit service could not complete this request.";
   let code = "measurement_unit_api_error";
 
   try {
     const payload: unknown = await response.json();
     if (isErrorPayload(payload) && isRecord(payload.error)) {
-      if (typeof payload.error.message === "string") {
-        message = payload.error.message;
-      }
-      if (typeof payload.error.code === "string") {
-        code = payload.error.code;
-      }
+      code = knownMeasurementUnitErrorCode(payload.error.code);
     }
   } catch {
     // Keep the stable fallback when the upstream body is not JSON.
   }
 
-  return new MeasurementUnitApiError(message, response.status, code);
+  return new MeasurementUnitApiError(
+    measurementUnitErrorMessage(response.status),
+    response.status,
+    code,
+  );
 }
 
 export async function fetchMeasurementUnits(

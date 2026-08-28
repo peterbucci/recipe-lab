@@ -7,7 +7,10 @@ import type { CatalogActionTypeSummary } from "./cooking-action-api";
 import type { CatalogIngredient } from "./ingredient-catalog-api";
 import type { CatalogUnitSummary } from "./measurement-unit-api";
 import type { RecipeNumericMeasure } from "./structured-action";
-import type { RecipeIngredientMeasure, VariantMeasureInput } from "./structured-measure";
+import type {
+  RecipeIngredientMeasure,
+  VariantMeasureInput,
+} from "./structured-measure";
 
 export type RecipeDraftStatus = "active";
 
@@ -132,6 +135,27 @@ interface ApiErrorPayload {
   error?: { code?: unknown; message?: unknown; issues?: unknown };
 }
 
+const KNOWN_RECIPE_DRAFT_ERROR_CODES = new Set([
+  "abuse_protection_unavailable",
+  "account_setup_required",
+  "authentication_required",
+  "idempotency_key_conflict",
+  "invalid_csrf",
+  "invalid_identifier",
+  "invalid_recipe_draft",
+  "rate_limit_exceeded",
+  "recipe_draft_not_found",
+  "recipe_draft_revision_conflict",
+  "recipe_source_not_found",
+  "validation_error",
+]);
+
+function knownRecipeDraftErrorCode(value: unknown): string {
+  return typeof value === "string" && KNOWN_RECIPE_DRAFT_ERROR_CODES.has(value)
+    ? value
+    : "recipe_draft_api_error";
+}
+
 export class RecipeDraftApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -158,7 +182,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isUuid(value: unknown): value is string {
   return (
     typeof value === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    )
   );
 }
 
@@ -166,7 +192,11 @@ function isTimestamp(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
 
-function boundedText(value: unknown, max: number, allowBlank = false): value is string {
+function boundedText(
+  value: unknown,
+  max: number,
+  allowBlank = false,
+): value is string {
   return (
     typeof value === "string" &&
     value.length <= max &&
@@ -207,7 +237,9 @@ function parseMeasure(value: unknown): RecipeIngredientMeasure | null {
   }
   if (
     value.kind === "qualitative" &&
-    (value.value === "to_taste" || value.value === "as_needed" || value.value === "unspecified") &&
+    (value.value === "to_taste" ||
+      value.value === "as_needed" ||
+      value.value === "unspecified") &&
     value.unit === null &&
     value.display_unit === null &&
     typeof value.display === "string"
@@ -278,7 +310,11 @@ function parseIngredient(value: unknown): RecipeDraftIngredient | null {
     return null;
   }
   const measure = parseMeasure(value.measure);
-  if (!measure || (value.preparation_notes !== null && typeof value.preparation_notes !== "string")) {
+  if (
+    !measure ||
+    (value.preparation_notes !== null &&
+      typeof value.preparation_notes !== "string")
+  ) {
     return null;
   }
   let selection: RecipeDraftIngredient["selection"];
@@ -287,16 +323,26 @@ function parseIngredient(value: unknown): RecipeDraftIngredient | null {
     if (!ingredient || !boundedText(value.selection.display_name, 200)) {
       return null;
     }
-    selection = { kind: "catalog", ingredient, display_name: value.selection.display_name };
-  } else if (value.selection.kind === "request" && isRecord(value.selection.request)) {
+    selection = {
+      kind: "catalog",
+      ingredient,
+      display_name: value.selection.display_name,
+    };
+  } else if (
+    value.selection.kind === "request" &&
+    isRecord(value.selection.request)
+  ) {
     const request = value.selection.request;
-    const resolved = request.resolved_ingredient === null
-      ? null
-      : parseCatalogIngredient(request.resolved_ingredient);
+    const resolved =
+      request.resolved_ingredient === null
+        ? null
+        : parseCatalogIngredient(request.resolved_ingredient);
     if (
       !isUuid(request.id) ||
       !boundedText(request.proposed_name, 200) ||
-      !["pending", "approved", "rejected", "duplicate"].includes(String(request.status)) ||
+      !["pending", "approved", "rejected", "duplicate"].includes(
+        String(request.status),
+      ) ||
       (request.resolved_ingredient !== null && resolved === null)
     ) {
       return null;
@@ -306,7 +352,8 @@ function parseIngredient(value: unknown): RecipeDraftIngredient | null {
       request: {
         id: request.id,
         proposed_name: request.proposed_name,
-        status: request.status as RecipeDraftRequestSelection["request"]["status"],
+        status:
+          request.status as RecipeDraftRequestSelection["request"]["status"],
         resolved_ingredient: resolved,
       },
     };
@@ -334,8 +381,10 @@ function parseAction(value: unknown): RecipeDraftAction | null {
     return null;
   }
   const actionType = parseActionType(value.action_type);
-  const duration = value.duration === null ? null : parseNumericMeasure(value.duration);
-  const temperature = value.temperature === null ? null : parseNumericMeasure(value.temperature);
+  const duration =
+    value.duration === null ? null : parseNumericMeasure(value.duration);
+  const temperature =
+    value.temperature === null ? null : parseNumericMeasure(value.temperature);
   if (
     !actionType ||
     (value.duration !== null && !duration) ||
@@ -405,11 +454,15 @@ export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
     instructions.some((item) => item === null) ||
     !ordered(ingredients as RecipeDraftIngredient[]) ||
     !ordered(instructions as RecipeDraftInstruction[]) ||
-    !(instructions as RecipeDraftInstruction[]).every((instruction) => ordered(instruction.actions))
+    !(instructions as RecipeDraftInstruction[]).every((instruction) =>
+      ordered(instruction.actions),
+    )
   ) {
     throw invalidResponse();
   }
-  const occurrenceIds = new Set((ingredients as RecipeDraftIngredient[]).map((item) => item.id));
+  const occurrenceIds = new Set(
+    (ingredients as RecipeDraftIngredient[]).map((item) => item.id),
+  );
   if (
     !(instructions as RecipeDraftInstruction[]).every((instruction) =>
       instruction.actions.every((action) =>
@@ -518,11 +571,15 @@ const SAFE_DRAFT_ISSUE_PARTS = new Set([
 ]);
 
 function safeIssueLocation(value: unknown): Array<string | number> | null {
-  if (!Array.isArray(value) || value.length === 0 || value.length > 8) return null;
+  if (!Array.isArray(value) || value.length === 0 || value.length > 8)
+    return null;
   const safe = value.every(
     (part) =>
       (typeof part === "string" && SAFE_DRAFT_ISSUE_PARTS.has(part)) ||
-      (typeof part === "number" && Number.isInteger(part) && part >= 0 && part <= 200),
+      (typeof part === "number" &&
+        Number.isInteger(part) &&
+        part >= 0 &&
+        part <= 200),
   );
   return safe ? (value as Array<string | number>) : null;
 }
@@ -546,7 +603,13 @@ function parseIssues(value: unknown): ApiValidationIssue[] {
     if (!isRecord(issue)) return [];
     const location = safeIssueLocation(issue.location);
     if (!location) return [];
-    return [{ location, message: safeIssueMessage(location), type: "validation_error" }];
+    return [
+      {
+        location,
+        message: safeIssueMessage(location),
+        type: "validation_error",
+      },
+    ];
   });
 }
 
@@ -577,18 +640,24 @@ async function apiError(response: Response): Promise<RecipeDraftApiError> {
     const payload: unknown = await response.json();
     if (isRecord(payload) && isRecord((payload as ApiErrorPayload).error)) {
       const error = (payload as ApiErrorPayload).error!;
-      if (typeof error.code === "string" && /^[a-z][a-z0-9_]{0,99}$/.test(error.code)) {
-        code = error.code;
-      }
+      code = knownRecipeDraftErrorCode(error.code);
       issues = parseIssues(error.issues);
     }
   } catch {
     // Keep the stable private-draft fallback.
   }
-  return new RecipeDraftApiError(draftErrorMessage(response.status, code), response.status, code, issues);
+  return new RecipeDraftApiError(
+    draftErrorMessage(response.status, code),
+    response.status,
+    code,
+    issues,
+  );
 }
 
-async function draftFetch(path: string, init: RequestInit = {}): Promise<Response> {
+async function draftFetch(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
   const response = await fetch(path, {
     ...init,
     cache: "no-store",
@@ -628,9 +697,18 @@ export async function browseRecipeDrafts({
   page = 1,
   pageSize = 20,
   signal,
-}: { page?: number; pageSize?: number; signal?: AbortSignal } = {}): Promise<RecipeDraftPage> {
-  const query = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
-  const response = await draftFetch(`/api/recipe-drafts?${query.toString()}`, { signal });
+}: {
+  page?: number;
+  pageSize?: number;
+  signal?: AbortSignal;
+} = {}): Promise<RecipeDraftPage> {
+  const query = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  const response = await draftFetch(`/api/recipe-drafts?${query.toString()}`, {
+    signal,
+  });
   return parseRecipeDraftPage(await response.json());
 }
 
@@ -638,9 +716,12 @@ export async function fetchRecipeDraft(
   draftId: string,
   signal?: AbortSignal,
 ): Promise<RecipeDraftDetail> {
-  const response = await draftFetch(`/api/recipe-drafts/${encodeURIComponent(draftId)}`, {
-    signal,
-  });
+  const response = await draftFetch(
+    `/api/recipe-drafts/${encodeURIComponent(draftId)}`,
+    {
+      signal,
+    },
+  );
   return parseRecipeDraftDetail(await response.json());
 }
 
@@ -649,11 +730,14 @@ export async function updateRecipeDraft(
   payload: RecipeDraftUpdateRequest,
   idempotencyKey: string,
 ): Promise<RecipeDraftDetail> {
-  const response = await draftFetch(`/api/recipe-drafts/${encodeURIComponent(draftId)}`, {
-    method: "PUT",
-    headers: mutationHeaders(idempotencyKey),
-    body: JSON.stringify(payload),
-  });
+  const response = await draftFetch(
+    `/api/recipe-drafts/${encodeURIComponent(draftId)}`,
+    {
+      method: "PUT",
+      headers: mutationHeaders(idempotencyKey),
+      body: JSON.stringify(payload),
+    },
+  );
   return parseRecipeDraftDetail(await response.json());
 }
 

@@ -1,7 +1,4 @@
-import {
-  memberMutationHeaders,
-  notifySessionExpired,
-} from "./auth-api";
+import { memberMutationHeaders, notifySessionExpired } from "./auth-api";
 import type { RecipeVisibilityState } from "./recipe-library-api";
 
 export type AuthorRecipeVisibilityState = Extract<
@@ -17,6 +14,27 @@ export interface RecipeVisibilityUpdate {
 
 interface ApiErrorPayload {
   error?: { code?: unknown; message?: unknown };
+}
+
+const KNOWN_RECIPE_VISIBILITY_ERROR_CODES = new Set([
+  "abuse_protection_unavailable",
+  "account_setup_required",
+  "authentication_required",
+  "invalid_csrf",
+  "invalid_identifier",
+  "moderation_hidden",
+  "rate_limit_exceeded",
+  "recipe_not_found",
+  "recipe_visibility_managed_by_moderation",
+  "validation_error",
+  "visibility_service_unavailable",
+]);
+
+function knownRecipeVisibilityErrorCode(value: unknown): string {
+  return typeof value === "string" &&
+    KNOWN_RECIPE_VISIBILITY_ERROR_CODES.has(value)
+    ? value
+    : "recipe_visibility_api_error";
 }
 
 export class RecipeVisibilityApiError extends Error {
@@ -42,10 +60,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+function hasExactKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
-  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+  return (
+    actual.length === expected.length &&
+    actual.every((key, index) => key === expected[index])
+  );
 }
 
 function isVisibilityState(value: unknown): value is RecipeVisibilityState {
@@ -64,7 +88,9 @@ function invalidResponse(): RecipeVisibilityApiError {
   );
 }
 
-export function parseRecipeVisibilityUpdate(value: unknown): RecipeVisibilityUpdate {
+export function parseRecipeVisibilityUpdate(
+  value: unknown,
+): RecipeVisibilityUpdate {
   if (
     !isRecord(value) ||
     !hasExactKeys(value, ["recipe_version_id", "state", "updated_at"]) ||
@@ -89,9 +115,7 @@ async function apiError(response: Response): Promise<RecipeVisibilityApiError> {
     const payload: unknown = await response.json();
     if (isRecord(payload) && isRecord((payload as ApiErrorPayload).error)) {
       const error = (payload as ApiErrorPayload).error!;
-      if (typeof error.code === "string" && /^[a-z][a-z0-9_]{0,99}$/.test(error.code)) {
-        code = error.code;
-      }
+      code = knownRecipeVisibilityErrorCode(error.code);
     }
   } catch {
     // Keep the stable fallback instead of exposing an upstream response body.

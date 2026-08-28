@@ -3,7 +3,10 @@ import {
   memberMutationHeaders,
   notifySessionExpired,
 } from "./auth-api";
-import type { RecipeDuplicateDecision, RecipeDuplicatePreflight } from "./recipe-duplicate-api";
+import type {
+  RecipeDuplicateDecision,
+  RecipeDuplicatePreflight,
+} from "./recipe-duplicate-api";
 
 export interface RecipeDraftDuplicateReviewInput {
   preflight_id: string;
@@ -26,6 +29,36 @@ export interface RecipeDraftPublication {
 
 interface ApiErrorPayload {
   error?: { code?: unknown; message?: unknown; issues?: unknown };
+}
+
+const KNOWN_RECIPE_PUBLICATION_ERROR_CODES = new Set([
+  "abuse_protection_unavailable",
+  "account_setup_required",
+  "authentication_required",
+  "duplicate_decision_not_required",
+  "duplicate_decision_required",
+  "duplicate_preflight_not_found",
+  "duplicate_preflight_stale",
+  "duplicate_preflight_unavailable",
+  "idempotency_key_conflict",
+  "invalid_csrf",
+  "invalid_identifier",
+  "invalid_original_recipe_draft",
+  "invalid_recipe_draft",
+  "rate_limit_exceeded",
+  "recipe_draft_already_published",
+  "recipe_draft_not_found",
+  "recipe_draft_revision_conflict",
+  "recipe_fork_source_unavailable",
+  "recipe_not_found",
+  "validation_error",
+]);
+
+function knownRecipePublicationErrorCode(value: unknown): string {
+  return typeof value === "string" &&
+    KNOWN_RECIPE_PUBLICATION_ERROR_CODES.has(value)
+    ? value
+    : "recipe_publication_api_error";
 }
 
 export class RecipePublicationApiError extends Error {
@@ -54,10 +87,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+function hasExactKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
-  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+  return (
+    actual.length === expected.length &&
+    actual.every((key, index) => key === expected[index])
+  );
 }
 
 const SAFE_DRAFT_ISSUE_PARTS = new Set([
@@ -92,11 +131,15 @@ const SAFE_DRAFT_ISSUE_PARTS = new Set([
 ]);
 
 function safeIssueLocation(value: unknown): Array<string | number> | null {
-  if (!Array.isArray(value) || value.length === 0 || value.length > 8) return null;
+  if (!Array.isArray(value) || value.length === 0 || value.length > 8)
+    return null;
   const safe = value.every(
     (part) =>
       (typeof part === "string" && SAFE_DRAFT_ISSUE_PARTS.has(part)) ||
-      (typeof part === "number" && Number.isInteger(part) && part >= 0 && part <= 200),
+      (typeof part === "number" &&
+        Number.isInteger(part) &&
+        part >= 0 &&
+        part <= 200),
   );
   return safe ? (value as Array<string | number>) : null;
 }
@@ -120,7 +163,13 @@ function parseIssues(value: unknown): ApiValidationIssue[] {
     if (!isRecord(item)) return [];
     const location = safeIssueLocation(item.location);
     if (!location) return [];
-    return [{ location, message: safeIssueMessage(location), type: "validation_error" }];
+    return [
+      {
+        location,
+        message: safeIssueMessage(location),
+        type: "validation_error",
+      },
+    ];
   });
 }
 
@@ -134,7 +183,8 @@ function safePublicationMessage(status: number, code: string): string {
   if (status === 404 && code === "duplicate_preflight_not_found") {
     return "The similar recipes check expired. Check again before publishing.";
   }
-  if (status === 404) return "This private draft is no longer available. It was not published.";
+  if (status === 404)
+    return "This private draft is no longer available. It was not published.";
   if (status === 409 && code === "recipe_fork_source_unavailable") {
     return "The recipe this version is based on is no longer available. Your private draft is unchanged.";
   }
@@ -186,7 +236,10 @@ export function parseRecipeDraftPublication(
     throw invalidPublicationResponse();
   }
   const expectedLocation = `/recipes/${value.recipe_version_id}`;
-  if (value.location !== expectedLocation || locationHeader !== expectedLocation) {
+  if (
+    value.location !== expectedLocation ||
+    locationHeader !== expectedLocation
+  ) {
     throw invalidPublicationResponse();
   }
   return {
@@ -195,16 +248,16 @@ export function parseRecipeDraftPublication(
   };
 }
 
-async function publicationError(response: Response): Promise<RecipePublicationApiError> {
+async function publicationError(
+  response: Response,
+): Promise<RecipePublicationApiError> {
   let code = "recipe_publication_api_error";
   let issues: ApiValidationIssue[] = [];
   try {
     const payload: unknown = await response.json();
     if (isRecord(payload) && isRecord((payload as ApiErrorPayload).error)) {
       const error = (payload as ApiErrorPayload).error!;
-      if (typeof error.code === "string" && /^[a-z][a-z0-9_]{0,99}$/.test(error.code)) {
-        code = error.code;
-      }
+      code = knownRecipePublicationErrorCode(error.code);
       issues = parseIssues(error.issues);
     }
   } catch {
@@ -235,24 +288,30 @@ export async function publishRecipeDraft(
   payload: RecipeDraftPublishRequest,
   idempotencyKey: string,
 ): Promise<RecipeDraftPublication> {
-  const response = await fetch(`/api/recipe-drafts/${encodeURIComponent(draftId)}/publish`, {
-    method: "POST",
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "Idempotency-Key": idempotencyKey,
-      ...memberMutationHeaders(),
+  const response = await fetch(
+    `/api/recipe-drafts/${encodeURIComponent(draftId)}/publish`,
+    {
+      method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey,
+        ...memberMutationHeaders(),
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
+  );
   if (!response.ok) {
     if (response.status === 401) notifySessionExpired();
     throw await publicationError(response);
   }
   try {
-    return parseRecipeDraftPublication(await response.json(), response.headers.get("Location"));
+    return parseRecipeDraftPublication(
+      await response.json(),
+      response.headers.get("Location"),
+    );
   } catch (error) {
     if (error instanceof RecipePublicationApiError) throw error;
     throw invalidPublicationResponse();
