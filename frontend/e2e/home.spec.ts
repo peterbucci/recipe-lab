@@ -4,13 +4,21 @@ async function activateWithKeyboard(
   page: Page,
   control: Locator,
 ): Promise<void> {
+  await reachWithKeyboard(page, control);
+  await expect(control).toBeFocused();
+  await page.keyboard.press("Enter");
+}
+
+async function reachWithKeyboard(
+  page: Page,
+  control: Locator,
+): Promise<void> {
   for (let step = 0; step < 80; step += 1) {
     if (
       await control.evaluate(
         (element) => element === element.ownerDocument.activeElement,
       )
     ) {
-      await page.keyboard.press("Enter");
       return;
     }
     await page.keyboard.press("Tab");
@@ -154,6 +162,43 @@ test("browses, searches, and opens a structured recipe anonymously", async ({
     }),
   ).toBeVisible();
   expect(recordedViews).toBe(0);
+});
+
+test("reaches a chosen recipe from home using only the keyboard", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const exploreRecipes = page
+    .getByRole("navigation", { name: "Primary navigation" })
+    .getByRole("link", { name: "Explore recipes", exact: true });
+  await activateWithKeyboard(page, exploreRecipes);
+  await expect(page).toHaveURL("/recipes");
+
+  const search = page.getByRole("searchbox", {
+    name: "Search by recipe name",
+  });
+  await reachWithKeyboard(page, search);
+  await expect(search).toBeFocused();
+  await page.keyboard.type("carrot");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL("/recipes?q=carrot");
+
+  const chosenRecipe = carrotRootCard(page).getByRole("link", {
+    name: "Carrot Walnut Snack Cake",
+    exact: true,
+  });
+  await reachWithKeyboard(page, chosenRecipe);
+  await expect(chosenRecipe).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  await expect(page).toHaveURL(/\/recipes\/[^/]+$/);
+  await expect(
+    page.getByRole("heading", {
+      name: "Carrot Walnut Snack Cake",
+      level: 1,
+    }),
+  ).toBeVisible();
 });
 
 test("keeps the plain-language homepage readable at a phone viewport", async ({
