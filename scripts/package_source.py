@@ -124,11 +124,11 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/catalog-empty.png",
-            "1824a9ab2c00aa2b2e43c53693dc578b688056f3",
+            "ee1cfdedec78ad93acb8c29bcf6bd86b95d4a670",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/catalog-normal.png",
-            "a1b9d7241b1ded5d96b7060941a453532a1cad41",
+            "abc76e816ac815ba03cea2ae7a9744e427370ea1",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-editor-validation.png",
@@ -140,7 +140,11 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-account-navigation.png",
-            "5b481e7b63bfc0e5a7ceb8d7fac72003492616c4",
+            "6359daeac2aaa2ae7f8ea97a2f097e803eeb3719",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/home-normal.png",
+            "4e8750adfa854de8bb6e8b9c055068c2d2f3c019",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/ingredient-request-staff-review.png",
@@ -148,7 +152,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/my-recipes-normal.png",
-            "97aa1af143c2dab60d2bbf7b578e6205409a715e",
+            "d83e3f849384de9ba68a3fe9cc79cc1c463132db",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-expired-session.png",
@@ -176,7 +180,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/catalog-normal.png",
-            "f8333372d997ff81f82ef08f998cdf0e03819ac6",
+            "6d7640d2f71e63fc1dff47c6374ae5075265e06e",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-editor-validation.png",
@@ -184,7 +188,11 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-account-navigation.png",
-            "53dc67f279451a1e7e1dd3678ef884476c4d1f63",
+            "43a8102b67c9c627c78809a7c68113fba6764b67",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/home-normal.png",
+            "fb7c001c7ea26cf53270cf290d261dfeefd62d64",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-detail-normal.png",
