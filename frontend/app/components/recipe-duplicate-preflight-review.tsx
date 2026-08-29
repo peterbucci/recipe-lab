@@ -109,12 +109,16 @@ export function RecipeDuplicatePreflightReview({
         {publishingFork && result.same_lineage_no_change ? (
           <p>
             Recipe Lab compared this saved draft with the recipe it is based on. Publishing still
-            creates a separate version and never changes or merges the starting recipe.
+            creates a separate version and never changes or merges the starting recipe. This
+            structural match is only a guide; it cannot show your intent or predict how the recipe
+            will turn out.
           </p>
         ) : (
           <p>
-            Recipe Lab compares approved ingredients, amounts, and the order of cooking actions.
-            This review does not merge recipes or prevent you from making
+            Recipe Lab found similarities in the saved ingredients, amounts, and cooking actions.
+            This comparison is only a guide. It cannot show who created an idea, explain an
+            author&apos;s intent, or predict how either recipe will turn out. It does not merge recipes
+            or prevent you from making
             {publishingFork
               ? " your version public."
               : publishing
@@ -146,7 +150,6 @@ export function RecipeDuplicatePreflightReview({
                     <small>(opens in a new tab)</small>
                   </Link>
                 </div>
-                <strong>{Math.round(Number(candidate.score) * 100)}% similar</strong>
               </div>
               <ul aria-label={`Why ${candidate.title} was included`}>
                 {candidate.reasons.map((reason) => (

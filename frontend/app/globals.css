@@ -2948,11 +2948,7 @@ h3 {
 }
 
 .duplicate-preflight-candidate__heading {
-  display: flex;
   min-width: 0;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
 }
 
 .duplicate-preflight-candidate__heading div,
@@ -2986,12 +2982,6 @@ h3 {
   font-size: 0.68rem;
   font-weight: 600;
   text-decoration: none;
-}
-
-.duplicate-preflight-candidate__heading strong {
-  flex: 0 0 auto;
-  color: var(--ink);
-  font-size: 0.78rem;
 }
 
 .duplicate-preflight-candidates > li > ul {
@@ -4512,6 +4502,11 @@ h3 {
 
 .draft-publication__alert .button-row {
   margin-top: 0.65rem;
+}
+
+.draft-publication__alert h3 {
+  margin-bottom: 0.35rem;
+  font-size: 1rem;
 }
 
 .draft-editor__danger {

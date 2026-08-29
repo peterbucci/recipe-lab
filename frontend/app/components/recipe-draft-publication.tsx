@@ -60,6 +60,7 @@ function publicationFailureMessage(
   reason: unknown,
   operation: Exclude<RetryOperation, null>,
   isVersion: boolean,
+  kind: PublicationFailureStatus,
 ): string {
   const apiError =
     reason instanceof AuthApiError ||
@@ -74,14 +75,31 @@ function publicationFailureMessage(
     return "The recipe this version is based on is no longer available. Your private draft is unchanged.";
   }
   if (apiError?.code === "recipe_draft_revision_conflict") {
-    return "This draft changed. Save or reload it before publishing.";
+    return "This draft changed in another tab. Open the latest saved draft before publishing.";
   }
   if (apiError?.status === 422) {
     return "Some draft fields need attention. Review them before publishing.";
   }
+  if (kind === "ambiguous-result") {
+    return operation === "publish"
+      ? `Recipe Lab did not receive a clear publication result. Your ${isVersion ? "version" : "recipe"} may already be published. Checking this same attempt is safe and cannot create a second publication.`
+      : "Recipe Lab did not receive a clear similar-recipes result. Publishing is paused, and your saved draft is still here.";
+  }
   return operation === "preflight"
-    ? `Recipe Lab could not check this ${isVersion ? "version" : "recipe"} for similar recipes right now. Your saved draft is still here.`
+    ? "Similar recipes could not be checked right now. Publishing waits until this check succeeds, and your saved draft is still here."
     : `Recipe Lab could not publish this ${isVersion ? "version" : "recipe"}. Your saved draft is still here.`;
+}
+
+function publicationFailureHeading(
+  kind: PublicationFailureStatus,
+  operation: Exclude<RetryOperation, null>,
+): string {
+  if (kind === "authentication-interruption") return "Sign in to continue";
+  if (kind === "revision-conflict") return "Review the latest draft";
+  if (kind === "source-unavailable") return "Source recipe unavailable";
+  if (operation === "preflight") return "Similar-recipes check unavailable";
+  if (kind === "ambiguous-result") return "Publication result is unclear";
+  return "Publication was interrupted";
 }
 
 function publicationFailureStatus(reason: unknown): PublicationFailureStatus {
@@ -198,6 +216,12 @@ export function RecipeDraftPublication({
       : null;
   const reviewInvalidated = workflowReview !== null && activeReview === null;
   const error = failureWorkflow?.message ?? "";
+  const failureHeading = failureWorkflow
+    ? publicationFailureHeading(failureWorkflow.status, failureWorkflow.operation)
+    : "";
+  const ambiguousPublicationResult =
+    failureWorkflow?.status === "ambiguous-result" && retryOperation === "publish";
+  const revisionConflict = failureWorkflow?.status === "revision-conflict";
   const sessionExpired = failureWorkflow?.status === "authentication-interruption";
   const sourceUnavailable = failureWorkflow?.status === "source-unavailable";
 
@@ -274,10 +298,13 @@ export function RecipeDraftPublication({
     const resetReview =
       (reason instanceof RecipeDuplicateApiError || reason instanceof RecipePublicationApiError) &&
       reason.status === 409;
-    const failureMessage = publicationFailureMessage(reason, operation, isFork);
+    const failureKind = sourceWasUnavailable
+      ? "source-unavailable"
+      : publicationFailureStatus(reason);
+    const failureMessage = publicationFailureMessage(reason, operation, isFork, failureKind);
     dispatchPublication({
       attemptId,
-      kind: sourceWasUnavailable ? "source-unavailable" : publicationFailureStatus(reason),
+      kind: failureKind,
       message: failureMessage,
       operation,
       resetReview,
@@ -533,32 +560,52 @@ export function RecipeDraftPublication({
       {dirty ? <p className="draft-publication__save-first">Save your latest changes before publishing.</p> : null}
       {error ? (
         <div className="form-alert draft-publication__alert" role="alert">
+          <h3>{failureHeading}</h3>
           <p>{error}</p>
           <div className="button-row">
-            <button
-              className="button button--secondary"
-              type="button"
-              disabled={pending !== null}
-              onClick={() => {
-                if (sourceUnavailable) {
-                  void startReview();
-                } else if (
-                  retryOperation === "publish" &&
-                  currentRetryContext &&
-                  activeReview
-                ) {
-                  void retryPublication();
-                } else {
-                  void startReview();
-                }
-              }}
-            >
-              {sourceUnavailable
-                ? "Check source and retry"
-                : retryOperation === "publish" && activeReview
-                  ? "Retry publication"
-                  : "Check similar recipes again"}
-            </button>
+            {revisionConflict ? (
+              <a
+                className="button button--secondary"
+                href={`/account/recipe-drafts/${draftId}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open latest draft in a new tab
+              </a>
+            ) : (
+              <button
+                className="button button--secondary"
+                type="button"
+                disabled={pending !== null}
+                onClick={() => {
+                  if (sourceUnavailable) {
+                    void startReview();
+                  } else if (retryOperation === "publish" && currentRetryContext) {
+                    void retryPublication();
+                  } else {
+                    void startReview();
+                  }
+                }}
+              >
+                {sourceUnavailable
+                  ? "Check source and retry"
+                  : ambiguousPublicationResult
+                    ? "Check publication result"
+                    : retryOperation === "publish"
+                      ? "Try publishing again"
+                      : "Check similar recipes again"}
+              </button>
+            )}
+            {!activeReview && !ambiguousPublicationResult ? (
+              <button
+                className="button button--quiet"
+                type="button"
+                disabled={pending !== null}
+                onClick={keepEditing}
+              >
+                Keep editing
+              </button>
+            ) : null}
             {sourceUnavailable && sourceVersionId ? (
               <GuardedLink
                 className="button button--quiet"
@@ -597,7 +644,7 @@ export function RecipeDraftPublication({
           onCreateWithoutRecordedDecision={() => undefined}
           onReturnWithoutRecordedDecision={keepEditing}
         />
-      ) : (
+      ) : !failureWorkflow ? (
         <button
           className="button button--primary"
           type="button"
@@ -612,7 +659,7 @@ export function RecipeDraftPublication({
                 ? "Review and publish version"
                 : "Review and publish"}
         </button>
-      )}
+      ) : null}
       <p className="draft-publication__status" role="status" aria-live="polite">
         {reviewInvalidated
           ? "Your draft changed. Save it before checking for similar recipes again."

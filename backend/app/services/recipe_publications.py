@@ -451,7 +451,8 @@ def _prepare_locked_recipe_draft_content(
     for instruction in draft.instructions:
         if not instruction.actions:
             raise _invalid(
-                "Every published instruction requires at least one structured cooking action."
+                "Add at least one confirmed cooking action in the cooking details for every "
+                "instruction so Recipe Lab can compare similar recipes before publishing."
             )
         for action in instruction.actions:
             _validate_action_contract(session, action, catalog_ingredient_ids)

@@ -455,7 +455,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
       <form className="draft-editor" aria-label="Private recipe draft editor" noValidate onSubmit={(event) => void save(event)}>
         {formError ? (
           <div ref={errorSummaryRef} className="draft-editor__error-summary" role="alert" tabIndex={-1}>
-            <h2>Your draft was not saved</h2>
+            <h2>Your draft needs attention</h2>
             <p>{formError}</p>
             {Object.keys(fieldErrors).length ? (
               // prettier-ignore

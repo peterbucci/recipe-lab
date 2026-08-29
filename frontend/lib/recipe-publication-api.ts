@@ -151,6 +151,9 @@ function safeIssueMessage(location: readonly (string | number)[]): string {
   if (path[0] === "servings") return "Review the serving amount.";
   if (path[0] === "ingredients") return "Review this ingredient.";
   if (path[0] === "instructions" && path.includes("actions")) {
+    if (path.at(-1) === "actions") {
+      return "Add at least one cooking detail to this step so Recipe Lab can compare similar recipes before publishing.";
+    }
     return "Review this cooking action.";
   }
   if (path[0] === "instructions") return "Review this instruction.";

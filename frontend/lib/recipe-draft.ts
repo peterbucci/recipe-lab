@@ -326,7 +326,7 @@ export function validateRecipeDraftForPublication(
   for (const instruction of state.instructions) {
     if (instruction.actions.length === 0) {
       fieldErrors[draftInstructionActionFieldKey(instruction.key, "actions")] =
-        "Add at least one cooking action before publication.";
+        "Add at least one cooking detail to this step so Recipe Lab can compare similar recipes before publishing.";
     }
   }
 
