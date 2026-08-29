@@ -24,20 +24,20 @@ export function RecipeCard({
   return (
     <li className="recipe-grid__item">
       <article className="recipe-card" aria-labelledby={titleId}>
+        <RecipeArtwork className="recipe-card__artwork" lineageKey={recipe.lineage_id} />
         <div className="recipe-card__body">
-          <h3 id={titleId}>
-            {publiclyAccessible ? (
-              <Link href={`/recipes/${recipe.id}`}>{recipe.title}</Link>
-            ) : (
-              recipe.title
-            )}
-          </h3>
-          <div className="recipe-card__summary">
+          <header className="recipe-card__header">
+            <h3 id={titleId}>
+              {publiclyAccessible ? (
+                <Link href={`/recipes/${recipe.id}`}>{recipe.title}</Link>
+              ) : (
+                recipe.title
+              )}
+            </h3>
             <p className="recipe-card__attribution">
               By <PublicCookAttribution author={recipe.author} />
             </p>
-            <p className="recipe-card__servings">{formatServings(recipe.servings)}</p>
-          </div>
+          </header>
           {recipe.description ? (
             <p className="recipe-card__description">{recipe.description}</p>
           ) : null}
@@ -51,10 +51,16 @@ export function RecipeCard({
           ) : recipe.parent_version_id ? (
             <p className="recipe-card__parent">Source unavailable</p>
           ) : null}
-          {visibilityLabel ? <p className="recipe-card__status">{visibilityLabel}</p> : null}
-          {actions ? <div className="recipe-card__actions">{actions}</div> : null}
+          <footer className="recipe-card__footer">
+            <div className="recipe-card__metadata">
+              <p className="recipe-card__servings">{formatServings(recipe.servings)}</p>
+              {visibilityLabel ? (
+                <p className="recipe-card__status">{visibilityLabel}</p>
+              ) : null}
+            </div>
+            {actions ? <div className="recipe-card__actions">{actions}</div> : null}
+          </footer>
         </div>
-        <RecipeArtwork className="recipe-card__artwork" lineageKey={recipe.lineage_id} />
       </article>
     </li>
   );
