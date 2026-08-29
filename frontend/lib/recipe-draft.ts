@@ -19,8 +19,8 @@ import {
   validateStructuredActionDrafts,
 } from "./structured-action";
 import {
+  createBlankExactMeasureDraft,
   createStructuredMeasureDraft,
-  createUnspecifiedMeasureDraft,
   ingredientAmountPolicy,
   type StructuredMeasureDraft,
   type StructuredMeasureField,
@@ -62,7 +62,7 @@ export function createDraftIngredientState(key = `ingredient-${crypto.randomUUID
   return {
     key,
     selection: null,
-    measure: createUnspecifiedMeasureDraft(),
+    measure: createBlankExactMeasureDraft(),
     preparationNotes: "",
   };
 }
@@ -203,7 +203,7 @@ export function validateRecipeDraft(
     }
     const notesError = textError(
       ingredient.preparationNotes,
-      "Preparation notes",
+      "Note",
       1_000,
       false,
     );

@@ -4,12 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { CatalogUnit } from "../../lib/measurement-unit-api";
 import {
-  createUnspecifiedMeasureDraft,
+  createBlankExactMeasureDraft,
   type StructuredMeasureDraft,
 } from "../../lib/structured-measure";
+import { IngredientAmountControl } from "./ingredient-amount-control";
 import {
   DurationMeasureControl,
-  IngredientAmountControl,
   TemperatureMeasureControl,
 } from "./structured-measure-control";
 
@@ -50,10 +50,22 @@ const units: CatalogUnit[] = [
     active: true,
     provenance: "Test fixture",
   },
+  {
+    id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    key: "can",
+    dimension: "package",
+    canonical_label: "can",
+    plural_label: "cans",
+    symbol: null,
+    display_style: "word",
+    aliases: ["cans"],
+    active: true,
+    provenance: "Test fixture",
+  },
 ];
 
 function Harness({
-  initial = createUnspecifiedMeasureDraft(),
+  initial = createBlankExactMeasureDraft(),
   catalogUnits = units,
 }: {
   initial?: StructuredMeasureDraft;
@@ -73,12 +85,18 @@ function Harness({
 }
 
 describe("structured measure controls", () => {
-  it("exposes native grouped controls and retains every raw branch while modes change", () => {
+  it("starts with familiar amount and unit fields and retains every raw branch", () => {
     render(<Harness />);
     const group = screen.getByRole("group", { name: "Amount for Ingredient 1: Sugar" });
-    expect(within(group).getByRole("radio", { name: "Unspecified" })).toBeChecked();
+    expect(within(group).getByRole("textbox", { name: "Amount" })).toHaveValue("");
+    expect(within(group).getByRole("combobox", { name: "Unit" })).toHaveValue("");
+    expect(
+      within(within(group).getByRole("combobox", { name: "Unit" })).queryByRole(
+        "option",
+        { name: /can/i },
+      ),
+    ).toBeNull();
 
-    fireEvent.click(within(group).getByRole("radio", { name: "Exact" }));
     fireEvent.change(within(group).getByRole("textbox", { name: "Amount" }), {
       target: { value: "1.2500" },
     });
@@ -86,6 +104,14 @@ describe("structured measure controls", () => {
       target: { value: units[0].id },
     });
 
+    fireEvent.click(within(group).getByRole("button", { name: "More amount options" }));
+    expect(within(group).getByRole("radio", { name: "Exact" })).toBeChecked();
+    expect(
+      within(within(group).getByRole("combobox", { name: "Unit" })).getByRole(
+        "option",
+        { name: /can/i },
+      ),
+    ).toBeVisible();
     fireEvent.click(within(group).getByRole("radio", { name: "Range" }));
     fireEvent.change(within(group).getByRole("textbox", { name: "Minimum amount" }), {
       target: { value: "1" },
@@ -102,6 +128,50 @@ describe("structured measure controls", () => {
     fireEvent.click(within(group).getByRole("radio", { name: "Range" }));
     expect(within(group).getByRole("textbox", { name: "Minimum amount" })).toHaveValue("1");
     expect(within(group).getByRole("textbox", { name: "Maximum amount" })).toHaveValue("2");
+  });
+
+  it("reveals saved advanced values with a plain-language summary without exposing IDs", () => {
+    const packageSizeId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const { rerender } = render(
+      <IngredientAmountControl
+        idPrefix="advanced-measure"
+        label="Amount"
+        value={{
+          mode: "range",
+          exactValue: "",
+          rangeMinimum: "1",
+          rangeMaximum: "2.5",
+          unit: units[0],
+          packageSizeId: null,
+        }}
+        units={units}
+        onChange={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText("1–2.5 g")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Minimum amount" })).toHaveValue("1");
+
+    rerender(
+      <IngredientAmountControl
+        idPrefix="advanced-measure"
+        label="Amount"
+        value={{
+          mode: "exact",
+          exactValue: "2",
+          rangeMinimum: "",
+          rangeMaximum: "",
+          unit: units[3],
+          packageSizeId,
+        }}
+        units={units}
+        onChange={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText(/package details preserved/i)).toBeVisible();
+    expect(screen.getByText(/stay attached unless you change the unit/i)).toBeVisible();
+    expect(screen.queryByText(packageSizeId)).toBeNull();
   });
 
   it("shows an unavailable historical unit but prevents choosing it again", () => {
@@ -198,8 +268,8 @@ describe("structured measure controls", () => {
           exactValue: "2",
           rangeMinimum: "",
           rangeMaximum: "",
-          unit: units[0],
-          packageSizeId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          unit: units[3],
+          packageSizeId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
         }}
         units={units}
         onChange={onChange}

@@ -3,6 +3,7 @@
 import {
   type KeyboardEvent,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -29,6 +30,18 @@ interface IngredientCatalogPickerProps {
   value: CatalogIngredientSelection | null;
 }
 
+const SEARCH_DELAY_MS = 200;
+const MINIMUM_QUERY_LENGTH = 2;
+
+function isAbortError(reason: unknown): boolean {
+  return (
+    typeof reason === "object" &&
+    reason !== null &&
+    "name" in reason &&
+    reason.name === "AbortError"
+  );
+}
+
 export function IngredientCatalogPicker({
   contextLabel,
   describedBy,
@@ -41,19 +54,53 @@ export function IngredientCatalogPicker({
   value,
 }: IngredientCatalogPickerProps) {
   const historyTriggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const optionRefs = useRef<Array<HTMLLIElement | null>>([]);
   const requestTriggerRef = useRef<HTMLButtonElement>(null);
+  const disabledRef = useRef(disabled);
   const searchControllerRef = useRef<AbortController | null>(null);
   const searchSequenceRef = useRef(0);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(value?.displayName ?? "");
   const [searchedQuery, setSearchedQuery] = useState("");
   const [resultPage, setResultPage] = useState<CatalogIngredientPage | null>(null);
   const [searchError, setSearchError] = useState("");
   const [searchStatus, setSearchStatus] = useState("");
   const [searching, setSearching] = useState(false);
+  const [searchActive, setSearchActive] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [popupOpen, setPopupOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestSelectionStatus, setRequestSelectionStatus] = useState("");
+  const selectionKey = value
+    ? `${value.ingredientId}:${value.canonicalName}:${value.displayName}`
+    : "";
+  const [syncedSelectionKey, setSyncedSelectionKey] = useState(selectionKey);
+  const [syncedDisabled, setSyncedDisabled] = useState(disabled);
+
+  if (selectionKey !== syncedSelectionKey) {
+    setSyncedSelectionKey(selectionKey);
+    setQuery(value?.displayName ?? "");
+    setSearchActive(false);
+    setSearching(false);
+    setResultPage(null);
+    setPopupOpen(false);
+    setActiveIndex(-1);
+    setHasSearched(false);
+  }
+
+  if (disabled !== syncedDisabled) {
+    setSyncedDisabled(disabled);
+    if (disabled) {
+      setSearching(false);
+      setSearchActive(false);
+      setResultPage(null);
+      setPopupOpen(false);
+      setActiveIndex(-1);
+      setHasSearched(false);
+    }
+  }
 
   useEffect(
     () => () => {
@@ -62,60 +109,146 @@ export function IngredientCatalogPicker({
     [],
   );
 
-  async function runSearch(page = 1) {
-    if (disabled) {
+  useLayoutEffect(() => {
+    disabledRef.current = disabled;
+  }, [disabled]);
+
+  useEffect(() => {
+    searchControllerRef.current?.abort();
+    searchSequenceRef.current += 1;
+  }, [selectionKey]);
+
+  useEffect(() => {
+    if (!disabled) return;
+    searchControllerRef.current?.abort();
+    searchSequenceRef.current += 1;
+  }, [disabled]);
+
+  useEffect(() => {
+    if (!popupOpen || activeIndex < 0) return;
+    optionRefs.current[activeIndex]?.scrollIntoView?.({ block: "nearest" });
+  }, [activeIndex, popupOpen]);
+
+  useEffect(() => {
+    const normalizedQuery = query.trim();
+    if (
+      disabled ||
+      !searchActive ||
+      normalizedQuery.length < MINIMUM_QUERY_LENGTH
+    ) {
       return;
     }
 
-    const normalizedQuery = query.trim();
-    const sequence = searchSequenceRef.current + 1;
-    searchSequenceRef.current = sequence;
-    searchControllerRef.current?.abort();
-    const controller = new AbortController();
-    searchControllerRef.current = controller;
-    setSearching(true);
-    setSearchError("");
-    setSearchStatus("Searching the ingredient catalog…");
-    setSearchedQuery(normalizedQuery);
-    setHasSearched(true);
+    const timeout = window.setTimeout(() => {
+      const sequence = searchSequenceRef.current + 1;
+      searchSequenceRef.current = sequence;
+      searchControllerRef.current?.abort();
+      const controller = new AbortController();
+      searchControllerRef.current = controller;
+      setSearching(true);
+      setSearchError("");
+      setSearchStatus("Searching the ingredient catalog…");
+      setSearchedQuery(normalizedQuery);
+      setHasSearched(false);
+      setPopupOpen(false);
+      setActiveIndex(-1);
 
-    try {
-      const results = await searchCatalogIngredients({
+      void searchCatalogIngredients({
         query: normalizedQuery,
-        page,
-        pageSize: 20,
+        page: 1,
+        pageSize: 8,
         signal: controller.signal,
-      });
-      if (sequence !== searchSequenceRef.current) {
-        return;
-      }
-      setResultPage(results);
-      setSearchStatus(
-        results.total === 0
-          ? `No catalog ingredients match ${normalizedQuery || "this search"}.`
-          : `${results.total} catalog ingredient${results.total === 1 ? "" : "s"} found. Showing page ${results.page} of ${results.total_pages}.`,
-      );
-    } catch (reason) {
-      if (reason instanceof DOMException && reason.name === "AbortError") {
-        return;
-      }
-      if (sequence !== searchSequenceRef.current) {
-        return;
-      }
-      setResultPage(null);
-      setSearchStatus("");
-      setSearchError("The ingredient catalog could not be searched. Please try again.");
-    } finally {
-      if (sequence === searchSequenceRef.current) {
-        setSearching(false);
-      }
-    }
+      })
+        .then((results) => {
+          if (sequence !== searchSequenceRef.current || disabledRef.current) return;
+          setResultPage(results);
+          setHasSearched(true);
+          setPopupOpen(results.items.length > 0);
+          setSearchStatus(
+            results.total === 0
+              ? `No approved ingredients match ${normalizedQuery}.`
+              : `${results.total} approved ingredient${results.total === 1 ? "" : "s"} found. Use the arrow keys to review suggestions.`,
+          );
+        })
+        .catch((reason: unknown) => {
+          if (isAbortError(reason)) return;
+          if (sequence !== searchSequenceRef.current || disabledRef.current) return;
+          setResultPage(null);
+          setHasSearched(false);
+          setPopupOpen(false);
+          setSearchStatus("");
+          setSearchError("The ingredient catalog could not be searched. Please try again.");
+        })
+        .finally(() => {
+          if (sequence === searchSequenceRef.current && !disabledRef.current) {
+            setSearching(false);
+          }
+        });
+    }, SEARCH_DELAY_MS);
+
+    return () => window.clearTimeout(timeout);
+  }, [disabled, query, searchActive]);
+
+  function invalidateSearch() {
+    searchControllerRef.current?.abort();
+    searchSequenceRef.current += 1;
+    setSearching(false);
+    setResultPage(null);
+    setPopupOpen(false);
+    setActiveIndex(-1);
   }
 
-  function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  function selectCatalogIngredient(selection: CatalogIngredientSelection) {
+    if (disabled) return;
+    invalidateSearch();
+    setSearchActive(false);
+    setHasSearched(false);
+    setQuery(selection.displayName);
+    setSearchedQuery("");
+    setSearchError("");
+    setHistoryOpen(false);
+    setRequestSelectionStatus("");
+    setSearchStatus(`${selection.displayName} selected for ${contextLabel}.`);
+    onChange(selection);
+    inputRef.current?.focus();
+  }
+
+  function handleComboboxKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    const items = resultPage?.items ?? [];
+    if (event.key === "ArrowDown" && items.length > 0) {
+      event.preventDefault();
+      setPopupOpen(true);
+      setActiveIndex((current) => (current < items.length - 1 ? current + 1 : 0));
+      return;
+    }
+    if (event.key === "ArrowUp" && items.length > 0) {
+      event.preventDefault();
+      setPopupOpen(true);
+      setActiveIndex((current) => (current > 0 ? current - 1 : items.length - 1));
+      return;
+    }
     if (event.key === "Enter") {
       event.preventDefault();
-      void runSearch();
+      if (popupOpen && activeIndex >= 0) {
+        const ingredient = items[activeIndex];
+        if (ingredient) {
+          selectCatalogIngredient(
+            selectionForCatalogIngredient(ingredient, searchedQuery),
+          );
+        }
+      }
+      return;
+    }
+    if (
+      event.key === "Escape" &&
+      (searchActive || searching || popupOpen || resultPage)
+    ) {
+      event.preventDefault();
+      invalidateSearch();
+      setSearchActive(false);
+      setHasSearched(false);
+      setSearchStatus("Ingredient suggestions closed.");
+      if (document.activeElement !== inputRef.current) inputRef.current?.focus();
     }
   }
 
@@ -130,6 +263,12 @@ export function IngredientCatalogPicker({
   }
 
   function selectRequestResolution(selection: CatalogIngredientSelection) {
+    if (disabled) return;
+    invalidateSearch();
+    setSearchActive(false);
+    setHasSearched(false);
+    setQuery(selection.displayName);
+    setSearchError("");
     onChange(selection);
     setHistoryOpen(false);
     setRequestSelectionStatus(
@@ -140,20 +279,110 @@ export function IngredientCatalogPicker({
 
   const helpId = `${idPrefix}-search-help`;
   const statusId = `${idPrefix}-search-status`;
+  const listboxId = `${idPrefix}-suggestions`;
+  const activeOptionId =
+    popupOpen && activeIndex >= 0 ? `${idPrefix}-option-${activeIndex}` : undefined;
   const inputDescription = [helpId, statusId, describedBy].filter(Boolean).join(" ");
 
   return (
     <div className="ingredient-picker">
       <label htmlFor={`${idPrefix}-search`}>{label}</label>
       <small id={helpId}>
-        Search approved ingredient names and alternate names, then choose a result. Typed search
-        text is never added to the recipe by itself.
+        Start typing an approved ingredient or alternate name, then choose a suggestion.
       </small>
+
+      <div className="ingredient-picker__combobox">
+        <input
+          ref={inputRef}
+          id={`${idPrefix}-search`}
+          type="search"
+          role="combobox"
+          autoComplete="off"
+          maxLength={100}
+          value={query}
+          disabled={disabled}
+          aria-autocomplete="list"
+          aria-expanded={popupOpen}
+          aria-controls={listboxId}
+          aria-activedescendant={activeOptionId}
+          aria-busy={searching}
+          aria-invalid={invalid}
+          aria-describedby={inputDescription}
+          placeholder="Try pecan or white sugar"
+          onBlur={() => setPopupOpen(false)}
+          onFocus={() => {
+            if (!disabled && resultPage?.items.length) setPopupOpen(true);
+          }}
+          onChange={(event) => {
+            const nextQuery = event.target.value;
+            invalidateSearch();
+            setQuery(nextQuery);
+            setSearchActive(true);
+            setSearchError("");
+            setSearchStatus(
+              nextQuery.trim().length > 0 &&
+                nextQuery.trim().length < MINIMUM_QUERY_LENGTH
+                ? `Type at least ${MINIMUM_QUERY_LENGTH} characters to search.`
+                : "",
+            );
+            setHasSearched(false);
+            setRequestSelectionStatus("");
+          }}
+          onKeyDown={handleComboboxKeyDown}
+        />
+
+        {popupOpen && resultPage && resultPage.items.length > 0 ? (
+          <ul
+            id={listboxId}
+            className="ingredient-picker__results"
+            role="listbox"
+            aria-label={`${label} suggestions`}
+          >
+            {resultPage.items.map((ingredient, index) => {
+              const selection = selectionForCatalogIngredient(ingredient, searchedQuery);
+              const selected =
+                value?.ingredientId === selection.ingredientId &&
+                value.displayName === selection.displayName;
+              return (
+                <li
+                  ref={(node) => {
+                    optionRefs.current[index] = node;
+                  }}
+                  id={`${idPrefix}-option-${index}`}
+                  key={ingredient.id}
+                  role="option"
+                  tabIndex={-1}
+                  aria-selected={selected}
+                  aria-disabled={disabled}
+                  className={index === activeIndex ? "is-active" : undefined}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onKeyDown={(event) => {
+                    if (!disabled && (event.key === "Enter" || event.key === " ")) {
+                      event.preventDefault();
+                      selectCatalogIngredient(selection);
+                    }
+                  }}
+                  onClick={() => {
+                    if (!disabled) selectCatalogIngredient(selection);
+                  }}
+                >
+                  <strong>{selection.displayName}</strong>
+                  {selection.displayName !== selection.canonicalName ? (
+                    <small>Catalog name: {selection.canonicalName}</small>
+                  ) : ingredient.aliases.length > 0 ? (
+                    <small>Also known as: {ingredient.aliases.join(", ")}</small>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+      </div>
 
       {value ? (
         <div className="ingredient-picker__selection" aria-live="polite">
           <div>
-            <span>Selected catalog ingredient</span>
+            <span>Selected ingredient</span>
             <strong>{value.displayName}</strong>
             {value.displayName !== value.canonicalName ? (
               <small>Catalog name: {value.canonicalName}</small>
@@ -164,137 +393,33 @@ export function IngredientCatalogPicker({
             type="button"
             disabled={disabled}
             onClick={() => {
+              invalidateSearch();
+              setQuery("");
+              setSearchActive(false);
+              setHasSearched(false);
+              setSearchError("");
+              setSearchStatus("Ingredient selection cleared.");
               setRequestSelectionStatus("");
               setHistoryOpen(false);
               onChange(null);
+              inputRef.current?.focus();
             }}
           >
-            Clear selection
+            Clear ingredient
           </button>
         </div>
       ) : null}
-
-      <div
-        className="ingredient-picker__search"
-        role="search"
-        aria-label={`${label} catalog search for ${contextLabel}`}
-      >
-        <input
-          id={`${idPrefix}-search`}
-          type="search"
-          autoComplete="off"
-          maxLength={100}
-          value={query}
-          disabled={disabled}
-          aria-invalid={invalid}
-          aria-describedby={inputDescription}
-          placeholder="Try pecan or white sugar"
-          onChange={(event) => {
-            searchControllerRef.current?.abort();
-            searchSequenceRef.current += 1;
-            setQuery(event.target.value);
-            setResultPage(null);
-            setSearchError("");
-            setSearchStatus("");
-            setHasSearched(false);
-            setSearching(false);
-          }}
-          onKeyDown={handleSearchKeyDown}
-        />
-        <button
-          className="button button--secondary"
-          type="button"
-          disabled={disabled || searching}
-          onClick={() => void runSearch()}
-        >
-          {searching ? "Searching…" : "Search catalog"}
-        </button>
-      </div>
 
       {searchError ? (
         <p className="ingredient-picker__alert" role="alert">
           {searchError}
         </p>
       ) : null}
-      <p
-        id={statusId}
-        className="ingredient-picker__status"
-        role="status"
-        aria-live="polite"
-      >
+      <p id={statusId} className="ingredient-picker__status" role="status" aria-live="polite">
         {searchStatus}
       </p>
 
-      {resultPage && resultPage.items.length > 0 ? (
-        <>
-          <ul
-            className="ingredient-picker__results"
-            aria-label={`${label} catalog results`}
-          >
-            {resultPage.items.map((ingredient) => {
-              const selection = selectionForCatalogIngredient(ingredient, searchedQuery);
-              const selected =
-                value?.ingredientId === selection.ingredientId &&
-                value.displayName === selection.displayName;
-              return (
-                <li key={ingredient.id}>
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    aria-pressed={selected}
-                    onClick={() => {
-                      setRequestSelectionStatus("");
-                      setHistoryOpen(false);
-                      onChange(selection);
-                    }}
-                  >
-                    <span>
-                      <strong>{selection.displayName}</strong>
-                      {selection.displayName !== selection.canonicalName ? (
-                        <small>Catalog name: {selection.canonicalName}</small>
-                      ) : ingredient.aliases.length > 0 ? (
-                        <small>Also known as: {ingredient.aliases.join(", ")}</small>
-                      ) : null}
-                    </span>
-                    <span>{selected ? "Selected" : "Choose"}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          {resultPage.total_pages > 1 ? (
-            <nav
-              className="ingredient-picker__pagination"
-              aria-label={`${label} catalog result pages`}
-            >
-              <button
-                className="button button--quiet"
-                type="button"
-                disabled={disabled || searching || resultPage.page <= 1}
-                onClick={() => void runSearch(resultPage.page - 1)}
-              >
-                ← Previous
-              </button>
-              <span aria-current="page">
-                Page {resultPage.page} of {resultPage.total_pages}
-              </span>
-              <button
-                className="button button--quiet"
-                type="button"
-                disabled={
-                  disabled || searching || resultPage.page >= resultPage.total_pages
-                }
-                onClick={() => void runSearch(resultPage.page + 1)}
-              >
-                Next →
-              </button>
-            </nav>
-          ) : null}
-        </>
-      ) : null}
-
-      <div className="ingredient-picker__history">
-        <p>Already submitted a missing-ingredient request?</p>
+      <div className="ingredient-picker__support">
         <button
           ref={historyTriggerRef}
           className="button button--quiet"
@@ -312,8 +437,22 @@ export function IngredientCatalogPicker({
             setHistoryOpen((current) => !current);
           }}
         >
-          {historyOpen ? "Hide my ingredient requests" : "Choose from my requests"}
+          {historyOpen ? "Hide requested ingredients" : "Use a requested ingredient"}
         </button>
+
+        {hasSearched && query.trim() ? (
+          <button
+            ref={requestTriggerRef}
+            className="button button--quiet"
+            type="button"
+            aria-expanded={requestOpen}
+            aria-controls={`${idPrefix}-request-panel`}
+            disabled={disabled}
+            onClick={() => setRequestOpen((current) => !current)}
+          >
+            {requestOpen ? "Hide missing ingredient request" : "Request a missing ingredient"}
+          </button>
+        ) : null}
       </div>
 
       {requestSelectionStatus ? (
@@ -331,25 +470,6 @@ export function IngredientCatalogPicker({
             onClose={closeHistory}
             onSelectResolution={selectRequestResolution}
           />
-        </div>
-      ) : null}
-
-      {hasSearched && query.trim() ? (
-        <div className="ingredient-picker__missing">
-          <p>Can’t find the right catalog ingredient?</p>
-          <button
-            ref={requestTriggerRef}
-            className="button button--quiet"
-            type="button"
-            aria-expanded={requestOpen}
-            aria-controls={`${idPrefix}-request-panel`}
-            disabled={disabled}
-            onClick={() => {
-              setRequestOpen((current) => !current);
-            }}
-          >
-            {requestOpen ? "Hide missing ingredient request" : "Request a missing ingredient"}
-          </button>
         </div>
       ) : null}
 

@@ -152,6 +152,17 @@ export function createUnspecifiedMeasureDraft(): StructuredMeasureDraft {
   };
 }
 
+export function createBlankExactMeasureDraft(): StructuredMeasureDraft {
+  return {
+    mode: "exact",
+    exactValue: "",
+    rangeMinimum: "",
+    rangeMaximum: "",
+    unit: null,
+    packageSizeId: null,
+  };
+}
+
 function trimmed(value: string): string {
   return value.trim();
 }
