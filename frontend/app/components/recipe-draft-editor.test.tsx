@@ -37,6 +37,8 @@ vi.mock("../../lib/recipe-draft-api", async (importOriginal) => {
 });
 
 const DRAFT_ID = "11111111-1111-4111-8111-111111111111";
+const INGREDIENT_ROW_ID = "22222222-2222-4222-8222-222222222222";
+const ACTION_ID = "33333333-3333-4333-8333-333333333333";
 const detail: RecipeDraftDetail = {
   id: DRAFT_ID,
   source_version_id: null,
@@ -49,6 +51,57 @@ const detail: RecipeDraftDetail = {
   instructions: [],
   created_at: "2026-08-25T12:00:00Z",
   updated_at: "2026-08-25T12:00:00Z",
+};
+
+const detailWithBoundCookingAction: RecipeDraftDetail = {
+  ...detail,
+  title: "Bound tomato soup",
+  servings: "2",
+  ingredients: [
+    {
+      id: INGREDIENT_ROW_ID,
+      display_order: 0,
+      selection: {
+        kind: "catalog",
+        ingredient: {
+          id: "44444444-4444-4444-8444-444444444444",
+          canonical_name: "tomato",
+          aliases: [],
+        },
+        display_name: "Tomato",
+      },
+      measure: {
+        kind: "qualitative",
+        value: "as_needed",
+        unit: null,
+        display_unit: null,
+        display: "as needed",
+      },
+      preparation_notes: null,
+    },
+  ],
+  instructions: [
+    {
+      id: "55555555-5555-4555-8555-555555555555",
+      display_order: 0,
+      text: "Stir in the tomato.",
+      actions: [
+        {
+          id: ACTION_ID,
+          display_order: 0,
+          action_type: {
+            id: "66666666-6666-4666-8666-666666666666",
+            key: "stir",
+            canonical_verb: "stir",
+            active: true,
+          },
+          ingredient_occurrence_ids: [INGREDIENT_ROW_ID],
+          duration: null,
+          temperature: null,
+        },
+      ],
+    },
+  ],
 };
 
 function deferred<T>() {
@@ -428,8 +481,15 @@ describe("RecipeDraftEditor", () => {
     await waitFor(() => expect(ingredientSearch).toHaveFocus());
 
     fireEvent.click(screen.getByRole("button", { name: "Add instruction" }));
-    const instructionText = screen.getByLabelText("Human-readable direction");
+    const instructionText = screen.getByLabelText("Instruction");
     await waitFor(() => expect(instructionText).toHaveFocus());
+    const cookingDetails = screen.getByRole("button", {
+      name: "Add cooking details for Step 1",
+    });
+    expect(
+      instructionText.compareDocumentPosition(cookingDetails) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(cookingDetails).toHaveAttribute("aria-expanded", "false");
 
     fireEvent.click(within(ingredient).getByRole("button", { name: /^Remove/ }));
     await waitFor(() =>
@@ -441,6 +501,32 @@ describe("RecipeDraftEditor", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Add instruction" })).toHaveFocus(),
     );
+  });
+
+  it("warns before removing an ingredient that is linked to hidden cooking details", async () => {
+    mocks.fetchRecipeDraft.mockResolvedValue(detailWithBoundCookingAction);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderEditor();
+
+    const ingredient = await screen.findByRole("group", { name: "Ingredient 1" });
+    const remove = within(ingredient).getByRole("button", { name: "Remove ingredient 1" });
+    fireEvent.click(remove);
+
+    expect(confirm).toHaveBeenCalledWith(
+      "Remove ingredient 1? This will also remove its link from 1 cooking action. The actions and their other details will remain.",
+    );
+    expect(ingredient).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Edit cooking details for Step 1" }),
+    ).toHaveTextContent("Tomato");
+
+    confirm.mockReturnValue(true);
+    fireEvent.click(remove);
+
+    expect(screen.queryByRole("group", { name: "Ingredient 1" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Edit cooking details for Step 1" }),
+    ).not.toHaveTextContent("Tomato");
   });
 
   it("clears a stale save error when a controlled section changes", async () => {

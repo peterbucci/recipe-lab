@@ -111,8 +111,57 @@ function Harness({
 }
 
 describe("StructuredActionEditor", () => {
+  it("keeps the written step primary and summarizes existing author-added details", () => {
+    const mix = action("mix-action", 0);
+    mix.ingredientKeys = ["first-tomato"];
+    mix.duration = {
+      enabled: true,
+      value: {
+        mode: "exact",
+        exactValue: "05.000",
+        rangeMinimum: "",
+        rangeMaximum: "",
+        unit: units[0],
+        packageSizeId: null,
+      },
+    };
+    render(<Harness initial={[mix]} />);
+
+    const disclosure = screen.getByRole("button", {
+      name: "Edit cooking details for Step 1",
+    });
+    expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    expect(disclosure).toHaveTextContent("mix · Tomato, 1 cup · 5 minutes");
+    expect(disclosure).toHaveAccessibleDescription("mix · Tomato, 1 cup · 5 minutes");
+    expect(screen.queryByRole("group", { name: "Author-added cooking details" })).toBeNull();
+
+    fireEvent.click(disclosure);
+    expect(disclosure).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("group", { name: "Author-added cooking details" }),
+    ).toHaveAccessibleDescription(/does not infer them/i);
+  });
+
+  it("offers optional cooking details without creating an action until asked", async () => {
+    render(<Harness initial={[]} />);
+
+    const disclosure = screen.getByRole("button", {
+      name: "Add cooking details for Step 1",
+    });
+    expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Add cooking action" })).toBeNull();
+
+    fireEvent.click(disclosure);
+    fireEvent.click(screen.getByRole("button", { name: "Add cooking action" }));
+    expect(screen.getByRole("group", { name: "Action 1" })).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Cooking action" })).toHaveFocus(),
+    );
+  });
+
   it("keeps ordered actions keyboard reachable through boundary moves and removal", async () => {
     render(<Harness initial={[action("mix-action", 0), action("bake-action", 1)]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit cooking details for Step 1" }));
 
     let actionSelects = screen.getAllByRole("combobox", { name: "Cooking action" });
     expect(actionSelects.map((select) => (select as HTMLSelectElement).value)).toEqual([
@@ -143,6 +192,7 @@ describe("StructuredActionEditor", () => {
 
   it("selects distinct repeated ingredient occurrences and adds a focused action", async () => {
     render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit cooking details for Step 1" }));
 
     const firstTomato = screen.getByRole("checkbox", {
       name: "Ingredient 1: Tomato, 1 cup",
@@ -165,6 +215,7 @@ describe("StructuredActionEditor", () => {
 
   it("preserves raw duration and temperature values while optional controls are hidden", () => {
     render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit cooking details for Step 1" }));
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Include duration" }));
     const duration = screen.getByRole("group", { name: "Duration for Action 1: mix" });
@@ -174,6 +225,20 @@ describe("StructuredActionEditor", () => {
     fireEvent.change(within(duration).getByRole("combobox", { name: "Unit" }), {
       target: { value: MINUTE_ID },
     });
+    const disclosure = screen.getByRole("button", {
+      name: "Edit cooking details for Step 1",
+    });
+    fireEvent.click(disclosure);
+    expect(screen.queryByRole("group", { name: "Duration for Action 1: mix" })).toBeNull();
+    expect(disclosure).toHaveTextContent("mix · 5 minutes");
+    fireEvent.click(disclosure);
+    expect(
+      within(screen.getByRole("group", { name: "Duration for Action 1: mix" })).getByRole(
+        "textbox",
+        { name: "Duration" },
+      ),
+    ).toHaveValue("05.000");
+
     fireEvent.click(screen.getByRole("checkbox", { name: "Include duration" }));
     expect(screen.queryByRole("group", { name: "Duration for Action 1: mix" })).toBeNull();
     fireEvent.click(screen.getByRole("checkbox", { name: "Include duration" }));
@@ -209,6 +274,7 @@ describe("StructuredActionEditor", () => {
         )}
       />,
     );
+    fireEvent.click(screen.getByRole("button", { name: "Edit cooking details for Step 1" }));
 
     const actionType = screen.getByRole("combobox", { name: "Cooking action" });
     expect(actionType).toHaveValue(RETIRED_ID);
@@ -244,8 +310,13 @@ describe("StructuredActionEditor", () => {
     );
 
     expect(
-      screen.getByRole("group", { name: "Cooking actions" }),
+      screen.getByRole("group", { name: "Author-added cooking details" }),
     ).toHaveAccessibleDescription(/Add at least one action\./);
+    const disclosure = screen.getByRole("button", {
+      name: "Edit cooking details for Step 1",
+    });
+    expect(disclosure).toHaveAttribute("aria-expanded", "true");
+    expect(disclosure).toHaveAccessibleDescription(/Needs attention/);
 
     expect(screen.getByRole("combobox", { name: "Cooking action" })).toHaveAccessibleDescription(
       "Choose a supported action.",
