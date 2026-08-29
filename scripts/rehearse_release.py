@@ -17,6 +17,7 @@ TOOL_NAME = "recipe-lab-release-evidence"
 TOOL_VERSION = "1.0.0"
 EVIDENCE_SCHEMA_VERSION = 1
 SOURCE_MANIFEST_SCHEMA_VERSION = 1
+SOURCE_POLICY_VERSION = 3
 IMAGE_REPORT_SCHEMA_VERSION = 1
 SCANNER_SUMMARY_SCHEMA_VERSION = 1
 PHASE_SUMMARY_SCHEMA_VERSION = 1
@@ -32,9 +33,30 @@ SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 SHA256_IDENTIFIER = re.compile(r"sha256:[0-9a-f]{64}\Z")
 SAFE_VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){1,3}(?:[-+][0-9A-Za-z.-]+)?\Z")
 ALEMBIC_REVISION = re.compile(r"(?:base|[0-9]{8}_[0-9]{4})\Z")
+GIT_OBJECT_ID = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?\Z")
+SOURCE_FILE_MODE = re.compile(r"100(?:644|755)\Z")
+
+SOURCE_POLICY_LIMITS = {
+    "max_compressed_bytes": 25 * 1024 * 1024,
+    "max_entries": 2_000,
+    "max_file_bytes": 10 * 1024 * 1024,
+    "max_path_bytes": 512,
+    "max_uncompressed_bytes": 25 * 1024 * 1024,
+}
 
 MAX_SOURCE_MANIFEST_BYTES = 4 * 1024 * 1024
 MAX_SMALL_SUMMARY_BYTES = 64 * 1024
+MAX_SCAN_REPORT_BYTES = 16 * 1024 * 1024
+MAX_REPORTED_VULNERABILITIES = 20
+SAFE_SCAN_TOKEN = re.compile(r"[0-9A-Za-z][0-9A-Za-z._:+@/-]{0,127}\Z")
+IMAGE_SCAN_ROLES = frozenset(
+    {
+        "candidate_backend",
+        "candidate_frontend",
+        "rollback_backend",
+        "rollback_frontend",
+    }
+)
 
 type JsonObject = dict[str, object]
 
@@ -69,6 +91,29 @@ def _require_string(value: object, pattern: re.Pattern[str], label: str) -> str:
     normalized = cast(str, value)
     _require(pattern.fullmatch(normalized) is not None, f"The {label} is invalid.")
     return normalized
+
+
+def _require_nonnegative_int(value: object, label: str) -> int:
+    _require(type(value) is int and value >= 0, f"The {label} is invalid.")
+    return cast(int, value)
+
+
+def _require_source_path(value: object) -> str:
+    _require(isinstance(value, str), "The safe-source file path must be a string.")
+    path = cast(str, value)
+    try:
+        encoded = path.encode("utf-8")
+    except UnicodeError as error:
+        raise ReleaseEvidenceError("The safe-source file path is invalid.") from error
+    parts = path.split("/")
+    _require(
+        0 < len(encoded) <= SOURCE_POLICY_LIMITS["max_path_bytes"]
+        and not path.startswith("/")
+        and "\\" not in path
+        and all(part not in {"", ".", ".."} for part in parts),
+        "The safe-source file path is invalid.",
+    )
+    return path
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> JsonObject:
@@ -164,8 +209,93 @@ def _validate_source_manifest(
         archive["sha256"] == archive_sha256,
         "The safe-source archive hash does not match.",
     )
-    _require_object(manifest["policy"], "safe-source policy")
-    _require_list(manifest["files"], "safe-source files")
+    compressed_bytes = _require_nonnegative_int(
+        archive["compressed_bytes"], "safe-source compressed size"
+    )
+    entry_count = _require_nonnegative_int(
+        archive["entry_count"], "safe-source entry count"
+    )
+    uncompressed_bytes = _require_nonnegative_int(
+        archive["uncompressed_bytes"], "safe-source uncompressed size"
+    )
+    _require(compressed_bytes > 0, "The safe-source archive is empty.")
+    _require(
+        0 < entry_count <= SOURCE_POLICY_LIMITS["max_entries"],
+        "The safe-source entry count is outside the reviewed limit.",
+    )
+    _require(
+        uncompressed_bytes <= SOURCE_POLICY_LIMITS["max_uncompressed_bytes"],
+        "The safe-source uncompressed size is outside the reviewed limit.",
+    )
+
+    policy = _require_object(manifest["policy"], "safe-source policy")
+    _require_exact_keys(
+        policy,
+        frozenset({"limits", "reviewed_opaque_entries", "sha256", "version"}),
+        "safe-source policy",
+    )
+    _require(
+        policy["version"] == SOURCE_POLICY_VERSION,
+        "The safe-source policy version is unsupported.",
+    )
+    _require_string(policy["sha256"], SHA256, "safe-source policy hash")
+    limits = _require_object(policy["limits"], "safe-source policy limits")
+    _require(
+        limits == SOURCE_POLICY_LIMITS,
+        "The safe-source policy limits are not the reviewed values.",
+    )
+    opaque_entries = _require_nonnegative_int(
+        policy["reviewed_opaque_entries"], "reviewed opaque entry count"
+    )
+    _require(
+        opaque_entries <= entry_count,
+        "The reviewed opaque entry count exceeds the archive entry count.",
+    )
+
+    files = _require_list(manifest["files"], "safe-source files")
+    _require(
+        len(files) == entry_count,
+        "The safe-source file inventory does not match the archive entry count.",
+    )
+    paths: set[str] = set()
+    total_size = 0
+    for raw_file in files:
+        file_entry = _require_object(raw_file, "safe-source file")
+        _require_exact_keys(
+            file_entry,
+            frozenset(
+                {
+                    "compressed_bytes",
+                    "git_object_id",
+                    "mode",
+                    "path",
+                    "sha256",
+                    "size_bytes",
+                }
+            ),
+            "safe-source file",
+        )
+        path = _require_source_path(file_entry["path"])
+        _require(path not in paths, "The safe-source file inventory has duplicates.")
+        paths.add(path)
+        _require_string(file_entry["git_object_id"], GIT_OBJECT_ID, "Git object ID")
+        _require_string(file_entry["mode"], SOURCE_FILE_MODE, "safe-source file mode")
+        _require_string(file_entry["sha256"], SHA256, "safe-source file hash")
+        _require_nonnegative_int(
+            file_entry["compressed_bytes"], "safe-source file compressed size"
+        )
+        size = _require_nonnegative_int(
+            file_entry["size_bytes"], "safe-source file size"
+        )
+        _require(
+            size <= SOURCE_POLICY_LIMITS["max_file_bytes"],
+            "A safe-source file exceeds the reviewed size limit.",
+        )
+        total_size += size
+    _require(
+        total_size == uncompressed_bytes,
+        "The safe-source file inventory size does not match the archive.",
+    )
 
     scanner = _require_object(manifest["scanner"], "safe-source scanner")
     _require_exact_keys(
@@ -200,6 +330,13 @@ def _validate_source_manifest(
         "The safe-source scan passes are incomplete.",
     )
     _require_string(scanner["sha256"], SHA256, "safe-source scanner hash")
+    text_files = _require_nonnegative_int(
+        scanner["text_files_scanned_per_pass"], "safe-source text file count"
+    )
+    _require(
+        text_files + opaque_entries == entry_count,
+        "The safe-source scanner coverage does not match the file inventory.",
+    )
 
 
 def _validate_image_report(report: JsonObject) -> tuple[str, str]:
@@ -428,6 +565,135 @@ def compile_release_evidence(
         },
         "schema_version": EVIDENCE_SCHEMA_VERSION,
         "source_archive_sha256": normalized_archive_sha,
+    }
+
+
+def compile_image_scan_failure_summary(
+    *,
+    image_role: str,
+    scanner_version: str,
+    scanner_database_revision: str,
+    scan_report: JsonObject | None,
+) -> JsonObject:
+    """Reduce a private Trivy report to bounded, non-secret failure evidence."""
+
+    _require(image_role in IMAGE_SCAN_ROLES, "The failed image role is invalid.")
+    normalized_version = _require_string(
+        scanner_version, SAFE_VERSION, "failure scanner version"
+    )
+    normalized_database = _require_string(
+        scanner_database_revision,
+        SHA256_IDENTIFIER,
+        "failure scanner database revision",
+    )
+
+    vulnerability_count = 0
+    high_count = 0
+    critical_count = 0
+    secret_count = 0
+    reported: list[JsonObject] = []
+    report_valid = False
+    results: list[object] = []
+    if scan_report is not None:
+        raw_results = scan_report.get("Results")
+        report_valid = isinstance(raw_results, list)
+        if report_valid:
+            results = cast(list[object], raw_results)
+
+    if report_valid:
+        for raw_result in results:
+            if not isinstance(raw_result, dict):
+                report_valid = False
+                break
+            result = cast(JsonObject, raw_result)
+            vulnerabilities = result.get("Vulnerabilities")
+            secrets = result.get("Secrets")
+            if vulnerabilities is not None and not isinstance(vulnerabilities, list):
+                report_valid = False
+                break
+            if secrets is not None and not isinstance(secrets, list):
+                report_valid = False
+                break
+            secret_count += len(cast(list[object], secrets or []))
+            for raw_vulnerability in cast(list[object], vulnerabilities or []):
+                if not isinstance(raw_vulnerability, dict):
+                    report_valid = False
+                    break
+                vulnerability = cast(JsonObject, raw_vulnerability)
+                vulnerability_count += 1
+                severity = vulnerability.get("Severity")
+                normalized_severity = (
+                    severity.upper() if isinstance(severity, str) else ""
+                )
+                if normalized_severity == "HIGH":
+                    high_count += 1
+                elif normalized_severity == "CRITICAL":
+                    critical_count += 1
+                vulnerability_id = vulnerability.get("VulnerabilityID")
+                package = vulnerability.get("PkgName")
+                if (
+                    len(reported) < MAX_REPORTED_VULNERABILITIES
+                    and normalized_severity in {"HIGH", "CRITICAL"}
+                    and isinstance(vulnerability_id, str)
+                    and SAFE_SCAN_TOKEN.fullmatch(vulnerability_id) is not None
+                    and isinstance(package, str)
+                    and SAFE_SCAN_TOKEN.fullmatch(package) is not None
+                ):
+                    fixed_version = vulnerability.get("FixedVersion")
+                    reported.append(
+                        {
+                            "fix_available": isinstance(fixed_version, str)
+                            and bool(fixed_version),
+                            "id": vulnerability_id,
+                            "package": package,
+                            "severity": normalized_severity,
+                        }
+                    )
+            if not report_valid:
+                break
+
+    if not report_valid or (vulnerability_count == 0 and secret_count == 0):
+        failure_class = "scanner_error"
+        vulnerability_count = 0
+        high_count = 0
+        critical_count = 0
+        secret_count = 0
+        reported = []
+    elif vulnerability_count and secret_count:
+        failure_class = "prohibited_findings"
+    elif secret_count:
+        failure_class = "secret_findings"
+    else:
+        failure_class = "vulnerability_findings"
+
+    reported.sort(
+        key=lambda item: (
+            cast(str, item["severity"]),
+            cast(str, item["id"]),
+            cast(str, item["package"]),
+        )
+    )
+    return {
+        "failure": {
+            "class": failure_class,
+            "image_role": image_role,
+            "secret_findings": secret_count,
+            "vulnerabilities": {
+                "critical": critical_count,
+                "high": high_count,
+                "reported": reported,
+                "total": vulnerability_count,
+                "truncated": vulnerability_count > len(reported),
+            },
+        },
+        "phase": "image_scan",
+        "scanner": {
+            "database_revision": normalized_database,
+            "name": PINNED_SCANNER_NAME,
+            "version": normalized_version,
+        },
+        "schema_version": 1,
+        "status": "failed",
     }
 
 

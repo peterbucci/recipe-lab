@@ -28,12 +28,15 @@ The representative ancestor is selected without silently following a branch:
 
 The selected SHA must be a real ancestor of the candidate. Before a deployment
 exists, it is a representative compatibility target—not a claim about a
-previous deployment. Its backend and
-frontend images are built in a detached temporary worktree, verified with the
-current reviewed production-image verifier, and their local immutable image IDs
-are recorded alongside the resolved SHA. Neither image set is pushed or
-uploaded, so RCP-21 must later use registry manifest digests to identify actual
-deployment artifacts.
+previous deployment. Its backend and frontend application source is built in a
+detached temporary worktree with the candidate's reviewed, hardened production
+image recipes. This isolates the compatibility question—whether the prior
+application can run against the newer schema—from known-vulnerable historical
+base-image packages. The builds are verified with the current production-image
+verifier, and their local immutable image IDs are recorded alongside the
+resolved application SHA. Neither image set is pushed or uploaded, so RCP-21
+must later scan and bind both the candidate and an actual prior deployment by
+registry manifest digest before allowing production rollback.
 
 ## Fixed fail-closed sequence
 
@@ -70,13 +73,15 @@ The isolated rehearsal job runs these phases in order:
    against the restored database and must pass backend liveness and readiness,
    frontend liveness, and one known-public-recipe read through both the API and
    rendered frontend route.
-7. **Compatible image rollback.** The current restored-database revision is
-   recorded, the candidate is stopped, and the exact prior images are started
-   against that unchanged newer schema. The same smoke checks must pass and the
-   database revision must remain byte-for-byte unchanged. A prior image may
-   package an older migration head; compatibility is proved by running it, not
-   by requiring identical packaged migration histories. The rehearsal never
-   downgrades a production-shaped database.
+7. **Compatible application rollback.** The current restored-database revision
+   is recorded, the candidate is stopped, and images containing the reviewed
+   ancestor application source plus the candidate's hardened image recipes are
+   started against that unchanged newer schema. The same smoke checks must pass
+   and the database revision must remain byte-for-byte unchanged. The ancestor
+   may package an older migration head; compatibility is proved by running it,
+   not by requiring identical packaged migration histories. The rehearsal never
+   downgrades a production-shaped database. RCP-21 separately verifies the exact
+   registry artifact that would be used for a real rollback.
 8. **Evidence compilation.** Only after every prior phase passes does the
    reviewed compiler produce one bounded, canonical report.
 
@@ -131,8 +136,13 @@ Raw source, requirements, scanner JSON, image metadata, database dumps,
 deletion ledgers, UUID manifests, browser output, service logs, marker files,
 and temporary worktrees stay only in restricted temporary storage on the
 disposable runner. They are removed in an unconditional cleanup step, including
-after failure. The workflow never uploads a whole temporary directory. On
-failure it may retain only a fixed phase name and `failed` status.
+after failure. The workflow never uploads a whole temporary directory. A
+general failure retains only a fixed phase name and `failed` status. An image
+scan failure additionally retains the fixed image role, failure class, scanner
+version and database hash, aggregate High/Critical and secret counts, and at
+most 20 sanitized vulnerability IDs, package names, severities, and fix-available
+flags. It never retains secret matches, paths, titles, raw reports, or image
+contents.
 
 The retained outputs are the canonical release evidence, the two established
 identifier-free RCP-32 live/restored summaries, and one privacy-scan summary

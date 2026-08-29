@@ -17,6 +17,55 @@ reload_environment() {
   source "$GITHUB_ENV"
   set +a
 }
+scan_image() {
+  local image_role="$1"
+  local image_id="$2"
+  local private_report="$3"
+  local scan_status
+  set +e
+  trivy image --skip-db-update --scanners vuln,secret \
+    --severity HIGH,CRITICAL --exit-code 1 --no-progress \
+    --format json --output "$private_report" \
+    "$image_id"
+  scan_status=$?
+  set -e
+  if [[ "$scan_status" != "0" ]]; then
+    export RCP33G_FAILED_IMAGE_ROLE="$image_role"
+    export RCP33G_FAILED_IMAGE_SCAN="$private_report"
+    python - <<'PY'
+import os
+from pathlib import Path
+
+from scripts.rehearse_release import (
+    MAX_SCAN_REPORT_BYTES,
+    ReleaseEvidenceError,
+    compile_image_scan_failure_summary,
+    load_bounded_json_object,
+    write_release_evidence,
+)
+
+try:
+    scan_report = load_bounded_json_object(
+        Path(os.environ["RCP33G_FAILED_IMAGE_SCAN"]),
+        max_bytes=MAX_SCAN_REPORT_BYTES,
+    )
+except ReleaseEvidenceError:
+    scan_report = None
+
+summary = compile_image_scan_failure_summary(
+    image_role=os.environ["RCP33G_FAILED_IMAGE_ROLE"],
+    scanner_version=os.environ["RCP33G_TRIVY_VERSION"],
+    scanner_database_revision=os.environ["RCP33G_TRIVY_DATABASE_REVISION"],
+    scan_report=scan_report,
+)
+write_release_evidence(
+    Path(os.environ["RCP33G_SAFE_DIR"]) / "failure-summary.json",
+    summary,
+)
+PY
+    exit "$scan_status"
+  fi
+}
 cleanup() {
   local primary_status=$?
   trap - EXIT
@@ -67,7 +116,8 @@ cleanup() {
     "$TRIVY_CACHE_DIR" \
     "$GITHUB_WORKSPACE/frontend/test-results" \
     "$GITHUB_WORKSPACE/frontend/playwright-report" || cleanup_result=1
-  if [[ "$primary_status" != "0" || "$cleanup_result" != "0" ]]; then
+  if [[ ("$primary_status" != "0" || "$cleanup_result" != "0") \
+    && ! -f "$RCP33G_SAFE_DIR/failure-summary.json" ]]; then
     mkdir -p -- "$RCP33G_SAFE_DIR"
     export RCP33G_FAILURE_PHASE="$CURRENT_PHASE"
     python - <<'PY' > "$RCP33G_SAFE_DIR/failure-summary.json"
@@ -184,6 +234,12 @@ python scripts/verify_production_images.py \
   --frontend-context frontend \
   --frontend-dockerfile frontend/Dockerfile \
   --report "$RCP33G_PRIVATE_DIR/candidate-images.json"
+# Exercise the reviewed ancestor application source on the same hardened image
+# recipes as the candidate. The rehearsal is proving application/schema rollback
+# compatibility; RCP-21 remains responsible for binding a real prior deployment
+# to its independently scanned registry digest.
+cp backend/Dockerfile "$RCP33G_ROLLBACK_WORKTREE/backend/Dockerfile"
+cp frontend/Dockerfile "$RCP33G_ROLLBACK_WORKTREE/frontend/Dockerfile"
 docker build --pull --no-cache --target production \
   --file "$RCP33G_ROLLBACK_WORKTREE/backend/Dockerfile" \
   --tag "$RCP33G_ROLLBACK_BACKEND_IMAGE" \
@@ -221,22 +277,22 @@ for identity in \
     exit 1
   fi
 done
-trivy image --skip-db-update --scanners vuln,secret \
-  --severity HIGH,CRITICAL --exit-code 1 --no-progress \
-  --format json --output "$RCP33G_PRIVATE_DIR/candidate-backend-scan.json" \
-  "$candidate_backend_id"
-trivy image --skip-db-update --scanners vuln,secret \
-  --severity HIGH,CRITICAL --exit-code 1 --no-progress \
-  --format json --output "$RCP33G_PRIVATE_DIR/candidate-frontend-scan.json" \
-  "$candidate_frontend_id"
-trivy image --skip-db-update --scanners vuln,secret \
-  --severity HIGH,CRITICAL --exit-code 1 --no-progress \
-  --format json --output "$RCP33G_PRIVATE_DIR/rollback-backend-scan.json" \
-  "$rollback_backend_id"
-trivy image --skip-db-update --scanners vuln,secret \
-  --severity HIGH,CRITICAL --exit-code 1 --no-progress \
-  --format json --output "$RCP33G_PRIVATE_DIR/rollback-frontend-scan.json" \
-  "$rollback_frontend_id"
+scan_image \
+  candidate_backend \
+  "$candidate_backend_id" \
+  "$RCP33G_PRIVATE_DIR/candidate-backend-scan.json"
+scan_image \
+  candidate_frontend \
+  "$candidate_frontend_id" \
+  "$RCP33G_PRIVATE_DIR/candidate-frontend-scan.json"
+scan_image \
+  rollback_backend \
+  "$rollback_backend_id" \
+  "$RCP33G_PRIVATE_DIR/rollback-backend-scan.json"
+scan_image \
+  rollback_frontend \
+  "$rollback_frontend_id" \
+  "$RCP33G_PRIVATE_DIR/rollback-frontend-scan.json"
 export RCP33G_CANDIDATE_BACKEND_ID="$candidate_backend_id"
 export RCP33G_CANDIDATE_FRONTEND_ID="$candidate_frontend_id"
 export RCP33G_ROLLBACK_BACKEND_ID="$rollback_backend_id"

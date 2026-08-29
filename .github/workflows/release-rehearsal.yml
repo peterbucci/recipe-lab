@@ -11,15 +11,16 @@ on:
   pull_request:
     paths:
       - .github/workflows/release-rehearsal.yml
-      - backend/app/privacy/account_data_manifest.py
-      - backend/app/recovery/**
-      - backend/app/repositories/account_lifecycle.py
-      - backend/app/services/account_lifecycle.py
-      - backend/tests/test_account_data_manifest.py
-      - backend/tests/test_account_deletion_recovery.py
-      - frontend/e2e/rcp32-community-release-gate.spec.ts
+      - .dockerignore
+      - backend/**
+      - frontend/**
+      - ml/**
+      - pyproject.toml
+      - uv.lock
+      - scripts/package_source.py
       - scripts/rehearse_release.py
       - scripts/run_release_rehearsal.sh
+      - scripts/tests/test_package_source.py
       - scripts/tests/test_rehearse_release.py
       - scripts/tests/test_verify_production_images.py
       - scripts/verify_production_images.py
@@ -28,15 +29,16 @@ on:
       - main
     paths:
       - .github/workflows/release-rehearsal.yml
-      - backend/app/privacy/account_data_manifest.py
-      - backend/app/recovery/**
-      - backend/app/repositories/account_lifecycle.py
-      - backend/app/services/account_lifecycle.py
-      - backend/tests/test_account_data_manifest.py
-      - backend/tests/test_account_deletion_recovery.py
-      - frontend/e2e/rcp32-community-release-gate.spec.ts
+      - .dockerignore
+      - backend/**
+      - frontend/**
+      - ml/**
+      - pyproject.toml
+      - uv.lock
+      - scripts/package_source.py
       - scripts/rehearse_release.py
       - scripts/run_release_rehearsal.sh
+      - scripts/tests/test_package_source.py
       - scripts/tests/test_rehearse_release.py
       - scripts/tests/test_verify_production_images.py
       - scripts/verify_production_images.py

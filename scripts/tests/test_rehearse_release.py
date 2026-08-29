@@ -49,7 +49,7 @@ def _source_manifest() -> dict[str, object]:
             },
             "reviewed_opaque_entries": 0,
             "sha256": "2" * 64,
-            "version": 2,
+            "version": 3,
         },
         "scanner": {
             "findings": 0,
@@ -237,6 +237,104 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 self.assertRaises(rehearse_release.ReleaseEvidenceError),
             ):
                 _compile(**{key: value})
+
+    def test_rejects_stale_policy_and_malformed_source_inventory(self) -> None:
+        stale_policy = _source_manifest()
+        stale_policy_value = stale_policy["policy"]
+        assert isinstance(stale_policy_value, dict)
+        stale_policy_value["version"] = 2
+
+        file_with_extra = _source_manifest()
+        files = file_with_extra["files"]
+        assert isinstance(files, list)
+        first_file = files[0]
+        assert isinstance(first_file, dict)
+        first_file["unreviewed"] = True
+
+        duplicate_path = _source_manifest()
+        duplicate_files = duplicate_path["files"]
+        duplicate_archive = duplicate_path["archive"]
+        assert isinstance(duplicate_files, list)
+        assert isinstance(duplicate_archive, dict)
+        duplicate_files.append(dict(duplicate_files[0]))
+        duplicate_archive["entry_count"] = 2
+        duplicate_archive["uncompressed_bytes"] = 8
+
+        for source_manifest in (stale_policy, file_with_extra, duplicate_path):
+            with (
+                self.subTest(source_manifest=source_manifest),
+                self.assertRaises(rehearse_release.ReleaseEvidenceError),
+            ):
+                _compile(source_manifest=source_manifest)
+
+    def test_compiles_bounded_image_scan_failure_without_private_details(self) -> None:
+        summary = rehearse_release.compile_image_scan_failure_summary(
+            image_role="candidate_backend",
+            scanner_version="0.74.0",
+            scanner_database_revision=SCANNER_DATABASE_REVISION,
+            scan_report={
+                "Results": [
+                    {
+                        "Target": "/private/image/path",
+                        "Vulnerabilities": [
+                            {
+                                "FixedVersion": "",
+                                "PkgName": "perl-base",
+                                "Severity": "CRITICAL",
+                                "Title": "private free-form title",
+                                "VulnerabilityID": "CVE-2026-13221",
+                            },
+                            {
+                                "FixedVersion": "3.5.8-r0",
+                                "PkgName": "libssl3",
+                                "Severity": "HIGH",
+                                "Title": "another private title",
+                                "VulnerabilityID": "CVE-2026-14456",
+                            },
+                        ],
+                        "Secrets": [
+                            {
+                                "Match": "private-secret-value",
+                                "RuleID": "private-secret-rule",
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(summary["phase"], "image_scan")
+        failure = summary["failure"]
+        assert isinstance(failure, dict)
+        self.assertEqual(failure["class"], "prohibited_findings")
+        self.assertEqual(failure["image_role"], "candidate_backend")
+        self.assertEqual(failure["secret_findings"], 1)
+        vulnerabilities = failure["vulnerabilities"]
+        assert isinstance(vulnerabilities, dict)
+        self.assertEqual(vulnerabilities["critical"], 1)
+        self.assertEqual(vulnerabilities["high"], 1)
+        self.assertEqual(vulnerabilities["total"], 2)
+        self.assertFalse(vulnerabilities["truncated"])
+        rendered = json.dumps(summary)
+        self.assertNotIn("private/image/path", rendered)
+        self.assertNotIn("private free-form title", rendered)
+        self.assertNotIn("private-secret", rendered)
+
+    def test_reports_scanner_error_without_echoing_malformed_output(self) -> None:
+        summary = rehearse_release.compile_image_scan_failure_summary(
+            image_role="rollback_frontend",
+            scanner_version="0.74.0",
+            scanner_database_revision=SCANNER_DATABASE_REVISION,
+            scan_report=None,
+        )
+
+        failure = summary["failure"]
+        assert isinstance(failure, dict)
+        self.assertEqual(failure["class"], "scanner_error")
+        self.assertEqual(failure["secret_findings"], 0)
+        vulnerabilities = failure["vulnerabilities"]
+        assert isinstance(vulnerabilities, dict)
+        self.assertEqual(vulnerabilities["total"], 0)
 
     def test_rejects_mismatched_commit_archive_and_image_bindings(self) -> None:
         wrong_source_commit = _source_manifest()
