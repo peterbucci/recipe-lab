@@ -1,4 +1,4 @@
-ARG PYTHON_IMAGE=python:3.13-slim@sha256:7ce4b6dfe35e55397b7cda544f8a13f191b7ae28dc5aad71fe664dbc9bc2623f
+ARG PYTHON_IMAGE=python:3.13-alpine@sha256:540c7d91f98ff6880174c40e99067bf5941eb54d818a7a5e094d188b196a934d
 ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.12.6@sha256:88bc6eb1ccd4b82efd0e1b530caffabddf50dc2bf612e66c14ea25b8ee8a4d3d
 
 FROM ${UV_IMAGE} AS uv
@@ -47,9 +47,10 @@ ENV APP_ENVIRONMENT=production \
     PATH=/opt/venv/bin:$PATH \
     PORT=8000
 
-RUN groupadd --system --gid 10001 recipe-lab \
-    && useradd --system --uid 10001 --gid recipe-lab --no-create-home \
-      --home-dir /nonexistent --shell /usr/sbin/nologin recipe-lab \
+RUN apk upgrade --no-cache \
+    && addgroup -S -g 10001 recipe-lab \
+    && adduser -S -D -H -u 10001 -G recipe-lab \
+      -h /nonexistent -s /sbin/nologin recipe-lab \
     && python -m pip uninstall --yes pip setuptools wheel \
     && rm -rf /usr/local/lib/python3.13/ensurepip \
       /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.13
