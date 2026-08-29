@@ -779,6 +779,28 @@ test.describe("phone visual state matrix", () => {
     await publishAnyway.scrollIntoViewIfNeeded();
     await captureBaseline(page, "draft-similarity-publication-review");
   });
+
+  test("ingredient request staff review", async ({ page }) => {
+    await page.goto("/catalog/ingredient-requests");
+    await expect(
+      page.getByRole("heading", { name: "Sunberry tomato", level: 2 }),
+    ).toBeVisible();
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "ingredient-request-staff-review", {
+      allowedVisibleTechnicalIdentifiers: [
+        "70000000-0000-4000-8000-000000000001",
+      ],
+    });
+  });
+
+  test("recipe moderation staff review", async ({ page }) => {
+    await page.goto("/moderation/recipes");
+    await expect(
+      page.getByRole("heading", { name: "Sunlit Tomato Soup", level: 2 }),
+    ).toBeVisible();
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "recipe-moderation-staff-review");
+  });
 });
 
 test("keyboard account-to-private-workspace journey", async ({ page }) => {
