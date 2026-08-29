@@ -592,6 +592,7 @@ describe("RecipeDraftPublication", () => {
       screen.getByRole("link", { name: "Open latest draft in a new tab" }),
     ).toHaveAttribute("target", "_blank");
     expect(screen.queryByRole("button", { name: "Check similar recipes again" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Keep editing" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Review and publish" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Review similar recipes" })).toBeNull();
     expect(mocks.replace).not.toHaveBeenCalled();

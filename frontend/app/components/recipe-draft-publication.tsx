@@ -596,7 +596,7 @@ export function RecipeDraftPublication({
                       : "Check similar recipes again"}
               </button>
             )}
-            {!activeReview && !ambiguousPublicationResult ? (
+            {!activeReview && !ambiguousPublicationResult && !revisionConflict ? (
               <button
                 className="button button--quiet"
                 type="button"
