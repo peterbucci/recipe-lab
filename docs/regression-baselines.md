@@ -95,8 +95,8 @@ image is produced from the same sanitized fixture contract.
 | My Recipes, private drafts          | `my-recipes-normal`                   | `my-recipes-normal`        |
 | Draft editor with validation        | `draft-editor-validation`             | `draft-editor-validation`  |
 | Similarity and publication review   | `draft-similarity-publication-review` | `draft-similarity-publication-review` |
-| Ingredient request and staff review | `ingredient-request-staff-review`     | —                          |
-| Recipe moderation staff review      | `recipe-moderation-staff-review`      | —                          |
+| Ingredient request and staff review | `ingredient-request-staff-review`     | `ingredient-request-staff-review` |
+| Recipe moderation staff review      | `recipe-moderation-staff-review`      | `recipe-moderation-staff-review` |
 | Private workspace, loading          | `private-workspace-loading`           | —                          |
 | Private workspace, failure          | `private-workspace-failure`           | —                          |
 | Private workspace, expired session  | `private-workspace-expired-session`   | —                          |

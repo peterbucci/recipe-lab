@@ -231,6 +231,10 @@ EXPORT_POLICY = PackagingPolicy(
             "fb7c001c7ea26cf53270cf290d261dfeefd62d64",
         ),
         (
+            "frontend/baselines/baseline-phone-chromium/ingredient-request-staff-review.png",
+            "4e4170b53e9a6dd3e2a9ded02561978c0bf84250",
+        ),
+        (
             "frontend/baselines/baseline-phone-chromium/my-recipes-normal.png",
             "2802bc2f0ca4c5cfc4988a79af9c25a157140322",
         ),
@@ -249,6 +253,10 @@ EXPORT_POLICY = PackagingPolicy(
         (
             "frontend/baselines/baseline-phone-chromium/recipe-instructions-normal.png",
             "672d0e65a6e60406d8a08503b5f178c8a6d3ab6a",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/recipe-moderation-staff-review.png",
+            "69542c17ce5aeaf47d2dc88be8473dd6d04d287c",
         ),
     ),
 )
