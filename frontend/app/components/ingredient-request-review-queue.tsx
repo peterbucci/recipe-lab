@@ -18,7 +18,10 @@ export function IngredientRequestStatusFilters({
   onChangeStatus,
 }: IngredientRequestStatusFiltersProps) {
   return (
-    <nav className="curation-filters" aria-label="Ingredient request status filters">
+    <nav
+      className="staff-filter-strip curation-filters"
+      aria-label="Ingredient request status filters"
+    >
       {STATUS_FILTERS.map((filter) => (
         <button
           className="curation-filter"
@@ -56,7 +59,10 @@ export function IngredientRequestReviewQueue({
   onSelectRequest,
 }: IngredientRequestReviewQueueProps) {
   return (
-    <section className="curation-queue" aria-labelledby="curation-queue-heading">
+    <section
+      className="staff-panel-surface staff-sticky-queue curation-queue"
+      aria-labelledby="curation-queue-heading"
+    >
       <div className="curation-panel-heading">
         <div>
           <p className="eyebrow">{STATUS_LABELS[requestStatus]}</p>

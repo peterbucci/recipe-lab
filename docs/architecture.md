@@ -84,6 +84,25 @@ the standard not-found route, and temporary API failures stay within a
 comparison-specific retry boundary. Arbitrary base selection and full-lineage
 visualization remain outside the frontend MVP.
 
+#### Global styling foundation
+
+The root layout imports `frontend/app/globals.css` once. That stylesheet's
+source order is intentional, so additional global CSS entry points or imports
+must not be introduced casually.
+
+Shared styling primitives are low-specificity, opt-in classes for declarations
+that are already identical in multiple features. A feature adopts a primitive
+without removing its existing declarations; incremental cleanup happens only
+after desktop and phone evidence confirms that the primitive preserves the
+affected surfaces. A primitive may expand only when at least two consumers
+share the same declarations and their relevant tests or visual baselines cover
+the change.
+
+Cascade layers are deliberately deferred. Introducing `@layer`, moving broad
+selector groups, or changing cascade order requires a separate evidence-backed
+story after the incremental migration, because those changes can alter pixels
+outside the feature being edited.
+
 ### API
 
 FastAPI owns validation, application rules, persistence boundaries, and the

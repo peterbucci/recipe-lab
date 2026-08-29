@@ -26,7 +26,10 @@ export function RecipeModerationQueue({
   onSelectCase,
 }: RecipeModerationQueueProps) {
   return (
-    <section className="moderation-queue" aria-labelledby="moderation-queue-title">
+    <section
+      className="staff-panel-surface staff-sticky-queue moderation-queue"
+      aria-labelledby="moderation-queue-title"
+    >
       <div className="moderation-section-heading">
         <h2 id="moderation-queue-title">{caseStatus === "open" ? "Open" : "Resolved"} cases</h2>
         <span>{queue?.total ?? 0} total</span>

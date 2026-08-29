@@ -4,6 +4,7 @@
   --muted: #695f55;
   --paper: #f7f2e9;
   --surface: #fffdf9;
+  --surface-toolbar: rgb(255 253 249 / 0.72);
   --surface-soft: #eee6da;
   --surface-warm: #f4dfcf;
   --leaf: #2f624b;
@@ -19,6 +20,7 @@
   --focus: #8d3e2b;
   --shadow-soft: 0 1rem 2.8rem rgb(66 48 31 / 0.09);
   --shadow-card: 0 0.8rem 1.8rem rgb(66 48 31 / 0.08);
+  --shadow-panel-subtle: 0 0.5rem 1.6rem rgb(66 48 31 / 0.04);
   --sans:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
@@ -91,6 +93,31 @@ a {
   clip: rect(0 0 0 0);
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+:where(.staff-panel-surface) {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-panel-subtle);
+}
+
+:where(.staff-sticky-queue) {
+  position: sticky;
+  top: 5.6rem;
+  max-height: calc(100vh - 7rem);
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+:where(.staff-filter-strip) {
+  display: flex;
+  margin-bottom: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: var(--surface-toolbar);
+  padding: 0.35rem;
+  gap: 0.25rem;
 }
 
 .site-header {
@@ -3152,7 +3179,7 @@ h3 {
   margin-bottom: 1rem;
   border: 1px solid var(--line);
   border-radius: 0.85rem;
-  background: rgb(255 253 249 / 0.72);
+  background: var(--surface-toolbar);
   padding: 0.35rem;
   gap: 0.25rem;
   overflow-x: auto;
@@ -3210,7 +3237,7 @@ h3 {
   border: 1px solid var(--line);
   border-radius: 1rem;
   background: var(--surface);
-  box-shadow: 0 0.5rem 1.6rem rgb(66 48 31 / 0.04);
+  box-shadow: var(--shadow-panel-subtle);
 }
 
 .curation-queue {
@@ -5054,7 +5081,7 @@ h3 {
   margin-bottom: 1rem;
   border: 1px solid var(--line);
   border-radius: 0.85rem;
-  background: rgb(255 253 249 / 0.72);
+  background: var(--surface-toolbar);
   padding: 0.35rem;
   gap: 0.25rem;
 }
@@ -5093,7 +5120,7 @@ h3 {
   border: 1px solid var(--line);
   border-radius: 1rem;
   background: var(--surface);
-  box-shadow: 0 0.5rem 1.6rem rgb(66 48 31 / 0.04);
+  box-shadow: var(--shadow-panel-subtle);
 }
 
 .moderation-queue {
