@@ -166,6 +166,14 @@ disposable runner job.
 `RCP-32 community release gate` now requires this check alongside backend,
 frontend, MVP, community-journey, and safe-source checks. Passing it authorizes
 only the later RCP-33 release rehearsal; it is not itself a deployment.
+Within the separate RCP-33G rehearsal, each local candidate image is built
+once, its immutable local image ID is recorded, and that same image is scanned
+and smoked. The verifier is repeated for local images built from a reviewed
+representative ancestor. These are rehearsal artifacts, not registry artifacts
+or proof of a deployed revision. The images and raw scan results remain in
+temporary runner storage; only bounded identity and pass-state evidence
+survives.
+See [release, recovery, and rollback rehearsal](release-rehearsal.md).
 Deployment probe routing, fixed event sinks, initial operator signals,
 retention, smoke testing, and rollback are defined in
 [privacy-safe operations and observability](operations-observability.md).
