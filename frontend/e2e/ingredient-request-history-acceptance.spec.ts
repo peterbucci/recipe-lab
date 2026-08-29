@@ -601,7 +601,7 @@ test.describe("member ingredient-request acceptance", () => {
     await expect(walnutTrigger).toHaveAttribute("aria-expanded", "false");
     await expect(walnutTrigger).toBeFocused();
     const walnutSelection = walnutRow
-      .getByText("Selected catalog ingredient", { exact: true })
+      .getByText("Selected ingredient", { exact: true })
       .locator("..");
     await expect(walnutSelection).toBeVisible();
     await expect(
@@ -691,7 +691,7 @@ test.describe("member ingredient-request acceptance", () => {
     await expect(sugarTrigger).toHaveAttribute("aria-expanded", "false");
     await expect(sugarTrigger).toBeFocused();
     const sugarSelection = sugarRow
-      .getByText("Selected catalog ingredient", { exact: true })
+      .getByText("Selected ingredient", { exact: true })
       .locator("..");
     await expect(sugarSelection).toBeVisible();
     await expect(sugarSelection.getByText("Pecan", { exact: true })).toBeVisible();

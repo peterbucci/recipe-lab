@@ -20,6 +20,7 @@ import {
 const DESKTOP_PROJECT = "baseline-desktop-chromium";
 const PHONE_PROJECT = "baseline-phone-chromium";
 const DRAFT_ID = "30000000-0000-4000-8000-000000000001";
+const GRAM_UNIT_ID = "50000000-0000-4000-8000-000000000001";
 const VARIANT_RECIPE_ID = "20000000-0000-4000-8000-000000000002";
 const SAFE_CSRF = "rcp34b-public-csrf";
 const REVIEWED_LOOPBACK_PORTS = new Set(["4317", "4318"]);
@@ -420,6 +421,32 @@ test.describe("desktop visual state matrix", () => {
     await captureBaseline(page, "my-recipes-normal");
   });
 
+  test("draft ingredient editor normal", async ({ page }) => {
+    await page.goto(`/account/recipe-drafts/${DRAFT_ID}`);
+    const ingredient = page.getByRole("group", {
+      name: "Ingredient 1",
+      exact: true,
+    });
+    await expect(
+      ingredient.getByRole("textbox", { name: "Amount", exact: true }),
+    ).toHaveValue("800");
+    await expect(
+      ingredient.getByRole("combobox", { name: "Unit", exact: true }),
+    ).toHaveValue(GRAM_UNIT_ID);
+    await expect(ingredient.getByRole("combobox", { name: "Ingredient" })).toHaveValue(
+      "plum tomatoes",
+    );
+    await expect(ingredient.getByLabel("Note (optional)")).toHaveValue(
+      "roughly chopped",
+    );
+    await ingredient.evaluate((section) => {
+      section.scrollIntoView({ block: "start" });
+      window.scrollBy(0, -80);
+    });
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "draft-ingredient-editor-normal");
+  });
+
   test("draft editor validation", async ({ page }) => {
     await setScenario("incomplete-draft");
     await page.goto(`/account/recipe-drafts/${DRAFT_ID}`);
@@ -624,6 +651,32 @@ test.describe("phone visual state matrix", () => {
     await expect(overview).toBeInViewport();
     await stabilizeVisuals(page);
     await captureBaseline(page, "recipe-comparison-normal");
+  });
+
+  test("draft ingredient editor normal", async ({ page }) => {
+    await page.goto(`/account/recipe-drafts/${DRAFT_ID}`);
+    const ingredient = page.getByRole("group", {
+      name: "Ingredient 1",
+      exact: true,
+    });
+    await expect(
+      ingredient.getByRole("textbox", { name: "Amount", exact: true }),
+    ).toHaveValue("800");
+    await expect(
+      ingredient.getByRole("combobox", { name: "Unit", exact: true }),
+    ).toHaveValue(GRAM_UNIT_ID);
+    await expect(ingredient.getByRole("combobox", { name: "Ingredient" })).toHaveValue(
+      "plum tomatoes",
+    );
+    await expect(ingredient.getByLabel("Note (optional)")).toHaveValue(
+      "roughly chopped",
+    );
+    await ingredient.evaluate((section) => {
+      section.scrollIntoView({ block: "start" });
+      window.scrollBy(0, -64);
+    });
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "draft-ingredient-editor-normal");
   });
 
   test("draft editor validation", async ({ page }) => {

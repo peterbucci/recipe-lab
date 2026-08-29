@@ -436,6 +436,7 @@ test.describe("RCP-32 two-user community release gate", () => {
     let moderatorUserId = "";
     let ingredientRequestId = "";
     let approvedIngredientId = "";
+    let gramUnitId = "";
     let rootRecipeVersionId = "";
     let exactRecipeVersionId = "";
     let childRecipeVersionId = "";
@@ -481,12 +482,15 @@ test.describe("RCP-32 two-user community release gate", () => {
         await alice.getByLabel("Servings", { exact: true }).fill("4");
         await alice.getByRole("button", { name: "Add ingredient", exact: true }).click();
         const ingredient = alice.getByRole("group", { name: "Ingredient 1", exact: true });
-        const search = ingredient.getByRole("searchbox", {
-          name: "Catalog ingredient",
+        await ingredient.getByRole("textbox", { name: "Amount", exact: true }).fill("100");
+        const unit = ingredient.getByRole("combobox", { name: "Unit", exact: true });
+        await unit.selectOption({ label: "gram (g)" });
+        gramUnitId = await unit.inputValue();
+        const search = ingredient.getByRole("combobox", {
+          name: "Ingredient",
           exact: true,
         });
         await search.fill(requestedIngredient);
-        await search.press("Enter");
         const requestButton = ingredient.getByRole("button", {
           name: "Request a missing ingredient",
           exact: true,
@@ -622,7 +626,7 @@ test.describe("RCP-32 two-user community release gate", () => {
         await activateWithKeyboard(alice, useResolution);
         await expect(historyTrigger).toBeFocused();
         await expect(
-          ingredient.getByText("Selected catalog ingredient", { exact: true }),
+          ingredient.getByText("Selected ingredient", { exact: true }),
         ).toBeVisible();
         await expect(alice.getByLabel("Title", { exact: true })).toHaveValue(rootTitle);
         await expect(alice.getByLabel("Description", { exact: true })).toHaveValue(
@@ -631,11 +635,12 @@ test.describe("RCP-32 two-user community release gate", () => {
         await expect(alice.getByLabel("Servings", { exact: true })).toHaveValue("4.00");
 
         const amount = ingredient.getByRole("group", { name: "Amount for Ingredient 1" });
-        await amount.getByRole("radio", { name: "Exact", exact: true }).check();
-        await amount.getByRole("textbox", { name: "Amount", exact: true }).fill("100");
-        await amount.getByRole("combobox", { name: "Unit", exact: true }).selectOption({
-          label: "gram (g)",
-        });
+        await expect(amount.getByRole("textbox", { name: "Amount", exact: true })).toHaveValue(
+          "100",
+        );
+        await expect(amount.getByRole("combobox", { name: "Unit", exact: true })).toHaveValue(
+          gramUnitId,
+        );
 
         await alice.getByRole("button", { name: "Add instruction", exact: true }).click();
         const step = alice.getByRole("group", { name: "Step 1", exact: true });

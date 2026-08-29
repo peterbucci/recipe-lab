@@ -725,21 +725,25 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
     name: "Ingredient 1",
     exact: true,
   });
-  const search = ingredientRow.getByRole("searchbox", {
-    name: "Catalog ingredient",
+  const search = ingredientRow.getByRole("combobox", {
+    name: "Ingredient",
     exact: true,
   });
   await search.focus();
   await search.fill("Pecan");
-  await page.keyboard.press("Enter");
   const result = ingredientRow
-    .getByRole("list", { name: "Catalog ingredient catalog results" })
-    .getByRole("button", { name: /pecan/i });
+    .getByRole("listbox", { name: "Ingredient suggestions" })
+    .getByRole("option", { name: /pecan/i });
   await expect(result).toBeVisible();
-  await activateWithKeyboard(page, result);
+  await search.press("ArrowDown");
+  await search.press("Enter");
   await expect(
-    ingredientRow.getByText("Selected catalog ingredient"),
+    ingredientRow.getByText("Selected ingredient"),
   ).toBeVisible();
+  await ingredientRow.getByRole("textbox", { name: "Amount", exact: true }).fill("1");
+  await ingredientRow
+    .getByRole("combobox", { name: "Unit", exact: true })
+    .selectOption({ label: "gram (g)" });
 
   const updateRequest = page.waitForRequest(
     (request) =>

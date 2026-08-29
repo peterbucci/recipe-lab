@@ -80,15 +80,15 @@ test.describe("MVP acceptance", () => {
     const walnutRow = page.getByRole("group", { name: "Ingredient 6", exact: true });
     await sugarRow.getByRole("textbox", { name: "Amount", exact: true }).fill("140");
     const selectedSugarUnitId = await sugarRow.getByRole("combobox", { name: "Unit", exact: true }).inputValue();
-    const replacementSearch = walnutRow.getByRole("searchbox", { name: "Catalog ingredient", exact: true });
+    const replacementSearch = walnutRow.getByRole("combobox", { name: "Ingredient", exact: true });
     await replacementSearch.fill("Pecan");
-    await replacementSearch.press("Enter");
     const pecanResult = walnutRow
-      .getByRole("list", { name: "Catalog ingredient catalog results" })
-      .getByRole("button", { name: /pecan/i })
+      .getByRole("listbox", { name: "Ingredient suggestions" })
+      .getByRole("option", { name: /pecan/i })
       .first();
     await expect(pecanResult).toBeVisible();
-    await activateWithKeyboard(page, pecanResult);
+    await replacementSearch.press("ArrowDown");
+    await replacementSearch.press("Enter");
 
     const updateRequest = page.waitForRequest(
       (request) => request.method() === "PUT" && /\/api\/recipe-drafts\/[0-9a-f-]+$/i.test(new URL(request.url()).pathname),
