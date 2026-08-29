@@ -19,6 +19,11 @@ import {
 
 const DESKTOP_PROJECT = "baseline-desktop-chromium";
 const PHONE_PROJECT = "baseline-phone-chromium";
+const REVIEWED_SHELL_VIEWPORTS = [
+  { label: "desktop", width: 1440, height: 900 },
+  { label: "intermediate", width: 820, height: 1_000 },
+  { label: "phone", width: 390, height: 844 },
+] as const;
 const DRAFT_ID = "30000000-0000-4000-8000-000000000001";
 const GRAM_UNIT_ID = "50000000-0000-4000-8000-000000000001";
 const VARIANT_RECIPE_ID = "20000000-0000-4000-8000-000000000002";
@@ -174,7 +179,7 @@ async function stabilizeVisuals(
     families.display.includes("RCP34B Frozen") &&
     families.sans.includes("RCP34B Frozen");
   if (!frozenFontInstalled) {
-    expect(families.display).toContain("Georgia");
+    expect(families.display).toContain("Inter");
     expect(families.sans).toContain("Inter");
     await page.addStyleTag({
       content: `
@@ -318,6 +323,63 @@ test.afterEach(async ({ context }) => {
     expect(audit.privacy_rejections, JSON.stringify(audit)).toBe(0);
   } finally {
     await resetFixture();
+  }
+});
+
+test("application shell preserves real navigation at reviewed widths", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+
+  for (const viewport of REVIEWED_SHELL_VIEWPORTS) {
+    await test.step(viewport.label, async () => {
+      await page.setViewportSize({
+        width: viewport.width,
+        height: viewport.height,
+      });
+      await page.goto("/");
+      await expect(
+        page.getByRole("heading", {
+          name: "Recipes change. Recipe Lab keeps track.",
+        }),
+      ).toBeVisible();
+      await stabilizeVisuals(page);
+
+      const header = page.getByRole("banner");
+      const brand = header.getByRole("link", { name: "Recipe Lab home" });
+      const catalog = page.locator('a[href="/recipes"]').filter({ visible: true }).first();
+      const account = header.locator('summary[aria-label^="Account menu for "]');
+
+      await expect(header).toBeVisible();
+      await expect(brand).toBeVisible();
+      await expect(catalog).toBeVisible();
+      await expect(account).toBeVisible();
+
+      const shellBoxes = await Promise.all([
+        header.boundingBox(),
+        brand.boundingBox(),
+        catalog.boundingBox(),
+        account.boundingBox(),
+      ]);
+      for (const box of shellBoxes) {
+        expect(box).not.toBeNull();
+        expect(box!.width).toBeGreaterThan(0);
+        expect(box!.height).toBeGreaterThan(0);
+        expect(box!.x).toBeGreaterThanOrEqual(-0.5);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 0.5);
+      }
+
+      await expect(
+        header.getByRole("button", { name: "Notifications", exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        header.getByLabel("Search recipes, ingredients, or members", {
+          exact: true,
+        }),
+      ).toHaveCount(0);
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
+    });
   }
 });
 

@@ -10,7 +10,7 @@ import { SiteHeader } from "./site-header";
 import { AuthSessionProvider } from "./auth-session-provider";
 
 describe("SiteHeader", () => {
-  it("offers the small cooking-first navigation", () => {
+  it("offers real search, creation, and browsing routes in the shared shell", () => {
     render(
       <AuthSessionProvider initialSession={{ status: "anonymous" }}>
         <SiteHeader />
@@ -22,7 +22,7 @@ describe("SiteHeader", () => {
       "/",
     );
     const navigation = screen.getByRole("navigation", { name: /primary navigation/i });
-    expect(within(navigation).getByRole("link", { name: /explore recipes/i })).toHaveAttribute(
+    expect(within(navigation).getByRole("link", { name: "Explore recipes" })).toHaveAttribute(
       "href",
       "/recipes",
     );
@@ -30,9 +30,37 @@ describe("SiteHeader", () => {
       "href",
       "/#how-it-works",
     );
-    expect(within(navigation).getByRole("link", { name: /sign in/i })).toHaveAttribute(
+    expect(within(navigation).getByRole("link", { name: /create recipe/i })).toHaveAttribute(
+      "href",
+      "/recipes/new",
+    );
+    expect(screen.getByRole("link", { name: /sign in/i })).toHaveAttribute(
       "href",
       "/sign-in",
     );
+
+    const mobileNavigation = screen.getByRole("navigation", {
+      name: /mobile navigation/i,
+    });
+    expect(within(mobileNavigation).getByRole("link", { name: "Home" })).toHaveAttribute(
+      "href",
+      "/",
+    );
+    expect(
+      within(mobileNavigation).getByRole("link", { name: "Explore recipes" }),
+    ).toHaveAttribute("href", "/recipes");
+    expect(
+      within(mobileNavigation).getByRole("link", { name: "Create recipe" }),
+    ).toHaveAttribute("href", "/recipes/new");
+
+    const search = screen.getByRole("search", { name: "Site recipe search" });
+    expect(search).toHaveAttribute("action", "/recipes");
+    expect(within(search).getByRole("searchbox", { name: "Search recipes" })).toHaveAttribute(
+      "name",
+      "q",
+    );
+    expect(
+      within(search).getByRole("button", { name: "Search recipes from the header" }),
+    ).toHaveAttribute("type", "submit");
   });
 });
