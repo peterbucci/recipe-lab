@@ -129,7 +129,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/catalog-intermediate-normal.png",
-            "1cf24f453013bdb990c638a0ac35d1fb1a8e0368",
+            "1762b54c820cf3c3dbfce74bda692b6b0d5301a2",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/catalog-normal.png",
@@ -161,7 +161,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-intermediate-normal.png",
-            "e39f5d370a74b3cd8323eba5e6398b0d7a278206",
+            "3b5da76f0593c4aaf85f166f0a05fe34512d93dc",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-normal.png",

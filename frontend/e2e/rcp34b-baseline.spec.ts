@@ -408,6 +408,7 @@ test("recipe discovery reflows without hiding results at reviewed widths", async
 
       await page.goto("/recipes");
       const results = page.getByRole("list", { name: "Recipe results" });
+      await expect(results).toHaveCount(1);
       const cards = results.getByRole("article");
       await expect(cards.first()).toBeVisible();
       const cardCount = await cards.count();
@@ -416,7 +417,7 @@ test("recipe discovery reflows without hiding results at reviewed widths", async
         await expect(cards.nth(index)).toBeVisible();
       }
 
-      const columns = await page.locator(".catalog-results__grid").evaluate((grid) =>
+      const columns = await results.evaluate((grid) =>
         getComputedStyle(grid).gridTemplateColumns.split(" ").length,
       );
       expect(columns).toBe(expectedColumns[viewport.label]);
