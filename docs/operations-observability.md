@@ -157,6 +157,14 @@ aggregate panels to recover before resuming traffic. A correlation ID may join
 the response to its short-lived structured event; it is not authority to retain
 any surrounding raw request or user data.
 
+The isolated RCP-33G rehearsal exercises the safe image-only form of this
+procedure: it records the restored database revision, stops the candidate,
+starts the exact prior image IDs against that unchanged newer schema, repeats
+the smoke checks, and requires the database revision to remain unchanged. A
+prior image may package an older migration head. It never uses an Alembic
+downgrade as an application rollback. See
+[release, recovery, and rollback rehearsal](release-rehearsal.md).
+
 ## Deployment review checklist
 
 Before connecting any logging, tracing, analytics, crash-reporting, APM, CDN,
