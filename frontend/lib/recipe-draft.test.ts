@@ -366,7 +366,7 @@ describe("private recipe draft state", () => {
       "ingredient.ingredient-ref.selection":
         "Choose the request’s approved catalog ingredient before publication.",
       "instruction.instruction-ref.action.actions":
-        "Add at least one cooking action before publication.",
+        "Add at least one cooking detail to this step so Recipe Lab can compare similar recipes before publishing.",
     });
   });
 

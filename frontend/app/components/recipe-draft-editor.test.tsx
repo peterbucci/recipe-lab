@@ -456,6 +456,39 @@ describe("RecipeDraftEditor", () => {
     expect(await screen.findByRole("button", { name: "Review and publish" })).toBeVisible();
   });
 
+  it("opens the affected cooking details without losing a prose-only saved draft", async () => {
+    mocks.fetchRecipeDraft.mockResolvedValue({
+      ...detailWithBoundCookingAction,
+      instructions: detailWithBoundCookingAction.instructions.map((instruction) => ({
+        ...instruction,
+        actions: [],
+      })),
+    });
+    renderEditor();
+
+    const instruction = await screen.findByLabelText("Instruction");
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /agree to the community rules/i }),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /right to share it/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Your draft needs attention" }),
+    ).toBeVisible();
+    expect(instruction).toHaveValue("Stir in the tomato.");
+    expect(
+      screen.getByText(
+        "Add at least one cooking detail to this step so Recipe Lab can compare similar recipes before publishing.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Add cooking details for Step 1" }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("keeps the editor sections in order and restores focus after row changes", async () => {
     renderEditor();
 

@@ -79,7 +79,10 @@ describe("RecipeDuplicatePreflightReview", () => {
     expect(candidateLink).toHaveAttribute("target", "_blank");
     expect(candidateLink).toHaveAttribute("rel", "noopener noreferrer");
     expect(candidateLink).toHaveTextContent("(opens in a new tab)");
-    expect(within(region).getByText("88% similar")).toBeInTheDocument();
+    expect(region).toHaveTextContent(/only a guide/i);
+    expect(region).toHaveTextContent(/cannot show who created an idea/i);
+    expect(region).toHaveTextContent(/how either recipe will turn out/i);
+    expect(within(region).queryByText("88% similar")).toBeNull();
     expect(
       within(region).getByRole("list", {
         name: "Why Public carrot cake was included",

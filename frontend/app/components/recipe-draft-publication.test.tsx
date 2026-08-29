@@ -256,6 +256,29 @@ describe("RecipeDraftPublication", () => {
     expect(mocks.refresh).toHaveBeenCalledOnce();
   });
 
+  it("publishes a distinct recipe without showing an empty similarity review", async () => {
+    mocks.preflight.mockResolvedValue(distinctPreflight());
+    mocks.publish.mockResolvedValue({
+      recipe_version_id: RECIPE_ID,
+      location: `/recipes/${RECIPE_ID}`,
+    });
+    renderPublication();
+
+    confirmPublication();
+    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
+
+    await waitFor(() => expect(mocks.publish).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("region", { name: /similar recipes/i })).toBeNull();
+    expect(mocks.publish).toHaveBeenCalledWith(
+      DRAFT_ID,
+      expect.objectContaining({
+        duplicate_review: expect.objectContaining({ decision: null }),
+      }),
+      "publish-key",
+    );
+    expect(mocks.replace).toHaveBeenCalledWith("/account/recipes?view=published");
+  });
+
   it("does not auto-publish when confirmation is revoked during a pending preflight", async () => {
     const preflight = deferred<ReturnType<typeof distinctPreflight>>();
     mocks.preflight.mockReturnValue(preflight.promise);
@@ -363,7 +386,7 @@ describe("RecipeDraftPublication", () => {
       await screen.findByRole("checkbox", { name: /publish my recipe anyway/i }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Publish recipe anyway" }));
-    const retry = await screen.findByRole("button", { name: "Retry publication" });
+    const retry = await screen.findByRole("button", { name: "Try publishing again" });
     expect(mocks.publish).toHaveBeenCalledOnce();
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Recipe Lab could not publish this recipe. Your saved draft is still here.",
@@ -382,7 +405,7 @@ describe("RecipeDraftPublication", () => {
     expect(screen.getByRole("checkbox", { name: /publish my recipe anyway/i })).toBeChecked();
 
     fireEvent.click(communityRules);
-    fireEvent.click(screen.getByRole("button", { name: "Retry publication" }));
+    fireEvent.click(screen.getByRole("button", { name: "Try publishing again" }));
     await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(2));
     expect(mocks.publish.mock.calls[1]?.[1]).toEqual(
       expect.objectContaining({
@@ -392,7 +415,7 @@ describe("RecipeDraftPublication", () => {
     );
   });
 
-  it("offers retry without a publish-without-review escape hatch", async () => {
+  it("explains that publication waits for an unavailable similarity check and only offers retry", async () => {
     mocks.preflight.mockRejectedValue(
       new RecipeDuplicateApiError(
         "Recipe Lab could not check this version right now. Your draft is still here; please try again.",
@@ -404,9 +427,22 @@ describe("RecipeDraftPublication", () => {
 
     confirmPublication();
     fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
-    expect(await screen.findByRole("button", { name: "Check similar recipes again" })).toBeVisible();
+    const retry = await screen.findByRole("button", { name: "Check similar recipes again" });
+    expect(screen.getByRole("alert")).toHaveTextContent(/similar-recipes check unavailable/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/publishing waits/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/saved draft.*still/i);
     expect(screen.queryByRole("button", { name: /publish without/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Review and publish" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Keep editing" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Publish this original recipe." })).toBeVisible();
+
+    fireEvent.click(retry);
+    await waitFor(() => expect(mocks.preflight).toHaveBeenCalledTimes(2));
+    expect(mocks.preflight.mock.calls.map((call) => call[2])).toEqual([
+      "preflight-key",
+      "preflight-key",
+    ]);
+    expect(mocks.publish).not.toHaveBeenCalled();
   });
 
   it("recovers an ambiguous reviewed publication with the same publication key", async () => {
@@ -432,10 +468,11 @@ describe("RecipeDraftPublication", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Publish recipe anyway" }));
 
-    const retry = await screen.findByRole("button", { name: "Retry publication" });
+    const retry = await screen.findByRole("button", { name: "Check publication result" });
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Recipe Lab could not publish this recipe. Your saved draft is still here.",
+      /may already be published/i,
     );
+    expect(screen.getByRole("alert")).toHaveTextContent(/cannot create a second publication/i);
     fireEvent.click(retry);
 
     await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(2));
@@ -472,7 +509,7 @@ describe("RecipeDraftPublication", () => {
     });
   });
 
-  it("retains a distinct result and publication key after a lost response", async () => {
+  it("checks a lost distinct publication result directly with the same publication key", async () => {
     mocks.preflight.mockResolvedValue(distinctPreflight());
     mocks.publish
       .mockRejectedValueOnce(new TypeError("private network detail"))
@@ -485,18 +522,17 @@ describe("RecipeDraftPublication", () => {
     confirmPublication();
     fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
 
-    const retry = await screen.findByRole("button", { name: "Check similar recipes again" });
+    const retry = await screen.findByRole("button", { name: "Check publication result" });
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Recipe Lab could not publish this recipe. Your saved draft is still here.",
+      /may already be published/i,
     );
+    expect(screen.getByRole("alert")).toHaveTextContent(/cannot create a second publication/i);
+    expect(screen.queryByRole("button", { name: "Keep editing" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Review and publish" })).toBeNull();
     fireEvent.click(retry);
 
     await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(2));
-    expect(mocks.preflight).toHaveBeenCalledTimes(2);
-    expect(mocks.preflight.mock.calls.map((call) => call[2])).toEqual([
-      "preflight-key",
-      "preflight-key",
-    ]);
+    expect(mocks.preflight).toHaveBeenCalledOnce();
     expect(mocks.publish.mock.calls.map((call) => call[2])).toEqual([
       "publish-key",
       "publish-key",
@@ -524,11 +560,11 @@ describe("RecipeDraftPublication", () => {
       "href",
       `/sign-in?return_to=%2Faccount%2Frecipe-drafts%2F${DRAFT_ID}`,
     );
-    expect(screen.getByRole("button", { name: "Retry publication" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Try publishing again" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Review similar recipes" })).toBeVisible();
   });
 
-  it("classifies a revision conflict and requires a fresh similarity check", async () => {
+  it("classifies a revision conflict and directs the author to the latest saved draft", async () => {
     mocks.preflight.mockResolvedValue(probablePreflight());
     mocks.publish.mockRejectedValue(
       new RecipePublicationApiError(
@@ -547,9 +583,16 @@ describe("RecipeDraftPublication", () => {
     fireEvent.click(screen.getByRole("button", { name: "Publish recipe anyway" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "This draft changed. Save or reload it before publishing.",
+      "This draft changed in another tab. Open the latest saved draft before publishing.",
     );
-    expect(screen.getByRole("button", { name: "Check similar recipes again" })).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Open latest draft in a new tab" }),
+    ).toHaveAttribute("href", `/account/recipe-drafts/${DRAFT_ID}`);
+    expect(
+      screen.getByRole("link", { name: "Open latest draft in a new tab" }),
+    ).toHaveAttribute("target", "_blank");
+    expect(screen.queryByRole("button", { name: "Check similar recipes again" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Review and publish" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Review similar recipes" })).toBeNull();
     expect(mocks.replace).not.toHaveBeenCalled();
   });

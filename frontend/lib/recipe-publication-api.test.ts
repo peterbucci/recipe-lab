@@ -145,6 +145,11 @@ describe("recipe publication API", () => {
               message: `Canonical ingredient occurrence ${internalId} cannot be published.`,
               issues: [
                 {
+                  location: ["body", "instructions", 0, "actions"],
+                  message: "Every published instruction needs an action.",
+                  type: "internal_action_policy_failure",
+                },
+                {
                   location: ["body", "instructions", 0, "actions", 0, "action_type_id"],
                   message: `Action policy UUID ${internalId} is invalid.`,
                   type: "internal_action_policy_failure",
@@ -170,6 +175,12 @@ describe("recipe publication API", () => {
       code: "invalid_recipe_draft",
       message: "Some draft fields need attention. Review them before publishing.",
       issues: [
+        {
+          location: ["body", "instructions", 0, "actions"],
+          message:
+            "Add at least one cooking detail to this step so Recipe Lab can compare similar recipes before publishing.",
+          type: "validation_error",
+        },
         {
           location: ["body", "instructions", 0, "actions", 0, "action_type_id"],
           message: "Review this cooking action.",

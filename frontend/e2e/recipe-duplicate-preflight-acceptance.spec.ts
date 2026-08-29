@@ -224,6 +224,63 @@ test.describe("recipe duplicate preflight acceptance", () => {
     await expect(review).toHaveCount(0);
   });
 
+  test("retries an unavailable similarity check without losing the draft", async ({ page }) => {
+    await useAcceptanceMember(page, "alice");
+    const draftId = await openCarrotFork(page);
+    const title = page.getByLabel("Title", { exact: true });
+    await title.fill("Keep this unavailable-review draft");
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    await expect(page.getByText("Draft saved privately.", { exact: true })).toBeVisible();
+
+    const preflightKeys: string[] = [];
+    await page.route("**/api/recipe-drafts/*/duplicate-preflights", async (route) => {
+      preflightKeys.push(route.request().headers()["idempotency-key"] ?? "");
+      if (preflightKeys.length === 1) {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: {
+              code: "duplicate_preflight_unavailable",
+              message: "Private upstream detail",
+              issues: [],
+            },
+          }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await confirmPublicationRequirements(page);
+    await page.getByRole("button", { name: "Review and publish version", exact: true }).click();
+    const alert = page.locator(".draft-publication__alert");
+    await expect(alert).toContainText("Similar-recipes check unavailable");
+    await expect(alert).toContainText(/similar recipes could not be checked/i);
+    await expect(alert).toContainText(/draft is still here/i);
+    await expect(page.getByRole("button", { name: "Check similar recipes again" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /publish without/i })).toHaveCount(0);
+    await expect(title).toHaveValue("Keep this unavailable-review draft");
+
+    const retryResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/api/recipe-drafts/${draftId}/duplicate-preflights`) &&
+        response.status() === 201,
+    );
+    await page.getByRole("button", { name: "Check similar recipes again" }).click();
+    await retryResponse;
+    await expect(
+      page.getByRole("region", {
+        name: "Your version matches the recipe it is based on",
+      }),
+    ).toBeVisible();
+    expect(preflightKeys).toHaveLength(2);
+    expect(preflightKeys[0]).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(preflightKeys[1]).toBe(preflightKeys[0]);
+    await expect(title).toHaveValue("Keep this unavailable-review draft");
+  });
+
   test("preserves a fork draft when its source becomes unavailable during publication", async ({ page }) => {
     await useAcceptanceMember(page, "alice");
     const candidateId = await publicRecipeVersionId(
