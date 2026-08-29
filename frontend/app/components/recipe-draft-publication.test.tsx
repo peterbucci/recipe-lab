@@ -12,6 +12,7 @@ import {
 } from "../../lib/recipe-draft";
 import { RecipeDuplicateApiError } from "../../lib/recipe-duplicate-api";
 import { RecipePublicationApiError } from "../../lib/recipe-publication-api";
+import { createUnspecifiedMeasureDraft } from "../../lib/structured-measure";
 import { NavigationBlockerProvider } from "./navigation-blocker-provider";
 import { RecipeDraftPublication } from "./recipe-draft-publication";
 
@@ -64,6 +65,7 @@ function completeDraft(): RecipeDraftEditorState {
       displayName: "Sage",
     },
   };
+  ingredient.measure = createUnspecifiedMeasureDraft();
   const instruction = createDraftInstructionState("instruction-ref");
   instruction.text = "Mix the sage.";
   const action = createStructuredActionDraft("action-ref");

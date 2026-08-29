@@ -9,7 +9,6 @@ import {
 } from "../../lib/measurement-unit-api";
 import {
   durationPolicy,
-  ingredientAmountPolicy,
   temperaturePolicy,
   type QualitativeMeasureValue,
   type StructuredMeasureDraft,
@@ -225,10 +224,6 @@ export function StructuredMeasureControl({
       ) : null}
     </fieldset>
   );
-}
-
-export function IngredientAmountControl(props: WrapperProps) {
-  return <StructuredMeasureControl {...props} policy={ingredientAmountPolicy} />;
 }
 
 export function DurationMeasureControl(props: WrapperProps) {

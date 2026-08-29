@@ -67,9 +67,7 @@ function requestHistoryPage(): MemberIngredientRequestPage {
   };
 }
 
-function page(
-  overrides: Partial<CatalogIngredientPage> = {},
-): CatalogIngredientPage {
+function page(overrides: Partial<CatalogIngredientPage> = {}): CatalogIngredientPage {
   return {
     items: [
       {
@@ -79,16 +77,14 @@ function page(
       },
     ],
     page: 1,
-    page_size: 20,
+    page_size: 8,
     total: 1,
     total_pages: 1,
     ...overrides,
   };
 }
 
-function request(
-  proposedName = "Dragon fruit",
-): MissingIngredientRequest {
+function request(proposedName = "Dragon fruit"): MissingIngredientRequest {
   return {
     id: REQUEST_ID,
     proposed_name: proposedName,
@@ -112,10 +108,12 @@ function deferred<T>() {
 }
 
 function PickerHarness({
+  disabled = false,
   initialValue = null,
   onRequest,
   onSelection,
 }: {
+  disabled?: boolean;
   initialValue?: CatalogIngredientSelection | null;
   onRequest?: (request: MissingIngredientRequest) => void;
   onSelection?: (selection: CatalogIngredientSelection | null) => void;
@@ -125,6 +123,7 @@ function PickerHarness({
     <IngredientCatalogPicker
       idPrefix="test-ingredient"
       contextLabel="test ingredient"
+      disabled={disabled}
       label="Ingredient"
       value={selection}
       onRequestSubmitted={onRequest}
@@ -143,82 +142,207 @@ beforeEach(() => {
   mocks.submitMissingIngredientRequest.mockReset();
   mocks.browseMyIngredientRequests.mockResolvedValue(requestHistoryPage());
   mocks.fetchMyIngredientRequest.mockResolvedValue(approvedRequest());
+  mocks.searchCatalogIngredients.mockResolvedValue(page());
 });
 
 describe("IngredientCatalogPicker", () => {
-  it("searches from the keyboard and only selects an explicit catalog result", async () => {
+  it("offers an accessible alias autocomplete and selects only with Enter", async () => {
     const lookup = deferred<CatalogIngredientPage>();
     vi.mocked(searchCatalogIngredients).mockReturnValue(lookup.promise);
     const onSelection = vi.fn();
     render(<PickerHarness onSelection={onSelection} />);
 
-    expect(screen.getByText(/approved ingredient names and alternate names/i)).toBeVisible();
-    expect(screen.queryByText(/canonical names/i)).toBeNull();
-    const search = screen.getByRole("searchbox", { name: "Ingredient" });
-    fireEvent.change(search, { target: { value: "White sugar" } });
-    fireEvent.keyDown(search, { key: "Enter" });
+    const input = screen.getByRole("combobox", { name: "Ingredient" });
+    expect(input).toHaveAttribute("aria-autocomplete", "list");
+    expect(input).toHaveAttribute("aria-expanded", "false");
+    fireEvent.change(input, { target: { value: "White sugar" } });
 
+    await waitFor(() => expect(searchCatalogIngredients).toHaveBeenCalledOnce());
+    expect(searchCatalogIngredients).toHaveBeenCalledWith(
+      expect.objectContaining({ query: "White sugar", page: 1, pageSize: 8 }),
+    );
+    expect(input).toHaveAttribute("aria-busy", "true");
     expect(onSelection).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Searching…" })).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Searching the ingredient catalog");
 
     await act(async () => {
       lookup.resolve(page());
       await lookup.promise;
     });
 
-    const results = screen.getByRole("list", { name: "Ingredient catalog results" });
-    const result = within(results).getByRole("button", { name: /white sugar/i });
-    expect(result).toHaveTextContent("Catalog name: Granulated sugar");
-    result.focus();
-    fireEvent.keyDown(result, { key: "Enter" });
-    fireEvent.click(result);
+    const suggestions = screen.getByRole("listbox", { name: "Ingredient suggestions" });
+    const option = within(suggestions).getByRole("option", { name: /white sugar/i });
+    expect(option).toHaveTextContent("Catalog name: Granulated sugar");
+    expect(input).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(input).toHaveAttribute("aria-activedescendant", "test-ingredient-option-0");
+    fireEvent.keyDown(input, { key: "Enter" });
 
     expect(onSelection).toHaveBeenLastCalledWith({
       ingredientId: SUGAR_ID,
       canonicalName: "Granulated sugar",
       displayName: "White sugar",
     });
-    expect(screen.getByText("Selected catalog ingredient")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /white sugar/i })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("White sugar");
+    expect(screen.getByText("Selected ingredient")).toBeVisible();
+    expect(document.body).not.toHaveTextContent(SUGAR_ID);
   });
 
-  it("discards a stale lookup when the query changes and reports an empty result", async () => {
+  it("wraps arrow navigation and closes suggestions with Escape", async () => {
+    vi.mocked(searchCatalogIngredients).mockResolvedValue(
+      page({
+        items: [
+          { id: SUGAR_ID, canonical_name: "Walnut", aliases: [] },
+          { id: PECAN_ID, canonical_name: "Pecan", aliases: [] },
+        ],
+        total: 2,
+      }),
+    );
+    render(<PickerHarness />);
+
+    const input = screen.getByRole("combobox", { name: "Ingredient" });
+    fireEvent.change(input, { target: { value: "nut" } });
+    await screen.findByRole("listbox", { name: "Ingredient suggestions" });
+
+    input.focus();
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect(input).toHaveAttribute("aria-activedescendant", "test-ingredient-option-1");
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(screen.queryByRole("listbox", { name: "Ingredient suggestions" })).toBeNull();
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("nut");
+    expect(screen.getByRole("status")).toHaveTextContent("suggestions closed");
+  });
+
+  it("keeps the active keyboard suggestion in view", async () => {
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    vi.mocked(searchCatalogIngredients).mockResolvedValue(
+      page({
+        items: Array.from({ length: 8 }, (_, index) => ({
+          id: `${index + 1}1111111-1111-4111-8111-111111111111`,
+          canonical_name: `Nut ${index + 1}`,
+          aliases: [],
+        })),
+        total: 8,
+      }),
+    );
+
+    try {
+      render(<PickerHarness />);
+      const input = screen.getByRole("combobox", { name: "Ingredient" });
+      fireEvent.change(input, { target: { value: "nut" } });
+      await screen.findByRole("listbox", { name: "Ingredient suggestions" });
+
+      for (let index = 0; index < 8; index += 1) {
+        fireEvent.keyDown(input, { key: "ArrowDown" });
+      }
+
+      await waitFor(() =>
+        expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" }),
+      );
+      expect(input).toHaveAttribute("aria-activedescendant", "test-ingredient-option-7");
+    } finally {
+      if (originalScrollIntoView) {
+        Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+          configurable: true,
+          value: originalScrollIntoView,
+        });
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+      }
+    }
+  });
+
+  it("cancels an in-flight lookup when Escape dismisses autocomplete", async () => {
+    const lookup = deferred<CatalogIngredientPage>();
+    vi.mocked(searchCatalogIngredients).mockReturnValue(lookup.promise);
+    render(<PickerHarness />);
+
+    const input = screen.getByRole("combobox", { name: "Ingredient" });
+    fireEvent.change(input, { target: { value: "pecan" } });
+    await waitFor(() => expect(searchCatalogIngredients).toHaveBeenCalledOnce());
+    const signal = vi.mocked(searchCatalogIngredients).mock.calls[0]?.[0]?.signal;
+
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(signal?.aborted).toBe(true);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("pecan");
+    expect(screen.getByRole("status")).toHaveTextContent("suggestions closed");
+
+    await act(async () => {
+      lookup.resolve(page());
+      await lookup.promise;
+    });
+    expect(screen.queryByRole("listbox", { name: "Ingredient suggestions" })).toBeNull();
+  });
+
+  it("aborts and closes autocomplete when the editor becomes disabled", async () => {
+    const lookup = deferred<CatalogIngredientPage>();
+    vi.mocked(searchCatalogIngredients).mockReturnValue(lookup.promise);
+    const onSelection = vi.fn();
+    const { rerender } = render(
+      <PickerHarness disabled={false} onSelection={onSelection} />,
+    );
+
+    const input = screen.getByRole("combobox", { name: "Ingredient" });
+    fireEvent.change(input, { target: { value: "pecan" } });
+    await waitFor(() => expect(searchCatalogIngredients).toHaveBeenCalledOnce());
+    const signal = vi.mocked(searchCatalogIngredients).mock.calls[0]?.[0]?.signal;
+
+    rerender(<PickerHarness disabled onSelection={onSelection} />);
+
+    expect(signal?.aborted).toBe(true);
+    expect(input).toBeDisabled();
+    await act(async () => {
+      lookup.resolve(page());
+      await lookup.promise;
+    });
+    expect(screen.queryByRole("listbox", { name: "Ingredient suggestions" })).toBeNull();
+    expect(onSelection).not.toHaveBeenCalled();
+  });
+
+  it("aborts an older lookup and ignores its stale response", async () => {
     const staleLookup = deferred<CatalogIngredientPage>();
     vi.mocked(searchCatalogIngredients)
       .mockReturnValueOnce(staleLookup.promise)
       .mockResolvedValueOnce(page({ items: [], total: 0, total_pages: 0 }));
     render(<PickerHarness />);
 
-    const search = screen.getByRole("searchbox", { name: "Ingredient" });
-    fireEvent.change(search, { target: { value: "pecan" } });
-    fireEvent.keyDown(search, { key: "Enter" });
-    fireEvent.change(search, { target: { value: "dragon fruit" } });
+    const input = screen.getByRole("combobox", { name: "Ingredient" });
+    fireEvent.change(input, { target: { value: "pecan" } });
+    await waitFor(() => expect(searchCatalogIngredients).toHaveBeenCalledTimes(1));
+    const firstSignal = vi.mocked(searchCatalogIngredients).mock.calls[0]?.[0]?.signal;
+    expect(firstSignal).toBeInstanceOf(AbortSignal);
+
+    fireEvent.change(input, { target: { value: "dragon fruit" } });
+    expect(firstSignal?.aborted).toBe(true);
+    await waitFor(() => expect(searchCatalogIngredients).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "No approved ingredients match dragon fruit.",
+      ),
+    );
 
     await act(async () => {
       staleLookup.resolve(
-        page({
-          items: [{ id: PECAN_ID, canonical_name: "Pecan", aliases: [] }],
-        }),
+        page({ items: [{ id: PECAN_ID, canonical_name: "Pecan", aliases: [] }] }),
       );
       await staleLookup.promise;
     });
-    expect(screen.queryByText("Pecan")).not.toBeInTheDocument();
-
-    fireEvent.keyDown(search, { key: "Enter" });
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
-        "No catalog ingredients match dragon fruit.",
-      ),
-    );
-    expect(search).toHaveValue("dragon fruit");
+    expect(screen.queryByText("Pecan")).toBeNull();
+    expect(input).toHaveValue("dragon fruit");
     expect(screen.getByRole("button", { name: "Request a missing ingredient" })).toBeVisible();
   });
 
-  it("keeps the selected identity and query visible after a lookup failure", async () => {
+  it("keeps the selected identity and typed query after a safe lookup failure", async () => {
     vi.mocked(searchCatalogIngredients).mockRejectedValue(
       new IngredientCatalogApiError(
         "Canonical UUID 99999999-9999-4999-8999-999999999999 failed an operator policy check.",
@@ -235,46 +359,19 @@ describe("IngredientCatalogPicker", () => {
       />,
     );
 
-    const search = screen.getByRole("searchbox", { name: "Ingredient" });
-    fireEvent.change(search, { target: { value: "almond" } });
-    fireEvent.click(screen.getByRole("button", { name: "Search catalog" }));
+    const input = screen.getByRole("combobox", { name: "Ingredient" });
+    fireEvent.change(input, { target: { value: "almond" } });
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The ingredient catalog could not be searched. Please try again.",
     );
     expect(screen.queryByText(/99999999|canonical|uuid|operator|policy/i)).toBeNull();
-    expect(search).toHaveValue("almond");
-    expect(screen.getByText("Selected catalog ingredient")).toBeInTheDocument();
-    expect(screen.getByText("Pecan", { selector: "strong" })).toBeInTheDocument();
+    expect(input).toHaveValue("almond");
+    expect(screen.getByText("Selected ingredient")).toBeVisible();
+    expect(screen.getByText("Pecan", { selector: "strong" })).toBeVisible();
   });
 
-  it("pages bounded results without changing the typed query", async () => {
-    vi.mocked(searchCatalogIngredients)
-      .mockResolvedValueOnce(page({ total: 21, total_pages: 2 }))
-      .mockResolvedValueOnce(
-        page({
-          items: [{ id: PECAN_ID, canonical_name: "Pecan", aliases: [] }],
-          page: 2,
-          total: 21,
-          total_pages: 2,
-        }),
-      );
-    render(<PickerHarness />);
-
-    const search = screen.getByRole("searchbox", { name: "Ingredient" });
-    fireEvent.change(search, { target: { value: "nut" } });
-    fireEvent.click(screen.getByRole("button", { name: "Search catalog" }));
-    await screen.findByText("Granulated sugar");
-    fireEvent.click(screen.getByRole("button", { name: "Next →" }));
-
-    expect(await screen.findByText("Pecan")).toBeInTheDocument();
-    expect(search).toHaveValue("nut");
-    expect(searchCatalogIngredients).toHaveBeenLastCalledWith(
-      expect.objectContaining({ query: "nut", page: 2, pageSize: 20 }),
-    );
-  });
-
-  it("submits missing text separately, preserves editor state, and escapes status rendering", async () => {
+  it("submits missing text separately and preserves the rest of the picker", async () => {
     const unsafeName = '<img src=x onerror="alert(1)"> fruit';
     vi.mocked(searchCatalogIngredients).mockResolvedValue(
       page({ items: [], total: 0, total_pages: 0 }),
@@ -284,15 +381,13 @@ describe("IngredientCatalogPicker", () => {
     const onRequest = vi.fn();
     render(<PickerHarness onRequest={onRequest} onSelection={onSelection} />);
 
-    const search = screen.getByRole("searchbox", { name: "Ingredient" });
-    fireEvent.change(search, { target: { value: unsafeName } });
-    fireEvent.keyDown(search, { key: "Enter" });
-    await screen.findByText(/no catalog ingredients match/i);
+    const input = screen.getByRole("combobox", { name: "Ingredient" });
+    fireEvent.change(input, { target: { value: unsafeName } });
+    await screen.findByText(/no approved ingredients match/i);
     fireEvent.click(screen.getByRole("button", { name: "Request a missing ingredient" }));
 
-    const proposedName = screen.getByLabelText("Proposed ingredient name");
-    expect(proposedName).toHaveFocus();
-    expect(proposedName).toHaveValue(unsafeName);
+    expect(screen.getByLabelText("Proposed ingredient name")).toHaveFocus();
+    expect(screen.getByLabelText("Proposed ingredient name")).toHaveValue(unsafeName);
     fireEvent.change(screen.getByLabelText("Short context (optional)"), {
       target: { value: "Seen at a neighborhood market" },
     });
@@ -303,36 +398,24 @@ describe("IngredientCatalogPicker", () => {
       proposed_name: unsafeName,
       context: "Seen at a neighborhood market",
     });
-    expect(
-      screen.getByText(
-        new RegExp(
-          `${unsafeName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} was submitted`,
-        ),
-      ),
-    ).toBeInTheDocument();
     expect(document.querySelector("img")).toBeNull();
-    expect(search).toHaveValue(unsafeName);
+    expect(input).toHaveValue(unsafeName);
     expect(onSelection).not.toHaveBeenCalled();
-    expect(onRequest).toHaveBeenCalledWith(expect.objectContaining({
-      id: REQUEST_ID,
-      proposed_name: unsafeName,
-      status: "pending",
-    }));
+    expect(onRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ id: REQUEST_ID, proposed_name: unsafeName, status: "pending" }),
+    );
   });
 
-  it("preserves request input after a duplicate response", async () => {
+  it("preserves unfinished request fields after a duplicate response", async () => {
     vi.mocked(searchCatalogIngredients).mockResolvedValue(
       page({ items: [], total: 0, total_pages: 0 }),
     );
-    vi.mocked(submitMissingIngredientRequest).mockRejectedValue(
-      new Error("duplicate"),
-    );
+    vi.mocked(submitMissingIngredientRequest).mockRejectedValue(new Error("duplicate"));
     render(<PickerHarness />);
 
-    const search = screen.getByRole("searchbox", { name: "Ingredient" });
-    fireEvent.change(search, { target: { value: "Dragon fruit" } });
-    fireEvent.keyDown(search, { key: "Enter" });
-    await screen.findByText(/no catalog ingredients match/i);
+    const input = screen.getByRole("combobox", { name: "Ingredient" });
+    fireEvent.change(input, { target: { value: "Dragon fruit" } });
+    await screen.findByText(/no approved ingredients match/i);
     fireEvent.click(screen.getByRole("button", { name: "Request a missing ingredient" }));
     fireEvent.change(screen.getByLabelText("Short context (optional)"), {
       target: { value: "Fresh fruit" },
@@ -346,9 +429,16 @@ describe("IngredientCatalogPicker", () => {
     expect(screen.getByLabelText("Short context (optional)")).toHaveValue("Fresh fruit");
   });
 
-  it("selects a freshly confirmed request resolution and returns focus to this picker", async () => {
+  it("selects a freshly confirmed request resolution and restores trigger focus", async () => {
+    vi.mocked(searchCatalogIngredients).mockRejectedValueOnce(new Error("offline"));
     const onSelection = vi.fn();
     render(<PickerHarness onSelection={onSelection} />);
+
+    const input = screen.getByRole("combobox", { name: "Ingredient" });
+    fireEvent.change(input, { target: { value: "pitaya" } });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The ingredient catalog could not be searched",
+    );
 
     const trigger = screen.getByRole("button", {
       name: "Choose from my ingredient requests for test ingredient",
@@ -358,9 +448,7 @@ describe("IngredientCatalogPicker", () => {
       name: "Choose from my ingredient requests for test ingredient",
     });
     fireEvent.click(
-      await within(region).findByRole("button", {
-        name: "Use Pitaya for test ingredient",
-      }),
+      await within(region).findByRole("button", { name: "Use Pitaya for test ingredient" }),
     );
 
     await waitFor(() =>
@@ -371,18 +459,13 @@ describe("IngredientCatalogPicker", () => {
       }),
     );
     expect(fetchMyIngredientRequest).toHaveBeenCalledWith(REQUEST_ID, expect.any(AbortSignal));
-    expect(screen.queryByRole("region", { name: /choose from my ingredient requests/i })).not.toBeInTheDocument();
+    expect(region).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
-    expect(
-      screen.getByText(
-        "Pitaya was selected from your resolved ingredient requests for test ingredient.",
-        { selector: ".ingredient-picker__request-status" },
-      ),
-    ).toHaveAttribute("role", "status");
-    expect(screen.getByText("Pitaya", { selector: ".ingredient-picker__selection strong" })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Ingredient" })).toHaveValue("Pitaya");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("keeps the current picker value and query when resolution confirmation fails", async () => {
+  it("keeps the current selection and query when resolution confirmation fails", async () => {
     mocks.fetchMyIngredientRequest.mockRejectedValue(new Error("offline"));
     const onSelection = vi.fn();
     render(
@@ -396,51 +479,41 @@ describe("IngredientCatalogPicker", () => {
       />,
     );
 
-    const search = screen.getByRole("searchbox", { name: "Ingredient" });
-    fireEvent.change(search, { target: { value: "almond" } });
+    const input = screen.getByRole("combobox", { name: "Ingredient" });
+    fireEvent.change(input, { target: { value: "almond" } });
     fireEvent.click(
       screen.getByRole("button", {
         name: "Choose from my ingredient requests for test ingredient",
       }),
     );
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Use Pitaya for test ingredient" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Use Pitaya for test ingredient" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Your recipe was not changed",
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("Your recipe was not changed");
     expect(onSelection).not.toHaveBeenCalled();
-    expect(search).toHaveValue("almond");
+    expect(input).toHaveValue("almond");
     expect(screen.getByText("Pecan", { selector: ".ingredient-picker__selection strong" })).toBeVisible();
   });
 
-  it("does not let an older resolution check overwrite a newer catalog choice", async () => {
+  it("does not let an older resolution overwrite a newer autocomplete choice", async () => {
     const detail = deferred<MemberIngredientRequest>();
     mocks.fetchMyIngredientRequest.mockReturnValue(detail.promise);
     mocks.searchCatalogIngredients.mockResolvedValue(page());
     const onSelection = vi.fn();
     render(<PickerHarness onSelection={onSelection} />);
 
-    const search = screen.getByRole("searchbox", { name: "Ingredient" });
-    fireEvent.change(search, { target: { value: "White sugar" } });
-    fireEvent.keyDown(search, { key: "Enter" });
-    const catalogResults = await screen.findByRole("list", {
-      name: "Ingredient catalog results",
-    });
-    const catalogChoice = within(catalogResults).getByRole("button", {
-      name: /white sugar/i,
-    });
-
+    const input = screen.getByRole("combobox", { name: "Ingredient" });
+    fireEvent.change(input, { target: { value: "White sugar" } });
+    await screen.findByRole("listbox", { name: "Ingredient suggestions" });
     fireEvent.click(
       screen.getByRole("button", {
         name: "Choose from my ingredient requests for test ingredient",
       }),
     );
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Use Pitaya for test ingredient" }),
-    );
-    fireEvent.click(catalogChoice);
+    fireEvent.click(await screen.findByRole("button", { name: "Use Pitaya for test ingredient" }));
+
+    fireEvent.focus(input);
+    const suggestions = await screen.findByRole("listbox", { name: "Ingredient suggestions" });
+    fireEvent.click(within(suggestions).getByRole("option", { name: /white sugar/i }));
 
     await act(async () => {
       detail.resolve(approvedRequest());
@@ -453,10 +526,8 @@ describe("IngredientCatalogPicker", () => {
       canonicalName: "Granulated sugar",
       displayName: "White sugar",
     });
-    expect(
-      screen.getByText("White sugar", { selector: ".ingredient-picker__selection strong" }),
-    ).toBeVisible();
-    expect(screen.queryByText("Pitaya", { selector: ".ingredient-picker__selection strong" })).not.toBeInTheDocument();
+    expect(screen.getByText("White sugar", { selector: ".ingredient-picker__selection strong" })).toBeVisible();
+    expect(screen.queryByText("Pitaya", { selector: ".ingredient-picker__selection strong" })).toBeNull();
   });
 
   it("preserves an unfinished missing-ingredient request while checking history", async () => {
@@ -465,10 +536,9 @@ describe("IngredientCatalogPicker", () => {
     );
     render(<PickerHarness />);
 
-    const search = screen.getByRole("searchbox", { name: "Ingredient" });
-    fireEvent.change(search, { target: { value: "Dragon fruit" } });
-    fireEvent.keyDown(search, { key: "Enter" });
-    await screen.findByText(/no catalog ingredients match/i);
+    const input = screen.getByRole("combobox", { name: "Ingredient" });
+    fireEvent.change(input, { target: { value: "Dragon fruit" } });
+    await screen.findByText(/no approved ingredients match/i);
     fireEvent.click(screen.getByRole("button", { name: "Request a missing ingredient" }));
     fireEvent.change(screen.getByLabelText("Short context (optional)"), {
       target: { value: "Pink flesh with tiny black seeds" },
@@ -482,16 +552,6 @@ describe("IngredientCatalogPicker", () => {
     await screen.findByRole("region", {
       name: "Choose from my ingredient requests for test ingredient",
     });
-    expect(screen.getByLabelText("Proposed ingredient name")).toHaveValue("Dragon fruit");
-    expect(screen.getByLabelText("Short context (optional)")).toHaveValue(
-      "Pink flesh with tiny black seeds",
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Hide my ingredient requests for test ingredient",
-      }),
-    );
     expect(screen.getByLabelText("Proposed ingredient name")).toHaveValue("Dragon fruit");
     expect(screen.getByLabelText("Short context (optional)")).toHaveValue(
       "Pink flesh with tiny black seeds",

@@ -59,6 +59,17 @@ const detail: RecipeDraftDetail = {
 };
 
 describe("private recipe draft state", () => {
+  it("starts a new ingredient with blank exact amount fields", () => {
+    expect(createDraftIngredientState("ingredient-ref").measure).toEqual({
+      mode: "exact",
+      exactValue: "",
+      rangeMinimum: "",
+      rangeMaximum: "",
+      unit: null,
+      packageSizeId: null,
+    });
+  });
+
   it("hydrates a request-backed slot without silently replacing it with its resolution", () => {
     const state = hydrateRecipeDraft(detail);
 
@@ -342,6 +353,7 @@ describe("private recipe draft state", () => {
         resolved_ingredient: null,
       },
     };
+    ingredient.measure.mode = "unspecified";
     instruction.text = "Simmer gently.";
     const valid = validateRecipeDraft(incomplete, 1, [] satisfies CatalogUnit[], [] satisfies CatalogActionType[]);
     expect(valid.payload?.ingredients[0]?.selection).toEqual({
@@ -375,6 +387,7 @@ describe("private recipe draft state", () => {
         displayName: "Sage",
       },
     };
+    ingredient.measure.mode = "unspecified";
     const instruction = createDraftInstructionState("instruction-ref");
     instruction.text = "Mix the sage.";
     const action = createStructuredActionDraft("action-ref");

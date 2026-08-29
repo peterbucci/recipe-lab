@@ -38,17 +38,20 @@ async function fillCompleteRecipe(page: Page, title: string): Promise<void> {
   await page.getByLabel("Servings", { exact: true }).fill("2");
   await page.getByRole("button", { name: "Add ingredient", exact: true }).click();
   const ingredient = page.getByRole("group", { name: "Ingredient 1", exact: true });
-  const search = ingredient.getByRole("searchbox", {
-    name: "Catalog ingredient",
+  const search = ingredient.getByRole("combobox", {
+    name: "Ingredient",
     exact: true,
   });
   await search.fill("Pecan");
-  await search.press("Enter");
   await ingredient
-    .getByRole("list", { name: "Catalog ingredient catalog results" })
-    .getByRole("button", { name: /pecan/i })
+    .getByRole("listbox", { name: "Ingredient suggestions" })
+    .getByRole("option", { name: /pecan/i })
     .first()
     .click();
+  await ingredient.getByRole("textbox", { name: "Amount", exact: true }).fill("1");
+  await ingredient
+    .getByRole("combobox", { name: "Unit", exact: true })
+    .selectOption({ label: "gram (g)" });
 
   await page.getByRole("button", { name: "Add instruction", exact: true }).click();
   const step = page.getByRole("group", { name: "Step 1", exact: true });

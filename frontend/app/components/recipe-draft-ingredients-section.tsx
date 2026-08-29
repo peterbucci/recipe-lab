@@ -9,9 +9,9 @@ import {
   type RecipeDraftIngredientState,
 } from "../../lib/recipe-draft";
 import type { StructuredMeasureField } from "../../lib/structured-measure";
+import { IngredientAmountControl } from "./ingredient-amount-control";
 import { IngredientCatalogPicker } from "./ingredient-catalog-picker";
 import { RecipeDraftFieldError } from "./recipe-draft-field-error";
-import { IngredientAmountControl } from "./structured-measure-control";
 
 interface RecipeDraftIngredientsSectionProps {
   disabled: boolean;
@@ -157,67 +157,75 @@ export function RecipeDraftIngredientsSection({
                     </div>
                   </aside>
                 ) : null}
-                <IngredientCatalogPicker
-                  idPrefix={`draft-${ingredient.key}-ingredient`}
-                  label="Catalog ingredient"
-                  contextLabel={rowLabel}
-                  value={catalogValue}
-                  invalid={Boolean(selectionError)}
-                  describedBy={
-                    selectionError ? `draft-${ingredient.key}-selection-error` : undefined
-                  }
-                  onChange={(selection: CatalogIngredientSelection | null) =>
-                    onReplace(ingredient.key, {
-                      ...ingredient,
-                      selection: selection
-                        ? { kind: "catalog", ingredient: selection }
-                        : null,
-                    })
-                  }
-                  onRequestSubmitted={(request) =>
-                    onReplace(ingredient.key, {
-                      ...ingredient,
-                      selection: requestSelectionFromSubmission(request),
-                    })
-                  }
-                />
-                <RecipeDraftFieldError
-                  id={`draft-${ingredient.key}-selection-error`}
-                  message={selectionError}
-                />
-                <IngredientAmountControl
-                  idPrefix={`draft-${ingredient.key}-measure`}
-                  label="Amount"
-                  contextLabel={rowLabel}
-                  value={ingredient.measure}
-                  units={measurementUnits}
-                  errors={ingredientMeasureErrors(errors, ingredient.key)}
-                  onChange={(measure) => onReplace(ingredient.key, { ...ingredient, measure })}
-                />
-                <div className="recipe-form-field">
-                  <label htmlFor={`draft-${ingredient.key}-notes`}>
-                    Preparation notes <span>(optional)</span>
-                  </label>
-                  <input
-                    id={`draft-${ingredient.key}-notes`}
-                    value={ingredient.preparationNotes}
-                    maxLength={1000}
-                    aria-invalid={Boolean(notesError)}
-                    aria-describedby={
-                      notesError ? `draft-${ingredient.key}-notes-error` : undefined
-                    }
-                    placeholder="finely chopped"
-                    onChange={(event) =>
-                      onReplace(ingredient.key, {
-                        ...ingredient,
-                        preparationNotes: event.target.value,
-                      })
+                <div className="draft-editor__ingredient-fields">
+                  <IngredientAmountControl
+                    idPrefix={`draft-${ingredient.key}-measure`}
+                    label="Amount"
+                    contextLabel={rowLabel}
+                    value={ingredient.measure}
+                    units={measurementUnits}
+                    disabled={disabled}
+                    errors={ingredientMeasureErrors(errors, ingredient.key)}
+                    onChange={(measure) =>
+                      onReplace(ingredient.key, { ...ingredient, measure })
                     }
                   />
-                  <RecipeDraftFieldError
-                    id={`draft-${ingredient.key}-notes-error`}
-                    message={notesError}
-                  />
+                  <div>
+                    <IngredientCatalogPicker
+                      idPrefix={`draft-${ingredient.key}-ingredient`}
+                      label="Ingredient"
+                      contextLabel={rowLabel}
+                      value={catalogValue}
+                      disabled={disabled}
+                      invalid={Boolean(selectionError)}
+                      describedBy={
+                        selectionError ? `draft-${ingredient.key}-selection-error` : undefined
+                      }
+                      onChange={(selection: CatalogIngredientSelection | null) =>
+                        onReplace(ingredient.key, {
+                          ...ingredient,
+                          selection: selection
+                            ? { kind: "catalog", ingredient: selection }
+                            : null,
+                        })
+                      }
+                      onRequestSubmitted={(request) =>
+                        onReplace(ingredient.key, {
+                          ...ingredient,
+                          selection: requestSelectionFromSubmission(request),
+                        })
+                      }
+                    />
+                    <RecipeDraftFieldError
+                      id={`draft-${ingredient.key}-selection-error`}
+                      message={selectionError}
+                    />
+                  </div>
+                  <div className="recipe-form-field">
+                    <label htmlFor={`draft-${ingredient.key}-notes`}>
+                      Note <span>(optional)</span>
+                    </label>
+                    <input
+                      id={`draft-${ingredient.key}-notes`}
+                      value={ingredient.preparationNotes}
+                      maxLength={1000}
+                      aria-invalid={Boolean(notesError)}
+                      aria-describedby={
+                        notesError ? `draft-${ingredient.key}-notes-error` : undefined
+                      }
+                      placeholder="finely chopped"
+                      onChange={(event) =>
+                        onReplace(ingredient.key, {
+                          ...ingredient,
+                          preparationNotes: event.target.value,
+                        })
+                      }
+                    />
+                    <RecipeDraftFieldError
+                      id={`draft-${ingredient.key}-notes-error`}
+                      message={notesError}
+                    />
+                  </div>
                 </div>
               </fieldset>
             </li>

@@ -422,8 +422,8 @@ describe("RecipeDraftEditor", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add ingredient" }));
     const ingredient = screen.getByRole("group", { name: "Ingredient 1" });
-    const ingredientSearch = within(ingredient).getByRole("searchbox", {
-      name: "Catalog ingredient",
+    const ingredientSearch = within(ingredient).getByRole("combobox", {
+      name: "Ingredient",
     });
     await waitFor(() => expect(ingredientSearch).toHaveFocus());
 
