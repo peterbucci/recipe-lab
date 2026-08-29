@@ -210,15 +210,9 @@ test("reaches a chosen recipe from home using only the keyboard", async ({
 }) => {
   await page.goto("/");
 
-  const exploreRecipes = page
-    .getByRole("navigation", { name: "Primary navigation" })
-    .getByRole("link", { name: "Explore recipes", exact: true });
-  await activateWithKeyboard(page, exploreRecipes);
-  await expect(page).toHaveURL("/recipes");
-
-  const search = page.getByRole("searchbox", {
-    name: "Search by recipe name",
-  });
+  const search = page
+    .getByRole("search", { name: "Search recipes from the home page" })
+    .getByRole("searchbox", { name: "Search by recipe name" });
   await reachWithKeyboard(page, search);
   await expect(search).toBeFocused();
   await page.keyboard.type("carrot");
