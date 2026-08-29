@@ -383,6 +383,74 @@ test("application shell preserves real navigation at reviewed widths", async ({
   }
 });
 
+test("recipe discovery reflows without hiding results at reviewed widths", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+
+  const expectedColumns = {
+    desktop: 4,
+    intermediate: 3,
+    phone: 2,
+  } as const;
+
+  for (const viewport of REVIEWED_SHELL_VIEWPORTS) {
+    await test.step(viewport.label, async () => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.goto("/");
+      await expect(
+        page
+          .getByRole("search", { name: "Search recipes from the home page" })
+          .getByRole("searchbox", { name: "Search by recipe name" }),
+      ).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
+
+      await page.goto("/recipes");
+      const results = page.getByRole("list", { name: "Recipe results" });
+      await expect(results).toHaveCount(1);
+      const cards = results.getByRole("article");
+      await expect(cards.first()).toBeVisible();
+      const cardCount = await cards.count();
+      expect(cardCount).toBe(3);
+      for (let index = 0; index < cardCount; index += 1) {
+        await expect(cards.nth(index)).toBeVisible();
+      }
+
+      const columns = await results.evaluate((grid) =>
+        getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+      );
+      expect(columns).toBe(expectedColumns[viewport.label]);
+      await expect(page.getByText(/^original$/i)).toHaveCount(0);
+      await expect(page.getByText(/^version \d+$/i)).toHaveCount(0);
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
+    });
+  }
+});
+
+test("home intermediate normal", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize({ width: 820, height: 1_000 });
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", {
+      name: "Recipes change. Recipe Lab keeps track.",
+    }),
+  ).toBeVisible();
+  await stabilizeVisuals(page);
+  await captureBaseline(page, "home-intermediate-normal");
+});
+
+test("catalog intermediate normal", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize({ width: 820, height: 1_000 });
+  await page.goto("/recipes");
+  await expect(page.getByRole("list", { name: "Recipe results" })).toBeVisible();
+  await stabilizeVisuals(page);
+  await captureBaseline(page, "catalog-intermediate-normal");
+});
+
 test.describe("desktop visual state matrix", () => {
   test.beforeEach(async ({}, testInfo) => desktopOnly(testInfo));
 

@@ -21,27 +21,40 @@ function recipe(overrides: Partial<RecipeSummary> = {}): RecipeSummary {
 }
 
 describe("RecipeCard", () => {
-  it("keeps the public card link, author, and member action as separate controls", () => {
+  it("keeps image-first content and separate public, author, and member controls", () => {
     render(
       <RecipeCard
         actions={<button type="button">Save recipe</button>}
-        recipe={recipe()}
+        recipe={recipe({ description: "Tender carrot cake with toasted walnuts." })}
+        visibilityLabel="Published"
       />,
     );
 
     const card = screen.getByRole("article", { name: "Carrot Walnut Snack Cake" });
+    const artwork = card.querySelector<HTMLElement>(".recipe-card__artwork");
+    const body = card.querySelector<HTMLElement>(".recipe-card__body");
+    const header = card.querySelector<HTMLElement>(".recipe-card__header");
+    const metadata = card.querySelector<HTMLElement>(".recipe-card__metadata");
+    const actions = card.querySelector<HTMLElement>(".recipe-card__actions");
     const recipeLink = within(card).getByRole("link", {
       name: "Carrot Walnut Snack Cake",
     });
     const authorLink = within(card).getByRole("link", { name: "Alice Cook" });
     const saveButton = within(card).getByRole("button", { name: "Save recipe" });
 
+    expect(card.firstElementChild).toBe(artwork);
+    expect(artwork?.nextElementSibling).toBe(body);
+    expect(header).toContainElement(recipeLink);
+    expect(header).toContainElement(authorLink);
+    expect(metadata).toContainElement(within(card).getByText("8 servings"));
+    expect(metadata).toContainElement(within(card).getByText("Published"));
+    expect(actions).toContainElement(saveButton);
     expect(recipeLink).toHaveAttribute("href", "/recipes/recipe-one");
     expect(authorLink).toHaveAttribute("href", "/cooks/alice");
     expect(recipeLink).not.toContainElement(authorLink);
     expect(recipeLink).not.toContainElement(saveButton);
+    expect(within(card).getByText("Tender carrot cake with toasted walnuts.")).toBeVisible();
     expect(within(card).queryByText(/no description provided/i)).not.toBeInTheDocument();
-    expect(within(card).getByText("8 servings")).toBeInTheDocument();
     expect(within(card).queryByText(/^original$/i)).not.toBeInTheDocument();
     expect(within(card).queryByText(/^version \d+$/i)).not.toBeInTheDocument();
   });

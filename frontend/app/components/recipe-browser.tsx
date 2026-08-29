@@ -29,17 +29,26 @@ export function RecipeBrowser({ data, query }: RecipeBrowserProps) {
   const beyondLastPage = data.total > 0 && data.items.length === 0;
 
   return (
-    <>
-      <header className="page-intro">
-        <h1>Find something to cook</h1>
-        <p>Search by name or description, then open the recipe that sounds good.</p>
+    <div className="catalog-dashboard">
+      <header className="page-intro catalog-dashboard__intro">
+        <div className="catalog-dashboard__intro-copy">
+          <h1>Find something to cook</h1>
+          <p>Search by name or description, then open the recipe that sounds good.</p>
+        </div>
+
+        <div className="catalog-toolbar catalog-dashboard__search-panel">
+          <RecipeSearch
+            ariaLabel="Search recipe catalog"
+            idPrefix="catalog-recipe-search"
+            query={query}
+          />
+        </div>
       </header>
 
-      <div className="catalog-toolbar">
-        <RecipeSearch query={query} />
-      </div>
-
-      <section className="catalog-results" aria-labelledby="catalog-results-heading">
+      <section
+        className="catalog-results catalog-dashboard__results"
+        aria-labelledby="catalog-results-heading"
+      >
         <div className="section-heading section-heading--compact catalog-results__heading">
           <div>
             <h2 id="catalog-results-heading">
@@ -51,43 +60,45 @@ export function RecipeBrowser({ data, query }: RecipeBrowserProps) {
           </div>
         </div>
 
-        {data.total === 0 ? (
-          <div className="empty-state">
-            <h3>{emptyHeading(query)}</h3>
-            <p>{emptyMessage(query)}</p>
-            {query ? (
-              <Link className="button button--secondary" href={recipeBrowseHref(1, "")}>
-                Clear search
+        <div className="catalog-results__body">
+          {data.total === 0 ? (
+            <div className="empty-state catalog-results__empty">
+              <h3>{emptyHeading(query)}</h3>
+              <p>{emptyMessage(query)}</p>
+              {query ? (
+                <Link className="button button--secondary" href={recipeBrowseHref(1, "")}>
+                  Clear search
+                </Link>
+              ) : null}
+            </div>
+          ) : beyondLastPage ? (
+            <div className="empty-state catalog-results__empty catalog-results__empty--stale">
+              <h3>That page is beyond the results.</h3>
+              <p>The collection currently has {data.total_pages} pages of recipes.</p>
+              <Link
+                className="button button--secondary"
+                href={recipeBrowseHref(1, query)}
+              >
+                Return to the first page
               </Link>
-            ) : null}
-          </div>
-        ) : beyondLastPage ? (
-          <div className="empty-state">
-            <h3>That page is beyond the results.</h3>
-            <p>The collection currently has {data.total_pages} pages of recipes.</p>
-            <Link
-              className="button button--secondary"
-              href={recipeBrowseHref(1, query)}
-            >
-              Return to the first page
-            </Link>
-          </div>
-        ) : (
-          <ul className="recipe-grid" aria-label="Recipe results">
-            {data.items.map((recipe) => (
-              <RecipeCard key={recipe.id} recipe={recipe} />
-            ))}
-          </ul>
-        )}
-      </section>
+            </div>
+          ) : (
+            <ul className="recipe-grid catalog-results__grid" aria-label="Recipe results">
+              {data.items.map((recipe) => (
+                <RecipeCard key={recipe.id} recipe={recipe} />
+              ))}
+            </ul>
+          )}
+        </div>
 
-      {!beyondLastPage ? (
-        <Pagination
-          currentPage={data.page}
-          query={query}
-          totalPages={data.total_pages}
-        />
-      ) : null}
-    </>
+        {!beyondLastPage ? (
+          <Pagination
+            currentPage={data.page}
+            query={query}
+            totalPages={data.total_pages}
+          />
+        ) : null}
+      </section>
+    </div>
   );
 }

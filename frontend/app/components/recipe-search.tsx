@@ -3,22 +3,37 @@ import Link from "next/link";
 import { recipeBrowseHref } from "../../lib/recipe-browse-query";
 
 interface RecipeSearchProps {
+  ariaLabel?: string;
+  idPrefix?: string;
   query: string;
 }
 
-export function RecipeSearch({ query }: RecipeSearchProps) {
+export function RecipeSearch({
+  ariaLabel = "Search recipe catalog",
+  idPrefix = "recipe-search",
+  query,
+}: RecipeSearchProps) {
+  const helpId = `${idPrefix}-help`;
+  const inputId = `${idPrefix}-input`;
+
   return (
-    <form className="recipe-search" action="/recipes" method="get" role="search">
-      <label className="recipe-search__label" htmlFor="recipe-search-input">
+    <form
+      className="recipe-search"
+      action="/recipes"
+      method="get"
+      role="search"
+      aria-label={ariaLabel}
+    >
+      <label className="recipe-search__label" htmlFor={inputId}>
         Search by recipe name
       </label>
-      <p className="visually-hidden" id="recipe-search-help">
+      <p className="visually-hidden" id={helpId}>
         Search recipe titles and descriptions
       </p>
       <div className="recipe-search__controls">
         <input
-          aria-describedby="recipe-search-help"
-          id="recipe-search-input"
+          aria-describedby={helpId}
+          id={inputId}
           name="q"
           type="search"
           maxLength={100}
