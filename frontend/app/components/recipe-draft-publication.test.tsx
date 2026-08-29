@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AuthApiError } from "../../lib/auth-api";
 import type { CatalogActionType } from "../../lib/cooking-action-api";
 import {
   createDraftIngredientState,
@@ -281,6 +282,42 @@ describe("RecipeDraftPublication", () => {
     expect(screen.getByRole("button", { name: "Review and publish" })).toBeEnabled();
   });
 
+  it("pauses a retried preflight when confirmation is revoked while it is pending", async () => {
+    const retryPreflight = deferred<ReturnType<typeof distinctPreflight>>();
+    mocks.preflight
+      .mockRejectedValueOnce(
+        new RecipeDuplicateApiError(
+          "Recipe Lab could not check this recipe right now.",
+          503,
+          "duplicate_preflight_unavailable",
+        ),
+      )
+      .mockReturnValueOnce(retryPreflight.promise);
+    renderPublication();
+
+    confirmPublication();
+    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
+    const retry = await screen.findByRole("button", { name: "Check similar recipes again" });
+    fireEvent.click(retry);
+    await waitFor(() => expect(mocks.preflight).toHaveBeenCalledTimes(2));
+
+    const communityRules = screen
+      .getAllByRole("checkbox", { name: /agree to the community rules/i })
+      .at(-1)!;
+    fireEvent.click(communityRules);
+    await act(async () => {
+      retryPreflight.resolve(distinctPreflight());
+      await retryPreflight.promise;
+    });
+
+    await waitFor(() => expect(communityRules).toHaveFocus());
+    expect(mocks.publish).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Review and publish" })).toBeEnabled();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /publishing paused.*your draft is still here/i,
+    );
+  });
+
   it("does not continue a duplicate publication after confirmation is revoked", async () => {
     mocks.preflight.mockResolvedValue(probablePreflight());
     renderPublication();
@@ -368,6 +405,151 @@ describe("RecipeDraftPublication", () => {
     expect(await screen.findByRole("button", { name: "Check similar recipes again" })).toBeVisible();
     expect(screen.queryByRole("button", { name: /publish without/i })).toBeNull();
     expect(screen.getByRole("heading", { name: "Publish this original recipe." })).toBeVisible();
+  });
+
+  it("recovers an ambiguous reviewed publication with the same publication key", async () => {
+    mocks.preflight.mockResolvedValue(probablePreflight());
+    mocks.publish
+      .mockRejectedValueOnce(
+        new RecipePublicationApiError(
+          "Recipe Lab could not confirm the publication receipt.",
+          502,
+          "invalid_recipe_publication_response",
+        ),
+      )
+      .mockResolvedValueOnce({
+        recipe_version_id: RECIPE_ID,
+        location: `/recipes/${RECIPE_ID}`,
+      });
+    renderPublication();
+
+    confirmPublication();
+    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: /publish my recipe anyway/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Publish recipe anyway" }));
+
+    const retry = await screen.findByRole("button", { name: "Retry publication" });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Recipe Lab could not publish this recipe. Your saved draft is still here.",
+    );
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(2));
+    expect(mocks.publish.mock.calls.map((call) => call[2])).toEqual([
+      "publish-key",
+      "publish-key",
+    ]);
+    expect(mocks.replace).toHaveBeenCalledWith("/account/recipes?view=published");
+  });
+
+  it("keeps duplicate acknowledgement visible while publication is pending", async () => {
+    const publication = deferred<{ recipe_version_id: string; location: string }>();
+    mocks.preflight.mockResolvedValue(probablePreflight());
+    mocks.publish.mockReturnValue(publication.promise);
+    renderPublication();
+
+    confirmPublication();
+    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
+    const acknowledgement = await screen.findByRole("checkbox", {
+      name: /publish my recipe anyway/i,
+    });
+    fireEvent.click(acknowledgement);
+    fireEvent.click(screen.getByRole("button", { name: "Publish recipe anyway" }));
+
+    await waitFor(() => expect(mocks.publish).toHaveBeenCalledOnce());
+    expect(acknowledgement).toBeChecked();
+
+    await act(async () => {
+      publication.resolve({
+        recipe_version_id: RECIPE_ID,
+        location: `/recipes/${RECIPE_ID}`,
+      });
+      await publication.promise;
+    });
+  });
+
+  it("retains a distinct result and publication key after a lost response", async () => {
+    mocks.preflight.mockResolvedValue(distinctPreflight());
+    mocks.publish
+      .mockRejectedValueOnce(new TypeError("private network detail"))
+      .mockResolvedValueOnce({
+        recipe_version_id: RECIPE_ID,
+        location: `/recipes/${RECIPE_ID}`,
+      });
+    renderPublication();
+
+    confirmPublication();
+    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
+
+    const retry = await screen.findByRole("button", { name: "Check similar recipes again" });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Recipe Lab could not publish this recipe. Your saved draft is still here.",
+    );
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(2));
+    expect(mocks.preflight).toHaveBeenCalledTimes(2);
+    expect(mocks.preflight.mock.calls.map((call) => call[2])).toEqual([
+      "preflight-key",
+      "preflight-key",
+    ]);
+    expect(mocks.publish.mock.calls.map((call) => call[2])).toEqual([
+      "publish-key",
+      "publish-key",
+    ]);
+  });
+
+  it("classifies a pre-request authentication interruption and keeps review context", async () => {
+    mocks.preflight.mockResolvedValue(probablePreflight());
+    mocks.publish.mockRejectedValue(
+      new AuthApiError("Your session expired. Sign in again to continue.", 401, "csrf_token_unavailable"),
+    );
+    renderPublication();
+
+    confirmPublication();
+    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: /publish my recipe anyway/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Publish recipe anyway" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your session expired. Your draft is still here; sign in again before continuing.",
+    );
+    expect(screen.getByRole("link", { name: "Sign in again in a new tab" })).toHaveAttribute(
+      "href",
+      `/sign-in?return_to=%2Faccount%2Frecipe-drafts%2F${DRAFT_ID}`,
+    );
+    expect(screen.getByRole("button", { name: "Retry publication" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Review similar recipes" })).toBeVisible();
+  });
+
+  it("classifies a revision conflict and requires a fresh similarity check", async () => {
+    mocks.preflight.mockResolvedValue(probablePreflight());
+    mocks.publish.mockRejectedValue(
+      new RecipePublicationApiError(
+        "The draft has a newer saved revision.",
+        409,
+        "recipe_draft_revision_conflict",
+      ),
+    );
+    renderPublication();
+
+    confirmPublication();
+    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: /publish my recipe anyway/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Publish recipe anyway" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This draft changed. Save or reload it before publishing.",
+    );
+    expect(screen.getByRole("button", { name: "Check similar recipes again" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Review similar recipes" })).toBeNull();
+    expect(mocks.replace).not.toHaveBeenCalled();
   });
 
   it("requires an explicit unchanged-version decision before publishing a version", async () => {

@@ -1,15 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
 
+import { AuthApiError } from "../../lib/auth-api";
 import type { CatalogActionType } from "../../lib/cooking-action-api";
 import { createIdempotencyKey } from "../../lib/idempotency-key";
 import type { CatalogUnit } from "../../lib/measurement-unit-api";
 import {
   createRecipeDraftDuplicatePreflight,
   RecipeDuplicateApiError,
-  type RecipeDuplicatePreflight,
 } from "../../lib/recipe-duplicate-api";
 import {
   duplicateReviewForPublication,
@@ -23,6 +23,18 @@ import {
   type RecipeDraftValidation,
   validateRecipeDraftForPublication,
 } from "../../lib/recipe-draft";
+import {
+  initialRecipeDraftPublicationState,
+  preparePublicationAttempt,
+  publicationContext,
+  publicationIsBusy,
+  publicationReview,
+  publicationScopeMatches,
+  recipeDraftPublicationReducer,
+  type PublicationContext,
+  type PublicationFailureStatus,
+  type PublicationScope,
+} from "../../lib/recipe-draft-publication-state";
 import { GuardedLink, useNavigationBlocker } from "./navigation-blocker-provider";
 import { RecipeDuplicatePreflightReview } from "./recipe-duplicate-preflight-review";
 
@@ -38,17 +50,6 @@ interface RecipeDraftPublicationProps {
   sourceVersionId: string | null;
 }
 
-interface ReviewState {
-  fingerprint: string;
-  result: RecipeDuplicatePreflight;
-  revision: number;
-}
-
-interface Attempt {
-  fingerprint: string;
-  idempotencyKey: string;
-}
-
 type PendingOperation = "preflight" | "publish" | null;
 type RetryOperation = "preflight" | "publish" | null;
 
@@ -61,7 +62,9 @@ function publicationFailureMessage(
   isVersion: boolean,
 ): string {
   const apiError =
-    reason instanceof RecipeDuplicateApiError || reason instanceof RecipePublicationApiError
+    reason instanceof AuthApiError ||
+    reason instanceof RecipeDuplicateApiError ||
+    reason instanceof RecipePublicationApiError
       ? reason
       : null;
   if (apiError?.status === 401) {
@@ -81,6 +84,43 @@ function publicationFailureMessage(
     : `Recipe Lab could not publish this ${isVersion ? "version" : "recipe"}. Your saved draft is still here.`;
 }
 
+function publicationFailureStatus(reason: unknown): PublicationFailureStatus {
+  if (
+    (reason instanceof AuthApiError ||
+      reason instanceof RecipeDuplicateApiError ||
+      reason instanceof RecipePublicationApiError) &&
+    reason.status === 401
+  ) {
+    return "authentication-interruption";
+  }
+  if (
+    (reason instanceof RecipeDuplicateApiError || reason instanceof RecipePublicationApiError) &&
+    reason.code === "recipe_fork_source_unavailable"
+  ) {
+    return "source-unavailable";
+  }
+  if (
+    (reason instanceof RecipeDuplicateApiError || reason instanceof RecipePublicationApiError) &&
+    reason.code === "recipe_draft_revision_conflict"
+  ) {
+    return "revision-conflict";
+  }
+  if (
+    !(reason instanceof AuthApiError) &&
+    !(reason instanceof RecipeDuplicateApiError) &&
+    !(reason instanceof RecipePublicationApiError)
+  ) {
+    return "ambiguous-result";
+  }
+  if (
+    reason instanceof RecipePublicationApiError &&
+    reason.code === "invalid_recipe_publication_response"
+  ) {
+    return "ambiguous-result";
+  }
+  return "failed-retryable";
+}
+
 export function RecipeDraftPublication({
   actionTypes,
   draft,
@@ -95,16 +135,15 @@ export function RecipeDraftPublication({
   const router = useRouter();
   const { setBlocked } = useNavigationBlocker();
   const fingerprint = recipeDraftFingerprint(draft);
+  const currentScope: PublicationScope = { fingerprint, revision };
   const latestIntent = useRef({ dirty, fingerprint, revision });
   const submitting = useRef(false);
-  const preflightAttempt = useRef<Attempt | null>(null);
-  const publishAttempt = useRef<Attempt | null>(null);
   const communityRulesRef = useRef<HTMLInputElement>(null);
   const contentRightsRef = useRef<HTMLInputElement>(null);
-  const [pending, setPending] = useState<PendingOperation>(null);
-  const [retryOperation, setRetryOperation] = useState<RetryOperation>(null);
-  const [review, setReview] = useState<ReviewState | null>(null);
-  const [acknowledged, setAcknowledged] = useState(false);
+  const [publicationState, dispatchPublication] = useReducer(
+    recipeDraftPublicationReducer,
+    initialRecipeDraftPublicationState,
+  );
   const confirmationScope = `${revision}:${fingerprint}`;
   const [communityRulesConfirmation, setCommunityRulesConfirmation] = useState({
     scope: "",
@@ -124,20 +163,50 @@ export function RecipeDraftPublication({
     contentRightsConfirmation.scope === confirmationScope && contentRightsConfirmation.checked;
   const confirmationError =
     confirmationFailure?.scope === confirmationScope ? confirmationFailure.message : "";
-  const [error, setError] = useState("");
   const [status, setStatus] = useState("");
-  const [sessionExpired, setSessionExpired] = useState(false);
-  const [sourceUnavailable, setSourceUnavailable] = useState(false);
   const isFork = sourceVersionId !== null;
-  const activeReview =
-    review && !dirty && review.fingerprint === fingerprint && review.revision === revision
-      ? review
+  const workflow = publicationState.workflow;
+  const failureWorkflow =
+    workflow.status === "ambiguous-result" ||
+    workflow.status === "authentication-interruption" ||
+    workflow.status === "failed-retryable" ||
+    workflow.status === "revision-conflict" ||
+    workflow.status === "source-unavailable"
+      ? workflow
       : null;
-  const reviewInvalidated = review !== null && activeReview === null;
+  const pending: PendingOperation =
+    workflow.status === "checking"
+      ? "preflight"
+      : workflow.status === "publishing" || workflow.status === "published"
+        ? "publish"
+        : null;
+  const retryOperation: RetryOperation =
+    failureWorkflow?.status === "source-unavailable"
+      ? null
+      : failureWorkflow?.operation === "publish" && failureWorkflow.context === null
+        ? "preflight"
+        : failureWorkflow?.operation ?? null;
+  const workflowReview = publicationReview(workflow);
+  const retryContext = publicationContext(workflow);
+  const currentRetryContext =
+    retryContext && publicationScopeMatches(retryContext.scope, currentScope, dirty)
+      ? retryContext
+      : null;
+  const activeReview =
+    workflowReview && publicationScopeMatches(workflowReview.review.scope, currentScope, dirty)
+      ? workflowReview
+      : null;
+  const reviewInvalidated = workflowReview !== null && activeReview === null;
+  const error = failureWorkflow?.message ?? "";
+  const sessionExpired = failureWorkflow?.status === "authentication-interruption";
+  const sourceUnavailable = failureWorkflow?.status === "source-unavailable";
 
-  useEffect(() => onBusyChange(pending !== null), [onBusyChange, pending]);
+  useEffect(
+    () => onBusyChange(publicationIsBusy(publicationState)),
+    [onBusyChange, publicationState],
+  );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     latestIntent.current = { dirty, fingerprint, revision };
   }, [dirty, fingerprint, revision]);
 
@@ -166,9 +235,15 @@ export function RecipeDraftPublication({
     };
   }
 
-  function pauseForMissingPublicationConfirmation(expectedScope: string) {
+  function pauseForMissingPublicationConfirmation(
+    expectedScope: string,
+    context: PublicationContext,
+    preserveExistingFailure: boolean,
+  ) {
     submitting.current = false;
-    setPending(null);
+    if (!preserveExistingFailure) {
+      dispatchPublication({ context, type: "confirmation-paused" });
+    }
     setConfirmationFailure({
       scope: expectedScope,
       message: PUBLICATION_CONFIRMATION_MESSAGE,
@@ -185,31 +260,29 @@ export function RecipeDraftPublication({
     }, 0);
   }
 
-  function finishFailure(reason: unknown, operation: Exclude<RetryOperation, null>) {
+  function finishFailure(
+    reason: unknown,
+    operation: Exclude<RetryOperation, null>,
+    attemptId: string,
+  ) {
     const sourceWasUnavailable =
       isFork &&
       (reason instanceof RecipeDuplicateApiError || reason instanceof RecipePublicationApiError) &&
       reason.status === 409 &&
       reason.code === "recipe_fork_source_unavailable";
     submitting.current = false;
-    setPending(null);
-    setRetryOperation(sourceWasUnavailable ? null : operation);
-    setSourceUnavailable(sourceWasUnavailable);
-    setSessionExpired(
+    const resetReview =
       (reason instanceof RecipeDuplicateApiError || reason instanceof RecipePublicationApiError) &&
-        reason.status === 401,
-    );
-    if (
-      (reason instanceof RecipeDuplicateApiError || reason instanceof RecipePublicationApiError) &&
-      reason.status === 409
-    ) {
-      setReview(null);
-      setAcknowledged(false);
-      setRetryOperation(sourceWasUnavailable ? null : "preflight");
-      preflightAttempt.current = null;
-      publishAttempt.current = null;
-    }
+      reason.status === 409;
     const failureMessage = publicationFailureMessage(reason, operation, isFork);
+    dispatchPublication({
+      attemptId,
+      kind: sourceWasUnavailable ? "source-unavailable" : publicationFailureStatus(reason),
+      message: failureMessage,
+      operation,
+      resetReview,
+      type: "operation-failed",
+    });
     if (reason instanceof RecipePublicationApiError && reason.issues.length > 0) {
       const serverFieldErrors = recipeDraftFieldErrorsFromIssues(draft, reason.issues);
       onValidation({
@@ -218,27 +291,26 @@ export function RecipeDraftPublication({
         payload: null,
       });
     }
-    setError(failureMessage);
     setStatus("");
   }
 
-  async function publish(
-    result: RecipeDuplicatePreflight,
-    expectedFingerprint: string,
-    expectedRevision: number,
-    decision: "continue" | null,
-  ) {
+  async function publish(context: PublicationContext, preserveExistingFailure: boolean) {
+    const { result, scope, decision } = context;
+    const expectedFingerprint = scope.fingerprint;
+    const expectedRevision = scope.revision;
     if (!intentIsCurrent(expectedFingerprint, expectedRevision)) {
       submitting.current = false;
-      setPending(null);
-      setReview(null);
-      setAcknowledged(false);
+      dispatchPublication({ type: "draft-changed" });
       setStatus("Your draft changed. Save it before publishing.");
       return;
     }
     const attestations = livePublicationAttestations();
     if (!attestations) {
-      pauseForMissingPublicationConfirmation(`${expectedRevision}:${expectedFingerprint}`);
+      pauseForMissingPublicationConfirmation(
+        `${expectedRevision}:${expectedFingerprint}`,
+        context,
+        preserveExistingFailure,
+      );
       return;
     }
     const duplicateReview = duplicateReviewForPublication(result, decision);
@@ -246,34 +318,32 @@ export function RecipeDraftPublication({
       revision: expectedRevision,
       duplicate_review: duplicateReview,
     });
-    if (publishAttempt.current?.fingerprint !== attemptFingerprint) {
-      publishAttempt.current = {
-        fingerprint: attemptFingerprint,
-        idempotencyKey: createIdempotencyKey(),
-      };
-    }
-    setPending("publish");
-    setRetryOperation(null);
-    setError("");
-    setSessionExpired(false);
-    setSourceUnavailable(false);
+    const attempt =
+      publicationState.attempts.publish?.fingerprint === attemptFingerprint
+        ? publicationState.attempts.publish
+        : preparePublicationAttempt(publicationState.attempts.publish, {
+            fingerprint: attemptFingerprint,
+            newIdempotencyKey: createIdempotencyKey(),
+          });
+    dispatchPublication({ attempt, context, type: "publish-started" });
     setStatus(`Publishing your ${isFork ? "version" : "recipe"}…`);
     try {
-      await publishRecipeDraft(
+      const receipt = await publishRecipeDraft(
         draftId,
         {
           revision: expectedRevision,
           duplicate_review: duplicateReview,
           ...attestations,
         },
-        publishAttempt.current.idempotencyKey,
+        attempt.idempotencyKey,
       );
+      dispatchPublication({ attemptId: attempt.idempotencyKey, receipt, type: "published" });
       setStatus(`${isFork ? "Version" : "Recipe"} published. Opening your published recipes…`);
       setBlocked(false);
       router.replace("/account/recipes?view=published");
       router.refresh();
     } catch (reason) {
-      finishFailure(reason, "publish");
+      finishFailure(reason, "publish", attempt.idempotencyKey);
     }
   }
 
@@ -291,6 +361,7 @@ export function RecipeDraftPublication({
       );
       return;
     }
+    dispatchPublication({ type: "validation-started" });
     const validation = validateRecipeDraftForPublication(
       draft,
       revision,
@@ -298,71 +369,89 @@ export function RecipeDraftPublication({
       actionTypes,
     );
     onValidation(validation);
-    if (!validation.payload) return;
+    if (!validation.payload) {
+      dispatchPublication({ type: "validation-failed" });
+      return;
+    }
 
     const expectedFingerprint = fingerprint;
     const expectedRevision = revision;
     const attemptFingerprint = `${expectedRevision}:${expectedFingerprint}`;
-    if (preflightAttempt.current?.fingerprint !== attemptFingerprint) {
-      preflightAttempt.current = {
-        fingerprint: attemptFingerprint,
-        idempotencyKey: createIdempotencyKey(),
-      };
-    }
+    const attempt =
+      publicationState.attempts.preflight?.fingerprint === attemptFingerprint
+        ? publicationState.attempts.preflight
+        : preparePublicationAttempt(publicationState.attempts.preflight, {
+            fingerprint: attemptFingerprint,
+            newIdempotencyKey: createIdempotencyKey(),
+          });
     submitting.current = true;
-    setPending("preflight");
-    setRetryOperation(null);
-    setReview(null);
-    setAcknowledged(false);
-    setError("");
-    setSessionExpired(false);
-    setSourceUnavailable(false);
+    dispatchPublication({
+      attempt,
+      scope: { fingerprint: expectedFingerprint, revision: expectedRevision },
+      type: "preflight-started",
+    });
     setStatus("Checking for similar recipes…");
     setConfirmationFailure(null);
     try {
       const result = await createRecipeDraftDuplicatePreflight(
         draftId,
         expectedRevision,
-        preflightAttempt.current.idempotencyKey,
+        attempt.idempotencyKey,
       );
       if (!intentIsCurrent(expectedFingerprint, expectedRevision)) {
         submitting.current = false;
-        setPending(null);
+        dispatchPublication({ type: "draft-changed" });
         setStatus("Your draft changed. Save it before checking for similar recipes again.");
         return;
       }
       if (result.classification === "distinct") {
-        await publish(result, expectedFingerprint, expectedRevision, null);
+        await publish(
+          {
+            decision: null,
+            result,
+            scope: { fingerprint: expectedFingerprint, revision: expectedRevision },
+          },
+          false,
+        );
         return;
       }
       submitting.current = false;
-      setPending(null);
-      setReview({ result, fingerprint: expectedFingerprint, revision: expectedRevision });
+      dispatchPublication({
+        attemptId: attempt.idempotencyKey,
+        result,
+        type: "review-required",
+      });
       setStatus("Review the similar recipes before publishing.");
     } catch (reason) {
-      finishFailure(reason, "preflight");
+      finishFailure(reason, "preflight", attempt.idempotencyKey);
     }
   }
 
   async function continuePublication() {
-    if (!activeReview || !acknowledged || submitting.current) return;
+    if (!activeReview || !activeReview.acknowledged || submitting.current) return;
     submitting.current = true;
     await publish(
-      activeReview.result,
-      activeReview.fingerprint,
-      activeReview.revision,
-      "continue",
+      { ...activeReview.review, decision: "continue" },
+      failureWorkflow !== null,
     );
+  }
+
+  async function retryPublication() {
+    if (
+      !currentRetryContext ||
+      submitting.current ||
+      (currentRetryContext.result.classification !== "distinct" && !activeReview?.acknowledged)
+    ) {
+      return;
+    }
+    submitting.current = true;
+    await publish(currentRetryContext, true);
   }
 
   function keepEditing() {
     if (pending) return;
-    setReview(null);
-    setAcknowledged(false);
-    setRetryOperation(null);
-    setError("");
+    dispatchPublication({ type: "keep-editing" });
     setStatus("Every saved field is ready for you to revise.");
-    publishAttempt.current = null;
     window.setTimeout(() => document.getElementById("draft-title")?.focus(), 0);
   }
 
@@ -453,8 +542,12 @@ export function RecipeDraftPublication({
               onClick={() => {
                 if (sourceUnavailable) {
                   void startReview();
-                } else if (retryOperation === "publish" && activeReview) {
-                  void continuePublication();
+                } else if (
+                  retryOperation === "publish" &&
+                  currentRetryContext &&
+                  activeReview
+                ) {
+                  void retryPublication();
                 } else {
                   void startReview();
                 }
@@ -491,11 +584,13 @@ export function RecipeDraftPublication({
         <RecipeDuplicatePreflightReview
           mode="publication"
           publicationKind={isFork ? "fork" : "original"}
-          result={activeReview.result}
-          acknowledged={acknowledged}
+          result={activeReview.review.result}
+          acknowledged={activeReview.acknowledged}
           decisionFailure={null}
           pendingDecision={pending === "publish" ? "continue" : null}
-          onAcknowledgedChange={setAcknowledged}
+          onAcknowledgedChange={(acknowledged) =>
+            dispatchPublication({ acknowledged, type: "acknowledgement-changed" })
+          }
           onContinue={() => void continuePublication()}
           onRevise={keepEditing}
           onRetryDecision={() => void continuePublication()}
