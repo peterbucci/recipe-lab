@@ -76,8 +76,6 @@ jobs:
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3100
       PLAYWRIGHT_WEB_SERVER_COMMAND: APP_ENVIRONMENT=production npm run start -- --hostname 127.0.0.1 --port 3100
       RCP32_PYTHON_EXECUTABLE: python
-      ABUSE_RATE_LIMIT_SECRET: recipe-lab-rcp33g-ci-rate-limit-secret-2026
-      INTERNAL_NETWORK_SIGNAL_SECRET: recipe-lab-rcp33g-ci-network-signal-secret-2026
       RCP33G_CANDIDATE_BACKEND_IMAGE: recipe-lab-backend:rcp33g-candidate-${{ github.sha }}
       RCP33G_CANDIDATE_FRONTEND_IMAGE: recipe-lab-frontend:rcp33g-candidate-${{ github.sha }}
       RCP33G_ROLLBACK_BACKEND_IMAGE: recipe-lab-backend:rcp33g-rollback-${{ github.run_id }}-${{ github.run_attempt }}
@@ -101,7 +99,13 @@ jobs:
       - name: Configure bounded runner paths
         shell: bash
         run: |
+          abuse_value="$(openssl rand -hex 32)"
+          network_value="$(openssl rand -hex 32)"
+          echo "::add-mask::${abuse_value}"
+          echo "::add-mask::${network_value}"
           {
+            echo "ABUSE_RATE_LIMIT_SECRET=${abuse_value}"
+            echo "INTERNAL_NETWORK_SIGNAL_SECRET=${network_value}"
             echo "RCP33G_PRIVATE_DIR=$RUNNER_TEMP/recipe-lab-rcp33g-private"
             echo "RCP33G_SAFE_DIR=$RUNNER_TEMP/recipe-lab-rcp33g-safe"
             echo "TRIVY_CACHE_DIR=$RUNNER_TEMP/recipe-lab-rcp33g-trivy-cache"

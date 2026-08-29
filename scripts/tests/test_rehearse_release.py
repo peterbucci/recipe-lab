@@ -62,7 +62,7 @@ def _source_manifest() -> dict[str, object]:
         },
         "schema_version": 1,
         "source": {"commit_sha": COMMIT_SHA, "working_tree": "clean"},
-        "tool": {"name": "recipe-lab-safe-source-export", "version": "1.0.0"},
+        "tool": {"name": "recipe-lab-safe-source-export", "version": "1.1.0"},
     }
 
 

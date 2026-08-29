@@ -22,7 +22,7 @@ SCANNER_SUMMARY_SCHEMA_VERSION = 1
 PHASE_SUMMARY_SCHEMA_VERSION = 1
 PASSED = "passed"
 
-SOURCE_TOOL = {"name": "recipe-lab-safe-source-export", "version": "1.0.0"}
+SOURCE_TOOL = {"name": "recipe-lab-safe-source-export", "version": "1.1.0"}
 SOURCE_SCANNER = {"name": "recipe-lab-source-secret-scan", "version": "2"}
 IMAGE_TOOL = {"name": "recipe-lab-production-image-verifier", "version": "1.1.0"}
 PINNED_SCANNER_NAME = "trivy"
