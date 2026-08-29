@@ -94,6 +94,14 @@ If the deletion ledger or verification evidence is unavailable, the restore
 must fail closed. Restoring service quickly is not authority to resurrect a
 deleted account.
 
+RCP-33G turns this rule into an executable recovery proof. It takes a backup
+before a synthetic member deletion, independently binds a later canonical
+ledger by hash and coverage time, requires missing, malformed, unreadable, and
+stale inputs to fail before mutation, and admits application traffic only after
+valid replay and identifier-free end-state verification. The ledger and dump
+are destroyed rather than uploaded. See
+[release, recovery, and rollback rehearsal](release-rehearsal.md).
+
 ## Review rule for future schema work
 
 Every migration that adds a table, column, foreign key, file store, log sink,

@@ -234,6 +234,7 @@ def test_non_database_manifest_classifies_every_required_artifact_surface() -> N
         "browser_auth_cookies",
         "database_replica_wal_and_dead_rows",
         "deidentified_aggregate_service_metrics",
+        "durable_account_deletion_evidence",
         "encrypted_database_backups",
         "external_oidc_provider_account",
         "fitted_recommender_process_state",
@@ -294,3 +295,27 @@ def test_observability_artifacts_enforce_bounded_privacy_safe_sink_contracts() -
         assert event_name in events.account_data
     assert "only event and correlation_id" in events.account_data
     assert "only event, correlation_id, and status_code" in events.account_data
+
+
+def test_deletion_recovery_evidence_is_private_bounded_and_independently_verified() -> None:
+    policies = {policy.key: policy for policy in NON_DATABASE_ARTIFACT_POLICIES}
+    ledger = policies["durable_account_deletion_evidence"]
+
+    assert ledger.kind is ArtifactKind.BACKUP
+    assert ledger.disposition is DataDisposition.RETAIN
+    assert "30-day" in ledger.timing
+    assert "transient sha-256" in ledger.account_data.casefold()
+    assert "not embedded" in ledger.account_data.casefold()
+    controls = ledger.required_control.casefold()
+    for required_control in (
+        "encrypted",
+        "separate from database backups",
+        "independently supplied hash",
+        "coverage cutoff",
+        "never upload",
+        "destroy temporary replay copies",
+        "fail closed",
+        "rather than truncating",
+    ):
+        assert required_control in controls
+    assert "never silently window" in ledger.timing.casefold()

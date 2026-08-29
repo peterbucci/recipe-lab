@@ -1,12 +1,19 @@
 from datetime import datetime, timedelta
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.models import ACCOUNT_KIND_MEMBER, USER_STATUS_ACTIVE, USER_STATUS_DELETED
+from app.models import (
+    ACCOUNT_KIND_MEMBER,
+    USER_STATUS_ACTIVE,
+    USER_STATUS_DELETED,
+    USER_STATUS_SUSPENDED,
+)
 from app.repositories.account_lifecycle import (
     get_account_user_for_update,
     list_oidc_identity_keys_for_user,
     list_user_sessions_for_update,
+    lock_account_deletion_ledger_writer,
     lock_account_lifecycle_user,
     purge_member_private_data,
 )
@@ -28,6 +35,37 @@ class RecentAuthenticationRequiredError(ValueError):
     pass
 
 
+def tombstone_member_from_durable_deletion_evidence(
+    session: Session,
+    *,
+    user_id: UUID,
+    deleted_at: datetime,
+) -> None:
+    """Operator-only deletion replay after the caller has locked and validated the user."""
+
+    user = get_account_user_for_update(session, user_id)
+    if (
+        user is None
+        or user.account_kind != ACCOUNT_KIND_MEMBER
+        or user.status not in {USER_STATUS_ACTIVE, USER_STATUS_SUSPENDED}
+    ):
+        raise AccountDeletionNotAllowedError("Account cannot be deleted.")
+
+    user.status = USER_STATUS_DELETED
+    user.deleted_at = deleted_at
+    user.email = None
+    user.handle = None
+    user.display_name = DELETED_COOK_DISPLAY_NAME
+    session.flush()
+
+    purge_member_private_data(
+        session,
+        user_id=user.id,
+        deleted_at=deleted_at,
+    )
+    session.flush()
+
+
 def delete_member_account(
     session: Session,
     *,
@@ -38,6 +76,7 @@ def delete_member_account(
 ) -> None:
     """Irreversibly anonymize one member and remove all private account state."""
 
+    lock_account_deletion_ledger_writer(session)
     lock_account_lifecycle_user(session, authenticated.user_id)
     identity_keys = list_oidc_identity_keys_for_user(session, authenticated.user_id)
     for issuer, subject in identity_keys:
@@ -76,16 +115,8 @@ def delete_member_account(
     if confirmation != (user.handle or "DELETE"):
         raise AccountDeletionConfirmationError("Account deletion confirmation is invalid.")
 
-    user.status = USER_STATUS_DELETED
-    user.deleted_at = now
-    user.email = None
-    user.handle = None
-    user.display_name = DELETED_COOK_DISPLAY_NAME
-    session.flush()
-
-    purge_member_private_data(
+    tombstone_member_from_durable_deletion_evidence(
         session,
         user_id=user.id,
         deleted_at=now,
     )
-    session.flush()

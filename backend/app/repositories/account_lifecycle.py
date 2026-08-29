@@ -34,6 +34,27 @@ from app.models import (
 
 DELETED_REPORT_FINGERPRINT = hashlib.sha256(b"deleted-account-report").hexdigest()
 DELETED_MODERATION_FINGERPRINT = hashlib.sha256(b"deleted-account-moderation-action").hexdigest()
+_ACCOUNT_DELETION_LEDGER_LOCK_KEY = "account-deletion-ledger-v1"
+
+
+def lock_account_deletion_ledger_writer(session: Session) -> None:
+    """Let normal deletions proceed together while excluding a ledger snapshot."""
+
+    session.execute(
+        text(
+            "SELECT pg_advisory_xact_lock_shared(hashtextextended(:ledger_key, CAST(0 AS bigint)))"
+        ),
+        {"ledger_key": _ACCOUNT_DELETION_LEDGER_LOCK_KEY},
+    )
+
+
+def lock_account_deletion_ledger_exclusive(session: Session) -> None:
+    """Freeze account deletion while exporting or replaying one complete ledger."""
+
+    session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:ledger_key, CAST(0 AS bigint)))"),
+        {"ledger_key": _ACCOUNT_DELETION_LEDGER_LOCK_KEY},
+    )
 
 
 def get_account_user_for_update(session: Session, user_id: UUID) -> User | None:
