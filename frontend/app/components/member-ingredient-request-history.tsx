@@ -1,23 +1,14 @@
 "use client";
 
-import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 
-import {
-  browseMyIngredientRequests,
-  type CatalogIngredientSelection,
-  fetchMyIngredientRequest,
-  type IngredientCatalogRequestStatus,
-  IngredientCatalogApiError,
-  type MemberIngredientRequest,
-  type MemberIngredientRequestPage,
+import type {
+  CatalogIngredientSelection,
+  IngredientCatalogRequestStatus,
 } from "../../lib/ingredient-catalog-api";
-
-const STATUS_LABELS: Record<IngredientCatalogRequestStatus, string> = {
-  pending: "Pending",
-  approved: "Approved",
-  rejected: "Rejected",
-  duplicate: "Duplicate",
-};
+import { MemberIngredientRequestList } from "./member-ingredient-request-list";
+import { useMemberIngredientResolutionSelection } from "./use-member-ingredient-resolution-selection";
+import { useMemberIngredientRequestHistory } from "./use-member-ingredient-request-history";
 
 interface MemberIngredientRequestHistoryProps {
   contextLabel?: string;
@@ -27,34 +18,6 @@ interface MemberIngredientRequestHistoryProps {
   pageSize?: number;
 }
 
-function isAbortError(reason: unknown): boolean {
-  return reason instanceof DOMException && reason.name === "AbortError";
-}
-
-function formatRequestTime(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(parsed);
-}
-
-function requestGuidance(request: MemberIngredientRequest): string {
-  if (request.status === "pending") {
-    return "Waiting for curator review. The proposed text is not a catalog ingredient.";
-  }
-  if (request.status === "rejected") {
-    return "This request was not added to the catalog and cannot be selected in a recipe.";
-  }
-  if (request.status === "duplicate") {
-    return "A curator matched this request to an ingredient that is already in the catalog.";
-  }
-  return "A curator added this ingredient to the catalog.";
-}
-
 export function MemberIngredientRequestHistory({
   contextLabel,
   idPrefix,
@@ -62,23 +25,6 @@ export function MemberIngredientRequestHistory({
   onSelectResolution,
   pageSize = 20,
 }: MemberIngredientRequestHistoryProps) {
-  const listSequenceRef = useRef(0);
-  const selectionControllerRef = useRef<AbortController | null>(null);
-  const selectionPendingRef = useRef(false);
-  const [statusFilter, setStatusFilter] = useState<IngredientCatalogRequestStatus | "">("");
-  const [queryInput, setQueryInput] = useState("");
-  const [query, setQuery] = useState("");
-  const [pageNumber, setPageNumber] = useState(1);
-  const [requestPage, setRequestPage] = useState<MemberIngredientRequestPage | null>(null);
-  const [loadError, setLoadError] = useState("");
-  const [selectionError, setSelectionError] = useState("");
-  const [authenticationExpired, setAuthenticationExpired] = useState(false);
-  const [selectingRequestId, setSelectingRequestId] = useState<string | null>(null);
-  const [reload, setReload] = useState(0);
-  const listRequestKey = `${statusFilter}\u0000${query}\u0000${pageNumber}\u0000${pageSize}\u0000${reload}`;
-  const [settledListRequestKey, setSettledListRequestKey] = useState<string | null>(null);
-  const loading = settledListRequestKey !== listRequestKey;
-
   const selectionEnabled = Boolean(contextLabel && onSelectResolution);
   const regionLabel = selectionEnabled
     ? `Choose from my ingredient requests for ${contextLabel}`
@@ -89,130 +35,51 @@ export function MemberIngredientRequestHistory({
   const filterLabel = selectionEnabled
     ? `Request status for ${contextLabel}`
     : "Request status";
+  const {
+    authenticationExpired,
+    changePage,
+    changeStatusFilter,
+    expireAuthentication,
+    loadError,
+    loading,
+    query,
+    queryInput,
+    refresh,
+    requestPage,
+    restoreAuthentication,
+    statusFilter,
+    submitSearch,
+    updateQueryInput,
+  } = useMemberIngredientRequestHistory({
+    pageSize,
+    selectionEnabled,
+  });
+  const { clearSelectionError, selectResolution, selectingRequestId, selectionError } =
+    useMemberIngredientResolutionSelection({
+      onAuthenticationExpired: expireAuthentication,
+      onAuthenticationRestored: restoreAuthentication,
+      onSelectResolution,
+      selectionEnabled,
+    });
 
-  useEffect(() => {
-    const sequence = listSequenceRef.current + 1;
-    listSequenceRef.current = sequence;
-    const controller = new AbortController();
-
-    void browseMyIngredientRequests({
-      status: statusFilter || undefined,
-      page: pageNumber,
-      pageSize,
-      query,
-      signal: controller.signal,
-    })
-      .then((result) => {
-        if (!controller.signal.aborted && sequence === listSequenceRef.current) {
-          setRequestPage(result);
-          setLoadError("");
-          setAuthenticationExpired(false);
-        }
-      })
-      .catch((reason: unknown) => {
-        if (isAbortError(reason) || sequence !== listSequenceRef.current) {
-          return;
-        }
-        setRequestPage(null);
-        if (reason instanceof IngredientCatalogApiError && reason.status === 401) {
-          setAuthenticationExpired(true);
-        }
-        setLoadError(
-          reason instanceof IngredientCatalogApiError && reason.status === 401
-            ? selectionEnabled
-              ? "Your session expired. Your recipe was not changed. Sign in again in another tab, then retry."
-              : "Your session expired. Sign in again, then retry your request history."
-            : reason instanceof IngredientCatalogApiError
-              ? reason.message
-              : "Your ingredient requests could not be loaded. Please try again.",
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted && sequence === listSequenceRef.current) {
-          setSettledListRequestKey(listRequestKey);
-        }
-      });
-
-    return () => controller.abort();
-  }, [listRequestKey, pageNumber, pageSize, query, selectionEnabled, statusFilter]);
-
-  useEffect(
-    () => () => {
-      selectionControllerRef.current?.abort();
-    },
-    [],
-  );
-
-  function submitSearch() {
-    const nextQuery = queryInput.trim();
-    setLoadError("");
-    setPageNumber(1);
-    setSelectionError("");
-    if (nextQuery === query && pageNumber === 1) {
-      setReload((current) => current + 1);
-    } else {
-      setQuery(nextQuery);
-    }
+  function changeHistoryStatus(status: IngredientCatalogRequestStatus | "") {
+    clearSelectionError();
+    changeStatusFilter(status);
   }
 
-  async function selectResolution(request: MemberIngredientRequest) {
-    if (
-      selectionPendingRef.current ||
-      !selectionEnabled ||
-      !onSelectResolution ||
-      !request.resolved_ingredient
-    ) {
-      return;
-    }
+  function submitHistorySearch() {
+    clearSelectionError();
+    submitSearch();
+  }
 
-    selectionPendingRef.current = true;
-    selectionControllerRef.current?.abort();
-    const controller = new AbortController();
-    selectionControllerRef.current = controller;
-    setSelectingRequestId(request.id);
-    setSelectionError("");
+  function changeHistoryPage(page: number) {
+    clearSelectionError();
+    changePage(page);
+  }
 
-    try {
-      const current = await fetchMyIngredientRequest(request.id, controller.signal);
-      if (controller.signal.aborted) {
-        return;
-      }
-      const resolved = current.resolved_ingredient;
-      if (
-        current.id !== request.id ||
-        (current.status !== "approved" && current.status !== "duplicate") ||
-        resolved === null ||
-        resolved.id !== request.resolved_ingredient.id
-      ) {
-        setSelectionError(
-          "This request changed since it was loaded. Your recipe was not changed. Refresh your requests before choosing it.",
-        );
-        return;
-      }
-
-      setAuthenticationExpired(false);
-      onSelectResolution({
-        ingredientId: resolved.id,
-        canonicalName: resolved.canonical_name,
-        displayName: resolved.canonical_name,
-      });
-    } catch (reason) {
-      if (!isAbortError(reason)) {
-        if (reason instanceof IngredientCatalogApiError && reason.status === 401) {
-          setAuthenticationExpired(true);
-        }
-        setSelectionError(
-          reason instanceof IngredientCatalogApiError && reason.status === 401
-            ? "Your session expired. Your recipe was not changed. Sign in again in another tab, then retry."
-            : "We couldn’t confirm this catalog resolution. Your recipe was not changed. Try again.",
-        );
-      }
-    } finally {
-      selectionPendingRef.current = false;
-      if (!controller.signal.aborted) {
-        setSelectingRequestId(null);
-      }
-    }
+  function refreshHistory() {
+    clearSelectionError();
+    refresh();
   }
 
   return (
@@ -247,12 +114,9 @@ export function MemberIngredientRequestHistory({
           <select
             id={`${idPrefix}-status-filter`}
             value={statusFilter}
-            onChange={(event) => {
-              setLoadError("");
-              setSelectionError("");
-              setStatusFilter(event.target.value as IngredientCatalogRequestStatus | "");
-              setPageNumber(1);
-            }}
+            onChange={(event) =>
+              changeHistoryStatus(event.target.value as IngredientCatalogRequestStatus | "")
+            }
           >
             <option value="">All</option>
             <option value="pending">Pending</option>
@@ -261,11 +125,7 @@ export function MemberIngredientRequestHistory({
             <option value="duplicate">Duplicate</option>
           </select>
         </div>
-        <div
-          className="member-request-history__search"
-          role="search"
-          aria-label={searchLabel}
-        >
+        <div className="member-request-history__search" role="search" aria-label={searchLabel}>
           <label htmlFor={`${idPrefix}-request-search`}>{searchLabel}</label>
           <div>
             <input
@@ -274,18 +134,18 @@ export function MemberIngredientRequestHistory({
               maxLength={100}
               autoComplete="off"
               value={queryInput}
-              onChange={(event) => setQueryInput(event.target.value)}
+              onChange={(event) => updateQueryInput(event.target.value)}
               onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
                 if (event.key === "Enter") {
                   event.preventDefault();
-                  submitSearch();
+                  submitHistorySearch();
                 }
               }}
             />
             <button
               className="button button--secondary"
               type="button"
-              onClick={submitSearch}
+              onClick={submitHistorySearch}
             >
               Search requests
             </button>
@@ -296,15 +156,7 @@ export function MemberIngredientRequestHistory({
       {loadError ? (
         <div className="member-request-history__error" role="alert">
           <p>{loadError}</p>
-          <button
-            className="button button--secondary"
-            type="button"
-            onClick={() => {
-              setLoadError("");
-              setSelectionError("");
-              setReload((current) => current + 1);
-            }}
-          >
+          <button className="button button--secondary" type="button" onClick={refreshHistory}>
             Try again
           </button>
         </div>
@@ -352,142 +204,22 @@ export function MemberIngredientRequestHistory({
       ) : null}
 
       {requestPage && requestPage.items.length > 0 ? (
-        <>
-          <p className="member-request-history__summary" role="status" aria-live="polite">
-            {requestPage.total} request{requestPage.total === 1 ? "" : "s"}. Page{" "}
-            {requestPage.page} of {requestPage.total_pages}.
-          </p>
-          <div className="member-request-history__list">
-            {requestPage.items.map((request) => {
-              const resolved = request.resolved_ingredient;
-              const selectable =
-                selectionEnabled &&
-                resolved !== null &&
-                (request.status === "approved" || request.status === "duplicate");
-              return (
-                <article
-                  key={request.id}
-                  className="member-request-card"
-                  aria-label={`Ingredient request: ${request.proposed_name}`}
-                >
-                  <header className="member-request-card__header">
-                    <h3>{request.proposed_name}</h3>
-                    <span className={`curation-status curation-status--${request.status}`}>
-                      {STATUS_LABELS[request.status]}
-                    </span>
-                  </header>
-                  <dl className="member-request-card__facts">
-                    <div>
-                      <dt>Status</dt>
-                      <dd>{STATUS_LABELS[request.status]}</dd>
-                    </div>
-                    <div>
-                      <dt>Requested</dt>
-                      <dd>
-                        <time dateTime={request.created_at}>
-                          {formatRequestTime(request.created_at)}
-                        </time>
-                      </dd>
-                    </div>
-                    {request.reviewed_at ? (
-                      <div>
-                        <dt>Reviewed</dt>
-                        <dd>
-                          <time dateTime={request.reviewed_at}>
-                            {formatRequestTime(request.reviewed_at)}
-                          </time>
-                        </dd>
-                      </div>
-                    ) : null}
-                    {request.context ? (
-                      <div className="member-request-card__wide">
-                        <dt>Context</dt>
-                        <dd>{request.context}</dd>
-                      </div>
-                    ) : null}
-                    {request.decision_reason ? (
-                      <div className="member-request-card__wide">
-                        <dt>Decision reason</dt>
-                        <dd>{request.decision_reason}</dd>
-                      </div>
-                    ) : null}
-                    {resolved ? (
-                      <div className="member-request-card__wide">
-                        <dt>Resolved ingredient</dt>
-                        <dd>
-                          <strong>{resolved.canonical_name}</strong>
-                          {resolved.aliases.length > 0 ? (
-                            <small>Also known as: {resolved.aliases.join(", ")}</small>
-                          ) : null}
-                        </dd>
-                      </div>
-                    ) : null}
-                  </dl>
-                  <p className="member-request-card__guidance">{requestGuidance(request)}</p>
-                  {selectable && resolved && contextLabel ? (
-                    <button
-                      className="button button--secondary"
-                      type="button"
-                      disabled={loading || selectingRequestId !== null}
-                      onClick={() => void selectResolution(request)}
-                    >
-                      {selectingRequestId === request.id
-                        ? `Confirming ${resolved.canonical_name}…`
-                        : `Use ${resolved.canonical_name} for ${contextLabel}`}
-                    </button>
-                  ) : resolved ? (
-                    <p className="member-request-card__availability">
-                      This catalog resolution is available from an ingredient picker while you
-                      edit a recipe.
-                    </p>
-                  ) : null}
-                </article>
-              );
-            })}
-          </div>
-
-          {requestPage.total_pages > 1 ? (
-            <nav className="member-request-history__pagination" aria-label={`${regionLabel} pages`}>
-              <button
-                className="button button--quiet"
-                type="button"
-                disabled={requestPage.page <= 1}
-                onClick={() => {
-                  setLoadError("");
-                  setSelectionError("");
-                  setPageNumber(requestPage.page - 1);
-                }}
-              >
-                ← Previous
-              </button>
-              <span aria-current="page">
-                Page {requestPage.page} of {requestPage.total_pages}
-              </span>
-              <button
-                className="button button--quiet"
-                type="button"
-                disabled={requestPage.page >= requestPage.total_pages}
-                onClick={() => {
-                  setLoadError("");
-                  setSelectionError("");
-                  setPageNumber(requestPage.page + 1);
-                }}
-              >
-                Next →
-              </button>
-            </nav>
-          ) : null}
-        </>
+        <MemberIngredientRequestList
+          contextLabel={contextLabel}
+          loading={loading}
+          regionLabel={regionLabel}
+          requestPage={requestPage}
+          selectingRequestId={selectingRequestId}
+          selectionEnabled={selectionEnabled}
+          onChangePage={changeHistoryPage}
+          onSelectResolution={selectResolution}
+        />
       ) : null}
 
       <button
         className="button button--quiet member-request-history__refresh"
         type="button"
-        onClick={() => {
-          setLoadError("");
-          setSelectionError("");
-          setReload((current) => current + 1);
-        }}
+        onClick={refreshHistory}
       >
         Refresh my requests
       </button>
