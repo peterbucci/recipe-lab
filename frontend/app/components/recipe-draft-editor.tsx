@@ -5,6 +5,7 @@ import {
   type FormEvent,
   useCallback,
   useEffect,
+  useReducer,
   useRef,
   useState,
 } from "react";
@@ -17,7 +18,6 @@ import {
   discardRecipeDraft,
   fetchRecipeDraft,
   RecipeDraftApiError,
-  type RecipeDraftDetail,
   updateRecipeDraft,
 } from "../../lib/recipe-draft-api";
 import {
@@ -42,6 +42,14 @@ import {
   replaceDraftIngredient,
   replaceDraftInstruction,
 } from "../../lib/recipe-draft-editor-transforms";
+import {
+  type DraftFailureKind,
+  initialRecipeDraftEditorDomainState,
+  prepareDraftDiscardAttempt,
+  prepareDraftSaveAttempt,
+  recipeDraftEditorIsDirty,
+  recipeDraftEditorReducer,
+} from "../../lib/recipe-draft-editor-state";
 import { MemberRouteGate } from "./member-route-gate";
 import { GuardedLink, useNavigationBlocker } from "./navigation-blocker-provider";
 import { RecipeDraftDetailsSection } from "./recipe-draft-details-section";
@@ -56,12 +64,6 @@ interface RecipeDraftEditorProps {
   measurementUnits: readonly CatalogUnit[];
 }
 
-interface SaveAttempt {
-  fingerprint: string;
-  idempotencyKey: string;
-  revision: number;
-}
-
 function draftLoadErrorMessage(reason: unknown): string {
   if (reason instanceof RecipeDraftApiError && reason.status === 404) {
     return "This private draft was not found. It may have been discarded, or it may belong to another account.";
@@ -69,78 +71,137 @@ function draftLoadErrorMessage(reason: unknown): string {
   return "Recipe Lab could not open this private draft. Please try again.";
 }
 
+function draftFailureKind(reason: unknown): DraftFailureKind {
+  if (
+    reason instanceof RecipeDraftApiError &&
+    reason.code === "recipe_draft_revision_conflict"
+  ) {
+    return "revision-conflict";
+  }
+  if (
+    (reason instanceof RecipeDraftApiError || reason instanceof AuthApiError) &&
+    reason.status === 401
+  ) {
+    return "authentication-interruption";
+  }
+  if (
+    !(reason instanceof RecipeDraftApiError || reason instanceof AuthApiError) ||
+    (reason instanceof RecipeDraftApiError &&
+      (reason.code === "invalid_recipe_draft_response" || reason.outcome === "unknown"))
+  ) {
+    return "ambiguous-result";
+  }
+  return "failed-retryable";
+}
+
+type DraftLoadResult = "failed" | "loaded" | "skipped-newer-work";
+
 function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: RecipeDraftEditorProps) {
   const router = useRouter();
   const { setBlocked } = useNavigationBlocker();
-  const [detail, setDetail] = useState<RecipeDraftDetail | null>(null);
-  const [draft, setDraft] = useState<RecipeDraftEditorState | null>(null);
-  const draftRef = useRef<RecipeDraftEditorState | null>(null);
-  const [baseline, setBaseline] = useState("");
+  const [domain, dispatch] = useReducer(
+    recipeDraftEditorReducer,
+    initialRecipeDraftEditorDomainState,
+  );
   const [loading, setLoading] = useState(true);
-  const [pending, setPending] = useState<"save" | "discard" | null>(null);
   const [publicationBusy, setPublicationBusy] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [formError, setFormError] = useState("");
-  const [status, setStatus] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [conflict, setConflict] = useState(false);
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [announcement, setAnnouncement] = useState("");
-  const saveAttempt = useRef<SaveAttempt | null>(null);
-  const discardAttempt = useRef<string | null>(null);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const pendingRef = useRef(false);
   const pendingFocusId = useRef<string | null>(null);
+  const latestDraftFingerprint = useRef("");
+  const loadRequestToken = useRef(0);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const work = domain.work.status === "unavailable" ? null : domain.work;
+  const detail = work?.detail ?? null;
+  const draft = work?.draft ?? null;
+  const dirty = recipeDraftEditorIsDirty(domain);
+  const pending =
+    domain.save.status === "saving"
+      ? "save"
+      : domain.discard.operation.status === "discarding"
+        ? "discard"
+        : null;
+  const conflict =
+    domain.save.status === "revision-conflict" ||
+    domain.discard.operation.status === "revision-conflict";
+  const authenticationInterrupted =
+    domain.save.status === "authentication-interruption" ||
+    domain.discard.operation.status === "authentication-interruption";
+  const confirmDiscard = domain.discard.confirmation === "visible";
+  const editorStatus =
+    domain.save.status === "saving"
+      ? "Saving your private draft…"
+      : domain.save.status === "saved"
+        ? domain.save.newerLocalWork
+          ? "Earlier changes saved. Your newer edits are still unsaved."
+          : "Draft saved privately."
+        : domain.notice === "loaded-latest"
+          ? "Loaded the latest saved version."
+          : dirty
+            ? "You have unsaved changes."
+            : "All changes are saved privately.";
+
+  const load = useCallback(async (
+    signal?: AbortSignal,
+    mode: "initial" | "replacement" = "initial",
+    startingFingerprint = "",
+  ): Promise<DraftLoadResult> => {
+    const requestToken = ++loadRequestToken.current;
     setLoading(true);
     setLoadError("");
     try {
       const loaded = await fetchRecipeDraft(draftId, signal);
       const state = hydrateRecipeDraft(loaded);
-      setDetail(loaded);
-      draftRef.current = state;
-      setDraft(state);
-      setBaseline(recipeDraftFingerprint(state));
+      if (requestToken !== loadRequestToken.current) return "failed";
+      if (mode === "replacement" && latestDraftFingerprint.current !== startingFingerprint) {
+        dispatch({ type: "reload-skipped-newer-work" });
+        return "skipped-newer-work";
+      }
+      latestDraftFingerprint.current = recipeDraftFingerprint(state);
+      dispatch({ detail: loaded, draft: state, mode, type: "draft-loaded" });
       setFieldErrors({});
       setFormError("");
-      setConflict(false);
-      return true;
+      return "loaded";
     } catch (reason) {
-      if (reason instanceof DOMException && reason.name === "AbortError") return false;
-      setLoadError(draftLoadErrorMessage(reason));
-      return false;
+      if (reason instanceof DOMException && reason.name === "AbortError") return "failed";
+      if (requestToken === loadRequestToken.current) {
+        setLoadError(draftLoadErrorMessage(reason));
+      }
+      return "failed";
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (!signal?.aborted && requestToken === loadRequestToken.current) setLoading(false);
     }
   }, [draftId]);
 
   useEffect(() => {
     const controller = new AbortController();
+    const requestToken = ++loadRequestToken.current;
     void fetchRecipeDraft(draftId, controller.signal)
       .then((loaded) => {
+        if (requestToken !== loadRequestToken.current) return;
         const state = hydrateRecipeDraft(loaded);
-        setDetail(loaded);
-        draftRef.current = state;
-        setDraft(state);
-        setBaseline(recipeDraftFingerprint(state));
+        latestDraftFingerprint.current = recipeDraftFingerprint(state);
+        dispatch({ detail: loaded, draft: state, mode: "initial", type: "draft-loaded" });
         setFieldErrors({});
         setFormError("");
-        setConflict(false);
       })
       .catch((reason: unknown) => {
         if (reason instanceof DOMException && reason.name === "AbortError") return;
-        setLoadError(draftLoadErrorMessage(reason));
+        if (requestToken === loadRequestToken.current) {
+          setLoadError(draftLoadErrorMessage(reason));
+        }
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted && requestToken === loadRequestToken.current) {
+          setLoading(false);
+        }
       });
     return () => controller.abort();
   }, [draftId]);
-
-  const fingerprint = draft ? recipeDraftFingerprint(draft) : "";
-  const dirty = draft !== null && baseline !== "" && fingerprint !== baseline;
-
   useEffect(() => {
     setBlocked(dirty);
     return () => setBlocked(false);
@@ -153,11 +214,9 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
   }, [draft]);
 
   function change(next: RecipeDraftEditorState) {
-    draftRef.current = next;
-    setDraft(next);
-    setStatus("");
+    latestDraftFingerprint.current = recipeDraftFingerprint(next);
+    dispatch({ draft: next, type: "draft-changed" });
     setFormError("");
-    setConflict(false);
   }
 
   function replaceIngredient(key: string, ingredient: RecipeDraftIngredientState) {
@@ -245,16 +304,14 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
       return;
     }
     const currentFingerprint = recipeDraftFingerprint(draft);
-    const attempt =
-      saveAttempt.current?.fingerprint === currentFingerprint && saveAttempt.current.revision === detail.revision
-        ? saveAttempt.current
-        : { fingerprint: currentFingerprint, revision: detail.revision, idempotencyKey: createIdempotencyKey() };
-    saveAttempt.current = attempt;
+    const attempt = prepareDraftSaveAttempt(domain, {
+      fingerprint: currentFingerprint,
+      newIdempotencyKey: createIdempotencyKey(),
+      revision: detail.revision,
+    });
     pendingRef.current = true;
-    setPending("save");
+    dispatch({ attempt, type: "save-started" });
     setFormError("");
-    setConflict(false);
-    setStatus("Saving your private draft…");
     try {
       const saved = await updateRecipeDraft(
         draftId,
@@ -262,32 +319,22 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
         attempt.idempotencyKey,
       );
       const savedState = hydrateRecipeDraft(saved);
-      const savedFingerprint = recipeDraftFingerprint(savedState);
-      const latestDraft = draftRef.current;
       const hasNewerLocalWork =
-        latestDraft !== null && recipeDraftFingerprint(latestDraft) !== attempt.fingerprint;
-      saveAttempt.current = null;
-      setDetail(saved);
-      setBaseline(savedFingerprint);
-      if (!hasNewerLocalWork) {
-        draftRef.current = savedState;
-        setDraft(savedState);
-      }
+        latestDraftFingerprint.current !== attempt.fingerprint;
+      dispatch({
+        attemptId: attempt.idempotencyKey,
+        detail: saved,
+        draft: savedState,
+        type: "save-succeeded",
+      });
+      if (!hasNewerLocalWork) latestDraftFingerprint.current = recipeDraftFingerprint(savedState);
       setFieldErrors({});
-      setStatus(
-        hasNewerLocalWork
-          ? "Earlier changes saved. Your newer edits are still unsaved."
-          : "Draft saved privately.",
-      );
     } catch (reason) {
-      setStatus("");
-      if (reason instanceof RecipeDraftApiError && reason.code === "recipe_draft_revision_conflict") {
-        setConflict(true);
+      const kind = draftFailureKind(reason);
+      dispatch({ attemptId: attempt.idempotencyKey, kind, type: "save-failed" });
+      if (kind === "revision-conflict") {
         setFormError("This draft changed in another tab. Your unsaved version is still here.");
-      } else if (
-        (reason instanceof RecipeDraftApiError || reason instanceof AuthApiError) &&
-        reason.status === 401
-      ) {
+      } else if (kind === "authentication-interruption") {
         setFormError("Your session expired. Your edits are still here. Sign in again before saving.");
       } else {
         setFormError("Recipe Lab could not save this draft. Your edits are still here.");
@@ -295,40 +342,39 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
       window.setTimeout(() => errorSummaryRef.current?.focus(), 0);
     } finally {
       pendingRef.current = false;
-      setPending(null);
     }
   }
 
   async function reloadSavedVersion() {
     if (!window.confirm("Replace your unsaved version with the latest saved version?")) return;
-    if (await load()) setStatus("Loaded the latest saved version.");
+    const startingFingerprint = latestDraftFingerprint.current;
+    await load(undefined, "replacement", startingFingerprint);
   }
 
   async function discard() {
     if (!detail || pendingRef.current || pending) return;
-    const key = discardAttempt.current ?? createIdempotencyKey();
-    discardAttempt.current = key;
+    const attempt = prepareDraftDiscardAttempt(domain, {
+      newIdempotencyKey: createIdempotencyKey(),
+      revision: detail.revision,
+    });
     pendingRef.current = true;
-    setPending("discard");
+    dispatch({ attempt, type: "discard-started" });
     setFormError("");
     try {
-      await discardRecipeDraft(draftId, detail.revision, key);
+      await discardRecipeDraft(draftId, attempt.revision, attempt.idempotencyKey);
       setBlocked(false);
       router.replace("/account/recipes?view=drafts");
     } catch (reason) {
-      if (reason instanceof RecipeDraftApiError && reason.code === "recipe_draft_revision_conflict") {
-        setConflict(true);
+      const kind = draftFailureKind(reason);
+      dispatch({ attemptId: attempt.idempotencyKey, kind, type: "discard-failed" });
+      if (kind === "revision-conflict") {
         setFormError("This draft changed in another tab. It was not discarded, and your version is still here.");
-      } else if (
-        (reason instanceof RecipeDraftApiError || reason instanceof AuthApiError) &&
-        reason.status === 401
-      ) {
+      } else if (kind === "authentication-interruption") {
         setFormError("Your session expired. This draft was not discarded. Sign in again to continue.");
       } else {
         setFormError("Recipe Lab could not discard this draft. It is still private and intact.");
       }
       pendingRef.current = false;
-      setPending(null);
       window.setTimeout(() => errorSummaryRef.current?.focus(), 0);
     }
   }
@@ -337,7 +383,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
     setFieldErrors(validation.fieldErrors);
     if (validation.payload) {
       setFormError("");
-      setConflict(false);
+      if (draft) dispatch({ draft, type: "draft-changed" });
       return;
     }
     setFormError(
@@ -398,14 +444,17 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
           <div ref={errorSummaryRef} className="draft-editor__error-summary" role="alert" tabIndex={-1}>
             <h2>Your draft was not saved</h2>
             <p>{formError}</p>
-            {Object.keys(fieldErrors).length ? <p>{Object.keys(fieldErrors).length} field{Object.keys(fieldErrors).length === 1 ? " needs" : "s need"} attention.</p> : null}
+            {Object.keys(fieldErrors).length ? (
+              // prettier-ignore
+              <p>{Object.keys(fieldErrors).length} field{Object.keys(fieldErrors).length === 1 ? " needs" : "s need"} attention.</p>
+            ) : null}
             {conflict ? (
               <div className="button-row">
                 <button className="button button--secondary" type="button" onClick={() => void reloadSavedVersion()}>Reload saved version</button>
                 <a className="button button--quiet" href={`/account/recipe-drafts/${draftId}`} target="_blank" rel="noreferrer">Open saved version in a new tab</a>
               </div>
             ) : null}
-            {formError.includes("session expired") ? (
+            {authenticationInterrupted ? (
               <a className="button button--secondary" href={`/sign-in?${new URLSearchParams({ return_to: `/account/recipe-drafts/${draftId}` }).toString()}`} target="_blank" rel="noreferrer">Sign in again in a new tab</a>
             ) : null}
           </div>
@@ -463,16 +512,16 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
             <button className="button button--primary" type="submit" disabled={actionDisabled || !dirty}>{pending === "save" ? "Saving…" : dirty ? "Save draft" : "Draft saved"}</button>
             <GuardedLink className="button button--secondary" href="/account/recipes?view=drafts">Back to drafts</GuardedLink>
           </div>
-          <p role="status" aria-live="polite">{status || (dirty ? "You have unsaved changes." : "All changes are saved privately.")}</p>
+          <p role="status" aria-live="polite">{editorStatus}</p>
         </div>
 
         <RecipeDraftDiscardSection
           confirming={confirmDiscard}
           disabled={actionDisabled}
           discarding={pending === "discard"}
-          onCancel={() => setConfirmDiscard(false)}
+          onCancel={() => dispatch({ type: "discard-canceled" })}
           onConfirm={discard}
-          onRequest={() => setConfirmDiscard(true)}
+          onRequest={() => dispatch({ type: "discard-requested" })}
         />
       </form>
     </main>

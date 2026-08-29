@@ -11,6 +11,7 @@ import { RecipeDraftEditor } from "./recipe-draft-editor";
 const mocks = vi.hoisted(() => ({
   discardRecipeDraft: vi.fn(),
   fetchRecipeDraft: vi.fn(),
+  key: vi.fn(),
   refresh: vi.fn(),
   replace: vi.fn(),
   updateRecipeDraft: vi.fn(),
@@ -22,7 +23,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("../../lib/idempotency-key", () => ({
-  createIdempotencyKey: () => "draft-save-key",
+  createIdempotencyKey: () => mocks.key(),
 }));
 
 vi.mock("../../lib/recipe-draft-api", async (importOriginal) => {
@@ -85,6 +86,7 @@ describe("RecipeDraftEditor", () => {
   beforeEach(() => {
     mocks.discardRecipeDraft.mockReset().mockResolvedValue(undefined);
     mocks.fetchRecipeDraft.mockReset().mockResolvedValue(detail);
+    mocks.key.mockReset().mockReturnValue("draft-save-key");
     mocks.updateRecipeDraft.mockReset();
     mocks.refresh.mockReset();
     mocks.replace.mockReset();
@@ -252,6 +254,88 @@ describe("RecipeDraftEditor", () => {
     ).toBeVisible();
   });
 
+  it("moves an ordinary save from dirty to saving to saved", async () => {
+    const save = deferred<RecipeDraftDetail>();
+    mocks.updateRecipeDraft.mockReturnValue(save.promise);
+    renderEditor();
+
+    const title = await screen.findByLabelText("Title");
+    fireEvent.change(title, { target: { value: "Saved soup" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+    expect(await screen.findByText("Saving your private draft…")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    save.resolve({
+      ...detail,
+      revision: 4,
+      title: "Saved soup",
+      updated_at: "2026-08-25T12:01:00Z",
+    });
+
+    expect(await screen.findByText("Draft saved privately.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Draft saved" })).toBeDisabled();
+    expect(title).toHaveValue("Saved soup");
+  });
+
+  it("retries the same failed save attempt with the same idempotency key", async () => {
+    mocks.key.mockReset().mockReturnValueOnce("first-save-key").mockReturnValue("unused-key");
+    mocks.updateRecipeDraft
+      .mockRejectedValueOnce(new RecipeDraftApiError("Unavailable", 503))
+      .mockResolvedValueOnce({
+        ...detail,
+        revision: 4,
+        title: "Retry soup",
+        updated_at: "2026-08-25T12:01:00Z",
+      });
+    renderEditor();
+
+    const title = await screen.findByLabelText("Title");
+    fireEvent.change(title, { target: { value: "Retry soup" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(
+      await screen.findByText("Recipe Lab could not save this draft. Your edits are still here."),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(mocks.updateRecipeDraft).toHaveBeenCalledTimes(2));
+    expect(mocks.updateRecipeDraft.mock.calls.map((call) => call[2])).toEqual([
+      "first-save-key",
+      "first-save-key",
+    ]);
+    expect(await screen.findByText("Draft saved privately.")).toBeVisible();
+  });
+
+  it("reuses a failed save attempt after an edit is changed back", async () => {
+    mocks.key.mockReset().mockReturnValueOnce("first-save-key").mockReturnValue("unused-key");
+    mocks.updateRecipeDraft
+      .mockRejectedValueOnce(new TypeError("The response was lost"))
+      .mockResolvedValueOnce({
+        ...detail,
+        revision: 4,
+        title: "Retry soup",
+        updated_at: "2026-08-25T12:01:00Z",
+      });
+    renderEditor();
+
+    const title = await screen.findByLabelText("Title");
+    fireEvent.change(title, { target: { value: "Retry soup" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(
+      await screen.findByText("Recipe Lab could not save this draft. Your edits are still here."),
+    ).toBeVisible();
+
+    fireEvent.change(title, { target: { value: "Temporary wording" } });
+    fireEvent.change(title, { target: { value: "Retry soup" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() => expect(mocks.updateRecipeDraft).toHaveBeenCalledTimes(2));
+    expect(mocks.updateRecipeDraft.mock.calls.map((call) => call[2])).toEqual([
+      "first-save-key",
+      "first-save-key",
+    ]);
+    expect(await screen.findByText("Draft saved privately.")).toBeVisible();
+  });
+
   it("does not let a completed save overwrite newer local edits", async () => {
     const firstSave = deferred<RecipeDraftDetail>();
     mocks.updateRecipeDraft
@@ -382,6 +466,67 @@ describe("RecipeDraftEditor", () => {
     expect(screen.getByLabelText("Description")).toHaveValue("Keep editing locally.");
   });
 
+  it("replaces local work only after reload is confirmed", async () => {
+    mocks.fetchRecipeDraft
+      .mockResolvedValueOnce(detail)
+      .mockResolvedValueOnce({
+        ...detail,
+        revision: 4,
+        title: "Latest saved soup",
+        updated_at: "2026-08-25T12:01:00Z",
+      });
+    mocks.updateRecipeDraft.mockRejectedValue(
+      new RecipeDraftApiError(
+        "The draft has a newer saved revision.",
+        409,
+        "recipe_draft_revision_conflict",
+      ),
+    );
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderEditor();
+
+    const title = await screen.findByLabelText("Title");
+    fireEvent.change(title, { target: { value: "Unsaved soup" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Reload saved version" }));
+
+    await waitFor(() => expect(title).toHaveValue("Latest saved soup"));
+    expect(screen.getByText("Loaded the latest saved version.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Draft saved" })).toBeDisabled();
+  });
+
+  it("does not replace edits made while a confirmed reload is pending", async () => {
+    const reload = deferred<RecipeDraftDetail>();
+    mocks.fetchRecipeDraft.mockResolvedValueOnce(detail).mockReturnValueOnce(reload.promise);
+    mocks.updateRecipeDraft.mockRejectedValue(
+      new RecipeDraftApiError(
+        "The draft has a newer saved revision.",
+        409,
+        "recipe_draft_revision_conflict",
+      ),
+    );
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderEditor();
+
+    const title = await screen.findByLabelText("Title");
+    fireEvent.change(title, { target: { value: "First local soup" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Reload saved version" }));
+    await waitFor(() => expect(mocks.fetchRecipeDraft).toHaveBeenCalledTimes(2));
+
+    fireEvent.change(title, { target: { value: "Newer local soup" } });
+    reload.resolve({
+      ...detail,
+      revision: 4,
+      title: "Latest saved soup",
+      updated_at: "2026-08-25T12:01:00Z",
+    });
+
+    await waitFor(() => expect(title).toHaveValue("Newer local soup"));
+    expect(screen.getByText("You have unsaved changes.")).toBeVisible();
+    expect(screen.queryByText("Loaded the latest saved version.")).toBeNull();
+  });
+
   it("returns editor backlinks and discard success to the My recipes Drafts view", async () => {
     renderEditor();
 
@@ -400,6 +545,22 @@ describe("RecipeDraftEditor", () => {
       expect(mocks.discardRecipeDraft).toHaveBeenCalledWith(DRAFT_ID, 3, "draft-save-key"),
     );
     expect(mocks.replace).toHaveBeenCalledWith("/account/recipes?view=drafts");
+  });
+
+  it("cancels discard confirmation without deleting the draft", async () => {
+    renderEditor();
+
+    const title = await screen.findByLabelText("Title");
+    fireEvent.change(title, { target: { value: "Keep this dirty soup" } });
+    fireEvent.click(screen.getByRole("button", { name: "Discard draft…" }));
+    expect(screen.getByRole("button", { name: "Discard permanently" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Keep draft" }));
+
+    expect(screen.queryByRole("button", { name: "Discard permanently" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Discard draft…" })).toBeVisible();
+    expect(title).toHaveValue("Keep this dirty soup");
+    expect(screen.getByText("You have unsaved changes.")).toBeVisible();
+    expect(mocks.discardRecipeDraft).not.toHaveBeenCalled();
   });
 
   it("offers the persistent publication flow for a source-backed fork draft", async () => {
