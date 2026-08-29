@@ -145,7 +145,10 @@ image, and starts both application images on an isolated Docker network. The
 smoke test requires backend liveness, database readiness, frontend liveness,
 and fresh valid correlation headers. It then stops PostgreSQL and requires the
 backend to remain live while readiness returns the generic `503` whose header
-and body correlation IDs match. A timeout or unexpected payload fails the
+and body correlation IDs match. The smoke environment fixes the application's
+database failure bound at five seconds and gives the HTTP probe fifteen seconds,
+so the API has time to return its controlled dependency response instead of the
+probe racing the database timeout. A timeout or unexpected payload fails the
 gate. All containers and the temporary network are removed even when
 verification fails. The command never pushes or uploads an image.
 

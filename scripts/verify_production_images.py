@@ -31,6 +31,8 @@ DATABASE_NAME = "recipe_lab_image_check"
 DATABASE_USER = "recipe_lab_image_check"
 DATABASE_PASSWORD = "recipe-lab-image-check-database-password"
 HEALTH_TIMEOUT_SECONDS = 60.0
+DATABASE_OPERATION_TIMEOUT_SECONDS = 5
+ENDPOINT_TIMEOUT_SECONDS = 15.0
 LOCAL_IMAGE_TAG = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/:@-]*\Z")
 IMMUTABLE_IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}\Z")
 FORBIDDEN_IMAGE_ENVIRONMENT_KEYS = frozenset(
@@ -514,7 +516,7 @@ def _read_endpoint(
 ) -> tuple[int, dict[str, str], bytes]:
     request = Request(f"http://127.0.0.1:{port}{path}", headers={"Accept": accept})
     try:
-        with urlopen(request, timeout=5) as response:
+        with urlopen(request, timeout=ENDPOINT_TIMEOUT_SECONDS) as response:
             status = response.status
             headers = {
                 name.casefold(): value for name, value in response.headers.items()
@@ -694,6 +696,8 @@ def verify_startup_and_health(
                 "-e",
                 "APP_ENVIRONMENT=production",
                 "-e",
+                f"DATABASE_OPERATION_TIMEOUT_SECONDS={DATABASE_OPERATION_TIMEOUT_SECONDS}",
+                "-e",
                 f"ABUSE_RATE_LIMIT_SECRET={abuse_value}",
                 "-e",
                 f"INTERNAL_NETWORK_SIGNAL_SECRET={internal_value}",
@@ -720,6 +724,8 @@ def verify_startup_and_health(
                 f"127.0.0.1::{BACKEND_CONTAINER_PORT}",
                 "-e",
                 "APP_ENVIRONMENT=production",
+                "-e",
+                f"DATABASE_OPERATION_TIMEOUT_SECONDS={DATABASE_OPERATION_TIMEOUT_SECONDS}",
                 "-e",
                 f"ABUSE_RATE_LIMIT_SECRET={abuse_value}",
                 "-e",

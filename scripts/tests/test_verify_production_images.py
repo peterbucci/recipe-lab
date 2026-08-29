@@ -148,6 +148,36 @@ class ImageMetadataTests(unittest.TestCase):
                 )
 
 
+class EndpointTests(unittest.TestCase):
+    def test_endpoint_wait_exceeds_the_bounded_database_failure_window(self) -> None:
+        response = mock.MagicMock()
+        entered = response.__enter__.return_value
+        entered.status = 200
+        entered.headers.items.return_value = [("Content-Type", "text/plain")]
+        entered.read.return_value = b"ok\n"
+
+        with mock.patch.object(
+            image_verifier, "urlopen", return_value=response
+        ) as urlopen:
+            status, headers, body = image_verifier._read_endpoint(
+                49101,
+                "/healthz",
+                accept="text/plain",
+            )
+
+        self.assertGreater(
+            image_verifier.ENDPOINT_TIMEOUT_SECONDS,
+            image_verifier.DATABASE_OPERATION_TIMEOUT_SECONDS,
+        )
+        self.assertEqual(
+            (status, headers, body), (200, {"content-type": "text/plain"}, b"ok\n")
+        )
+        self.assertEqual(
+            urlopen.call_args.kwargs["timeout"],
+            image_verifier.ENDPOINT_TIMEOUT_SECONDS,
+        )
+
+
 class ImageReportTests(unittest.TestCase):
     backend_id = f"sha256:{'a' * 64}"
     frontend_id = f"sha256:{'b' * 64}"
