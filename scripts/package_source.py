@@ -125,139 +125,139 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/catalog-empty.png",
-            "ee1cfdedec78ad93acb8c29bcf6bd86b95d4a670",
+            "dd266873976a45fd3907f9955c4cb4a4616dcc43",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/catalog-normal.png",
-            "abc76e816ac815ba03cea2ae7a9744e427370ea1",
+            "7022a38adebc05e17ee401173f19f666a23228bb",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-editor-validation.png",
-            "5c1104aa83479e818e4a3a4758f691ac70064409",
+            "b182d5ed6db3c8f2f5799d3931cdf0f8d8ae9e43",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-ingredient-editor-normal.png",
-            "a660df8445f4789676299641775be5fcc108396c",
+            "11f9a24083d6c70acedc6c11e44cddf32c39adee",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-instruction-editor-expanded.png",
-            "217ec44e0e2b2ddb7036805d90da91d461fdbc97",
+            "1beae2fdddae3299bf70870e4536694cd0ea78e0",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-instruction-editor-normal.png",
-            "42bdf4374ee52c930ce9b9680d5d5622db0c9d37",
+            "4db5beb23bf80d94e5b84aeb3d1a9d05c73848b0",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-similarity-publication-review.png",
-            "40e02075d29c05d9d0f8c82fb3167c914a61e021",
+            "a83391b6982b832301ca69bb2f977032547ffb1d",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-account-navigation.png",
-            "6359daeac2aaa2ae7f8ea97a2f097e803eeb3719",
+            "0ae8cb6bd7f234b87979e69ae269144f8740ced3",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-normal.png",
-            "4e8750adfa854de8bb6e8b9c055068c2d2f3c019",
+            "51285aa378332542aa6900af2591166d9a6c6bea",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/ingredient-request-staff-review.png",
-            "c9432a759446765826d63ee0163babc96dd55304",
+            "b7a8819c2a21b468b69344a14ce86514daaedd30",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/my-recipes-normal.png",
-            "6cf0a06c38be8e5e4f4e4f00dd949588b61a5ee6",
+            "fa817a4c289b1129d9a87f372afefe2bcc91a2af",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-expired-session.png",
-            "826a2bfcff8433a58276dddcb812b4d96aa78ac4",
+            "ca7294319001a57a4a2407f732d3891a682930b9",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-failure.png",
-            "ef79a027a9f87d70c4564b0cec9ec2ce0ac7beaf",
+            "3e170b6e7aea7b63cd60755b75c9f7c61346344d",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-loading.png",
-            "2313ba19799c90bb1b68ed122a9e7fc1aa64f018",
+            "f2a978ea55cdea2fbb386150d4e0778eb910de90",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-comparison-normal.png",
-            "bfc80f4a640103579b18b3085b23e2a969a44dd0",
+            "d64e7de6ee0325040a35e39dda08afd12ad0fc49",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-history.png",
-            "26e33425d3eb7e38f5cf411337cc46910c7223a3",
+            "a718c17b1e1ebb184a282cd8bc4ec7e544c8d768",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-normal.png",
-            "48cc35854f636e35eb35b25c054680c15e14e852",
+            "a77e6901af2fba0dbb97a08e4dc6c119f7e6f6d0",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-instructions-normal.png",
-            "79d7303d3ba42d46d7efc99108732abc726c3a6b",
+            "5de358d8cf6212929ae4480c2305642b3bc78f69",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-moderation-staff-review.png",
-            "c75ce18a7eb9fcbb475f61b9e20ef8baf2ca1259",
+            "e2c2bfa655fe176d0708d61cc243819d93e8a64b",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/catalog-normal.png",
-            "6d7640d2f71e63fc1dff47c6374ae5075265e06e",
+            "c7b3cd232e9e28bcf7483b2b8c94b83d3025f4ee",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-editor-validation.png",
-            "0b2492a80b2e1f16ed07f2cfd2af3aa5d6aedeec",
+            "ee0b8678bff75d85ec21d164d835ad8e7b486fa9",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-ingredient-editor-normal.png",
-            "d41dd924b432585c46e54c4cdeb184a2cd9d8b33",
+            "86179fc03fd6bd36d63d4178c878492c6a4c172c",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-instruction-editor-expanded.png",
-            "bb949a8323f4b8e98903eb17051e7eb60e2d3a6f",
+            "b4f7ffcf8bae3e956cef9a2366c92d6bb42e6e98",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-instruction-editor-normal.png",
-            "07d89703c0b388b5727564640e85b78cf4561683",
+            "a1aa86efef14d29ab551545595cd0732ed0c244e",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-similarity-publication-review.png",
-            "941aeb786ea0792298e60789abc6d10ca66800cc",
+            "1ed2fa0a018afd5f259092cd17cb41a3d1f5cef1",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-account-navigation.png",
-            "43a8102b67c9c627c78809a7c68113fba6764b67",
+            "b4393575ed2e3f660473b116ac0674991a331eb7",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-normal.png",
-            "fb7c001c7ea26cf53270cf290d261dfeefd62d64",
+            "94b07f10f7117ec754fdd379227477087c78898c",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/ingredient-request-staff-review.png",
-            "4e4170b53e9a6dd3e2a9ded02561978c0bf84250",
+            "5073985e5178850eb9c52558f949e4742ff1d682",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/my-recipes-normal.png",
-            "2802bc2f0ca4c5cfc4988a79af9c25a157140322",
+            "bcd45403a8754508d088f69878aaf2e1d5c91695",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-comparison-normal.png",
-            "453b056269d27687ce531720ec50c5fa43a31086",
+            "cdcb762708a209bb02a2cea33c665a6507fa5f94",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-detail-history.png",
-            "588a2376dc88d9b783600960cad07f835bd80a7c",
+            "279590a0c37280e77205494707944fb36c65460d",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-detail-normal.png",
-            "cdae136eaee561e15c8a3514183cf97302b22f22",
+            "1e4e62b5348ef21d39c521e528e59cfc09429ddd",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-instructions-normal.png",
-            "672d0e65a6e60406d8a08503b5f178c8a6d3ab6a",
+            "bdac39fddc54679066e0cb17ae7ba70da8439219",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-moderation-staff-review.png",
-            "69542c17ce5aeaf47d2dc88be8473dd6d04d287c",
+            "5f809e7352566117594f2c5cb6a9349e75ca144f",
         ),
     ),
 )
