@@ -136,19 +136,19 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-ingredient-editor-normal.png",
-            "e13dc3ba0ca64854e74e8356f053809ca55effac",
+            "a660df8445f4789676299641775be5fcc108396c",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-instruction-editor-expanded.png",
-            "2ac66ea0d1c72b317dbf356a9cd74b50c34ff780",
+            "217ec44e0e2b2ddb7036805d90da91d461fdbc97",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-instruction-editor-normal.png",
-            "f734c6af2d0e287c3199e0c26c27f94a0b29b09a",
+            "42bdf4374ee52c930ce9b9680d5d5622db0c9d37",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-similarity-publication-review.png",
-            "9737b26812d4e606b3be93ff8a54fd4f16f7c976",
+            "d99e78c7688b099d16f79e104254dbbe15197c0c",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-account-navigation.png",
@@ -184,15 +184,15 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-history.png",
-            "24d2c39ef3432f8beb642f2c879e87622ef3fe8a",
+            "26e33425d3eb7e38f5cf411337cc46910c7223a3",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-normal.png",
-            "dbf1e8110d4403ca72e1c89f65aabc111bffbd91",
+            "48cc35854f636e35eb35b25c054680c15e14e852",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-instructions-normal.png",
-            "f8b9f08fdd82be2be38b8a95212140e57548ce81",
+            "79d7303d3ba42d46d7efc99108732abc726c3a6b",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-moderation-staff-review.png",
@@ -212,11 +212,11 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-instruction-editor-expanded.png",
-            "b4c06b16998d5aa63842cb4766d3f04bdec0e370",
+            "bb949a8323f4b8e98903eb17051e7eb60e2d3a6f",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-instruction-editor-normal.png",
-            "960da1a3a4efdda3cc8a433d82da41f923150856",
+            "07d89703c0b388b5727564640e85b78cf4561683",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-account-navigation.png",
@@ -236,15 +236,15 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-detail-history.png",
-            "7f26921c133168f98cc20f4ffa5fd87e00e23e74",
+            "588a2376dc88d9b783600960cad07f835bd80a7c",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-detail-normal.png",
-            "289e1b4bf8412c68a04abdef785596dca9f9f47a",
+            "cdae136eaee561e15c8a3514183cf97302b22f22",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-instructions-normal.png",
-            "76ffd13b8582e0afe94a1678c2e315d59c263a3d",
+            "672d0e65a6e60406d8a08503b5f178c8a6d3ab6a",
         ),
     ),
 )
