@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AUTH_SESSION_EXPIRED_EVENT } from "../../lib/auth-api";
@@ -317,6 +317,69 @@ describe("RecipeDraftEditor", () => {
   it("offers publication review for an original draft", async () => {
     renderEditor();
     expect(await screen.findByRole("button", { name: "Review and publish" })).toBeVisible();
+  });
+
+  it("keeps the editor sections in order and restores focus after row changes", async () => {
+    renderEditor();
+
+    const form = await screen.findByRole("form", { name: "Private recipe draft editor" });
+    const sectionLabels = Array.from(form.children)
+      .filter((child) => child.matches("fieldset, section"))
+      .map((section) =>
+        Array.from(section.children).find((child) => child.matches("legend, h2"))?.textContent,
+      );
+    expect(sectionLabels).toEqual([
+      "Recipe details",
+      "Ingredients",
+      "Instructions",
+      "Publish this original recipe.",
+      "Discard this draft",
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add ingredient" }));
+    const ingredient = screen.getByRole("group", { name: "Ingredient 1" });
+    const ingredientSearch = within(ingredient).getByRole("searchbox", {
+      name: "Catalog ingredient",
+    });
+    await waitFor(() => expect(ingredientSearch).toHaveFocus());
+
+    fireEvent.click(screen.getByRole("button", { name: "Add instruction" }));
+    const instructionText = screen.getByLabelText("Human-readable direction");
+    await waitFor(() => expect(instructionText).toHaveFocus());
+
+    fireEvent.click(within(ingredient).getByRole("button", { name: /^Remove/ }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Add ingredient" })).toHaveFocus(),
+    );
+
+    const instruction = screen.getByRole("group", { name: "Step 1" });
+    fireEvent.click(within(instruction).getByRole("button", { name: /^Remove/ }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Add instruction" })).toHaveFocus(),
+    );
+  });
+
+  it("clears a stale save error when a controlled section changes", async () => {
+    mocks.updateRecipeDraft.mockRejectedValue(
+      new RecipeDraftApiError(
+        "The draft has a newer saved revision.",
+        409,
+        "recipe_draft_revision_conflict",
+      ),
+    );
+    renderEditor();
+
+    const title = await screen.findByLabelText("Title");
+    fireEvent.change(title, { target: { value: "Conflicted soup" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("changed in another tab");
+
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Keep editing locally." },
+    });
+
+    expect(screen.queryByText("This draft changed in another tab. Your unsaved version is still here.")).toBeNull();
+    expect(screen.getByLabelText("Description")).toHaveValue("Keep editing locally.");
   });
 
   it("returns editor backlinks and discard success to the My recipes Drafts view", async () => {

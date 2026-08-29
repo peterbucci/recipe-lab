@@ -12,7 +12,6 @@ import {
 import { AuthApiError } from "../../lib/auth-api";
 import type { CatalogActionType } from "../../lib/cooking-action-api";
 import { createIdempotencyKey } from "../../lib/idempotency-key";
-import type { CatalogIngredientSelection } from "../../lib/ingredient-catalog-api";
 import type { CatalogUnit } from "../../lib/measurement-unit-api";
 import {
   discardRecipeDraft,
@@ -24,27 +23,32 @@ import {
 import {
   createDraftIngredientState,
   createDraftInstructionState,
-  draftIngredientFieldKey,
-  draftIngredientMeasureFieldKey,
   draftIngredientOptions,
-  draftInstructionActionFieldKey,
-  draftInstructionFieldKey,
   hydrateRecipeDraft,
   recipeDraftFingerprint,
-  requestSelectionFromSubmission,
   type RecipeDraftEditorState,
   type RecipeDraftIngredientState,
   type RecipeDraftInstructionState,
   type RecipeDraftValidation,
   validateRecipeDraft,
 } from "../../lib/recipe-draft";
-import type { StructuredMeasureField } from "../../lib/structured-measure";
+import {
+  appendDraftIngredient,
+  appendDraftInstruction,
+  moveDraftIngredient,
+  moveDraftInstruction,
+  removeDraftIngredient,
+  removeDraftInstruction,
+  replaceDraftIngredient,
+  replaceDraftInstruction,
+} from "../../lib/recipe-draft-editor-transforms";
 import { MemberRouteGate } from "./member-route-gate";
-import { IngredientCatalogPicker } from "./ingredient-catalog-picker";
 import { GuardedLink, useNavigationBlocker } from "./navigation-blocker-provider";
+import { RecipeDraftDetailsSection } from "./recipe-draft-details-section";
+import { RecipeDraftDiscardSection } from "./recipe-draft-discard-section";
 import { RecipeDraftPublication } from "./recipe-draft-publication";
-import { StructuredActionEditor } from "./structured-action-editor";
-import { IngredientAmountControl } from "./structured-measure-control";
+import { RecipeDraftIngredientsSection } from "./recipe-draft-ingredients-section";
+import { RecipeDraftInstructionsSection } from "./recipe-draft-instructions-section";
 
 interface RecipeDraftEditorProps {
   actionTypes: readonly CatalogActionType[];
@@ -58,48 +62,11 @@ interface SaveAttempt {
   revision: number;
 }
 
-const DISCARD_COPY =
-  "Discard permanently deletes this draft and its private content immediately. It cannot be restored.";
-
 function draftLoadErrorMessage(reason: unknown): string {
   if (reason instanceof RecipeDraftApiError && reason.status === 404) {
     return "This private draft was not found. It may have been discarded, or it may belong to another account.";
   }
   return "Recipe Lab could not open this private draft. Please try again.";
-}
-
-function FieldError({ id, message }: { id: string; message?: string }) {
-  return message ? <p id={id} className="recipe-form-field-error">{message}</p> : null;
-}
-
-function ingredientMeasureErrors(
-  errors: Readonly<Record<string, string>>,
-  key: string,
-): Partial<Record<StructuredMeasureField, string>> {
-  const fields: StructuredMeasureField[] = ["mode", "amount", "minimum", "maximum", "unit"];
-  return Object.fromEntries(fields.flatMap((field) => {
-    const message = errors[draftIngredientMeasureFieldKey(key, field)];
-    return message ? [[field, message]] : [];
-  }));
-}
-
-function instructionActionErrors(
-  errors: Readonly<Record<string, string>>,
-  key: string,
-): Record<string, string> {
-  const prefix = draftInstructionActionFieldKey(key, "");
-  return Object.fromEntries(
-    Object.entries(errors).flatMap(([field, message]) =>
-      field.startsWith(prefix) ? [[field.slice(prefix.length), message]] : [],
-    ),
-  );
-}
-
-function requestStatusLabel(status: string): string {
-  if (status === "approved") return "Approved";
-  if (status === "duplicate") return "Matched to catalog";
-  if (status === "rejected") return "Not approved";
-  return "Awaiting curator review";
 }
 
 function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: RecipeDraftEditorProps) {
@@ -195,19 +162,19 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
 
   function replaceIngredient(key: string, ingredient: RecipeDraftIngredientState) {
     if (!draft) return;
-    change({ ...draft, ingredients: draft.ingredients.map((row) => row.key === key ? ingredient : row) });
+    change(replaceDraftIngredient(draft, key, ingredient));
   }
 
   function replaceInstruction(key: string, instruction: RecipeDraftInstructionState) {
     if (!draft) return;
-    change({ ...draft, instructions: draft.instructions.map((row) => row.key === key ? instruction : row) });
+    change(replaceDraftInstruction(draft, key, instruction));
   }
 
   function addIngredient() {
     if (!draft || draft.ingredients.length >= 200) return;
     const row = createDraftIngredientState();
     pendingFocusId.current = `draft-${row.key}-ingredient-search`;
-    change({ ...draft, ingredients: [...draft.ingredients, row] });
+    change(appendDraftIngredient(draft, row));
     setAnnouncement(`Added ingredient ${draft.ingredients.length + 1}.`);
   }
 
@@ -215,20 +182,11 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
     if (!draft) return;
     const row = draft.ingredients[index];
     if (!row) return;
-    const next = draft.ingredients.filter((_, rowIndex) => rowIndex !== index);
-    const focus = next[Math.min(index, next.length - 1)];
+    const next = removeDraftIngredient(draft, index);
+    if (next === draft) return;
+    const focus = next.ingredients[Math.min(index, next.ingredients.length - 1)];
     pendingFocusId.current = focus ? `draft-${focus.key}-ingredient-search` : "draft-add-ingredient";
-    change({
-      ...draft,
-      ingredients: next,
-      instructions: draft.instructions.map((instruction) => ({
-        ...instruction,
-        actions: instruction.actions.map((action) => ({
-          ...action,
-          ingredientKeys: action.ingredientKeys.filter((key) => key !== row.key),
-        })),
-      })),
-    });
+    change(next);
     setAnnouncement(`Removed ingredient ${index + 1}.`);
   }
 
@@ -236,29 +194,30 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
     if (!draft) return;
     const destination = index + direction;
     if (destination < 0 || destination >= draft.ingredients.length) return;
-    const next = [...draft.ingredients];
-    const [moved] = next.splice(index, 1);
+    const moved = draft.ingredients[index];
     if (!moved) return;
-    next.splice(destination, 0, moved);
+    const next = moveDraftIngredient(draft, index, direction);
+    if (next === draft) return;
     pendingFocusId.current = `draft-${moved.key}-ingredient-move-${direction < 0 ? "up" : "down"}`;
-    change({ ...draft, ingredients: next });
-    setAnnouncement(`Moved ingredient to position ${destination + 1} of ${next.length}.`);
+    change(next);
+    setAnnouncement(`Moved ingredient to position ${destination + 1} of ${next.ingredients.length}.`);
   }
 
   function addInstruction() {
     if (!draft || draft.instructions.length >= 100) return;
     const row = createDraftInstructionState();
     pendingFocusId.current = `draft-${row.key}-instruction-text`;
-    change({ ...draft, instructions: [...draft.instructions, row] });
+    change(appendDraftInstruction(draft, row));
     setAnnouncement(`Added instruction ${draft.instructions.length + 1}.`);
   }
 
   function removeInstruction(index: number) {
     if (!draft) return;
-    const next = draft.instructions.filter((_, rowIndex) => rowIndex !== index);
-    const focus = next[Math.min(index, next.length - 1)];
+    const next = removeDraftInstruction(draft, index);
+    if (next === draft) return;
+    const focus = next.instructions[Math.min(index, next.instructions.length - 1)];
     pendingFocusId.current = focus ? `draft-${focus.key}-instruction-text` : "draft-add-instruction";
-    change({ ...draft, instructions: next });
+    change(next);
     setAnnouncement(`Removed instruction ${index + 1}.`);
   }
 
@@ -266,13 +225,13 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
     if (!draft) return;
     const destination = index + direction;
     if (destination < 0 || destination >= draft.instructions.length) return;
-    const next = [...draft.instructions];
-    const [moved] = next.splice(index, 1);
+    const moved = draft.instructions[index];
     if (!moved) return;
-    next.splice(destination, 0, moved);
+    const next = moveDraftInstruction(draft, index, direction);
+    if (next === draft) return;
     pendingFocusId.current = `draft-${moved.key}-instruction-move-${direction < 0 ? "up" : "down"}`;
-    change({ ...draft, instructions: next });
-    setAnnouncement(`Moved instruction to position ${destination + 1} of ${next.length}.`);
+    change(next);
+    setAnnouncement(`Moved instruction to position ${destination + 1} of ${next.instructions.length}.`);
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -452,112 +411,40 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
           </div>
         ) : null}
 
-        <fieldset className="draft-editor__section" disabled={editorDisabled}>
-          <legend>Recipe details</legend>
-          <p className="draft-editor__help">A private draft may be untitled and incomplete.</p>
-          <div className="draft-editor__details-grid">
-            <div className="recipe-form-field draft-editor__title-field">
-              <label htmlFor="draft-title">Title</label>
-              <input id="draft-title" value={draft.title} maxLength={200} aria-invalid={Boolean(fieldErrors.title)} aria-describedby={fieldErrors.title ? "draft-title-error" : undefined} onChange={(event) => change({ ...draft, title: event.target.value })} />
-              <FieldError id="draft-title-error" message={fieldErrors.title} />
-            </div>
-            <div className="recipe-form-field">
-              <label htmlFor="draft-servings">Servings</label>
-              <input id="draft-servings" value={draft.servings} inputMode="decimal" aria-invalid={Boolean(fieldErrors.servings)} aria-describedby={fieldErrors.servings ? "draft-servings-error" : undefined} onChange={(event) => change({ ...draft, servings: event.target.value })} />
-              <FieldError id="draft-servings-error" message={fieldErrors.servings} />
-            </div>
-            <div className="recipe-form-field draft-editor__description-field">
-              <label htmlFor="draft-description">Description</label>
-              <textarea id="draft-description" value={draft.description} maxLength={2000} rows={4} aria-invalid={Boolean(fieldErrors.description)} aria-describedby={fieldErrors.description ? "draft-description-error" : undefined} onChange={(event) => change({ ...draft, description: event.target.value })} />
-              <FieldError id="draft-description-error" message={fieldErrors.description} />
-            </div>
-          </div>
-        </fieldset>
+        <RecipeDraftDetailsSection
+          description={draft.description}
+          disabled={editorDisabled}
+          errors={fieldErrors}
+          onDescriptionChange={(description) => change({ ...draft, description })}
+          onServingsChange={(servings) => change({ ...draft, servings })}
+          onTitleChange={(title) => change({ ...draft, title })}
+          servings={draft.servings}
+          title={draft.title}
+        />
 
-        <fieldset className="draft-editor__section" disabled={editorDisabled}>
-          <legend>Ingredients</legend>
-          <p className="draft-editor__help">Use trusted catalog identities. A submitted request stays unresolved until you explicitly choose its approved catalog result.</p>
-          <ol className="draft-editor__rows">
-            {draft.ingredients.map((ingredient, index) => {
-              const selectionError = fieldErrors[draftIngredientFieldKey(ingredient.key, "selection")];
-              const notesError = fieldErrors[draftIngredientFieldKey(ingredient.key, "preparationNotes")];
-              const resolved = ingredient.selection?.kind === "request" ? ingredient.selection.request.resolved_ingredient : null;
-              const catalogValue = ingredient.selection?.kind === "catalog" ? ingredient.selection.ingredient : null;
-              const rowLabel = `Ingredient ${index + 1}`;
-              return (
-                <li key={ingredient.key} className="draft-editor__row-card">
-                  <fieldset>
-                    <legend>{rowLabel}</legend>
-                    <div className="draft-editor__row-toolbar" aria-label={`Reorder ${rowLabel.toLowerCase()}`}>
-                      <button id={`draft-${ingredient.key}-ingredient-move-up`} className="button button--quiet" type="button" disabled={index === 0} onClick={() => moveIngredient(index, -1)}>Move up<span className="visually-hidden"> {rowLabel.toLowerCase()}</span></button>
-                      <button id={`draft-${ingredient.key}-ingredient-move-down`} className="button button--quiet" type="button" disabled={index === draft.ingredients.length - 1} onClick={() => moveIngredient(index, 1)}>Move down<span className="visually-hidden"> {rowLabel.toLowerCase()}</span></button>
-                      <button className="button button--quiet" type="button" onClick={() => removeIngredient(index)}>Remove<span className="visually-hidden"> {rowLabel.toLowerCase()}</span></button>
-                    </div>
-                    {ingredient.selection?.kind === "request" ? (
-                      <aside className="draft-request-selection" aria-label={`Unresolved selection for ${rowLabel}`}>
-                        <span>{requestStatusLabel(ingredient.selection.request.status)}</span>
-                        <strong>{ingredient.selection.request.proposed_name}</strong>
-                        <p>{resolved ? `Curators resolved this request to ${resolved.canonical_name}. Choose it to make this a trusted ingredient.` : "This request text is not a trusted catalog ingredient and cannot be used as a structured action input."}</p>
-                        <div className="button-row">
-                          {resolved ? <button className="button button--secondary" type="button" onClick={() => replaceIngredient(ingredient.key, { ...ingredient, selection: { kind: "catalog", ingredient: { ingredientId: resolved.id, canonicalName: resolved.canonical_name, displayName: resolved.canonical_name } } })}>Use {resolved.canonical_name}</button> : null}
-                          <button className="button button--quiet" type="button" onClick={() => replaceIngredient(ingredient.key, { ...ingredient, selection: null })}>Choose a different ingredient</button>
-                        </div>
-                      </aside>
-                    ) : null}
-                    <IngredientCatalogPicker
-                      idPrefix={`draft-${ingredient.key}-ingredient`}
-                      label="Catalog ingredient"
-                      contextLabel={rowLabel}
-                      value={catalogValue}
-                      invalid={Boolean(selectionError)}
-                      describedBy={selectionError ? `draft-${ingredient.key}-selection-error` : undefined}
-                      onChange={(selection: CatalogIngredientSelection | null) => replaceIngredient(ingredient.key, { ...ingredient, selection: selection ? { kind: "catalog", ingredient: selection } : null })}
-                      onRequestSubmitted={(request) => replaceIngredient(ingredient.key, { ...ingredient, selection: requestSelectionFromSubmission(request) })}
-                    />
-                    <FieldError id={`draft-${ingredient.key}-selection-error`} message={selectionError} />
-                    <IngredientAmountControl idPrefix={`draft-${ingredient.key}-measure`} label="Amount" contextLabel={rowLabel} value={ingredient.measure} units={measurementUnits} errors={ingredientMeasureErrors(fieldErrors, ingredient.key)} onChange={(measure) => replaceIngredient(ingredient.key, { ...ingredient, measure })} />
-                    <div className="recipe-form-field">
-                      <label htmlFor={`draft-${ingredient.key}-notes`}>Preparation notes <span>(optional)</span></label>
-                      <input id={`draft-${ingredient.key}-notes`} value={ingredient.preparationNotes} maxLength={1000} aria-invalid={Boolean(notesError)} aria-describedby={notesError ? `draft-${ingredient.key}-notes-error` : undefined} placeholder="finely chopped" onChange={(event) => replaceIngredient(ingredient.key, { ...ingredient, preparationNotes: event.target.value })} />
-                      <FieldError id={`draft-${ingredient.key}-notes-error`} message={notesError} />
-                    </div>
-                  </fieldset>
-                </li>
-              );
-            })}
-          </ol>
-          <button id="draft-add-ingredient" className="button button--secondary" type="button" disabled={draft.ingredients.length >= 200} onClick={addIngredient}>Add ingredient</button>
-        </fieldset>
+        <RecipeDraftIngredientsSection
+          disabled={editorDisabled}
+          errors={fieldErrors}
+          ingredients={draft.ingredients}
+          measurementUnits={measurementUnits}
+          onAdd={addIngredient}
+          onMove={moveIngredient}
+          onRemove={removeIngredient}
+          onReplace={replaceIngredient}
+        />
 
-        <fieldset className="draft-editor__section" disabled={editorDisabled}>
-          <legend>Instructions</legend>
-          <p className="draft-editor__help">Keep the readable direction, then optionally describe its trusted cooking actions in order.</p>
-          <ol className="draft-editor__rows">
-            {draft.instructions.map((instruction, index) => {
-              const textError = fieldErrors[draftInstructionFieldKey(instruction.key)];
-              const rowLabel = `Step ${index + 1}`;
-              return (
-                <li key={instruction.key} className="draft-editor__row-card">
-                  <fieldset>
-                    <legend>{rowLabel}</legend>
-                    <div className="draft-editor__row-toolbar" aria-label={`Reorder ${rowLabel.toLowerCase()}`}>
-                      <button id={`draft-${instruction.key}-instruction-move-up`} className="button button--quiet" type="button" disabled={index === 0} onClick={() => moveInstruction(index, -1)}>Move up<span className="visually-hidden"> {rowLabel.toLowerCase()}</span></button>
-                      <button id={`draft-${instruction.key}-instruction-move-down`} className="button button--quiet" type="button" disabled={index === draft.instructions.length - 1} onClick={() => moveInstruction(index, 1)}>Move down<span className="visually-hidden"> {rowLabel.toLowerCase()}</span></button>
-                      <button className="button button--quiet" type="button" onClick={() => removeInstruction(index)}>Remove<span className="visually-hidden"> {rowLabel.toLowerCase()}</span></button>
-                    </div>
-                    <div className="recipe-form-field">
-                      <label htmlFor={`draft-${instruction.key}-instruction-text`}>Human-readable direction</label>
-                      <textarea id={`draft-${instruction.key}-instruction-text`} value={instruction.text} maxLength={5000} rows={4} aria-invalid={Boolean(textError)} aria-describedby={textError ? `draft-${instruction.key}-instruction-text-error` : undefined} onChange={(event) => replaceInstruction(instruction.key, { ...instruction, text: event.target.value })} />
-                      <FieldError id={`draft-${instruction.key}-instruction-text-error`} message={textError} />
-                    </div>
-                    <StructuredActionEditor idPrefix={`draft-${instruction.key}-actions`} stepLabel={rowLabel} value={instruction.actions} actionTypes={actionTypes} ingredientOccurrences={ingredientOptions} measurementUnits={measurementUnits} errors={instructionActionErrors(fieldErrors, instruction.key)} onChange={(actions) => replaceInstruction(instruction.key, { ...instruction, actions })} />
-                  </fieldset>
-                </li>
-              );
-            })}
-          </ol>
-          <button id="draft-add-instruction" className="button button--secondary" type="button" disabled={draft.instructions.length >= 100} onClick={addInstruction}>Add instruction</button>
-        </fieldset>
+        <RecipeDraftInstructionsSection
+          actionTypes={actionTypes}
+          disabled={editorDisabled}
+          errors={fieldErrors}
+          ingredientOptions={ingredientOptions}
+          instructions={draft.instructions}
+          measurementUnits={measurementUnits}
+          onAdd={addInstruction}
+          onMove={moveInstruction}
+          onRemove={removeInstruction}
+          onReplace={replaceInstruction}
+        />
 
         <RecipeDraftPublication
           actionTypes={actionTypes}
@@ -579,19 +466,14 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
           <p role="status" aria-live="polite">{status || (dirty ? "You have unsaved changes." : "All changes are saved privately.")}</p>
         </div>
 
-        <section className="draft-editor__danger" aria-labelledby="discard-draft-title">
-          <h2 id="discard-draft-title">Discard this draft</h2>
-          <p>{DISCARD_COPY}</p>
-          {!confirmDiscard ? <button className="button button--quiet" type="button" disabled={actionDisabled} onClick={() => setConfirmDiscard(true)}>Discard draft…</button> : (
-            <div className="draft-discard">
-              <p><strong>Are you sure?</strong></p>
-              <div className="button-row">
-                <button className="button button--danger" type="button" disabled={actionDisabled} onClick={() => void discard()}>{pending === "discard" ? "Discarding…" : "Discard permanently"}</button>
-                <button className="button button--secondary" type="button" disabled={actionDisabled} onClick={() => setConfirmDiscard(false)}>Keep draft</button>
-              </div>
-            </div>
-          )}
-        </section>
+        <RecipeDraftDiscardSection
+          confirming={confirmDiscard}
+          disabled={actionDisabled}
+          discarding={pending === "discard"}
+          onCancel={() => setConfirmDiscard(false)}
+          onConfirm={discard}
+          onRequest={() => setConfirmDiscard(true)}
+        />
       </form>
     </main>
   );
