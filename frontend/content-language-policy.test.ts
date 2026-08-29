@@ -118,10 +118,8 @@ const STAFF_DIAGNOSTIC_EXCEPTIONS: Readonly<Record<string, ReadonlySet<RuleId>>>
     "catalog-internals",
     "staff-identifiers",
   ]),
-  "app/components/ingredient-request-review-workspace.tsx": new Set([
-    "catalog-internals",
-    "staff-identifiers",
-  ]),
+  "app/components/ingredient-request-decision-form.tsx": new Set(["catalog-internals"]),
+  "app/components/ingredient-request-review-detail.tsx": new Set(["staff-identifiers"]),
   "app/components/recipe-moderation-workspace.tsx": new Set(["staff-identifiers"]),
   "app/moderation/recipes/loading.tsx": new Set(["staff-identifiers"]),
   "app/moderation/recipes/page.tsx": new Set(["staff-identifiers"]),
@@ -532,7 +530,7 @@ describe("public product language policy", () => {
     ]);
 
     const staff = findViolations(
-      "app/components/ingredient-request-review-workspace.tsx",
+      "app/components/ingredient-request-decision-form.tsx",
       `export function Staff() {
         return <><p>Canonical identity</p><p>Get recommendations shaped by your activity.</p></>;
       }`,
