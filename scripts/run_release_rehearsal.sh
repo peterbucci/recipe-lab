@@ -234,11 +234,13 @@ python scripts/verify_production_images.py \
   --frontend-context frontend \
   --frontend-dockerfile frontend/Dockerfile \
   --report "$RCP33G_PRIVATE_DIR/candidate-images.json"
-# Exercise the reviewed ancestor application source on the same hardened image
-# recipes as the candidate. The rehearsal is proving application/schema rollback
-# compatibility; RCP-21 remains responsible for binding a real prior deployment
-# to its independently scanned registry digest.
+# Exercise the reviewed ancestor application source with the candidate's hardened
+# image recipes and build-context policies. The rehearsal is proving
+# application/schema rollback compatibility; RCP-21 remains responsible for
+# binding a real prior deployment to its independently scanned registry digest.
+cp .dockerignore "$RCP33G_ROLLBACK_WORKTREE/.dockerignore"
 cp backend/Dockerfile "$RCP33G_ROLLBACK_WORKTREE/backend/Dockerfile"
+cp frontend/.dockerignore "$RCP33G_ROLLBACK_WORKTREE/frontend/.dockerignore"
 cp frontend/Dockerfile "$RCP33G_ROLLBACK_WORKTREE/frontend/Dockerfile"
 docker build --pull --no-cache --target production \
   --file "$RCP33G_ROLLBACK_WORKTREE/backend/Dockerfile" \

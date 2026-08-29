@@ -75,8 +75,9 @@ The isolated rehearsal job runs these phases in order:
    rendered frontend route.
 7. **Compatible application rollback.** The current restored-database revision
    is recorded, the candidate is stopped, and images containing the reviewed
-   ancestor application source plus the candidate's hardened image recipes are
-   started against that unchanged newer schema. The same smoke checks must pass
+   ancestor application source plus the candidate's hardened image recipes and
+   build-context exclusion policies are started against that unchanged newer
+   schema. The same smoke checks must pass
    and the database revision must remain byte-for-byte unchanged. The ancestor
    may package an older migration head; compatibility is proved by running it,
    not by requiring identical packaged migration histories. The rehearsal never
