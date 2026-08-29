@@ -105,6 +105,7 @@ export function RecipeDraftIngredientsSection({
                   <button
                     className="button button--quiet"
                     type="button"
+                    aria-label={`Remove ${rowLabel.toLowerCase()}`}
                     onClick={() => onRemove(index)}
                   >
                     Remove

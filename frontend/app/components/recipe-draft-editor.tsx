@@ -241,6 +241,19 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
     if (!draft) return;
     const row = draft.ingredients[index];
     if (!row) return;
+    const affectedActions = draft.instructions.reduce(
+      (count, instruction) =>
+        count + instruction.actions.filter((action) => action.ingredientKeys.includes(row.key)).length,
+      0,
+    );
+    if (
+      affectedActions > 0 &&
+      !window.confirm(
+        `Remove ingredient ${index + 1}? This will also remove its link from ${affectedActions} cooking ${affectedActions === 1 ? "action" : "actions"}. The actions and their other details will remain.`,
+      )
+    ) {
+      return;
+    }
     const next = removeDraftIngredient(draft, index);
     if (next === draft) return;
     const focus = next.ingredients[Math.min(index, next.ingredients.length - 1)];

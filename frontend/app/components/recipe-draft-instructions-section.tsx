@@ -52,7 +52,8 @@ export function RecipeDraftInstructionsSection({
     <fieldset className="draft-editor__section" disabled={disabled}>
       <legend>Instructions</legend>
       <p className="draft-editor__help">
-        Keep the readable direction, then optionally describe its trusted cooking actions in order.
+        Write each step as you would explain it to another cook. You can privately save your draft
+        before adding cooking details.
       </p>
       <ol className="draft-editor__rows">
         {instructions.map((instruction, index) => {
@@ -89,6 +90,7 @@ export function RecipeDraftInstructionsSection({
                   <button
                     className="button button--quiet"
                     type="button"
+                    aria-label={`Remove ${rowLabel.toLowerCase()}`}
                     onClick={() => onRemove(index)}
                   >
                     Remove
@@ -97,7 +99,7 @@ export function RecipeDraftInstructionsSection({
                 </div>
                 <div className="recipe-form-field">
                   <label htmlFor={`draft-${instruction.key}-instruction-text`}>
-                    Human-readable direction
+                    Instruction
                   </label>
                   <textarea
                     id={`draft-${instruction.key}-instruction-text`}

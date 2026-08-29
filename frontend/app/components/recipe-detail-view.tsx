@@ -113,7 +113,7 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
                   <RecipeInstructionActions
                     actions={instruction.actions}
                     ingredients={recipe.ingredients}
-                    label={`Cooking actions for step ${index + 1}`}
+                    label={`Cooking details for step ${index + 1}`}
                   />
                 ) : null}
               </li>
