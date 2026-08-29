@@ -391,12 +391,13 @@ public child.
 
 `GET /api/cooks/{handle}` returns one normalized-handle public identity and a
 database-paginated list of that cook's currently public versions. Known cooks
-may have an empty profile. `GET /api/my/recipes` returns the active session
-member's current drafts and every authored publication as a unified,
-discriminated activity page, with a private `visibility_state` on publication
-entries. `GET /api/my/saved-recipes` returns only that member's currently saved
-public versions. The private routes take no user ID, are marked `private,
-no-store`, and vary on the session cookie.
+may have an empty profile. `GET /api/my/recipes` requires a `view` of `drafts`,
+`published`, or `withdrawn` and returns that active session member's matching
+recipes as an independently paginated activity page. Moderation-hidden recipes
+remain in Published with their accurate private `visibility_state`; only
+author-withdrawn recipes appear in Withdrawn. `GET /api/my/saved-recipes`
+returns only that member's currently saved public versions. The private routes
+take no user ID, are marked `private, no-store`, and vary on the session cookie.
 
 All card paths eagerly load bounded author and public-parent context. Query
 counts therefore stay fixed as a page grows rather than issuing requests or

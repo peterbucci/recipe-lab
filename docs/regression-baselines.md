@@ -92,7 +92,7 @@ image is produced from the same sanitized fixture contract.
 | Catalog, empty                      | `catalog-empty`                       | —                          |
 | Recipe detail, normal               | `recipe-detail-normal`                | `recipe-detail-normal`     |
 | Recipe comparison, normal           | `recipe-comparison-normal`            | `recipe-comparison-normal` |
-| My Recipes, normal                  | `my-recipes-normal`                   | —                          |
+| My Recipes, private drafts          | `my-recipes-normal`                   | `my-recipes-normal`        |
 | Draft editor with validation        | `draft-editor-validation`             | `draft-editor-validation`  |
 | Similarity and publication review   | `draft-similarity-publication-review` | —                          |
 | Ingredient request and staff review | `ingredient-request-staff-review`     | —                          |

@@ -132,7 +132,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-editor-validation.png",
-            "0895b42a70312856d5a79b09969fa2f30298e053",
+            "bbb6d1d1d463648fd22f49b8552107ecc1ad26b6",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-similarity-publication-review.png",
@@ -152,15 +152,15 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/my-recipes-normal.png",
-            "d83e3f849384de9ba68a3fe9cc79cc1c463132db",
+            "6cf0a06c38be8e5e4f4e4f00dd949588b61a5ee6",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-expired-session.png",
-            "06b2c6ce4da0c55bfe7fae9d47ffcaad1b9b1dc1",
+            "826a2bfcff8433a58276dddcb812b4d96aa78ac4",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-failure.png",
-            "6ebb5b54129802b6ea059915916f6d8abf7b6683",
+            "ef79a027a9f87d70c4564b0cec9ec2ce0ac7beaf",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-loading.png",
@@ -188,7 +188,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-editor-validation.png",
-            "27b0fa59a20fec01e7f2cd413c91f58098bef618",
+            "6940ea4fe50913e19f5a6631fd868a01cae5c937",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-account-navigation.png",
@@ -197,6 +197,10 @@ EXPORT_POLICY = PackagingPolicy(
         (
             "frontend/baselines/baseline-phone-chromium/home-normal.png",
             "fb7c001c7ea26cf53270cf290d261dfeefd62d64",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/my-recipes-normal.png",
+            "2802bc2f0ca4c5cfc4988a79af9c25a157140322",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-comparison-normal.png",

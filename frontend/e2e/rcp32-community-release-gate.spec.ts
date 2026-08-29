@@ -275,7 +275,8 @@ async function publishDistinctOriginal(page: Page, draftId: string): Promise<str
   expect(preflightBody.classification).toBe("distinct");
   expect(preflightBody.same_lineage_no_change).toBe(false);
   const published = await publicationPayload(await publishResponse);
-  await expect(page).toHaveURL(published.location);
+  await expect(page).toHaveURL("/account/recipes?view=published");
+  await page.goto(published.location);
   return published.recipe_version_id;
 }
 
@@ -326,7 +327,8 @@ async function publishReviewedFork(
   );
   await activateWithKeyboard(page, continueButton);
   const published = await publicationPayload(await publishResponse);
-  await expect(page).toHaveURL(published.location);
+  await expect(page).toHaveURL("/account/recipes?view=published");
+  await page.goto(published.location);
   return { preflightId, recipeVersionId: published.recipe_version_id };
 }
 
@@ -961,7 +963,7 @@ test.describe("RCP-32 two-user community release gate", () => {
         );
         expect(unauthorizedWithdrawal.status()).toBe(404);
         expect((await alice.request.get("/api/moderation/recipe-reports")).status()).toBe(403);
-        await alice.goto("/account/recipes");
+        await alice.goto("/account/recipes?view=published");
         await expect(alice.getByRole("article", { name: childTitle, exact: true })).toHaveCount(0);
 
         const aliceRecommendations = await alice.request.get("/api/recommendations?limit=50");
@@ -1161,6 +1163,22 @@ test.describe("RCP-32 two-user community release gate", () => {
           await publicContext.close();
         }
 
+        await alice.goto("/account/recipes?view=published");
+        const hiddenAuthorCard = alice.getByRole("article", {
+          name: rootTitle,
+          exact: true,
+        });
+        await expect(hiddenAuthorCard.getByText("Hidden by moderation", { exact: true })).toBeVisible();
+        await expect(
+          hiddenAuthorCard.getByText(
+            "This recipe is hidden by moderation. Its visibility cannot be changed here.",
+            { exact: true },
+          ),
+        ).toBeVisible();
+        await expect(
+          hiddenAuthorCard.getByRole("link", { name: rootTitle, exact: true }),
+        ).toHaveCount(0);
+
         const restoreResponse = moderator.waitForResponse(
           (response) =>
             response.request().method() === "POST" &&
@@ -1199,7 +1217,7 @@ test.describe("RCP-32 two-user community release gate", () => {
       });
 
       await test.step("withdraw only Alice's parent while every public child survives", async () => {
-        await alice.goto("/account/recipes");
+        await alice.goto("/account/recipes?view=published");
         let rootCard = alice.getByRole("article", { name: rootTitle, exact: true });
         await rootCard.getByRole("button", { name: `Withdraw ${rootTitle}` }).click();
         const withdrawalResponse = alice.waitForResponse(
@@ -1211,8 +1229,13 @@ test.describe("RCP-32 two-user community release gate", () => {
           .getByRole("button", { name: `Confirm withdrawal of ${rootTitle}` })
           .click();
         expect((await withdrawalResponse).status()).toBe(200);
+        await expect(alice.getByRole("status")).toHaveText(`${rootTitle} moved to Withdrawn.`);
+        await expect(rootCard).toHaveCount(0);
+
+        await alice.goto("/account/recipes?view=withdrawn");
         rootCard = alice.getByRole("article", { name: rootTitle, exact: true });
         await expect(rootCard.getByText("Withdrawn", { exact: true })).toBeVisible();
+        await expect(rootCard.getByRole("link", { name: rootTitle, exact: true })).toHaveCount(0);
 
         const publicContext = await browser.newContext({ baseURL: baseUrl });
         const publicPage = await publicContext.newPage();

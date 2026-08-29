@@ -128,7 +128,9 @@ test.describe("original recipe publication acceptance", () => {
     expect(publicationBody.location).toBe(`/recipes/${publicationBody.recipe_version_id}`);
     expect(publication.headers().location).toBe(publicationBody.location);
 
-    await expect(page).toHaveURL(publicationBody.location as string);
+    await expect(page).toHaveURL("/account/recipes?view=published");
+    await expect(page.getByRole("article", { name: title, exact: true })).toBeVisible();
+    await page.goto(publicationBody.location as string);
     await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
     await expect(page.getByText("Version 1", { exact: true })).toHaveCount(0);
     await expect(page.getByText("Based on", { exact: true })).toHaveCount(0);

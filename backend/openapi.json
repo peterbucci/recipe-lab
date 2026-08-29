@@ -1751,6 +1751,14 @@
         "title": "MyRecipeLibraryResponse",
         "type": "object"
       },
+      "MyRecipeLibraryView": {
+        "enum": [
+          "drafts",
+          "published",
+          "withdrawn"
+        ],
+        "type": "string"
+      },
       "PublicCookProfileResponse": {
         "additionalProperties": false,
         "properties": {
@@ -7466,8 +7474,17 @@
     },
     "/api/my/recipes": {
       "get": {
+        "description": "Returns independently paginated active drafts, current publications, or author-withdrawn publications. Moderation-hidden authored recipes remain in the published view with their accurate visibility state.",
         "operationId": "my_recipe_library_api_my_recipes_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "view",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/MyRecipeLibraryView"
+            }
+          },
           {
             "in": "query",
             "name": "page",
@@ -7542,7 +7559,7 @@
                 }
               }
             },
-            "description": "A page parameter is invalid."
+            "description": "A view or page parameter is invalid."
           },
           "429": {
             "content": {
@@ -7555,7 +7572,7 @@
             "description": "A durable account, identity, or network rate limit was exceeded."
           }
         },
-        "summary": "List my current drafts and published recipes",
+        "summary": "List one view of my recipes",
         "tags": [
           "cook profiles and recipe libraries"
         ],

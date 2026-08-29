@@ -106,7 +106,7 @@ describe("recipe library API", () => {
     });
   });
 
-  it("reads discriminated private drafts and published recipes from the current actor route", async () => {
+  it("requests one server-filtered My Recipes view with independent pagination", async () => {
     const draft = {
       id: DRAFT_ID,
       source_version_id: null,
@@ -120,24 +120,19 @@ describe("recipe library API", () => {
     };
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
-        items: [
-          { kind: "draft", draft },
-          { kind: "published", recipe, visibility_state: "published" },
-        ],
+        items: [{ kind: "draft", draft }],
         ...envelope,
-        total: 2,
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(fetchMyRecipeLibrary({ page: 3, pageSize: 8 })).resolves.toMatchObject({
-      items: [
-        { kind: "draft", draft },
-        { kind: "published", recipe, visibility_state: "published" },
-      ],
+    await expect(
+      fetchMyRecipeLibrary({ view: "drafts", page: 3, pageSize: 8 }),
+    ).resolves.toMatchObject({
+      items: [{ kind: "draft", draft }],
     });
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/my/recipes?page=3&page_size=8",
+      "/api/my/recipes?view=drafts&page=3&page_size=8",
       expect.objectContaining({ credentials: "same-origin" }),
     );
   });
@@ -176,7 +171,7 @@ describe("recipe library API", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(fetchMyRecipeLibrary()).resolves.toMatchObject({
+    await expect(fetchMyRecipeLibrary({ view: "withdrawn" })).resolves.toMatchObject({
       items: [
         {
           kind: "published",
@@ -185,7 +180,7 @@ describe("recipe library API", () => {
         },
       ],
     });
-    await expect(fetchMyRecipeLibrary()).rejects.toMatchObject({
+    await expect(fetchMyRecipeLibrary({ view: "published" })).rejects.toMatchObject({
       code: "invalid_recipe_library_response",
       status: 502,
     });
@@ -199,6 +194,43 @@ describe("recipe library API", () => {
         total_pages: 0,
       }),
     ).toThrow(RecipeLibraryApiError);
+  });
+
+  it("rejects items that do not belong to the requested server-filtered view", async () => {
+    const draft = {
+      id: DRAFT_ID,
+      source_version_id: null,
+      status: "active",
+      revision: 2,
+      title: "Weeknight soup",
+      ingredient_count: 4,
+      instruction_count: 3,
+      created_at: "2026-08-25T10:00:00Z",
+      updated_at: "2026-08-25T12:00:00Z",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          Response.json({ items: [{ kind: "draft", draft }], ...envelope }),
+        )
+        .mockResolvedValueOnce(
+          Response.json({
+            items: [{ kind: "published", recipe, visibility_state: "author_withdrawn" }],
+            ...envelope,
+          }),
+        ),
+    );
+
+    await expect(fetchMyRecipeLibrary({ view: "published" })).rejects.toMatchObject({
+      code: "invalid_recipe_library_response",
+      status: 502,
+    });
+    await expect(fetchMyRecipeLibrary({ view: "published" })).rejects.toMatchObject({
+      code: "invalid_recipe_library_response",
+      status: 502,
+    });
   });
 
   it("allows only the fixed handleless Demo Cook compatibility identity", () => {
@@ -252,7 +284,9 @@ describe("recipe library API", () => {
         .mockResolvedValueOnce(Response.json({ items: [{ kind: "draft", draft: {} }], ...envelope })),
     );
 
-    const unauthorized = await fetchMyRecipeLibrary().catch((reason: unknown) => reason);
+    const unauthorized = await fetchMyRecipeLibrary({ view: "drafts" }).catch(
+      (reason: unknown) => reason,
+    );
     expect(unauthorized).toBeInstanceOf(RecipeLibraryApiError);
     expect(unauthorized).toMatchObject({
       status: 401,
@@ -263,7 +297,7 @@ describe("recipe library API", () => {
       /99999999|canonical|uuid|operator|policy/i,
     );
     expect(expired).toHaveBeenCalledOnce();
-    await expect(fetchMyRecipeLibrary()).rejects.toMatchObject({
+    await expect(fetchMyRecipeLibrary({ view: "drafts" })).rejects.toMatchObject({
       code: "invalid_recipe_library_response",
       status: 502,
     });

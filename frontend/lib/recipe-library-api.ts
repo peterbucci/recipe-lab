@@ -1,4 +1,10 @@
 import { notifySessionExpired } from "./auth-api";
+import { browserApiRequest } from "./api-transport/browser";
+import {
+  ApiTransportError,
+  type PublicApiErrorContract,
+} from "./api-transport/core";
+import type { operations } from "./api-contracts/generated";
 import type { RecipeDraftListItem } from "./recipe-draft-api";
 import type {
   ActivePublicUserReference,
@@ -7,8 +13,18 @@ import type {
   RecipeVersionReference,
 } from "./recipe-api";
 
-export type RecipeVisibilityState =
-  "published" | "author_withdrawn" | "moderation_hidden";
+type MyRecipeLibraryOperation =
+  operations["my_recipe_library_api_my_recipes_get"];
+type MyRecipeLibraryContractPage =
+  MyRecipeLibraryOperation["responses"][200]["content"]["application/json"];
+type MyPublishedRecipeItem = Extract<
+  MyRecipeLibraryContractPage["items"][number],
+  { readonly kind: "published" }
+>;
+
+export type RecipeVisibilityState = MyPublishedRecipeItem["visibility_state"];
+export type MyRecipeLibraryView =
+  MyRecipeLibraryOperation["parameters"]["query"]["view"];
 
 export interface PublicCookProfilePage {
   cook: ActivePublicUserReference;
@@ -19,21 +35,8 @@ export interface PublicCookProfilePage {
   total_pages: number;
 }
 
-export type MyRecipeLibraryItem =
-  | { kind: "draft"; draft: RecipeDraftListItem }
-  | {
-      kind: "published";
-      recipe: RecipeSummary;
-      visibility_state: RecipeVisibilityState;
-    };
-
-export interface MyRecipeLibraryPage {
-  items: MyRecipeLibraryItem[];
-  page: number;
-  page_size: number;
-  total: number;
-  total_pages: number;
-}
+export type MyRecipeLibraryItem = MyRecipeLibraryContractPage["items"][number];
+export type MyRecipeLibraryPage = MyRecipeLibraryContractPage;
 
 export interface SavedRecipeLibraryItem {
   recipe: RecipeSummary;
@@ -62,6 +65,11 @@ const KNOWN_RECIPE_LIBRARY_ERROR_CODES = new Set([
   "recipe_library_unavailable",
   "validation_error",
 ]);
+
+const RECIPE_LIBRARY_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "recipe_library_api_error",
+  knownCodes: KNOWN_RECIPE_LIBRARY_ERROR_CODES,
+};
 
 function knownRecipeLibraryErrorCode(value: unknown): string {
   return typeof value === "string" &&
@@ -344,17 +352,11 @@ async function apiError(response: Response): Promise<RecipeLibraryApiError> {
   } catch {
     // Keep the stable fallback instead of exposing an upstream response body.
   }
-  const message =
-    response.status === 401
-      ? "Your session expired. Sign in again to load your recipes."
-      : response.status === 403
-        ? "This recipe library is not available to your account."
-        : response.status === 404
-          ? "This recipe library could not be found."
-          : response.status === 429
-            ? "Recipe Lab is receiving too many requests. Please wait before refreshing your recipes."
-            : "Recipe Lab could not load this recipe library. Please try again.";
-  return new RecipeLibraryApiError(message, response.status, code);
+  return new RecipeLibraryApiError(
+    recipeLibraryErrorMessage(response.status),
+    response.status,
+    code,
+  );
 }
 
 function apiBaseUrl(): string {
@@ -414,19 +416,74 @@ function pageQuery(page: number, pageSize: number): string {
 }
 
 export async function fetchMyRecipeLibrary({
+  view,
   page = 1,
   pageSize = 12,
   signal,
 }: {
+  view: MyRecipeLibraryView;
   page?: number;
   pageSize?: number;
   signal?: AbortSignal;
-} = {}): Promise<MyRecipeLibraryPage> {
-  const response = await memberFetch(
-    `/api/my/recipes?${pageQuery(page, pageSize)}`,
-    signal,
+}): Promise<MyRecipeLibraryPage> {
+  const query = new URLSearchParams({
+    view,
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  try {
+    const response = await browserApiRequest(
+      `/api/my/recipes?${query.toString()}`,
+      {
+        errorContract: RECIPE_LIBRARY_ERROR_CONTRACT,
+        kind: "query",
+        signal,
+      },
+    );
+    const result = parseMyRecipeLibraryPage(response.data);
+    const matchesView = result.items.every((item) => {
+      if (view === "drafts") return item.kind === "draft";
+      if (item.kind !== "published") return false;
+      return view === "withdrawn"
+        ? item.visibility_state === "author_withdrawn"
+        : item.visibility_state === "published" || item.visibility_state === "moderation_hidden";
+    });
+    if (!matchesView) throw invalidResponse();
+    return result;
+  } catch (error) {
+    if (error instanceof RecipeLibraryApiError) throw error;
+    if (error instanceof ApiTransportError) {
+      if (error.reason === "aborted") {
+        throw new DOMException("The request was aborted.", "AbortError");
+      }
+      throw fromTransportError(error);
+    }
+    throw new RecipeLibraryApiError(
+      "Recipe Lab could not load this recipe library. Please try again.",
+      0,
+    );
+  }
+}
+
+function recipeLibraryErrorMessage(status: number): string {
+  return status === 401
+    ? "Your session expired. Sign in again to load your recipes."
+    : status === 403
+      ? "This recipe library is not available to your account."
+      : status === 404
+        ? "This recipe library could not be found."
+        : status === 429
+          ? "Recipe Lab is receiving too many requests. Please wait before refreshing your recipes."
+          : "Recipe Lab could not load this recipe library. Please try again.";
+}
+
+function fromTransportError(error: ApiTransportError): RecipeLibraryApiError {
+  if (error.reason === "invalid_response") return invalidResponse();
+  return new RecipeLibraryApiError(
+    recipeLibraryErrorMessage(error.status),
+    error.status,
+    error.code,
   );
-  return parseMyRecipeLibraryPage(await response.json());
 }
 
 export async function fetchSavedRecipeLibrary({

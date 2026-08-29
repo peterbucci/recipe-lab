@@ -246,7 +246,7 @@ Open:
 - Draft similarity API: `POST /api/recipe-drafts/{id}/duplicate-preflights`
 - Draft publication API: `POST /api/recipe-drafts/{id}/publish`
 - Public cook profile API: `GET /api/cooks/{handle}`
-- My Recipes API: `GET /api/my/recipes`
+- My Recipes API: `GET /api/my/recipes?view=drafts|published|withdrawn`
 - Saved Recipes API: `GET /api/my/saved-recipes`
 - Recipe visibility API: `PUT /api/recipes/{id}/visibility`
 - Recipe report API: `POST /api/recipes/{id}/reports`

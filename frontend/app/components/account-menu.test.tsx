@@ -93,7 +93,7 @@ describe("AccountMenu", () => {
     );
     expect(screen.getByRole("link", { name: "My recipes" })).toHaveAttribute(
       "href",
-      "/account/recipes",
+      "/account/recipes?view=drafts",
     );
     expect(screen.getByRole("link", { name: "Saved recipes" })).toHaveAttribute(
       "href",

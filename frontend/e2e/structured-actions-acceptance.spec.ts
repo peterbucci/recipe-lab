@@ -167,8 +167,18 @@ test.describe("structured cooking action acceptance", () => {
         .check();
       await review.getByRole("button", { name: "Publish version anyway" }).click();
     }
-    expect((await publishResponse).status()).toBe(201);
-    await expect(page).toHaveURL(/\/recipes\/[0-9a-f-]+$/i);
+    const publication = await publishResponse;
+    expect(publication.status()).toBe(201);
+    const published = (await publication.json()) as {
+      location?: unknown;
+      recipe_version_id?: unknown;
+    };
+    expect(published.recipe_version_id).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(published.location).toBe(`/recipes/${published.recipe_version_id}`);
+    expect(publication.headers().location).toBe(published.location);
+    await expect(page).toHaveURL("/account/recipes?view=published");
+    await expect(page.getByRole("article", { name: draftTitle, exact: true })).toBeVisible();
+    await page.goto(published.location as string);
 
     await page.getByRole("link", { name: "See what changed", exact: true }).click();
     const changedInstruction = page.getByRole("article", { name: "Update step 1", exact: true });

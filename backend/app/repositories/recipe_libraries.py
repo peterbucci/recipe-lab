@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Literal, cast
 from uuid import UUID
 
-from sqlalchemy import func, literal, select, union_all
+from sqlalchemy import func, literal, select
 from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
 from app.models import (
@@ -22,6 +22,7 @@ type RecipeVisibilityState = Literal[
     "author_withdrawn",
     "moderation_hidden",
 ]
+type MyRecipeLibraryView = Literal["drafts", "published", "withdrawn"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,43 +65,52 @@ def browse_my_recipes(
     session: Session,
     *,
     actor_user_id: UUID,
+    view: MyRecipeLibraryView,
     offset: int,
     limit: int,
 ) -> MyRecipeLibraryResult:
-    """Database-page one member's active drafts and every authored publication."""
+    """Database-page one explicit view of a member's authored recipe work."""
 
-    draft_activity = select(
-        literal("draft").label("kind"),
-        RecipeDraft.id.label("entity_id"),
-        RecipeDraft.updated_at.label("activity_at"),
-    ).where(
-        RecipeDraft.author_user_id == actor_user_id,
-        RecipeDraft.status == "active",
-    )
-    publication_activity = (
-        select(
-            literal("published").label("kind"),
-            RecipeVersion.id.label("entity_id"),
-            RecipeVersionPublication.published_at.label("activity_at"),
+    if view == "drafts":
+        activity_statement = select(
+            literal("draft").label("kind"),
+            RecipeDraft.id.label("entity_id"),
+            RecipeDraft.updated_at.label("activity_at"),
+        ).where(
+            RecipeDraft.author_user_id == actor_user_id,
+            RecipeDraft.status == "active",
         )
-        .join(
-            RecipeVersionPublication,
-            RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+    else:
+        publication_states = (
+            ("published", "moderation_hidden") if view == "published" else ("author_withdrawn",)
         )
-        .where(
-            RecipeVersion.created_by_user_id == actor_user_id,
+        activity_at = (
+            RecipeVersionPublication.published_at
+            if view == "published"
+            else RecipeVersionPublication.state_changed_at
         )
-    )
-    activity = union_all(draft_activity, publication_activity).subquery(
-        "my_recipe_library_activity"
-    )
+        activity_statement = (
+            select(
+                literal("published").label("kind"),
+                RecipeVersion.id.label("entity_id"),
+                activity_at.label("activity_at"),
+            )
+            .join(
+                RecipeVersionPublication,
+                RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+            )
+            .where(
+                RecipeVersion.created_by_user_id == actor_user_id,
+                RecipeVersionPublication.state.in_(publication_states),
+            )
+        )
+    activity = activity_statement.subquery("my_recipe_library_activity")
     total = session.scalar(select(func.count()).select_from(activity)) or 0
     page_rows = list(
         session.execute(
             select(activity.c.kind, activity.c.entity_id)
             .order_by(
                 activity.c.activity_at.desc(),
-                activity.c.kind,
                 activity.c.entity_id,
             )
             .offset(offset)

@@ -74,7 +74,8 @@ async function finishOriginalPublication(
   expect(published.recipe_version_id).toMatch(/^[0-9a-f-]{36}$/i);
   expect(published.location).toBe(`/recipes/${published.recipe_version_id}`);
   expect(publication.headers().location).toBe(published.location);
-  await expect(page).toHaveURL(published.location as string);
+  await expect(page).toHaveURL("/account/recipes?view=published");
+  await page.goto(published.location as string);
   return published.recipe_version_id as string;
 }
 
@@ -190,11 +191,14 @@ test.describe("cross-user fork publication acceptance", () => {
     expect(published.location).toBe(`/recipes/${published.recipe_version_id}`);
     expect(publication.headers().location).toBe(published.location);
 
-    await expect(page).toHaveURL(published.location as string);
+    await expect(page).toHaveURL("/account/recipes?view=published");
+    await expect(page.getByRole("article", { name: childTitle, exact: true })).toBeVisible();
+    await page.goto(published.location as string);
     await expect(page.getByRole("heading", { name: childTitle, level: 1 })).toBeVisible();
     await expect(page.getByText("Version 2", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("Based on", { exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Based on.*Acceptance Parent Pecan Round/i })).toHaveAttribute(
+    const parentContext = page.locator(".recipe-detail__parent-context");
+    await expect(parentContext).toContainText(`Based on ${sourceTitle}`);
+    await expect(parentContext.getByRole("link", { name: sourceTitle })).toHaveAttribute(
       "href",
       `/recipes/${sourceId}`,
     );

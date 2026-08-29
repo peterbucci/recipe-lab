@@ -16,12 +16,40 @@ interface DraftResponse {
   revision: number;
 }
 
+type MyRecipeLibraryView = "drafts" | "published" | "withdrawn";
+
 interface MyRecipePage {
+  total: number;
   items: Array<
     | { kind: "draft"; draft: { id: string; title: string } }
-    | { kind: "published"; recipe: { id: string; title: string } }
+    | {
+        kind: "published";
+        recipe: { id: string; title: string };
+        visibility_state: "published" | "author_withdrawn" | "moderation_hidden";
+      }
   >;
 }
+
+const libraryViewCopy: Record<
+  MyRecipeLibraryView,
+  { empty: string; heading: string; list: string }
+> = {
+  drafts: {
+    empty: "You have no private drafts yet.",
+    heading: "Private drafts",
+    list: "Private recipe drafts",
+  },
+  published: {
+    empty: "You have no published recipes yet.",
+    heading: "Published recipes",
+    list: "Published recipes",
+  },
+  withdrawn: {
+    empty: "You have no withdrawn recipes.",
+    heading: "Withdrawn recipes",
+    list: "Withdrawn recipes",
+  },
+};
 
 function apiUrl(path: string): string {
   return new URL(path, baseUrl).toString();
@@ -46,6 +74,41 @@ async function expectNoAccessibilityViolations(page: Page): Promise<void> {
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .analyze();
   expect(results.violations).toEqual([]);
+}
+
+async function expectLibraryView(
+  page: Page,
+  view: MyRecipeLibraryView,
+  total: number,
+): Promise<void> {
+  const responsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      response.request().method() === "GET" &&
+      url.pathname === "/api/my/recipes" &&
+      url.searchParams.get("view") === view
+    );
+  });
+  await page.goto(`/account/recipes?view=${view}`);
+  expect((await responsePromise).status()).toBe(200);
+  await expect(page).toHaveURL(`/account/recipes?view=${view}`);
+  await expect(page.getByRole("link", { name: new RegExp(`^${view}$`, "i") })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  const copy = libraryViewCopy[view];
+  if (total > 0) {
+    await expect(page.getByRole("heading", { name: copy.heading, level: 2 })).toBeVisible();
+    await expect(page.getByRole("list", { name: copy.list })).toBeVisible();
+  } else {
+    await expect(page.getByRole("heading", { name: copy.empty, level: 2 })).toBeVisible();
+  }
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
+  await expectNoAccessibilityViolations(page);
 }
 
 test.describe("cook profiles and member recipe libraries acceptance", () => {
@@ -83,26 +146,75 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
       expect(saved.status(), await saved.text()).toBe(200);
       draft = (await saved.json()) as DraftResponse;
 
-      const aliceLibrary = await memberGet(page, "alice", "/api/my/recipes?page=1&page_size=100");
-      expect(aliceLibrary.status(), await aliceLibrary.text()).toBe(200);
-      expect(((await aliceLibrary.json()) as MyRecipePage).items).toContainEqual(
+      const aliceDraftsResponse = await memberGet(
+        page,
+        "alice",
+        "/api/my/recipes?view=drafts&page=1&page_size=100",
+      );
+      expect(aliceDraftsResponse.status(), await aliceDraftsResponse.text()).toBe(200);
+      const aliceDrafts = (await aliceDraftsResponse.json()) as MyRecipePage;
+      expect(aliceDrafts.items).toContainEqual(
         expect.objectContaining({ kind: "draft", draft: expect.objectContaining({ id: draft.id, title }) }),
       );
+      expect(aliceDrafts.items.every((item) => item.kind === "draft")).toBe(true);
 
-      await page.goto("/account/recipes");
-      const aliceList = page.getByRole("list", { name: "My recipes" });
+      const alicePublishedResponse = await memberGet(
+        page,
+        "alice",
+        "/api/my/recipes?view=published&page=1&page_size=100",
+      );
+      expect(alicePublishedResponse.status(), await alicePublishedResponse.text()).toBe(200);
+      const alicePublished = (await alicePublishedResponse.json()) as MyRecipePage;
+      expect(
+        alicePublished.items.every(
+          (item) =>
+            item.kind === "published" &&
+            (item.visibility_state === "published" ||
+              item.visibility_state === "moderation_hidden"),
+        ),
+      ).toBe(true);
+      expect(alicePublished.items).not.toContainEqual(
+        expect.objectContaining({ kind: "draft", draft: expect.objectContaining({ id: draft.id }) }),
+      );
+
+      const aliceWithdrawnResponse = await memberGet(
+        page,
+        "alice",
+        "/api/my/recipes?view=withdrawn&page=1&page_size=100",
+      );
+      expect(aliceWithdrawnResponse.status(), await aliceWithdrawnResponse.text()).toBe(200);
+      const aliceWithdrawn = (await aliceWithdrawnResponse.json()) as MyRecipePage;
+      expect(
+        aliceWithdrawn.items.every(
+          (item) => item.kind === "published" && item.visibility_state === "author_withdrawn",
+        ),
+      ).toBe(true);
+
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expectLibraryView(page, "drafts", aliceDrafts.total);
+      const aliceList = page.getByRole("list", { name: "Private recipe drafts" });
       const aliceDraftHeading = aliceList.getByRole("heading", { name: title, exact: true });
       const aliceDraftCard = aliceList.getByRole("article", { name: title, exact: true });
       await expect(aliceDraftCard).toHaveCount(1);
       await expect(aliceDraftHeading).toBeVisible();
-      await expect(aliceDraftCard.getByText("Private", { exact: true })).toBeVisible();
+      await expect(aliceDraftCard.getByText("Private draft", { exact: true })).toBeVisible();
 
-      const bobLibrary = await memberGet(page, "bob", "/api/my/recipes?page=1&page_size=100");
+      await expectLibraryView(page, "published", alicePublished.total);
+      await expect(page.getByText(title, { exact: true })).toHaveCount(0);
+      await expectLibraryView(page, "withdrawn", aliceWithdrawn.total);
+      await expect(page.getByText(title, { exact: true })).toHaveCount(0);
+
+      const bobLibrary = await memberGet(
+        page,
+        "bob",
+        "/api/my/recipes?view=drafts&page=1&page_size=100",
+      );
       expect(bobLibrary.status(), await bobLibrary.text()).toBe(200);
-      expect(((await bobLibrary.json()) as MyRecipePage).items).not.toContainEqual(
+      const bobDrafts = (await bobLibrary.json()) as MyRecipePage;
+      expect(bobDrafts.items).not.toContainEqual(
         expect.objectContaining({ kind: "draft", draft: expect.objectContaining({ id: draft.id }) }),
       );
-      await page.goto("/account/recipes");
+      await expectLibraryView(page, "drafts", bobDrafts.total);
       await expect(page.getByText(title, { exact: true })).toHaveCount(0);
 
       let perCardHydrationRequests = 0;

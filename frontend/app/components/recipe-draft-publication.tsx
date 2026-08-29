@@ -259,7 +259,7 @@ export function RecipeDraftPublication({
     setSourceUnavailable(false);
     setStatus(`Publishing your ${isFork ? "version" : "recipe"}…`);
     try {
-      const published = await publishRecipeDraft(
+      await publishRecipeDraft(
         draftId,
         {
           revision: expectedRevision,
@@ -268,9 +268,9 @@ export function RecipeDraftPublication({
         },
         publishAttempt.current.idempotencyKey,
       );
-      setStatus(`${isFork ? "Version" : "Recipe"} published. Opening its permanent page…`);
+      setStatus(`${isFork ? "Version" : "Recipe"} published. Opening your published recipes…`);
       setBlocked(false);
-      router.replace(published.location);
+      router.replace("/account/recipes?view=published");
       router.refresh();
     } catch (reason) {
       finishFailure(reason, "publish");
@@ -524,7 +524,7 @@ export function RecipeDraftPublication({
           : status || `Only you can publish this saved ${isFork ? "version" : "original recipe"} draft.`}
       </p>
       <p className="draft-publication__boundary">
-        Not ready? <GuardedLink href="/account/recipe-drafts">Return to your private drafts</GuardedLink>.
+        Not ready? <GuardedLink href="/account/recipes?view=drafts">Return to your private drafts</GuardedLink>.
       </p>
     </section>
   );

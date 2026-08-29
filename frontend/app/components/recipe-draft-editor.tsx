@@ -355,7 +355,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
     try {
       await discardRecipeDraft(draftId, detail.revision, key);
       setBlocked(false);
-      router.replace("/account/recipe-drafts");
+      router.replace("/account/recipes?view=drafts");
     } catch (reason) {
       if (reason instanceof RecipeDraftApiError && reason.code === "recipe_draft_revision_conflict") {
         setConflict(true);
@@ -401,7 +401,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
           <p>{loadError || "This private draft is unavailable."}</p>
           <div className="button-row">
             <button className="button button--primary" type="button" onClick={() => void load()}>Try again</button>
-            <GuardedLink className="button button--secondary" href="/account/recipe-drafts">My recipe drafts</GuardedLink>
+            <GuardedLink className="button button--secondary" href="/account/recipes?view=drafts">My recipes</GuardedLink>
           </div>
         </section>
       </main>
@@ -415,7 +415,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
   return (
     <main id="main-content" className="page-shell page-shell--detail draft-editor-page">
       <nav className="breadcrumb" aria-label="Breadcrumb">
-        <GuardedLink href="/account/recipe-drafts">← My recipe drafts</GuardedLink>
+        <GuardedLink href="/account/recipes?view=drafts">← My recipes</GuardedLink>
       </nav>
       <header className="page-intro page-intro--editor">
         <p className="eyebrow">{detail.source_version_id ? "Private version draft" : "Private original recipe draft"}</p>
@@ -574,7 +574,7 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
         <div className="draft-editor__actions">
           <div>
             <button className="button button--primary" type="submit" disabled={actionDisabled || !dirty}>{pending === "save" ? "Saving…" : dirty ? "Save draft" : "Draft saved"}</button>
-            <GuardedLink className="button button--secondary" href="/account/recipe-drafts">Back to drafts</GuardedLink>
+            <GuardedLink className="button button--secondary" href="/account/recipes?view=drafts">Back to drafts</GuardedLink>
           </div>
           <p role="status" aria-live="polite">{status || (dirty ? "You have unsaved changes." : "All changes are saved privately.")}</p>
         </div>

@@ -412,8 +412,10 @@ test.describe("desktop visual state matrix", () => {
   });
 
   test("my recipes normal", async ({ page }) => {
-    await page.goto("/account/recipes");
-    await expect(page.getByRole("list", { name: "My recipes" })).toBeVisible();
+    await page.goto("/account/recipes?view=drafts");
+    await expect(
+      page.getByRole("list", { name: "Private recipe drafts" }),
+    ).toBeVisible();
     await stabilizeVisuals(page);
     await captureBaseline(page, "my-recipes-normal");
   });
@@ -487,7 +489,9 @@ test.describe("desktop visual state matrix", () => {
 
   test("private workspace loading", async ({ page }) => {
     await setScenario("slow-session");
-    await page.goto("/account/recipes", { waitUntil: "domcontentloaded" });
+    await page.goto("/account/recipes?view=drafts", {
+      waitUntil: "domcontentloaded",
+    });
     await expect(
       page.getByRole("heading", { name: "Checking your account…" }),
     ).toBeVisible();
@@ -497,13 +501,12 @@ test.describe("desktop visual state matrix", () => {
 
   test("private workspace failure", async ({ page }) => {
     await setScenario("library-failure");
-    await page.goto("/account/recipes");
+    await page.goto("/account/recipes?view=drafts");
     await expect(
-      page
-        .getByRole("alert")
-        .filter({
-          hasText: "Recipe Lab could not load your recipes. Please try again.",
-        }),
+      page.getByRole("alert").filter({
+        hasText:
+          "Recipe Lab could not load your private drafts. Please try again.",
+      }),
     ).toBeVisible();
     await stabilizeVisuals(page);
     await captureBaseline(page, "private-workspace-failure");
@@ -511,7 +514,7 @@ test.describe("desktop visual state matrix", () => {
 
   test("private workspace expired session", async ({ page }) => {
     await setScenario("expired-library");
-    await page.goto("/account/recipes");
+    await page.goto("/account/recipes?view=drafts");
     await expect(
       page.getByRole("alert", {
         name: "Your session expired. Your work is still here.",
@@ -534,6 +537,25 @@ test.describe("phone visual state matrix", () => {
     ).toBeVisible();
     await stabilizeVisuals(page);
     await captureBaseline(page, "home-normal");
+  });
+
+  test("my recipes normal", async ({ page }) => {
+    await page.goto("/account/recipes?view=drafts");
+    await expect(
+      page.getByRole("list", { name: "Private recipe drafts" }),
+    ).toBeVisible();
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "my-recipes-normal");
+    const resumeDraft = page.getByRole("link", { name: "Resume draft" });
+    const draftCard = page.getByRole("article").filter({ has: resumeDraft });
+    await resumeDraft.scrollIntoViewIfNeeded();
+    const [buttonBox, cardBox] = await Promise.all([
+      resumeDraft.boundingBox(),
+      draftCard.boundingBox(),
+    ]);
+    expect(buttonBox).not.toBeNull();
+    expect(cardBox).not.toBeNull();
+    expect(buttonBox!.width).toBeLessThan(cardBox!.width * 0.7);
   });
 
   test("home and account navigation normal", async ({ page }) => {
@@ -649,8 +671,12 @@ test("keyboard account-to-private-workspace journey", async ({ page }) => {
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "My recipes" })).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(`${BASELINE_FRONTEND_ORIGIN}/account/recipes`);
-  await expect(page.getByRole("list", { name: "My recipes" })).toBeVisible();
+  await expect(page).toHaveURL(
+    `${BASELINE_FRONTEND_ORIGIN}/account/recipes?view=drafts`,
+  );
+  await expect(
+    page.getByRole("list", { name: "Private recipe drafts" }),
+  ).toBeVisible();
   await stabilizeVisuals(page);
   await expectNoHorizontalOverflow(page);
   await expectNoAccessibilityViolations(page);

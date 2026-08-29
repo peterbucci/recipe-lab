@@ -116,7 +116,7 @@ export function AccountMenu() {
           </GuardedLink>
         ) : null}
         {state.session.status === "authenticated" ? (
-          <GuardedLink className="account-menu__link" href="/account/recipes">
+          <GuardedLink className="account-menu__link" href="/account/recipes?view=drafts">
             My recipes
           </GuardedLink>
         ) : null}

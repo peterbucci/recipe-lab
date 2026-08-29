@@ -116,7 +116,7 @@ export function AccountSettings() {
   return (
     <main id="main-content" className="page-shell account-settings">
       <nav className="breadcrumb" aria-label="Breadcrumb">
-        <Link href={expectedHandle ? "/account/recipes" : "/recipes"}>
+        <Link href={expectedHandle ? "/account/recipes?view=drafts" : "/recipes"}>
           {expectedHandle ? "← Back to my recipes" : "← Back to recipes"}
         </Link>
       </nav>

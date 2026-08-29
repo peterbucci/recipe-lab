@@ -93,7 +93,9 @@ async function finishOriginalPublication(
   };
   expect(body.recipe_version_id).toMatch(/^[0-9a-f-]{36}$/i);
   expect(body.location).toBe(`/recipes/${body.recipe_version_id}`);
-  await expect(page).toHaveURL(body.location as string);
+  expect(publication.headers().location).toBe(body.location);
+  await expect(page).toHaveURL("/account/recipes?view=published");
+  await page.goto(body.location as string);
   return body.recipe_version_id as string;
 }
 
@@ -159,9 +161,15 @@ async function publishUnchangedFork(
   await review.getByRole("button", { name: "Publish version anyway" }).click();
   const publication = await publicationResponse;
   expect(publication.status(), await publication.text()).toBe(201);
-  const body = (await publication.json()) as { recipe_version_id?: unknown };
+  const body = (await publication.json()) as {
+    location?: unknown;
+    recipe_version_id?: unknown;
+  };
   expect(body.recipe_version_id).toMatch(/^[0-9a-f-]{36}$/i);
-  await expect(page).toHaveURL(`/recipes/${body.recipe_version_id}`);
+  expect(body.location).toBe(`/recipes/${body.recipe_version_id}`);
+  expect(publication.headers().location).toBe(body.location);
+  await expect(page).toHaveURL("/account/recipes?view=published");
+  await page.goto(body.location as string);
   return body.recipe_version_id as string;
 }
 
@@ -200,7 +208,7 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
     expect(unauthorized.status(), await unauthorized.text()).toBe(404);
 
     await applyAcceptanceMember(page, "alice");
-    await page.goto("/account/recipes");
+    await page.goto("/account/recipes?view=published");
     let sourceCard = page.getByRole("article", { name: sourceTitle, exact: true });
     await sourceCard.getByRole("button", { name: `Withdraw ${sourceTitle}`, exact: true }).click();
     const withdrawalResponse = page.waitForResponse(
@@ -212,6 +220,10 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
       .getByRole("button", { name: `Confirm withdrawal of ${sourceTitle}`, exact: true })
       .click();
     expect((await withdrawalResponse).status()).toBe(200);
+    await expect(page.getByRole("status")).toHaveText(`${sourceTitle} moved to Withdrawn.`);
+    await expect(sourceCard).toHaveCount(0);
+
+    await page.goto("/account/recipes?view=withdrawn");
     sourceCard = page.getByRole("article", { name: sourceTitle, exact: true });
     await expect(sourceCard.getByText("Withdrawn", { exact: true })).toBeVisible();
     await expect(sourceCard.getByRole("link", { name: sourceTitle, exact: true })).toHaveCount(0);
@@ -248,7 +260,7 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
     await expectNoAccessibilityViolations(page);
 
     await applyAcceptanceMember(page, "alice");
-    await page.goto("/account/recipes");
+    await page.goto("/account/recipes?view=withdrawn");
     sourceCard = page.getByRole("article", { name: sourceTitle, exact: true });
     const restoreResponse = page.waitForResponse(
       (response) =>
@@ -257,6 +269,10 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
     );
     await sourceCard.getByRole("button", { name: `Restore ${sourceTitle}`, exact: true }).click();
     expect((await restoreResponse).status()).toBe(200);
+    await expect(page.getByRole("status")).toHaveText(`${sourceTitle} moved to Published.`);
+    await expect(sourceCard).toHaveCount(0);
+
+    await page.goto("/account/recipes?view=published");
     sourceCard = page.getByRole("article", { name: sourceTitle, exact: true });
     await expect(sourceCard.getByText("Public", { exact: true })).toBeVisible();
     await expect(sourceCard.getByRole("link", { name: sourceTitle, exact: true })).toBeVisible();

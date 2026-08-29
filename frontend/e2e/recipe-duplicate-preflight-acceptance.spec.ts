@@ -165,8 +165,18 @@ test.describe("recipe duplicate preflight acceptance", () => {
     );
     await continueButton.focus();
     await page.keyboard.press("Enter");
-    expect((await publicationResponse).status()).toBe(201);
-    await expect(page).toHaveURL(/\/recipes\/[0-9a-f-]+$/i);
+    const publication = await publicationResponse;
+    expect(publication.status()).toBe(201);
+    const published = (await publication.json()) as {
+      location?: unknown;
+      recipe_version_id?: unknown;
+    };
+    expect(published.recipe_version_id).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(published.location).toBe(`/recipes/${published.recipe_version_id}`);
+    expect(publication.headers().location).toBe(published.location);
+    await expect(page).toHaveURL("/account/recipes?view=published");
+    await page.goto(published.location as string);
+    await expect(page).toHaveURL(published.location as string);
   });
 
   test("shows a probable public candidate and preserves navigation to its recipe", async ({

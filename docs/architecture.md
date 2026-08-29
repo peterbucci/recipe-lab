@@ -451,11 +451,13 @@ plus at most one publicly readable direct parent and author. Keeping the bare
 truth without leaking private metadata.
 
 Private recipe libraries are session-derived read models rather than ownership
-parameters. My Recipes pages active drafts and all authored publication states
-in a database union, then hydrates only the item kinds present on that page.
-That private state is the author withdraw/restore control surface. Saved
-Recipes joins the current member's saves to public versions. Both use bounded
-queries, private non-cacheable responses, and accept no user ID. See
+parameters. My Recipes separates active drafts, published recipes (including
+moderation-hidden recipes), and author-withdrawn recipes into explicit,
+independently paginated server views. Each view hydrates only the item kind it
+can contain. The Published and Withdrawn views are the author
+withdraw/restore control surface. Saved Recipes joins the current member's
+saves to public versions. Both use bounded queries, private non-cacheable
+responses, and accept no user ID. See
 [cook profiles and recipe libraries](cook-profiles-and-libraries.md).
 
 Account deletion is one transaction after a short provider-backed recent-auth

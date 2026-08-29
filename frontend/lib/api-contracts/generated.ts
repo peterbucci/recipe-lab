@@ -383,7 +383,10 @@ export type paths = {
             readonly path?: never;
             readonly cookie?: never;
         };
-        /** List my current drafts and published recipes */
+        /**
+         * List one view of my recipes
+         * @description Returns independently paginated active drafts, current publications, or author-withdrawn publications. Moderation-hidden authored recipes remain in the published view with their accurate visibility state.
+         */
         readonly get: operations["my_recipe_library_api_my_recipes_get"];
         readonly put?: never;
         readonly post?: never;
@@ -1257,6 +1260,8 @@ export type components = {
             /** Total Pages */
             readonly total_pages: number;
         };
+        /** @enum {string} */
+        readonly MyRecipeLibraryView: "drafts" | "published" | "withdrawn";
         /** PublicCookProfileResponse */
         readonly PublicCookProfileResponse: {
             readonly cook: components["schemas"]["PublicUserReference"];
@@ -4199,9 +4204,10 @@ export interface operations {
     };
     readonly my_recipe_library_api_my_recipes_get: {
         readonly parameters: {
-            readonly query?: {
+            readonly query: {
                 readonly page?: number;
                 readonly page_size?: number;
+                readonly view: components["schemas"]["MyRecipeLibraryView"];
             };
             readonly header?: never;
             readonly path?: never;
@@ -4245,7 +4251,7 @@ export interface operations {
                     readonly "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description A page parameter is invalid. */
+            /** @description A view or page parameter is invalid. */
             readonly 422: {
                 headers: {
                     readonly [name: string]: unknown;
