@@ -197,8 +197,10 @@ test.describe("structured cooking action acceptance", () => {
     await expect(page.getByRole("article", { name: draftTitle, exact: true })).toBeVisible();
     await page.goto(published.location as string);
 
-    await expect(page.getByText(revisedProse, { exact: true })).toBeVisible();
     const publishedDetails = page.getByRole("list", { name: "Cooking details for step 1" });
+    await expect(
+      publishedDetails.locator("..").getByText(revisedProse, { exact: true }),
+    ).toBeVisible();
     const publishedActions = publishedDetails.getByRole("listitem");
     await expect(publishedActions).toHaveCount(3);
     await expect(publishedActions.nth(0)).toContainText("grease");
