@@ -1549,15 +1549,8 @@ h3 {
 }
 
 .instruction-actions span,
-.instruction-actions small,
-.instruction-actions__unmapped {
+.instruction-actions small {
   color: var(--muted);
-}
-
-.instruction-actions__unmapped {
-  margin: 0.55rem 0 0;
-  font-size: 0.72rem;
-  font-style: italic;
 }
 
 .lineage-section {
@@ -2671,14 +2664,70 @@ h3 {
   line-height: 1.45;
 }
 
-.structured-action {
+.cooking-details {
   min-width: 0;
   margin: 1.25rem 0 0;
   border-top: 1px solid var(--line);
-  border-right: 0;
-  border-bottom: 0;
-  border-left: 0;
   padding: 1rem 0 0;
+}
+
+.cooking-details__disclosure {
+  display: flex;
+  width: 100%;
+  min-height: 3.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--control-line);
+  border-radius: 0.8rem;
+  background: var(--surface);
+  padding: 0.8rem 0.9rem;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cooking-details__disclosure:hover:not(:disabled) {
+  border-color: var(--leaf);
+  background: var(--leaf-soft);
+}
+
+.cooking-details__disclosure:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.cooking-details__disclosure-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.cooking-details__disclosure-copy strong {
+  color: var(--leaf-dark);
+  font-size: 0.92rem;
+}
+
+.cooking-details__disclosure-copy small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.cooking-details__disclosure-action {
+  flex: 0 0 auto;
+  color: var(--leaf-dark);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.structured-action {
+  min-width: 0;
+  margin: 0.85rem 0 0;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--surface-soft);
+  padding: 1rem;
 }
 
 .structured-action > legend,
@@ -2715,7 +2764,7 @@ h3 {
   margin: 0;
   border: 1px solid var(--line);
   border-radius: 0.75rem;
-  background: var(--surface-soft);
+  background: var(--surface);
   padding: 0.9rem;
 }
 

@@ -14,6 +14,7 @@ import {
   type IngredientOccurrenceOption,
   type StructuredActionDraft,
 } from "../../lib/structured-action";
+import { formatDecimal } from "../../lib/format";
 import type { StructuredMeasureField } from "../../lib/structured-measure";
 import {
   DurationMeasureControl,
@@ -54,6 +55,77 @@ function measureErrors(
   );
 }
 
+function measureSummary(
+  measure: StructuredActionDraft["duration"],
+): string | null {
+  if (!measure.enabled || !measure.value.unit) {
+    return null;
+  }
+  const { unit } = measure.value;
+  const displayDecimal = (value: string) => {
+    const formatted = formatDecimal(value);
+    const negative = formatted.startsWith("-");
+    const unsigned = negative ? formatted.slice(1) : formatted;
+    const normalized = unsigned.replace(/^0+(?=\d)/, "");
+    return `${negative ? "-" : ""}${normalized}`;
+  };
+  const amount =
+    measure.value.mode === "exact"
+      ? displayDecimal(measure.value.exactValue.trim())
+      : measure.value.mode === "range"
+        ? `${displayDecimal(measure.value.rangeMinimum.trim())}\u2013${displayDecimal(
+            measure.value.rangeMaximum.trim(),
+          )}`
+        : "";
+  if (!amount || amount.startsWith("\u2013") || amount.endsWith("\u2013")) {
+    return null;
+  }
+  if (unit.display_style === "symbol" && unit.symbol) {
+    return `${amount} ${unit.symbol}`;
+  }
+  const singular = !amount.includes("\u2013") && Number(amount) === 1;
+  return `${amount} ${singular ? unit.canonical_label : unit.plural_label}`;
+}
+
+function ingredientSummary(
+  keys: readonly string[],
+  ingredientOccurrences: readonly IngredientOccurrenceOption[],
+): string | null {
+  const selected = keys.flatMap((key) => {
+    const ingredient = ingredientOccurrences.find((item) => item.key === key);
+    return ingredient ? [ingredient.label.replace(/^Ingredient \d+:\s*/, "")] : [];
+  });
+  if (selected.length === 0) {
+    return null;
+  }
+  return selected.length === 1 ? selected[0] : `${selected.length} ingredients`;
+}
+
+function actionSummary(
+  action: StructuredActionDraft,
+  ingredientOccurrences: readonly IngredientOccurrenceOption[],
+): string {
+  const parts = [
+    action.actionType?.canonical_verb ?? "Action not chosen",
+    ingredientSummary(action.ingredientKeys, ingredientOccurrences),
+    measureSummary(action.duration),
+    measureSummary(action.temperature),
+  ].filter((part): part is string => Boolean(part));
+  return parts.join(" \u00b7 ");
+}
+
+function cookingDetailsSummary(
+  value: readonly StructuredActionDraft[],
+  ingredientOccurrences: readonly IngredientOccurrenceOption[],
+): string {
+  if (value.length === 0) {
+    return "Optional while you write. Add the actions, ingredients, time, or temperature you want to confirm.";
+  }
+  const visible = value.slice(0, 2).map((action) => actionSummary(action, ingredientOccurrences));
+  const remaining = value.length - visible.length;
+  return `${visible.join(" \u2192 ")}${remaining > 0 ? ` \u00b7 ${remaining} more` : ""}`;
+}
+
 export function StructuredActionEditor({
   idPrefix,
   stepLabel,
@@ -67,10 +139,16 @@ export function StructuredActionEditor({
 }: StructuredActionEditorProps) {
   const pendingFocusId = useRef<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const hasErrors = Object.values(errors).some(Boolean);
+  const [expanded, setExpanded] = useState(false);
   const activeActionTypes = actionTypes.filter((item) => item.active);
   const addButtonId = `${idPrefix}-add-action`;
+  const disclosureId = `${idPrefix}-cooking-details`;
+  const disclosureSummaryId = `${idPrefix}-cooking-details-summary`;
+  const disclosureStatusId = `${idPrefix}-cooking-details-status`;
   const helpId = `${idPrefix}-actions-help`;
   const actionsErrorId = `${idPrefix}-actions-error`;
+  const showEditor = expanded || hasErrors;
 
   useEffect(() => {
     if (!pendingFocusId.current) {
@@ -126,18 +204,45 @@ export function StructuredActionEditor({
   }
 
   return (
-    <fieldset
-      className="structured-action"
-      disabled={disabled}
-      aria-describedby={`${helpId}${errors.actions ? ` ${actionsErrorId}` : ""}`}
-    >
-      <legend>Cooking actions</legend>
-      <p id={helpId} className="structured-action__help">
-        Choose trusted actions in the order they happen. Ingredient inputs refer to this recipe’s
-        specific ingredient rows.
-      </p>
-      <FieldError id={actionsErrorId} message={errors.actions} />
-      <ol className="structured-action__list">
+    <div className="cooking-details">
+      <button
+        className="cooking-details__disclosure"
+        type="button"
+        disabled={disabled}
+        aria-expanded={showEditor}
+        aria-controls={disclosureId}
+        aria-label={`${value.length > 0 ? "Edit" : "Add"} cooking details for ${stepLabel}`}
+        aria-describedby={`${disclosureSummaryId}${hasErrors ? ` ${disclosureStatusId}` : ""}`}
+        onClick={() => {
+          if (!hasErrors) {
+            setExpanded((current) => !current);
+          }
+        }}
+      >
+        <span className="cooking-details__disclosure-copy">
+          <strong>{value.length > 0 ? "Cooking details" : "Add cooking details"}</strong>
+          <small id={disclosureSummaryId}>
+            {cookingDetailsSummary(value, ingredientOccurrences)}
+          </small>
+        </span>
+        <span id={disclosureStatusId} className="cooking-details__disclosure-action">
+          {hasErrors ? "Needs attention" : expanded ? "Hide" : value.length > 0 ? "Edit" : "Add"}
+        </span>
+      </button>
+      <div hidden={!showEditor}>
+        <fieldset
+          id={disclosureId}
+          className="structured-action"
+          disabled={disabled}
+          aria-describedby={`${helpId}${errors.actions ? ` ${actionsErrorId}` : ""}`}
+        >
+          <legend>Author-added cooking details</legend>
+          <p id={helpId} className="structured-action__help">
+            These details come only from what you choose here. Recipe Lab does not infer them from
+            your written instruction.
+          </p>
+          <FieldError id={actionsErrorId} message={errors.actions} />
+          <ol className="structured-action__list">
         {value.map((action, index) => {
           const actionId = `${idPrefix}-${action.key}`;
           const typeError = errors[structuredActionFieldKey(action.key, "type")];
@@ -341,19 +446,21 @@ export function StructuredActionEditor({
             </li>
           );
         })}
-      </ol>
-      <button
-        id={addButtonId}
-        className="button button--secondary"
-        type="button"
-        disabled={disabled || value.length >= MAX_STRUCTURED_ACTIONS_PER_INSTRUCTION}
-        onClick={addAction}
-      >
-        Add cooking action
-      </button>
+          </ol>
+          <button
+            id={addButtonId}
+            className="button button--secondary"
+            type="button"
+            disabled={disabled || value.length >= MAX_STRUCTURED_ACTIONS_PER_INSTRUCTION}
+            onClick={addAction}
+          >
+            Add cooking action
+          </button>
+        </fieldset>
+      </div>
       <p className="visually-hidden" role="status" aria-live="polite">
         {announcement}
       </p>
-    </fieldset>
+    </div>
   );
 }

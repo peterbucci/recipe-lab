@@ -510,7 +510,7 @@ test.describe("member ingredient-request acceptance", () => {
     const selectedWalnutUnitId = await walnutRow
       .getByRole("combobox", { name: "Unit", exact: true })
       .inputValue();
-    await page.getByLabel("Human-readable direction", { exact: true }).first().fill(draftInstruction);
+    await page.getByLabel("Instruction", { exact: true }).first().fill(draftInstruction);
 
     const expectDraftPreserved = async (): Promise<void> => {
       await expect(page.getByLabel("Title", { exact: true })).toHaveValue(draftTitle);
@@ -532,7 +532,7 @@ test.describe("member ingredient-request acceptance", () => {
           .getByRole("combobox", { name: "Unit", exact: true })
           .locator("option:checked"),
       ).toHaveText("gram (g)");
-      await expect(page.getByLabel("Human-readable direction", { exact: true }).first()).toHaveValue(
+      await expect(page.getByLabel("Instruction", { exact: true }).first()).toHaveValue(
         draftInstruction,
       );
       await expect(eggRow.getByText("Egg", { exact: true })).toBeVisible();

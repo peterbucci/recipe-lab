@@ -48,7 +48,17 @@ test.describe("structured cooking action acceptance", () => {
 
     await page.getByLabel("Title", { exact: true }).fill(draftTitle);
     const firstStep = page.getByRole("group", { name: "Step 1", exact: true });
-    await firstStep.getByLabel("Human-readable direction", { exact: true }).fill(revisedProse);
+    await firstStep.getByLabel("Instruction", { exact: true }).fill(revisedProse);
+    const cookingDetails = firstStep.getByRole("button", {
+      name: "Edit cooking details for Step 1",
+    });
+    await expect(cookingDetails).toHaveAttribute("aria-expanded", "false");
+    await expect(cookingDetails).toContainText(/preheat/i);
+    await expect(firstStep.getByRole("group", { name: /^Action \d+$/ })).toHaveCount(0);
+    await expectNoAccessibilityViolations(page);
+    await cookingDetails.focus();
+    await page.keyboard.press("Enter");
+    await expect(cookingDetails).toHaveAttribute("aria-expanded", "true");
 
     const actionGroups = firstStep.getByRole("group", { name: /^Action \d+$/ });
     await expect(actionGroups).toHaveCount(3);
@@ -82,7 +92,7 @@ test.describe("structured cooking action acceptance", () => {
     await lineSelect.selectOption("");
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
     await expect(lineAction.getByText("Choose a cooking action.", { exact: true })).toBeVisible();
-    await expect(firstStep.getByLabel("Human-readable direction", { exact: true })).toHaveValue(revisedProse);
+    await expect(firstStep.getByLabel("Instruction", { exact: true })).toHaveValue(revisedProse);
     await expect(duration.getByRole("textbox", { name: "Duration", exact: true })).toHaveValue("2.500");
     await expect(whiteSugarInput).toBeChecked();
 
@@ -134,7 +144,14 @@ test.describe("structured cooking action acceptance", () => {
     await page.reload();
     await expect(page.getByLabel("Title", { exact: true })).toHaveValue(draftTitle);
     const resumedStep = page.getByRole("group", { name: "Step 1", exact: true });
-    await expect(resumedStep.getByLabel("Human-readable direction", { exact: true })).toHaveValue(revisedProse);
+    await expect(resumedStep.getByLabel("Instruction", { exact: true })).toHaveValue(revisedProse);
+    const resumedDetails = resumedStep.getByRole("button", {
+      name: "Edit cooking details for Step 1",
+    });
+    await expect(resumedDetails).toContainText(/grease/i);
+    await expect(resumedDetails).toContainText(/175/);
+    await resumedDetails.focus();
+    await page.keyboard.press("Enter");
     const resumedActions = resumedStep.getByRole("group", { name: /^Action \d+$/ });
     await expect(resumedActions).toHaveCount(3);
     await expect(resumedActions.nth(0).getByRole("combobox", { name: "Cooking action" })).toHaveValue(greaseTypeId);
@@ -179,6 +196,20 @@ test.describe("structured cooking action acceptance", () => {
     await expect(page).toHaveURL("/account/recipes?view=published");
     await expect(page.getByRole("article", { name: draftTitle, exact: true })).toBeVisible();
     await page.goto(published.location as string);
+
+    const publishedDetails = page.getByRole("list", { name: "Cooking details for step 1" });
+    await expect(
+      publishedDetails.locator("..").getByText(revisedProse, { exact: true }),
+    ).toBeVisible();
+    const publishedActions = publishedDetails.getByRole("listitem");
+    await expect(publishedActions).toHaveCount(3);
+    await expect(publishedActions.nth(0)).toContainText("grease");
+    await expect(publishedActions.nth(1)).toContainText("preheat");
+    await expect(publishedActions.nth(1)).toContainText(/At 175/);
+    await expect(publishedActions.nth(2)).toContainText("line");
+    await expect(publishedActions.nth(2)).toContainText(/For 2\.5 minutes/);
+    await expect(publishedDetails).not.toContainText(/Inputs:|Duration:|Temperature:|Historical action/);
+    await expectNoAccessibilityViolations(page);
 
     await page.getByRole("link", { name: "See what changed", exact: true }).click();
     const changedInstruction = page.getByRole("article", { name: "Update step 1", exact: true });

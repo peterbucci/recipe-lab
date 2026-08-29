@@ -59,8 +59,9 @@ test.describe("original recipe publication acceptance", () => {
     await page.getByRole("button", { name: "Add instruction", exact: true }).click();
     const step = page.getByRole("group", { name: "Step 1", exact: true });
     await step
-      .getByLabel("Human-readable direction", { exact: true })
+      .getByLabel("Instruction", { exact: true })
       .fill("Knead the pecans into a small bite and serve.");
+    await step.getByRole("button", { name: "Add cooking details for Step 1" }).click();
     await step.getByRole("button", { name: "Add cooking action", exact: true }).click();
     const action = step.getByRole("group", { name: "Action 1", exact: true });
     await action.getByRole("combobox", { name: "Cooking action", exact: true }).selectOption({

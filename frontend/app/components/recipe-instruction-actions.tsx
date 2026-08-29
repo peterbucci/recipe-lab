@@ -13,7 +13,7 @@ export function RecipeInstructionActions({
   label,
 }: RecipeInstructionActionsProps) {
   if (actions.length === 0) {
-    return <p className="instruction-actions__unmapped">No cooking actions added.</p>;
+    return null;
   }
 
   const ingredientById = new Map(ingredients.map((ingredient) => [ingredient.id, ingredient]));
@@ -24,19 +24,18 @@ export function RecipeInstructionActions({
         .map((action) => {
           const inputLabels = action.ingredient_occurrence_ids.map((id) => {
             const ingredient = ingredientById.get(id);
-            return ingredient
-              ? `Ingredient ${ingredient.display_order + 1}: ${ingredient.display_name}`
-              : "Ingredient unavailable";
+            return ingredient ? ingredient.display_name : "ingredient no longer available";
           });
+          const details = [
+            inputLabels.length > 0 ? `With ${inputLabels.join(" and ")}` : null,
+            action.duration ? `For ${action.duration.display}` : null,
+            action.temperature ? `At ${action.temperature.display}` : null,
+          ].filter((detail): detail is string => Boolean(detail));
           return (
             <li key={action.id}>
               <strong>{action.action_type.canonical_verb}</strong>
-              {!action.action_type.active ? <span>Historical action</span> : null}
-              {inputLabels.length > 0 ? <small>Inputs: {inputLabels.join(", ")}</small> : null}
-              {action.duration ? <small>Duration: {action.duration.display}</small> : null}
-              {action.temperature ? (
-                <small>Temperature: {action.temperature.display}</small>
-              ) : null}
+              {!action.action_type.active ? <span>Previously used action</span> : null}
+              {details.length > 0 ? <small>{details.join(" \u00b7 ")}</small> : null}
             </li>
           );
         })}

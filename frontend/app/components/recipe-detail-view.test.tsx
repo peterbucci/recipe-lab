@@ -195,7 +195,7 @@ describe("RecipeDetailView", () => {
     const instructions = screen.getByRole("heading", { name: /instructions/i }).closest("section");
     expect(instructions).not.toBeNull();
     expect(within(instructions!).getAllByRole("listitem")).toHaveLength(2);
-    expect(within(instructions!).queryByText("No cooking actions added.")).toBeNull();
+    expect(within(instructions!).queryByText(/cooking actions added/i)).toBeNull();
     expect(within(instructions!).queryByText(/structured actions/i)).toBeNull();
     const recipeHistory = screen.getByRole("list", { name: /recipe history/i });
     expect(within(recipeHistory).getAllByRole("listitem")).toHaveLength(3);
@@ -298,16 +298,20 @@ describe("RecipeDetailView", () => {
     renderDetail(recipe);
 
     expect(screen.getByText("Heat the oven and prepare the pan.")).toBeInTheDocument();
-    const actions = screen.getByRole("list", { name: "Cooking actions for step 1" });
+    const actions = screen.getByRole("list", { name: "Cooking details for step 1" });
     const rendered = within(actions).getAllByRole("listitem");
     expect(rendered).toHaveLength(2);
     expect(within(rendered[0]).getByText("mix")).toBeInTheDocument();
-    expect(within(rendered[0]).getByText("Inputs: Ingredient 1: White sugar")).toBeInTheDocument();
-    expect(within(rendered[0]).getByText("Duration: 5 minutes")).toBeInTheDocument();
+    expect(
+      within(rendered[0]).getByText("With White sugar · For 5 minutes"),
+    ).toBeInTheDocument();
     expect(within(rendered[1]).getByText("fold")).toBeInTheDocument();
-    expect(within(rendered[1]).getByText("Historical action")).toBeInTheDocument();
-    expect(within(rendered[1]).getByText("Inputs: Ingredient unavailable")).toBeInTheDocument();
+    expect(within(rendered[1]).getByText("Previously used action")).toBeInTheDocument();
+    expect(
+      within(rendered[1]).getByText("With ingredient no longer available"),
+    ).toBeInTheDocument();
     expect(actions).not.toHaveTextContent(unavailableIngredientId);
+    expect(actions).not.toHaveTextContent(/Inputs:|Duration:|Temperature:|Historical action/);
   });
 
   it("renders honest empty aggregate and recipe-history states without exposing private controls", () => {

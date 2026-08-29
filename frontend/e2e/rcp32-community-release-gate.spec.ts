@@ -644,7 +644,8 @@ test.describe("RCP-32 two-user community release gate", () => {
 
         await alice.getByRole("button", { name: "Add instruction", exact: true }).click();
         const step = alice.getByRole("group", { name: "Step 1", exact: true });
-        await step.getByLabel("Human-readable direction", { exact: true }).fill(rootDirection);
+        await step.getByLabel("Instruction", { exact: true }).fill(rootDirection);
+        await step.getByRole("button", { name: "Add cooking details for Step 1" }).click();
         await step.getByRole("button", { name: "Add cooking action", exact: true }).click();
         const action = step.getByRole("group", { name: "Action 1", exact: true });
         await action.getByRole("combobox", { name: "Cooking action" }).selectOption({
@@ -678,7 +679,7 @@ test.describe("RCP-32 two-user community release gate", () => {
         ).toBeVisible();
         await expect(
           alice.getByRole("group", { name: "Step 1", exact: true }).getByLabel(
-            "Human-readable direction",
+            "Instruction",
           ),
         ).toHaveValue(rootDirection);
         await expectNoAccessibilityViolations(alice);
@@ -800,7 +801,10 @@ test.describe("RCP-32 two-user community release gate", () => {
         const ingredient = bob.getByRole("group", { name: "Ingredient 1", exact: true });
         await ingredient.getByRole("textbox", { name: "Amount", exact: true }).fill("200");
         const step = bob.getByRole("group", { name: "Step 1", exact: true });
-        await step.getByLabel("Human-readable direction", { exact: true }).fill(childDirection);
+        await step.getByLabel("Instruction", { exact: true }).fill(childDirection);
+        await step
+          .getByRole("button", { name: "Edit cooking details for Step 1" })
+          .click();
         const action = step.getByRole("group", { name: "Action 1", exact: true });
         const duration = action.getByRole("group", { name: "Duration for Action 1: knead" });
         await duration.getByRole("textbox", { name: "Duration", exact: true }).fill("20");
@@ -819,8 +823,12 @@ test.describe("RCP-32 two-user community release gate", () => {
             .getByRole("group", { name: "Ingredient 1", exact: true })
             .getByRole("textbox", { name: "Amount", exact: true }),
         ).toHaveValue("200");
+        const resumedStep = bob.getByRole("group", { name: "Step 1", exact: true });
+        await resumedStep
+          .getByRole("button", { name: "Edit cooking details for Step 1" })
+          .click();
         await expect(
-          bob
+          resumedStep
             .getByRole("group", { name: "Action 1", exact: true })
             .getByRole("textbox", { name: "Duration", exact: true }),
         ).toHaveValue("20.000000");
