@@ -67,8 +67,12 @@ export function SiteHeader() {
 
       <nav className="mobile-nav" aria-label="Mobile navigation">
         <GuardedLink href="/">Home</GuardedLink>
-        <GuardedLink href="/recipes">Explore</GuardedLink>
-        <GuardedLink href="/recipes/new">Create</GuardedLink>
+        <GuardedLink href="/recipes" aria-label="Explore recipes">
+          Explore
+        </GuardedLink>
+        <GuardedLink href="/recipes/new" aria-label="Create recipe">
+          Create
+        </GuardedLink>
         <GuardedLink href="/#how-it-works">How it works</GuardedLink>
       </nav>
     </>

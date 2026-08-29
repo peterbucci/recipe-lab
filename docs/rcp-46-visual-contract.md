@@ -14,7 +14,7 @@ shown in the reference.
 | Page background | `#f7f7fb` | App canvas and quiet page regions |
 | Surface | `#ffffff` | Header, cards, panels, and menus |
 | Primary text | `#17172b` | Headings, labels, and high-emphasis copy |
-| Muted text | `#6f7083` | Supporting copy and metadata |
+| Muted text | `#646577` | Supporting copy and metadata; passes WCAG AA on white and accent-soft surfaces |
 | Accent | `#6032d5` | Primary actions and selected navigation |
 | Accent strong | `#5121c3` | Hover and pressed states |
 | Accent soft | `#f0ebff` | Selected or informational backgrounds |

@@ -46,14 +46,12 @@ describe("SiteHeader", () => {
       "href",
       "/",
     );
-    expect(within(mobileNavigation).getByRole("link", { name: "Explore" })).toHaveAttribute(
-      "href",
-      "/recipes",
-    );
-    expect(within(mobileNavigation).getByRole("link", { name: "Create" })).toHaveAttribute(
-      "href",
-      "/recipes/new",
-    );
+    expect(
+      within(mobileNavigation).getByRole("link", { name: "Explore recipes" }),
+    ).toHaveAttribute("href", "/recipes");
+    expect(
+      within(mobileNavigation).getByRole("link", { name: "Create recipe" }),
+    ).toHaveAttribute("href", "/recipes/new");
 
     const search = screen.getByRole("search", { name: "Site recipe search" });
     expect(search).toHaveAttribute("action", "/recipes");
