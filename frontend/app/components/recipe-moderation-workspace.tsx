@@ -125,7 +125,7 @@ function AuthorizedModerationWorkspace({
       </header>
 
       <div
-        className="moderation-workspace__filters"
+        className="staff-filter-strip moderation-workspace__filters"
         role="group"
         aria-label="Filter moderation cases"
       >
@@ -162,7 +162,10 @@ function AuthorizedModerationWorkspace({
           onSelectCase={selectCase}
         />
 
-        <section className="moderation-detail" aria-labelledby="moderation-detail-title">
+        <section
+          className="staff-panel-surface moderation-detail"
+          aria-labelledby="moderation-detail-title"
+        >
           {!selectedId ? (
             <div className="moderation-detail__empty">
               <h2 id="moderation-detail-title">Select a case</h2>

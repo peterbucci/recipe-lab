@@ -293,7 +293,10 @@ function AuthorizedReviewWorkspace({
           onSelectRequest={selectRequest}
         />
 
-        <section className="curation-detail" aria-labelledby="curation-detail-heading">
+        <section
+          className="staff-panel-surface curation-detail"
+          aria-labelledby="curation-detail-heading"
+        >
           {!selectedRequestId && !queueLoading ? (
             <div className="curation-panel-state">
               <h2 id="curation-detail-heading">Choose a request</h2>
