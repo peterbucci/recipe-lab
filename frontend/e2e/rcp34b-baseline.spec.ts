@@ -385,6 +385,17 @@ test.describe("desktop visual state matrix", () => {
     await stabilizeVisuals(page);
     await captureBaseline(page, "recipe-detail-normal");
 
+    const instructions = page.getByRole("heading", {
+      name: "Instructions",
+      level: 2,
+    });
+    await instructions.evaluate((heading) => {
+      heading.scrollIntoView({ block: "start" });
+      window.scrollBy(0, -80);
+    });
+    await expect(instructions).toBeInViewport();
+    await captureBaseline(page, "recipe-instructions-normal");
+
     const history = page.getByRole("heading", {
       name: "Recipe history",
       level: 2,
@@ -445,6 +456,23 @@ test.describe("desktop visual state matrix", () => {
     });
     await stabilizeVisuals(page);
     await captureBaseline(page, "draft-ingredient-editor-normal");
+
+    const step = page.getByRole("group", { name: "Step 1", exact: true });
+    await expect(step.getByLabel("Instruction", { exact: true })).toBeVisible();
+    const cookingDetails = step.getByRole("button", {
+      name: "Edit cooking details for Step 1",
+    });
+    await expect(cookingDetails).toHaveAttribute("aria-expanded", "false");
+    await step.evaluate((section) => {
+      section.scrollIntoView({ block: "start" });
+      window.scrollBy(0, -80);
+    });
+    await captureBaseline(page, "draft-instruction-editor-normal");
+    await cookingDetails.click();
+    await expect(
+      step.getByRole("group", { name: "Author-added cooking details" }),
+    ).toBeVisible();
+    await captureBaseline(page, "draft-instruction-editor-expanded");
   });
 
   test("draft editor validation", async ({ page }) => {
@@ -622,6 +650,17 @@ test.describe("phone visual state matrix", () => {
     await stabilizeVisuals(page);
     await captureBaseline(page, "recipe-detail-normal");
 
+    const instructions = page.getByRole("heading", {
+      name: "Instructions",
+      level: 2,
+    });
+    await instructions.evaluate((heading) => {
+      heading.scrollIntoView({ block: "start" });
+      window.scrollBy(0, -64);
+    });
+    await expect(instructions).toBeInViewport();
+    await captureBaseline(page, "recipe-instructions-normal");
+
     const history = page.getByRole("heading", {
       name: "Recipe history",
       level: 2,
@@ -677,6 +716,23 @@ test.describe("phone visual state matrix", () => {
     });
     await stabilizeVisuals(page);
     await captureBaseline(page, "draft-ingredient-editor-normal");
+
+    const step = page.getByRole("group", { name: "Step 1", exact: true });
+    await expect(step.getByLabel("Instruction", { exact: true })).toBeVisible();
+    const cookingDetails = step.getByRole("button", {
+      name: "Edit cooking details for Step 1",
+    });
+    await expect(cookingDetails).toHaveAttribute("aria-expanded", "false");
+    await step.evaluate((section) => {
+      section.scrollIntoView({ block: "start" });
+      window.scrollBy(0, -64);
+    });
+    await captureBaseline(page, "draft-instruction-editor-normal");
+    await cookingDetails.click();
+    await expect(
+      step.getByRole("group", { name: "Author-added cooking details" }),
+    ).toBeVisible();
+    await captureBaseline(page, "draft-instruction-editor-expanded");
   });
 
   test("draft editor validation", async ({ page }) => {

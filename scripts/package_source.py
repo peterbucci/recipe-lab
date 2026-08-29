@@ -139,6 +139,14 @@ EXPORT_POLICY = PackagingPolicy(
             "e13dc3ba0ca64854e74e8356f053809ca55effac",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/draft-instruction-editor-expanded.png",
+            "2ac66ea0d1c72b317dbf356a9cd74b50c34ff780",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/draft-instruction-editor-normal.png",
+            "f734c6af2d0e287c3199e0c26c27f94a0b29b09a",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/draft-similarity-publication-review.png",
             "9737b26812d4e606b3be93ff8a54fd4f16f7c976",
         ),
@@ -183,6 +191,10 @@ EXPORT_POLICY = PackagingPolicy(
             "dbf1e8110d4403ca72e1c89f65aabc111bffbd91",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/recipe-instructions-normal.png",
+            "f8b9f08fdd82be2be38b8a95212140e57548ce81",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/recipe-moderation-staff-review.png",
             "c75ce18a7eb9fcbb475f61b9e20ef8baf2ca1259",
         ),
@@ -197,6 +209,14 @@ EXPORT_POLICY = PackagingPolicy(
         (
             "frontend/baselines/baseline-phone-chromium/draft-ingredient-editor-normal.png",
             "d41dd924b432585c46e54c4cdeb184a2cd9d8b33",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/draft-instruction-editor-expanded.png",
+            "b4c06b16998d5aa63842cb4766d3f04bdec0e370",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/draft-instruction-editor-normal.png",
+            "960da1a3a4efdda3cc8a433d82da41f923150856",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-account-navigation.png",
@@ -221,6 +241,10 @@ EXPORT_POLICY = PackagingPolicy(
         (
             "frontend/baselines/baseline-phone-chromium/recipe-detail-normal.png",
             "289e1b4bf8412c68a04abdef785596dca9f9f47a",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/recipe-instructions-normal.png",
+            "76ffd13b8582e0afe94a1678c2e315d59c263a3d",
         ),
     ),
 )
