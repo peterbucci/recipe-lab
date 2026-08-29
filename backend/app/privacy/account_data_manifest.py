@@ -1181,6 +1181,30 @@ NON_DATABASE_ARTIFACT_POLICIES: Final[tuple[ArtifactPolicy, ...]] = (
         rationale="Backups serve disaster recovery, not indefinite retention of deleted accounts.",
     ),
     ArtifactPolicy(
+        key="durable_account_deletion_evidence",
+        kind=ArtifactKind.BACKUP,
+        locations=("Encrypted, access-restricted recovery ledger outside database backups",),
+        account_data=(
+            "Stable deleted-member UUIDs, deletion timestamps, and a coverage checkpoint. A "
+            "transient SHA-256 integrity digest is reported separately and is not embedded."
+        ),
+        disposition=DataDisposition.RETAIN,
+        timing=(
+            "Replace and expire each exported ledger only after every database backup it protects "
+            "has expired, within the 30-day backup maximum. Regenerated ledgers still include the "
+            "full current pseudonymous tombstone set; never silently window that evidence."
+        ),
+        required_control=(
+            "Keep the ledger encrypted and separate from database backups; restrict restore "
+            "access; require an independently supplied hash and coverage cutoff; never upload "
+            "ledger contents as release or CI evidence; destroy temporary replay copies; fail "
+            "closed at the documented entry cap rather than truncating deletion evidence."
+        ),
+        rationale=(
+            "A restored older backup must reapply completed deletions before it can serve traffic."
+        ),
+    ),
+    ArtifactPolicy(
         key="observed_recommender_snapshots",
         kind=ArtifactKind.RESEARCH_DATA,
         locations=("ML observed-data JSON snapshots and researcher working copies",),

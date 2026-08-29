@@ -1,0 +1,225 @@
+name: Release rehearsal
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollback_ref:
+        description: Reviewed representative ancestor or last-known-good ref
+        required: true
+        default: HEAD^
+        type: string
+  pull_request:
+    paths:
+      - .github/workflows/release-rehearsal.yml
+      - .dockerignore
+      - backend/**
+      - frontend/**
+      - ml/**
+      - pyproject.toml
+      - uv.lock
+      - scripts/package_source.py
+      - scripts/rehearse_release.py
+      - scripts/run_release_rehearsal.sh
+      - scripts/tests/test_package_source.py
+      - scripts/tests/test_rehearse_release.py
+      - scripts/tests/test_verify_production_images.py
+      - scripts/verify_production_images.py
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/release-rehearsal.yml
+      - .dockerignore
+      - backend/**
+      - frontend/**
+      - ml/**
+      - pyproject.toml
+      - uv.lock
+      - scripts/package_source.py
+      - scripts/rehearse_release.py
+      - scripts/run_release_rehearsal.sh
+      - scripts/tests/test_package_source.py
+      - scripts/tests/test_rehearse_release.py
+      - scripts/tests/test_verify_production_images.py
+      - scripts/verify_production_images.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-rehearsal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rehearsal:
+    name: RCP-33G automated rehearsal
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: recipe_lab
+      PGPASSWORD: recipe_lab
+      DATABASE_URL: postgresql+psycopg://recipe_lab:recipe_lab@127.0.0.1:5432/recipe_lab_rcp32_acceptance
+      TEST_DATABASE_URL: postgresql+psycopg://recipe_lab:recipe_lab@127.0.0.1:5432/recipe_lab_rcp32_acceptance
+      CORS_ORIGINS: http://127.0.0.1:3100
+      AUTH_ALLOWED_ORIGINS: http://127.0.0.1:3100
+      APP_ENVIRONMENT: local
+      OIDC_ISSUER: http://127.0.0.1:8200
+      OIDC_CLIENT_ID: recipe-lab-rcp32
+      OIDC_REDIRECT_URI: http://127.0.0.1:3100/api/auth/callback
+      OIDC_SCOPES: openid email profile
+      OIDC_ALLOWED_SIGNING_ALGORITHMS: RS256
+      RECIPE_API_URL: http://127.0.0.1:8100
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:8100
+      NEXT_TELEMETRY_DISABLED: "1"
+      RCP32_ACCEPTANCE: "1"
+      ACCEPTANCE_DATABASE_ISOLATED: "1"
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3100
+      PLAYWRIGHT_WEB_SERVER_COMMAND: APP_ENVIRONMENT=production npm run start -- --hostname 127.0.0.1 --port 3100
+      RCP32_PYTHON_EXECUTABLE: python
+      RCP33G_CANDIDATE_BACKEND_IMAGE: recipe-lab-backend:rcp33g-candidate-${{ github.sha }}
+      RCP33G_CANDIDATE_FRONTEND_IMAGE: recipe-lab-frontend:rcp33g-candidate-${{ github.sha }}
+      RCP33G_ROLLBACK_BACKEND_IMAGE: recipe-lab-backend:rcp33g-rollback-${{ github.run_id }}-${{ github.run_attempt }}
+      RCP33G_ROLLBACK_FRONTEND_IMAGE: recipe-lab-frontend:rcp33g-rollback-${{ github.run_id }}-${{ github.run_attempt }}
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: recipe_lab_rcp32_acceptance
+          POSTGRES_USER: recipe_lab
+          POSTGRES_PASSWORD: recipe_lab
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recipe_lab -d recipe_lab_rcp32_acceptance"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Configure bounded runner paths
+        shell: bash
+        run: |
+          abuse_value="$(openssl rand -hex 32)"
+          network_value="$(openssl rand -hex 32)"
+          echo "::add-mask::${abuse_value}"
+          echo "::add-mask::${network_value}"
+          {
+            echo "ABUSE_RATE_LIMIT_SECRET=${abuse_value}"
+            echo "INTERNAL_NETWORK_SIGNAL_SECRET=${network_value}"
+            echo "RCP33G_PRIVATE_DIR=$RUNNER_TEMP/recipe-lab-rcp33g-private"
+            echo "RCP33G_SAFE_DIR=$RUNNER_TEMP/recipe-lab-rcp33g-safe"
+            echo "TRIVY_CACHE_DIR=$RUNNER_TEMP/recipe-lab-rcp33g-trivy-cache"
+            echo "RCP33G_ROLLBACK_WORKTREE=$RUNNER_TEMP/recipe-lab-rcp33g-rollback-worktree"
+            echo "RCP32_MANIFEST_PATH=$RUNNER_TEMP/recipe-lab-rcp33g-private/community-manifest.json"
+            echo "RCP33G_BACKUP_PATH=$RUNNER_TEMP/recipe-lab-rcp33g-private/pre-deletion.dump"
+            echo "RCP33G_LEDGER_PATH=$RUNNER_TEMP/recipe-lab-rcp33g-private/account-deletions.json"
+            echo "RCP33G_BACKUP_READY_PATH=$RUNNER_TEMP/recipe-lab-rcp33g-private/backup-ready"
+            echo "RCP33G_BACKUP_CONTINUE_PATH=$RUNNER_TEMP/recipe-lab-rcp33g-private/backup-continue"
+          } >> "$GITHUB_ENV"
+
+      - name: Check out exact candidate with ancestor history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Set up locked Python resolver
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.6"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up pinned Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: v0.74.0
+          cache: false
+
+      - name: Install rehearsal dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --package recipe-lab-api --extra dev
+          uv pip check
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+          cd frontend
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Verify the rehearsal helpers
+        run: |
+          bash -n scripts/run_release_rehearsal.sh
+          python -m unittest \
+            scripts.tests.test_rehearse_release \
+            scripts.tests.test_verify_production_images
+          cd backend
+          python -m pytest \
+            tests/test_account_deletion_recovery.py \
+            tests/test_account_data_manifest.py
+
+      - name: Select a reviewed representative ancestor
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_ROLLBACK_REF: ${{ inputs.rollback_ref }}
+          PULL_REQUEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            rollback_sha="$PULL_REQUEST_BASE_SHA"
+          elif [[ "$EVENT_NAME" == "push" ]]; then
+            rollback_sha="$PUSH_BEFORE_SHA"
+          else
+            rollback_sha="$(git rev-parse --verify "$MANUAL_ROLLBACK_REF^{commit}")"
+          fi
+          if [[ ! "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ \
+            || ! "$rollback_sha" =~ ^[0-9a-f]{40}$ \
+            || "$rollback_sha" == "0000000000000000000000000000000000000000" \
+            || "$rollback_sha" == "$GITHUB_SHA" ]]; then
+            echo "The candidate or representative ancestor is invalid."
+            exit 1
+          fi
+          git cat-file -e "$rollback_sha^{commit}"
+          git merge-base --is-ancestor "$rollback_sha" "$GITHUB_SHA"
+          echo "RCP33G_ROLLBACK_SHA=$rollback_sha" >> "$GITHUB_ENV"
+
+      - name: Run the bounded release-candidate rehearsal
+        shell: bash
+        run: bash scripts/run_release_rehearsal.sh
+
+      - name: Upload bounded success evidence
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: rcp33g-release-rehearsal-evidence
+          path: |
+            ${{ runner.temp }}/recipe-lab-rcp33g-safe/release-evidence.json
+            ${{ runner.temp }}/recipe-lab-rcp33g-safe/live-database-summary.json
+            ${{ runner.temp }}/recipe-lab-rcp33g-safe/restored-database-summary.json
+            ${{ runner.temp }}/recipe-lab-rcp33g-safe/privacy-summary.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload bounded failure phase
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: rcp33g-release-rehearsal-failure
+          path: ${{ runner.temp }}/recipe-lab-rcp33g-safe/failure-summary.json
+          if-no-files-found: warn
+          retention-days: 7

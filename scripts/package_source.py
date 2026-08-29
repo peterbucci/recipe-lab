@@ -24,11 +24,11 @@ import zipfile
 
 
 TOOL_NAME = "recipe-lab-safe-source-export"
-TOOL_VERSION = "1.0.0"
+TOOL_VERSION = "1.1.0"
 SCANNER_NAME = "recipe-lab-source-secret-scan"
 SCANNER_VERSION = "2"
 MANIFEST_SCHEMA_VERSION = 1
-POLICY_VERSION = 2
+POLICY_VERSION = 3
 FIXED_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 MAX_REPORTED_FINDINGS = 20
 
@@ -84,6 +84,7 @@ EXPORT_POLICY = PackagingPolicy(
             ".mts",
             ".png",
             ".py",
+            ".sh",
             ".toml",
             ".ts",
             ".tsx",

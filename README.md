@@ -566,6 +566,21 @@ Offline ML evaluation is intentionally independent. See the
 [community release gate](docs/community-release-gate.md) for the exact contract
 and guarded local reproduction.
 
+The separate `RCP-33G automated rehearsal` exercises one exact candidate
+commit, its safe-source archive, exact local candidate and representative
+ancestor image IDs, pinned
+source/dependency/image security scans, migration and failed-migration
+recovery, an older pre-deletion backup plus durable deletion-ledger replay,
+candidate smoke, and a schema-compatible image rollback without a database
+downgrade. It runs for changes to the rehearsal boundary and can be started
+manually for a chosen release candidate; it does not replace the stable RCP-32
+gate on ordinary pull requests. Raw dumps, ledgers, scans, logs, manifests, and
+images remain in temporary runner storage; only bounded identifier-free
+evidence is retained.
+Passing automation does not complete the separate owner-only inventory and
+rotation of live deployment credentials. See
+[release, recovery, and rollback rehearsal](docs/release-rehearsal.md).
+
 The independent `Safe source package` job tests the exporter and creates the
 selected CI commit twice in runner-temporary storage to prove deterministic
 archive and manifest bytes. It never uploads either output and always deletes

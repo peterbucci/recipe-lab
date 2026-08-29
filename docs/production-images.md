@@ -145,7 +145,10 @@ image, and starts both application images on an isolated Docker network. The
 smoke test requires backend liveness, database readiness, frontend liveness,
 and fresh valid correlation headers. It then stops PostgreSQL and requires the
 backend to remain live while readiness returns the generic `503` whose header
-and body correlation IDs match. A timeout or unexpected payload fails the
+and body correlation IDs match. The smoke environment fixes the application's
+database failure bound at five seconds and gives the HTTP probe fifteen seconds,
+so the API has time to return its controlled dependency response instead of the
+probe racing the database timeout. A timeout or unexpected payload fails the
 gate. All containers and the temporary network are removed even when
 verification fails. The command never pushes or uploads an image.
 
@@ -166,6 +169,14 @@ disposable runner job.
 `RCP-32 community release gate` now requires this check alongside backend,
 frontend, MVP, community-journey, and safe-source checks. Passing it authorizes
 only the later RCP-33 release rehearsal; it is not itself a deployment.
+Within the separate RCP-33G rehearsal, each local candidate image is built
+once, its immutable local image ID is recorded, and that same image is scanned
+and smoked. The verifier is repeated for local images built from a reviewed
+representative ancestor. These are rehearsal artifacts, not registry artifacts
+or proof of a deployed revision. The images and raw scan results remain in
+temporary runner storage; only bounded identity and pass-state evidence
+survives.
+See [release, recovery, and rollback rehearsal](release-rehearsal.md).
 Deployment probe routing, fixed event sinks, initial operator signals,
 retention, smoke testing, and rollback are defined in
 [privacy-safe operations and observability](operations-observability.md).

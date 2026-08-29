@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import tempfile
 import unittest
@@ -122,6 +123,200 @@ class ImageMetadataTests(unittest.TestCase):
                 client = FakeDockerClient([_result(stdout=payload)])
                 with self.assertRaises(image_verifier.VerificationError):
                     image_verifier.verify_image_metadata(client, "recipe-lab:test")
+
+    def test_resolves_only_a_canonical_local_immutable_image_id(self) -> None:
+        image_id = f"sha256:{'a' * 64}"
+        client = FakeDockerClient([_result(stdout=f"{image_id}\n")])
+
+        self.assertEqual(
+            image_verifier.resolve_immutable_image_id(client, "recipe-lab:test"),
+            image_id,
+        )
+        self.assertEqual(
+            client.calls,
+            [(("image", "inspect", "--format", "{{.Id}}", "recipe-lab:test"), True)],
+        )
+
+        for invalid in ("", "sha256:short", "recipe-lab:test", f"sha256:{'A' * 64}"):
+            with (
+                self.subTest(invalid=invalid),
+                self.assertRaisesRegex(image_verifier.VerificationError, "immutable"),
+            ):
+                image_verifier.resolve_immutable_image_id(
+                    FakeDockerClient([_result(stdout=invalid)]),
+                    "recipe-lab:test",
+                )
+
+
+class EndpointTests(unittest.TestCase):
+    def test_endpoint_wait_exceeds_the_bounded_database_failure_window(self) -> None:
+        response = mock.MagicMock()
+        entered = response.__enter__.return_value
+        entered.status = 200
+        entered.headers.items.return_value = [("Content-Type", "text/plain")]
+        entered.read.return_value = b"ok\n"
+
+        with mock.patch.object(
+            image_verifier, "urlopen", return_value=response
+        ) as urlopen:
+            status, headers, body = image_verifier._read_endpoint(
+                49101,
+                "/healthz",
+                accept="text/plain",
+            )
+
+        self.assertGreater(
+            image_verifier.ENDPOINT_TIMEOUT_SECONDS,
+            image_verifier.DATABASE_OPERATION_TIMEOUT_SECONDS,
+        )
+        self.assertEqual(
+            (status, headers, body), (200, {"content-type": "text/plain"}, b"ok\n")
+        )
+        self.assertEqual(
+            urlopen.call_args.kwargs["timeout"],
+            image_verifier.ENDPOINT_TIMEOUT_SECONDS,
+        )
+
+
+class ImageReportTests(unittest.TestCase):
+    backend_id = f"sha256:{'a' * 64}"
+    frontend_id = f"sha256:{'b' * 64}"
+
+    def test_verified_report_contains_only_fixed_status_and_immutable_ids(self) -> None:
+        client = FakeDockerClient(
+            [
+                _result(stdout=self.backend_id),
+                _result(stdout=self.frontend_id),
+                _result(stdout=self.backend_id),
+                _result(stdout=self.frontend_id),
+            ]
+        )
+        with (
+            mock.patch.object(image_verifier, "build_image"),
+            mock.patch.object(image_verifier, "verify_image_metadata"),
+            mock.patch.object(image_verifier, "verify_runtime_contents"),
+            mock.patch.object(
+                image_verifier, "verify_invalid_configuration_is_redacted"
+            ),
+            mock.patch.object(image_verifier, "verify_startup_and_health"),
+        ):
+            report = image_verifier.verify_production_images(
+                Path.cwd(),
+                "private-local-backend-tag:test",
+                "private-local-frontend-tag:test",
+                Path("."),
+                Path("frontend"),
+                Path("backend/Dockerfile"),
+                Path("frontend/Dockerfile"),
+                build=True,
+                client=client,
+            )
+
+        self.assertEqual(
+            report,
+            {
+                "images": {
+                    "backend": {"id": self.backend_id},
+                    "frontend": {"id": self.frontend_id},
+                },
+                "schema_version": 1,
+                "status": "passed",
+                "tool": {
+                    "name": "recipe-lab-production-image-verifier",
+                    "version": "1.1.0",
+                },
+            },
+        )
+        rendered = json.dumps(report)
+        self.assertNotIn("private-local-backend-tag", rendered)
+        self.assertNotIn("private-local-frontend-tag", rendered)
+
+    def test_verification_rejects_a_tag_that_moves_before_evidence(self) -> None:
+        changed_backend_id = f"sha256:{'c' * 64}"
+        client = FakeDockerClient(
+            [
+                _result(stdout=self.backend_id),
+                _result(stdout=self.frontend_id),
+                _result(stdout=changed_backend_id),
+            ]
+        )
+        with (
+            mock.patch.object(image_verifier, "verify_image_metadata"),
+            mock.patch.object(image_verifier, "verify_runtime_contents"),
+            mock.patch.object(
+                image_verifier, "verify_invalid_configuration_is_redacted"
+            ),
+            mock.patch.object(image_verifier, "verify_startup_and_health"),
+            self.assertRaisesRegex(image_verifier.VerificationError, "tag changed"),
+        ):
+            image_verifier.verify_production_images(
+                Path.cwd(),
+                "recipe-lab-backend:test",
+                "recipe-lab-frontend:test",
+                Path("."),
+                Path("frontend"),
+                Path("backend/Dockerfile"),
+                Path("frontend/Dockerfile"),
+                build=False,
+                client=client,
+            )
+
+    def test_report_is_canonical_atomic_and_never_overwritten(self) -> None:
+        report = image_verifier._production_image_report(
+            backend_image_id=self.backend_id,
+            frontend_image_id=self.frontend_id,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "images.json"
+
+            image_verifier.write_production_image_report(destination, report)
+
+            self.assertEqual(
+                destination.read_text(encoding="utf-8"),
+                json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n",
+            )
+            with self.assertRaisesRegex(image_verifier.VerificationError, "overwrite"):
+                image_verifier.write_production_image_report(destination, report)
+            self.assertEqual(
+                destination.read_text(encoding="utf-8"),
+                json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n",
+            )
+
+    def test_report_publication_failure_does_not_emit_success(self) -> None:
+        report = image_verifier._production_image_report(
+            backend_image_id=self.backend_id,
+            frontend_image_id=self.frontend_id,
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(
+                image_verifier,
+                "verify_production_images",
+                return_value=report,
+            ),
+            mock.patch.object(
+                image_verifier,
+                "write_production_image_report",
+                side_effect=image_verifier.VerificationError("fixed failure"),
+            ),
+            mock.patch("sys.stdout", stdout),
+            mock.patch("sys.stderr", stderr),
+        ):
+            result = image_verifier.main(
+                [
+                    "--backend-image",
+                    "recipe-lab-backend:test",
+                    "--frontend-image",
+                    "recipe-lab-frontend:test",
+                    "--report",
+                    "images.json",
+                ]
+            )
+
+        self.assertEqual(result, 1)
+        self.assertNotIn("passed", stdout.getvalue().casefold())
+        self.assertIn("failed", stderr.getvalue().casefold())
 
 
 class BuildAndContentTests(unittest.TestCase):

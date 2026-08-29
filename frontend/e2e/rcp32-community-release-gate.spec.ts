@@ -1,5 +1,7 @@
-import { link, mkdir, open, unlink } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { access, link, mkdir, open, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, relative, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 import AxeBuilder from "@axe-core/playwright";
 import {
@@ -406,6 +408,74 @@ async function writeManifest(manifest: Rcp32Manifest): Promise<void> {
       await unlink(temporaryPath).catch(() => undefined);
     }
   }
+}
+
+function requirePrivateCheckpointPath(value: string, label: string): string {
+  const root = resolve(process.env.RUNNER_TEMP ?? tmpdir());
+  const path = resolve(value);
+  const pathFromRoot = relative(root, path);
+  if (
+    pathFromRoot === "" ||
+    pathFromRoot.startsWith("..") ||
+    resolve(root, pathFromRoot) !== path
+  ) {
+    throw new Error(
+      `The RCP-33G ${label} must be a file inside the private temporary directory.`,
+    );
+  }
+  return path;
+}
+
+async function waitForPreDeletionBackup(): Promise<void> {
+  const configuredReadyPath = process.env.RCP33G_BACKUP_READY_PATH?.trim() ?? "";
+  const configuredContinuePath =
+    process.env.RCP33G_BACKUP_CONTINUE_PATH?.trim() ?? "";
+  if (!configuredReadyPath && !configuredContinuePath) {
+    return;
+  }
+  if (!configuredReadyPath || !configuredContinuePath) {
+    throw new Error("RCP-33G requires both private backup checkpoint paths.");
+  }
+
+  const readyPath = requirePrivateCheckpointPath(
+    configuredReadyPath,
+    "ready marker",
+  );
+  const continuePath = requirePrivateCheckpointPath(
+    configuredContinuePath,
+    "continue marker",
+  );
+  if (readyPath === continuePath) {
+    throw new Error(
+      "The RCP-33G backup checkpoint paths must be different files.",
+    );
+  }
+
+  await mkdir(dirname(readyPath), { recursive: true, mode: 0o700 });
+  const handle = await open(readyPath, "wx", 0o600);
+  try {
+    await handle.writeFile("ready\n", { encoding: "utf8" });
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+
+  for (let attempt = 0; attempt < 1_800; attempt += 1) {
+    try {
+      await access(continuePath);
+      return;
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !("code" in error) ||
+        error.code !== "ENOENT"
+      ) {
+        throw new Error("The RCP-33G continue marker could not be checked.");
+      }
+    }
+    await delay(100);
+  }
+  throw new Error("The RCP-33G pre-deletion backup checkpoint timed out.");
 }
 
 test.describe("RCP-32 two-user community release gate", () => {
@@ -1294,6 +1364,23 @@ test.describe("RCP-32 two-user community release gate", () => {
           await phoneContext.close();
         }
       });
+      await test.step("emit recovery evidence and allow an older backup before deletion", async () => {
+        await writeManifest({
+          version: 1,
+          alice_user_id: aliceUserId,
+          bob_user_id: bobUserId,
+          curator_user_id: curatorUserId,
+          moderator_user_id: moderatorUserId,
+          root_recipe_version_id: rootRecipeVersionId,
+          child_recipe_version_id: childRecipeVersionId,
+          ingredient_request_id: ingredientRequestId,
+          approved_ingredient_id: approvedIngredientId,
+          exact_preflight_id: exactPreflightId,
+          probable_preflight_id: probablePreflightId,
+          report_id: reportId,
+        });
+        await waitForPreDeletionBackup();
+      });
 
       await test.step("delete Bob last and retain tombstoned public lineage", async () => {
         await bob.goto("/account/settings");
@@ -1354,23 +1441,6 @@ test.describe("RCP-32 two-user community release gate", () => {
         } finally {
           await publicContext.close();
         }
-      });
-
-      await test.step("emit the exact private verifier manifest", async () => {
-        await writeManifest({
-          version: 1,
-          alice_user_id: aliceUserId,
-          bob_user_id: bobUserId,
-          curator_user_id: curatorUserId,
-          moderator_user_id: moderatorUserId,
-          root_recipe_version_id: rootRecipeVersionId,
-          child_recipe_version_id: childRecipeVersionId,
-          ingredient_request_id: ingredientRequestId,
-          approved_ingredient_id: approvedIngredientId,
-          exact_preflight_id: exactPreflightId,
-          probable_preflight_id: probablePreflightId,
-          report_id: reportId,
-        });
       });
     } finally {
       await Promise.allSettled([

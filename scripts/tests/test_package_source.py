@@ -151,7 +151,7 @@ class SuccessfulPackageTests(SourcePackageTestCase):
         self.assertEqual(scanner["result"], "passed")
         self.assertRegex(scanner["sha256"], r"^[0-9a-f]{64}$")
         policy_report = cast(dict[str, Any], report["policy"])
-        self.assertEqual(policy_report["version"], 2)
+        self.assertEqual(policy_report["version"], 3)
         self.assertRegex(policy_report["sha256"], r"^[0-9a-f]{64}$")
         archive_report = cast(dict[str, Any], report["archive"])
         self.assertEqual(
@@ -231,6 +231,35 @@ class SuccessfulPackageTests(SourcePackageTestCase):
         with zipfile.ZipFile(output) as archive:
             member = next(
                 item for item in archive.infolist() if item.filename.endswith("tool.py")
+            )
+            self.assertEqual((member.external_attr >> 16) & 0o777, 0o755)
+
+    def test_packages_reviewed_shell_scripts_as_scanned_text(self) -> None:
+        executable = self._write(
+            "scripts/rehearsal.sh",
+            "#!/usr/bin/env bash\nset -euo pipefail\nprintf 'safe fixture\\n'\n",
+        )
+        executable.chmod(0o755)
+        self._git("add", "scripts/rehearsal.sh")
+        self._git("update-index", "--chmod=+x", "scripts/rehearsal.sh")
+        self._git("commit", "--quiet", "-m", "add reviewed shell script")
+
+        output, report = self._package()
+
+        files = cast(list[dict[str, Any]], report["files"])
+        shell_report = next(
+            item for item in files if item["path"] == "scripts/rehearsal.sh"
+        )
+        self.assertEqual(shell_report["mode"], "100755")
+        scanner = cast(dict[str, Any], report["scanner"])
+        self.assertEqual(scanner["text_files_scanned_per_pass"], 4)
+        policy = cast(dict[str, Any], report["policy"])
+        self.assertEqual(policy["reviewed_opaque_entries"], 0)
+        with zipfile.ZipFile(output) as archive:
+            member = next(
+                item
+                for item in archive.infolist()
+                if item.filename.endswith("rehearsal.sh")
             )
             self.assertEqual((member.external_attr >> 16) & 0o777, 0o755)
 

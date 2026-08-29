@@ -5,20 +5,23 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 TOOL_NAME = "recipe-lab-production-image-verifier"
-TOOL_VERSION = "1.0.0"
+TOOL_VERSION = "1.1.0"
+REPORT_SCHEMA_VERSION = 1
 PRODUCTION_TARGET = "production"
 BACKEND_CONTAINER_PORT = 8000
 FRONTEND_CONTAINER_PORT = 3000
@@ -28,7 +31,10 @@ DATABASE_NAME = "recipe_lab_image_check"
 DATABASE_USER = "recipe_lab_image_check"
 DATABASE_PASSWORD = "recipe-lab-image-check-database-password"
 HEALTH_TIMEOUT_SECONDS = 60.0
+DATABASE_OPERATION_TIMEOUT_SECONDS = 5
+ENDPOINT_TIMEOUT_SECONDS = 15.0
 LOCAL_IMAGE_TAG = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/:@-]*\Z")
+IMMUTABLE_IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}\Z")
 FORBIDDEN_IMAGE_ENVIRONMENT_KEYS = frozenset(
     {
         "ABUSE_RATE_LIMIT_SECRET",
@@ -57,7 +63,9 @@ forbidden = (
 )
 if any(path.exists() for path in forbidden):
     raise SystemExit("The backend runtime contains excluded development material.")
-if root.is_dir() and any(path.name == ".env" or path.name.startswith(".env.") for path in root.iterdir()):
+if root.is_dir() and any(
+    path.name == ".env" or path.name.startswith(".env.") for path in root.iterdir()
+):
     raise SystemExit("The backend runtime contains an environment file.")
 if find_spec("app.testing") is not None:
     raise SystemExit("The backend runtime contains the acceptance/testing package.")
@@ -99,7 +107,11 @@ if (
   throw new Error("The frontend runtime contains an environment file.");
 }
 const pathDirectories = (process.env.PATH ?? "").split(delimiter).filter(Boolean);
-if (["npm", "npx", "yarn", "yarnpkg"].some((name) => pathDirectories.some((directory) => existsSync(join(directory, name))))) {
+if (
+  ["npm", "npx", "yarn", "yarnpkg"].some((name) =>
+    pathDirectories.some((directory) => existsSync(join(directory, name))),
+  )
+) {
   throw new Error("The frontend runtime contains a package-manager binary.");
 }
 """.strip()
@@ -107,6 +119,17 @@ if (["npm", "npx", "yarn", "yarnpkg"].some((name) => pathDirectories.some((direc
 
 class VerificationError(RuntimeError):
     """A privacy-safe production-image verification failure."""
+
+
+class ImageIdentity(TypedDict):
+    id: str
+
+
+class ProductionImageReport(TypedDict):
+    images: dict[str, ImageIdentity]
+    schema_version: int
+    status: str
+    tool: dict[str, str]
 
 
 @dataclass(frozen=True)
@@ -214,6 +237,98 @@ def _image_configuration(client: DockerClient, image: str) -> dict[str, Any]:
     if not isinstance(config, dict):
         raise VerificationError("The image is missing runtime configuration metadata.")
     return config
+
+
+def resolve_immutable_image_id(client: DockerClient, image: str) -> str:
+    """Resolve one local tag to Docker's content-addressed image identifier."""
+
+    result = client.run(("image", "inspect", "--format", "{{.Id}}", image))
+    image_id = result.stdout.strip()
+    if IMMUTABLE_IMAGE_ID.fullmatch(image_id) is None:
+        raise VerificationError(
+            "Docker returned an invalid immutable image identifier."
+        )
+    return image_id
+
+
+def _production_image_report(
+    *, backend_image_id: str, frontend_image_id: str
+) -> ProductionImageReport:
+    for image_id in (backend_image_id, frontend_image_id):
+        if IMMUTABLE_IMAGE_ID.fullmatch(image_id) is None:
+            raise VerificationError(
+                "An invalid immutable image identifier was reported."
+            )
+    return {
+        "images": {
+            "backend": {"id": backend_image_id},
+            "frontend": {"id": frontend_image_id},
+        },
+        "schema_version": REPORT_SCHEMA_VERSION,
+        "status": "passed",
+        "tool": {"name": TOOL_NAME, "version": TOOL_VERSION},
+    }
+
+
+def write_production_image_report(path: Path, report: ProductionImageReport) -> None:
+    """Publish a canonical report atomically without replacing an existing file."""
+
+    destination = path.resolve()
+    try:
+        parent = destination.parent.resolve(strict=True)
+    except OSError as error:
+        raise VerificationError(
+            "The image report directory could not be resolved."
+        ) from error
+    if not parent.is_dir():
+        raise VerificationError("The image report directory is not a directory.")
+    if destination.exists():
+        raise VerificationError(
+            "The image report already exists; refusing to overwrite it."
+        )
+
+    temporary: Path | None = None
+    published = False
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+            dir=parent,
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            os.chmod(temporary, 0o600)
+            handle.write(json.dumps(report, sort_keys=True, separators=(",", ":")))
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        try:
+            os.link(temporary, destination)
+        except FileExistsError as error:
+            raise VerificationError(
+                "The image report appeared during publication; refusing to overwrite it."
+            ) from error
+        published = True
+    except VerificationError:
+        raise
+    except OSError as error:
+        raise VerificationError("The image report could not be published.") from error
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError as error:
+                if published:
+                    try:
+                        destination.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+                raise VerificationError(
+                    "The temporary image report could not be removed."
+                ) from error
 
 
 def verify_image_metadata(
@@ -401,7 +516,7 @@ def _read_endpoint(
 ) -> tuple[int, dict[str, str], bytes]:
     request = Request(f"http://127.0.0.1:{port}{path}", headers={"Accept": accept})
     try:
-        with urlopen(request, timeout=5) as response:
+        with urlopen(request, timeout=ENDPOINT_TIMEOUT_SECONDS) as response:
             status = response.status
             headers = {
                 name.casefold(): value for name, value in response.headers.items()
@@ -581,6 +696,8 @@ def verify_startup_and_health(
                 "-e",
                 "APP_ENVIRONMENT=production",
                 "-e",
+                f"DATABASE_OPERATION_TIMEOUT_SECONDS={DATABASE_OPERATION_TIMEOUT_SECONDS}",
+                "-e",
                 f"ABUSE_RATE_LIMIT_SECRET={abuse_value}",
                 "-e",
                 f"INTERNAL_NETWORK_SIGNAL_SECRET={internal_value}",
@@ -607,6 +724,8 @@ def verify_startup_and_health(
                 f"127.0.0.1::{BACKEND_CONTAINER_PORT}",
                 "-e",
                 "APP_ENVIRONMENT=production",
+                "-e",
+                f"DATABASE_OPERATION_TIMEOUT_SECONDS={DATABASE_OPERATION_TIMEOUT_SECONDS}",
                 "-e",
                 f"ABUSE_RATE_LIMIT_SECRET={abuse_value}",
                 "-e",
@@ -704,7 +823,7 @@ def verify_production_images(
     build: bool,
     database_image: str = DATABASE_IMAGE,
     client: DockerClient | None = None,
-) -> None:
+) -> ProductionImageReport:
     docker = client or DockerClient()
     backend_tag = _validate_image_tag(backend_image)
     frontend_tag = _validate_image_tag(frontend_image)
@@ -725,6 +844,8 @@ def verify_production_images(
     if build:
         build_image(docker, backend_tag, backend_build_context, backend_build_file)
         build_image(docker, frontend_tag, frontend_build_context, frontend_build_file)
+    backend_image_id = resolve_immutable_image_id(docker, backend_tag)
+    frontend_image_id = resolve_immutable_image_id(docker, frontend_tag)
     verify_image_metadata(
         docker,
         backend_tag,
@@ -734,6 +855,14 @@ def verify_production_images(
     verify_runtime_contents(docker, backend_tag, frontend_tag)
     verify_invalid_configuration_is_redacted(docker, backend_tag, frontend_tag)
     verify_startup_and_health(docker, backend_tag, frontend_tag, database_tag)
+    if resolve_immutable_image_id(docker, backend_tag) != backend_image_id:
+        raise VerificationError("The backend image tag changed during verification.")
+    if resolve_immutable_image_id(docker, frontend_tag) != frontend_image_id:
+        raise VerificationError("The frontend image tag changed during verification.")
+    return _production_image_report(
+        backend_image_id=backend_image_id,
+        frontend_image_id=frontend_image_id,
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -765,6 +894,14 @@ def _parser() -> argparse.ArgumentParser:
         help="Verify existing local image tags without rebuilding them.",
     )
     parser.add_argument(
+        "--report",
+        type=Path,
+        help=(
+            "Optional new JSON path for the privacy-safe immutable image report. "
+            "Existing files are never replaced."
+        ),
+    )
+    parser.add_argument(
         "--version", action="version", version=f"{TOOL_NAME} {TOOL_VERSION}"
     )
     return parser
@@ -773,7 +910,7 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     try:
-        verify_production_images(
+        report = verify_production_images(
             Path.cwd(),
             arguments.backend_image,
             arguments.frontend_image,
@@ -784,6 +921,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             build=not arguments.skip_build,
             database_image=arguments.database_image,
         )
+        if arguments.report is not None:
+            write_production_image_report(arguments.report, report)
     except VerificationError as error:
         print(f"Production image verification failed: {error}", file=sys.stderr)
         return 1
