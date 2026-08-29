@@ -132,7 +132,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-editor-validation.png",
-            "bbb6d1d1d463648fd22f49b8552107ecc1ad26b6",
+            "5c1104aa83479e818e4a3a4758f691ac70064409",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-ingredient-editor-normal.png",
@@ -148,7 +148,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-similarity-publication-review.png",
-            "d99e78c7688b099d16f79e104254dbbe15197c0c",
+            "40e02075d29c05d9d0f8c82fb3167c914a61e021",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-account-navigation.png",
@@ -204,7 +204,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-editor-validation.png",
-            "6940ea4fe50913e19f5a6631fd868a01cae5c937",
+            "0b2492a80b2e1f16ed07f2cfd2af3aa5d6aedeec",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-ingredient-editor-normal.png",
@@ -217,6 +217,10 @@ EXPORT_POLICY = PackagingPolicy(
         (
             "frontend/baselines/baseline-phone-chromium/draft-instruction-editor-normal.png",
             "07d89703c0b388b5727564640e85b78cf4561683",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/draft-similarity-publication-review.png",
+            "941aeb786ea0792298e60789abc6d10ca66800cc",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-account-navigation.png",

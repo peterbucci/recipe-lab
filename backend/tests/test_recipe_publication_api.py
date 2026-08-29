@@ -1258,6 +1258,33 @@ def test_publication_rejects_incomplete_and_stale_drafts(
         "invalid_original_recipe_draft"
     )
 
+    missing_action = publication_api.member.post(
+        "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={"source_version_id": None},
+    )
+    assert missing_action.status_code == 201
+    missing_action_id = str(_json_object(missing_action.json())["id"])
+    missing_action_payload = _complete_original_payload()
+    _json_object(cast(list[object], missing_action_payload["instructions"])[0])["actions"] = []
+    saved_missing_action = publication_api.member.put(
+        f"/api/recipe-drafts/{missing_action_id}",
+        json=missing_action_payload,
+    )
+    assert saved_missing_action.status_code == 200, saved_missing_action.text
+    missing_action_preflight = publication_api.member.post(
+        f"/api/recipe-drafts/{missing_action_id}/duplicate-preflights",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={"revision": 2},
+    )
+    assert missing_action_preflight.status_code == 422
+    missing_action_error = _json_object(_json_object(missing_action_preflight.json())["error"])
+    assert missing_action_error["code"] == "invalid_original_recipe_draft"
+    assert missing_action_error["message"] == (
+        "Add at least one confirmed cooking action in the cooking details for every "
+        "instruction so Recipe Lab can compare similar recipes before publishing."
+    )
+
     draft_id = _create_complete_draft(publication_api)
     stale = publication_api.member.post(
         f"/api/recipe-drafts/{draft_id}/duplicate-preflights",

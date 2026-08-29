@@ -94,7 +94,7 @@ image is produced from the same sanitized fixture contract.
 | Recipe comparison, normal           | `recipe-comparison-normal`            | `recipe-comparison-normal` |
 | My Recipes, private drafts          | `my-recipes-normal`                   | `my-recipes-normal`        |
 | Draft editor with validation        | `draft-editor-validation`             | `draft-editor-validation`  |
-| Similarity and publication review   | `draft-similarity-publication-review` | —                          |
+| Similarity and publication review   | `draft-similarity-publication-review` | `draft-similarity-publication-review` |
 | Ingredient request and staff review | `ingredient-request-staff-review`     | —                          |
 | Recipe moderation staff review      | `recipe-moderation-staff-review`      | —                          |
 | Private workspace, loading          | `private-workspace-loading`           | —                          |

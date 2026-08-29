@@ -8,6 +8,43 @@ async function confirmPublicationRequirements(page: Page): Promise<void> {
   await page.getByRole("checkbox", { name: /right to share it/i }).check();
 }
 
+async function completeOriginalDraft(page: Page, title: string): Promise<void> {
+  await page.getByLabel("Title", { exact: true }).fill(title);
+  await page.getByLabel("Servings", { exact: true }).fill("2");
+  await page.getByRole("button", { name: "Add ingredient", exact: true }).click();
+  const ingredient = page.getByRole("group", { name: "Ingredient 1", exact: true });
+  const search = ingredient.getByRole("combobox", { name: "Ingredient", exact: true });
+  await search.fill("Pecan");
+  await ingredient
+    .getByRole("listbox", { name: "Ingredient suggestions" })
+    .getByRole("option", { name: /pecan/i })
+    .first()
+    .click();
+  await ingredient.getByRole("textbox", { name: "Amount", exact: true }).fill("1");
+  await ingredient
+    .getByRole("combobox", { name: "Unit", exact: true })
+    .selectOption({ label: "gram (g)" });
+
+  await page.getByRole("button", { name: "Add instruction", exact: true }).click();
+  const step = page.getByRole("group", { name: "Step 1", exact: true });
+  await step
+    .getByLabel("Instruction", { exact: true })
+    .fill("Knead the pecans into a small bite and serve.");
+  await step.getByRole("button", { name: "Add cooking details for Step 1" }).click();
+  await step.getByRole("button", { name: "Add cooking action", exact: true }).click();
+  const action = step.getByRole("group", { name: "Action 1", exact: true });
+  await action.getByRole("combobox", { name: "Cooking action", exact: true }).selectOption({
+    label: "knead",
+  });
+  await action
+    .getByRole("group", { name: "Ingredient inputs", exact: true })
+    .getByRole("checkbox", { name: /Ingredient 1: Pecan/i })
+    .check();
+
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Draft saved privately.", { exact: true })).toBeVisible();
+}
+
 const acceptanceEnabled =
   process.env.MVP_ACCEPTANCE === "1" &&
   process.env.ACCEPTANCE_DATABASE_ISOLATED === "1";
@@ -40,40 +77,7 @@ test.describe("original recipe publication acceptance", () => {
     expect(crossOwner.status()).toBe(404);
     await bobContext.close();
 
-    await page.getByLabel("Title", { exact: true }).fill(title);
-    await page.getByLabel("Servings", { exact: true }).fill("2");
-    await page.getByRole("button", { name: "Add ingredient", exact: true }).click();
-    const ingredient = page.getByRole("group", { name: "Ingredient 1", exact: true });
-    const search = ingredient.getByRole("combobox", { name: "Ingredient", exact: true });
-    await search.fill("Pecan");
-    await ingredient
-      .getByRole("listbox", { name: "Ingredient suggestions" })
-      .getByRole("option", { name: /pecan/i })
-      .first()
-      .click();
-    await ingredient.getByRole("textbox", { name: "Amount", exact: true }).fill("1");
-    await ingredient
-      .getByRole("combobox", { name: "Unit", exact: true })
-      .selectOption({ label: "gram (g)" });
-
-    await page.getByRole("button", { name: "Add instruction", exact: true }).click();
-    const step = page.getByRole("group", { name: "Step 1", exact: true });
-    await step
-      .getByLabel("Instruction", { exact: true })
-      .fill("Knead the pecans into a small bite and serve.");
-    await step.getByRole("button", { name: "Add cooking details for Step 1" }).click();
-    await step.getByRole("button", { name: "Add cooking action", exact: true }).click();
-    const action = step.getByRole("group", { name: "Action 1", exact: true });
-    await action.getByRole("combobox", { name: "Cooking action", exact: true }).selectOption({
-      label: "knead",
-    });
-    await action
-      .getByRole("group", { name: "Ingredient inputs", exact: true })
-      .getByRole("checkbox", { name: /Ingredient 1: Pecan/i })
-      .check();
-
-    await page.getByRole("button", { name: "Save draft", exact: true }).click();
-    await expect(page.getByText("Draft saved privately.", { exact: true })).toBeVisible();
+    await completeOriginalDraft(page, title);
 
     await page.setViewportSize({ width: 390, height: 844 });
     expect(
@@ -158,5 +162,97 @@ test.describe("original recipe publication acceptance", () => {
     expect(activeDraftBody.items?.some((item) => item.id === draftId)).toBe(false);
     await page.goto(`/recipes?q=${encodeURIComponent(title)}`);
     await expect(page.getByRole("link", { name: title, exact: true })).toBeVisible();
+  });
+
+  test("recovers one publication after the first successful response is lost", async ({ page }) => {
+    const title = "Acceptance Lost-Response Pecan Bite";
+    await useAcceptanceMember(page, "alice");
+    await page.goto("/recipes/new");
+    await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
+    const draftId = new URL(page.url()).pathname.split("/").at(-1)!;
+    await completeOriginalDraft(page, title);
+
+    const publicationKeys: string[] = [];
+    const committedPublications: Array<{
+      location?: unknown;
+      recipe_version_id?: unknown;
+    }> = [];
+    await page.route("**/api/recipe-drafts/*/publish", async (route) => {
+      publicationKeys.push(route.request().headers()["idempotency-key"] ?? "");
+      if (publicationKeys.length === 1) {
+        const committed = await route.fetch();
+        expect(committed.status()).toBe(201);
+        committedPublications.push(await committed.json());
+        await route.abort("failed");
+        return;
+      }
+      await route.continue();
+    });
+
+    const preflightResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/api/recipe-drafts/${draftId}/duplicate-preflights`),
+    );
+    await confirmPublicationRequirements(page);
+    await page.getByRole("button", { name: "Review and publish", exact: true }).click();
+    const preflight = await preflightResponse;
+    expect(preflight.status()).toBe(201);
+    const preflightBody = (await preflight.json()) as {
+      acknowledgement?: { required?: unknown };
+    };
+    if (preflightBody.acknowledgement?.required === true) {
+      const review = page.getByRole("region", {
+        name: /review (?:a very similar recipe|similar recipes)/i,
+      });
+      await review.getByRole("checkbox", { name: /publish my recipe anyway/i }).check();
+      await review.getByRole("button", { name: "Publish recipe anyway" }).click();
+    }
+
+    const ambiguousAlert = page.locator(".draft-publication__alert");
+    await expect(ambiguousAlert).toBeVisible();
+    await expect(ambiguousAlert).toContainText("Publication result is unclear");
+    await expect(ambiguousAlert).toContainText(/may already be published/i);
+    await expect(ambiguousAlert).toContainText(/cannot create a second publication/i);
+    await expect(page.getByLabel("Title", { exact: true })).toHaveValue(title);
+    expect(committedPublications).toHaveLength(1);
+
+    const replayResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/api/recipe-drafts/${draftId}/publish`),
+    );
+    await page
+      .getByRole("button", {
+        name: "Check publication result",
+      })
+      .click();
+    const replay = await replayResponse;
+    expect(replay.status()).toBe(201);
+    const replayedPublication = (await replay.json()) as {
+      location?: unknown;
+      recipe_version_id?: unknown;
+    };
+    expect(replayedPublication).toEqual(committedPublications[0]);
+    expect(publicationKeys).toHaveLength(2);
+    expect(publicationKeys[0]).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(publicationKeys[1]).toBe(publicationKeys[0]);
+    expect(replay.headers().location).toBe(replayedPublication.location);
+    await expect(page).toHaveURL("/account/recipes?view=published");
+
+    const libraryResponse = await page.request.get(
+      new URL("/api/my/recipes?view=published&page=1&page_size=100", baseUrl).toString(),
+      { headers: { Accept: "application/json" } },
+    );
+    expect(libraryResponse.status()).toBe(200);
+    const library = (await libraryResponse.json()) as {
+      items?: Array<{ kind?: unknown; recipe?: { id?: unknown } }>;
+    };
+    const matchingPublications = (library.items ?? []).filter(
+      (item) =>
+        item.kind === "published" &&
+        item.recipe?.id === replayedPublication.recipe_version_id,
+    );
+    expect(matchingPublications).toHaveLength(1);
   });
 });

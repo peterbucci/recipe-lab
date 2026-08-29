@@ -492,7 +492,7 @@ test.describe("desktop visual state matrix", () => {
     await page.keyboard.press("Enter");
     const alert = page
       .getByRole("alert")
-      .filter({ hasText: /Your draft was not saved/i });
+      .filter({ hasText: /Your draft needs attention/i });
     await expect(alert).toBeVisible();
     await expect(alert).toBeFocused();
     await alert.scrollIntoViewIfNeeded();
@@ -752,11 +752,32 @@ test.describe("phone visual state matrix", () => {
     await page.keyboard.press("Enter");
     const alert = page
       .getByRole("alert")
-      .filter({ hasText: /Your draft was not saved/i });
+      .filter({ hasText: /Your draft needs attention/i });
     await expect(alert).toBeVisible();
     await expect(alert).toBeFocused();
     await alert.scrollIntoViewIfNeeded();
     await captureBaseline(page, "draft-editor-validation");
+  });
+
+  test("draft similarity and publication review", async ({ page }) => {
+    await page.goto(`/account/recipe-drafts/${DRAFT_ID}`);
+    await expect(page.getByLabel("Title")).toHaveValue(
+      "Late-Summer Tomato Pot",
+    );
+    await stabilizeVisuals(page);
+    await page
+      .getByRole("checkbox", { name: /agree to the community rules/i })
+      .check();
+    await page.getByRole("checkbox", { name: /right to share it/i }).check();
+    await page
+      .getByRole("button", { name: "Review and publish", exact: true })
+      .click();
+    const publishAnyway = page.getByRole("button", {
+      name: "Publish recipe anyway",
+    });
+    await expect(publishAnyway).toBeVisible();
+    await publishAnyway.scrollIntoViewIfNeeded();
+    await captureBaseline(page, "draft-similarity-publication-review");
   });
 });
 

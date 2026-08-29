@@ -10,10 +10,12 @@ direct parent and applies the no-change contract.
 
 The check answers a narrow structural question. It does not decide authorship,
 originality, copyright, plagiarism, culinary equivalence, or which recipe is
-better. It never merges lineages, transfers ownership, deletes a recipe, or
-makes a similarity match a publication prohibition: after the required review,
-an author can explicitly continue. Ingredient-catalog request deduplication is
-a separate curation workflow and shares neither these records nor this policy.
+better. Its evidence does not establish direct lineage, author intent, or a
+cooking outcome. It never merges lineages, transfers ownership, deletes a
+recipe, or makes a similarity match a publication prohibition: after the
+required review, an author can explicitly continue. Ingredient-catalog request
+deduplication is a separate curation workflow and shares neither these records
+nor this policy.
 
 ## Preflight flow
 
@@ -139,9 +141,10 @@ standalone decision endpoint.
 The browser pauses inline, shows neutral explanations and public candidate
 links in a draft-safe new tab, and requires an acknowledgement before an
 advisory match can continue. Editing and saving any field changes the revision
-and invalidates the old preflight. If review is unavailable, the draft remains
-unpublished and the editor offers a retry; it never pretends the result was
-distinct or offers publication without review. If a fork's exact source is no
+and invalidates the old preflight. If review is unavailable, publication pauses,
+the saved draft remains unpublished, and the editor offers a retry. There is no
+continue-without-review path: the service never pretends the result was distinct
+or accepts publication without current evidence. If a fork's exact source is no
 longer publicly readable, the API returns
 `409 recipe_fork_source_unavailable`, keeps the draft intact, and offers no
 source-free fallback.
@@ -201,7 +204,9 @@ RCP-27 root it binds the public version to one retained source draft, actor,
 idempotency action, request fingerprint, saved revision, preflight, policy,
 result digest, and any continue decision. A unique source-draft constraint and
 member/action idempotency constraint prevent a second root while allowing an
-exact network retry to return the original `201` result and `Location`.
+exact network retry to look up and return the stored publication result with the
+original `201` response and `Location`. This retry is the recovery lookup; it
+does not run a second publication.
 
 ## Evaluation and limitations
 

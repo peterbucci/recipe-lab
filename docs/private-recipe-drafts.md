@@ -229,7 +229,10 @@ preflight is immutable, actor-scoped, revision-bound, and limited to public
 candidates. Similarity review is required but advisory. A distinct result can
 publish with no decision; an exact or probable result can publish only when the
 author explicitly chooses `continue`. Choosing revise means editing and saving
-the draft, which invalidates the old review. Review failure has no
+the draft, which invalidates the old review. The evidence describes structural
+similarity only; it does not establish direct lineage, author intent, or a
+cooking outcome. If review is unavailable, publication pauses and the saved
+draft remains intact while the author retries. There is no
 continue-without-review shortcut.
 
 `POST /api/recipe-drafts/{draft_id}/publish` accepts the same saved revision and
@@ -279,9 +282,11 @@ absent from active private-draft reads. See
 Success returns `201`,
 `{ "recipe_version_id": "<uuid>", "location": "/recipes/<uuid>" }`, and the
 same path in `Location`. An exact retry of the same member action returns that
-same response. A new idempotency key with the same completed intent also returns
-the same version; changed intent or key reuse returns `409`. If a fork's source
-is no longer public before publication, the API returns
+same response by looking up the stored publication result; it does not create a
+second publication. A new idempotency key with the same completed intent also
+uses the completed draft to find and return the same version. Changed intent or
+key reuse returns `409`. If a fork's source is no longer public before
+publication, the API returns
 `409 recipe_fork_source_unavailable` and preserves the active private draft. Any
 failure rolls everything back, so no partial lineage allocation, snapshot,
 fingerprint, receipt, fork event, or completed state survives.
