@@ -1,17 +1,28 @@
 import Link from "next/link";
 
 import { RecipeArtwork } from "./components/recipe-artwork";
+import { RecipeSearch } from "./components/recipe-search";
 
 export default function HomePage() {
   return (
-    <main id="main-content">
-      <section className="home-hero" aria-labelledby="home-title">
-        <div className="home-hero__copy">
+    <main id="main-content" className="home-dashboard">
+      <section
+        className="home-hero home-dashboard__hero"
+        aria-labelledby="home-title"
+      >
+        <div className="home-hero__copy home-dashboard__intro">
           <h1 id="home-title">Recipes change. Recipe Lab keeps track.</h1>
           <p className="lede">
             Find a recipe you want to cook, save a version with your changes, and compare it with
             where you started.
           </p>
+          <div className="home-dashboard__search-panel">
+            <RecipeSearch
+              ariaLabel="Search recipes from the home page"
+              idPrefix="home-recipe-search"
+              query=""
+            />
+          </div>
           <div className="button-row">
             <Link className="button button--primary" href="/recipes">
               Explore recipes
@@ -19,7 +30,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="home-hero__visual">
+        <div className="home-hero__visual home-dashboard__artwork-panel">
           <RecipeArtwork
             className="home-hero__artwork"
             lineageKey="recipe-lab-home-lineage"
@@ -28,11 +39,11 @@ export default function HomePage() {
       </section>
 
       <section
-        className="home-principles home-how-it-works"
+        className="home-principles home-how-it-works home-dashboard__workflow"
         id="how-it-works"
         aria-labelledby="how-it-works-heading"
       >
-        <div className="section-heading">
+        <div className="section-heading home-dashboard__section-heading">
           <h2 id="how-it-works-heading">How Recipe Lab works</h2>
         </div>
         <ol className="principle-grid home-steps">

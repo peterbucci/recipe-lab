@@ -57,13 +57,18 @@ describe("RecipeBrowser", () => {
       />,
     );
 
-    const search = screen.getByRole("search");
+    const search = screen.getByRole("search", { name: "Search recipe catalog" });
+    expect(search).toHaveAttribute("action", "/recipes");
+    expect(search).toHaveAttribute("method", "get");
     expect(within(search).getByLabelText(/search by recipe name/i)).toHaveValue("carrot");
     expect(within(search).getByRole("link", { name: /clear/i })).toHaveAttribute(
       "href",
       "/recipes",
     );
     expect(screen.getByRole("heading", { name: /results for “carrot”/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: /results for “carrot”/i }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /find something to cook/i })).toBeInTheDocument();
     expect(screen.getByText("13 recipes")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /lower-sugar pecan carrot cake/i })).toHaveAttribute(
@@ -125,7 +130,7 @@ describe("RecipeBrowser", () => {
       <RecipeBrowser data={page({ page: 2, total_pages: 3 })} query="carrot" />,
     );
 
-    const search = screen.getByRole("search");
+    const search = screen.getByRole("search", { name: "Search recipe catalog" });
     expect(search.querySelector('input[name="type"]')).not.toBeInTheDocument();
     expect(within(search).getByRole("link", { name: /clear/i })).toHaveAttribute(
       "href",

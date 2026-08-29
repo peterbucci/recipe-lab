@@ -14,6 +14,12 @@ import RecipeBrowseLoading from "./loading";
 describe("recipe route states", () => {
   it("announces browse and detail loading states", () => {
     const { rerender } = render(<RecipeBrowseLoading />);
+    expect(
+      screen.getByRole("heading", { name: "Find something to cook", level: 1 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Recipes" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(/loading recipes/i);
     expect(screen.getByRole("status")).toHaveTextContent(
       "Loading the recipe list.",
@@ -39,6 +45,12 @@ describe("recipe route states", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       /couldn’t load the recipes/i,
     );
+    expect(
+      screen.getByRole("heading", {
+        name: "We couldn’t load the recipes.",
+        level: 1,
+      }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(reset).toHaveBeenCalledOnce();
     expect(screen.queryByText(/upstream detail/i)).not.toBeInTheDocument();

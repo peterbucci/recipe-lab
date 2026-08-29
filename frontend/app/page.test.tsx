@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import HomePage from "./page";
@@ -15,6 +15,19 @@ describe("HomePage", () => {
     expect(screen.getByRole("link", { name: /explore recipes/i })).toHaveAttribute(
       "href",
       "/recipes",
+    );
+    const search = screen.getByRole("search", {
+      name: "Search recipes from the home page",
+    });
+    expect(search).toHaveAttribute("action", "/recipes");
+    expect(search).toHaveAttribute("method", "get");
+    expect(within(search).getByLabelText("Search by recipe name")).toHaveAttribute(
+      "name",
+      "q",
+    );
+    expect(within(search).getByRole("button", { name: "Search" })).toHaveAttribute(
+      "type",
+      "submit",
     );
     expect(screen.queryByRole("link", { name: /^how it works$/i })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /choose a recipe/i })).toBeInTheDocument();

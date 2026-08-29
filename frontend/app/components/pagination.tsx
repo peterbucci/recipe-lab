@@ -18,16 +18,19 @@ export function Pagination({ currentPage, query, totalPages }: PaginationProps) 
   }
 
   return (
-    <nav className="pagination" aria-label="Recipe result pages">
+    <nav className="pagination pagination--catalog" aria-label="Recipe result pages">
       {currentPage > 1 ? (
         <Link
-          className="button button--secondary"
+          className="button button--secondary pagination__link"
           href={recipeBrowseHref(currentPage - 1, query)}
         >
           ← Previous
         </Link>
       ) : (
-        <span className="button button--disabled" aria-disabled="true">
+        <span
+          className="button button--disabled pagination__link pagination__link--disabled"
+          aria-disabled="true"
+        >
           ← Previous
         </span>
       )}
@@ -36,13 +39,16 @@ export function Pagination({ currentPage, query, totalPages }: PaginationProps) 
       </span>
       {currentPage < totalPages ? (
         <Link
-          className="button button--secondary"
+          className="button button--secondary pagination__link"
           href={recipeBrowseHref(currentPage + 1, query)}
         >
           Next →
         </Link>
       ) : (
-        <span className="button button--disabled" aria-disabled="true">
+        <span
+          className="button button--disabled pagination__link pagination__link--disabled"
+          aria-disabled="true"
+        >
           Next →
         </span>
       )}

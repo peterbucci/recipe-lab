@@ -37,7 +37,7 @@ export default async function RecipeBrowsePage({ searchParams }: RecipeBrowsePag
   const data = await fetchRecipePage({ page, pageSize: 12, query });
 
   return (
-    <main id="main-content" className="page-shell">
+    <main id="main-content" className="page-shell page-shell--catalog">
       <RecipeBrowser data={data} query={query} />
     </main>
   );
