@@ -196,7 +196,7 @@ test.describe("cross-user fork publication acceptance", () => {
     await page.goto(published.location as string);
     await expect(page.getByRole("heading", { name: childTitle, level: 1 })).toBeVisible();
     await expect(page.getByText("Version 2", { exact: true })).toHaveCount(0);
-    const parentContext = page.locator(".recipe-detail__parent-context");
+    const parentContext = page.getByRole("main").locator(".recipe-detail__parent-context");
     await expect(parentContext).toContainText(`Based on ${sourceTitle}`);
     await expect(parentContext.getByRole("link", { name: sourceTitle })).toHaveAttribute(
       "href",
