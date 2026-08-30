@@ -5,6 +5,7 @@ import type { RecipeDetail, RecipeVersionReference } from "../../lib/recipe-api"
 import { PublicCookAttribution } from "./public-cook-attribution";
 import { RatingSummary } from "./rating-summary";
 import { RecipeArtwork } from "./recipe-artwork";
+import { RecipeCategoryList } from "./recipe-category-list";
 import { RecipeInstructionActions } from "./recipe-instruction-actions";
 import { RecipeMemberActions } from "./recipe-member-actions";
 
@@ -58,6 +59,10 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
             {recipe.description ? (
               <p className="recipe-detail__description">{recipe.description}</p>
             ) : null}
+            <RecipeCategoryList
+              categories={recipe.categories}
+              label={`Categories for ${recipe.title}`}
+            />
             <div className="recipe-facts recipe-detail__facts" aria-label="Recipe facts">
               <dl>
                 <div>

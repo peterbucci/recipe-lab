@@ -76,6 +76,13 @@ function completeDraft(): RecipeDraftEditorState {
     title: "Sage recipe",
     description: "A complete original.",
     servings: "2",
+    categories: [
+      {
+        id: "77777777-7777-4777-8777-777777777777",
+        name: "Quick & easy",
+        slug: "quick-easy",
+      },
+    ],
     ingredients: [ingredient],
     instructions: [instruction],
   };
@@ -199,7 +206,14 @@ describe("RecipeDraftPublication", () => {
 
     const onValidation = vi.fn();
     renderPublication({
-      draft: { title: "", description: "", servings: "", ingredients: [], instructions: [] },
+      draft: {
+        title: "",
+        description: "",
+        servings: "",
+        categories: [],
+        ingredients: [],
+        instructions: [],
+      },
       onValidation,
     });
     confirmPublication();

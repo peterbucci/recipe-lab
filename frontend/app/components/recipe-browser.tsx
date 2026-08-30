@@ -1,32 +1,53 @@
 import Link from "next/link";
 
 import { recipeBrowseHref } from "../../lib/recipe-browse-query";
-import type { RecipePage } from "../../lib/recipe-api";
+import type { RecipeCategory, RecipePage } from "../../lib/recipe-api";
 import { Pagination } from "./pagination";
 import { RecipeCard } from "./recipe-card";
 import { RecipeSearch } from "./recipe-search";
 
 interface RecipeBrowserProps {
+  category?: RecipeCategory;
   data: RecipePage;
   query: string;
+  sort?: "newest" | "title";
 }
 
-function emptyHeading(query: string): string {
+function emptyHeading(query: string, category?: RecipeCategory): string {
+  if (category) {
+    return query
+      ? `No ${category.name.toLocaleLowerCase("en-US")} recipes matched that search.`
+      : `No ${category.name.toLocaleLowerCase("en-US")} recipes are available yet.`;
+  }
   if (query) {
     return "No recipes matched that search.";
   }
   return "No recipes are available yet.";
 }
 
-function emptyMessage(query: string): string {
+function emptyMessage(query: string, category?: RecipeCategory): string {
   if (query) {
     return "Try a broader recipe title or a word from the description.";
+  }
+  if (category) {
+    return "Recipes will appear here when an author publishes one in this category.";
   }
   return "Recipes will appear here when they are added.";
 }
 
-export function RecipeBrowser({ data, query }: RecipeBrowserProps) {
+function resultsHeading(query: string, category?: RecipeCategory): string {
+  if (category && query) {
+    return `${category.name} recipes matching “${query}”`;
+  }
+  if (category) {
+    return `${category.name} recipes`;
+  }
+  return query ? `Results for “${query}”` : "Recipes";
+}
+
+export function RecipeBrowser({ category, data, query, sort }: RecipeBrowserProps) {
   const beyondLastPage = data.total > 0 && data.items.length === 0;
+  const filters = { category: category?.slug, sort };
 
   return (
     <div className="catalog-dashboard">
@@ -39,8 +60,10 @@ export function RecipeBrowser({ data, query }: RecipeBrowserProps) {
         <div className="catalog-toolbar catalog-dashboard__search-panel">
           <RecipeSearch
             ariaLabel="Search recipe catalog"
+            category={category?.slug}
             idPrefix="catalog-recipe-search"
             query={query}
+            sort={sort}
           />
         </div>
       </header>
@@ -52,21 +75,30 @@ export function RecipeBrowser({ data, query }: RecipeBrowserProps) {
         <div className="section-heading section-heading--compact catalog-results__heading">
           <div>
             <h2 id="catalog-results-heading">
-              {query ? `Results for “${query}”` : "Recipes"}
+              {resultsHeading(query, category)}
             </h2>
             <p className="result-count" aria-live="polite">
               {data.total} {data.total === 1 ? "recipe" : "recipes"}
             </p>
+            {category ? (
+              <p className="catalog-results__active-filter">
+                Category: <strong>{category.name}</strong>{" "}
+                <Link href={recipeBrowseHref(1, query, { sort })}>Clear category</Link>
+              </p>
+            ) : null}
           </div>
         </div>
 
         <div className="catalog-results__body">
           {data.total === 0 ? (
             <div className="empty-state catalog-results__empty">
-              <h3>{emptyHeading(query)}</h3>
-              <p>{emptyMessage(query)}</p>
+              <h3>{emptyHeading(query, category)}</h3>
+              <p>{emptyMessage(query, category)}</p>
               {query ? (
-                <Link className="button button--secondary" href={recipeBrowseHref(1, "")}>
+                <Link
+                  className="button button--secondary"
+                  href={recipeBrowseHref(1, "", filters)}
+                >
                   Clear search
                 </Link>
               ) : null}
@@ -77,7 +109,7 @@ export function RecipeBrowser({ data, query }: RecipeBrowserProps) {
               <p>The collection currently has {data.total_pages} pages of recipes.</p>
               <Link
                 className="button button--secondary"
-                href={recipeBrowseHref(1, query)}
+                href={recipeBrowseHref(1, query, filters)}
               >
                 Return to the first page
               </Link>
@@ -94,7 +126,9 @@ export function RecipeBrowser({ data, query }: RecipeBrowserProps) {
         {!beyondLastPage ? (
           <Pagination
             currentPage={data.page}
+            category={category?.slug}
             query={query}
+            sort={sort}
             totalPages={data.total_pages}
           />
         ) : null}

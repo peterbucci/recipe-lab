@@ -40,7 +40,12 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     title: "Lower-Sugar Pecan Carrot Cake",
     description: "The original snack cake with less sugar and pecans.",
     servings: "8.00",
+    categories: [
+      { id: "category-one", name: "Baking", slug: "baking" },
+      { id: "category-two", name: "Dessert", slug: "dessert" },
+    ],
     created_at: "2026-08-20T00:00:00Z",
+    published_at: "2026-08-21T00:00:00Z",
     author: { id: "cook-two", handle: "second-cook", display_name: "Second Cook" },
     average_rating: 4.5,
     rating_count: 2,
@@ -180,6 +185,12 @@ describe("RecipeDetailView", () => {
       "/recipes/carrot-v2/compare",
     );
     expect(screen.getByText("140 g")).toBeInTheDocument();
+    const categories = screen.getByRole("list", {
+      name: "Categories for Lower-Sugar Pecan Carrot Cake",
+    });
+    expect(within(categories).getByText("Baking")).toBeVisible();
+    expect(within(categories).getByText("Dessert")).toBeVisible();
+    expect(within(categories).queryByRole("link")).not.toBeInTheDocument();
     expect(screen.queryByText(/catalog name:/i)).toBeNull();
     expect(screen.getAllByRole("link", { name: "Second Cook" })[0]).toHaveAttribute(
       "href",

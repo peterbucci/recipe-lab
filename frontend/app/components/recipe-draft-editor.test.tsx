@@ -10,6 +10,7 @@ import { RecipeDraftEditor } from "./recipe-draft-editor";
 
 const mocks = vi.hoisted(() => ({
   discardRecipeDraft: vi.fn(),
+  fetchActiveRecipeCategories: vi.fn(),
   fetchRecipeDraft: vi.fn(),
   key: vi.fn(),
   refresh: vi.fn(),
@@ -36,9 +37,19 @@ vi.mock("../../lib/recipe-draft-api", async (importOriginal) => {
   };
 });
 
+vi.mock("../../lib/recipe-category-client-api", () => ({
+  fetchActiveRecipeCategories: mocks.fetchActiveRecipeCategories,
+}));
+
 const DRAFT_ID = "11111111-1111-4111-8111-111111111111";
 const INGREDIENT_ROW_ID = "22222222-2222-4222-8222-222222222222";
 const ACTION_ID = "33333333-3333-4333-8333-333333333333";
+const CATEGORY_ID = "77777777-7777-4777-8777-777777777777";
+const category = {
+  id: CATEGORY_ID,
+  name: "Quick & easy",
+  slug: "quick-easy",
+};
 const detail: RecipeDraftDetail = {
   id: DRAFT_ID,
   source_version_id: null,
@@ -47,6 +58,7 @@ const detail: RecipeDraftDetail = {
   title: "",
   description: null,
   servings: null,
+  categories: [],
   ingredients: [],
   instructions: [],
   created_at: "2026-08-25T12:00:00Z",
@@ -138,11 +150,62 @@ afterEach(() => {
 describe("RecipeDraftEditor", () => {
   beforeEach(() => {
     mocks.discardRecipeDraft.mockReset().mockResolvedValue(undefined);
+    mocks.fetchActiveRecipeCategories.mockReset().mockResolvedValue({
+      items: [category],
+    });
     mocks.fetchRecipeDraft.mockReset().mockResolvedValue(detail);
     mocks.key.mockReset().mockReturnValue("draft-save-key");
     mocks.updateRecipeDraft.mockReset();
     mocks.refresh.mockReset();
     mocks.replace.mockReset();
+  });
+
+  it("saves only curated category identifiers with the private draft", async () => {
+    mocks.updateRecipeDraft.mockResolvedValue({
+      ...detail,
+      revision: 4,
+      categories: [category],
+    });
+    renderEditor();
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Quick & easy" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() =>
+      expect(mocks.updateRecipeDraft).toHaveBeenCalledWith(
+        DRAFT_ID,
+        expect.objectContaining({ category_ids: [CATEGORY_ID] }),
+        "draft-save-key",
+      ),
+    );
+    expect(screen.getByRole("checkbox", { name: "Quick & easy" })).toBeChecked();
+  });
+
+  it("keeps a backend-authoritative category rejection attached to the selector", async () => {
+    mocks.updateRecipeDraft.mockRejectedValue(
+      new RecipeDraftApiError(
+        "Some draft fields need attention.",
+        422,
+        "invalid_recipe_draft",
+        [
+          {
+            location: ["body", "category_ids", 0],
+            message: "Review the recipe categories.",
+            type: "validation_error",
+          },
+        ],
+      ),
+    );
+    renderEditor();
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Quick & easy" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+    expect(await screen.findByText("Review the recipe categories.")).toBeVisible();
+    expect(screen.getByRole("checkbox", { name: "Quick & easy" })).toBeChecked();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Review the highlighted fields. Your edits are still here.",
+    );
   });
 
   it("preserves local fields and offers explicit reconciliation after a stale revision", async () => {
@@ -510,6 +573,7 @@ describe("RecipeDraftEditor", () => {
       );
     expect(sectionLabels).toEqual([
       "Recipe details",
+      "Recipe categories",
       "Ingredients",
       "Instructions",
       "Publish this original recipe.",

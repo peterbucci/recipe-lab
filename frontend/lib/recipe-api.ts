@@ -14,6 +14,15 @@ type BrowseRecipesOperation = operations["browse_recipes_api_recipes_get"];
 export type RecipePage =
   BrowseRecipesOperation["responses"][200]["content"]["application/json"];
 export type RecipeSummary = RecipePage["items"][number];
+type RecipeCategoriesOperation =
+  operations["recipe_categories_api_recipe_categories_get"];
+export type RecipeCategoryList =
+  RecipeCategoriesOperation["responses"][200]["content"]["application/json"];
+export type RecipeCategory = RecipeCategoryList["items"][number];
+type FeaturedRecipesOperation =
+  operations["featured_recipes_api_recipes_featured_get"];
+export type FeaturedRecipeList =
+  FeaturedRecipesOperation["responses"][200]["content"]["application/json"];
 export type PublicUserReference = Omit<
   RecipeSummary["author"],
   "handle"
@@ -106,10 +115,12 @@ export interface RecipeDiff {
 }
 
 interface RecipePageQuery {
+  category?: string;
   isVariant?: boolean;
   page?: number;
   pageSize?: number;
   query?: string;
+  sort?: "newest" | "title";
 }
 
 interface ApiErrorPayload {
@@ -216,10 +227,12 @@ async function apiFetch(url: URL): Promise<Response> {
 }
 
 export async function fetchRecipePage({
+  category,
   isVariant,
   page = 1,
   pageSize = 12,
   query,
+  sort,
 }: RecipePageQuery = {}): Promise<RecipePage> {
   const searchParams = new URLSearchParams({
     page: String(page),
@@ -230,6 +243,12 @@ export async function fetchRecipePage({
   }
   if (isVariant !== undefined) {
     searchParams.set("is_variant", String(isVariant));
+  }
+  if (category) {
+    searchParams.set("category", category);
+  }
+  if (sort) {
+    searchParams.set("sort", sort);
   }
 
   try {
@@ -251,6 +270,37 @@ export async function fetchRecipePage({
     }
     throw error;
   }
+}
+
+async function fetchPublicHomepageResource<T>(path: string): Promise<T> {
+  try {
+    const response = await serverApiRequest(path, {
+      errorContract: RECIPE_ERROR_CONTRACT,
+      kind: "query",
+    });
+    return response.data as T;
+  } catch (error) {
+    if (error instanceof ApiTransportError) {
+      throw new RecipeApiError(
+        recipeErrorMessage(error.status),
+        error.status,
+        error.code,
+      );
+    }
+    throw error;
+  }
+}
+
+export async function fetchFeaturedRecipes(): Promise<FeaturedRecipeList> {
+  return fetchPublicHomepageResource<FeaturedRecipeList>(
+    "/api/recipes/featured",
+  );
+}
+
+export async function fetchRecipeCategories(): Promise<RecipeCategoryList> {
+  return fetchPublicHomepageResource<RecipeCategoryList>(
+    "/api/recipe-categories",
+  );
 }
 
 export async function fetchRecipe(

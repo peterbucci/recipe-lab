@@ -4,7 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   RecipeApiError,
+  fetchFeaturedRecipes,
   fetchRecipe,
+  fetchRecipeCategories,
   fetchRecipeDiff,
   fetchRecipePage,
   isRecipeVersionId,
@@ -132,6 +134,57 @@ describe("recipe API client", () => {
     expect(String(url)).toBe(
       "http://api.example.test/api/recipes?page=1&page_size=12",
     );
+  });
+
+  it("adds exact category and deterministic sort filters to public browsing", async () => {
+    vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(emptyPage), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchRecipePage({ category: "quick-easy", sort: "newest" });
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe(
+      "http://api.example.test/api/recipes?page=1&page_size=12&category=quick-easy&sort=newest",
+    );
+  });
+
+  it("loads the bounded featured shelf and curated category vocabulary", async () => {
+    vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ items: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [
+              { id: "category-breakfast", name: "Breakfast", slug: "breakfast" },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchFeaturedRecipes()).resolves.toEqual({ items: [] });
+    await expect(fetchRecipeCategories()).resolves.toEqual({
+      items: [{ id: "category-breakfast", name: "Breakfast", slug: "breakfast" }],
+    });
+
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "http://api.example.test/api/recipes/featured",
+      "http://api.example.test/api/recipe-categories",
+    ]);
   });
 
   it("maps a missing recipe to null", async () => {

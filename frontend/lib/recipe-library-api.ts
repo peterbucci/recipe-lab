@@ -12,6 +12,10 @@ import type {
   RecipeSummary,
   RecipeVersionReference,
 } from "./recipe-api";
+import {
+  MAX_RECIPE_CATEGORIES,
+  parseRecipeCategories,
+} from "./recipe-category";
 
 type MyRecipeLibraryOperation =
   operations["my_recipe_library_api_my_recipes_get"];
@@ -196,15 +200,21 @@ export function parseRecipeSummary(value: unknown): RecipeSummary | null {
     !boundedText(value.title, 200) ||
     (value.description !== null && !boundedText(value.description, 2_000)) ||
     !boundedText(value.servings, 64) ||
-    !isTimestamp(value.created_at)
+    !isTimestamp(value.created_at) ||
+    !isTimestamp(value.published_at)
   ) {
     return null;
   }
   const author = parsePublicUserReference(value.author);
   const parent =
     value.parent === null ? null : parseVersionReference(value.parent);
+  const categories = parseRecipeCategories(
+    value.categories,
+    MAX_RECIPE_CATEGORIES,
+  );
   if (
     !author ||
+    !categories ||
     (value.parent !== null && !parent) ||
     (value.parent_version_id === null && parent !== null) ||
     (parent && parent.id !== value.parent_version_id)
@@ -220,8 +230,10 @@ export function parseRecipeSummary(value: unknown): RecipeSummary | null {
     description: value.description as string | null,
     servings: value.servings,
     created_at: value.created_at,
+    published_at: value.published_at,
     author,
     parent,
+    categories,
   };
 }
 

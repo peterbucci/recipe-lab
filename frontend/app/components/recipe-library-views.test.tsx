@@ -48,6 +48,8 @@ function original(overrides: Partial<RecipeSummary> = {}): RecipeSummary {
     description: "A bright soup.",
     servings: "4.00",
     created_at: "2026-08-25T10:00:00Z",
+    published_at: "2026-08-25T11:00:00Z",
+    categories: [],
     author: alice,
     parent: null,
     ...overrides,

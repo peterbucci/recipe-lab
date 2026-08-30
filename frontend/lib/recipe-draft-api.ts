@@ -14,6 +14,11 @@ import {
 import type { CatalogActionTypeSummary } from "./cooking-action-api";
 import type { CatalogIngredient } from "./ingredient-catalog-api";
 import type { CatalogUnitSummary } from "./measurement-unit-api";
+import type { RecipeCategory } from "./recipe-api";
+import {
+  MAX_RECIPE_CATEGORIES,
+  parseRecipeCategories,
+} from "./recipe-category";
 import type { RecipeNumericMeasure } from "./structured-action";
 import type {
   RecipeIngredientMeasure,
@@ -90,6 +95,7 @@ export interface RecipeDraftDetail {
   title: string;
   description: string | null;
   servings: string | null;
+  categories: RecipeCategory[];
   ingredients: RecipeDraftIngredient[];
   instructions: RecipeDraftInstruction[];
   created_at: string;
@@ -135,6 +141,7 @@ export interface RecipeDraftUpdateRequest {
   title: string;
   description: string | null;
   servings: string | null;
+  category_ids: string[];
   ingredients: RecipeDraftIngredientInput[];
   instructions: RecipeDraftInstructionInput[];
 }
@@ -457,6 +464,7 @@ export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
     !boundedText(value.title, 200, true) ||
     (value.description !== null && !boundedText(value.description, 2_000)) ||
     (value.servings !== null && !boundedText(value.servings, 64)) ||
+    !Array.isArray(value.categories) ||
     !Array.isArray(value.ingredients) ||
     !Array.isArray(value.instructions) ||
     !isTimestamp(value.created_at) ||
@@ -466,7 +474,12 @@ export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
   }
   const ingredients = value.ingredients.map(parseIngredient);
   const instructions = value.instructions.map(parseInstruction);
+  const categories = parseRecipeCategories(
+    value.categories,
+    MAX_RECIPE_CATEGORIES,
+  );
   if (
+    !categories ||
     ingredients.some((item) => item === null) ||
     instructions.some((item) => item === null) ||
     !ordered(ingredients as RecipeDraftIngredient[]) ||
@@ -497,6 +510,7 @@ export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
     title: value.title,
     description: value.description as string | null,
     servings: value.servings as string | null,
+    categories,
     ingredients: ingredients as RecipeDraftIngredient[],
     instructions: instructions as RecipeDraftInstruction[],
     created_at: value.created_at,
@@ -562,6 +576,8 @@ const SAFE_DRAFT_ISSUE_PARTS = new Set([
   "title",
   "description",
   "servings",
+  "categories",
+  "category_ids",
   "ingredients",
   "selection",
   "ingredient_id",
@@ -606,6 +622,9 @@ function safeIssueMessage(location: readonly (string | number)[]): string {
   if (path[0] === "title") return "Review the recipe title.";
   if (path[0] === "description") return "Review the recipe description.";
   if (path[0] === "servings") return "Review the serving amount.";
+  if (path[0] === "category_ids" || path[0] === "categories") {
+    return "Review the recipe categories.";
+  }
   if (path[0] === "ingredients") return "Review this ingredient.";
   if (path[0] === "instructions" && path.includes("actions")) {
     return "Review this cooking action.";
