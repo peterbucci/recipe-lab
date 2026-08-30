@@ -432,6 +432,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               }
             ],
@@ -490,6 +491,7 @@
           "value": {
             "decimal_places": 6,
             "max_digits": 18,
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Value",
             "type": "string"
           }
@@ -1277,6 +1279,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               }
             ],
@@ -1322,6 +1325,7 @@
           "source_value": {
             "decimal_places": 6,
             "max_digits": 18,
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Source Value",
             "type": "string"
           },
@@ -1329,6 +1333,7 @@
             "$ref": "#/components/schemas/MeasurementUnitSummary"
           },
           "value": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,18}|(?=[\\d.]{1,25}0*$)\\d{0,18}\\.\\d{0,6}0*$)",
             "title": "Value",
             "type": "string"
           }
@@ -1929,6 +1934,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               }
             ],
@@ -1942,6 +1948,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               }
             ],
@@ -2003,12 +2010,14 @@
           "maximum": {
             "decimal_places": 6,
             "max_digits": 18,
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Maximum",
             "type": "string"
           },
           "minimum": {
             "decimal_places": 6,
             "max_digits": 18,
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Minimum",
             "type": "string"
           },
@@ -2240,6 +2249,7 @@
           },
           "servings": {
             "description": "Exact serving yield, serialized as a JSON string.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,9}0*$)\\d{0,6}\\.\\d{0,2}0*$)",
             "title": "Servings",
             "type": "string"
           },
@@ -2627,6 +2637,7 @@
                 "decimal_places": 2,
                 "gt": 0,
                 "max_digits": 8,
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3164,6 +3175,7 @@
                     "type": "number"
                   },
                   {
+                    "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                     "type": "string"
                   }
                 ],
@@ -3410,6 +3422,10 @@
       "RecipeFieldValue": {
         "anyOf": [
           {
+            "type": "string"
+          },
+          {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "type": "string"
           },
           {
@@ -4365,6 +4381,7 @@
           },
           "score": {
             "description": "Final deterministic baseline score, serialized as a JSON string.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
             "title": "Score",
             "type": "string"
           }
@@ -4575,6 +4592,7 @@
           },
           "servings": {
             "description": "Exact serving yield, serialized as a JSON string.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,9}0*$)\\d{0,6}\\.\\d{0,2}0*$)",
             "title": "Servings",
             "type": "string"
           },
@@ -4730,31 +4748,37 @@
         "properties": {
           "fork_popularity": {
             "description": "Distinct-user fork support normalized against the eligible maximum.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
             "title": "Fork Popularity",
             "type": "string"
           },
           "global_score": {
             "description": "Weighted quality and popularity score before personalization.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
             "title": "Global Score",
             "type": "string"
           },
           "ingredient_similarity": {
             "description": "Strongest positive-history-weighted canonical-ingredient Jaccard score.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
             "title": "Ingredient Similarity",
             "type": "string"
           },
           "quality": {
             "description": "Normalized Bayesian rating-quality signal.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
             "title": "Quality",
             "type": "string"
           },
           "save_popularity": {
             "description": "Distinct active-save support normalized against the eligible maximum.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
             "title": "Save Popularity",
             "type": "string"
           },
           "view_popularity": {
             "description": "Distinct-user view support normalized against the eligible maximum.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
             "title": "View Popularity",
             "type": "string"
           }
@@ -4774,26 +4798,31 @@
         "properties": {
           "forks": {
             "description": "Weight of normalized distinct-fork support within the global score.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Forks",
             "type": "string"
           },
           "personalized_global": {
             "description": "Global-score weight when positive signed-in member history exists.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Personalized Global",
             "type": "string"
           },
           "personalized_similarity": {
             "description": "Ingredient-similarity weight when positive signed-in member history exists.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Personalized Similarity",
             "type": "string"
           },
           "quality": {
             "description": "Weight of Bayesian rating quality within the global score.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Quality",
             "type": "string"
           },
           "quality_prior_mean": {
             "description": "Bayesian prior rating used for recipes with limited rating support.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Quality Prior Mean",
             "type": "string"
           },
@@ -4805,11 +4834,13 @@
           },
           "saves": {
             "description": "Weight of normalized active-save support within the global score.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Saves",
             "type": "string"
           },
           "views": {
             "description": "Weight of normalized distinct-view support within the global score.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Views",
             "type": "string"
           }
