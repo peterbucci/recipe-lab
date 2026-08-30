@@ -16,6 +16,13 @@ import {
   BASELINE_FIXTURE_ORIGIN,
   BASELINE_FRONTEND_ORIGIN,
 } from "../playwright.baseline.config";
+import {
+  RCP46F_STAFF_ROUTES,
+  RCP46F_STAFF_STATE_MATRIX,
+  RCP46F_STAFF_VIEWPORTS,
+  type Rcp46fStaffMatrixCase,
+  type Rcp46fStaffRole,
+} from "./rcp46f-staff-certification-matrix";
 
 const DESKTOP_PROJECT = "baseline-desktop-chromium";
 const PHONE_PROJECT = "baseline-phone-chromium";
@@ -27,6 +34,9 @@ const REVIEWED_SHELL_VIEWPORTS = [
 const DRAFT_ID = "30000000-0000-4000-8000-000000000001";
 const GRAM_UNIT_ID = "50000000-0000-4000-8000-000000000001";
 const PRIVATE_ACCOUNT_ID = "10000000-0000-4000-8000-000000000001";
+const PRIVATE_CURATOR_ID = "10000000-0000-4000-8000-000000000003";
+const PRIVATE_MODERATOR_ID = "10000000-0000-4000-8000-000000000004";
+const PRIVATE_ONBOARDING_ID = "10000000-0000-4000-8000-000000000005";
 const VARIANT_RECIPE_ID = "20000000-0000-4000-8000-000000000002";
 const SAFE_CSRF = "rcp34b-public-csrf";
 const REVIEWED_LOOPBACK_PORTS = new Set(["4317", "4318"]);
@@ -165,7 +175,7 @@ async function stabilizeVisuals(
 ): Promise<void> {
   if (waitForAccount) {
     await expect(
-      page.locator('summary[aria-label="Account menu for Baseline Cook"]'),
+      page.locator('summary[aria-label^="Account menu for "]'),
     ).toBeVisible();
   }
   const families = await page.evaluate(() => ({
@@ -234,13 +244,20 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 
 async function expectNoVisiblePrivateMaterial(page: Page): Promise<void> {
   const visibleText = await page.locator("body").innerText();
-  expect(visibleText).not.toContain(PRIVATE_ACCOUNT_ID);
+  for (const identifier of [
+    PRIVATE_ACCOUNT_ID,
+    PRIVATE_CURATOR_ID,
+    PRIVATE_MODERATOR_ID,
+    PRIVATE_ONBOARDING_ID,
+  ]) {
+    expect(visibleText).not.toContain(identifier);
+    expect(page.url()).not.toContain(identifier);
+  }
   expect(visibleText).not.toContain(SAFE_CSRF);
   expect(visibleText).not.toMatch(/\bBearer\s+[A-Za-z0-9._~-]+/i);
   expect(visibleText).not.toMatch(
     /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
   );
-  expect(page.url()).not.toContain(PRIVATE_ACCOUNT_ID);
   expect(page.url()).not.toContain(SAFE_CSRF);
 }
 
@@ -319,6 +336,200 @@ function phoneOnly(testInfo: TestInfo): void {
   test.skip(testInfo.project.name !== PHONE_PROJECT, "Phone-only evidence.");
 }
 
+function otherStaffRole(role: Rcp46fStaffRole): Rcp46fStaffRole {
+  return role === "curator" ? "moderator" : "curator";
+}
+
+async function expectRoleSpecificStaffNavigation(
+  page: Page,
+  role: Rcp46fStaffRole,
+): Promise<void> {
+  const account = page.locator('summary[aria-label^="Account menu for "]');
+  await account.click();
+  await expect(
+    page.getByRole("link", {
+      name: RCP46F_STAFF_ROUTES[role].navigationLabel,
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", {
+      name: RCP46F_STAFF_ROUTES[otherStaffRole(role)].navigationLabel,
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await account.click();
+}
+
+async function certifyStaffState(
+  page: Page,
+  waitForAccount = true,
+): Promise<void> {
+  await stabilizeVisuals(page, waitForAccount);
+  await expectNoVisiblePrivateMaterial(page);
+  await expectNoHorizontalOverflow(page);
+  await expectNoAccessibilityViolations(page);
+}
+
+async function expectNormalStaffWorkspace(
+  page: Page,
+  role: Rcp46fStaffRole,
+): Promise<void> {
+  if (role === "curator") {
+    await expect(page.locator("main.staff-workspace--curation")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Sunberry tomato", level: 2 }),
+    ).toBeVisible();
+  } else {
+    await expect(page.locator("main.staff-workspace--moderation")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Sunlit Tomato Soup", level: 2 }),
+    ).toBeVisible();
+  }
+  await expectRoleSpecificStaffNavigation(page, role);
+}
+
+async function enterCuratorDecision(page: Page): Promise<void> {
+  await page.getByLabel("Reviewed canonical name").fill("Sunberry tomato");
+  await page
+    .getByLabel("Decision reason")
+    .fill("The reviewed catalog evidence supports this synthetic decision.");
+  await page
+    .getByLabel("Approval provenance")
+    .fill("Synthetic RCP-46F curator certification evidence.");
+}
+
+async function submitStaleCuratorDecision(page: Page) {
+  await enterCuratorDecision(page);
+  await page.getByRole("button", { name: "Save approve decision" }).click();
+  const alert = page.getByRole("alert").filter({
+    hasText:
+      "This request or its catalog matches changed while you were reviewing it.",
+  });
+  await expect(alert).toBeVisible();
+  await expect(page.getByLabel("Decision reason")).toHaveValue(
+    "The reviewed catalog evidence supports this synthetic decision.",
+  );
+  await expect(page.getByLabel("Approval provenance")).toHaveValue(
+    "Synthetic RCP-46F curator certification evidence.",
+  );
+  return alert;
+}
+
+async function retryStaleCuratorDecision(page: Page): Promise<void> {
+  const refresh = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname ===
+        "/api/ingredient-requests/70000000-0000-4000-8000-000000000001/review" &&
+      response.status() === 200,
+  );
+  await page.getByRole("button", { name: "Load current request" }).click();
+  await refresh;
+  await expect(page.getByLabel("Decision reason")).toHaveValue(
+    "The reviewed catalog evidence supports this synthetic decision.",
+  );
+
+  const saved = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname ===
+        "/api/ingredient-requests/70000000-0000-4000-8000-000000000001/review",
+  );
+  await page.getByRole("button", { name: "Save approve decision" }).click();
+  expect((await saved).status()).toBe(200);
+  await expect(
+    page.getByRole("status").filter({ hasText: "Decision saved." }),
+  ).toBeVisible();
+}
+
+async function exerciseStaffMatrixCase(
+  page: Page,
+  matrixCase: Rcp46fStaffMatrixCase,
+): Promise<void> {
+  const route = RCP46F_STAFF_ROUTES[matrixCase.routeRole];
+  const auditBefore = await readAudit();
+  const deniedRouteCountBefore = auditBefore.route_counts[route.apiRouteLabel] ?? 0;
+  const authorizationDeniedCountBefore =
+    auditBefore.route_counts[route.authorizationDeniedApiRouteLabel] ?? 0;
+  await page.goto(route.path, {
+    waitUntil: matrixCase.id === "curator-loading" ? "domcontentloaded" : "load",
+  });
+
+  switch (matrixCase.id) {
+    case "curator-normal":
+    case "moderator-normal":
+      await expectNormalStaffWorkspace(page, matrixCase.sessionRole);
+      await certifyStaffState(page);
+      return;
+    case "curator-loading":
+      await expect(
+        page.getByRole("status").filter({ hasText: "Checking review access…" }),
+      ).toBeVisible();
+      await certifyStaffState(page, false);
+      return;
+    case "moderator-error-retry":
+      await expect(
+        page.getByRole("alert").filter({
+          hasText: "The recipe-report queue could not be loaded.",
+        }),
+      ).toBeVisible();
+      await certifyStaffState(page);
+      await page.getByRole("button", { name: "Retry queue" }).click();
+      await expect(
+        page.getByRole("heading", { name: "Sunlit Tomato Soup", level: 2 }),
+      ).toBeVisible();
+      await certifyStaffState(page);
+      return;
+    case "curator-empty":
+      await expect(page.getByText("No pending requests.", { exact: true })).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Choose a request", level: 2 }),
+      ).toBeVisible();
+      await certifyStaffState(page);
+      return;
+    case "moderator-detail-not-found":
+      await expect(
+        page.getByRole("alert").filter({
+          hasText: "This moderation case could not be loaded.",
+        }),
+      ).toBeVisible();
+      await certifyStaffState(page);
+      return;
+    case "curator-cannot-open-moderation":
+    case "moderator-cannot-open-curation": {
+      await expect(
+        page.getByRole("heading", { name: "We couldn’t find that page.", level: 1 }),
+      ).toBeVisible();
+      await expect(page.getByText("Sunberry tomato", { exact: true })).toHaveCount(0);
+      await expect(
+        page.getByText("Repeated promotional links in the public description.", {
+          exact: true,
+        }),
+      ).toHaveCount(0);
+      const auditAfter = await readAudit();
+      const deniedRouteCountAfter = auditAfter.route_counts[route.apiRouteLabel] ?? 0;
+      const authorizationDeniedCountAfter =
+        auditAfter.route_counts[route.authorizationDeniedApiRouteLabel] ?? 0;
+      expect(deniedRouteCountAfter).toBe(deniedRouteCountBefore);
+      expect(authorizationDeniedCountAfter).toBe(
+        authorizationDeniedCountBefore,
+      );
+      await certifyStaffState(page);
+      return;
+    }
+    case "curator-stale-retry":
+      await expectNormalStaffWorkspace(page, "curator");
+      await submitStaleCuratorDecision(page);
+      await certifyStaffState(page);
+      await retryStaleCuratorDecision(page);
+      await certifyStaffState(page);
+      return;
+    default:
+      throw new Error(`Unhandled RCP-46F staff matrix case: ${matrixCase.id}`);
+  }
+}
+
 test.beforeEach(async ({ browser, context }) => {
   expect(browser.version()).toBe(BASELINE_CHROMIUM_VERSION);
   await resetFixture();
@@ -337,6 +548,48 @@ test.afterEach(async ({ context }) => {
   } finally {
     await resetFixture();
   }
+});
+
+test.describe("RCP-46F staff route and state width sweep", () => {
+  for (const matrixCase of RCP46F_STAFF_STATE_MATRIX) {
+    test(matrixCase.id, async ({ page }, testInfo) => {
+      desktopOnly(testInfo);
+      for (const viewport of RCP46F_STAFF_VIEWPORTS) {
+        await test.step(viewport.label, async () => {
+          await page.setViewportSize({
+            width: viewport.width,
+            height: viewport.height,
+          });
+          await setScenario(matrixCase.scenario);
+          await exerciseStaffMatrixCase(page, matrixCase);
+        });
+      }
+    });
+  }
+});
+
+test("staff fixture APIs enforce the separate role capabilities", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+
+  await setScenario("curator-session");
+  const moderatorDenied = await page.request.get(
+    "/api/moderation/recipe-reports?status=open&page=1&page_size=20",
+  );
+  expect(moderatorDenied.status()).toBe(403);
+  const moderatorDeniedBody = await moderatorDenied.text();
+  expect(moderatorDeniedBody).toContain("baseline_staff_authorization_required");
+  expect(moderatorDeniedBody).not.toContain("Repeated promotional links");
+
+  await setScenario("moderator-session");
+  const curatorDenied = await page.request.get(
+    "/api/ingredient-requests?status=pending&page=1&page_size=20",
+  );
+  expect(curatorDenied.status()).toBe(403);
+  const curatorDeniedBody = await curatorDenied.text();
+  expect(curatorDeniedBody).toContain("baseline_staff_authorization_required");
+  expect(curatorDeniedBody).not.toContain("Sunberry tomato");
 });
 
 test("application shell preserves real navigation at reviewed widths", async ({
@@ -797,6 +1050,90 @@ test("draft discard confirmation is keyboard reachable", async ({
   await expect(requestDiscard).toBeVisible();
 });
 
+test("curator intermediate visual evidence", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize({ width: 820, height: 1_000 });
+  await setScenario("curator-session");
+  await page.goto(RCP46F_STAFF_ROUTES.curator.path);
+  await expectNormalStaffWorkspace(page, "curator");
+  await stabilizeVisuals(page);
+  await captureBaseline(page, "ingredient-request-staff-review-intermediate", {
+    allowedVisibleTechnicalIdentifiers: [
+      "70000000-0000-4000-8000-000000000001",
+    ],
+  });
+});
+
+test("moderator intermediate visual evidence", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize({ width: 820, height: 1_000 });
+  await setScenario("moderator-session");
+  await page.goto(RCP46F_STAFF_ROUTES.moderator.path);
+  await expectNormalStaffWorkspace(page, "moderator");
+  await stabilizeVisuals(page);
+  await captureBaseline(page, "recipe-moderation-staff-review-intermediate");
+});
+
+test("onboarding form desktop visual evidence", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize({ width: 1_440, height: 900 });
+  await setScenario("onboarding-session");
+  await page.goto("/onboarding");
+  await expect(
+    page.getByRole("heading", { name: "Finish account setup", level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Display name")).toHaveValue("Baseline New Cook");
+  await expect(page.getByLabel("Handle")).toHaveValue("");
+  await stabilizeVisuals(page);
+  await captureBaseline(page, "onboarding-form-normal");
+});
+
+test("auth callback intermediate error visual evidence", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize({ width: 820, height: 1_000 });
+  await setScenario("anonymous-session");
+  await page.goto("/auth/callback?error=provider_unavailable");
+  await expect(
+    page.getByRole("heading", { name: "Connecting your account", level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "We couldn’t sign you in." }),
+  ).toContainText("The identity provider is temporarily unavailable.");
+  await stabilizeVisuals(page, false);
+  await captureBaseline(page, "auth-callback-error-intermediate");
+});
+
+test("global not-found phone visual evidence", async ({ page }, testInfo) => {
+  phoneOnly(testInfo);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/baseline-route-that-does-not-exist");
+  await expect(
+    page.getByRole("heading", { name: "We couldn’t find that page.", level: 1 }),
+  ).toBeVisible();
+  await stabilizeVisuals(page);
+  await captureBaseline(page, "global-not-found");
+});
+
+test("stale curator decision desktop visual evidence", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize({ width: 1_440, height: 900 });
+  await setScenario("curation-stale-once");
+  await page.goto(RCP46F_STAFF_ROUTES.curator.path);
+  await expectNormalStaffWorkspace(page, "curator");
+  const alert = await submitStaleCuratorDecision(page);
+  await alert.scrollIntoViewIfNeeded();
+  await stabilizeVisuals(page);
+  await captureBaseline(page, "stale-curation-decision", {
+    allowedVisibleTechnicalIdentifiers: [
+      "70000000-0000-4000-8000-000000000001",
+    ],
+  });
+});
+
 test.describe("desktop visual state matrix", () => {
   test.beforeEach(async ({}, testInfo) => desktopOnly(testInfo));
 
@@ -1037,6 +1374,7 @@ test.describe("desktop visual state matrix", () => {
   });
 
   test("ingredient request staff review", async ({ page }) => {
+    await setScenario("curator-session");
     await page.goto("/catalog/ingredient-requests");
     await expect(
       page.getByRole("heading", { name: "Sunberry tomato", level: 2 }),
@@ -1050,6 +1388,7 @@ test.describe("desktop visual state matrix", () => {
   });
 
   test("recipe moderation staff review", async ({ page }) => {
+    await setScenario("moderator-session");
     await page.goto("/moderation/recipes");
     await expect(
       page.getByRole("heading", { name: "Sunlit Tomato Soup", level: 2 }),
@@ -1318,6 +1657,7 @@ test.describe("phone visual state matrix", () => {
   });
 
   test("ingredient request staff review", async ({ page }) => {
+    await setScenario("curator-session");
     await page.goto("/catalog/ingredient-requests");
     await expect(
       page.getByRole("heading", { name: "Sunberry tomato", level: 2 }),
@@ -1331,6 +1671,7 @@ test.describe("phone visual state matrix", () => {
   });
 
   test("recipe moderation staff review", async ({ page }) => {
+    await setScenario("moderator-session");
     await page.goto("/moderation/recipes");
     await expect(
       page.getByRole("heading", { name: "Sunlit Tomato Soup", level: 2 }),

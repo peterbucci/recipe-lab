@@ -12,6 +12,9 @@ const SAFE_COOKIE = `recipe_lab_csrf=${SAFE_CSRF}`;
 const IDS = Object.freeze({
   user: "10000000-0000-4000-8000-000000000001",
   catalogUser: "10000000-0000-4000-8000-000000000002",
+  curatorUser: "10000000-0000-4000-8000-000000000003",
+  moderatorUser: "10000000-0000-4000-8000-000000000004",
+  onboardingUser: "10000000-0000-4000-8000-000000000005",
   recipeRoot: "20000000-0000-4000-8000-000000000001",
   recipeVariant: "20000000-0000-4000-8000-000000000002",
   recipeChild: "20000000-0000-4000-8000-000000000003",
@@ -42,12 +45,51 @@ const catalogUser = Object.freeze({
   handle: "recipe-lab",
   display_name: "Recipe Lab catalog",
 });
+const curatorUser = Object.freeze({
+  id: IDS.curatorUser,
+  handle: "baseline-curator",
+  display_name: "Baseline Curator",
+});
+const moderatorUser = Object.freeze({
+  id: IDS.moderatorUser,
+  handle: "baseline-moderator",
+  display_name: "Baseline Moderator",
+});
+const onboardingUser = Object.freeze({
+  id: IDS.onboardingUser,
+  handle: null,
+  display_name: "Baseline New Cook",
+});
 const session = Object.freeze({
   status: "authenticated",
   user,
   capabilities: {
     moderate_recipe_reports: true,
     review_ingredient_requests: true,
+  },
+});
+const curatorSession = Object.freeze({
+  status: "authenticated",
+  user: curatorUser,
+  capabilities: {
+    moderate_recipe_reports: false,
+    review_ingredient_requests: true,
+  },
+});
+const moderatorSession = Object.freeze({
+  status: "authenticated",
+  user: moderatorUser,
+  capabilities: {
+    moderate_recipe_reports: true,
+    review_ingredient_requests: false,
+  },
+});
+const onboardingSession = Object.freeze({
+  status: "onboarding_required",
+  user: onboardingUser,
+  capabilities: {
+    moderate_recipe_reports: false,
+    review_ingredient_requests: false,
   },
 });
 
@@ -445,6 +487,22 @@ const ingredientReviewDetail = Object.freeze({
     },
   ],
 });
+const reviewedIngredientReviewItem = Object.freeze({
+  ...ingredientReviewItem,
+  status: "approved",
+  updated_at: FIXED_TIME,
+  reviewed_at: FIXED_TIME,
+  decision_reason: "The current catalog review confirms this synthetic ingredient.",
+  resolved_ingredient_id: IDS.tomato,
+  reviewer_user_id: IDS.curatorUser,
+  approved_canonical_name: "Sunberry tomato",
+  approved_aliases: [],
+  approval_provenance: "Synthetic curator retry evidence.",
+});
+const reviewedIngredientReviewDetail = Object.freeze({
+  ...ingredientReviewDetail,
+  ...reviewedIngredientReviewItem,
+});
 
 const memberIngredientRequest = Object.freeze({
   id: IDS.ingredientRequest,
@@ -530,8 +588,16 @@ const probablePreflight = Object.freeze({
 
 const allowedScenarios = new Set([
   "anonymous-session",
+  "curation-empty",
+  "curation-stale-once",
+  "curator-session",
   "normal",
+  "moderation-detail-not-found",
+  "moderation-queue-failure-once",
+  "moderator-session",
+  "onboarding-session",
   "slow-draft-creation",
+  "slow-curator-session",
   "incomplete-draft",
   "unresolved-draft",
   "library-failure",
@@ -539,8 +605,54 @@ const allowedScenarios = new Set([
   "public-context-failure",
   "slow-session",
 ]);
+const curatorScenarios = new Set([
+  "curation-empty",
+  "curation-stale-once",
+  "curator-session",
+  "slow-curator-session",
+]);
+const moderatorScenarios = new Set([
+  "moderation-detail-not-found",
+  "moderation-queue-failure-once",
+  "moderator-session",
+]);
 let scenario = "normal";
 let audit = freshAudit();
+let scenarioState = freshScenarioState();
+
+function freshScenarioState() {
+  return {
+    curationDecisionApplied: false,
+    curationReviewAttempts: 0,
+    moderationQueueAttempts: 0,
+  };
+}
+
+function currentSession() {
+  if (scenario === "anonymous-session") return { status: "anonymous" };
+  if (scenario === "onboarding-session") return onboardingSession;
+  if (curatorScenarios.has(scenario)) return curatorSession;
+  if (moderatorScenarios.has(scenario)) return moderatorSession;
+  return session;
+}
+
+function hasStaffCapability(capability) {
+  const activeSession = currentSession();
+  return (
+    activeSession.status === "authenticated" &&
+    activeSession.capabilities?.[capability] === true
+  );
+}
+
+function rejectStaffAuthorization(response, label) {
+  countRoute(label);
+  sendError(
+    response,
+    403,
+    "baseline_staff_authorization_required",
+    "The synthetic staff route is not available to this account.",
+  );
+}
 
 function freshAudit() {
   return {
@@ -615,14 +727,11 @@ async function handleApi(request, response, url) {
 
   if (method === "GET" && path === "/api/auth/session") {
     countRoute("auth-session");
-    if (scenario === "slow-session") {
+    const responseSession = currentSession();
+    if (scenario === "slow-session" || scenario === "slow-curator-session") {
       await new Promise((resolve) => setTimeout(resolve, 8_000));
     }
-    sendJson(
-      response,
-      200,
-      scenario === "anonymous-session" ? { status: "anonymous" } : session,
-    );
+    sendJson(response, 200, responseSession);
     return;
   }
 
@@ -821,13 +930,22 @@ async function handleApi(request, response, url) {
   }
 
   if (method === "GET" && path === "/api/ingredient-requests") {
+    if (!hasStaffCapability("review_ingredient_requests")) {
+      rejectStaffAuthorization(response, "ingredient-review-authorization-denied");
+      return;
+    }
     countRoute("ingredient-review-queue");
+    const items =
+      scenario === "curation-empty" ||
+      (scenario === "curation-stale-once" && scenarioState.curationDecisionApplied)
+        ? []
+        : [ingredientReviewItem];
     sendJson(response, 200, {
-      items: [ingredientReviewItem],
+      items,
       page: 1,
       page_size: 20,
-      total: 1,
-      total_pages: 1,
+      total: items.length,
+      total_pages: items.length ? 1 : 0,
     });
     return;
   }
@@ -836,13 +954,69 @@ async function handleApi(request, response, url) {
     /^\/api\/ingredient-requests\/([0-9a-f-]+)\/review$/i,
   );
   if (method === "GET" && ingredientReviewMatch?.[1] === IDS.ingredientRequest) {
+    if (!hasStaffCapability("review_ingredient_requests")) {
+      rejectStaffAuthorization(response, "ingredient-review-authorization-denied");
+      return;
+    }
     countRoute("ingredient-review-detail");
-    sendJson(response, 200, ingredientReviewDetail);
+    sendJson(
+      response,
+      200,
+      scenarioState.curationDecisionApplied
+        ? reviewedIngredientReviewDetail
+        : ingredientReviewDetail,
+    );
+    return;
+  }
+
+  if (method === "POST" && ingredientReviewMatch?.[1] === IDS.ingredientRequest) {
+    if (!hasStaffCapability("review_ingredient_requests")) {
+      rejectStaffAuthorization(response, "ingredient-review-authorization-denied");
+      return;
+    }
+    countRoute("ingredient-review-decision");
+    if (scenario === "curation-stale-once") {
+      scenarioState.curationReviewAttempts += 1;
+      if (scenarioState.curationReviewAttempts === 1) {
+        sendError(
+          response,
+          409,
+          "ingredient_request_conflict",
+          "The synthetic request changed before the decision was saved.",
+        );
+        return;
+      }
+      scenarioState.curationDecisionApplied = true;
+      sendJson(response, 200, reviewedIngredientReviewItem);
+      return;
+    }
+    sendError(
+      response,
+      409,
+      "ingredient_request_conflict",
+      "The deterministic fixture accepts decisions only in its reviewed stale-retry scenario.",
+    );
     return;
   }
 
   if (method === "GET" && path === "/api/moderation/recipe-reports") {
+    if (!hasStaffCapability("moderate_recipe_reports")) {
+      rejectStaffAuthorization(response, "moderation-authorization-denied");
+      return;
+    }
     countRoute("moderation-queue");
+    if (
+      scenario === "moderation-queue-failure-once" &&
+      scenarioState.moderationQueueAttempts++ === 0
+    ) {
+      sendError(
+        response,
+        503,
+        "moderation_queue_unavailable",
+        "The synthetic moderation queue is temporarily unavailable.",
+      );
+      return;
+    }
     sendJson(response, 200, {
       items: [moderationSummary],
       page: 1,
@@ -855,7 +1029,20 @@ async function handleApi(request, response, url) {
 
   const moderationMatch = path.match(/^\/api\/moderation\/recipe-reports\/([0-9a-f-]+)$/i);
   if (method === "GET" && moderationMatch?.[1] === IDS.recipeRoot) {
+    if (!hasStaffCapability("moderate_recipe_reports")) {
+      rejectStaffAuthorization(response, "moderation-authorization-denied");
+      return;
+    }
     countRoute("moderation-detail");
+    if (scenario === "moderation-detail-not-found") {
+      sendError(
+        response,
+        404,
+        "moderation_case_not_found",
+        "The synthetic moderation case is no longer available.",
+      );
+      return;
+    }
     sendJson(response, 200, moderationDetail);
     return;
   }
@@ -893,6 +1080,7 @@ const server = createServer((request, response) => {
         return;
       }
       scenario = body;
+      scenarioState = freshScenarioState();
       sendJson(response, 200, { scenario });
       return;
     }
@@ -908,6 +1096,7 @@ const server = createServer((request, response) => {
     if (request.method === "POST" && url.pathname === "/__baseline__/reset") {
       scenario = "normal";
       audit = freshAudit();
+      scenarioState = freshScenarioState();
       sendJson(response, 200, { status: "reset" });
       return;
     }
