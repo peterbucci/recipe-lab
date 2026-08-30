@@ -408,12 +408,21 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
   }
 
   if (loading && !draft) {
-    return <main id="main-content" className="state-page"><p role="status">Loading your private draft…</p></main>;
+    return (
+      <main
+        id="main-content"
+        className="state-page draft-editor-page draft-editor-page--loading"
+      >
+        <p className="draft-editor-page__loading" role="status">
+          Loading your private draft…
+        </p>
+      </main>
+    );
   }
   if (loadError || !draft || !detail) {
     return (
-      <main id="main-content" className="state-page">
-        <section className="error-state" role="alert">
+      <main id="main-content" className="state-page draft-editor-page draft-editor-page--error">
+        <section className="error-state draft-editor-page__error" role="alert">
           <p className="eyebrow">Private draft unavailable</p>
           <h1>We couldn’t open this draft.</h1>
           <p>{loadError || "This private draft is unavailable."}</p>
@@ -431,11 +440,14 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
   const actionDisabled = pending !== null || publicationBusy;
 
   return (
-    <main id="main-content" className="page-shell page-shell--detail draft-editor-page">
-      <nav className="breadcrumb" aria-label="Breadcrumb">
+    <main
+      id="main-content"
+      className="page-shell page-shell--detail draft-editor-page draft-editor-page--ready"
+    >
+      <nav className="breadcrumb draft-editor-page__breadcrumb" aria-label="Breadcrumb">
         <GuardedLink href="/account/recipes?view=drafts">← My recipes</GuardedLink>
       </nav>
-      <header className="page-intro page-intro--editor">
+      <header className="page-intro page-intro--editor draft-editor-page__intro">
         <p className="eyebrow">{detail.source_version_id ? "Private version draft" : "Private original recipe draft"}</p>
         <h1>{draft.title.trim() || "Untitled recipe"}</h1>
         <p>
@@ -452,7 +464,12 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
       </p>
       <p className="visually-hidden" role="status" aria-live="polite">{announcement}</p>
 
-      <form className="draft-editor" aria-label="Private recipe draft editor" noValidate onSubmit={(event) => void save(event)}>
+      <form
+        className="draft-editor draft-editor--authoring"
+        aria-label="Private recipe draft editor"
+        noValidate
+        onSubmit={(event) => void save(event)}
+      >
         {formError ? (
           <div ref={errorSummaryRef} className="draft-editor__error-summary" role="alert" tabIndex={-1}>
             <h2>Your draft needs attention</h2>
@@ -544,7 +561,13 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
 export function RecipeDraftEditor(props: RecipeDraftEditorProps) {
   const returnTo = `/account/recipe-drafts/${props.draftId}`;
   return (
-    <MemberRouteGate eyebrow="Private recipe workspace" returnTo={returnTo} title="Recipe draft editor">
+    <MemberRouteGate
+      cardClassName="recipe-authoring-state__panel"
+      eyebrow="Private recipe workspace"
+      pageClassName="recipe-authoring-state recipe-authoring-state--gate"
+      returnTo={returnTo}
+      title="Recipe draft editor"
+    >
       <RecipeDraftEditorInner {...props} />
     </MemberRouteGate>
   );

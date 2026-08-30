@@ -105,8 +105,15 @@ image is produced from the same sanitized fixture contract.
 | Sign-in, intermediate width         | `account-access-intermediate-normal`  | —                          |
 | My Recipes, private drafts          | `my-recipes-normal`                   | `my-recipes-normal`        |
 | My Recipes, intermediate width      | `my-recipes-intermediate-normal`      | —                          |
+| New recipe entry                    | `authoring-entry-desktop-normal`      | —                          |
+| Draft editor, intermediate width    | `draft-editor-intermediate-normal`    | —                          |
+| Draft ingredient editor             | `draft-ingredient-editor-normal`      | `draft-ingredient-editor-normal` |
+| Draft instruction, collapsed        | `draft-instruction-editor-normal`     | `draft-instruction-editor-normal` |
+| Draft instruction, cooking details  | `draft-instruction-editor-expanded`   | `draft-instruction-editor-expanded` |
+| Unresolved ingredient validation    | —                                     | `draft-unresolved-ingredient-validation` |
 | Draft editor with validation        | `draft-editor-validation`             | `draft-editor-validation`  |
 | Similarity and publication review   | `draft-similarity-publication-review` | `draft-similarity-publication-review` |
+| Draft discard confirmation          | `draft-discard-confirmation`          | —                          |
 | Ingredient request and staff review | `ingredient-request-staff-review`     | `ingredient-request-staff-review` |
 | Recipe moderation staff review      | `recipe-moderation-staff-review`      | `recipe-moderation-staff-review` |
 | Private workspace, loading          | `private-workspace-loading`           | —                          |
@@ -116,10 +123,15 @@ image is produced from the same sanitized fixture contract.
 Normal, intermediate, loading, empty, failure, unavailable, validation,
 review, publication, and expired-session behavior are therefore represented
 where they apply without making every combinatorial state a separate
-screenshot. The comparison, similarity, ingredient-review, and moderation
-captures keep their distinct explanations and controls visible; they are not
-reduced to generic status cards. Public recipe, comparison, cook-profile, and
-community-rules journeys also run at 1440, 820, and 390 CSS pixels with Axe and
+screenshot. The authoring evidence covers private draft creation, a complete
+editor at its intermediate layout, ingredient and instruction editing,
+structured cooking details, unresolved ingredient guidance, publication
+review, and the permanent discard confirmation. It also verifies the fork
+entry separately without capturing another near-identical screenshot. The
+comparison, similarity, ingredient-review, and moderation captures keep their
+distinct explanations and controls visible; they are not reduced to generic
+status cards. Public recipe, comparison, cook-profile, and community-rules
+journeys also run at 1440, 820, and 390 CSS pixels with Axe and
 horizontal-overflow checks. The public recipe failure journey proves that the
 route-level retry performs a fresh server fetch before returning to the recipe.
 The account contract runs anonymous sign-in plus authenticated My Recipes,

@@ -156,6 +156,10 @@ describe("RecipeDraftEditor", () => {
     renderEditor();
 
     const title = await screen.findByLabelText("Title");
+    expect(title.closest("main")).toHaveClass(
+      "draft-editor-page",
+      "draft-editor-page--ready",
+    );
     fireEvent.change(title, { target: { value: "My unsaved soup" } });
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
 
@@ -493,6 +497,12 @@ describe("RecipeDraftEditor", () => {
     renderEditor();
 
     const form = await screen.findByRole("form", { name: "Private recipe draft editor" });
+    expect(form).toHaveClass("draft-editor--authoring");
+    expect(form.querySelector(".draft-editor__surface--details")).toBeVisible();
+    expect(form.querySelector(".draft-editor__surface--ingredients")).toBeVisible();
+    expect(form.querySelector(".draft-editor__surface--instructions")).toBeVisible();
+    expect(form.querySelector(".draft-editor__surface--publication")).toBeVisible();
+    expect(form.querySelector(".draft-editor__surface--discard")).toBeVisible();
     const sectionLabels = Array.from(form.children)
       .filter((child) => child.matches("fieldset, section"))
       .map((section) =>

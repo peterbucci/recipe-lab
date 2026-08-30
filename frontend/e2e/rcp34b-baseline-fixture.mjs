@@ -326,7 +326,7 @@ const diff = Object.freeze({
   has_changes: true,
 });
 
-function draftDetail(complete) {
+function draftDetail(complete, unresolvedIngredient = false) {
   return {
     id: IDS.draft,
     source_version_id: null,
@@ -340,11 +340,21 @@ function draftDetail(complete) {
           {
             id: IDS.draftIngredient,
             display_order: 0,
-            selection: {
-              kind: "catalog",
-              ingredient: tomato,
-              display_name: "plum tomatoes",
-            },
+            selection: unresolvedIngredient
+              ? {
+                  kind: "request",
+                  request: {
+                    id: IDS.ingredientRequest,
+                    proposed_name: "Sunberry tomato",
+                    status: "pending",
+                    resolved_ingredient: null,
+                  },
+                }
+              : {
+                  kind: "catalog",
+                  ingredient: tomato,
+                  display_name: "plum tomatoes",
+                },
             measure: {
               kind: "exact",
               value: "800",
@@ -521,7 +531,9 @@ const probablePreflight = Object.freeze({
 const allowedScenarios = new Set([
   "anonymous-session",
   "normal",
+  "slow-draft-creation",
   "incomplete-draft",
+  "unresolved-draft",
   "library-failure",
   "expired-library",
   "public-context-failure",
@@ -764,6 +776,15 @@ async function handleApi(request, response, url) {
     return;
   }
 
+  if (method === "POST" && path === "/api/recipe-drafts") {
+    countRoute("recipe-draft-create");
+    if (scenario === "slow-draft-creation") {
+      await new Promise((resolve) => setTimeout(resolve, 8_000));
+    }
+    sendJson(response, 201, draftDetail(true));
+    return;
+  }
+
   const draftPreflightMatch = path.match(
     /^\/api\/recipe-drafts\/([0-9a-f-]+)\/duplicate-preflights$/i,
   );
@@ -776,7 +797,14 @@ async function handleApi(request, response, url) {
   const draftMatch = path.match(/^\/api\/recipe-drafts\/([0-9a-f-]+)$/i);
   if (method === "GET" && draftMatch?.[1] === IDS.draft) {
     countRoute("recipe-draft");
-    sendJson(response, 200, draftDetail(scenario !== "incomplete-draft"));
+    sendJson(
+      response,
+      200,
+      draftDetail(
+        scenario !== "incomplete-draft",
+        scenario === "unresolved-draft",
+      ),
+    );
     return;
   }
 

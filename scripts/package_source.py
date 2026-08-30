@@ -128,6 +128,10 @@ EXPORT_POLICY = PackagingPolicy(
             "9c85b67a3eeb55d03299a81105d46d0122214656",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/authoring-entry-desktop-normal.png",
+            "3ba45ac1db7c20101af2df96206df2643a4e5871",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/catalog-empty.png",
             "8e864b75b395244d23890516738570a5b65c8357",
         ),
@@ -148,24 +152,32 @@ EXPORT_POLICY = PackagingPolicy(
             "4004141c0ac8b83e4a9d6391e343118bd21af0f6",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/draft-discard-confirmation.png",
+            "855c9d9b5cf9ccb1c13a610be6f1d4ba10378f86",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/draft-editor-intermediate-normal.png",
+            "ecec563cfa201db2c6d35dc1fa092fe85755f252",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/draft-editor-validation.png",
-            "b182d5ed6db3c8f2f5799d3931cdf0f8d8ae9e43",
+            "89ee4aab4c59b7831e6aec7656feb69bf7d46e39",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-ingredient-editor-normal.png",
-            "11f9a24083d6c70acedc6c11e44cddf32c39adee",
+            "d6c07ae91b47df9088da0742d9c7dbe9dd25404d",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-instruction-editor-expanded.png",
-            "1beae2fdddae3299bf70870e4536694cd0ea78e0",
+            "ee497440c71c2e449edbc07470e9e86b6834e8e9",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-instruction-editor-normal.png",
-            "4db5beb23bf80d94e5b84aeb3d1a9d05c73848b0",
+            "64f241206b518529ae9d4623faccb1185a323703",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-similarity-publication-review.png",
-            "a83391b6982b832301ca69bb2f977032547ffb1d",
+            "84697b3c065c5fac2f8a5e8d02ed871f7bf2c55a",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-account-navigation.png",
@@ -253,23 +265,27 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-editor-validation.png",
-            "ee0b8678bff75d85ec21d164d835ad8e7b486fa9",
+            "19719c2c398f0cc97b297e7b86bbac46fa666a14",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-ingredient-editor-normal.png",
-            "86179fc03fd6bd36d63d4178c878492c6a4c172c",
+            "fa25374fbc9f55947d9295b60f148b2781369128",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-instruction-editor-expanded.png",
-            "b4f7ffcf8bae3e956cef9a2366c92d6bb42e6e98",
+            "82f8057b3ef939adead2b82f1eecacd13ceb14fe",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-instruction-editor-normal.png",
-            "a1aa86efef14d29ab551545595cd0732ed0c244e",
+            "a9f3be009dad2ea72a8ad65154110d56998a73d9",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-similarity-publication-review.png",
-            "1ed2fa0a018afd5f259092cd17cb41a3d1f5cef1",
+            "c8ad773f22374f121ba0b841867cb9b75fb24cb1",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/draft-unresolved-ingredient-validation.png",
+            "f93ec9a9d6138aed79d381f1d4cf5cdbd987777b",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-account-navigation.png",

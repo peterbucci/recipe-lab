@@ -6,15 +6,19 @@ import { useAuthSession } from "./auth-session-provider";
 import { GuardedLink } from "./navigation-blocker-provider";
 
 interface MemberRouteGateProps {
+  cardClassName?: string;
   children: ReactNode;
   eyebrow: string;
+  pageClassName?: string;
   returnTo: string;
   title: string;
 }
 
 export function MemberRouteGate({
+  cardClassName,
   children,
   eyebrow,
+  pageClassName,
   returnTo,
   title,
 }: MemberRouteGateProps) {
@@ -64,8 +68,14 @@ export function MemberRouteGate({
   }
 
   return (
-    <main id="main-content" className="auth-page">
-      <section className="auth-card" aria-labelledby="member-route-title">
+    <main
+      id="main-content"
+      className={pageClassName ? `auth-page ${pageClassName}` : "auth-page"}
+    >
+      <section
+        className={cardClassName ? `auth-card ${cardClassName}` : "auth-card"}
+        aria-labelledby="member-route-title"
+      >
         <p className="eyebrow">{eyebrow}</p>
         <h1 id="member-route-title">{heading}</h1>
         <p className="lede" role={state.phase === "loading" ? "status" : undefined}>

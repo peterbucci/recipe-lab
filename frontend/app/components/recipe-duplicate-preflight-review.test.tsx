@@ -65,6 +65,7 @@ describe("RecipeDuplicatePreflightReview", () => {
     const region = screen.getByRole("region", {
       name: "Review similar recipes",
     });
+    expect(region).toHaveClass("duplicate-preflight-review--variant");
     await waitFor(() =>
       expect(
         within(region).getByRole("heading", {
@@ -163,6 +164,9 @@ describe("RecipeDuplicatePreflightReview", () => {
         name: "I reviewed these similar recipes and want to publish my recipe anyway.",
       }),
     ).toBeVisible();
+    expect(screen.getByRole("region", { name: "Review similar recipes" })).toHaveClass(
+      "duplicate-preflight-review--publication",
+    );
     expect(screen.getByRole("button", { name: "Publish recipe anyway" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: /without checking similar recipes/i })).toBeNull();
   });
@@ -291,6 +295,7 @@ describe("RecipeDuplicateUnavailable", () => {
     const region = screen.getByRole("region", {
       name: "Similar recipes could not be checked",
     });
+    expect(region).toHaveClass("duplicate-preflight-review--unavailable");
     await waitFor(() =>
       expect(
         within(region).getByRole("heading", {

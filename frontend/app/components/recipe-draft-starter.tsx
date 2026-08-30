@@ -122,11 +122,15 @@ function AuthenticatedRecipeDraftStarter({
   }, [phase]);
 
   const isFork = sourceVersionId !== null;
+  const entryKind = isFork ? "fork" : "new";
 
   return (
-    <main id="main-content" className="auth-page">
+    <main
+      id="main-content"
+      className={`auth-page recipe-authoring-entry recipe-authoring-entry--${entryKind} recipe-authoring-entry--${phase}`}
+    >
       <section
-        className="auth-card"
+        className="auth-card draft-starter recipe-authoring-entry__card"
         aria-busy={phase === "loading"}
         aria-labelledby="draft-starter-title"
       >
@@ -179,10 +183,13 @@ export function RecipeDraftStarter({
   const returnTo = sourceVersionId
     ? `/recipes/${encodeURIComponent(sourceVersionId)}/fork`
     : "/recipes/new";
+  const entryKind = sourceVersionId !== null ? "fork" : "new";
 
   return (
     <MemberRouteGate
+      cardClassName="draft-starter recipe-authoring-entry__card"
       eyebrow="Private recipe workspace"
+      pageClassName={`recipe-authoring-entry recipe-authoring-entry--${entryKind}`}
       returnTo={returnTo}
       title="Private drafts"
     >

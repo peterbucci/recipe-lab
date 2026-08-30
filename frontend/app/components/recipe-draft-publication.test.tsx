@@ -216,6 +216,11 @@ describe("RecipeDraftPublication", () => {
     });
     renderPublication();
 
+    const publication = screen
+      .getByRole("heading", { name: "Publish this original recipe." })
+      .closest("section");
+    expect(publication).toHaveClass("draft-publication--original");
+    expect(publication).not.toHaveClass("draft-publication--review");
     expect(screen.getByRole("link", { name: "Return to your private drafts" })).toHaveAttribute(
       "href",
       "/account/recipes?view=drafts",
@@ -228,6 +233,7 @@ describe("RecipeDraftPublication", () => {
     fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
     await waitFor(() => expect(mocks.preflight).toHaveBeenCalledWith(DRAFT_ID, 4, "preflight-key"));
     const continueButton = await screen.findByRole("button", { name: "Publish recipe anyway" });
+    expect(publication).toHaveClass("draft-publication--review");
     expect(continueButton).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox", { name: /publish my recipe anyway/i }));
     expect(continueButton).toBeEnabled();
