@@ -1,7 +1,15 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
+import { HomeDashboardLayout } from "./components/home-dashboard-layout";
+import {
+  HomePublicDiscovery,
+  HowRecipeLabWorks,
+} from "./components/home-public-discovery";
 import { RecipeArtwork } from "./components/recipe-artwork";
 import { RecipeSearch } from "./components/recipe-search";
+
+export const dynamic = "force-dynamic";
 
 export default function HomePage() {
   return (
@@ -38,38 +46,18 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section
-        className="home-principles home-how-it-works home-dashboard__workflow"
-        id="how-it-works"
-        aria-labelledby="how-it-works-heading"
-      >
-        <div className="section-heading home-dashboard__section-heading">
-          <h2 id="how-it-works-heading">How Recipe Lab works</h2>
-        </div>
-        <ol className="principle-grid home-steps">
-          <li className="home-steps__item">
-            <span className="home-steps__number" aria-hidden="true">
-              01
-            </span>
-            <h3>Choose a recipe</h3>
-            <p>Search the collection and open the one that sounds good.</p>
-          </li>
-          <li className="home-steps__item">
-            <span className="home-steps__number" aria-hidden="true">
-              02
-            </span>
-            <h3>Your version</h3>
-            <p>Change ingredients, amounts, or instructions without replacing the starting recipe.</p>
-          </li>
-          <li className="home-steps__item">
-            <span className="home-steps__number" aria-hidden="true">
-              03
-            </span>
-            <h3>See what changed</h3>
-            <p>Compare your version with the recipe where you started.</p>
-          </li>
-        </ol>
-      </section>
+      <HomeDashboardLayout>
+        <Suspense
+          fallback={
+            <div className="home-public-discovery home-public-discovery--loading" role="status">
+              <p>Loading recipe discovery…</p>
+            </div>
+          }
+        >
+          <HomePublicDiscovery />
+        </Suspense>
+        <HowRecipeLabWorks />
+      </HomeDashboardLayout>
     </main>
   );
 }
