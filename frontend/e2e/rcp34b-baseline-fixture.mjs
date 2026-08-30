@@ -511,6 +511,7 @@ const allowedScenarios = new Set([
   "incomplete-draft",
   "library-failure",
   "expired-library",
+  "public-context-failure",
   "slow-session",
 ]);
 let scenario = "normal";
@@ -607,6 +608,24 @@ async function handleApi(request, response, url) {
     return;
   }
 
+  if (method === "GET" && path === `/api/cooks/${user.handle}`) {
+    countRoute("cook-profile");
+    if (scenario === "public-context-failure") {
+      sendError(
+        response,
+        503,
+        "recipe_library_unavailable",
+        "The synthetic public profile is temporarily unavailable.",
+      );
+      return;
+    }
+    sendJson(response, 200, {
+      ...apiPage([variantSummary, childSummary]),
+      cook: user,
+    });
+    return;
+  }
+
   const diffMatch = path.match(/^\/api\/recipes\/([0-9a-f-]+)\/diff$/i);
   if (method === "GET" && diffMatch?.[1] === IDS.recipeVariant) {
     countRoute("recipe-diff");
@@ -631,6 +650,15 @@ async function handleApi(request, response, url) {
     const summary = summaries.get(recipeMatch[1]);
     if (summary) {
       countRoute("recipe-detail");
+      if (scenario === "public-context-failure") {
+        sendError(
+          response,
+          503,
+          "recipe_service_unavailable",
+          "The synthetic public recipe is temporarily unavailable.",
+        );
+        return;
+      }
       sendJson(response, 200, detailFor(summary));
     } else {
       countRoute("recipe-missing");

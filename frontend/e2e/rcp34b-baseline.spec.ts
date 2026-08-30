@@ -429,6 +429,102 @@ test("recipe discovery reflows without hiding results at reviewed widths", async
   }
 });
 
+test("public recipe context reflows at reviewed widths", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+
+  const expectedColumns = {
+    desktop: { hero: 2, reading: 2, highlights: 3, versions: 2, cook: 4, rules: 2 },
+    intermediate: { hero: 1, reading: 1, highlights: 1, versions: 2, cook: 3, rules: 1 },
+    phone: { hero: 1, reading: 1, highlights: 1, versions: 1, cook: 2, rules: 1 },
+  } as const;
+
+  for (const viewport of REVIEWED_SHELL_VIEWPORTS) {
+    await test.step(viewport.label, async () => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+
+      await page.goto(`/recipes/${VARIANT_RECIPE_ID}`);
+      const detailHero = page.locator(".recipe-detail__hero");
+      const readingPanels = page.locator(".recipe-detail__body");
+      await expect(
+        page.getByRole("heading", { name: "Garden Cream Tomato Soup", level: 1 }),
+      ).toBeVisible();
+      await expect(detailHero).toHaveCount(1);
+      await expect(readingPanels).toHaveCount(1);
+      expect(
+        await detailHero.evaluate((grid) =>
+          getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+        ),
+      ).toBe(expectedColumns[viewport.label].hero);
+      expect(
+        await readingPanels.evaluate((grid) =>
+          getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+        ),
+      ).toBe(expectedColumns[viewport.label].reading);
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
+
+      await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
+      const highlights = page.getByRole("list", { name: "Changes at a glance" });
+      const versions = page.getByRole("navigation", { name: "Compared recipes" }).locator("ol");
+      await expect(highlights).toBeVisible();
+      await expect(highlights).toHaveCount(1);
+      await expect(versions).toHaveCount(1);
+      expect(
+        await highlights.evaluate((grid) =>
+          getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+        ),
+      ).toBe(expectedColumns[viewport.label].highlights);
+      expect(
+        await versions.evaluate((grid) =>
+          getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+        ),
+      ).toBe(expectedColumns[viewport.label].versions);
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
+
+      await page.goto("/cooks/baseline-cook");
+      const cookRecipes = page.getByRole("list", { name: "Public recipes by Baseline Cook" });
+      await expect(cookRecipes).toBeVisible();
+      await expect(cookRecipes).toHaveCount(1);
+      expect(
+        await cookRecipes.evaluate((grid) =>
+          getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+        ),
+      ).toBe(expectedColumns[viewport.label].cook);
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
+
+      await page.goto("/community-rules");
+      const rules = page.locator(".policy-page__sections");
+      await expect(page.getByRole("heading", { name: "Community rules", level: 1 })).toBeVisible();
+      await expect(rules).toHaveCount(1);
+      expect(
+        await rules.evaluate((grid) =>
+          getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+        ),
+      ).toBe(expectedColumns[viewport.label].rules);
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
+    });
+  }
+});
+
+test("public recipe retry refetches the failed route", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await setScenario("public-context-failure");
+  await page.goto(`/recipes/${VARIANT_RECIPE_ID}`);
+  await expect(
+    page.getByRole("heading", { name: "We couldn’t load this recipe.", level: 1 }),
+  ).toBeVisible();
+
+  await setScenario("normal");
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Garden Cream Tomato Soup", level: 1 }),
+  ).toBeVisible();
+  await expectNoAccessibilityViolations(page);
+});
+
 test("home intermediate normal", async ({ page }, testInfo) => {
   desktopOnly(testInfo);
   await page.setViewportSize({ width: 820, height: 1_000 });
@@ -449,6 +545,26 @@ test("catalog intermediate normal", async ({ page }, testInfo) => {
   await expect(page.getByRole("list", { name: "Recipe results" })).toBeVisible();
   await stabilizeVisuals(page);
   await captureBaseline(page, "catalog-intermediate-normal");
+});
+
+test("recipe detail intermediate normal", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize({ width: 820, height: 1_000 });
+  await page.goto(`/recipes/${VARIANT_RECIPE_ID}`);
+  await expect(
+    page.getByRole("heading", { name: "Garden Cream Tomato Soup", level: 1 }),
+  ).toBeVisible();
+  await stabilizeVisuals(page);
+  await captureBaseline(page, "recipe-detail-intermediate-normal");
+});
+
+test("recipe comparison intermediate normal", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize({ width: 820, height: 1_000 });
+  await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
+  await expect(page.getByRole("list", { name: "Changes at a glance" })).toBeVisible();
+  await stabilizeVisuals(page);
+  await captureBaseline(page, "recipe-comparison-intermediate-normal");
 });
 
 test.describe("desktop visual state matrix", () => {
@@ -551,6 +667,46 @@ test.describe("desktop visual state matrix", () => {
     await expect(summary).toBeInViewport();
     await stabilizeVisuals(page);
     await captureBaseline(page, "recipe-comparison-normal");
+  });
+
+  test("cook profile normal", async ({ page }) => {
+    await page.goto("/cooks/baseline-cook");
+    await expect(
+      page.getByRole("heading", { name: "Baseline Cook", level: 1 }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("list", { name: "Public recipes by Baseline Cook" }),
+    ).toBeVisible();
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "cook-profile-normal");
+  });
+
+  test("community rules normal", async ({ page }) => {
+    await page.goto("/community-rules");
+    await expect(
+      page.getByRole("heading", { name: "Community rules", level: 1 }),
+    ).toBeVisible();
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "community-rules-normal");
+  });
+
+  test("public recipe failure", async ({ page }) => {
+    await setScenario("public-context-failure");
+    await page.goto(`/recipes/${VARIANT_RECIPE_ID}`);
+    await expect(
+      page.getByRole("heading", { name: "We couldn’t load this recipe.", level: 1 }),
+    ).toBeVisible();
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "recipe-detail-error");
+  });
+
+  test("public recipe unavailable", async ({ page }) => {
+    await page.goto("/recipes/20000000-0000-4000-8000-000000000099");
+    await expect(
+      page.getByRole("heading", { name: "This recipe isn’t available.", level: 1 }),
+    ).toBeVisible();
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "recipe-detail-unavailable");
   });
 
   test("my recipes normal", async ({ page }) => {
@@ -820,6 +976,27 @@ test.describe("phone visual state matrix", () => {
     await expect(overview).toBeInViewport();
     await stabilizeVisuals(page);
     await captureBaseline(page, "recipe-comparison-normal");
+  });
+
+  test("cook profile normal", async ({ page }) => {
+    await page.goto("/cooks/baseline-cook");
+    await expect(
+      page.getByRole("heading", { name: "Baseline Cook", level: 1 }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("list", { name: "Public recipes by Baseline Cook" }),
+    ).toBeVisible();
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "cook-profile-normal");
+  });
+
+  test("community rules normal", async ({ page }) => {
+    await page.goto("/community-rules");
+    await expect(
+      page.getByRole("heading", { name: "Community rules", level: 1 }),
+    ).toBeVisible();
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "community-rules-normal");
   });
 
   test("draft ingredient editor normal", async ({ page }) => {
