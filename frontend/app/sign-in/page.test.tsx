@@ -12,6 +12,12 @@ describe("SignInPage", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Sign in to Recipe Lab" })).toBeVisible();
+    expect(screen.getByRole("main")).toHaveClass(
+      "account-access-page",
+      "account-access-page--sign-in",
+    );
+    expect(screen.getByRole("heading", { name: "Sign in to Recipe Lab" }).closest("section"))
+      .toHaveClass("account-access-card", "account-access-card--sign-in");
     expect(screen.getByText(/save and rate recipes/i)).toBeVisible();
     expect(screen.getByText(/create your own versions/i)).toBeVisible();
     expect(screen.queryByText(/recommend/i)).toBeNull();

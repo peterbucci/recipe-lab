@@ -121,6 +121,8 @@ describe("MemberIngredientRequestHistory", () => {
     render(<MemberIngredientRequestHistory idPrefix="history" />);
 
     const region = await screen.findByRole("region", { name: "My ingredient requests" });
+    expect(region).toHaveClass("member-request-history--standalone");
+    expect(region).not.toHaveClass("member-request-history--picker");
     expect(within(region).getByRole("combobox", { name: "Request status" })).toHaveValue("");
     expect(
       within(region).getByRole("searchbox", { name: "Search my ingredient requests" }),
@@ -276,6 +278,8 @@ describe("MemberIngredientRequestHistory", () => {
     const region = await screen.findByRole("region", {
       name: "Choose from my ingredient requests for Ingredient 2: Walnuts",
     });
+    expect(region).toHaveClass("member-request-history--picker");
+    expect(region).not.toHaveClass("member-request-history--standalone");
     expect(
       within(
         within(region).getByRole("article", { name: "Ingredient request: Unreviewed herb" }),

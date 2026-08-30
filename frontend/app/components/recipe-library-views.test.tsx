@@ -226,6 +226,9 @@ describe("cook profile and private recipe libraries", () => {
     const list = await screen.findByRole("list", {
       name: "Private recipe drafts",
     });
+    const workspace = list.closest("main");
+    expect(workspace).toHaveClass("account-workspace-page", "account-recipes-page");
+    expect(list.closest("section")).toHaveClass("member-library__collection");
     expect(
       within(list).getByText("Private draft", { exact: true }),
     ).toBeVisible();
@@ -957,6 +960,13 @@ describe("cook profile and private recipe libraries", () => {
     expect(
       await screen.findByRole("list", { name: "Saved recipes" }),
     ).toHaveTextContent("Creamy tomato soup");
+    const savedList = screen.getByRole("list", { name: "Saved recipes" });
+    expect(savedList).toHaveClass("member-library__grid");
+    expect(savedList.closest("main")).toHaveClass(
+      "account-workspace-page",
+      "account-saved-recipes-page",
+    );
+    expect(savedList.closest("section")).toHaveClass("member-library__collection");
     const pages = screen.getByRole("navigation", {
       name: "Saved recipe pages",
     });

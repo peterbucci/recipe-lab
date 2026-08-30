@@ -53,6 +53,9 @@ describe("AccountSettings", () => {
     renderSettings();
 
     expect(screen.getByRole("heading", { name: "Delete account" })).toBeVisible();
+    expect(screen.getByRole("main")).toHaveClass("account-settings-page");
+    expect(screen.getByRole("heading", { name: "Delete account" }).closest("section"))
+      .toHaveClass("account-settings-panel", "account-settings-panel--danger");
     expect(screen.getByText(/their recipe history remains clear/i)).toBeVisible();
     expect(screen.queryByText(/forks remain intact/i)).not.toBeInTheDocument();
     expect(screen.getByText(/recipes that are public when you delete/i)).toHaveTextContent(
@@ -143,6 +146,10 @@ describe("AccountSettings", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Sign in to manage your account." })).toBeVisible();
+    expect(screen.getByRole("main")).toHaveClass(
+      "account-access-page",
+      "account-access-page--settings",
+    );
     expect(screen.getByRole("link", { name: "Sign in to continue" })).toHaveAttribute(
       "href",
       "/api/auth/login?return_to=%2Faccount%2Fsettings",
@@ -190,5 +197,29 @@ describe("AccountSettings", () => {
       ),
     );
     expect(routerMocks.replace).toHaveBeenCalledWith("/account/deleted");
+  });
+
+  it("keeps an unavailable session check inside the account settings recovery surface", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockRejectedValue(new Error("offline")));
+    render(
+      <AuthSessionProvider>
+        <AccountSettings />
+      </AuthSessionProvider>,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading account settings");
+    expect(screen.getByRole("main")).toHaveClass(
+      "account-settings-page",
+      "account-settings-page--loading",
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "We couldn’t check your account." }),
+    ).toBeVisible();
+    expect(screen.getByRole("main")).toHaveClass(
+      "account-access-page",
+      "account-access-page--settings",
+    );
+    expect(screen.getByRole("button", { name: "Retry account check" })).toBeVisible();
   });
 });
