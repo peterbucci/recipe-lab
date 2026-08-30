@@ -49,19 +49,25 @@ export function RecipeDraftInstructionsSection({
   onReplace,
 }: RecipeDraftInstructionsSectionProps) {
   return (
-    <fieldset className="draft-editor__section" disabled={disabled}>
+    <fieldset
+      className="draft-editor__section draft-editor__surface draft-editor__surface--instructions"
+      disabled={disabled}
+    >
       <legend>Instructions</legend>
       <p className="draft-editor__help">
         Write each step as you would explain it to another cook. You can privately save your draft
         before adding cooking details.
       </p>
-      <ol className="draft-editor__rows">
+      <ol className="draft-editor__rows draft-editor__rows--instructions">
         {instructions.map((instruction, index) => {
           const textError = errors[draftInstructionFieldKey(instruction.key)];
           const rowLabel = `Step ${index + 1}`;
           return (
-            <li key={instruction.key} className="draft-editor__row-card">
-              <fieldset>
+            <li
+              key={instruction.key}
+              className="draft-editor__row-card draft-editor__row-card--instruction"
+            >
+              <fieldset className="draft-editor__row-content">
                 <legend>{rowLabel}</legend>
                 <div
                   className="draft-editor__row-toolbar"
@@ -97,7 +103,7 @@ export function RecipeDraftInstructionsSection({
                     <span className="visually-hidden"> {rowLabel.toLowerCase()}</span>
                   </button>
                 </div>
-                <div className="recipe-form-field">
+                <div className="recipe-form-field draft-editor__instruction-field">
                   <label htmlFor={`draft-${instruction.key}-instruction-text`}>
                     Instruction
                   </label>
@@ -138,7 +144,7 @@ export function RecipeDraftInstructionsSection({
       </ol>
       <button
         id="draft-add-instruction"
-        className="button button--secondary"
+        className="button button--secondary draft-editor__add-row draft-editor__add-row--instruction"
         type="button"
         disabled={instructions.length >= 100}
         onClick={onAdd}

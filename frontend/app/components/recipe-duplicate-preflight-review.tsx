@@ -96,7 +96,7 @@ export function RecipeDuplicatePreflightReview({
 
   return (
     <section
-      className="duplicate-preflight-review"
+      className={`duplicate-preflight-review duplicate-preflight-review--${mode}`}
       role="region"
       aria-labelledby={headingId}
       aria-busy={pending}
@@ -135,7 +135,10 @@ export function RecipeDuplicatePreflightReview({
       ))}
 
       {result.candidates.length > 0 ? (
-        <ol className="duplicate-preflight-candidates" aria-label="Public recipe matches">
+        <ol
+          className="duplicate-preflight-candidates duplicate-preflight-review__candidates"
+          aria-label="Public recipe matches"
+        >
           {result.candidates.map((candidate) => (
             <li key={candidate.public_recipe_version_id}>
               <div className="duplicate-preflight-candidate__heading">
@@ -281,7 +284,7 @@ export function RecipeDuplicateUnavailable({
 
   return (
     <section
-      className="duplicate-preflight-review duplicate-preflight-unavailable"
+      className="duplicate-preflight-review duplicate-preflight-review--unavailable duplicate-preflight-unavailable"
       role="region"
       aria-labelledby={headingId}
       aria-busy={pending}

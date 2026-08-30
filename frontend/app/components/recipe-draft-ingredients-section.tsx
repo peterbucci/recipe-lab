@@ -55,13 +55,16 @@ export function RecipeDraftIngredientsSection({
   onReplace,
 }: RecipeDraftIngredientsSectionProps) {
   return (
-    <fieldset className="draft-editor__section" disabled={disabled}>
+    <fieldset
+      className="draft-editor__section draft-editor__surface draft-editor__surface--ingredients"
+      disabled={disabled}
+    >
       <legend>Ingredients</legend>
       <p className="draft-editor__help">
         Use trusted catalog identities. A submitted request stays unresolved until you explicitly
         choose its approved catalog result.
       </p>
-      <ol className="draft-editor__rows">
+      <ol className="draft-editor__rows draft-editor__rows--ingredients">
         {ingredients.map((ingredient, index) => {
           const selectionError = errors[draftIngredientFieldKey(ingredient.key, "selection")];
           const notesError = errors[
@@ -75,8 +78,11 @@ export function RecipeDraftIngredientsSection({
             ingredient.selection?.kind === "catalog" ? ingredient.selection.ingredient : null;
           const rowLabel = `Ingredient ${index + 1}`;
           return (
-            <li key={ingredient.key} className="draft-editor__row-card">
-              <fieldset>
+            <li
+              key={ingredient.key}
+              className="draft-editor__row-card draft-editor__row-card--ingredient"
+            >
+              <fieldset className="draft-editor__row-content">
                 <legend>{rowLabel}</legend>
                 <div
                   className="draft-editor__row-toolbar"
@@ -114,7 +120,7 @@ export function RecipeDraftIngredientsSection({
                 </div>
                 {ingredient.selection?.kind === "request" ? (
                   <aside
-                    className="draft-request-selection"
+                    className="draft-request-selection draft-editor__ingredient-request"
                     aria-label={`Unresolved selection for ${rowLabel}`}
                   >
                     <span>{requestStatusLabel(ingredient.selection.request.status)}</span>
@@ -235,7 +241,7 @@ export function RecipeDraftIngredientsSection({
       </ol>
       <button
         id="draft-add-ingredient"
-        className="button button--secondary"
+        className="button button--secondary draft-editor__add-row draft-editor__add-row--ingredient"
         type="button"
         disabled={ingredients.length >= 200}
         onClick={onAdd}

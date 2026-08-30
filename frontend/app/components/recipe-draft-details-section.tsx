@@ -26,7 +26,10 @@ export function RecipeDraftDetailsSection({
   title,
 }: RecipeDraftDetailsSectionProps) {
   return (
-    <fieldset className="draft-editor__section" disabled={disabled}>
+    <fieldset
+      className="draft-editor__section draft-editor__surface draft-editor__surface--details"
+      disabled={disabled}
+    >
       <legend>Recipe details</legend>
       <p className="draft-editor__help">A private draft may be untitled and incomplete.</p>
       <div className="draft-editor__details-grid">
@@ -35,7 +38,7 @@ export function RecipeDraftDetailsSection({
           <input id="draft-title" value={title} maxLength={200} aria-invalid={Boolean(errors.title)} aria-describedby={errors.title ? "draft-title-error" : undefined} onChange={(event) => onTitleChange(event.target.value)} />
           <RecipeDraftFieldError id="draft-title-error" message={errors.title} />
         </div>
-        <div className="recipe-form-field">
+        <div className="recipe-form-field draft-editor__servings-field">
           <label htmlFor="draft-servings">Servings</label>
           <input id="draft-servings" value={servings} inputMode="decimal" aria-invalid={Boolean(errors.servings)} aria-describedby={errors.servings ? "draft-servings-error" : undefined} onChange={(event) => onServingsChange(event.target.value)} />
           <RecipeDraftFieldError id="draft-servings-error" message={errors.servings} />

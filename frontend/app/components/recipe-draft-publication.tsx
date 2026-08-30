@@ -483,7 +483,10 @@ export function RecipeDraftPublication({
   }
 
   return (
-    <section className="draft-editor__publish-note draft-publication" aria-labelledby="draft-publish-title">
+    <section
+      className={`draft-editor__publish-note draft-editor__surface draft-editor__surface--publication draft-publication draft-publication--${isFork ? "fork" : "original"}${activeReview ? " draft-publication--review" : ""}`}
+      aria-labelledby="draft-publish-title"
+    >
       <p className="eyebrow">Publishing</p>
       <h2 id="draft-publish-title">
         {isFork ? "Publish your version without changing its source." : "Publish this original recipe."}

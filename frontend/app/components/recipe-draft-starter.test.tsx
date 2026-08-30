@@ -117,7 +117,7 @@ describe("RecipeDraftStarter", () => {
   });
 
   it("keeps auto-creation unmounted until a member session is ready", () => {
-    renderStarter({ status: "anonymous" });
+    const { container } = renderStarter({ status: "anonymous" });
 
     expect(
       screen.getByRole("heading", {
@@ -130,16 +130,19 @@ describe("RecipeDraftStarter", () => {
     );
     expect(mocks.createRecipeDraft).not.toHaveBeenCalled();
     expect(window.sessionStorage.length).toBe(0);
+    expect(container.querySelector("main.recipe-authoring-entry--fork")).not.toBeNull();
+    expect(container.querySelector("section.recipe-authoring-entry__card")).not.toBeNull();
   });
 
   it("preserves the blank-draft auth return without creating early", () => {
-    renderStarter({ sourceVersionId: null, status: "anonymous" });
+    const { container } = renderStarter({ sourceVersionId: null, status: "anonymous" });
 
     expect(screen.getByRole("link", { name: "Sign in to continue" })).toHaveAttribute(
       "href",
       "/sign-in?return_to=%2Frecipes%2Fnew",
     );
     expect(mocks.createRecipeDraft).not.toHaveBeenCalled();
+    expect(container.querySelector("main.recipe-authoring-entry--new")).not.toBeNull();
   });
 
   it("immediately creates and opens an exact-source private draft", async () => {
@@ -322,8 +325,14 @@ describe("RecipeDraftStarter", () => {
     const { container } = renderStarter();
 
     await screen.findByRole("button", { name: "Try again" });
-    expect(container.querySelector("main.auth-page")).not.toBeNull();
-    expect(container.querySelector("section.auth-card")).not.toBeNull();
+    expect(
+      container.querySelector(
+        "main.auth-page.recipe-authoring-entry--fork.recipe-authoring-entry--error",
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector("section.auth-card.draft-starter.recipe-authoring-entry__card"),
+    ).not.toBeNull();
     expect(container.querySelectorAll("button")).toHaveLength(1);
     expect(screen.getByText(/private by default/i)).toBeVisible();
   });

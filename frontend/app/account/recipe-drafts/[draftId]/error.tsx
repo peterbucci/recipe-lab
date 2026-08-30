@@ -9,8 +9,11 @@ interface RecipeDraftEditorErrorProps {
 
 export default function RecipeDraftEditorError({ reset }: RecipeDraftEditorErrorProps) {
   return (
-    <main id="main-content" className="state-page">
-      <section className="error-state" role="alert">
+    <main
+      id="main-content"
+      className="state-page recipe-authoring-state recipe-authoring-state--error"
+    >
+      <section className="error-state recipe-authoring-state__panel" role="alert">
         <p className="eyebrow">Private draft unavailable</p>
         <h1>We couldn’t prepare the draft editor.</h1>
         <p>The ingredient or cooking-action catalog may be temporarily unavailable.</p>

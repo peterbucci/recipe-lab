@@ -19,7 +19,10 @@ export function RecipeDraftDiscardSection({
   onRequest,
 }: RecipeDraftDiscardSectionProps) {
   return (
-    <section className="draft-editor__danger" aria-labelledby="discard-draft-title">
+    <section
+      className={`draft-editor__danger draft-editor__surface draft-editor__surface--discard${confirming ? " draft-editor__danger--confirming" : ""}`}
+      aria-labelledby="discard-draft-title"
+    >
       <h2 id="discard-draft-title">Discard this draft</h2>
       <p>{DISCARD_COPY}</p>
       {!confirming ? <button className="button button--quiet" type="button" disabled={disabled} onClick={onRequest}>Discard draft…</button> : (

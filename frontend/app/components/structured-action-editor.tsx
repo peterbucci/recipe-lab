@@ -204,7 +204,7 @@ export function StructuredActionEditor({
   }
 
   return (
-    <div className="cooking-details">
+    <div className="cooking-details draft-editor__cooking-details">
       <button
         className="cooking-details__disclosure"
         type="button"
@@ -232,7 +232,7 @@ export function StructuredActionEditor({
       <div hidden={!showEditor}>
         <fieldset
           id={disclosureId}
-          className="structured-action"
+          className="structured-action draft-editor__structured-action"
           disabled={disabled}
           aria-describedby={`${helpId}${errors.actions ? ` ${actionsErrorId}` : ""}`}
         >
@@ -242,7 +242,7 @@ export function StructuredActionEditor({
             your written instruction.
           </p>
           <FieldError id={actionsErrorId} message={errors.actions} />
-          <ol className="structured-action__list">
+          <ol className="structured-action__list draft-editor__action-list">
         {value.map((action, index) => {
           const actionId = `${idPrefix}-${action.key}`;
           const typeError = errors[structuredActionFieldKey(action.key, "type")];
@@ -256,8 +256,8 @@ export function StructuredActionEditor({
           const contextLabel = `Action ${index + 1}: ${action.actionType?.canonical_verb ?? "not selected"}`;
 
           return (
-            <li key={action.key}>
-              <fieldset className="structured-action__card">
+            <li key={action.key} className="draft-editor__action-row">
+              <fieldset className="structured-action__card draft-editor__action-card">
                 <legend>Action {index + 1}</legend>
                 <div className="structured-action__toolbar">
                   <div className="recipe-form-field structured-action__type">
@@ -449,7 +449,7 @@ export function StructuredActionEditor({
           </ol>
           <button
             id={addButtonId}
-            className="button button--secondary"
+            className="button button--secondary structured-action__add draft-editor__add-action"
             type="button"
             disabled={disabled || value.length >= MAX_STRUCTURED_ACTIONS_PER_INSTRUCTION}
             onClick={addAction}
