@@ -57,11 +57,11 @@ describe("recipe route states", () => {
   });
 
   it("offers recipe-detail recovery without exposing service details", () => {
-    const reset = vi.fn();
+    const retry = vi.fn();
     render(
       <RecipeDetailError
         error={new Error("private recipe service detail")}
-        reset={reset}
+        retry={retry}
       />,
     );
 
@@ -73,7 +73,7 @@ describe("recipe route states", () => {
       screen.getByRole("link", { name: /browse recipes/i }),
     ).toHaveAttribute("href", "/recipes");
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
-    expect(reset).toHaveBeenCalledOnce();
+    expect(retry).toHaveBeenCalledOnce();
     expect(
       screen.queryByText(/private recipe service detail/i),
     ).not.toBeInTheDocument();

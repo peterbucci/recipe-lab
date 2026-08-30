@@ -38,7 +38,7 @@ of truth for both allowlists and resource bounds. Its SHA-256 fingerprint and
 the active limits are recorded in every manifest. Changing the policy requires
 code review and its tests run in CI.
 
-The version 2 bounds are:
+The version 3 bounds are:
 
 | Bound | Limit |
 | --- | ---: |

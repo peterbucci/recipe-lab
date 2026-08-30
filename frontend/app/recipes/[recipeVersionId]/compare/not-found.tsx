@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function RecipeCompareNotFound() {
   return (
-    <main id="main-content" className="state-page">
+    <main id="main-content" className="state-page public-context-state">
       <div className="empty-state empty-state--large">
         <p className="eyebrow">Comparison unavailable</p>
         <h1>This comparison isn’t available.</h1>

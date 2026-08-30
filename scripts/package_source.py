@@ -136,6 +136,14 @@ EXPORT_POLICY = PackagingPolicy(
             "c660b90f51ce0c885705492b86344b0e8142939d",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/community-rules-normal.png",
+            "0367a142941b3062b5b8b45b9f38194c39814e72",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/cook-profile-normal.png",
+            "4004141c0ac8b83e4a9d6391e343118bd21af0f6",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/draft-editor-validation.png",
             "b182d5ed6db3c8f2f5799d3931cdf0f8d8ae9e43",
         ),
@@ -188,20 +196,36 @@ EXPORT_POLICY = PackagingPolicy(
             "f2a978ea55cdea2fbb386150d4e0778eb910de90",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/recipe-comparison-intermediate-normal.png",
+            "79f8928c9549755b6d2e81bcad210bbd02dfeb3b",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/recipe-comparison-normal.png",
-            "d64e7de6ee0325040a35e39dda08afd12ad0fc49",
+            "ffa056f083f7f4fa315461259847c8dfd8fce7b2",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/recipe-detail-error.png",
+            "202325982f58a9da4a3f09d17e9070e6ae287d8f",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-history.png",
-            "a718c17b1e1ebb184a282cd8bc4ec7e544c8d768",
+            "61b7dabd1c97d469c6dd74868d8d5810ef9c84d7",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/recipe-detail-intermediate-normal.png",
+            "a55862e6d94e848708f0679778fc27d0a22b75cc",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-normal.png",
-            "a77e6901af2fba0dbb97a08e4dc6c119f7e6f6d0",
+            "3c55f3e8b2dd5216decf0a9abf3147f703225bb5",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/recipe-detail-unavailable.png",
+            "06641976463cf34ef3643a8c623c9131bd6abd97",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-instructions-normal.png",
-            "5de358d8cf6212929ae4480c2305642b3bc78f69",
+            "fa461c6ba299d91a42194e0fd78a08fe302f4506",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-moderation-staff-review.png",
@@ -210,6 +234,14 @@ EXPORT_POLICY = PackagingPolicy(
         (
             "frontend/baselines/baseline-phone-chromium/catalog-normal.png",
             "08b13f72ff644354d47f88deb1aeeb86252d42a1",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/community-rules-normal.png",
+            "900f22cb1c9e79a52cc6a6aadf7ec7030bc1ef00",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/cook-profile-normal.png",
+            "f2a482b0a9019be4346f67c7de440023d6b01ef3",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-editor-validation.png",
@@ -249,19 +281,19 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-comparison-normal.png",
-            "cdcb762708a209bb02a2cea33c665a6507fa5f94",
+            "8ab33df9b667b5b7c4b52e15bb1630f0b442c316",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-detail-history.png",
-            "279590a0c37280e77205494707944fb36c65460d",
+            "9f908d911e7c919f4c24f745e2852781f608a9d1",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-detail-normal.png",
-            "1e4e62b5348ef21d39c521e528e59cfc09429ddd",
+            "00f7a41f246c9c223da384f56838477a8ba8a486",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-instructions-normal.png",
-            "bdac39fddc54679066e0cb17ae7ba70da8439219",
+            "fce918357cc3b84557ffe7b64505a74e0d91ee62",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-moderation-staff-review.png",

@@ -40,6 +40,7 @@ export function RecipeDetailView({ recipe }: RecipeDetailViewProps) {
         <div className="recipe-detail__hero">
           <RecipeArtwork className="recipe-detail__artwork" lineageKey={recipe.lineage_id} />
           <div className="recipe-detail__intro">
+            <p className="eyebrow">Recipe</p>
             <h1>{recipe.title}</h1>
             <p className="recipe-detail__attribution">
               By <PublicCookAttribution author={recipe.author} />

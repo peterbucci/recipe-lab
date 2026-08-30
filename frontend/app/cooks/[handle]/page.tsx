@@ -29,7 +29,7 @@ export default async function CookProfilePage({ params, searchParams }: CookProf
   const data = await fetchPublicCookProfile({ handle, page: pageNumber(query.page), pageSize: 12 });
   if (!data) notFound();
   return (
-    <main id="main-content" className="page-shell cook-profile">
+    <main id="main-content" className="page-shell cook-profile public-cook-page">
       <CookProfileView data={data} />
     </main>
   );

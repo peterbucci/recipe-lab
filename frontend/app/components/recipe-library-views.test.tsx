@@ -162,18 +162,18 @@ describe("cook profile and private recipe libraries", () => {
   });
 
   it("announces public-profile loading, failure, retry, and missing states", () => {
-    const reset = vi.fn();
+    const retry = vi.fn();
     const { rerender } = render(<CookProfileLoading />);
     expect(screen.getByRole("status")).toHaveTextContent(
       "Loading this cook’s public recipes.",
     );
 
-    rerender(<CookProfileError reset={reset} />);
+    rerender(<CookProfileError retry={retry} />);
     expect(screen.getByRole("alert")).toHaveTextContent(
       "We couldn’t load this cook’s profile.",
     );
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    expect(reset).toHaveBeenCalledOnce();
+    expect(retry).toHaveBeenCalledOnce();
 
     rerender(<CookProfileNotFound />);
     expect(
