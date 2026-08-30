@@ -40,6 +40,9 @@ describe("OnboardingForm", () => {
     vi.stubGlobal("fetch", fetchMock);
     renderForm();
 
+    expect(screen.getByRole("button", { name: "Finish account setup" }).closest("form"))
+      .toHaveClass("account-profile-form");
+
     fireEvent.change(screen.getByLabelText("Handle"), { target: { value: "-A" } });
     fireEvent.click(screen.getByRole("button", { name: "Finish account setup" }));
 
@@ -143,6 +146,10 @@ describe("OnboardingForm", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent("Sign in to finish account setup");
+    expect(screen.getByRole("alert")).toHaveClass(
+      "account-access-state",
+      "account-access-state--error",
+    );
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
       "/sign-in?return_to=%2Fonboarding",

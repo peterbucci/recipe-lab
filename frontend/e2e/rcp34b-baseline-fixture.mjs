@@ -436,6 +436,18 @@ const ingredientReviewDetail = Object.freeze({
   ],
 });
 
+const memberIngredientRequest = Object.freeze({
+  id: IDS.ingredientRequest,
+  proposed_name: "Sunberry tomato",
+  context: "A small golden tomato found at a public farmers market.",
+  status: "pending",
+  created_at: FIXED_TIME,
+  reviewed_at: null,
+  decision_reason: null,
+  resolved_ingredient_id: null,
+  resolved_ingredient: null,
+});
+
 const moderationSummary = Object.freeze({
   recipe_version_id: IDS.recipeRoot,
   title: "Sunlit Tomato Soup",
@@ -507,6 +519,7 @@ const probablePreflight = Object.freeze({
 });
 
 const allowedScenarios = new Set([
+  "anonymous-session",
   "normal",
   "incomplete-draft",
   "library-failure",
@@ -593,7 +606,11 @@ async function handleApi(request, response, url) {
     if (scenario === "slow-session") {
       await new Promise((resolve) => setTimeout(resolve, 8_000));
     }
-    sendJson(response, 200, session);
+    sendJson(
+      response,
+      200,
+      scenario === "anonymous-session" ? { status: "anonymous" } : session,
+    );
     return;
   }
 
@@ -716,6 +733,18 @@ async function handleApi(request, response, url) {
     return;
   }
 
+  if (method === "GET" && path === "/api/my/saved-recipes") {
+    countRoute("saved-recipes");
+    sendJson(response, 200, {
+      items: [{ recipe: variantSummary, saved_at: FIXED_TIME }],
+      page: 1,
+      page_size: 12,
+      total: 1,
+      total_pages: 1,
+    });
+    return;
+  }
+
   if (method === "GET" && path === "/api/measurement-units") {
     countRoute("measurement-units");
     const semantic = url.searchParams.get("semantic");
@@ -748,6 +777,18 @@ async function handleApi(request, response, url) {
   if (method === "GET" && draftMatch?.[1] === IDS.draft) {
     countRoute("recipe-draft");
     sendJson(response, 200, draftDetail(scenario !== "incomplete-draft"));
+    return;
+  }
+
+  if (method === "GET" && path === "/api/ingredient-requests/mine") {
+    countRoute("member-ingredient-requests");
+    sendJson(response, 200, {
+      items: [memberIngredientRequest],
+      page: 1,
+      page_size: 20,
+      total: 1,
+      total_pages: 1,
+    });
     return;
   }
 

@@ -26,6 +26,7 @@ const REVIEWED_SHELL_VIEWPORTS = [
 ] as const;
 const DRAFT_ID = "30000000-0000-4000-8000-000000000001";
 const GRAM_UNIT_ID = "50000000-0000-4000-8000-000000000001";
+const PRIVATE_ACCOUNT_ID = "10000000-0000-4000-8000-000000000001";
 const VARIANT_RECIPE_ID = "20000000-0000-4000-8000-000000000002";
 const SAFE_CSRF = "rcp34b-public-csrf";
 const REVIEWED_LOOPBACK_PORTS = new Set(["4317", "4318"]);
@@ -229,6 +230,18 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   expect(overflow.scrollWidth, JSON.stringify(overflow)).toBeLessThanOrEqual(
     overflow.clientWidth,
   );
+}
+
+async function expectNoVisiblePrivateMaterial(page: Page): Promise<void> {
+  const visibleText = await page.locator("body").innerText();
+  expect(visibleText).not.toContain(PRIVATE_ACCOUNT_ID);
+  expect(visibleText).not.toContain(SAFE_CSRF);
+  expect(visibleText).not.toMatch(/\bBearer\s+[A-Za-z0-9._~-]+/i);
+  expect(visibleText).not.toMatch(
+    /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+  );
+  expect(page.url()).not.toContain(PRIVATE_ACCOUNT_ID);
+  expect(page.url()).not.toContain(SAFE_CSRF);
 }
 
 type BaselineCaptureOptions = {
@@ -509,6 +522,77 @@ test("public recipe context reflows at reviewed widths", async ({ page }, testIn
   }
 });
 
+test("account and private library surfaces stay usable and private at reviewed widths", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+
+  for (const viewport of REVIEWED_SHELL_VIEWPORTS) {
+    await test.step(viewport.label, async () => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+
+      await setScenario("anonymous-session");
+      await page.goto("/sign-in?return_to=%2Faccount%2Frecipes%3Fview%3Ddrafts");
+      await expect(
+        page.getByRole("heading", { name: "Sign in to Recipe Lab", level: 1 }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("banner").getByRole("link", { name: "Sign in", exact: true }),
+      ).toBeVisible();
+      await expectNoVisiblePrivateMaterial(page);
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
+
+      await setScenario("normal");
+      await page.goto("/account/recipes?view=drafts");
+      await expect(
+        page.getByRole("list", { name: "Private recipe drafts" }),
+      ).toBeVisible();
+      const recipeViews = page.getByRole("navigation", { name: "My recipe views" });
+      for (const viewName of ["Drafts", "Published", "Withdrawn"]) {
+        await expect(recipeViews.getByRole("link", { name: viewName })).toBeVisible();
+      }
+      await expectNoVisiblePrivateMaterial(page);
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
+
+      await page.goto("/account/saved-recipes");
+      await expect(page.getByRole("list", { name: "Saved recipes" })).toBeVisible();
+      await expectNoVisiblePrivateMaterial(page);
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
+
+      await page.goto("/account/ingredient-requests");
+      const requestHistory = page.getByRole("region", {
+        name: "My ingredient requests",
+      });
+      await expect(requestHistory).toBeVisible();
+      await expect(
+        requestHistory.getByRole("article", {
+          name: "Ingredient request: Sunberry tomato",
+        }),
+      ).toBeVisible();
+      await expectNoVisiblePrivateMaterial(page);
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
+
+      await page.goto("/account/settings");
+      await expect(
+        page.getByRole("heading", { name: "Account settings", level: 1 }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Delete account", level: 2 }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Permanently delete account" }),
+      ).toBeDisabled();
+      await expectNoVisiblePrivateMaterial(page);
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
+    });
+  }
+});
+
 test("public recipe retry refetches the failed route", async ({ page }, testInfo) => {
   desktopOnly(testInfo);
   await setScenario("public-context-failure");
@@ -565,6 +649,31 @@ test("recipe comparison intermediate normal", async ({ page }, testInfo) => {
   await expect(page.getByRole("list", { name: "Changes at a glance" })).toBeVisible();
   await stabilizeVisuals(page);
   await captureBaseline(page, "recipe-comparison-intermediate-normal");
+});
+
+test("account access intermediate normal", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await setScenario("anonymous-session");
+  await page.setViewportSize({ width: 820, height: 1_000 });
+  await page.goto("/sign-in?return_to=%2Faccount%2Frecipes%3Fview%3Ddrafts");
+  await expect(
+    page.getByRole("heading", { name: "Sign in to Recipe Lab", level: 1 }),
+  ).toBeVisible();
+  await stabilizeVisuals(page, false);
+  await expectNoVisiblePrivateMaterial(page);
+  await captureBaseline(page, "account-access-intermediate-normal");
+});
+
+test("my recipes intermediate normal", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize({ width: 820, height: 1_000 });
+  await page.goto("/account/recipes?view=drafts");
+  await expect(
+    page.getByRole("list", { name: "Private recipe drafts" }),
+  ).toBeVisible();
+  await stabilizeVisuals(page);
+  await expectNoVisiblePrivateMaterial(page);
+  await captureBaseline(page, "my-recipes-intermediate-normal");
 });
 
 test.describe("desktop visual state matrix", () => {
@@ -1108,6 +1217,34 @@ test.describe("phone visual state matrix", () => {
     await stabilizeVisuals(page);
     await captureBaseline(page, "recipe-moderation-staff-review");
   });
+});
+
+test("intermediate account navigation reaches a private library by keyboard", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize({ width: 820, height: 1_000 });
+  await page.goto("/");
+  await stabilizeVisuals(page);
+
+  const account = page.locator(
+    'summary[aria-label="Account menu for Baseline Cook"]',
+  );
+  await account.focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Public profile" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "My recipes" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Saved recipes" })).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  await expect(page).toHaveURL(`${BASELINE_FRONTEND_ORIGIN}/account/saved-recipes`);
+  await expect(page.getByRole("list", { name: "Saved recipes" })).toBeVisible();
+  await expectNoVisiblePrivateMaterial(page);
+  await expectNoHorizontalOverflow(page);
+  await expectNoAccessibilityViolations(page);
 });
 
 test("keyboard account-to-private-workspace journey", async ({ page }) => {

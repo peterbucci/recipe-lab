@@ -26,6 +26,9 @@ export function MemberIngredientRequestHistory({
   pageSize = 20,
 }: MemberIngredientRequestHistoryProps) {
   const selectionEnabled = Boolean(contextLabel && onSelectResolution);
+  const modeClassName = selectionEnabled
+    ? "member-request-history--picker"
+    : "member-request-history--standalone";
   const regionLabel = selectionEnabled
     ? `Choose from my ingredient requests for ${contextLabel}`
     : "My ingredient requests";
@@ -84,7 +87,7 @@ export function MemberIngredientRequestHistory({
 
   return (
     <section
-      className={`member-request-history${selectionEnabled ? " member-request-history--picker" : ""}`}
+      className={`member-request-history ${modeClassName}`}
       aria-label={regionLabel}
       aria-busy={loading}
     >

@@ -19,8 +19,14 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
     : query.return_to;
 
   return (
-    <main id="main-content" className="auth-page">
-      <section className="auth-card" aria-labelledby="onboarding-title">
+    <main
+      id="main-content"
+      className="auth-page account-access-page account-access-page--onboarding"
+    >
+      <section
+        className="auth-card account-access-card account-access-card--onboarding"
+        aria-labelledby="onboarding-title"
+      >
         <p className="eyebrow">One last step</p>
         <h1 id="onboarding-title">Finish account setup</h1>
         <p className="lede">

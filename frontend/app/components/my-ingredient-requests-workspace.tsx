@@ -12,7 +12,10 @@ export function MyIngredientRequestsWorkspace() {
 
   if (state.phase === "loading") {
     return (
-      <main id="main-content" className="state-page">
+      <main
+        id="main-content"
+        className="state-page account-workspace-page account-ingredient-requests-page"
+      >
         <div className="loading-state" role="status" aria-live="polite">
           <span className="loading-state__pulse" aria-hidden="true" />
           <strong>Loading your ingredient requests…</strong>
@@ -24,7 +27,10 @@ export function MyIngredientRequestsWorkspace() {
 
   if (state.phase === "error") {
     return (
-      <main id="main-content" className="state-page">
+      <main
+        id="main-content"
+        className="state-page account-workspace-page account-ingredient-requests-page"
+      >
         <div className="error-state" role="alert">
           <p className="eyebrow">Account unavailable</p>
           <h1>We couldn’t check your account.</h1>
@@ -48,7 +54,10 @@ export function MyIngredientRequestsWorkspace() {
 
   if (state.session.status === "anonymous") {
     return (
-      <main id="main-content" className="auth-page">
+      <main
+        id="main-content"
+        className="auth-page account-workspace-page account-ingredient-requests-page"
+      >
         <section className="auth-card" aria-labelledby="request-history-sign-in-title">
           <p className="eyebrow">Ingredient requests</p>
           <h1 id="request-history-sign-in-title">Sign in to see your requests.</h1>
@@ -73,7 +82,10 @@ export function MyIngredientRequestsWorkspace() {
 
   if (state.session.status === "onboarding_required") {
     return (
-      <main id="main-content" className="auth-page">
+      <main
+        id="main-content"
+        className="auth-page account-workspace-page account-ingredient-requests-page"
+      >
         <section className="auth-card" aria-labelledby="request-history-onboarding-title">
           <p className="eyebrow">Ingredient requests</p>
           <h1 id="request-history-onboarding-title">Finish setting up your account.</h1>
@@ -95,7 +107,10 @@ export function MyIngredientRequestsWorkspace() {
   }
 
   return (
-    <main id="main-content" className="page-shell member-request-page">
+    <main
+      id="main-content"
+      className="page-shell account-workspace-page account-ingredient-requests-page member-request-page"
+    >
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link href="/recipes">← Back to recipes</Link>
       </nav>

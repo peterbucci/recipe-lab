@@ -41,7 +41,10 @@ export function CallbackStatus({ errorCode, returnTo }: CallbackStatusProps) {
   if (errorCode) {
     const reauthenticationFailed = errorCode === "reauthentication_failed";
     return (
-      <div className="auth-state" role="alert">
+      <div
+        className="auth-state account-access-state account-access-state--error"
+        role="alert"
+      >
         <strong>
           {reauthenticationFailed
             ? "We couldn’t verify your identity."
@@ -63,7 +66,10 @@ export function CallbackStatus({ errorCode, returnTo }: CallbackStatusProps) {
 
   if (state.phase === "error") {
     return (
-      <div className="auth-state" role="alert">
+      <div
+        className="auth-state account-access-state account-access-state--error"
+        role="alert"
+      >
         <strong>We couldn’t confirm your account.</strong>
         <button className="button button--secondary" onClick={() => void refreshSession()}>
           Try again
@@ -74,7 +80,10 @@ export function CallbackStatus({ errorCode, returnTo }: CallbackStatusProps) {
 
   if (state.phase === "ready" && state.session.status === "anonymous") {
     return (
-      <div className="auth-state" role="alert">
+      <div
+        className="auth-state account-access-state account-access-state--error"
+        role="alert"
+      >
         <strong>Sign-in could not be completed.</strong>
         <p>Your session was not created. Please start again.</p>
         <Link className="button button--primary" href="/sign-in">
@@ -85,7 +94,10 @@ export function CallbackStatus({ errorCode, returnTo }: CallbackStatusProps) {
   }
 
   return (
-    <div className="auth-state" role="status">
+    <div
+      className="auth-state account-access-state account-access-state--loading"
+      role="status"
+    >
       <span className="loading-state__pulse" aria-hidden="true" />
       <strong>Finishing sign-in…</strong>
       <p>You’ll return to Recipe Lab in a moment.</p>

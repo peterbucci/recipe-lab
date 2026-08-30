@@ -25,7 +25,10 @@ export function AccountSettings() {
 
   if (state.phase === "loading") {
     return (
-      <main id="main-content" className="page-shell account-settings">
+      <main
+        id="main-content"
+        className="page-shell account-settings account-settings-page account-settings-page--loading"
+      >
         <p role="status">Loading account settings…</p>
       </main>
     );
@@ -33,8 +36,14 @@ export function AccountSettings() {
 
   if (state.phase === "error") {
     return (
-      <main id="main-content" className="auth-page">
-        <section className="auth-card" aria-labelledby="settings-error-title">
+      <main
+        id="main-content"
+        className="auth-page account-access-page account-access-page--settings"
+      >
+        <section
+          className="auth-card account-access-card account-access-card--settings"
+          aria-labelledby="settings-error-title"
+        >
           <p className="eyebrow">Account settings</p>
           <h1 id="settings-error-title">We couldn’t check your account.</h1>
           <p>Retry the account check before changing account settings.</p>
@@ -51,8 +60,14 @@ export function AccountSettings() {
 
   if (state.session.status === "anonymous") {
     return (
-      <main id="main-content" className="auth-page">
-        <section className="auth-card" aria-labelledby="settings-sign-in-title">
+      <main
+        id="main-content"
+        className="auth-page account-access-page account-access-page--settings"
+      >
+        <section
+          className="auth-card account-access-card account-access-card--settings"
+          aria-labelledby="settings-sign-in-title"
+        >
           <p className="eyebrow">Account settings</p>
           <h1 id="settings-sign-in-title">Sign in to manage your account.</h1>
           <p>Account deletion is available only to the person who owns the account.</p>
@@ -114,7 +129,10 @@ export function AccountSettings() {
   }
 
   return (
-    <main id="main-content" className="page-shell account-settings">
+    <main
+      id="main-content"
+      className="page-shell account-settings account-settings-page"
+    >
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link href={expectedHandle ? "/account/recipes?view=drafts" : "/recipes"}>
           {expectedHandle ? "← Back to my recipes" : "← Back to recipes"}
@@ -126,7 +144,10 @@ export function AccountSettings() {
         <p>Review what happens to your recipes and private data before deleting your account.</p>
       </header>
 
-      <section className="account-deletion" aria-labelledby="delete-account-title">
+      <section
+        className="account-deletion account-settings-panel account-settings-panel--danger"
+        aria-labelledby="delete-account-title"
+      >
         <p className="eyebrow">Permanent action</p>
         <h2 id="delete-account-title">Delete account</h2>
         <div className="account-deletion__disclosure">

@@ -25,6 +25,10 @@ describe("CallbackStatus", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Sign-in could not be completed. Please try again.",
     );
+    expect(screen.getByRole("alert")).toHaveClass(
+      "account-access-state",
+      "account-access-state--error",
+    );
     expect(screen.queryByText("provider-secret-value")).not.toBeInTheDocument();
   });
 
@@ -78,6 +82,23 @@ describe("CallbackStatus", () => {
       expect(routerMocks.replace).toHaveBeenCalledWith(
         "/onboarding?return_to=%2Frecipes%3Fq%3Dcarrot",
       ),
+    );
+  });
+
+  it("keeps a missing callback session inside the account recovery surface", () => {
+    render(
+      <AuthSessionProvider initialSession={{ status: "anonymous" }}>
+        <CallbackStatus returnTo="/recipes" />
+      </AuthSessionProvider>,
+    );
+
+    expect(screen.getByRole("alert")).toHaveClass(
+      "account-access-state",
+      "account-access-state--error",
+    );
+    expect(screen.getByRole("link", { name: "Return to sign in" })).toHaveAttribute(
+      "href",
+      "/sign-in",
     );
   });
 });

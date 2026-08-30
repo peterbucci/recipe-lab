@@ -29,6 +29,10 @@ describe("MyIngredientRequestsWorkspace", () => {
       "href",
       "/sign-in?return_to=%2Faccount%2Fingredient-requests",
     );
+    expect(screen.getByRole("main")).toHaveClass(
+      "account-workspace-page",
+      "account-ingredient-requests-page",
+    );
     expect(screen.queryByRole("region", { name: "My ingredient requests" })).not.toBeInTheDocument();
   });
 
@@ -67,6 +71,10 @@ describe("MyIngredientRequestsWorkspace", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "My ingredient requests" })).toBeVisible();
     expect(screen.getByRole("region", { name: "My ingredient requests" })).toBeVisible();
+    expect(screen.getByRole("main")).toHaveClass(
+      "account-workspace-page",
+      "account-ingredient-requests-page",
+    );
     expect(screen.queryByRole("button", { name: /^Use / })).not.toBeInTheDocument();
   });
 

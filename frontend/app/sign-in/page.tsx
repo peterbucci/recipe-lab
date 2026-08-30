@@ -20,8 +20,14 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const returnTo = safeReturnTo(requestedReturnTo);
 
   return (
-    <main id="main-content" className="auth-page">
-      <section className="auth-card" aria-labelledby="sign-in-title">
+    <main
+      id="main-content"
+      className="auth-page account-access-page account-access-page--sign-in"
+    >
+      <section
+        className="auth-card account-access-card account-access-card--sign-in"
+        aria-labelledby="sign-in-title"
+      >
         <p className="eyebrow">Your account</p>
         <h1 id="sign-in-title">Sign in to Recipe Lab</h1>
         <p className="lede">

@@ -68,7 +68,10 @@ function SavedRecipeLibraryInner() {
   }
 
   return (
-    <main id="main-content" className="page-shell member-library">
+    <main
+      id="main-content"
+      className="page-shell account-workspace-page account-saved-recipes-page member-library"
+    >
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <GuardedLink href="/recipes">← Back to recipes</GuardedLink>
       </nav>
@@ -116,7 +119,10 @@ function SavedRecipeLibraryInner() {
 
       {page && !beyondLastPage && page.items.length > 0 ? (
         <>
-          <section aria-labelledby="saved-recipes-list-heading">
+          <section
+            className="member-library__collection"
+            aria-labelledby="saved-recipes-list-heading"
+          >
             <div className="section-heading section-heading--compact">
               <div>
                 <h2 id="saved-recipes-list-heading">Your saved collection</h2>
@@ -125,7 +131,11 @@ function SavedRecipeLibraryInner() {
                 </p>
               </div>
             </div>
-            <ul className="recipe-grid" aria-label="Saved recipes" aria-busy={loading}>
+            <ul
+              className="recipe-grid member-library__grid"
+              aria-label="Saved recipes"
+              aria-busy={loading}
+            >
               {page.items.map((item) => (
                 <RecipeCard key={item.recipe.id} recipe={item.recipe} />
               ))}
