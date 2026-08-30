@@ -24,6 +24,7 @@ from app.models import (
     RecipeVersionPublication,
     User,
 )
+from app.services.recipe_visibility import set_authored_recipe_visibility
 from tests.conftest import make_alembic_config
 from tests.member_session import authenticate_client, create_member_credentials
 
@@ -360,6 +361,7 @@ def test_public_authorship_profiles_and_chain_are_truthful_and_public_safe(
     assert child["author"] == bravo
     assert child["parent"]["author"] == alpha
     assert grandchild["author"] == alpha
+
     assert grandchild["parent"]["id"] == str(CHILD_ID)
     assert grandchild["parent"]["author"] == bravo
     assert child["children"] == [
@@ -398,6 +400,70 @@ def test_public_authorship_profiles_and_chain_are_truthful_and_public_safe(
     assert _json_object(empty.json())["items"] == []
     assert _json_object(empty.json())["total"] == 0
     assert recipe_library_api.anonymous.get("/api/cooks/missing_cook").status_code == 404
+
+
+def test_public_browse_newest_sort_combines_with_filters_and_visibility(
+    recipe_library_api: RecipeLibraryApi,
+) -> None:
+    newest = recipe_library_api.anonymous.get(
+        "/api/recipes",
+        params={"page_size": 100, "sort": "newest"},
+    )
+
+    assert newest.status_code == 200
+    newest_items = cast(list[dict[str, Any]], _json_object(newest.json())["items"])
+    assert [item["id"] for item in newest_items] == [
+        str(PUBLIC_CHILD_ID),
+        str(GRANDCHILD_ID),
+        str(CHILD_ID),
+        str(ROOT_ID),
+    ]
+    assert [item["published_at"] for item in newest_items] == [
+        "2026-08-26T00:05:00Z",
+        "2026-08-26T00:03:00Z",
+        "2026-08-26T00:02:00Z",
+        "2026-08-26T00:01:00Z",
+    ]
+    assert str(HIDDEN_PARENT_ID) not in {item["id"] for item in newest_items}
+
+    filtered = recipe_library_api.anonymous.get(
+        "/api/recipes",
+        params={"page_size": 100, "sort": "newest", "q": "Alpha"},
+    )
+    assert filtered.status_code == 200
+    filtered_items = cast(list[dict[str, Any]], _json_object(filtered.json())["items"])
+    assert [item["id"] for item in filtered_items] == [
+        str(GRANDCHILD_ID),
+        str(ROOT_ID),
+    ]
+
+    try:
+        with Session(bind=recipe_library_api.engine) as session, session.begin():
+            set_authored_recipe_visibility(
+                session,
+                actor_user_id=MEMBER_B_ID,
+                recipe_version_id=CHILD_ID,
+                desired_state="author_withdrawn",
+            )
+
+        after_withdrawal = recipe_library_api.anonymous.get(
+            "/api/recipes",
+            params={"page_size": 100, "sort": "newest"},
+        )
+        assert after_withdrawal.status_code == 200
+        after_items = cast(
+            list[dict[str, Any]],
+            _json_object(after_withdrawal.json())["items"],
+        )
+        assert str(CHILD_ID) not in {item["id"] for item in after_items}
+    finally:
+        with Session(bind=recipe_library_api.engine) as session, session.begin():
+            set_authored_recipe_visibility(
+                session,
+                actor_user_id=MEMBER_B_ID,
+                recipe_version_id=CHILD_ID,
+                desired_state="published",
+            )
 
 
 def test_unpublished_direct_parent_metadata_never_leaks(
@@ -889,8 +955,8 @@ def _select_counter(engine: Engine) -> Iterator[list[str]]:
 @pytest.mark.parametrize(
     ("client_name", "path", "view", "maximum_selects"),
     [
-        ("anonymous", "/api/recipes", None, 3),
-        ("anonymous", "/api/cooks/member_alpha", None, 4),
+        ("anonymous", "/api/recipes", None, 4),
+        ("anonymous", "/api/cooks/member_alpha", None, 5),
         ("member_a", "/api/my/recipes", "drafts", 8),
         ("member_a", "/api/my/recipes", "published", 8),
         ("member_a", "/api/my/recipes", "withdrawn", 8),
@@ -932,7 +998,8 @@ def test_seeded_public_catalog_select_count_matches_performance_baseline(
         assert response.status_code == 200
         counts.append(len(statements))
 
-    assert counts == [3, 3]
+    # The fourth bounded query loads immutable category snapshots for every card.
+    assert counts == [4, 4]
 
 
 def test_openapi_documents_public_identity_and_private_library_contracts(

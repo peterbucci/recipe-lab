@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.actions import RecipeInstructionActionResponse
 from app.schemas.interactions import RecipeViewerStateResponse
 from app.schemas.measurements import StructuredMeasureResponse
+from app.schemas.recipe_categories import RecipeCategorySummary
 from app.schemas.users import PublicUserReference
 
 
@@ -30,6 +31,9 @@ class RecipeSummary(RecipeSchema):
         description="Exact serving yield, serialized as a JSON string.",
     )
     created_at: datetime = Field(description="Timestamp when this version was created.")
+    published_at: datetime = Field(
+        description="Timestamp when this immutable version first became public."
+    )
     author: PublicUserReference = Field(
         description="Public author of this exact immutable recipe version."
     )
@@ -39,6 +43,9 @@ class RecipeSummary(RecipeSchema):
             "the referenced parent is not publicly readable. "
             "Parent authorship does not imply endorsement or lineage ownership."
         )
+    )
+    categories: list[RecipeCategorySummary] = Field(
+        description=("Immutable curated category snapshots selected for this exact recipe version.")
     )
 
 
@@ -119,3 +126,12 @@ class RecipePageResponse(BaseModel):
     page_size: int = Field(ge=1)
     total: int = Field(ge=0, description="Total matches across every page.")
     total_pages: int = Field(ge=0, description="Number of pages at the requested page size.")
+
+
+class FeaturedRecipeListResponse(BaseModel):
+    items: list[RecipeSummary] = Field(
+        description=(
+            "Deploy-reviewed public recipe versions in editorial display order. "
+            "The list is global, not personalized or popularity-ranked."
+        )
+    )

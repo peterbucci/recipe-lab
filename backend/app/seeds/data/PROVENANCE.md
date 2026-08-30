@@ -2,7 +2,8 @@
 
 ## Scope and origin
 
-`catalog.json`, `recipes.json`, `measurements-v1.json`, and `actions-v1.json`
+`catalog.json`, `recipes.json`, `measurements-v1.json`, `actions-v1.json`, and
+`recipe-categories-v1.json`
 are the Recipe Lab demo data assets. Their
 recipe titles, descriptions, quantities, instructions, ingredient metadata,
 aliases, and substitution notes were written independently for this project.
@@ -15,10 +16,19 @@ recipe-version key and parent link rather than editing the published snapshot.
 
 ## License
 
-The four data assets named above are dedicated to the public domain under
+The five data assets named above are dedicated to the public domain under
 [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/).
 This dedication applies to the catalog content, not automatically to the
 Recipe Lab source code or other repository files.
+
+## Curated recipe discovery categories
+
+`recipe-categories-v1.json` defines the initial governed discovery vocabulary,
+its stable UUID namespace, labels, slugs, and product order. Each recipe's
+`categories` array in `recipes.json` is a manual editorial assignment. The
+loader and migration never derive a category from a title, ingredient,
+instruction, or action. Published versions retain immutable category label and
+slug snapshots even if a catalog entry later becomes inactive for authoring.
 
 ## Measurement vocabulary
 

@@ -146,9 +146,11 @@ def load_recommendation_data(
         .where(publicly_readable_recipe_version_filter())
         .options(
             joinedload(RecipeVersion.author),
+            joinedload(RecipeVersion.publication),
             selectinload(
                 RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
             ).joinedload(RecipeVersion.author),
+            selectinload(RecipeVersion.categories),
             selectinload(RecipeVersion.ingredients),
             raiseload("*"),
         )

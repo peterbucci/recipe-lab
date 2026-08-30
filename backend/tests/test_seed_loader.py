@@ -77,6 +77,8 @@ SEEDED_TABLE_COUNTS = {
     "measurement_units": 19,
     "preference_events": 0,
     "recipe_lineages": 25,
+    "recipe_categories": 7,
+    "recipe_version_categories": 82,
     "recipe_version_ingredients": 281,
     "recipe_version_instructions": 116,
     "recipe_instruction_actions": 252,
@@ -128,7 +130,7 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
     with Session(seed_engine) as session, session.begin():
         report = seed_catalog(session, catalog)
 
-    migration_seeded_catalog_rows = 19 + 21 + 10 + 54
+    migration_seeded_catalog_rows = 19 + 21 + 10 + 54 + 7
     assert report.created_total == sum(SEEDED_TABLE_COUNTS.values()) - migration_seeded_catalog_rows
     assert report.reused_total == migration_seeded_catalog_rows
 

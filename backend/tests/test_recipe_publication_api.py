@@ -21,6 +21,7 @@ from app.main import create_app
 from app.models import (
     PreferenceEvent,
     RecipeDraft,
+    RecipeDraftCategory,
     RecipeDraftIngredient,
     RecipeDraftInstruction,
     RecipeDraftInstructionAction,
@@ -35,6 +36,7 @@ from app.models import (
     RecipeLineage,
     RecipeStructuralFingerprint,
     RecipeVersion,
+    RecipeVersionCategory,
     RecipeVersionPublication,
 )
 from app.repositories.recipes import (
@@ -58,6 +60,8 @@ MIX_ID = action_uuid("action-type", "mix")
 KNEAD_ID = action_uuid("action-type", "knead")
 MEMBER_ID = UUID("7c000000-0000-4000-8000-000000000001")
 OTHER_MEMBER_ID = UUID("7c000000-0000-4000-8000-000000000002")
+BREAKFAST_CATEGORY_ID = seed_uuid(DATASET_ID, "recipe-category", "breakfast")
+QUICK_EASY_CATEGORY_ID = seed_uuid(DATASET_ID, "recipe-category", "quick-easy")
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,6 +130,7 @@ def _complete_original_payload(*, revision: int = 1) -> dict[str, object]:
         "title": "Publication test chickpeas",
         "description": "A complete private draft becoming one immutable root.",
         "servings": "2.00",
+        "category_ids": [str(QUICK_EASY_CATEGORY_ID), str(BREAKFAST_CATEGORY_ID)],
         "ingredients": [
             {
                 "ref": "chickpea-slot",
@@ -216,13 +221,20 @@ def _create_complete_draft(api: PublicationApi) -> str:
         json={"source_version_id": None},
     )
     assert created.status_code == 201
-    draft_id = str(_json_object(created.json())["id"])
+    created_body = _json_object(created.json())
+    draft_id = str(created_body["id"])
+    assert created_body["categories"] == []
     saved = api.member.put(
         f"/api/recipe-drafts/{draft_id}",
         json=_complete_original_payload(),
     )
     assert saved.status_code == 200
-    assert _json_object(saved.json())["revision"] == 2
+    saved_body = _json_object(saved.json())
+    assert saved_body["revision"] == 2
+    assert [category["id"] for category in saved_body["categories"]] == [
+        str(BREAKFAST_CATEGORY_ID),
+        str(QUICK_EASY_CATEGORY_ID),
+    ]
     return draft_id
 
 
@@ -389,6 +401,18 @@ def test_original_draft_preflight_publish_and_exact_retry(
     detail_body = _json_object(detail.json())
     assert detail_body["parent_version_id"] is None
     assert detail_body["version_number"] == 1
+    assert detail_body["categories"] == [
+        {
+            "id": str(BREAKFAST_CATEGORY_ID),
+            "name": "Breakfast",
+            "slug": "breakfast",
+        },
+        {
+            "id": str(QUICK_EASY_CATEGORY_ID),
+            "name": "Quick & Easy",
+            "slug": "quick-easy",
+        },
+    ]
     assert publication_api.member.get(f"/api/recipe-drafts/{draft_id}").status_code == 404
 
     retry = publication_api.member.post(
@@ -503,6 +527,20 @@ def test_original_draft_preflight_publish_and_exact_retry(
                 )
             )
         )
+        draft_categories = list(
+            session.scalars(
+                select(RecipeDraftCategory)
+                .where(RecipeDraftCategory.recipe_draft_id == UUID(draft_id))
+                .order_by(RecipeDraftCategory.display_order)
+            )
+        )
+        version_categories = list(
+            session.scalars(
+                select(RecipeVersionCategory)
+                .where(RecipeVersionCategory.recipe_version_id == version_id)
+                .order_by(RecipeVersionCategory.display_order)
+            )
+        )
         draft_measures = list(
             session.scalars(
                 select(RecipeDraftInstructionActionMeasure).where(
@@ -524,6 +562,18 @@ def test_original_draft_preflight_publish_and_exact_retry(
         assert len(draft_actions) == len(version_actions) == 1
         assert len(draft_inputs) == len(version_inputs) == 1
         assert len(draft_measures) == len(version_measures) == 1
+        assert [item.recipe_category_id for item in draft_categories] == [
+            BREAKFAST_CATEGORY_ID,
+            QUICK_EASY_CATEGORY_ID,
+        ]
+        assert [item.recipe_category_id for item in version_categories] == [
+            BREAKFAST_CATEGORY_ID,
+            QUICK_EASY_CATEGORY_ID,
+        ]
+        assert [item.category_name for item in version_categories] == [
+            "Breakfast",
+            "Quick & Easy",
+        ]
         assert draft_ingredients[0].id != version_ingredients[0].id
         assert draft_instructions[0].id != version_instructions[0].id
         assert draft_actions[0].id != version_actions[0].id
@@ -549,7 +599,12 @@ def test_cross_user_fork_publication_preserves_lineage_authorship_and_event(
         json={"source_version_id": str(source_id)},
     )
     assert created.status_code == 201
-    draft_id = str(_json_object(created.json())["id"])
+    fork_body = _json_object(created.json())
+    draft_id = str(fork_body["id"])
+    assert [category["id"] for category in fork_body["categories"]] == [
+        str(BREAKFAST_CATEGORY_ID),
+        str(QUICK_EASY_CATEGORY_ID),
+    ]
 
     # The source author receives no authority over another member's private draft.
     assert publication_api.member.get(f"/api/recipe-drafts/{draft_id}").status_code == 404
@@ -654,6 +709,10 @@ def test_cross_user_fork_publication_preserves_lineage_authorship_and_event(
     assert detail.status_code == 200
     detail_body = _json_object(detail.json())
     assert detail_body["parent_version_id"] == str(source_id)
+    assert [category["id"] for category in detail_body["categories"]] == [
+        str(BREAKFAST_CATEGORY_ID),
+        str(QUICK_EASY_CATEGORY_ID),
+    ]
     diff = publication_api.member.get(f"/api/recipes/{child_id}/diff")
     assert diff.status_code == 200
     assert _json_object(diff.json())["has_changes"] is False

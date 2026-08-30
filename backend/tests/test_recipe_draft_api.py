@@ -18,6 +18,7 @@ from app.main import create_app
 from app.models import (
     IngredientPackageSize,
     MeasurementUnit,
+    RecipeCategory,
     RecipeDraft,
     RecipeIngredient,
     RecipeLineage,
@@ -47,6 +48,10 @@ CELSIUS_ID = measurement_uuid("unit", "celsius")
 MIX_ID = action_uuid("action-type", "mix")
 MEMBER_ID = UUID("7b000000-0000-4000-8000-000000000001")
 OTHER_MEMBER_ID = UUID("7b000000-0000-4000-8000-000000000002")
+BREAKFAST_CATEGORY_ID = seed_uuid(DATASET_ID, "recipe-category", "breakfast")
+DESSERTS_CATEGORY_ID = seed_uuid(DATASET_ID, "recipe-category", "desserts")
+VEGETARIAN_CATEGORY_ID = seed_uuid(DATASET_ID, "recipe-category", "vegetarian")
+QUICK_EASY_CATEGORY_ID = seed_uuid(DATASET_ID, "recipe-category", "quick-easy")
 
 
 @dataclass(frozen=True, slots=True)
@@ -426,6 +431,18 @@ def test_exact_source_clone_and_curated_full_replacement(draft_api: DraftApi) ->
     assert body["source_version_id"] == str(CARROT_ROOT_ID)
     assert len(cast(list[object], body["ingredients"])) == 9
     assert len(cast(list[object], body["instructions"])) == 4
+    assert body["categories"] == [
+        {
+            "id": str(DESSERTS_CATEGORY_ID),
+            "name": "Desserts",
+            "slug": "desserts",
+        },
+        {
+            "id": str(VEGETARIAN_CATEGORY_ID),
+            "name": "Vegetarian",
+            "slug": "vegetarian",
+        },
+    ]
     assert all(_json_object(item)["selection"] for item in cast(list[object], body["ingredients"]))
 
     draft_id = body["id"]
@@ -434,6 +451,7 @@ def test_exact_source_clone_and_curated_full_replacement(draft_api: DraftApi) ->
         "title": "Structured private chickpea draft",
         "description": "Saved without publishing.",
         "servings": "2.00",
+        "category_ids": [str(QUICK_EASY_CATEGORY_ID), str(BREAKFAST_CATEGORY_ID)],
         "ingredients": [
             {
                 "ref": "chickpea-slot",
@@ -469,6 +487,18 @@ def test_exact_source_clone_and_curated_full_replacement(draft_api: DraftApi) ->
     assert saved.status_code == 200
     detail = _json_object(saved.json())
     assert detail["revision"] == 2
+    assert detail["categories"] == [
+        {
+            "id": str(BREAKFAST_CATEGORY_ID),
+            "name": "Breakfast",
+            "slug": "breakfast",
+        },
+        {
+            "id": str(QUICK_EASY_CATEGORY_ID),
+            "name": "Quick & Easy",
+            "slug": "quick-easy",
+        },
+    ]
     ingredient = _json_object(cast(list[object], detail["ingredients"])[0])
     assert _json_object(ingredient["selection"])["kind"] == "catalog"
     action = _json_object(
@@ -732,6 +762,10 @@ def test_unknown_curated_identities_are_rejected_without_mutation(
     }
     invalid_payloads = [
         {
+            **_blank_update(revision=1, title="Unknown recipe category"),
+            "category_ids": [str(uuid4())],
+        },
+        {
             **_blank_update(revision=1, title="Unknown ingredient"),
             "ingredients": [
                 {
@@ -814,3 +848,66 @@ def test_unknown_curated_identities_are_rejected_without_mutation(
     assert unchanged["title"] == ""
     assert unchanged["ingredients"] == []
     assert unchanged["instructions"] == []
+
+
+def test_recipe_category_authoring_enforces_active_unique_bounded_ids(
+    draft_api: DraftApi,
+) -> None:
+    created = draft_api.member.post(
+        "/api/recipe-drafts",
+        headers=_creation_headers(),
+        json={"source_version_id": None},
+    )
+    assert created.status_code == 201
+    draft_id = _json_object(created.json())["id"]
+
+    category_ids = [
+        str(BREAKFAST_CATEGORY_ID),
+        str(DESSERTS_CATEGORY_ID),
+        str(VEGETARIAN_CATEGORY_ID),
+        str(QUICK_EASY_CATEGORY_ID),
+    ]
+    duplicate = draft_api.member.put(
+        f"/api/recipe-drafts/{draft_id}",
+        json={
+            **_blank_update(revision=1, title="Duplicate categories"),
+            "category_ids": [category_ids[0], category_ids[0]],
+        },
+    )
+    over_capacity = draft_api.member.put(
+        f"/api/recipe-drafts/{draft_id}",
+        json={
+            **_blank_update(revision=1, title="Too many categories"),
+            "category_ids": category_ids,
+        },
+    )
+    assert duplicate.status_code == over_capacity.status_code == 422
+    assert _json_object(_json_object(duplicate.json())["error"])["code"] == ("validation_error")
+    assert _json_object(_json_object(over_capacity.json())["error"])["code"] == ("validation_error")
+
+    try:
+        with Session(bind=draft_api.engine) as session, session.begin():
+            category = session.get(RecipeCategory, BREAKFAST_CATEGORY_ID)
+            assert category is not None
+            category.active = False
+
+        inactive = draft_api.member.put(
+            f"/api/recipe-drafts/{draft_id}",
+            json={
+                **_blank_update(revision=1, title="Inactive category"),
+                "category_ids": [str(BREAKFAST_CATEGORY_ID)],
+            },
+        )
+        assert inactive.status_code == 422
+        assert _json_object(_json_object(inactive.json())["error"])["code"] == (
+            "invalid_recipe_draft"
+        )
+    finally:
+        with Session(bind=draft_api.engine) as session, session.begin():
+            category = session.get(RecipeCategory, BREAKFAST_CATEGORY_ID)
+            assert category is not None
+            category.active = True
+
+    unchanged = _json_object(draft_api.member.get(f"/api/recipe-drafts/{draft_id}").json())
+    assert unchanged["revision"] == 1
+    assert unchanged["categories"] == []

@@ -9,9 +9,11 @@ from sqlalchemy import Engine, delete, event
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_session
+from app.homepage_content import FEATURED_RECIPE_VERSION_IDS
 from app.main import create_app
-from app.models import CookingActionType, RecipeRating, User
+from app.models import CookingActionType, RecipeCategory, RecipeRating, User
 from app.seeds.identifiers import action_uuid, seed_uuid
+from app.services.recipe_visibility import set_authored_recipe_visibility
 
 DATASET_ID = "recipe-lab-demo-v1"
 CARROT_ROOT_ID = seed_uuid(
@@ -50,6 +52,8 @@ PASTA_THIRD_ID = seed_uuid(
     "recipe-version",
     "mushroom-whole-wheat-spaghetti-v3",
 )
+BREAKFAST_CATEGORY_ID = seed_uuid(DATASET_ID, "recipe-category", "breakfast")
+QUICK_EASY_CATEGORY_ID = seed_uuid(DATASET_ID, "recipe-category", "quick-easy")
 
 
 @pytest.fixture
@@ -117,8 +121,10 @@ def test_browse_defaults_list_every_version_in_stable_order(api_client: TestClie
         "description",
         "servings",
         "created_at",
+        "published_at",
         "author",
         "parent",
+        "categories",
     }
     assert set(items[0]["author"]) == {"id", "handle", "display_name"}
 
@@ -134,6 +140,72 @@ def test_browse_defaults_list_every_version_in_stable_order(api_client: TestClie
     ]
     assert order_keys == sorted(order_keys)
     assert len({item["id"] for item in all_items}) == 34
+
+
+def test_newest_browse_uses_recipe_id_as_the_stable_publication_tie_break(
+    api_client: TestClient,
+) -> None:
+    items = cast(
+        list[dict[str, Any]],
+        _page(api_client, sort="newest", page_size=100)["items"],
+    )
+
+    assert [item["id"] for item in items] == sorted(item["id"] for item in items)
+    assert {item["published_at"] for item in items} == {"2026-08-20T00:00:00Z"}
+
+
+def test_featured_recipes_are_global_editorial_public_summaries(
+    api_client: TestClient,
+) -> None:
+    response = api_client.get("/api/recipes/featured")
+
+    assert response.status_code == 200
+    body = _json_object(response.json())
+    items = cast(list[dict[str, Any]], body["items"])
+    assert [item["id"] for item in items] == [
+        str(recipe_version_id) for recipe_version_id in FEATURED_RECIPE_VERSION_IDS
+    ]
+    assert [item["title"] for item in items] == [
+        "Banana Oat Pancakes",
+        "Red Lentil Coconut Stew",
+        "Lemon Herb Chickpea Quinoa Bowl",
+        "Carrot Walnut Snack Cake",
+    ]
+    assert set(body) == {"items"}
+    assert all("score" not in item and "reason" not in item for item in items)
+    assert all(item["published_at"] == "2026-08-20T00:00:00Z" for item in items)
+
+
+def test_featured_recipes_omit_a_selection_that_is_no_longer_public(
+    api_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    withdrawn_id = FEATURED_RECIPE_VERSION_IDS[0]
+    try:
+        with Session(bind=seeded_api_engine) as session, session.begin():
+            set_authored_recipe_visibility(
+                session,
+                actor_user_id=CATALOG_AUTHOR_ID,
+                recipe_version_id=withdrawn_id,
+                desired_state="author_withdrawn",
+            )
+
+        response = api_client.get("/api/recipes/featured")
+
+        assert response.status_code == 200
+        items = cast(list[dict[str, Any]], _json_object(response.json())["items"])
+        assert str(withdrawn_id) not in {item["id"] for item in items}
+        assert [item["id"] for item in items] == [
+            str(recipe_version_id) for recipe_version_id in FEATURED_RECIPE_VERSION_IDS[1:]
+        ]
+    finally:
+        with Session(bind=seeded_api_engine) as session, session.begin():
+            set_authored_recipe_visibility(
+                session,
+                actor_user_id=CATALOG_AUTHOR_ID,
+                recipe_version_id=withdrawn_id,
+                desired_state="published",
+            )
 
 
 def test_browse_pagination_retains_totals_beyond_the_last_page(
@@ -200,6 +272,78 @@ def test_browse_filters_by_alias_lineage_and_variant_kind(api_client: TestClient
         )["total"]
         == 2
     )
+
+
+def test_recipe_categories_are_curated_stable_and_filter_public_browse_exactly(
+    api_client: TestClient,
+) -> None:
+    response = api_client.get("/api/recipe-categories")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {
+                "id": str(seed_uuid(DATASET_ID, "recipe-category", key)),
+                "name": name,
+                "slug": slug,
+            }
+            for key, name, slug in (
+                ("breakfast", "Breakfast", "breakfast"),
+                ("lunch", "Lunch", "lunch"),
+                ("dinner", "Dinner", "dinner"),
+                ("desserts", "Desserts", "desserts"),
+                ("breads", "Breads", "breads"),
+                ("vegetarian", "Vegetarian", "vegetarian"),
+                ("quick-easy", "Quick & Easy", "quick-easy"),
+            )
+        ]
+    }
+
+    breakfast = _page(api_client, category="breakfast", page_size=100)
+    breakfast_items = cast(list[dict[str, Any]], breakfast["items"])
+    assert breakfast["total"] == 7
+    assert all(
+        "breakfast" in {category["slug"] for category in item["categories"]}
+        for item in breakfast_items
+    )
+    assert _page(api_client, category="not-curated", page_size=100)["items"] == []
+
+    combined = _page(
+        api_client,
+        category="quick-easy",
+        q="spaghetti",
+        is_variant="true",
+        sort="newest",
+        page_size=100,
+    )
+    assert [item["id"] for item in combined["items"]] == sorted(
+        [str(PASTA_SECOND_ID), str(PASTA_THIRD_ID)]
+    )
+    assert all(
+        {category["id"] for category in item["categories"]} >= {str(QUICK_EASY_CATEGORY_ID)}
+        for item in combined["items"]
+    )
+
+
+def test_public_category_snapshots_remain_readable_when_authoring_category_is_inactive(
+    api_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    try:
+        with Session(bind=seeded_api_engine) as session, session.begin():
+            category = session.get(RecipeCategory, BREAKFAST_CATEGORY_ID)
+            assert category is not None
+            category.active = False
+
+        category_items = _json_object(api_client.get("/api/recipe-categories").json())["items"]
+        assert str(BREAKFAST_CATEGORY_ID) not in {item["id"] for item in category_items}
+        breakfast = _page(api_client, category="breakfast", page_size=100)
+        assert breakfast["total"] == 7
+    finally:
+        with Session(bind=seeded_api_engine) as session, session.begin():
+            category = session.get(RecipeCategory, BREAKFAST_CATEGORY_ID)
+            assert category is not None
+            category.active = True
 
 
 def test_recipe_detail_returns_ordered_snapshot_and_direct_children(
@@ -420,6 +564,9 @@ def test_recipe_detail_exposes_only_direct_children_in_a_deep_lineage(
         ("/api/recipes?q=%20%20", "validation_error"),
         ("/api/recipes?q=%00", "validation_error"),
         ("/api/recipes?ingredient=%00", "validation_error"),
+        ("/api/recipes?category=Breakfast", "validation_error"),
+        ("/api/recipes?category=breakfast%20lunch", "validation_error"),
+        ("/api/recipes?sort=popular", "validation_error"),
     ],
 )
 def test_invalid_requests_use_the_documented_error_envelope(
@@ -458,9 +605,14 @@ def test_openapi_documents_recipe_and_error_schemas(api_client: TestClient) -> N
     schemas = cast(dict[str, Any], cast(dict[str, Any], document["components"])["schemas"])
 
     assert "/api/recipes" in paths
+    assert "/api/recipe-categories" in paths
+    assert "/api/recipes/featured" in paths
     assert "/api/recipes/{recipe_version_id}" in paths
     assert {
         "RecipePageResponse",
+        "RecipeCategoryListResponse",
+        "RecipeCategorySummary",
+        "FeaturedRecipeListResponse",
         "RecipeDetailResponse",
         "RecipeIngredientResponse",
         "ExactMeasureResponse",
@@ -477,6 +629,8 @@ def test_openapi_documents_recipe_and_error_schemas(api_client: TestClient) -> N
     assert {"average_rating", "rating_count"} <= set(schemas["RecipeDetailResponse"]["required"])
 
     browse_responses = paths["/api/recipes"]["get"]["responses"]
+    category_responses = paths["/api/recipe-categories"]["get"]["responses"]
+    featured_responses = paths["/api/recipes/featured"]["get"]["responses"]
     detail_responses = paths["/api/recipes/{recipe_version_id}"]["get"]["responses"]
     assert browse_responses["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/RecipePageResponse"
@@ -491,6 +645,19 @@ def test_openapi_documents_recipe_and_error_schemas(api_client: TestClient) -> N
     assert browse_parameters["page"]["schema"]["maximum"] == 1_000_000
     assert browse_parameters["page_size"]["schema"]["minimum"] == 1
     assert browse_parameters["page_size"]["schema"]["maximum"] == 100
+    assert browse_parameters["category"]["schema"]["anyOf"][0]["pattern"] == (
+        "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    )
+    sort_schema = browse_parameters["sort"]["schema"]
+    assert sort_schema["default"] == "title"
+    assert sort_schema["enum"] == ["title", "newest"]
+    assert sort_schema["type"] == "string"
+    assert featured_responses["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/FeaturedRecipeListResponse"
+    )
+    assert category_responses["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/RecipeCategoryListResponse"
+    )
     assert detail_responses["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/RecipeDetailResponse"
     )

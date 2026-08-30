@@ -54,9 +54,11 @@ class SavedRecipeLibraryResult:
 def _recipe_card_options() -> tuple[Any, ...]:
     return (
         joinedload(RecipeVersion.author),
+        joinedload(RecipeVersion.publication),
         selectinload(
             RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
         ).joinedload(RecipeVersion.author),
+        selectinload(RecipeVersion.categories),
         raiseload("*"),
     )
 

@@ -30,6 +30,7 @@ from app.models import (
     RecipeInstructionActionMeasure,
     RecipeLineage,
     RecipeVersion,
+    RecipeVersionCategory,
     RecipeVersionPublication,
 )
 from app.repositories.ingredients import curated_display_label, get_ingredient
@@ -383,6 +384,7 @@ def _preflight_request_fingerprint(
         "structural_digest": structural_fingerprint.digest,
         "title": draft.title,
         "description": draft.description,
+        "category_ids": [str(item.recipe_category_id) for item in draft.categories],
         "servings": str(draft.servings),
         "schema": (
             "recipe-lab.original-draft-preflight-request"
@@ -444,6 +446,8 @@ def _prepare_locked_recipe_draft_content(
         raise _invalid("A published recipe requires at least one ingredient.")
     if not draft.instructions:
         raise _invalid("A published recipe requires at least one instruction.")
+    if any(not item.category.active for item in draft.categories):
+        raise _invalid("Select only active curated recipe categories before publishing.")
 
     for ingredient in draft.ingredients:
         _validate_ingredient_identity(session, ingredient)
@@ -591,6 +595,19 @@ def _copy_draft_snapshot(
     )
     session.add(version)
     session.flush()
+
+    session.add_all(
+        [
+            RecipeVersionCategory(
+                recipe_version_id=version.id,
+                recipe_category_id=item.recipe_category_id,
+                category_name=item.category.name,
+                category_slug=item.category.slug,
+                display_order=item.display_order,
+            )
+            for item in draft.categories
+        ]
+    )
 
     ingredient_rows = [
         RecipeIngredient(

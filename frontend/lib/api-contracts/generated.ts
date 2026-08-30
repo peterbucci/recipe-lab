@@ -430,6 +430,26 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/recipe-categories": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List curated recipe categories
+         * @description Returns the active governed discovery vocabulary in stable display order. Categories are editorial labels and are never inferred from recipe prose.
+         */
+        readonly get: operations["recipe_categories_api_recipe_categories_get"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/recipe-drafts": {
         readonly parameters: {
             readonly query?: never;
@@ -662,6 +682,26 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/recipes/featured": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List globally featured recipes
+         * @description Returns one deploy-reviewed editorial selection in display order. The result is the same for every viewer, is not a recommendation, and silently omits any selected version that is no longer publicly readable.
+         */
+        readonly get: operations["featured_recipes_api_recipes_featured_get"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/recommendations": {
         readonly parameters: {
             readonly query?: never;
@@ -880,6 +920,14 @@ export type components = {
             readonly unit: components["schemas"]["MeasurementUnitSummary"];
             /** Value */
             readonly value: string;
+        };
+        /** FeaturedRecipeListResponse */
+        readonly FeaturedRecipeListResponse: {
+            /**
+             * Items
+             * @description Deploy-reviewed public recipe versions in editorial display order. The list is global, not personalized or popularity-ranked.
+             */
+            readonly items: readonly components["schemas"]["RecipeSummary"][];
         };
         /** HealthResponse */
         readonly HealthResponse: {
@@ -1377,6 +1425,30 @@ export type components = {
              */
             readonly status: "ready";
         };
+        /** RecipeCategoryListResponse */
+        readonly RecipeCategoryListResponse: {
+            /**
+             * Items
+             * @description Active curated categories in stable product display order.
+             */
+            readonly items: readonly components["schemas"]["RecipeCategorySummary"][];
+        };
+        /** RecipeCategorySummary */
+        readonly RecipeCategorySummary: {
+            /**
+             * Id
+             * Format: uuid
+             * @description Stable identity from the curated category vocabulary.
+             */
+            readonly id: string;
+            /** Name */
+            readonly name: string;
+            /**
+             * Slug
+             * @description Exact stable value accepted by the public recipe category filter.
+             */
+            readonly slug: string;
+        };
         /** RecipeDetailResponse */
         readonly RecipeDetailResponse: {
             /** @description Public author of this exact immutable recipe version. */
@@ -1386,6 +1458,11 @@ export type components = {
              * @description Average of ratings currently recorded for this recipe version, rounded to two decimal places.
              */
             readonly average_rating: number | null;
+            /**
+             * Categories
+             * @description Immutable curated category snapshots selected for this exact recipe version.
+             */
+            readonly categories: readonly components["schemas"]["RecipeCategorySummary"][];
             /** Children */
             readonly children: readonly components["schemas"]["RecipeVersionReference"][];
             /**
@@ -1419,6 +1496,12 @@ export type components = {
              * @description Direct parent version, or null for the original root.
              */
             readonly parent_version_id: string | null;
+            /**
+             * Published At
+             * Format: date-time
+             * @description Timestamp when this immutable version first became public.
+             */
+            readonly published_at: string;
             /**
              * Rating Count
              * @description Number of ratings included in the aggregate.
@@ -1520,6 +1603,8 @@ export type components = {
         };
         /** RecipeDraftDetailResponse */
         readonly RecipeDraftDetailResponse: {
+            /** Categories */
+            readonly categories: readonly components["schemas"]["RecipeCategorySummary"][];
             /**
              * Created At
              * Format: date-time
@@ -1696,6 +1781,11 @@ export type components = {
         };
         /** RecipeDraftUpdateRequest */
         readonly RecipeDraftUpdateRequest: {
+            /**
+             * Category Ids
+             * @description Unique active curated category identities selected for this draft.
+             */
+            readonly category_ids?: readonly string[];
             /** Description */
             readonly description?: string | null;
             /** Ingredients */
@@ -2220,6 +2310,11 @@ export type components = {
             /** @description Public author of this exact immutable recipe version. */
             readonly author: components["schemas"]["PublicUserReference"];
             /**
+             * Categories
+             * @description Immutable curated category snapshots selected for this exact recipe version.
+             */
+            readonly categories: readonly components["schemas"]["RecipeCategorySummary"][];
+            /**
              * Created At
              * Format: date-time
              * @description Timestamp when this version was created.
@@ -2246,6 +2341,12 @@ export type components = {
              * @description Direct parent version, or null for the original root.
              */
             readonly parent_version_id: string | null;
+            /**
+             * Published At
+             * Format: date-time
+             * @description Timestamp when this immutable version first became public.
+             */
+            readonly published_at: string;
             /**
              * Servings
              * @description Exact serving yield, serialized as a JSON string.
@@ -4368,6 +4469,44 @@ export interface operations {
             };
         };
     };
+    readonly recipe_categories_api_recipe_categories_get: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["RecipeCategoryListResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     readonly my_private_recipe_drafts_api_recipe_drafts_get: {
         readonly parameters: {
             readonly query?: {
@@ -5019,6 +5158,8 @@ export interface operations {
     readonly browse_recipes_api_recipes_get: {
         readonly parameters: {
             readonly query?: {
+                /** @description Return only recipes with this exact curated category slug. */
+                readonly category?: string | null;
                 /** @description Filter by an exact canonical ingredient name or alias. */
                 readonly ingredient?: string | null;
                 /** @description Use true for variants or false for original root versions. */
@@ -5031,6 +5172,8 @@ export interface operations {
                 readonly page_size?: number;
                 /** @description Trimmed, literal case-insensitive title and description substring. */
                 readonly q?: string | null;
+                /** @description Use title for the stable catalog order or newest for reverse publication time with a stable recipe-ID tie-break. */
+                readonly sort?: "title" | "newest";
             };
             readonly header?: never;
             readonly path?: never;
@@ -5740,6 +5883,44 @@ export interface operations {
             };
             /** @description The recipe identifier or desired visibility state is invalid. */
             readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly featured_recipes_api_recipes_featured_get: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["FeaturedRecipeListResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
                 headers: {
                     readonly [name: string]: unknown;
                 };

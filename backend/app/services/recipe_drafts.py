@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session
 from app.models import (
     RECIPE_DRAFT_STATUS_DISCARDED,
     MeasurementUnit,
+    RecipeCategory,
     RecipeDraft,
+    RecipeDraftCategory,
     RecipeDraftIngredient,
     RecipeDraftInstruction,
     RecipeDraftInstructionAction,
@@ -19,6 +21,7 @@ from app.models import (
 )
 from app.repositories.catalog_requests import get_catalog_request
 from app.repositories.ingredients import curated_display_label, get_ingredient
+from app.repositories.recipe_categories import resolve_active_recipe_categories
 from app.repositories.recipe_drafts import (
     get_owned_recipe_draft,
     get_owned_recipe_draft_by_creation_action,
@@ -37,6 +40,7 @@ from app.schemas.measurements import (
     RangeMeasureInput,
     StructuredMeasureInput,
 )
+from app.schemas.recipe_categories import RecipeCategorySummary
 from app.schemas.recipe_drafts import (
     RecipeDraftActionInput,
     RecipeDraftActionResponse,
@@ -289,9 +293,21 @@ def _insert_validated_document(
     session: Session,
     *,
     draft: RecipeDraft,
+    categories: list[RecipeCategory],
     ingredients: list[_ValidatedIngredient],
     instructions: list[_ValidatedInstruction],
 ) -> None:
+    session.add_all(
+        [
+            RecipeDraftCategory(
+                recipe_draft_id=draft.id,
+                recipe_category_id=category.id,
+                display_order=display_order,
+            )
+            for display_order, category in enumerate(categories)
+        ]
+    )
+
     ingredient_rows = [
         RecipeDraftIngredient(
             recipe_draft_id=draft.id,
@@ -427,6 +443,17 @@ def create_recipe_draft(
         raise RuntimeError("The newly inserted private draft shell could not be reloaded.")
     if source is None:
         return draft
+
+    session.add_all(
+        [
+            RecipeDraftCategory(
+                recipe_draft_id=draft.id,
+                recipe_category_id=item.recipe_category_id,
+                display_order=item.display_order,
+            )
+            for item in source.categories
+        ]
+    )
 
     ingredient_rows = [
         RecipeDraftIngredient(
@@ -567,7 +594,12 @@ def replace_recipe_draft(
         author_user_id=author_user_id,
         payload=payload,
     )
+    categories = resolve_active_recipe_categories(session, payload.category_ids)
+    if categories is None:
+        raise _invalid("Select only active curated recipe categories.")
 
+    draft.categories.clear()
+    session.flush()
     draft.instructions.clear()
     session.flush()
     draft.ingredients.clear()
@@ -579,6 +611,7 @@ def replace_recipe_draft(
     _insert_validated_document(
         session,
         draft=draft,
+        categories=list(categories),
         ingredients=ingredients,
         instructions=instructions,
     )
@@ -606,6 +639,8 @@ def discard_recipe_draft(
     draft.instructions.clear()
     session.flush()
     draft.ingredients.clear()
+    session.flush()
+    draft.categories.clear()
     session.flush()
     draft.title = ""
     draft.description = None
@@ -715,6 +750,14 @@ def recipe_draft_detail_response(draft: RecipeDraft) -> RecipeDraftDetailRespons
         title=draft.title,
         description=draft.description,
         servings=draft.servings,
+        categories=[
+            RecipeCategorySummary(
+                id=item.category.id,
+                name=item.category.name,
+                slug=item.category.slug,
+            )
+            for item in draft.categories
+        ],
         ingredients=[_ingredient_response(item) for item in draft.ingredients],
         instructions=[
             RecipeDraftInstructionResponse(

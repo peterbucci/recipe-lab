@@ -450,6 +450,21 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
         embedded_content_columns="request_fingerprint",
     ),
     _table(
+        "recipe_draft_categories",
+        "recipe_draft_id recipe_category_id display_order",
+        foreign_keys=(
+            "recipe_draft_categories(recipe_category_id)->recipe_categories(id)",
+            "recipe_draft_categories(recipe_draft_id)->recipe_drafts(id)",
+        ),
+        relationships=(
+            "recipe_draft_categories.category->recipe_categories",
+            "recipe_draft_categories.draft->recipe_drafts",
+        ),
+        column_disposition=DataDisposition.DELETE,
+        scope="Delete every category selection attached to a member-owned private draft.",
+        rationale="Draft discovery labels remain private authoring state until publication.",
+    ),
+    _table(
         "recipe_draft_ingredients",
         "recipe_draft_id selection_kind ingredient_id ingredient_request_id name measure_mode "
         "quantity_min quantity_max measurement_unit_id unit_display package_size_id "
@@ -553,6 +568,7 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
         ),
         relationships=(
             "recipe_drafts.author->users",
+            "recipe_drafts.categories->recipe_draft_categories",
             "recipe_drafts.ingredients->recipe_draft_ingredients",
             "recipe_drafts.instructions->recipe_draft_instructions",
             "recipe_drafts.publication->recipe_version_publications",
@@ -903,6 +919,25 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
         embedded_content_columns="digest canonical_payload",
     ),
     _table(
+        "recipe_version_categories",
+        "recipe_version_id recipe_category_id category_name category_slug display_order",
+        foreign_keys=(
+            "recipe_version_categories(recipe_category_id)->recipe_categories(id)",
+            "recipe_version_categories(recipe_version_id)->recipe_versions(id)",
+        ),
+        relationships=(
+            "recipe_version_categories.category->recipe_categories",
+            "recipe_version_categories.recipe_version->recipe_versions",
+        ),
+        column_disposition=DataDisposition.RETAIN,
+        scope="Retain as an immutable public recipe category snapshot.",
+        rationale=(
+            "Published category identities and labels are public discovery metadata for the "
+            "exact immutable version."
+        ),
+        embedded_content_columns="category_name category_slug",
+    ),
+    _table(
         "recipe_version_ingredients",
         "recipe_version_id ingredient_id name measure_mode quantity_min quantity_max "
         "measurement_unit_id unit_display package_size_id preparation_notes display_order id",
@@ -999,6 +1034,7 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
         ),
         relationships=(
             "recipe_versions.author->users",
+            "recipe_versions.categories->recipe_version_categories",
             "recipe_versions.descendants->recipe_versions",
             "recipe_versions.ingredients->recipe_version_ingredients",
             "recipe_versions.instructions->recipe_version_instructions",

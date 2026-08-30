@@ -37,6 +37,7 @@ PositiveInteger = Annotated[int, Field(strict=True, gt=0)]
 StrictInteger = Annotated[int, Field(strict=True)]
 MeasurementDimension = Literal["mass", "volume", "count", "time", "temperature", "package"]
 MeasurementDisplayStyle = Literal["symbol", "word", "hidden"]
+MAX_RECIPE_CATEGORIES = 3
 
 
 def normalize_name(value: str) -> str:
@@ -126,6 +127,27 @@ class ActionCatalogSeed(SeedModel):
     action_types: Annotated[list[ActionTypeSeed], Field(min_length=1)]
 
 
+class RecipeCategoryCatalogMetadata(SeedModel):
+    version: Literal[1]
+    namespace_url: NonBlank
+    title: NonBlank
+    provenance: NonBlank
+    published_at: AwareDatetime
+
+
+class RecipeCategorySeed(SeedModel):
+    key: SeedKey
+    name: NonBlank
+    slug: SeedKey
+    display_order: Annotated[int, Field(strict=True, ge=0)]
+    active: bool
+
+
+class RecipeCategoryCatalogSeed(SeedModel):
+    metadata: RecipeCategoryCatalogMetadata
+    categories: Annotated[list[RecipeCategorySeed], Field(min_length=1)]
+
+
 ActionMeasurementDecimal = Annotated[
     Decimal,
     Field(max_digits=18, decimal_places=6),
@@ -206,6 +228,7 @@ class RecipeSeed(SeedModel):
     title: NonBlank
     description: NonBlank | None = None
     servings: PositiveServings
+    categories: list[SeedKey] = Field(default_factory=list, max_length=MAX_RECIPE_CATEGORIES)
     ingredients: Annotated[list[RecipeIngredientSeed], Field(min_length=1)]
     instructions: Annotated[list[RecipeInstructionSeed], Field(min_length=1)]
 
@@ -214,12 +237,46 @@ class SeedCatalog(SeedModel):
     metadata: CatalogMetadata
     measurement_catalog: MeasurementCatalogSeed
     action_catalog: ActionCatalogSeed
+    recipe_category_catalog: RecipeCategoryCatalogSeed
     categories: list[NamedSeed]
     dietary_flags: list[NamedSeed]
     allergens: list[NamedSeed]
     ingredients: Annotated[list[IngredientSeed], Field(min_length=1)]
     substitutions: list[SubstitutionSeed]
     recipes: Annotated[list[RecipeSeed], Field(min_length=1)]
+
+    def _validate_recipe_category_catalog(self) -> set[str]:
+        catalog = self.recipe_category_catalog
+        expected_namespace = "https://github.com/peterbucci/recipe-lab/recipe-category-catalog/v1"
+        if catalog.metadata.namespace_url != expected_namespace:
+            raise ValueError("recipe category catalog namespace URL must remain fixed for v1")
+
+        keys = [category.key for category in catalog.categories]
+        names = [normalize_name(category.name) for category in catalog.categories]
+        slugs = [category.slug for category in catalog.categories]
+        display_orders = [category.display_order for category in catalog.categories]
+        if len(keys) != len(set(keys)):
+            raise ValueError("recipe category keys must be unique")
+        if len(names) != len(set(names)):
+            raise ValueError("recipe category names must be unique after normalization")
+        if len(slugs) != len(set(slugs)):
+            raise ValueError("recipe category slugs must be unique")
+        if len(display_orders) != len(set(display_orders)):
+            raise ValueError("recipe category display order must be unique")
+        if sorted(display_orders) != list(range(len(display_orders))):
+            raise ValueError("recipe category display order must be contiguous from zero")
+
+        active_keys = {category.key for category in catalog.categories if category.active}
+        for recipe in self.recipes:
+            if len(recipe.categories) != len(set(recipe.categories)):
+                raise ValueError(f"recipe {recipe.key!r} repeats a recipe category")
+            unknown = set(recipe.categories) - active_keys
+            if unknown:
+                raise ValueError(
+                    f"recipe {recipe.key!r} references unknown or inactive recipe categories "
+                    f"{sorted(unknown)!r}"
+                )
+        return active_keys
 
     def _validate_action_catalog(
         self,
@@ -573,6 +630,7 @@ class SeedCatalog(SeedModel):
 
         measurement_units_by_key = self._validate_measurement_catalog()
         self._validate_action_catalog(measurement_units_by_key)
+        self._validate_recipe_category_catalog()
         self._require_unique_keys(self.categories, "category")
         self._require_unique_keys(self.dietary_flags, "dietary flag")
         self._require_unique_keys(self.allergens, "allergen")

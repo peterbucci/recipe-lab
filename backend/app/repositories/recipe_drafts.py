@@ -13,6 +13,7 @@ from app.models import (
     MeasurementConversionRule,
     MeasurementUnit,
     RecipeDraft,
+    RecipeDraftCategory,
     RecipeDraftIngredient,
     RecipeDraftInstruction,
     RecipeDraftInstructionAction,
@@ -41,6 +42,7 @@ class RecipeDraftBrowseResult:
 
 def _draft_detail_options() -> tuple[Any, ...]:
     return (
+        selectinload(RecipeDraft.categories).joinedload(RecipeDraftCategory.category),
         selectinload(RecipeDraft.ingredients).options(
             joinedload(RecipeDraftIngredient.ingredient).selectinload(Ingredient.aliases),
             joinedload(RecipeDraftIngredient.ingredient_request)
@@ -222,6 +224,7 @@ def get_public_recipe_snapshot_for_draft(
                 joinedload(RecipeIngredient.ingredient),
                 joinedload(RecipeIngredient.measurement_unit),
             ),
+            selectinload(RecipeVersion.categories),
             selectinload(RecipeVersion.instructions)
             .selectinload(RecipeInstruction.actions)
             .options(

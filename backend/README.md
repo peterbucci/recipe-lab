@@ -89,6 +89,24 @@ that is not present returns HTTP 404. Both use the documented `ErrorResponse`
 envelope. The response schemas and query constraints are available through
 OpenAPI at `/docs` and `/openapi.json`.
 
+Recipe browsing keeps its title order by default and accepts `sort=newest` for
+reverse publication order with a stable recipe-ID tie-break. `GET
+/api/recipes/featured` returns a small deploy-reviewed editorial selection in
+its declared order. Featured recipes are global rather than personalized or
+popularity-ranked, and both discovery reads apply the same public-visibility
+rule as recipe detail, so withdrawn or moderation-hidden versions are omitted.
+Public recipe summaries expose both version creation time and the actual first
+publication time used by the newest sort.
+
+Recipe discovery categories are a governed vocabulary, not labels inferred
+from recipe text. `GET /api/recipe-categories` returns the active vocabulary in
+stable product order. A draft may select up to three active category IDs; forks
+copy the source selection, saving revalidates it, and publication writes an
+immutable name-and-slug snapshot for that exact recipe version. Public browse
+accepts one exact `category=<slug>` filter and composes it with search, lineage,
+ingredient, variant, pagination, and sort filters. The demo mappings in
+`app/seeds/data/recipes.json` are explicit reviewed assignments.
+
 The deterministic repository baseline is committed as `openapi.json`. Run
 `python -m app.openapi_contract check` from this directory to detect drift, or
 `python -m app.openapi_contract write` after an intentional reviewed change.

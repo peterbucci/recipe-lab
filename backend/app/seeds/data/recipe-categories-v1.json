@@ -1,0 +1,18 @@
+{
+  "metadata": {
+    "version": 1,
+    "namespace_url": "https://github.com/peterbucci/recipe-lab/recipe-category-catalog/v1",
+    "title": "Recipe Lab recipe discovery categories v1",
+    "provenance": "Product-reviewed discovery vocabulary and explicit demo-recipe assignments; no categories are inferred from recipe text or ingredients.",
+    "published_at": "2026-08-30T00:00:00Z"
+  },
+  "categories": [
+    {"key": "breakfast", "name": "Breakfast", "slug": "breakfast", "display_order": 0, "active": true},
+    {"key": "lunch", "name": "Lunch", "slug": "lunch", "display_order": 1, "active": true},
+    {"key": "dinner", "name": "Dinner", "slug": "dinner", "display_order": 2, "active": true},
+    {"key": "desserts", "name": "Desserts", "slug": "desserts", "display_order": 3, "active": true},
+    {"key": "breads", "name": "Breads", "slug": "breads", "display_order": 4, "active": true},
+    {"key": "vegetarian", "name": "Vegetarian", "slug": "vegetarian", "display_order": 5, "active": true},
+    {"key": "quick-easy", "name": "Quick & Easy", "slug": "quick-easy", "display_order": 6, "active": true}
+  ]
+}

@@ -12,6 +12,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.models.recipe_category import MAX_RECIPE_CATEGORIES
 from app.schemas.actions import (
     ActionNumericMeasureInput,
     ActionNumericMeasureResponse,
@@ -24,6 +25,7 @@ from app.schemas.measurements import (
     StructuredMeasureInput,
     StructuredMeasureResponse,
 )
+from app.schemas.recipe_categories import RecipeCategorySummary
 
 
 def _reject_boolean_decimal(value: object) -> object:
@@ -151,11 +153,18 @@ class RecipeDraftUpdateRequest(RecipeDraftSchema):
     title: DraftTitle
     description: DraftDescription | None = None
     servings: DraftServings | None = None
+    category_ids: list[UUID] = Field(
+        default_factory=list,
+        max_length=MAX_RECIPE_CATEGORIES,
+        description="Unique active curated category identities selected for this draft.",
+    )
     ingredients: list[RecipeDraftIngredientInput] = Field(default_factory=list, max_length=200)
     instructions: list[RecipeDraftInstructionInput] = Field(default_factory=list, max_length=100)
 
     @model_validator(mode="after")
     def validate_document_references_and_capacity(self) -> Self:
+        if len(self.category_ids) != len(set(self.category_ids)):
+            raise ValueError("category_ids values must be unique within a draft")
         for ingredient in self.ingredients:
             measure = ingredient.measure
             if isinstance(measure, ExactMeasureInput):
@@ -259,6 +268,7 @@ class RecipeDraftDetailResponse(RecipeDraftSchema):
     title: str = Field(max_length=200)
     description: str | None
     servings: DraftServings | None
+    categories: list[RecipeCategorySummary]
     ingredients: list[RecipeDraftIngredientResponse]
     instructions: list[RecipeDraftInstructionResponse]
     created_at: datetime

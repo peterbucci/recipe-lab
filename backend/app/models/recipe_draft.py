@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from app.models.ingredient import Ingredient
     from app.models.measurement import IngredientPackageSize, MeasurementUnit
     from app.models.recipe import RecipeVersion, RecipeVersionPublication
+    from app.models.recipe_category import RecipeDraftCategory
     from app.models.user import User
 
 
@@ -146,6 +147,12 @@ class RecipeDraft(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     instructions: Mapped[list["RecipeDraftInstruction"]] = relationship(
         back_populates="draft",
         order_by="RecipeDraftInstruction.display_order",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    categories: Mapped[list["RecipeDraftCategory"]] = relationship(
+        back_populates="draft",
+        order_by="RecipeDraftCategory.display_order",
         cascade="all, delete-orphan",
         passive_deletes=True,
     )

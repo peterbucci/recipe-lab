@@ -28,6 +28,7 @@ from app.models import (
     MeasurementConversionRule,
     MeasurementUnit,
     MeasurementUnitAlias,
+    RecipeCategory,
     RecipeIngredient,
     RecipeInstruction,
     RecipeInstructionAction,
@@ -35,6 +36,7 @@ from app.models import (
     RecipeInstructionActionMeasure,
     RecipeLineage,
     RecipeVersion,
+    RecipeVersionCategory,
     RecipeVersionPublication,
     User,
 )
@@ -382,6 +384,62 @@ def _get_or_create_category(
     session.flush()
     report.created["ingredient_categories"] += 1
     return created
+
+
+def _load_recipe_category_catalog(
+    session: Session,
+    catalog: SeedCatalog,
+    report: SeedReport,
+) -> dict[str, RecipeCategory]:
+    """Load the fixed discovery vocabulary without deriving recipe assignments."""
+
+    result: dict[str, RecipeCategory] = {}
+    created_at = catalog.recipe_category_catalog.metadata.published_at
+    for seed in catalog.recipe_category_catalog.categories:
+        expected_id = seed_uuid(catalog.metadata.dataset_id, "recipe-category", seed.key)
+        by_id = session.get(RecipeCategory, expected_id)
+        by_slug = session.scalar(select(RecipeCategory).where(RecipeCategory.slug == seed.slug))
+        if by_id is not None:
+            if by_slug is not None and by_slug.id != expected_id:
+                raise _conflict(
+                    "recipe category",
+                    seed.key,
+                    "catalog slug belongs to another UUID",
+                )
+            if (
+                by_id.name != seed.name
+                or by_id.slug != seed.slug
+                or by_id.display_order != seed.display_order
+                or by_id.active is not seed.active
+                or by_id.created_at != created_at
+            ):
+                raise _conflict(
+                    "recipe category",
+                    seed.key,
+                    "stored fields differ from the catalog",
+                )
+            report.reused["recipe_categories"] += 1
+            result[seed.key] = by_id
+            continue
+        if by_slug is not None:
+            raise _conflict(
+                "recipe category",
+                seed.key,
+                "catalog slug has a non-deterministic UUID",
+            )
+        created = RecipeCategory(
+            id=expected_id,
+            name=seed.name,
+            slug=seed.slug,
+            display_order=seed.display_order,
+            active=seed.active,
+            created_at=created_at,
+        )
+        session.add(created)
+        session.flush()
+        report.created["recipe_categories"] += 1
+        result[seed.key] = created
+    return result
 
 
 def _get_or_create_dietary_flag(
@@ -1026,7 +1084,29 @@ def _verify_recipe_snapshot(
     ingredients: dict[str, Ingredient],
     measurement_units: dict[str, MeasurementUnit],
     action_types: dict[str, CookingActionType],
+    recipe_categories: dict[str, RecipeCategory],
 ) -> None:
+    existing_categories = list(
+        session.scalars(
+            select(RecipeVersionCategory)
+            .where(RecipeVersionCategory.recipe_version_id == version.id)
+            .order_by(RecipeVersionCategory.display_order)
+        )
+    )
+    if len(existing_categories) != len(seed.categories):
+        raise _conflict("recipe version", seed.key, "category snapshot differs")
+    for display_order, (existing_category, category_key) in enumerate(
+        zip(existing_categories, seed.categories, strict=True)
+    ):
+        expected = recipe_categories[category_key]
+        if (
+            existing_category.recipe_category_id != expected.id
+            or existing_category.category_name != expected.name
+            or existing_category.category_slug != expected.slug
+            or existing_category.display_order != display_order
+        ):
+            raise _conflict("recipe version", seed.key, "category snapshot differs")
+
     existing_ingredients = list(
         session.scalars(
             select(RecipeIngredient)
@@ -1103,8 +1183,23 @@ def _insert_recipe_snapshot(
     ingredients: dict[str, Ingredient],
     measurement_units: dict[str, MeasurementUnit],
     action_types: dict[str, CookingActionType],
+    recipe_categories: dict[str, RecipeCategory],
     report: SeedReport,
 ) -> None:
+    session.add_all(
+        [
+            RecipeVersionCategory(
+                recipe_version_id=version.id,
+                recipe_category_id=recipe_categories[category_key].id,
+                category_name=recipe_categories[category_key].name,
+                category_slug=recipe_categories[category_key].slug,
+                display_order=display_order,
+            )
+            for display_order, category_key in enumerate(seed.categories)
+        ]
+    )
+    report.created["recipe_version_categories"] += len(seed.categories)
+
     for display_order, item in enumerate(seed.ingredients):
         session.add(
             RecipeIngredient(
@@ -1168,6 +1263,7 @@ def _load_recipe(
     ingredients: dict[str, Ingredient],
     measurement_units: dict[str, MeasurementUnit],
     action_types: dict[str, CookingActionType],
+    recipe_categories: dict[str, RecipeCategory],
     report: SeedReport,
 ) -> RecipeVersion:
     version_id = seed_uuid(catalog.metadata.dataset_id, "recipe-version", seed.key)
@@ -1195,6 +1291,7 @@ def _load_recipe(
             ingredients,
             measurement_units,
             action_types,
+            recipe_categories,
         )
         report.reused["recipe_versions"] += 1
         report.reused["recipe_ingredients"] += len(seed.ingredients)
@@ -1212,6 +1309,7 @@ def _load_recipe(
             for instruction in seed.instructions
             for action in instruction.actions
         )
+        report.reused["recipe_version_categories"] += len(seed.categories)
         return existing
 
     created = RecipeVersion(
@@ -1235,6 +1333,7 @@ def _load_recipe(
         ingredients,
         measurement_units,
         action_types,
+        recipe_categories,
         report,
     )
     report.created["recipe_versions"] += 1
@@ -1338,6 +1437,7 @@ def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
     report = SeedReport()
     measurement_units = _load_measurement_catalog(session, catalog, report)
     action_types = _load_action_catalog(session, catalog, report)
+    recipe_categories = _load_recipe_category_catalog(session, catalog, report)
     user = _get_or_create_catalog_user(session, catalog, report)
     _get_or_create_demo_user(session, report)
     categories = {
@@ -1396,6 +1496,7 @@ def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
             ingredients,
             measurement_units,
             action_types,
+            recipe_categories,
             report,
         )
         _record_recipe_structural_fingerprint(
