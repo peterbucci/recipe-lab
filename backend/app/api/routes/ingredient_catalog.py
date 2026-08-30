@@ -199,9 +199,10 @@ def create_ingredient_request(
     summary="List the current member's ingredient requests",
     description=(
         "Returns only requests submitted by the active member. Optional status and literal "
-        "text filters remain inside that member scope. Approved and duplicate requests carry "
-        "a trusted current catalog identity; pending and rejected request text is never "
-        "selectable."
+        "text filters remain inside that member scope. The reviewed-only view excludes pending "
+        "requests and orders terminal decisions by review time for bounded activity surfaces. "
+        "Approved and duplicate requests carry a trusted current catalog identity; pending and "
+        "rejected request text is never selectable."
     ),
 )
 def my_ingredient_requests(
@@ -211,6 +212,7 @@ def my_ingredient_requests(
     page: Annotated[int, Query(ge=1, le=1_000_000)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     request_status: Annotated[CatalogRequestStatus | None, Query(alias="status")] = None,
+    reviewed_only: Annotated[bool, Query()] = False,
     q: Annotated[SearchTerm | None, Query()] = None,
 ) -> IngredientCatalogRequestPage:
     actor_id = lock_active_member_actor(session, authenticated)
@@ -223,6 +225,7 @@ def my_ingredient_requests(
         limit=page_size,
         include_resolved_ingredient=True,
         include_approval_snapshot_matches=False,
+        reviewed_only=reviewed_only,
     )
     page_response = IngredientCatalogRequestPage(
         items=[_member_request_response(item) for item in result.items],

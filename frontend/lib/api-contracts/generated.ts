@@ -254,7 +254,7 @@ export type paths = {
         };
         /**
          * List the current member's ingredient requests
-         * @description Returns only requests submitted by the active member. Optional status and literal text filters remain inside that member scope. Approved and duplicate requests carry a trusted current catalog identity; pending and rejected request text is never selectable.
+         * @description Returns only requests submitted by the active member. Optional status and literal text filters remain inside that member scope. The reviewed-only view excludes pending requests and orders terminal decisions by review time for bounded activity surfaces. Approved and duplicate requests carry a trusted current catalog identity; pending and rejected request text is never selectable.
          */
         readonly get: operations["my_ingredient_requests_api_ingredient_requests_mine_get"];
         readonly put?: never;
@@ -3795,6 +3795,7 @@ export interface operations {
                 readonly page?: number;
                 readonly page_size?: number;
                 readonly q?: string | null;
+                readonly reviewed_only?: boolean;
                 readonly status?: ("pending" | "approved" | "rejected" | "duplicate") | null;
             };
             readonly header?: never;

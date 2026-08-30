@@ -6405,7 +6405,7 @@
     },
     "/api/ingredient-requests/mine": {
       "get": {
-        "description": "Returns only requests submitted by the active member. Optional status and literal text filters remain inside that member scope. Approved and duplicate requests carry a trusted current catalog identity; pending and rejected request text is never selectable.",
+        "description": "Returns only requests submitted by the active member. Optional status and literal text filters remain inside that member scope. The reviewed-only view excludes pending requests and orders terminal decisions by review time for bounded activity surfaces. Approved and duplicate requests carry a trusted current catalog identity; pending and rejected request text is never selectable.",
         "operationId": "my_ingredient_requests_api_ingredient_requests_mine_get",
         "parameters": [
           {
@@ -6452,6 +6452,16 @@
                 }
               ],
               "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reviewed_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Reviewed Only",
+              "type": "boolean"
             }
           },
           {

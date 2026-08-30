@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   browseMyIngredientRequests,
   IngredientCatalogApiError,
-  type MemberIngredientRequestPage,
+  type MemberIngredientRequest,
 } from "../../lib/ingredient-catalog-api";
 import type { RecipeDraftListItem } from "../../lib/recipe-draft-api";
 import {
@@ -43,6 +43,11 @@ interface MemberHomeActivity {
   label: string;
   timestamp: string;
   title: string;
+}
+
+interface IngredientRequestSummary {
+  items: MemberIngredientRequest[];
+  total: number;
 }
 
 interface ActivityResource {
@@ -90,14 +95,22 @@ function loadSaved(signal: AbortSignal): Promise<SavedRecipeLibraryPage> {
   });
 }
 
-function loadIngredientRequests(
+async function loadIngredientRequests(
   signal: AbortSignal,
-): Promise<MemberIngredientRequestPage> {
-  return browseMyIngredientRequests({
-    page: 1,
-    pageSize: SUMMARY_PAGE_SIZE,
-    signal,
-  });
+): Promise<IngredientRequestSummary> {
+  const [allRequests, reviewedRequests] = await Promise.all([
+    browseMyIngredientRequests({ page: 1, pageSize: 1, signal }),
+    browseMyIngredientRequests({
+      page: 1,
+      pageSize: SUMMARY_PAGE_SIZE,
+      reviewedOnly: true,
+      signal,
+    }),
+  ]);
+  return {
+    items: reviewedRequests.items,
+    total: allRequests.total,
+  };
 }
 
 function resourceErrorMessage(reason: unknown, fallback: string): string {
@@ -198,7 +211,7 @@ function buildRecentActivities({
   withdrawn,
 }: {
   drafts?: MyRecipeLibraryPage;
-  ingredientRequests?: MemberIngredientRequestPage;
+  ingredientRequests?: IngredientRequestSummary;
   published?: MyRecipeLibraryPage;
   saved?: SavedRecipeLibraryPage;
   withdrawn?: MyRecipeLibraryPage;

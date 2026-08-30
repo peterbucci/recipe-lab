@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import case, func, or_, select
@@ -75,12 +76,15 @@ def browse_catalog_requests(
     limit: int,
     include_resolved_ingredient: bool = False,
     include_approval_snapshot_matches: bool = False,
+    reviewed_only: bool = False,
 ) -> IngredientRequestBrowseResult:
     filters = []
     if requester_user_id is not None:
         filters.append(IngredientCatalogRequest.requester_user_id == requester_user_id)
     if status is not None:
         filters.append(IngredientCatalogRequest.status == status)
+    if reviewed_only:
+        filters.append(IngredientCatalogRequest.reviewed_at.is_not(None))
     if search is not None:
         literal_pattern = f"%{_escape_like(search)}%"
         normalized_pattern = f"%{_escape_like(normalize_catalog_name(search))}%"
@@ -135,8 +139,10 @@ def browse_catalog_requests(
         session.scalar(select(func.count()).select_from(IngredientCatalogRequest).where(*filters))
         or 0
     )
-    ordering = []
-    if status is None:
+    ordering: list[Any] = []
+    if reviewed_only:
+        ordering.append(IngredientCatalogRequest.reviewed_at.desc())
+    elif status is None:
         ordering.append(case((IngredientCatalogRequest.status == "pending", 0), else_=1))
     statement = (
         select(IngredientCatalogRequest)

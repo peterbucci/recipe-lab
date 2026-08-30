@@ -262,6 +262,7 @@ describe("ingredient catalog API client", () => {
     await expect(
       browseMyIngredientRequests({
         status: "approved",
+        reviewedOnly: true,
         page: 2,
         pageSize: 10,
         query: "  dragon & fruit  ",
@@ -277,7 +278,7 @@ describe("ingredient catalog API client", () => {
     });
 
     expect(fetchMock.mock.calls[0]).toEqual([
-      "/api/ingredient-requests/mine?page=2&page_size=10&status=approved&q=dragon+%26+fruit",
+      "/api/ingredient-requests/mine?page=2&page_size=10&status=approved&reviewed_only=true&q=dragon+%26+fruit",
       expect.objectContaining({ method: "GET", credentials: "same-origin" }),
     ]);
     expect(fetchMock.mock.calls[1]).toEqual([

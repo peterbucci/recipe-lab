@@ -808,6 +808,21 @@ def test_member_request_history_is_private_filterable_and_returns_trusted_resolu
     assert first_page_body["total_pages"] == 4
     assert first_page_body["items"][0]["id"] == pending_request["id"]
 
+    reviewed_page = catalog_api.member.get(
+        "/api/ingredient-requests/mine",
+        params={"reviewed_only": True, "page": 1, "page_size": 2},
+    )
+    reviewed_page_body = _json_object(reviewed_page.json())
+    assert reviewed_page.status_code == 200
+    assert reviewed_page_body["total"] == 3
+    assert reviewed_page_body["total_pages"] == 2
+    assert all(item["reviewed_at"] is not None for item in reviewed_page_body["items"])
+    assert pending_request["id"] not in {item["id"] for item in reviewed_page_body["items"]}
+    assert [item["reviewed_at"] for item in reviewed_page_body["items"]] == sorted(
+        (item["reviewed_at"] for item in reviewed_page_body["items"]),
+        reverse=True,
+    )
+
     expected_ids = {
         "pending": pending_request["id"],
         "approved": approved_request["id"],

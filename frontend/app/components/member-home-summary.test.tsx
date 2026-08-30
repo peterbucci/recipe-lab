@@ -246,7 +246,7 @@ describe("MemberHomeSummary", () => {
     await waitFor(() => {
       expect(fetchMyRecipeLibrary).toHaveBeenCalledTimes(3);
       expect(fetchSavedRecipeLibrary).toHaveBeenCalledTimes(1);
-      expect(browseMyIngredientRequests).toHaveBeenCalledTimes(1);
+      expect(browseMyIngredientRequests).toHaveBeenCalledTimes(2);
     });
     expect(
       mocks.fetchMyRecipeLibrary.mock.calls.map(([options]) => options.view),
@@ -308,6 +308,57 @@ describe("MemberHomeSummary", () => {
     );
   });
 
+  it("loads reviewed activity separately so pending requests cannot hide it", async () => {
+    mocks.browseMyIngredientRequests.mockImplementation(
+      ({ reviewedOnly }: { reviewedOnly?: boolean }) =>
+        Promise.resolve({
+          items: reviewedOnly
+            ? [
+                request({
+                  created_at: "2026-08-01T08:00:00Z",
+                  proposed_name: "Recently reviewed herb",
+                  reviewed_at: "2026-08-30T15:00:00Z",
+                }),
+              ]
+            : [
+                request({
+                  proposed_name: "New pending one",
+                  reviewed_at: null,
+                  status: "pending",
+                }),
+                request({
+                  id: "88888888-8888-4888-8888-888888888888",
+                  proposed_name: "New pending two",
+                  reviewed_at: null,
+                  status: "pending",
+                }),
+                request({
+                  id: "99999999-9999-4999-8999-999999999999",
+                  proposed_name: "New pending three",
+                  reviewed_at: null,
+                  status: "pending",
+                }),
+              ],
+          page: 1,
+          page_size: reviewedOnly ? 3 : 1,
+          total: reviewedOnly ? 1 : 4,
+          total_pages: reviewedOnly ? 1 : 4,
+        }),
+    );
+
+    render(<MemberHomeSummary userId="member-one" />);
+
+    const activity = await screen.findByRole("list", {
+      name: "Recent account activity",
+    });
+    expect(activity).toHaveTextContent("Recently reviewed herb");
+    expect(activity).not.toHaveTextContent("New pending one");
+    expect(within(metric("Ingredient requests")).getByText("4")).toBeVisible();
+    expect(browseMyIngredientRequests).toHaveBeenCalledWith(
+      expect.objectContaining({ pageSize: 3, reviewedOnly: true }),
+    );
+  });
+
   it("keeps successful panels visible and retries only the failed resource", async () => {
     mocks.fetchSavedRecipeLibrary
       .mockRejectedValueOnce(
@@ -344,7 +395,7 @@ describe("MemberHomeSummary", () => {
     });
     expect(fetchSavedRecipeLibrary).toHaveBeenCalledTimes(2);
     expect(fetchMyRecipeLibrary).toHaveBeenCalledTimes(3);
-    expect(browseMyIngredientRequests).toHaveBeenCalledTimes(1);
+    expect(browseMyIngredientRequests).toHaveBeenCalledTimes(2);
     expect(
       screen.getByRole("list", {
         name: "Recent account activity",
@@ -408,6 +459,8 @@ describe("MemberHomeSummary", () => {
     const savedQueue = [accountA.saved, accountB.saved];
     const requestQueue = [
       accountA.ingredientRequests,
+      accountA.ingredientRequests,
+      accountB.ingredientRequests,
       accountB.ingredientRequests,
     ];
 
@@ -436,19 +489,20 @@ describe("MemberHomeSummary", () => {
     );
     const accountASavedSignal = mocks.fetchSavedRecipeLibrary.mock.calls[0][0]
       .signal as AbortSignal;
-    const accountARequestSignal = mocks.browseMyIngredientRequests.mock.calls[0][0]
-      .signal as AbortSignal;
+    const accountARequestSignals = mocks.browseMyIngredientRequests.mock.calls
+      .slice(0, 2)
+      .map(([options]) => options.signal as AbortSignal);
 
     rerender(<MemberHomeSummary userId="member-b" />);
 
     await waitFor(() => {
       expect(fetchMyRecipeLibrary).toHaveBeenCalledTimes(6);
       expect(fetchSavedRecipeLibrary).toHaveBeenCalledTimes(2);
-      expect(browseMyIngredientRequests).toHaveBeenCalledTimes(2);
+      expect(browseMyIngredientRequests).toHaveBeenCalledTimes(4);
     });
     expect(accountALibrarySignals.every((signal) => signal.aborted)).toBe(true);
     expect(accountASavedSignal.aborted).toBe(true);
-    expect(accountARequestSignal.aborted).toBe(true);
+    expect(accountARequestSignals.every((signal) => signal.aborted)).toBe(true);
 
     await act(async () => {
       accountA.drafts.resolve(
