@@ -135,6 +135,12 @@ describe("IngredientRequestReviewWorkspace", () => {
   it("does not discover or fetch curator controls for an ordinary member", () => {
     renderWorkspace(false);
 
+    expect(screen.getByRole("main")).toHaveClass(
+      "staff-state-page",
+      "staff-state-page--curation",
+      "staff-state-page--authorization",
+    );
+    expect(screen.getByRole("alert")).toHaveClass("staff-state-panel");
     expect(screen.getByRole("heading", { name: "We couldn’t find that page." })).toBeVisible();
     expect(screen.queryByText("Catalog curation")).not.toBeInTheDocument();
     expect(mocks.browse).not.toHaveBeenCalled();
@@ -154,6 +160,29 @@ describe("IngredientRequestReviewWorkspace", () => {
       level: 2,
     });
     await waitFor(() => expect(detailHeading).toHaveFocus());
+    expect(detailHeading.closest("main")).toHaveClass(
+      "staff-workspace",
+      "staff-workspace--curation",
+      "curation-page",
+    );
+    expect(
+      screen
+        .getByRole("heading", { name: "Review ingredient requests.", level: 1 })
+        .closest("header"),
+    ).toHaveClass("staff-workspace__header", "curation-page__intro");
+    expect(
+      screen.getByRole("navigation", { name: "Ingredient request status filters" }),
+    ).toHaveClass("staff-workspace__filters", "curation-filters");
+    const queueList = screen.getByRole("list", { name: "Pending requests" });
+    expect(queueList).toHaveClass("staff-workspace__queue-list", "curation-request-list");
+    expect(queueList.closest("section")).toHaveClass("staff-workspace__queue");
+    expect(detailHeading.closest(".curation-detail")).toHaveClass("staff-workspace__detail");
+    expect(detailHeading.closest(".curation-workspace")).toHaveClass("staff-workspace__layout");
+    expect(
+      screen.getByRole("heading", { name: "Record a decision" }).closest("section"),
+    ).toHaveClass("staff-workspace__decision");
+    expect(screen.queryByRole("link", { name: "Community rules" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Private note (optional)")).not.toBeInTheDocument();
     expect(screen.getByText("Alice Cook")).toBeVisible();
     expect(screen.getByText("@alice")).toBeVisible();
     expect(screen.getByText("Aliases: Dragon fruit")).toBeVisible();
@@ -387,7 +416,9 @@ describe("IngredientRequestReviewWorkspace", () => {
         request_id: searchedRequestId,
       }),
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    const staleAlert = await screen.findByRole("alert");
+    expect(staleAlert).toHaveClass("staff-workspace__notice", "staff-workspace__notice--error");
+    expect(staleAlert).toHaveTextContent(
       "Your entered review is still here.",
     );
     expect(targetSearch).toHaveValue("saffron");

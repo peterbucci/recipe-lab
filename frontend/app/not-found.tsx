@@ -2,8 +2,11 @@ import Link from "next/link";
 
 export default function NotFound() {
   return (
-    <main id="main-content" className="state-page">
-      <div className="empty-state empty-state--large">
+    <main
+      id="main-content"
+      className="state-page system-state-page system-state-page--not-found"
+    >
+      <div className="empty-state empty-state--large system-state-panel">
         <p className="eyebrow">Page not found</p>
         <h1>We couldn’t find that page.</h1>
         <p>Browse the recipes to find something to cook.</p>

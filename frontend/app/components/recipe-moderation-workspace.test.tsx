@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { RecipeModerationApiError } from "../../lib/recipe-moderation-api";
 import { AuthSessionProvider } from "./auth-session-provider";
 import { RecipeModerationWorkspace } from "./recipe-moderation-workspace";
 
@@ -99,6 +100,12 @@ describe("RecipeModerationWorkspace", () => {
       </AuthSessionProvider>,
     );
 
+    expect(screen.getByRole("main")).toHaveClass(
+      "staff-state-page",
+      "staff-state-page--moderation",
+      "staff-state-page--authorization",
+    );
+    expect(screen.getByRole("alert")).toHaveClass("staff-state-panel");
     expect(screen.getByRole("heading", { name: "We couldn’t find that page." })).toBeVisible();
     expect(screen.queryByText(/moderator/i)).not.toBeInTheDocument();
     expect(mocks.browse).not.toHaveBeenCalled();
@@ -117,13 +124,39 @@ describe("RecipeModerationWorkspace", () => {
       </AuthSessionProvider>,
     );
 
-    expect(await screen.findByRole("heading", { name: "Reported soup", level: 2 })).toBeVisible();
+    const detailHeading = await screen.findByRole("heading", {
+      name: "Reported soup",
+      level: 2,
+    });
+    expect(detailHeading).toBeVisible();
+    expect(detailHeading.closest("main")).toHaveClass(
+      "staff-workspace",
+      "staff-workspace--moderation",
+      "moderation-workspace",
+    );
+    expect(
+      screen.getByRole("heading", { name: "Recipe reports", level: 1 }).closest("header"),
+    ).toHaveClass("staff-workspace__header", "moderation-workspace__header");
+    expect(screen.getByRole("group", { name: "Filter moderation cases" })).toHaveClass(
+      "staff-workspace__filters",
+    );
+    const queueList = screen.getByRole("list", { name: "Open cases" });
+    expect(queueList).toHaveClass("staff-workspace__queue-list");
+    expect(queueList.closest("section")).toHaveClass("staff-workspace__queue");
+    expect(detailHeading.closest(".moderation-detail")).toHaveClass("staff-workspace__detail");
+    expect(detailHeading.closest(".moderation-workspace__layout")).toHaveClass(
+      "staff-workspace__layout",
+    );
     expect(screen.getByText("2 reporters")).toBeVisible();
     const evidence = screen.getByRole("heading", { name: "De-identified reports" }).closest("section");
     expect(evidence).not.toBeNull();
     expect(within(evidence!).getByText("Repeated affiliate links")).toBeVisible();
     expect(within(evidence!).queryByText(/reporter id|email/i)).not.toBeInTheDocument();
     expect(screen.getByText("Previous private note")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Community rules" })).toHaveClass(
+      "staff-workspace__resource-link",
+    );
+    expect(screen.queryByText("Catalog curation")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open public recipe" })).toHaveAttribute(
       "href",
       `/recipes/${RECIPE_ID}`,
@@ -143,5 +176,67 @@ describe("RecipeModerationWorkspace", () => {
       ),
     );
     expect(await screen.findByText(/moderation record was updated/i)).toBeVisible();
+  });
+
+  it("keeps a private note and retry identity through a stale moderation decision", async () => {
+    mocks.moderate
+      .mockRejectedValueOnce(
+        new RecipeModerationApiError(
+          "This moderation case changed before the action completed.",
+          409,
+          "recipe_moderation_conflict",
+        ),
+      )
+      .mockResolvedValueOnce({
+        recipe_version_id: RECIPE_ID,
+        action: "hide",
+        changed: true,
+        case_status: "open",
+        visibility_state: "moderation_hidden",
+        acted_at: NOW,
+      });
+    render(
+      <AuthSessionProvider
+        initialSession={{
+          status: "authenticated",
+          user: { id: MODERATOR_ID, handle: "morgan", display_name: "Morgan Moderator" },
+          capabilities: { review_ingredient_requests: false, moderate_recipe_reports: true },
+        }}
+      >
+        <RecipeModerationWorkspace />
+      </AuthSessionProvider>,
+    );
+
+    const note = await screen.findByLabelText("Private note (optional)");
+    fireEvent.change(note, { target: { value: "Keep this private note for retry." } });
+    fireEvent.click(screen.getByRole("button", { name: "Hide recipe" }));
+
+    const staleAlert = await screen.findByRole("alert");
+    expect(staleAlert).toHaveClass("staff-workspace__notice", "staff-workspace__notice--error");
+    expect(staleAlert).toHaveTextContent(/case changed.*private note is still here/i);
+    expect(note).toHaveValue("Keep this private note for retry.");
+    expect(mocks.key).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reload case" }));
+    await waitFor(() => expect(mocks.detail).toHaveBeenCalledTimes(2));
+    expect(note).toHaveValue("Keep this private note for retry.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide recipe" }));
+    await waitFor(() => expect(mocks.moderate).toHaveBeenCalledTimes(2));
+    expect(mocks.moderate).toHaveBeenNthCalledWith(
+      1,
+      RECIPE_ID,
+      "hide",
+      "Keep this private note for retry.",
+      "moderation-key",
+    );
+    expect(mocks.moderate).toHaveBeenNthCalledWith(
+      2,
+      RECIPE_ID,
+      "hide",
+      "Keep this private note for retry.",
+      "moderation-key",
+    );
+    expect(mocks.key).toHaveBeenCalledTimes(1);
   });
 });

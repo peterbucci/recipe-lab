@@ -132,6 +132,10 @@ EXPORT_POLICY = PackagingPolicy(
             "3ba45ac1db7c20101af2df96206df2643a4e5871",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/auth-callback-error-intermediate.png",
+            "853683bac0ec4b76388b4a99aff017f14e77048b",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/catalog-empty.png",
             "8e864b75b395244d23890516738570a5b65c8357",
         ),
@@ -192,8 +196,12 @@ EXPORT_POLICY = PackagingPolicy(
             "0f8a9be00bf124b4a740444d59aa3ab405c87b65",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/ingredient-request-staff-review-intermediate.png",
+            "45b83d25dbe38809fca85f9124e4f10e49df7853",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/ingredient-request-staff-review.png",
-            "b7a8819c2a21b468b69344a14ce86514daaedd30",
+            "8896567067ee403c5f558f87515352ff926b1829",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/my-recipes-intermediate-normal.png",
@@ -202,6 +210,10 @@ EXPORT_POLICY = PackagingPolicy(
         (
             "frontend/baselines/baseline-desktop-chromium/my-recipes-normal.png",
             "5c007c7a0665a07a117df640ceb2c1792bd8a801",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/onboarding-form-normal.png",
+            "c24099949ba1cee6110afd470e3ac0bad3224004",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-expired-session.png",
@@ -248,8 +260,16 @@ EXPORT_POLICY = PackagingPolicy(
             "fa461c6ba299d91a42194e0fd78a08fe302f4506",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/recipe-moderation-staff-review-intermediate.png",
+            "5d945e046955041e01df15f27a61622c35b11130",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/recipe-moderation-staff-review.png",
-            "e2c2bfa655fe176d0708d61cc243819d93e8a64b",
+            "68919f6539fd98d2a9ec2fbec54289076da7b4d3",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/stale-curation-decision.png",
+            "c200612cf3ca0ea7b14d4433ad6b46d60fc1e47e",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/catalog-normal.png",
@@ -288,6 +308,10 @@ EXPORT_POLICY = PackagingPolicy(
             "f93ec9a9d6138aed79d381f1d4cf5cdbd987777b",
         ),
         (
+            "frontend/baselines/baseline-phone-chromium/global-not-found.png",
+            "e3387e8032a67469758c088747fc63c86d348798",
+        ),
+        (
             "frontend/baselines/baseline-phone-chromium/home-account-navigation.png",
             "84f935932c50e76f06b0e7ee816c5158e47f150d",
         ),
@@ -297,7 +321,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/ingredient-request-staff-review.png",
-            "5073985e5178850eb9c52558f949e4742ff1d682",
+            "b2ad02af0316a57e799a248f220c6e4432826c72",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/my-recipes-normal.png",
@@ -321,7 +345,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-moderation-staff-review.png",
-            "5f809e7352566117594f2c5cb6a9349e75ca144f",
+            "af1c56a128dfb5356eefd8aaba59a40706da1c8c",
         ),
     ),
 )

@@ -22,8 +22,11 @@ import {
 
 function unavailablePage() {
   return (
-    <main id="main-content" className="state-page">
-      <div className="error-state" role="alert">
+    <main
+      id="main-content"
+      className="state-page staff-state-page staff-state-page--curation staff-state-page--authorization"
+    >
+      <div className="error-state staff-state-panel" role="alert">
         <p className="eyebrow">Page unavailable</p>
         <h1>We couldn’t find that page.</h1>
         <p>Browse the recipe collection to find something to cook.</p>
@@ -46,8 +49,15 @@ export function IngredientRequestReviewWorkspace() {
 
   if (state.phase === "loading") {
     return (
-      <main id="main-content" className="state-page">
-        <div className="loading-state" role="status" aria-live="polite">
+      <main
+        id="main-content"
+        className="state-page staff-state-page staff-state-page--curation staff-state-page--loading"
+      >
+        <div
+          className="loading-state staff-state-panel"
+          role="status"
+          aria-live="polite"
+        >
           <span className="loading-state__pulse" aria-hidden="true" />
           <strong>Checking review access…</strong>
           <span>Loading your account permissions.</span>
@@ -58,8 +68,11 @@ export function IngredientRequestReviewWorkspace() {
 
   if (state.phase === "error") {
     return (
-      <main id="main-content" className="state-page">
-        <div className="error-state" role="alert">
+      <main
+        id="main-content"
+        className="state-page staff-state-page staff-state-page--curation staff-state-page--error"
+      >
+        <div className="error-state staff-state-panel" role="alert">
           <p className="eyebrow">Account unavailable</p>
           <h1>We couldn’t check access.</h1>
           <p>Try checking your account again, or return to the recipe collection.</p>
@@ -253,8 +266,11 @@ function AuthorizedReviewWorkspace({
   }
 
   return (
-    <main id="main-content" className="page-shell curation-page">
-      <header className="page-intro curation-page__intro">
+    <main
+      id="main-content"
+      className="page-shell staff-workspace staff-workspace--curation curation-page"
+    >
+      <header className="page-intro staff-workspace__header curation-page__intro">
         <p className="eyebrow">Catalog curation</p>
         <h1>Review ingredient requests.</h1>
         <p>
@@ -271,7 +287,7 @@ function AuthorizedReviewWorkspace({
       {workspaceStatus ? (
         <div
           ref={workspaceStatusRef}
-          className="curation-success-summary"
+          className="staff-workspace__notice staff-workspace__notice--success curation-success-summary"
           role="status"
           aria-live="polite"
           tabIndex={-1}
@@ -281,7 +297,7 @@ function AuthorizedReviewWorkspace({
         </div>
       ) : null}
 
-      <div className="curation-workspace">
+      <div className="staff-workspace__layout curation-workspace">
         <IngredientRequestReviewQueue
           queue={queue}
           queueError={queueError}
@@ -294,7 +310,7 @@ function AuthorizedReviewWorkspace({
         />
 
         <section
-          className="staff-panel-surface curation-detail"
+          className="staff-panel-surface staff-workspace__detail curation-detail"
           aria-labelledby="curation-detail-heading"
         >
           {!selectedRequestId && !queueLoading ? (
@@ -309,7 +325,10 @@ function AuthorizedReviewWorkspace({
             </div>
           ) : null}
           {detailError ? (
-            <div className="curation-panel-state" role="alert">
+            <div
+              className="staff-workspace__notice staff-workspace__notice--error curation-panel-state"
+              role="alert"
+            >
               <h2 id="curation-detail-heading">Request unavailable</h2>
               <p>{detailError}</p>
               <button
