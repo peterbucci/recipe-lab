@@ -88,10 +88,20 @@ image is produced from the same sanitized fixture contract.
 | ----------------------------------- | ------------------------------------- | -------------------------- |
 | Home, normal                        | `home-normal`                         | `home-normal`              |
 | Home with account navigation open   | `home-account-navigation`             | `home-account-navigation`  |
+| Home, intermediate width            | `home-intermediate-normal`            | —                          |
 | Catalog, normal                     | `catalog-normal`                      | `catalog-normal`           |
+| Catalog, intermediate width         | `catalog-intermediate-normal`         | —                          |
 | Catalog, empty                      | `catalog-empty`                       | —                          |
 | Recipe detail, normal               | `recipe-detail-normal`                | `recipe-detail-normal`     |
+| Recipe detail, intermediate width   | `recipe-detail-intermediate-normal`   | —                          |
+| Recipe instructions                 | `recipe-instructions-normal`          | `recipe-instructions-normal` |
+| Recipe history                      | `recipe-detail-history`               | `recipe-detail-history`    |
 | Recipe comparison, normal           | `recipe-comparison-normal`            | `recipe-comparison-normal` |
+| Recipe comparison, intermediate     | `recipe-comparison-intermediate-normal` | —                        |
+| Cook profile, normal                | `cook-profile-normal`                 | `cook-profile-normal`      |
+| Community rules, normal             | `community-rules-normal`              | `community-rules-normal`   |
+| Recipe detail, failure              | `recipe-detail-error`                 | —                          |
+| Recipe detail, unavailable          | `recipe-detail-unavailable`           | —                          |
 | My Recipes, private drafts          | `my-recipes-normal`                   | `my-recipes-normal`        |
 | Draft editor with validation        | `draft-editor-validation`             | `draft-editor-validation`  |
 | Similarity and publication review   | `draft-similarity-publication-review` | `draft-similarity-publication-review` |
@@ -101,12 +111,15 @@ image is produced from the same sanitized fixture contract.
 | Private workspace, failure          | `private-workspace-failure`           | —                          |
 | Private workspace, expired session  | `private-workspace-expired-session`   | —                          |
 
-Normal, loading, empty, failure, validation, review, publication, and
-expired-session behavior are therefore represented where they apply without
-making every combinatorial state a separate screenshot. The comparison,
-similarity, ingredient-review, and moderation captures keep their distinct
-explanations and controls visible; they are not reduced to generic status
-cards.
+Normal, intermediate, loading, empty, failure, unavailable, validation,
+review, publication, and expired-session behavior are therefore represented
+where they apply without making every combinatorial state a separate
+screenshot. The comparison, similarity, ingredient-review, and moderation
+captures keep their distinct explanations and controls visible; they are not
+reduced to generic status cards. Public recipe, comparison, cook-profile, and
+community-rules journeys also run at 1440, 820, and 390 CSS pixels with Axe and
+horizontal-overflow checks. The public recipe failure journey proves that the
+route-level retry performs a fresh server fetch before returning to the recipe.
 
 Every captured stable state receives automated Axe checks for WCAG 2.0 A/AA
 and 2.1 A/AA plus a root horizontal-overflow assertion. Across each project,
