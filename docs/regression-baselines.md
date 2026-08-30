@@ -102,7 +102,9 @@ image is produced from the same sanitized fixture contract.
 | Community rules, normal             | `community-rules-normal`              | `community-rules-normal`   |
 | Recipe detail, failure              | `recipe-detail-error`                 | —                          |
 | Recipe detail, unavailable          | `recipe-detail-unavailable`           | —                          |
+| Sign-in, intermediate width         | `account-access-intermediate-normal`  | —                          |
 | My Recipes, private drafts          | `my-recipes-normal`                   | `my-recipes-normal`        |
+| My Recipes, intermediate width      | `my-recipes-intermediate-normal`      | —                          |
 | Draft editor with validation        | `draft-editor-validation`             | `draft-editor-validation`  |
 | Similarity and publication review   | `draft-similarity-publication-review` | `draft-similarity-publication-review` |
 | Ingredient request and staff review | `ingredient-request-staff-review`     | `ingredient-request-staff-review` |
@@ -120,6 +122,11 @@ reduced to generic status cards. Public recipe, comparison, cook-profile, and
 community-rules journeys also run at 1440, 820, and 390 CSS pixels with Axe and
 horizontal-overflow checks. The public recipe failure journey proves that the
 route-level retry performs a fresh server fetch before returning to the recipe.
+The account contract runs anonymous sign-in plus authenticated My Recipes,
+saved recipes, ingredient-request history, and settings at the same three
+reviewed widths. Its intermediate keyboard journey enters the account menu and
+reaches a private workspace without putting account or request identifiers in
+the URL, screenshot, or fixture audit.
 
 Every captured stable state receives automated Axe checks for WCAG 2.0 A/AA
 and 2.1 A/AA plus a root horizontal-overflow assertion. Across each project,
