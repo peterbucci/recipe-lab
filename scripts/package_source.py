@@ -125,51 +125,51 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-access-intermediate-normal.png",
-            "ee926a2e05e6e112c3c2f2aa6a71660a5be91320",
+            "9c85b67a3eeb55d03299a81105d46d0122214656",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/authoring-entry-desktop-normal.png",
-            "7f2daa7518a8c04b7805805615727f5eb89a1e78",
+            "0ad6eae0cdba4635d379c2d23566d7e6a2ed7629",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/auth-callback-error-intermediate.png",
-            "343913e5c4363d554f5f0823fef5ae5b1fa2e449",
+            "853683bac0ec4b76388b4a99aff017f14e77048b",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/catalog-empty.png",
-            "f308642c99a439dd28c6042194998afb9296ec5f",
+            "4c10216e9925230d142d5c58934a5268eb130ff2",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/catalog-intermediate-normal.png",
-            "4f85eaa9651ee95896646eecee92a72dc8f34238",
+            "1b9a0f0ec1be4e5e0352dc4e2686c52637f13e23",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/catalog-normal.png",
-            "7ca8bd1e52cb0db7580dcfbe558ea7eeca587b96",
+            "80c611ea547669318901949bdcbc96b545646e10",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/community-rules-normal.png",
-            "2b9825bf54f75bc9dcdd3b3c363f84968f58313c",
+            "0367a142941b3062b5b8b45b9f38194c39814e72",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/cook-profile-normal.png",
-            "388d8d991ec8fbe8693195786e937538822c22bb",
+            "46526819f6e99447fbc4750973fba170e6214935",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-discard-confirmation.png",
-            "a63c2411c08e27423db0cf8603822ff6bce7d680",
+            "e721bad90041e1bdd0ef8baea17d176005e9bf0f",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-editor-intermediate-normal.png",
-            "1902fa5efde403a01a01098d2a52cda4548a8346",
+            "da3c8fb08275052927be147265bf366cc0026738",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-editor-validation.png",
-            "c3657d3862f08b31c89e1243980d6246f438a74b",
+            "e30ab43f5a473f4923075c5882efc0487a395872",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-ingredient-editor-normal.png",
-            "ffa3aa63886dd0d06534061bfd65d84050b76063",
+            "3947dd0040d460aa4f7d852f3bcc3e0be6404d2b",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-instruction-editor-expanded.png",
@@ -181,63 +181,63 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-similarity-publication-review.png",
-            "4a1464a8ca4ccedae1183afd30d3660b8939ac0a",
+            "24e8bfb1d7fc68602f5938fdc28aa9e25f4c9fb9",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-account-navigation.png",
-            "ccacdd63993797fad65f7b04642372d451f92129",
+            "501a1f6f8a600df34c6fb8edf86e6a432d0aa1b4",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-intermediate-normal.png",
-            "f4182d6d7741c460fe9de17dd3e52067d649c69f",
+            "30c25f06e359bb48672b2e584059f4ac56b1efd4",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-normal.png",
-            "34bbff584cb9a46e38634603dc3d635dad5bea38",
+            "e30b30191b0bc52e2de9cc6a1eaab2eb62407031",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/ingredient-request-staff-review-intermediate.png",
-            "677f6a9cb39950cc7dc0e8e6bd1ae32743bdea5e",
+            "45b83d25dbe38809fca85f9124e4f10e49df7853",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/ingredient-request-staff-review.png",
-            "87becb6ce88c6d99df5a5c557feca6f12cfe61a4",
+            "8896567067ee403c5f558f87515352ff926b1829",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/my-recipes-intermediate-normal.png",
-            "3b320e0544c4749acbf68650f5177ddb6f9c3176",
+            "ebfa85242a24fd4518d66c9f18a0951377bc9e0d",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/my-recipes-normal.png",
-            "a805e960c5e28ac3f14db73f673f25007a8f4134",
+            "5c007c7a0665a07a117df640ceb2c1792bd8a801",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/onboarding-form-normal.png",
-            "838af26800ba789bb29fbfca2a42885b104538c7",
+            "1754807e6e45e64cd8e957a4daba61a41d688e1b",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-expired-session.png",
-            "cc5f125fa97ef69cf71e99a3fe9df07e3f9d4fbf",
+            "4e27c544ad260a091c7f135818942b2b4dedbf2f",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-failure.png",
-            "c97ceb9e7c4b2b46ba6f74d03fea38e327201efd",
+            "9402168e83c98cccdd1dc8558e7b6e8b2fbaf646",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-loading.png",
-            "82ce5a9d8e4a7c4dbbe72a8451caabfafed45700",
+            "f2fe23aac4726bd13c1c5a9356c94e4d0f71e11f",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-comparison-intermediate-normal.png",
-            "72e3c3874fa4548f58a2106f1fc7c5cc5582f3b1",
+            "79f8928c9549755b6d2e81bcad210bbd02dfeb3b",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-comparison-normal.png",
-            "b5ee905d6312a5721ad953b91b5164113b1de2eb",
+            "ffa056f083f7f4fa315461259847c8dfd8fce7b2",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-error.png",
-            "4b6f8a6eb5e6d44f49ea98886d0868347a007f81",
+            "e8fb64d94bf661050c38e90136782a3cdb34b19e",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-history.png",
@@ -245,15 +245,15 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-intermediate-normal.png",
-            "79b325e35efdd45added856f82a94a939b729da8",
+            "5e7bf35cef753dcfdb7d4077686eee305c9904ba",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-normal.png",
-            "c07805ec4b21e757be0c12c33e7cd82c89536bfa",
+            "2fee63182a989b93cb263633abf3ea69a2eee7d0",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-unavailable.png",
-            "ba3456d4f18d26e98b1e76ea32a9c2aae0f1ec3e",
+            "03c7de2ed117ac2cf9e340e896df5c94113f805a",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-instructions-normal.png",
@@ -261,35 +261,35 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-moderation-staff-review-intermediate.png",
-            "b4df4b1d7d026a19d49f0e93af990200d8cb23f1",
+            "5d945e046955041e01df15f27a61622c35b11130",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-moderation-staff-review.png",
-            "ed8f8b0a7093e612788ac91f84655ace80f5c3b2",
+            "68919f6539fd98d2a9ec2fbec54289076da7b4d3",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/stale-curation-decision.png",
-            "b3a50ec6f49ba314cda086f865241c5a809b6e2f",
+            "c200612cf3ca0ea7b14d4433ad6b46d60fc1e47e",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/catalog-normal.png",
-            "f2f184936f521c80a261e7ea7095f0716d0b1066",
+            "2c84c1caad5456c4e92c0b3acd9eea17dfab001e",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/community-rules-normal.png",
-            "d9bcd95bc76820c3b2540837f60c7cae0a4ddb08",
+            "900f22cb1c9e79a52cc6a6aadf7ec7030bc1ef00",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/cook-profile-normal.png",
-            "50f84caecdd7453c4cab0c61a9fdc32f72c9387f",
+            "4f99775566ba775fbd3ed4c66fbea21d7a872656",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-editor-validation.png",
-            "aa6275106769aa3d4d4fc884c0884c7008d6bf7a",
+            "19719c2c398f0cc97b297e7b86bbac46fa666a14",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-ingredient-editor-normal.png",
-            "4df3f4cb90edc59e61826518a645c122a34b2f28",
+            "42a910b4939907668fa41f2d55f400eeda24b60b",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-instruction-editor-expanded.png",
@@ -301,35 +301,35 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-similarity-publication-review.png",
-            "ec68f2699fcba16859d535e90461d81601daf730",
+            "c5fa64d5913adee0b3f8faa088852c67c92c8344",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-unresolved-ingredient-validation.png",
-            "d4de55e2e3c15073a8fe72ad3fdda55d76f04470",
+            "7abdac7433d5882218a8801bee1cf955e2650a17",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/global-not-found.png",
-            "c1bcc8a83773fff4c7ec9087a3ca54c16d65861a",
+            "43f02a1e9e5da1803597a7a8ff1b46ad633b5e48",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-account-navigation.png",
-            "29fe9e9f1708d64c99bddc591b8d9d02554ffd9a",
+            "84f935932c50e76f06b0e7ee816c5158e47f150d",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-normal.png",
-            "f687cf937208afd987c6e6b133e0a8a96b3b8499",
+            "049eaa2fe10dbafe9a159c177915be99e0854bcf",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/ingredient-request-staff-review.png",
-            "4e49b4b11a1591a1750e6c1608d618e695f562c1",
+            "b2ad02af0316a57e799a248f220c6e4432826c72",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/my-recipes-normal.png",
-            "4b2d45f5bd7b707d67c67bd8ee9cd65b93ba35bb",
+            "ef25b8c3e413c0fae0de860645366c098085ca38",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-comparison-normal.png",
-            "e25baf9d30ed939faeb4fba7edd43d3215960936",
+            "8ab33df9b667b5b7c4b52e15bb1630f0b442c316",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-detail-history.png",
@@ -337,7 +337,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-detail-normal.png",
-            "83c25261d1a243d1d9c73decabc405b66cb4b25b",
+            "4081b01b27990985334120a1a196a812a9947a5b",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-instructions-normal.png",
@@ -345,7 +345,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-moderation-staff-review.png",
-            "f28702932b65ce3ed79cae5746ac11a7d67a9faf",
+            "af1c56a128dfb5356eefd8aaba59a40706da1c8c",
         ),
     ),
 )
