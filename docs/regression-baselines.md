@@ -56,7 +56,7 @@ The fixture fixes every input that would otherwise introduce pixel drift:
 | Color and motion            | Light color scheme, `prefers-reduced-motion: reduce`                                          |
 | Clock                       | `2026-08-27T12:00:00.000Z`                                                                    |
 | Randomness                  | Seeded Web Crypto UUID sequence and fixed `Math.random`                                       |
-| Identities                  | Reviewed UUID constants and the invented `Baseline Cook` / `baseline-cook` account            |
+| Identities                  | Reviewed UUID constants and separate invented cook, curator, moderator, and onboarding accounts |
 | Content                     | Reviewed synthetic recipe, draft, request, comparison, and moderation fixtures only           |
 | Fonts                       | The Geist WOFF2 shipped with pinned Next.js 16.3.1, injected under deterministic test aliases |
 | Network                     | New loopback-only servers for every run; service workers blocked                              |
@@ -102,7 +102,10 @@ image is produced from the same sanitized fixture contract.
 | Community rules, normal             | `community-rules-normal`              | `community-rules-normal`   |
 | Recipe detail, failure              | `recipe-detail-error`                 | —                          |
 | Recipe detail, unavailable          | `recipe-detail-unavailable`           | —                          |
+| Global route, not found             | —                                     | `global-not-found`         |
 | Sign-in, intermediate width         | `account-access-intermediate-normal`  | —                          |
+| Onboarding form                     | `onboarding-form-normal`              | —                          |
+| Auth callback error, intermediate   | `auth-callback-error-intermediate`    | —                          |
 | My Recipes, private drafts          | `my-recipes-normal`                   | `my-recipes-normal`        |
 | My Recipes, intermediate width      | `my-recipes-intermediate-normal`      | —                          |
 | New recipe entry                    | `authoring-entry-desktop-normal`      | —                          |
@@ -114,14 +117,18 @@ image is produced from the same sanitized fixture contract.
 | Draft editor with validation        | `draft-editor-validation`             | `draft-editor-validation`  |
 | Similarity and publication review   | `draft-similarity-publication-review` | `draft-similarity-publication-review` |
 | Draft discard confirmation          | `draft-discard-confirmation`          | —                          |
-| Ingredient request and staff review | `ingredient-request-staff-review`     | `ingredient-request-staff-review` |
-| Recipe moderation staff review      | `recipe-moderation-staff-review`      | `recipe-moderation-staff-review` |
+| Curator ingredient-request review   | `ingredient-request-staff-review`     | `ingredient-request-staff-review` |
+| Curator review, intermediate        | `ingredient-request-staff-review-intermediate` | —                    |
+| Curator decision, stale conflict    | `stale-curation-decision`             | —                          |
+| Moderator recipe-report review      | `recipe-moderation-staff-review`      | `recipe-moderation-staff-review` |
+| Moderator review, intermediate      | `recipe-moderation-staff-review-intermediate` | —                       |
 | Private workspace, loading          | `private-workspace-loading`           | —                          |
 | Private workspace, failure          | `private-workspace-failure`           | —                          |
 | Private workspace, expired session  | `private-workspace-expired-session`   | —                          |
 
-Normal, intermediate, loading, empty, failure, unavailable, validation,
-review, publication, and expired-session behavior are therefore represented
+Normal, intermediate, loading, empty, failure, unavailable, not-found,
+authorization, stale, retry, validation, review, publication, and
+expired-session behavior are therefore represented
 where they apply without making every combinatorial state a separate
 screenshot. The authoring evidence covers private draft creation, a complete
 editor at its intermediate layout, ingredient and instruction editing,
@@ -138,7 +145,56 @@ The account contract runs anonymous sign-in plus authenticated My Recipes,
 saved recipes, ingredient-request history, and settings at the same three
 reviewed widths. Its intermediate keyboard journey enters the account menu and
 reaches a private workspace without putting account or request identifiers in
-the URL, screenshot, or fixture audit.
+the URL, screenshot, or fixture audit. Onboarding, callback failure, and the
+global not-found route retain one representative visual checkpoint each rather
+than duplicating the same system-state treatment across every width.
+
+### RCP-46 source theme-family inventory
+
+`frontend/route-theme-inventory.ts` is the plain source inventory for the 20
+App Router page modules and 26 convention-based `loading.tsx`, `error.tsx`, and
+`not-found.tsx` modules. Its Vitest contract recursively discovers both sets
+under `frontend/app` and requires exact equality, so an added, removed, or moved
+route cannot remain silently unassigned. This is a source-ownership check, not
+a compatibility layer and not a request to render or screenshot every route.
+
+| Reviewed family | Page routes | Page modules | Route-state modules |
+| --- | --- | ---: | ---: |
+| Discovery | `/`, `/recipes` | 2 | 2 |
+| Public context | `/community-rules`, `/cooks/[handle]`, `/recipes/[recipeVersionId]`, `/recipes/[recipeVersionId]/compare` | 4 | 9 |
+| Account access | `/account/deleted`, `/auth/callback`, `/onboarding`, `/sign-in` | 4 | 4 |
+| Account workspace | `/account/ingredient-requests`, `/account/recipe-drafts`, `/account/recipes`, `/account/saved-recipes`, `/account/settings` | 5 | 5 |
+| Recipe authoring | `/account/recipe-drafts/[draftId]`, `/recipes/[recipeVersionId]/fork`, `/recipes/new` | 3 | 3 |
+| Staff curation | `/catalog/ingredient-requests` | 1 | 1 |
+| Staff moderation | `/moderation/recipes` | 1 | 1 |
+| System state | No page route; owns the root unmatched-route boundary | 0 | 1 |
+
+The counts are descriptive review boundaries, not quotas. Any legitimate new
+page or convention state must be assigned to the appropriate family in the
+same change; deleting a module must remove its inventory entry.
+
+### RCP-46F staff route and state inventory
+
+The executable inventory is
+`frontend/e2e/rcp46f-staff-certification-matrix.ts`; its focused unit contract
+keeps the two routes, two capabilities, three widths, and nine matrix cases
+explicit. The deterministic browser suite runs every case at 1440 by 900, 820
+by 1000, and 390 by 844 CSS pixels without creating a screenshot for every
+combination.
+
+| Synthetic session | Authorized route | Only staff capability | Representative states swept at every width | Cross-role denial |
+| --- | --- | --- | --- | --- |
+| Curator | `/catalog/ingredient-requests` | `review_ingredient_requests` | normal, account-permission loading, empty queue, and stale decision followed by current-state load and retry | `/moderation/recipes` renders the ordinary not-found treatment without requesting moderator data |
+| Moderator | `/moderation/recipes` | `moderate_recipe_reports` | normal, queue error followed by retry, and missing case detail | `/catalog/ingredient-requests` renders the ordinary not-found treatment without requesting curator data |
+
+Each stable point in that sweep receives the root overflow, automated Axe, and
+visible-private-material checks. The fixture also rejects direct cross-role API
+reads with a generic 403 response and no queue or detail payload. Curator and
+moderator sessions use distinct invented accounts and never combine their
+capabilities. Existing normal screenshots remain at desktop and phone; the
+additional visual evidence is limited to the two intermediate layouts and one
+desktop stale-curator decision. This keeps role and breakpoint evidence visible
+without turning the functional state sweep into a screenshot matrix.
 
 Every captured stable state receives automated Axe checks for WCAG 2.0 A/AA
 and 2.1 A/AA plus a root horizontal-overflow assertion. Across each project,
