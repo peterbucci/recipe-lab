@@ -234,13 +234,19 @@ export function IngredientRequestDecisionForm({
   );
 
   return (
-    <section className="curation-decision" aria-labelledby={fieldId("heading")}>
+    <section
+      className="staff-workspace__decision curation-decision"
+      aria-labelledby={fieldId("heading")}
+    >
       <h3 id={fieldId("heading")}>
         {detail.status === "pending" ? "Record a decision" : "Your unsubmitted review"}
       </h3>
       {detail.status !== "pending" ? <RecordedDecision detail={detail} compact /> : null}
       {formError ? (
-        <div className="curation-form-alert" role="alert">
+        <div
+          className="staff-workspace__notice staff-workspace__notice--error curation-form-alert"
+          role="alert"
+        >
           <p>{formError}</p>
           {staleConflict ? (
             <button

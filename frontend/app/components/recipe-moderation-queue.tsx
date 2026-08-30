@@ -27,7 +27,7 @@ export function RecipeModerationQueue({
 }: RecipeModerationQueueProps) {
   return (
     <section
-      className="staff-panel-surface staff-sticky-queue moderation-queue"
+      className="staff-panel-surface staff-sticky-queue staff-workspace__queue moderation-queue"
       aria-labelledby="moderation-queue-title"
     >
       <div className="moderation-section-heading">
@@ -37,7 +37,10 @@ export function RecipeModerationQueue({
       {queueLoading ? (
         <p role="status">Loading recipe-report cases…</p>
       ) : queue?.items.length ? (
-        <ul>
+        <ul
+          className="staff-workspace__queue-list"
+          aria-label={`${caseStatus === "open" ? "Open" : "Resolved"} cases`}
+        >
           {queue.items.map((item) => (
             <li key={item.recipe_version_id}>
               <button
@@ -59,7 +62,10 @@ export function RecipeModerationQueue({
         <p>No {caseStatus} recipe-report cases.</p>
       )}
       {queue && queue.total_pages > 1 ? (
-        <nav className="pagination" aria-label="Moderation queue pages">
+        <nav
+          className="staff-workspace__pagination pagination"
+          aria-label="Moderation queue pages"
+        >
           <button
             className="button button--quiet"
             type="button"

@@ -117,7 +117,10 @@ export function RecipeModerationCaseDetail({
         </ol>
       </section>
 
-      <section className="moderation-actions" aria-labelledby="moderation-actions-title">
+      <section
+        className="staff-workspace__decision moderation-actions"
+        aria-labelledby="moderation-actions-title"
+      >
         <h3 id="moderation-actions-title">Moderation action</h3>
         <p>Private notes are visible only to authorized moderators.</p>
         <div className="form-field">
@@ -134,7 +137,12 @@ export function RecipeModerationCaseDetail({
           </small>
         </div>
         {actionError ? (
-          <div className="form-alert" role="alert" tabIndex={-1} ref={actionErrorRef}>
+          <div
+            className="staff-workspace__notice staff-workspace__notice--error form-alert"
+            role="alert"
+            tabIndex={-1}
+            ref={actionErrorRef}
+          >
             <p>{actionError}</p>
             <button className="button button--quiet" type="button" onClick={onReload}>
               Reload case

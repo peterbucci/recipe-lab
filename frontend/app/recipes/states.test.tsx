@@ -140,9 +140,18 @@ describe("recipe route states", () => {
   it("gives a missing page a plain-language route back to recipes", () => {
     render(<RootNotFound />);
 
+    expect(screen.getByRole("main")).toHaveClass(
+      "system-state-page",
+      "system-state-page--not-found",
+    );
     expect(
       screen.getByRole("heading", { name: "We couldn’t find that page." }),
     ).toBeInTheDocument();
+    expect(
+      screen
+        .getByRole("heading", { name: "We couldn’t find that page." })
+        .closest(".system-state-panel"),
+    ).not.toBeNull();
     expect(
       screen.getByText("Browse the recipes to find something to cook."),
     ).toBeInTheDocument();

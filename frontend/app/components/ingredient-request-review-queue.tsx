@@ -19,7 +19,7 @@ export function IngredientRequestStatusFilters({
 }: IngredientRequestStatusFiltersProps) {
   return (
     <nav
-      className="staff-filter-strip curation-filters"
+      className="staff-filter-strip staff-workspace__filters curation-filters"
       aria-label="Ingredient request status filters"
     >
       {STATUS_FILTERS.map((filter) => (
@@ -60,7 +60,7 @@ export function IngredientRequestReviewQueue({
 }: IngredientRequestReviewQueueProps) {
   return (
     <section
-      className="staff-panel-surface staff-sticky-queue curation-queue"
+      className="staff-panel-surface staff-sticky-queue staff-workspace__queue curation-queue"
       aria-labelledby="curation-queue-heading"
     >
       <div className="curation-panel-heading">
@@ -81,7 +81,10 @@ export function IngredientRequestReviewQueue({
         </div>
       ) : null}
       {queueError ? (
-        <div className="curation-panel-state" role="alert">
+        <div
+          className="staff-workspace__notice staff-workspace__notice--error curation-panel-state"
+          role="alert"
+        >
           <p>{queueError}</p>
           <button
             className="button button--secondary"
@@ -100,7 +103,7 @@ export function IngredientRequestReviewQueue({
       ) : null}
       {queue && queue.items.length > 0 ? (
         <ol
-          className="curation-request-list"
+          className="staff-workspace__queue-list curation-request-list"
           aria-label={`${STATUS_LABELS[requestStatus]} requests`}
         >
           {queue.items.map((item) => (
@@ -121,7 +124,10 @@ export function IngredientRequestReviewQueue({
         </ol>
       ) : null}
       {queue && queue.total_pages > 1 ? (
-        <nav className="curation-pagination" aria-label="Ingredient request pages">
+        <nav
+          className="staff-workspace__pagination curation-pagination"
+          aria-label="Ingredient request pages"
+        >
           <button
             className="button button--quiet"
             type="button"

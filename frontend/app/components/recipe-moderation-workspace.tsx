@@ -16,8 +16,11 @@ const STATUS_FILTERS: ReadonlyArray<{ value: RecipeModerationStatus; label: stri
 
 function unavailablePage() {
   return (
-    <main id="main-content" className="state-page">
-      <div className="error-state" role="alert">
+    <main
+      id="main-content"
+      className="state-page staff-state-page staff-state-page--moderation staff-state-page--authorization"
+    >
+      <div className="error-state staff-state-panel" role="alert">
         <p className="eyebrow">Page unavailable</p>
         <h1>We couldn’t find that page.</h1>
         <p>Browse the recipe collection to find something to cook.</p>
@@ -40,8 +43,15 @@ export function RecipeModerationWorkspace() {
 
   if (state.phase === "loading") {
     return (
-      <main id="main-content" className="state-page">
-        <div className="loading-state" role="status" aria-live="polite">
+      <main
+        id="main-content"
+        className="state-page staff-state-page staff-state-page--moderation staff-state-page--loading"
+      >
+        <div
+          className="loading-state staff-state-panel"
+          role="status"
+          aria-live="polite"
+        >
           <span className="loading-state__pulse" aria-hidden="true" />
           <strong>Checking moderation access…</strong>
           <span>Loading your account permissions.</span>
@@ -51,8 +61,11 @@ export function RecipeModerationWorkspace() {
   }
   if (state.phase === "error") {
     return (
-      <main id="main-content" className="state-page">
-        <div className="error-state" role="alert">
+      <main
+        id="main-content"
+        className="state-page staff-state-page staff-state-page--moderation staff-state-page--error"
+      >
+        <div className="error-state staff-state-panel" role="alert">
           <p className="eyebrow">Account unavailable</p>
           <h1>We couldn’t check access.</h1>
           <p>Try checking your account again, or return to the recipe collection.</p>
@@ -114,18 +127,23 @@ function AuthorizedModerationWorkspace({
   } = useRecipeModerationWorkspace({ onAuthorizationLost });
 
   return (
-    <main id="main-content" className="page-shell moderation-workspace">
-      <header className="moderation-workspace__header">
-        <div>
+    <main
+      id="main-content"
+      className="page-shell staff-workspace staff-workspace--moderation moderation-workspace"
+    >
+      <header className="staff-workspace__header moderation-workspace__header">
+        <div className="staff-workspace__header-copy">
           <p className="eyebrow">Private moderator workspace</p>
           <h1>Recipe reports</h1>
           <p>Review aggregate cases without exposing who submitted a report.</p>
         </div>
-        <Link href="/community-rules">Community rules</Link>
+        <Link className="staff-workspace__resource-link" href="/community-rules">
+          Community rules
+        </Link>
       </header>
 
       <div
-        className="staff-filter-strip moderation-workspace__filters"
+        className="staff-filter-strip staff-workspace__filters moderation-workspace__filters"
         role="group"
         aria-label="Filter moderation cases"
       >
@@ -142,7 +160,10 @@ function AuthorizedModerationWorkspace({
       </div>
 
       {queueError ? (
-        <div className="form-alert" role="alert">
+        <div
+          className="staff-workspace__notice staff-workspace__notice--error form-alert"
+          role="alert"
+        >
           <p>{queueError}</p>
           <button className="button button--secondary" type="button" onClick={reloadQueue}>
             Retry queue
@@ -150,7 +171,7 @@ function AuthorizedModerationWorkspace({
         </div>
       ) : null}
 
-      <div className="moderation-workspace__layout">
+      <div className="staff-workspace__layout moderation-workspace__layout">
         <RecipeModerationQueue
           caseStatus={caseStatus}
           page={page}
@@ -163,7 +184,7 @@ function AuthorizedModerationWorkspace({
         />
 
         <section
-          className="staff-panel-surface moderation-detail"
+          className="staff-panel-surface staff-workspace__detail moderation-detail"
           aria-labelledby="moderation-detail-title"
         >
           {!selectedId ? (
@@ -176,7 +197,10 @@ function AuthorizedModerationWorkspace({
               <h2 id="moderation-detail-title">Loading case…</h2>
             </div>
           ) : detailError ? (
-            <div className="form-alert" role="alert">
+            <div
+              className="staff-workspace__notice staff-workspace__notice--error form-alert"
+              role="alert"
+            >
               <h2 id="moderation-detail-title">Case unavailable</h2>
               <p>{detailError}</p>
               <button className="button button--secondary" type="button" onClick={reloadDetail}>
@@ -198,7 +222,7 @@ function AuthorizedModerationWorkspace({
         </section>
       </div>
       <p
-        className="moderation-workspace__status"
+        className="staff-workspace__status moderation-workspace__status"
         role="status"
         aria-live="polite"
         tabIndex={-1}
