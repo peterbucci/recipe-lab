@@ -161,6 +161,7 @@ describe("RecipeDetailView", () => {
     expect(
       screen.getByRole("heading", { name: /lower-sugar pecan carrot cake/i, level: 1 }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Recipe", { selector: ".eyebrow" })).toBeVisible();
     expect(screen.queryByText("Version", { selector: ".eyebrow" })).toBeNull();
     expect(screen.queryByText(/version \d+/i)).toBeNull();
     expect(container.querySelector(".recipe-detail__artwork")).toHaveAttribute(

@@ -1,8 +1,11 @@
 export default function RecipeCompareLoading() {
   return (
-    <main id="main-content" className="page-shell page-shell--detail">
+    <main
+      id="main-content"
+      className="page-shell page-shell--detail recipe-comparison-page recipe-comparison-page--loading"
+    >
       <div
-        className="loading-state loading-state--detail"
+        className="loading-state loading-state--detail loading-state--public"
         role="status"
         aria-live="polite"
       >

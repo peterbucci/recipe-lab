@@ -9,7 +9,7 @@ interface RecipeCompareErrorProps {
 
 export default function RecipeCompareError({ retry }: RecipeCompareErrorProps) {
   return (
-    <main id="main-content" className="state-page">
+    <main id="main-content" className="state-page public-context-state">
       <div className="error-state" role="alert">
         <p className="eyebrow">Something went wrong</p>
         <h1>We couldn’t load this comparison.</h1>

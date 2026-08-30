@@ -26,7 +26,10 @@ export default async function RecipeDetailPage({ params }: RecipeDetailPageProps
   }
 
   return (
-    <main id="main-content" className="page-shell page-shell--detail">
+    <main
+      id="main-content"
+      className="page-shell page-shell--detail recipe-reading-page"
+    >
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link href="/recipes">← All recipes</Link>
       </nav>

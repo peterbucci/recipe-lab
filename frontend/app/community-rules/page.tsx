@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function CommunityRulesPage() {
   return (
-    <main id="main-content" className="page-shell policy-page">
+    <main id="main-content" className="page-shell policy-page public-policy-page">
       <header className="policy-page__header">
         <p className="eyebrow">Recipe Lab community</p>
         <h1>Community rules</h1>

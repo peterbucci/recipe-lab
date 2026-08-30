@@ -24,7 +24,7 @@ interface RecipeComparePageProps {
 
 function NoParentComparison({ recipeVersionId }: { recipeVersionId: string }) {
   return (
-    <main id="main-content" className="state-page">
+    <main id="main-content" className="state-page public-context-state">
       <div className="empty-state empty-state--large">
         <p className="eyebrow">Starting recipe</p>
         <h1>There isn’t an earlier recipe to compare.</h1>
@@ -69,7 +69,10 @@ export default async function RecipeComparePage({
   }
 
   return (
-    <main id="main-content" className="page-shell page-shell--detail">
+    <main
+      id="main-content"
+      className="page-shell page-shell--detail recipe-comparison-page"
+    >
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link href={`/recipes/${encodeURIComponent(diff.target_version.id)}`}>
           ← {diff.target_version.title}
