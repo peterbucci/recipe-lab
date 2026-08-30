@@ -76,7 +76,9 @@ export default defineConfig({
       caret: "hide",
       maxDiffPixels: 0,
       scale: "css",
-      threshold: 0.1,
+      // Keep material pixel changes exact while tolerating subpixel font
+      // rasterization differences between interchangeable CI runner hosts.
+      threshold: 0.2,
     },
   },
   outputDir: BASELINE_OUTPUT_DIRECTORY,
