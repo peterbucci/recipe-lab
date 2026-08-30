@@ -173,6 +173,11 @@ async function stabilizeVisuals(
   page: Page,
   waitForAccount = true,
 ): Promise<void> {
+  if (new URL(page.url()).pathname.startsWith("/account/recipe-drafts/")) {
+    await expect(
+      page.getByRole("group", { name: "Curated recipe categories" }),
+    ).toBeVisible();
+  }
   if (waitForAccount) {
     await expect(
       page.locator('summary[aria-label^="Account menu for "]'),
@@ -240,6 +245,40 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   expect(overflow.scrollWidth, JSON.stringify(overflow)).toBeLessThanOrEqual(
     overflow.clientWidth,
   );
+}
+
+async function expectHomepageDashboardReady(page: Page): Promise<void> {
+  await expect(
+    page.getByRole("heading", { name: "Continue where you left off" }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Continue draft" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Featured recipes" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Explore by category" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "From the community" }),
+  ).toBeVisible();
+  await expect(
+    page.locator(".member-home-summary__metrics [role='status']"),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("list", { name: "Recent account activity" }),
+  ).toBeVisible();
+}
+
+async function expectHomepagePublicDiscoveryReady(page: Page): Promise<void> {
+  await expect(
+    page.getByRole("heading", { name: "Featured recipes" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Explore by category" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "From the community" }),
+  ).toBeVisible();
 }
 
 async function expectNoVisiblePrivateMaterial(page: Page): Promise<void> {
@@ -645,6 +684,7 @@ test("application shell preserves real navigation at reviewed widths", async ({
       ).toHaveCount(0);
       await expectNoHorizontalOverflow(page);
       await expectNoAccessibilityViolations(page);
+
     });
   }
 });
@@ -691,8 +731,127 @@ test("recipe discovery reflows without hiding results at reviewed widths", async
       await expect(page.getByText(/^version \d+$/i)).toHaveCount(0);
       await expectNoHorizontalOverflow(page);
       await expectNoAccessibilityViolations(page);
+
+      await page.goto("/recipes?category=lunch");
+      await expect(
+        page.getByRole("heading", { name: "Lunch recipes" }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: "Clear category" }),
+      ).toHaveAttribute("href", "/recipes");
+      const categoryResults = page.getByRole("list", { name: "Recipe results" });
+      await expect(categoryResults).toBeVisible();
+      await expect(
+        categoryResults.getByRole("link", { name: "Sunlit Tomato Soup" }),
+      ).toBeVisible();
+      await expect(
+        categoryResults.getByRole("link", { name: "Garden Cream Tomato Soup" }),
+      ).toHaveCount(0);
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
     });
   }
+});
+
+test("anonymous homepage discovery never requests private member data", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+  await setScenario("anonymous-session");
+  await page.goto("/");
+
+  await expect(
+    page.getByRole("heading", { name: "Featured recipes" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Explore by category" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "From the community" }),
+  ).toBeVisible();
+  await expect(page.locator(".member-home-summary")).toHaveCount(0);
+
+  const audit = await readAudit();
+  expect(audit.route_counts["my-recipes"] ?? 0).toBe(0);
+  expect(audit.route_counts["saved-recipes"] ?? 0).toBe(0);
+  expect(audit.route_counts["member-ingredient-requests"] ?? 0).toBe(0);
+  await expectNoHorizontalOverflow(page);
+  await expectNoAccessibilityViolations(page);
+});
+
+test("homepage keeps public discovery usable through account and section recovery states", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+
+  await test.step("account loading", async () => {
+    await setScenario("slow-session");
+    await page.goto("/");
+    await expectHomepagePublicDiscoveryReady(page);
+    await expect(page.locator(".member-home-summary")).toHaveCount(0);
+    await expectNoHorizontalOverflow(page);
+  });
+
+  await test.step("account error and recovery", async () => {
+    await setScenario("auth-error");
+    await page.goto("/");
+    await expectHomepagePublicDiscoveryReady(page);
+    await expect(page.getByRole("button", { name: "Retry account" })).toBeVisible();
+    await expect(page.locator(".member-home-summary")).toHaveCount(0);
+
+    await setScenario("normal");
+    await page.getByRole("button", { name: "Retry account" }).click();
+    await expectHomepageDashboardReady(page);
+  });
+
+  await test.step("honest empty state", async () => {
+    await setScenario("homepage-empty");
+    await page.reload();
+    await expect(page.getByText("You have no active drafts right now.")).toBeVisible();
+    await expect(page.getByText("No recipes are featured right now.")).toBeVisible();
+    await expect(page.getByText("There are no active categories yet.")).toBeVisible();
+    await expect(page.getByText("Nothing has been published yet.")).toBeVisible();
+    await expect(page.getByText("No recent account activity yet.")).toBeVisible();
+    await expectNoAccessibilityViolations(page);
+  });
+
+  await test.step("isolated partial errors and recovery", async () => {
+    await setScenario("homepage-partial-error");
+    await page.reload();
+    await expect(
+      page.getByText("Featured recipes are unavailable right now."),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "Breakfast" })).toBeVisible();
+    await expect(
+      page.getByRole("link", {
+        name: "Roasted Garden Tomato Soup",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("region", { name: "Your stats" })
+        .getByText(/Unavailable\./),
+    ).toBeVisible();
+
+    await setScenario("normal");
+    await page.getByRole("link", { name: "Retry featured recipes" }).click();
+    await expectHomepageDashboardReady(page);
+    await expect(page.getByText("Featured recipes are unavailable right now.")).toHaveCount(0);
+    await expectNoAccessibilityViolations(page);
+  });
+
+  await test.step("sign out removes private summary without affecting discovery", async () => {
+    const account = page.locator(
+      'summary[aria-label="Account menu for Baseline Cook"]',
+    );
+    await account.click();
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.locator(".member-home-summary")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+    await expectHomepagePublicDiscoveryReady(page);
+    await expectNoAccessibilityViolations(page);
+  });
 });
 
 test("public recipe context reflows at reviewed widths", async ({ page }, testInfo) => {
@@ -871,6 +1030,7 @@ test("home intermediate normal", async ({ page }, testInfo) => {
       name: "Recipes change. Recipe Lab keeps track.",
     }),
   ).toBeVisible();
+  await expectHomepageDashboardReady(page);
   await stabilizeVisuals(page);
   await captureBaseline(page, "home-intermediate-normal");
 });
@@ -1144,6 +1304,7 @@ test.describe("desktop visual state matrix", () => {
         name: "Recipes change. Recipe Lab keeps track.",
       }),
     ).toBeVisible();
+    await expectHomepageDashboardReady(page);
     await stabilizeVisuals(page);
     await captureBaseline(page, "home-normal");
   });
@@ -1155,6 +1316,7 @@ test.describe("desktop visual state matrix", () => {
         name: "Recipes change. Recipe Lab keeps track.",
       }),
     ).toBeVisible();
+    await expectHomepageDashboardReady(page);
     await stabilizeVisuals(page);
     const account = page.locator(
       'summary[aria-label="Account menu for Baseline Cook"]',
@@ -1445,6 +1607,7 @@ test.describe("phone visual state matrix", () => {
         name: "Recipes change. Recipe Lab keeps track.",
       }),
     ).toBeVisible();
+    await expectHomepageDashboardReady(page);
     await stabilizeVisuals(page);
     await captureBaseline(page, "home-normal");
   });

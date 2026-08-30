@@ -86,7 +86,7 @@ image is produced from the same sanitized fixture contract.
 
 | Surface or state                    | Desktop snapshot                      | Phone snapshot             |
 | ----------------------------------- | ------------------------------------- | -------------------------- |
-| Home, normal                        | `home-normal`                         | `home-normal`              |
+| Home, authenticated normal          | `home-normal`                         | `home-normal`              |
 | Home with account navigation open   | `home-account-navigation`             | `home-account-navigation`  |
 | Home, intermediate width            | `home-intermediate-normal`            | —                          |
 | Catalog, normal                     | `catalog-normal`                      | `catalog-normal`           |
@@ -125,6 +125,15 @@ image is produced from the same sanitized fixture contract.
 | Private workspace, loading          | `private-workspace-loading`           | —                          |
 | Private workspace, failure          | `private-workspace-failure`           | —                          |
 | Private workspace, expired session  | `private-workspace-expired-session`   | —                          |
+
+RCP-47 also exercises the homepage as an anonymous visitor and through account
+loading, authentication failure and recovery, honest empty data, isolated
+private/public section failures, section recovery, and sign-out. Those state
+transitions are deterministic behavioral assertions rather than additional
+pixel snapshots; the three reviewed home images remain the authenticated
+desktop, intermediate, and phone visual references. The same state sweep proves
+that anonymous rendering makes no private library or ingredient-request calls
+and that public discovery remains available when private data cannot load.
 
 Normal, intermediate, loading, empty, failure, unavailable, not-found,
 authorization, stale, retry, validation, review, publication, and
