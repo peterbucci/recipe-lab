@@ -676,6 +676,127 @@ test("my recipes intermediate normal", async ({ page }, testInfo) => {
   await captureBaseline(page, "my-recipes-intermediate-normal");
 });
 
+test("authoring entry desktop normal", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await setScenario("slow-draft-creation");
+  await page.setViewportSize({ width: 1_440, height: 900 });
+  await page.goto("/recipes/new");
+  await expect(
+    page.getByRole("heading", {
+      name: "Opening your private draft…",
+      level: 1,
+    }),
+  ).toBeVisible();
+  await stabilizeVisuals(page);
+  await captureBaseline(page, "authoring-entry-desktop-normal");
+
+  const forkPage = await page.context().newPage();
+  await forkPage.goto(`/recipes/${VARIANT_RECIPE_ID}/fork`);
+  const forkEntry = forkPage.locator(".recipe-authoring-entry__card");
+  await expect(forkEntry.getByRole("status")).toHaveText(
+    "Copying this recipe into a private workspace. The public recipe stays unchanged.",
+  );
+  await expectNoHorizontalOverflow(forkPage);
+  await expectNoAccessibilityViolations(forkPage);
+  await forkPage.close();
+});
+
+test("draft editor intermediate normal", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize({ width: 820, height: 1_000 });
+  await page.goto(`/account/recipe-drafts/${DRAFT_ID}`);
+  const editor = page.getByRole("form", {
+    name: "Private recipe draft editor",
+  });
+  await expect(editor).toBeVisible();
+  const ingredient = page.getByRole("group", {
+    name: "Ingredient 1",
+    exact: true,
+  });
+  await expect(
+    ingredient.getByRole("combobox", { name: "Ingredient" }),
+  ).toHaveValue("plum tomatoes");
+  await expect(
+    page.getByRole("button", { name: "Review and publish" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Draft saved" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Back to drafts" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Discard draft…" }),
+  ).toBeVisible();
+  await ingredient.evaluate((section) => {
+    section.scrollIntoView({ block: "start" });
+    window.scrollBy(0, -72);
+  });
+  await stabilizeVisuals(page);
+  await captureBaseline(page, "draft-editor-intermediate-normal");
+});
+
+test("unresolved ingredient validation phone", async ({ page }, testInfo) => {
+  phoneOnly(testInfo);
+  await setScenario("unresolved-draft");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/account/recipe-drafts/${DRAFT_ID}`);
+  const unresolved = page.getByRole("complementary", {
+    name: "Unresolved selection for Ingredient 1",
+  });
+  await expect(unresolved).toContainText("Sunberry tomato");
+  await expect(unresolved).toContainText("Awaiting curator review");
+  await page
+    .getByRole("checkbox", { name: /agree to the community rules/i })
+    .check();
+  await page.getByRole("checkbox", { name: /right to share it/i }).check();
+  const review = page.getByRole("button", {
+    name: "Review and publish",
+    exact: true,
+  });
+  await review.focus();
+  await page.keyboard.press("Enter");
+  const alert = page
+    .getByRole("alert")
+    .filter({ hasText: /Your draft needs attention/i });
+  await expect(alert).toBeVisible();
+  await expect(alert).toBeFocused();
+  await expect(
+    page.getByText(
+      "Choose the request’s approved catalog ingredient before publication.",
+    ),
+  ).toBeVisible();
+  await unresolved.evaluate((section) => {
+    section.scrollIntoView({ block: "start" });
+    window.scrollBy(0, -64);
+  });
+  await stabilizeVisuals(page);
+  await captureBaseline(page, "draft-unresolved-ingredient-validation");
+});
+
+test("draft discard confirmation is keyboard reachable", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize({ width: 1_440, height: 900 });
+  await page.goto(`/account/recipe-drafts/${DRAFT_ID}`);
+  const requestDiscard = page.getByRole("button", { name: "Discard draft…" });
+  await requestDiscard.scrollIntoViewIfNeeded();
+  await stabilizeVisuals(page);
+  await requestDiscard.focus();
+  await page.keyboard.press("Enter");
+  const confirmDiscard = page.getByRole("button", {
+    name: "Discard permanently",
+  });
+  const keepDraft = page.getByRole("button", { name: "Keep draft" });
+  await expect(confirmDiscard).toBeVisible();
+  await expect(keepDraft).toBeVisible();
+  await confirmDiscard.focus();
+  await expect(confirmDiscard).toBeFocused();
+  await captureBaseline(page, "draft-discard-confirmation");
+  await page.keyboard.press("Tab");
+  await expect(keepDraft).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(confirmDiscard).toBeHidden();
+  await expect(requestDiscard).toBeVisible();
+});
+
 test.describe("desktop visual state matrix", () => {
   test.beforeEach(async ({}, testInfo) => desktopOnly(testInfo));
 
