@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, func, select, text
+from sqlalchemy import ColumnElement, func, inspect, select, text
 from sqlalchemy.orm import InstrumentedAttribute, Session, selectinload
 
 from app.catalog_names import lock_catalog_names, normalize_catalog_name
@@ -440,6 +440,15 @@ def _load_recipe_category_catalog(
         report.created["recipe_categories"] += 1
         result[seed.key] = created
     return result
+
+
+def _supports_recipe_category_seed(session: Session) -> bool:
+    """Return whether the current upgrade schema can store category snapshots."""
+
+    inspector = inspect(session.connection())
+    return inspector.has_table("recipe_categories") and inspector.has_table(
+        "recipe_version_categories"
+    )
 
 
 def _get_or_create_dietary_flag(
@@ -1084,28 +1093,29 @@ def _verify_recipe_snapshot(
     ingredients: dict[str, Ingredient],
     measurement_units: dict[str, MeasurementUnit],
     action_types: dict[str, CookingActionType],
-    recipe_categories: dict[str, RecipeCategory],
+    recipe_categories: dict[str, RecipeCategory] | None,
 ) -> None:
-    existing_categories = list(
-        session.scalars(
-            select(RecipeVersionCategory)
-            .where(RecipeVersionCategory.recipe_version_id == version.id)
-            .order_by(RecipeVersionCategory.display_order)
+    if recipe_categories is not None:
+        existing_categories = list(
+            session.scalars(
+                select(RecipeVersionCategory)
+                .where(RecipeVersionCategory.recipe_version_id == version.id)
+                .order_by(RecipeVersionCategory.display_order)
+            )
         )
-    )
-    if len(existing_categories) != len(seed.categories):
-        raise _conflict("recipe version", seed.key, "category snapshot differs")
-    for display_order, (existing_category, category_key) in enumerate(
-        zip(existing_categories, seed.categories, strict=True)
-    ):
-        expected = recipe_categories[category_key]
-        if (
-            existing_category.recipe_category_id != expected.id
-            or existing_category.category_name != expected.name
-            or existing_category.category_slug != expected.slug
-            or existing_category.display_order != display_order
-        ):
+        if len(existing_categories) != len(seed.categories):
             raise _conflict("recipe version", seed.key, "category snapshot differs")
+        for display_order, (existing_category, category_key) in enumerate(
+            zip(existing_categories, seed.categories, strict=True)
+        ):
+            expected = recipe_categories[category_key]
+            if (
+                existing_category.recipe_category_id != expected.id
+                or existing_category.category_name != expected.name
+                or existing_category.category_slug != expected.slug
+                or existing_category.display_order != display_order
+            ):
+                raise _conflict("recipe version", seed.key, "category snapshot differs")
 
     existing_ingredients = list(
         session.scalars(
@@ -1183,22 +1193,23 @@ def _insert_recipe_snapshot(
     ingredients: dict[str, Ingredient],
     measurement_units: dict[str, MeasurementUnit],
     action_types: dict[str, CookingActionType],
-    recipe_categories: dict[str, RecipeCategory],
+    recipe_categories: dict[str, RecipeCategory] | None,
     report: SeedReport,
 ) -> None:
-    session.add_all(
-        [
-            RecipeVersionCategory(
-                recipe_version_id=version.id,
-                recipe_category_id=recipe_categories[category_key].id,
-                category_name=recipe_categories[category_key].name,
-                category_slug=recipe_categories[category_key].slug,
-                display_order=display_order,
-            )
-            for display_order, category_key in enumerate(seed.categories)
-        ]
-    )
-    report.created["recipe_version_categories"] += len(seed.categories)
+    if recipe_categories is not None:
+        session.add_all(
+            [
+                RecipeVersionCategory(
+                    recipe_version_id=version.id,
+                    recipe_category_id=recipe_categories[category_key].id,
+                    category_name=recipe_categories[category_key].name,
+                    category_slug=recipe_categories[category_key].slug,
+                    display_order=display_order,
+                )
+                for display_order, category_key in enumerate(seed.categories)
+            ]
+        )
+        report.created["recipe_version_categories"] += len(seed.categories)
 
     for display_order, item in enumerate(seed.ingredients):
         session.add(
@@ -1263,7 +1274,7 @@ def _load_recipe(
     ingredients: dict[str, Ingredient],
     measurement_units: dict[str, MeasurementUnit],
     action_types: dict[str, CookingActionType],
-    recipe_categories: dict[str, RecipeCategory],
+    recipe_categories: dict[str, RecipeCategory] | None,
     report: SeedReport,
 ) -> RecipeVersion:
     version_id = seed_uuid(catalog.metadata.dataset_id, "recipe-version", seed.key)
@@ -1309,7 +1320,8 @@ def _load_recipe(
             for instruction in seed.instructions
             for action in instruction.actions
         )
-        report.reused["recipe_version_categories"] += len(seed.categories)
+        if recipe_categories is not None:
+            report.reused["recipe_version_categories"] += len(seed.categories)
         return existing
 
     created = RecipeVersion(
@@ -1437,7 +1449,11 @@ def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
     report = SeedReport()
     measurement_units = _load_measurement_catalog(session, catalog, report)
     action_types = _load_action_catalog(session, catalog, report)
-    recipe_categories = _load_recipe_category_catalog(session, catalog, report)
+    recipe_categories = (
+        _load_recipe_category_catalog(session, catalog, report)
+        if _supports_recipe_category_seed(session)
+        else None
+    )
     user = _get_or_create_catalog_user(session, catalog, report)
     _get_or_create_demo_user(session, report)
     categories = {

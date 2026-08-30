@@ -105,6 +105,30 @@ def seed_engine(
     yield empty_postgres_engine
 
 
+def test_seed_loader_remains_compatible_with_the_pre_category_upgrade_schema(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    catalog = load_bundled_catalog()
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260827_0019")
+
+    with Session(empty_postgres_engine) as session, session.begin():
+        legacy_report = seed_catalog(session, catalog)
+    assert legacy_report.created["recipe_categories"] == 0
+    assert legacy_report.created["recipe_version_categories"] == 0
+
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "head")
+
+    with Session(empty_postgres_engine) as session, session.begin():
+        upgraded_report = seed_catalog(session, catalog)
+    assert upgraded_report.reused["recipe_categories"] == 7
+    assert upgraded_report.reused["recipe_version_categories"] == 82
+
+
 def database_snapshot(session: Session) -> DatabaseSnapshot:
     snapshot: DatabaseSnapshot = {}
     for table_name in SEEDED_TABLES:
