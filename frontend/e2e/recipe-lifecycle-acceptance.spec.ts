@@ -105,7 +105,7 @@ async function finishOriginalPublication(
   expect(publication.headers().location).toBe(body.location);
   await expect(page).toHaveURL("/account/recipes?view=published");
   await page.goto(body.location as string);
-  const categories = page.getByRole("list", { name: "Recipe categories" });
+  const categories = page.getByRole("list", { name: /^Categories for / });
   await expect(categories.getByText("Breakfast", { exact: true })).toBeVisible();
   await expect(categories.getByText("Quick & Easy", { exact: true })).toBeVisible();
   return body.recipe_version_id as string;
@@ -182,7 +182,7 @@ async function publishUnchangedFork(
   expect(publication.headers().location).toBe(body.location);
   await expect(page).toHaveURL("/account/recipes?view=published");
   await page.goto(body.location as string);
-  const categories = page.getByRole("list", { name: "Recipe categories" });
+  const categories = page.getByRole("list", { name: /^Categories for / });
   await expect(categories.getByText("Breakfast", { exact: true })).toBeVisible();
   await expect(categories.getByText("Quick & Easy", { exact: true })).toBeVisible();
   return body.recipe_version_id as string;

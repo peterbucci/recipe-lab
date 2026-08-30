@@ -1018,6 +1018,7 @@ test("public recipe retry refetches the failed route", async ({ page }, testInfo
   await expect(
     page.getByRole("heading", { name: "Garden Cream Tomato Soup", level: 1 }),
   ).toBeVisible();
+  await expect(page).toHaveTitle("Recipe details · Recipe Lab");
   await expectNoAccessibilityViolations(page);
 });
 
