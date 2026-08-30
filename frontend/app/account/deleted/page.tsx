@@ -8,8 +8,14 @@ export const metadata: Metadata = {
 
 export default function AccountDeletedPage() {
   return (
-    <main id="main-content" className="state-page">
-      <section className="empty-state empty-state--large" aria-labelledby="account-deleted-title">
+    <main
+      id="main-content"
+      className="state-page account-access-page account-access-page--deleted account-deleted-page"
+    >
+      <section
+        className="empty-state empty-state--large account-deleted-card"
+        aria-labelledby="account-deleted-title"
+      >
         <p className="eyebrow">Account deleted</p>
         <h1 id="account-deleted-title">Your account has been deleted.</h1>
         <p>

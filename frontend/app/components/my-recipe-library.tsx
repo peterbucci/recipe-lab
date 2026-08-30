@@ -367,7 +367,10 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
   }
 
   return (
-    <main id="main-content" className="page-shell member-library">
+    <main
+      id="main-content"
+      className="page-shell account-workspace-page account-recipes-page member-library"
+    >
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <GuardedLink href="/recipes">← Back to recipes</GuardedLink>
       </nav>
@@ -461,7 +464,10 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
 
       {page && !beyondLastPage && page.items.length > 0 ? (
         <>
-          <section aria-labelledby="my-recipes-list-heading">
+          <section
+            className="member-library__collection"
+            aria-labelledby="my-recipes-list-heading"
+          >
             <div className="section-heading section-heading--compact">
               <div>
                 <h2 id="my-recipes-list-heading">{copy.heading}</h2>

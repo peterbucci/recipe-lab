@@ -145,7 +145,12 @@ function ProfileFields({ returnTo, session }: ProfileFieldsProps) {
   }
 
   return (
-    <form className="profile-form" noValidate aria-busy={pending} onSubmit={handleSubmit}>
+    <form
+      className="profile-form account-profile-form"
+      noValidate
+      aria-busy={pending}
+      onSubmit={handleSubmit}
+    >
       <div className="profile-form__field">
         <label htmlFor="display-name">Display name</label>
         <p id="display-name-help">The name for your Recipe Lab account.</p>
@@ -236,7 +241,10 @@ export function OnboardingForm({ returnTo }: OnboardingFormProps) {
 
   if (state.phase === "loading") {
     return (
-      <div className="auth-state" role="status">
+      <div
+        className="auth-state account-access-state account-access-state--loading"
+        role="status"
+      >
         <span className="loading-state__pulse" aria-hidden="true" />
         <strong>Checking your account…</strong>
       </div>
@@ -245,7 +253,10 @@ export function OnboardingForm({ returnTo }: OnboardingFormProps) {
 
   if (state.phase === "error") {
     return (
-      <div className="auth-state" role="alert">
+      <div
+        className="auth-state account-access-state account-access-state--error"
+        role="alert"
+      >
         <strong>We couldn’t check your account.</strong>
         <p>Public recipes are still available while you try again.</p>
         <button className="button button--secondary" onClick={() => void refreshSession()}>
@@ -257,7 +268,10 @@ export function OnboardingForm({ returnTo }: OnboardingFormProps) {
 
   if (state.session.status === "anonymous") {
     return (
-      <div className="auth-state" role="alert">
+      <div
+        className="auth-state account-access-state account-access-state--error"
+        role="alert"
+      >
         <strong>Sign in to finish account setup.</strong>
         <p>Your account session may have expired.</p>
         <Link
@@ -272,7 +286,10 @@ export function OnboardingForm({ returnTo }: OnboardingFormProps) {
 
   if (state.session.status === "authenticated") {
     return (
-      <div className="auth-state" role="status">
+      <div
+        className="auth-state account-access-state account-access-state--complete"
+        role="status"
+      >
         <strong>Your account setup is complete.</strong>
         <p>Taking you back to Recipe Lab…</p>
       </div>
