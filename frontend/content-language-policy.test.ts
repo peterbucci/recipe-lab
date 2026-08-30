@@ -484,7 +484,13 @@ describe("public product language policy", () => {
   });
 
   it("uses the preferred relationship and similarity labels", () => {
-    const home = readFileSync(resolve(APP_ROOT, "page.tsx"), "utf8");
+    const home = [
+      readFileSync(resolve(APP_ROOT, "page.tsx"), "utf8"),
+      readFileSync(
+        resolve(APP_ROOT, "components/home-public-discovery.tsx"),
+        "utf8",
+      ),
+    ].join("\n");
     const detail = readFileSync(resolve(APP_ROOT, "components/recipe-detail-view.tsx"), "utf8");
     const similarity = readFileSync(
       resolve(APP_ROOT, "components/recipe-duplicate-preflight-review.tsx"),

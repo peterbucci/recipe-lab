@@ -27,6 +27,33 @@ async function mockSession(page: Page, readSession: () => MockSession) {
   });
 }
 
+async function mockEmptyHomeSummary(page: Page) {
+  await page.route(
+    /\/api\/(?:my\/recipes|my\/saved-recipes|ingredient-requests\/mine)(?:\?.*)?$/,
+    async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.continue();
+        return;
+      }
+      const pageSize = Number.parseInt(
+        new URL(route.request().url()).searchParams.get("page_size") ?? "3",
+        10,
+      );
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: [],
+          page: 1,
+          page_size: pageSize,
+          total: 0,
+          total_pages: 0,
+        }),
+      });
+    },
+  );
+}
+
 async function expectNoSeriousAccessibilityViolations(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
@@ -60,6 +87,7 @@ test("opens the signed-in account menu and signs out on a phone", async ({ page 
   let session: MockSession = aliceSession;
   await page.setViewportSize({ width: 390, height: 844 });
   await mockSession(page, () => session);
+  await mockEmptyHomeSummary(page);
   await page.route("**/api/auth/logout", async (route) => {
     expect(route.request().method()).toBe("POST");
     expect(route.request().headers()["x-csrf-token"]).toBe("csrf-value");
@@ -93,6 +121,7 @@ test("validates onboarding and completes account setup", async ({ page }) => {
     user: { id: "cook-id", display_name: "Alice Cook", handle: null },
   };
   await mockSession(page, () => session);
+  await mockEmptyHomeSummary(page);
   await page.route("**/api/auth/session/profile", async (route) => {
     expect(route.request().method()).toBe("PATCH");
     expect(route.request().headers()["x-csrf-token"]).toBe("csrf-value");

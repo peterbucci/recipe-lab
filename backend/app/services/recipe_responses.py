@@ -1,5 +1,6 @@
 from app.core.demo_identity import DEMO_USER_DISPLAY_NAME, DEMO_USER_ID
 from app.models import ACCOUNT_KIND_DEMO, USER_STATUS_DELETED, RecipeVersion, User
+from app.schemas.recipe_categories import RecipeCategorySummary
 from app.schemas.recipes import RecipeSummary, RecipeVersionReference
 from app.schemas.users import PublicUserReference
 
@@ -38,6 +39,9 @@ def recipe_version_reference(version: RecipeVersion) -> RecipeVersionReference:
 
 
 def recipe_summary_response(version: RecipeVersion) -> RecipeSummary:
+    publication = version.publication
+    if publication is None:
+        raise RuntimeError(f"Public recipe version {version.id} has no publication record.")
     return RecipeSummary(
         id=version.id,
         lineage_id=version.lineage_id,
@@ -47,6 +51,15 @@ def recipe_summary_response(version: RecipeVersion) -> RecipeSummary:
         description=version.description,
         servings=version.servings,
         created_at=version.created_at,
+        published_at=publication.published_at,
         author=public_user_reference(version.author),
         parent=(recipe_version_reference(version.parent) if version.parent is not None else None),
+        categories=[
+            RecipeCategorySummary(
+                id=item.recipe_category_id,
+                name=item.category_name,
+                slug=item.category_slug,
+            )
+            for item in version.categories
+        ],
     )

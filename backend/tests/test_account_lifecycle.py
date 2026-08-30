@@ -24,6 +24,7 @@ from app.models import (
     OIDCIdentity,
     PreferenceEvent,
     RecipeDraft,
+    RecipeDraftCategory,
     RecipeDraftInstruction,
     RecipeDuplicateCandidate,
     RecipeDuplicateDecision,
@@ -35,6 +36,7 @@ from app.models import (
     RecipeReport,
     RecipeSave,
     RecipeVersion,
+    RecipeVersionCategory,
     RecipeVersionPublication,
     User,
     UserSession,
@@ -45,6 +47,7 @@ from app.repositories.account_lifecycle import (
     get_account_user_for_update,
 )
 from app.repositories.auth import get_user_session_by_id
+from app.seeds.identifiers import seed_uuid
 from app.services.account_lifecycle import delete_member_account
 from app.services.auth import issue_member_session, resolve_authenticated_session
 from app.services.oidc import VerifiedOIDCIdentity
@@ -122,6 +125,33 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
         servings=Decimal("4.00"),
     )
     db_session.add_all([active_draft, published_draft])
+    db_session.flush()
+    breakfast_category_id = seed_uuid(
+        "recipe-lab-demo-v1",
+        "recipe-category",
+        "breakfast",
+    )
+    db_session.add_all(
+        [
+            RecipeDraftCategory(
+                recipe_draft_id=active_draft.id,
+                recipe_category_id=breakfast_category_id,
+                display_order=0,
+            ),
+            RecipeDraftCategory(
+                recipe_draft_id=published_draft.id,
+                recipe_category_id=breakfast_category_id,
+                display_order=0,
+            ),
+            RecipeVersionCategory(
+                recipe_version_id=version.id,
+                recipe_category_id=breakfast_category_id,
+                category_name="Breakfast",
+                category_slug="breakfast",
+                display_order=0,
+            ),
+        ]
+    )
     db_session.flush()
 
     abandoned_preflight = RecipeDuplicatePreflight(
@@ -362,6 +392,7 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
     assert anonymized_moderation_event.private_note is None
     assert anonymized_moderation_event.request_fingerprint == DELETED_MODERATION_FINGERPRINT
     assert db_session.get(RecipeDraft, active_draft_id) is None
+    assert db_session.scalar(select(func.count()).select_from(RecipeDraftCategory)) == 0
     assert db_session.get(IngredientCatalogRequest, pending_request_id) is None
     retained_request = db_session.get(IngredientCatalogRequest, terminal_request_id)
     assert retained_request is not None
@@ -386,12 +417,23 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
     retained_publication = db_session.get(RecipeVersionPublication, version_id)
     assert retained_publication is not None
     assert retained_publication.state == "published"
+    retained_categories = list(
+        db_session.scalars(
+            select(RecipeVersionCategory).where(
+                RecipeVersionCategory.recipe_version_id == version_id
+            )
+        )
+    )
+    assert [(item.category_name, item.category_slug) for item in retained_categories] == [
+        ("Breakfast", "breakfast")
+    ]
     public_recipe = recipe_summary_response(retained_version)
     assert public_recipe.author.model_dump(mode="json") == {
         "id": str(deleting_user_id),
         "handle": None,
         "display_name": "Deleted cook",
     }
+    assert [item.slug for item in public_recipe.categories] == ["breakfast"]
 
     with pytest.raises(DBAPIError, match="append-only"), db_session.begin_nested():
         db_session.execute(

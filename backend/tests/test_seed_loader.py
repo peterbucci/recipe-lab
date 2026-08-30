@@ -77,6 +77,8 @@ SEEDED_TABLE_COUNTS = {
     "measurement_units": 19,
     "preference_events": 0,
     "recipe_lineages": 25,
+    "recipe_categories": 7,
+    "recipe_version_categories": 82,
     "recipe_version_ingredients": 281,
     "recipe_version_instructions": 116,
     "recipe_instruction_actions": 252,
@@ -101,6 +103,30 @@ def seed_engine(
         alembic_config.attributes["connection"] = connection
         command.upgrade(alembic_config, "head")
     yield empty_postgres_engine
+
+
+def test_seed_loader_remains_compatible_with_the_pre_category_upgrade_schema(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    catalog = load_bundled_catalog()
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260827_0019")
+
+    with Session(empty_postgres_engine) as session, session.begin():
+        legacy_report = seed_catalog(session, catalog)
+    assert legacy_report.created["recipe_categories"] == 0
+    assert legacy_report.created["recipe_version_categories"] == 0
+
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "head")
+
+    with Session(empty_postgres_engine) as session, session.begin():
+        upgraded_report = seed_catalog(session, catalog)
+    assert upgraded_report.reused["recipe_categories"] == 7
+    assert upgraded_report.reused["recipe_version_categories"] == 82
 
 
 def database_snapshot(session: Session) -> DatabaseSnapshot:
@@ -128,7 +154,7 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
     with Session(seed_engine) as session, session.begin():
         report = seed_catalog(session, catalog)
 
-    migration_seeded_catalog_rows = 19 + 21 + 10 + 54
+    migration_seeded_catalog_rows = 19 + 21 + 10 + 54 + 7
     assert report.created_total == sum(SEEDED_TABLE_COUNTS.values()) - migration_seeded_catalog_rows
     assert report.reused_total == migration_seeded_catalog_rows
 

@@ -25,6 +25,7 @@ import {
   createDraftInstructionState,
   draftIngredientOptions,
   hydrateRecipeDraft,
+  recipeDraftFieldErrorsFromIssues,
   recipeDraftFingerprint,
   type RecipeDraftEditorState,
   type RecipeDraftIngredientState,
@@ -52,6 +53,7 @@ import {
 } from "../../lib/recipe-draft-editor-state";
 import { MemberRouteGate } from "./member-route-gate";
 import { GuardedLink, useNavigationBlocker } from "./navigation-blocker-provider";
+import { RecipeCategorySelector } from "./recipe-category-selector";
 import { RecipeDraftDetailsSection } from "./recipe-draft-details-section";
 import { RecipeDraftDiscardSection } from "./recipe-draft-discard-section";
 import { RecipeDraftPublication } from "./recipe-draft-publication";
@@ -345,7 +347,14 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
     } catch (reason) {
       const kind = draftFailureKind(reason);
       dispatch({ attemptId: attempt.idempotencyKey, kind, type: "save-failed" });
-      if (kind === "revision-conflict") {
+      const serverFieldErrors =
+        reason instanceof RecipeDraftApiError && reason.issues.length > 0
+          ? recipeDraftFieldErrorsFromIssues(draft, reason.issues)
+          : {};
+      if (Object.keys(serverFieldErrors).length > 0) {
+        setFieldErrors(serverFieldErrors);
+        setFormError("Review the highlighted fields. Your edits are still here.");
+      } else if (kind === "revision-conflict") {
         setFormError("This draft changed in another tab. Your unsaved version is still here.");
       } else if (kind === "authentication-interruption") {
         setFormError("Your session expired. Your edits are still here. Sign in again before saving.");
@@ -499,6 +508,13 @@ function RecipeDraftEditorInner({ draftId, measurementUnits, actionTypes }: Reci
           onTitleChange={(title) => change({ ...draft, title })}
           servings={draft.servings}
           title={draft.title}
+        />
+
+        <RecipeCategorySelector
+          disabled={editorDisabled}
+          error={fieldErrors.categories}
+          onChange={(categories) => change({ ...draft, categories })}
+          value={draft.categories}
         />
 
         <RecipeDraftIngredientsSection

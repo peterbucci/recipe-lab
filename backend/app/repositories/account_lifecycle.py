@@ -15,6 +15,7 @@ from app.models import (
     OIDCIdentity,
     PreferenceEvent,
     RecipeDraft,
+    RecipeDraftCategory,
     RecipeDraftIngredient,
     RecipeDraftInstruction,
     RecipeDraftInstructionAction,
@@ -107,6 +108,11 @@ def purge_member_private_data(
         RecipeDraftInstructionAction.recipe_draft_id.in_(draft_ids)
     )
     execution_options = {"synchronize_session": False}
+    session.execute(
+        delete(RecipeDraftCategory)
+        .where(RecipeDraftCategory.recipe_draft_id.in_(draft_ids))
+        .execution_options(**execution_options)
+    )
     session.execute(
         delete(RecipeDraftInstructionActionMeasure)
         .where(

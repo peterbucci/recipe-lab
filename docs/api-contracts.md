@@ -46,12 +46,12 @@ stored data.
 ## Operation classifications
 
 The snapshot records these as `x-recipe-lab-classification` and
-`x-recipe-lab-consumer-evidence`. Its 42 OpenAPI operations have exactly one of
+`x-recipe-lab-consumer-evidence`. Its 44 OpenAPI operations have exactly one of
 four classifications:
 
 | Classification | OpenAPI operations | Meaning |
 | --- | ---: | --- |
-| `active_consumer` | 32 | A current in-repository product workflow calls the operation. Its evidence identifies the maintained consumer boundary. |
+| `active_consumer` | 34 | A current in-repository product workflow calls the operation. Its evidence identifies the maintained consumer boundary. |
 | `staff_internal` | 8 | The operation supports a bounded curator, moderator, or operator workflow rather than an ordinary cook-facing workflow. Staff-only does not mean unreviewed or safe to remove. The four separately inventoried framework routes use this classification too. |
 | `research_experimental` | 2 | The operation is limited to an explicitly identified research or experimental boundary. It is not evidence of a supported consumer product claim. |
 | `retired` | 0 | No maintained in-repository product consumer remains. A deployed operation stays in this class until an external-consumer, deprecation, or removal decision is reviewed; new consumers must not depend on it. |

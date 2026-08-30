@@ -10,6 +10,7 @@ CATALOG_FILENAME = "catalog.json"
 RECIPES_FILENAME = "recipes.json"
 MEASUREMENTS_FILENAME = "measurements-v1.json"
 ACTIONS_FILENAME = "actions-v1.json"
+RECIPE_CATEGORIES_FILENAME = "recipe-categories-v1.json"
 
 
 def _parse_catalog(raw_catalog: object) -> SeedCatalog:
@@ -46,6 +47,12 @@ def load_bundled_catalog() -> SeedCatalog:
         "metadata": raw_actions["metadata"],
         "action_types": raw_actions["action_types"],
     }
+
+    recipe_categories_resource = resources.files(CATALOG_PACKAGE).joinpath(
+        RECIPE_CATEGORIES_FILENAME
+    )
+    with recipe_categories_resource.open("r", encoding="utf-8") as categories_file:
+        raw_catalog["recipe_category_catalog"] = json.load(categories_file)
     mappings = cast(list[dict[str, Any]], raw_actions["instruction_mappings"])
     mappings_by_instruction: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for mapping in mappings:

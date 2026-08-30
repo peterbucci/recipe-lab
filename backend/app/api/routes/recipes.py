@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Response
@@ -11,6 +11,7 @@ from app.api.dependencies import (
 )
 from app.api.errors import ApiError
 from app.api.member_context import recipe_viewer_state_response
+from app.homepage_content import FEATURED_RECIPE_VERSION_IDS
 from app.models import RecipeIngredient, RecipeInstruction, RecipeVersion
 from app.repositories.recipe_diffs import (
     get_direct_substitution_pairs,
@@ -21,10 +22,12 @@ from app.repositories.recipes import (
     browse_recipe_versions,
     get_recipe_rating_aggregate,
     get_recipe_version,
+    list_public_recipe_versions_in_order,
 )
 from app.schemas.errors import ErrorResponse
 from app.schemas.recipe_diffs import RecipeDiffResponse
 from app.schemas.recipes import (
+    FeaturedRecipeListResponse,
     RecipeDetailResponse,
     RecipeIngredientResponse,
     RecipeInstructionResponse,
@@ -55,6 +58,15 @@ IngredientName = Annotated[
         min_length=1,
         max_length=200,
         pattern=r"^[^\x00]*$",
+    ),
+]
+RecipeCategorySlug = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
     ),
 ]
 VALIDATION_ERROR_RESPONSE: dict[int | str, dict[str, object]] = {
@@ -180,6 +192,19 @@ def browse_recipes(
         bool | None,
         Query(description="Use true for variants or false for original root versions."),
     ] = None,
+    category: Annotated[
+        RecipeCategorySlug | None,
+        Query(description="Return only recipes with this exact curated category slug."),
+    ] = None,
+    sort: Annotated[
+        Literal["title", "newest"],
+        Query(
+            description=(
+                "Use title for the stable catalog order or newest for reverse publication "
+                "time with a stable recipe-ID tie-break."
+            )
+        ),
+    ] = "title",
 ) -> RecipePageResponse:
     result = browse_recipe_versions(
         session,
@@ -187,6 +212,8 @@ def browse_recipes(
         lineage_id=lineage_id,
         ingredient_name=ingredient,
         is_variant=is_variant,
+        category_slug=category,
+        sort=sort,
         offset=(page - 1) * page_size,
         limit=page_size,
     )
@@ -197,6 +224,24 @@ def browse_recipes(
         total=result.total,
         total_pages=(result.total + page_size - 1) // page_size,
     )
+
+
+@router.get(
+    "/featured",
+    response_model=FeaturedRecipeListResponse,
+    summary="List globally featured recipes",
+    description=(
+        "Returns one deploy-reviewed editorial selection in display order. The result is "
+        "the same for every viewer, is not a recommendation, and silently omits any selected "
+        "version that is no longer publicly readable."
+    ),
+)
+def featured_recipes(session: SessionDependency) -> FeaturedRecipeListResponse:
+    recipes = list_public_recipe_versions_in_order(
+        session,
+        FEATURED_RECIPE_VERSION_IDS,
+    )
+    return FeaturedRecipeListResponse(items=[_summary(item) for item in recipes])
 
 
 @router.get(

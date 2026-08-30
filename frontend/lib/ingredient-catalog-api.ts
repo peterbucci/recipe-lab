@@ -738,12 +738,14 @@ export async function submitMissingIngredientRequest(
 
 export async function browseMyIngredientRequests({
   status,
+  reviewedOnly = false,
   page = 1,
   pageSize = 20,
   query = "",
   signal,
 }: {
   status?: IngredientCatalogRequestStatus;
+  reviewedOnly?: boolean;
   page?: number;
   pageSize?: number;
   query?: string;
@@ -755,6 +757,9 @@ export async function browseMyIngredientRequests({
   });
   if (status) {
     search.set("status", status);
+  }
+  if (reviewedOnly) {
+    search.set("reviewed_only", "true");
   }
   const normalizedQuery = query.trim();
   if (normalizedQuery) {

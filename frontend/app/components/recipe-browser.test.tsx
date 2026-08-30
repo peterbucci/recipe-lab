@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { RecipePage, RecipeSummary } from "../../lib/recipe-api";
+import type { RecipeCategory, RecipePage, RecipeSummary } from "../../lib/recipe-api";
 import { RecipeBrowser } from "./recipe-browser";
 
 function recipe(overrides: Partial<RecipeSummary> = {}): RecipeSummary {
@@ -14,6 +14,8 @@ function recipe(overrides: Partial<RecipeSummary> = {}): RecipeSummary {
     description: "A softly spiced cake built for an afternoon snack.",
     servings: "8.00",
     created_at: "2026-08-20T00:00:00Z",
+    published_at: "2026-08-21T00:00:00Z",
+    categories: [],
     author: { id: "cook-one", handle: "alice", display_name: "Alice Cook" },
     parent: null,
     ...overrides,
@@ -99,6 +101,38 @@ describe("RecipeBrowser", () => {
       "/recipes?q=carrot&page=2",
     );
     expect(screen.getByText(/page 1 of 2/i)).toHaveAttribute("aria-current", "page");
+  });
+
+  it("presents and preserves an exact curated category filter", () => {
+    const category: RecipeCategory = {
+      id: "category-breakfast",
+      name: "Breakfast",
+      slug: "breakfast",
+    };
+    render(
+      <RecipeBrowser
+        category={category}
+        data={page({ page: 2, total_pages: 3 })}
+        query="toast"
+        sort="newest"
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Breakfast recipes matching “toast”" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/category:/i)).toHaveTextContent("Category: Breakfast");
+    expect(screen.getByRole("link", { name: "Clear category" })).toHaveAttribute(
+      "href",
+      "/recipes?q=toast&sort=newest",
+    );
+    const search = screen.getByRole("search", { name: "Search recipe catalog" });
+    expect(search.querySelector('input[name="category"]')).toHaveValue("breakfast");
+    expect(search.querySelector('input[name="sort"]')).toHaveValue("newest");
+    expect(screen.getByRole("link", { name: /next/i })).toHaveAttribute(
+      "href",
+      "/recipes?q=toast&category=breakfast&sort=newest&page=3",
+    );
   });
 
   it("distinguishes an empty search from an empty catalog", () => {

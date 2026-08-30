@@ -14,6 +14,8 @@ function recipe(overrides: Partial<RecipeSummary> = {}): RecipeSummary {
     description: null,
     servings: "8.00",
     created_at: "2026-08-20T00:00:00Z",
+    published_at: "2026-08-21T00:00:00Z",
+    categories: [],
     author: { id: "cook-one", handle: "alice", display_name: "Alice Cook" },
     parent: null,
     ...overrides,
@@ -94,5 +96,33 @@ describe("RecipeCard", () => {
     expect(
       within(card).getByRole("heading", { name: "Carrot Walnut Snack Cake" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows immutable published category labels", () => {
+    render(
+      <RecipeCard
+        recipe={recipe({
+          categories: [
+            {
+              id: "category-one",
+              name: "Quick & easy",
+              slug: "quick-easy",
+            },
+            {
+              id: "category-two",
+              name: "Dinner",
+              slug: "dinner",
+            },
+          ],
+        })}
+      />,
+    );
+
+    const categories = screen.getByRole("list", {
+      name: "Categories for Carrot Walnut Snack Cake",
+    });
+    expect(within(categories).getByText("Quick & easy")).toBeVisible();
+    expect(within(categories).getByText("Dinner")).toBeVisible();
+    expect(within(categories).queryByRole("link")).not.toBeInTheDocument();
   });
 });

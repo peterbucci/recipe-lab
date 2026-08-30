@@ -106,6 +106,22 @@ test("browses, searches, and opens a structured recipe anonymously", async ({
     }),
   ).toBeVisible();
   await expect(page.locator(".public-demo-notice")).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Featured recipes" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Explore by category" }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Lunch", exact: true })).toHaveAttribute(
+    "href",
+    "/recipes?category=lunch",
+  );
+  await expect(
+    page.getByRole("heading", { name: "From the community" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Footer navigation" }),
+  ).toBeAttached();
 
   const primaryNavigation = page.getByRole("navigation", {
     name: "Primary navigation",
@@ -294,6 +310,7 @@ test("identifies a source and starts a private version with the keyboard on a ph
     title: "",
     description: null,
     servings: null,
+    categories: [],
     ingredients: [],
     instructions: [],
     created_at: "2026-08-25T12:00:00Z",
@@ -362,6 +379,15 @@ test("keeps the plain-language homepage readable at a phone viewport", async ({
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "See what changed" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Featured recipes" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Explore by category" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "From the community" }),
   ).toBeVisible();
   expect(
     await page.evaluate(
@@ -664,6 +690,7 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
     title: "",
     description: null,
     servings: null,
+    categories: [],
     ingredients: [],
     instructions: [],
     created_at: "2026-08-25T12:00:00Z",

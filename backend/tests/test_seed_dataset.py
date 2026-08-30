@@ -76,6 +76,10 @@ def _all_seed_ids(catalog: SeedCatalog) -> list[UUID]:
         for action_type in catalog.action_catalog.action_types
     )
     identifiers.extend(
+        seed_uuid(dataset_id, "recipe-category", category.key)
+        for category in catalog.recipe_category_catalog.categories
+    )
+    identifiers.extend(
         seed_uuid(dataset_id, "ingredient-category", category.key)
         for category in catalog.categories
     )
@@ -177,11 +181,32 @@ def test_catalog_has_the_golden_recipe_counts_and_complete_structure(
     assert len(used_categories) >= 10
     assert all(len(recipe.ingredients) >= 3 for recipe in seed_catalog.recipes)
     assert all(len(recipe.instructions) >= 2 for recipe in seed_catalog.recipes)
+    assert all(1 <= len(recipe.categories) <= 3 for recipe in seed_catalog.recipes)
     assert all(
         isinstance(item.quantity, Decimal) or item.quantity is None
         for recipe in seed_catalog.recipes
         for item in recipe.ingredients
     )
+
+
+def test_recipe_discovery_categories_are_fixed_and_explicitly_assigned(
+    seed_catalog: SeedCatalog,
+) -> None:
+    categories = seed_catalog.recipe_category_catalog.categories
+
+    assert [(item.name, item.slug, item.display_order, item.active) for item in categories] == [
+        ("Breakfast", "breakfast", 0, True),
+        ("Lunch", "lunch", 1, True),
+        ("Dinner", "dinner", 2, True),
+        ("Desserts", "desserts", 3, True),
+        ("Breads", "breads", 4, True),
+        ("Vegetarian", "vegetarian", 5, True),
+        ("Quick & Easy", "quick-easy", 6, True),
+    ]
+    assert sum(len(recipe.categories) for recipe in seed_catalog.recipes) == 82
+    assert {category for recipe in seed_catalog.recipes for category in recipe.categories} == {
+        item.key for item in categories
+    }
 
 
 def test_measurement_catalog_is_complete_and_legacy_mapping_is_exact(

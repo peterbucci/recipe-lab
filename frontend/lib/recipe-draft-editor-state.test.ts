@@ -20,6 +20,11 @@ const SAVE_KEY = "22222222-2222-4222-8222-222222222222";
 const NEXT_SAVE_KEY = "33333333-3333-4333-8333-333333333333";
 const DISCARD_KEY = "44444444-4444-4444-8444-444444444444";
 const NEXT_DISCARD_KEY = "55555555-5555-4555-8555-555555555555";
+const CATEGORY = {
+  id: "66666666-6666-4666-8666-666666666666",
+  name: "Dinner",
+  slug: "dinner",
+};
 
 const detail: RecipeDraftDetail = {
   id: DRAFT_ID,
@@ -29,6 +34,7 @@ const detail: RecipeDraftDetail = {
   title: "Saved soup",
   description: null,
   servings: null,
+  categories: [],
   ingredients: [],
   instructions: [],
   created_at: "2026-08-25T12:00:00Z",
@@ -39,6 +45,7 @@ const savedDraft: RecipeDraftEditorState = {
   title: "Saved soup",
   description: "",
   servings: "",
+  categories: [],
   ingredients: [],
   instructions: [],
 };
@@ -127,7 +134,11 @@ describe("recipe draft editor domain state", () => {
       attempt,
       type: "save-started",
     });
-    const newerDraft = { ...savedDraft, title: "Newer local soup" };
+    const newerDraft = {
+      ...savedDraft,
+      title: "Newer local soup",
+      categories: [CATEGORY],
+    };
     const savingWithNewerWork = recipeDraftEditorReducer(saving, {
       draft: newerDraft,
       type: "draft-changed",
@@ -150,7 +161,7 @@ describe("recipe draft editor domain state", () => {
     expect(completed.save).toEqual({ newerLocalWork: true, status: "saved" });
     expect(completed.work).toMatchObject({
       detail: { revision: 4 },
-      draft: newerDraft,
+      draft: { categories: [CATEGORY], title: "Newer local soup" },
       status: "dirty",
     });
   });

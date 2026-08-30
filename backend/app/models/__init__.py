@@ -84,6 +84,12 @@ from app.models.recipe import (
     RecipeVersionPublication,
     RecipeVersionVisibilityEvent,
 )
+from app.models.recipe_category import (
+    MAX_RECIPE_CATEGORIES,
+    RecipeCategory,
+    RecipeDraftCategory,
+    RecipeVersionCategory,
+)
 from app.models.recipe_draft import (
     RECIPE_DRAFT_SELECTION_CATALOG,
     RECIPE_DRAFT_SELECTION_KINDS,
@@ -151,6 +157,7 @@ __all__ = [
     "IngredientSubstitution",
     "IngredientDensityRule",
     "IngredientPackageSize",
+    "MAX_RECIPE_CATEGORIES",
     "MAX_RATING",
     "MIN_RATING",
     "MEASUREMENT_DIMENSION_COUNT",
@@ -178,6 +185,8 @@ __all__ = [
     "OIDCLoginTransaction",
     "PREFERENCE_EVENT_TYPES",
     "PreferenceEvent",
+    "RecipeCategory",
+    "RecipeDraftCategory",
     "RecipeIngredient",
     "RecipeInstruction",
     "RecipeInstructionAction",
@@ -215,6 +224,7 @@ __all__ = [
     "RecipeDraftInstructionActionMeasure",
     "RecipeStructuralFingerprint",
     "RecipeVersion",
+    "RecipeVersionCategory",
     "RecipeVersionPublication",
     "RecipeVersionVisibilityEvent",
     "RECIPE_PUBLICATION_STATE_AUTHOR_WITHDRAWN",

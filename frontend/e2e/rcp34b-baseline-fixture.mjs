@@ -33,6 +33,13 @@ const IDS = Object.freeze({
   approvedRequest: "70000000-0000-4000-8000-000000000002",
   report: "80000000-0000-4000-8000-000000000001",
   preflight: "90000000-0000-4000-8000-000000000001",
+  breakfastCategory: "a1000000-0000-4000-8000-000000000001",
+  lunchCategory: "a1000000-0000-4000-8000-000000000002",
+  dinnerCategory: "a1000000-0000-4000-8000-000000000003",
+  dessertsCategory: "a1000000-0000-4000-8000-000000000004",
+  breadsCategory: "a1000000-0000-4000-8000-000000000005",
+  vegetarianCategory: "a1000000-0000-4000-8000-000000000006",
+  quickEasyCategory: "a1000000-0000-4000-8000-000000000007",
 });
 
 const user = Object.freeze({
@@ -146,6 +153,16 @@ const basil = Object.freeze({
   aliases: ["Basil"],
 });
 
+const recipeCategories = Object.freeze([
+  { id: IDS.breakfastCategory, name: "Breakfast", slug: "breakfast" },
+  { id: IDS.lunchCategory, name: "Lunch", slug: "lunch" },
+  { id: IDS.dinnerCategory, name: "Dinner", slug: "dinner" },
+  { id: IDS.dessertsCategory, name: "Desserts", slug: "desserts" },
+  { id: IDS.breadsCategory, name: "Breads", slug: "breads" },
+  { id: IDS.vegetarianCategory, name: "Vegetarian", slug: "vegetarian" },
+  { id: IDS.quickEasyCategory, name: "Quick & Easy", slug: "quick-easy" },
+]);
+
 function recipeSummary({
   id,
   parentVersionId,
@@ -154,6 +171,8 @@ function recipeSummary({
   description,
   author = user,
   parent = null,
+  categories = [recipeCategories[1], recipeCategories[5]],
+  publishedAt = FIXED_TIME,
 }) {
   return {
     id,
@@ -164,8 +183,10 @@ function recipeSummary({
     description,
     servings: "4.00",
     created_at: FIXED_TIME,
+    published_at: publishedAt,
     author,
     parent,
+    categories,
   };
 }
 
@@ -177,6 +198,7 @@ const rootSummary = Object.freeze(
     title: "Sunlit Tomato Soup",
     description: "A bright tomato soup made for a quiet lunch.",
     author: catalogUser,
+    publishedAt: "2026-08-25T12:00:00.000Z",
   }),
 );
 const rootReference = Object.freeze({
@@ -193,6 +215,8 @@ const variantSummary = Object.freeze(
     title: "Garden Cream Tomato Soup",
     description: "The original soup with basil and a gentle creamy finish.",
     parent: rootReference,
+    categories: [recipeCategories[2], recipeCategories[5]],
+    publishedAt: "2026-08-26T12:00:00.000Z",
   }),
 );
 const childSummary = Object.freeze(
@@ -202,6 +226,7 @@ const childSummary = Object.freeze(
     versionNumber: 3,
     title: "Roasted Garden Tomato Soup",
     description: "A roasted variation with a deeper tomato flavor.",
+    categories: [recipeCategories[2], recipeCategories[6]],
     parent: {
       id: IDS.recipeVariant,
       version_number: 2,
@@ -438,6 +463,7 @@ function draftDetail(complete, unresolvedIngredient = false) {
           },
         ]
       : [],
+    categories: complete ? [recipeCategories[1], recipeCategories[5]] : [],
     created_at: FIXED_TIME,
     updated_at: FIXED_TIME,
   };
@@ -588,10 +614,13 @@ const probablePreflight = Object.freeze({
 
 const allowedScenarios = new Set([
   "anonymous-session",
+  "auth-error",
   "curation-empty",
   "curation-stale-once",
   "curator-session",
   "normal",
+  "homepage-empty",
+  "homepage-partial-error",
   "moderation-detail-not-found",
   "moderation-queue-failure-once",
   "moderator-session",
@@ -705,11 +734,11 @@ function requestHasPrivateMaterial(request) {
   );
 }
 
-function apiPage(items) {
+function apiPage(items, pageSize = 12) {
   return {
     items,
     page: 1,
-    page_size: 12,
+    page_size: pageSize,
     total: items.length,
     total_pages: items.length ? 1 : 0,
   };
@@ -727,6 +756,15 @@ async function handleApi(request, response, url) {
 
   if (method === "GET" && path === "/api/auth/session") {
     countRoute("auth-session");
+    if (scenario === "auth-error") {
+      sendError(
+        response,
+        503,
+        "authentication_unavailable",
+        "The synthetic account service is temporarily unavailable.",
+      );
+      return;
+    }
     const responseSession = currentSession();
     if (scenario === "slow-session" || scenario === "slow-curator-session") {
       await new Promise((resolve) => setTimeout(resolve, 8_000));
@@ -742,7 +780,52 @@ async function handleApi(request, response, url) {
     let items = query === "No baseline matches" ? [] : [rootSummary, variantSummary, childSummary];
     if (variant === "true") items = items.filter((item) => item.parent_version_id !== null);
     if (variant === "false") items = items.filter((item) => item.parent_version_id === null);
-    sendJson(response, 200, apiPage(items));
+    const category = url.searchParams.get("category");
+    if (category) {
+      items = items.filter((item) =>
+        item.categories.some((itemCategory) => itemCategory.slug === category),
+      );
+    }
+    if (url.searchParams.get("sort") === "newest") {
+      items = [...items].sort(
+        (left, right) =>
+          right.published_at.localeCompare(left.published_at) ||
+          left.id.localeCompare(right.id),
+      );
+    }
+    if (scenario === "homepage-empty" && url.searchParams.get("sort") === "newest") {
+      items = [];
+    }
+    const requestedPageSize = Number.parseInt(
+      url.searchParams.get("page_size") ?? "12",
+      10,
+    );
+    sendJson(response, 200, apiPage(items, requestedPageSize));
+    return;
+  }
+
+  if (method === "GET" && path === "/api/recipes/featured") {
+    countRoute("featured-recipes");
+    if (scenario === "homepage-partial-error") {
+      sendError(
+        response,
+        503,
+        "featured_recipes_unavailable",
+        "The synthetic featured shelf is temporarily unavailable.",
+      );
+      return;
+    }
+    sendJson(response, 200, {
+      items: scenario === "homepage-empty" ? [] : [variantSummary, rootSummary, childSummary],
+    });
+    return;
+  }
+
+  if (method === "GET" && path === "/api/recipe-categories") {
+    countRoute("recipe-categories");
+    sendJson(response, 200, {
+      items: scenario === "homepage-empty" ? [] : recipeCategories,
+    });
     return;
   }
 
@@ -844,24 +927,46 @@ async function handleApi(request, response, url) {
       );
       return;
     }
+    const responseItems = scenario === "homepage-empty" ? [] : items;
+    const requestedPageSize = Number.parseInt(
+      url.searchParams.get("page_size") ?? "12",
+      10,
+    );
     sendJson(response, 200, {
-      items,
+      items: responseItems,
       page: 1,
-      page_size: 12,
-      total: items.length,
-      total_pages: 1,
+      page_size: requestedPageSize,
+      total: responseItems.length,
+      total_pages: responseItems.length ? 1 : 0,
     });
     return;
   }
 
   if (method === "GET" && path === "/api/my/saved-recipes") {
     countRoute("saved-recipes");
+    if (scenario === "homepage-partial-error") {
+      sendError(
+        response,
+        503,
+        "saved_recipes_unavailable",
+        "The synthetic saved recipe library is temporarily unavailable.",
+      );
+      return;
+    }
+    const savedItems =
+      scenario === "homepage-empty"
+        ? []
+        : [{ recipe: variantSummary, saved_at: FIXED_TIME }];
+    const requestedPageSize = Number.parseInt(
+      url.searchParams.get("page_size") ?? "12",
+      10,
+    );
     sendJson(response, 200, {
-      items: [{ recipe: variantSummary, saved_at: FIXED_TIME }],
+      items: savedItems,
       page: 1,
-      page_size: 12,
-      total: 1,
-      total_pages: 1,
+      page_size: requestedPageSize,
+      total: savedItems.length,
+      total_pages: savedItems.length ? 1 : 0,
     });
     return;
   }
@@ -919,13 +1024,28 @@ async function handleApi(request, response, url) {
 
   if (method === "GET" && path === "/api/ingredient-requests/mine") {
     countRoute("member-ingredient-requests");
+    const requestItems =
+      scenario === "homepage-empty" ? [] : [memberIngredientRequest];
+    const requestedPageSize = Number.parseInt(
+      url.searchParams.get("page_size") ?? "20",
+      10,
+    );
     sendJson(response, 200, {
-      items: [memberIngredientRequest],
+      items: requestItems,
       page: 1,
-      page_size: 20,
-      total: 1,
-      total_pages: 1,
+      page_size: requestedPageSize,
+      total: requestItems.length,
+      total_pages: requestItems.length ? 1 : 0,
     });
+    return;
+  }
+
+  if (method === "POST" && path === "/api/auth/logout") {
+    countRoute("auth-logout");
+    scenario = "anonymous-session";
+    scenarioState = freshScenarioState();
+    response.writeHead(204, { "Cache-Control": "no-store" });
+    response.end();
     return;
   }
 

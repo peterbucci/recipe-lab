@@ -16,6 +16,7 @@ const RECIPE_ID = "33333333-3333-4333-8333-333333333333";
 const PARENT_ID = "44444444-4444-4444-8444-444444444444";
 const LINEAGE_ID = "55555555-5555-4555-8555-555555555555";
 const DRAFT_ID = "66666666-6666-4666-8666-666666666666";
+const CATEGORY_ID = "77777777-7777-4777-8777-777777777777";
 const DEMO_COOK_ID = "1fc5b3b8-cf73-54ce-b5d6-ed3c30df9fd9";
 
 const cook = {
@@ -32,7 +33,11 @@ const recipe = {
   title: "Alice’s carrot cake",
   description: "A public fork.",
   servings: "8.00",
+  categories: [
+    { id: CATEGORY_ID, name: "Baking", slug: "baking" },
+  ],
   created_at: "2026-08-25T12:00:00Z",
+  published_at: "2026-08-25T12:30:00Z",
   author: cook,
   parent: {
     id: PARENT_ID,
@@ -89,6 +94,7 @@ describe("recipe library API", () => {
 
     expect(result.cook).toEqual(cook);
     expect(result.items[0].author).toEqual(cook);
+    expect(result.items[0].categories).toEqual(recipe.categories);
     expect(result.cook).not.toHaveProperty("email");
     expect(result.items[0]).not.toHaveProperty("private_events");
   });

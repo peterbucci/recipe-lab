@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from app.models.engagement import RecipeRating, RecipeSave
     from app.models.ingredient import Ingredient
     from app.models.measurement import IngredientPackageSize, MeasurementUnit
+    from app.models.recipe_category import RecipeVersionCategory
     from app.models.recipe_draft import RecipeDraft
     from app.models.recipe_fingerprint import RecipeStructuralFingerprint
     from app.models.user import User
@@ -152,6 +153,11 @@ class RecipeVersion(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
         back_populates="recipe_version",
         uselist=False,
         viewonly=True,
+    )
+    categories: Mapped[list["RecipeVersionCategory"]] = relationship(
+        back_populates="recipe_version",
+        order_by="RecipeVersionCategory.display_order",
+        passive_deletes="all",
     )
 
 

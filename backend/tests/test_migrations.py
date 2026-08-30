@@ -49,6 +49,7 @@ DOMAIN_TABLES = {
     "recipe_duplicate_decisions",
     "recipe_duplicate_preflights",
     "recipe_draft_ingredients",
+    "recipe_draft_categories",
     "recipe_draft_instruction_action_inputs",
     "recipe_draft_instruction_action_measures",
     "recipe_draft_instruction_actions",
@@ -61,10 +62,12 @@ DOMAIN_TABLES = {
     "recipe_saves",
     "recipe_structural_fingerprints",
     "recipe_version_ingredients",
+    "recipe_version_categories",
     "recipe_version_instructions",
     "recipe_version_publications",
     "recipe_version_visibility_events",
     "recipe_versions",
+    "recipe_categories",
     "users",
     "user_sessions",
 }
@@ -226,6 +229,156 @@ def test_migrations_round_trip_on_empty_postgres_schema(
 
     assert current_revision == script.get_current_head()
     assert DOMAIN_TABLES <= set(inspect(empty_postgres_engine).get_table_names())
+
+
+def test_recipe_category_migration_uses_only_explicit_demo_assignments(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    catalog = load_bundled_catalog()
+    recipe_key = "carrot-walnut-snack-cake-v1"
+    seeded_version_id = seed_uuid(catalog.metadata.dataset_id, "recipe-version", recipe_key)
+    unrelated_version_id = uuid4()
+    author_id = uuid4()
+
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260828_0020")
+
+        metadata = sa.MetaData()
+        users = sa.Table("users", metadata, autoload_with=connection)
+        lineages = sa.Table("recipe_lineages", metadata, autoload_with=connection)
+        versions = sa.Table("recipe_versions", metadata, autoload_with=connection)
+        connection.execute(
+            users.insert().values(
+                id=author_id,
+                email=f"category-migration-{author_id}@example.test",
+                display_name="Category migration test",
+                handle=f"category_migration_{author_id.hex[:8]}",
+            )
+        )
+        seeded_lineage_id = uuid4()
+        unrelated_lineage_id = uuid4()
+        connection.execute(
+            lineages.insert(),
+            [
+                {"id": seeded_lineage_id, "created_by_user_id": author_id},
+                {"id": unrelated_lineage_id, "created_by_user_id": author_id},
+            ],
+        )
+        connection.execute(
+            versions.insert(),
+            [
+                {
+                    "id": seeded_version_id,
+                    "lineage_id": seeded_lineage_id,
+                    "parent_version_id": None,
+                    "created_by_user_id": author_id,
+                    "version_number": 1,
+                    "title": "Explicitly mapped demo identity",
+                    "description": None,
+                    "servings": Decimal("4.00"),
+                },
+                {
+                    "id": unrelated_version_id,
+                    "lineage_id": unrelated_lineage_id,
+                    "parent_version_id": None,
+                    "created_by_user_id": author_id,
+                    "version_number": 1,
+                    "title": "Carrot dessert words do not imply a category",
+                    "description": "Breakfast dinner bread vegetarian quick easy",
+                    "servings": Decimal("4.00"),
+                },
+            ],
+        )
+
+        command.upgrade(alembic_config, "head")
+
+        mapped = [
+            tuple(row)
+            for row in connection.execute(
+                sa.text(
+                    "SELECT category_name, category_slug, display_order "
+                    "FROM recipe_version_categories "
+                    "WHERE recipe_version_id = :recipe_version_id "
+                    "ORDER BY display_order"
+                ),
+                {"recipe_version_id": seeded_version_id},
+            )
+        ]
+        inferred = connection.scalar(
+            sa.text(
+                "SELECT count(*) FROM recipe_version_categories "
+                "WHERE recipe_version_id = :recipe_version_id"
+            ),
+            {"recipe_version_id": unrelated_version_id},
+        )
+        vocabulary = [
+            tuple(row)
+            for row in connection.execute(
+                sa.text(
+                    "SELECT name, slug, display_order FROM recipe_categories "
+                    "WHERE active IS TRUE ORDER BY display_order"
+                )
+            )
+        ]
+
+        assert mapped == [("Desserts", "desserts", 0), ("Vegetarian", "vegetarian", 1)]
+        assert inferred == 0
+        assert vocabulary == [
+            ("Breakfast", "breakfast", 0),
+            ("Lunch", "lunch", 1),
+            ("Dinner", "dinner", 2),
+            ("Desserts", "desserts", 3),
+            ("Breads", "breads", 4),
+            ("Vegetarian", "vegetarian", 5),
+            ("Quick & Easy", "quick-easy", 6),
+        ]
+
+        with (
+            pytest.raises(IntegrityError, match="category snapshots are immutable"),
+            connection.begin_nested(),
+        ):
+            connection.execute(
+                sa.text(
+                    "UPDATE recipe_version_categories SET category_name = 'Changed' "
+                    "WHERE recipe_version_id = :recipe_version_id"
+                ),
+                {"recipe_version_id": seeded_version_id},
+            )
+
+        publications = sa.Table(
+            "recipe_version_publications",
+            sa.MetaData(),
+            autoload_with=connection,
+        )
+        connection.execute(
+            publications.insert().values(
+                recipe_version_id=unrelated_version_id,
+                actor_user_id=author_id,
+            )
+        )
+        breakfast_id = seed_uuid(
+            catalog.metadata.dataset_id,
+            "recipe-category",
+            "breakfast",
+        )
+        with (
+            pytest.raises(IntegrityError, match="published recipe category snapshots"),
+            connection.begin_nested(),
+        ):
+            connection.execute(
+                sa.text(
+                    "INSERT INTO recipe_version_categories "
+                    "(recipe_version_id, recipe_category_id, category_name, category_slug, "
+                    "display_order) VALUES (:version_id, :category_id, 'Breakfast', "
+                    "'breakfast', 0)"
+                ),
+                {
+                    "version_id": unrelated_version_id,
+                    "category_id": breakfast_id,
+                },
+            )
 
 
 def test_original_publication_backfills_visibility_and_seals_existing_snapshots(

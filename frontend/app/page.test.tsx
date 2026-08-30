@@ -1,11 +1,29 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+vi.mock("./components/home-public-discovery", () => ({
+  HomePublicDiscovery: () => (
+    <section>
+      <h2>Featured recipes</h2>
+    </section>
+  ),
+  HowRecipeLabWorks: () => (
+    <section id="how-it-works">
+      <h2>How Recipe Lab works</h2>
+    </section>
+  ),
+}));
+
+import { AuthSessionProvider } from "./components/auth-session-provider";
 import HomePage from "./page";
 
 describe("HomePage", () => {
   it("explains how Recipe Lab keeps changed recipes connected", () => {
-    render(<HomePage />);
+    render(
+      <AuthSessionProvider initialSession={{ status: "anonymous" }}>
+        <HomePage />
+      </AuthSessionProvider>,
+    );
 
     expect(
       screen.getByRole("heading", {
@@ -30,10 +48,8 @@ describe("HomePage", () => {
       "submit",
     );
     expect(screen.queryByRole("link", { name: /^how it works$/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /choose a recipe/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /your version/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /see what changed/i })).toBeInTheDocument();
-    expect(screen.queryByLabelText(/how saving a changed recipe works/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/recipe lab summary/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "How Recipe Lab works" })).toBeInTheDocument();
     expect(screen.queryByText(/cook\. change\. learn/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/cooking notebook/i)).not.toBeInTheDocument();
   });

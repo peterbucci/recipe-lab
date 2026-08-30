@@ -30,6 +30,7 @@ from app.models import (
     OIDCIdentity,
     PreferenceEvent,
     RecipeDraft,
+    RecipeDraftCategory,
     RecipeDraftIngredient,
     RecipeDraftInstruction,
     RecipeDuplicatePreflight,
@@ -389,9 +390,10 @@ def _verify_deleted_members(
         ),
     ):
         raise _fail()
-    if _has_rows(session, RecipeDraftIngredient.recipe_draft_id.in_(draft_ids)) or _has_rows(
-        session,
-        RecipeDraftInstruction.recipe_draft_id.in_(draft_ids),
+    if (
+        _has_rows(session, RecipeDraftCategory.recipe_draft_id.in_(draft_ids))
+        or _has_rows(session, RecipeDraftIngredient.recipe_draft_id.in_(draft_ids))
+        or _has_rows(session, RecipeDraftInstruction.recipe_draft_id.in_(draft_ids))
     ):
         raise _fail()
 

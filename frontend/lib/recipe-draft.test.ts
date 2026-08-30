@@ -19,6 +19,7 @@ const INGREDIENT_ID = "11111111-1111-4111-8111-111111111111";
 const REQUEST_ID = "22222222-2222-4222-8222-222222222222";
 const ROW_ID = "33333333-3333-4333-8333-333333333333";
 const DRAFT_ID = "44444444-4444-4444-8444-444444444444";
+const CATEGORY_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 const detail: RecipeDraftDetail = {
   id: DRAFT_ID,
@@ -28,6 +29,9 @@ const detail: RecipeDraftDetail = {
   title: "",
   description: null,
   servings: null,
+  categories: [
+    { id: CATEGORY_ID, name: "Quick & easy", slug: "quick-easy" },
+  ],
   ingredients: [{
     id: ROW_ID,
     display_order: 0,
@@ -257,6 +261,7 @@ describe("private recipe draft state", () => {
       title: "Garden sage broth",
       description: "A structured draft.",
       servings: "3.5",
+      category_ids: [CATEGORY_ID],
       ingredients: [
         {
           ref: ROW_ID,
@@ -302,6 +307,7 @@ describe("private recipe draft state", () => {
       title: "",
       description: "",
       servings: "",
+      categories: [],
       ingredients: [],
       instructions: [],
     };
@@ -311,6 +317,7 @@ describe("private recipe draft state", () => {
       title: "",
       description: null,
       servings: null,
+      category_ids: [],
       ingredients: [],
       instructions: [],
     });
@@ -334,6 +341,7 @@ describe("private recipe draft state", () => {
       title: "Soup",
       description: "",
       servings: "2",
+      categories: [],
       ingredients: [ingredient],
       instructions: [instruction],
     };
@@ -398,6 +406,7 @@ describe("private recipe draft state", () => {
       title: "Sage recipe",
       description: "A publishable test recipe.",
       servings: "2",
+      categories: detail.categories,
       ingredients: [ingredient],
       instructions: [instruction],
     };
@@ -422,6 +431,11 @@ describe("private recipe draft state", () => {
     expect(
       recipeDraftFieldErrorsFromIssues(state, [
         {
+          location: ["body", "category_ids", 0],
+          message: "This recipe category is no longer available.",
+          type: "value_error",
+        },
+        {
           location: ["body", "ingredients", 0, "selection", "ingredient_id"],
           message: "This catalog ingredient is no longer available.",
           type: "value_error",
@@ -433,6 +447,7 @@ describe("private recipe draft state", () => {
         },
       ]),
     ).toEqual({
+      categories: "This recipe category is no longer available.",
       "ingredient.ingredient-ref.selection": "This catalog ingredient is no longer available.",
       "instruction.instruction-ref.action.action-ref.type":
         "This cooking action is no longer available.",

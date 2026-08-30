@@ -3,6 +3,7 @@
     "key": "banana-oat-pancakes-v1",
     "version_number": 1,
     "title": "Banana Oat Pancakes",
+    "categories": ["breakfast", "vegetarian", "quick-easy"],
     "description": "A quick American-style breakfast made with blended oats and ripe banana.",
     "servings": "4",
     "ingredients": [
@@ -25,6 +26,7 @@
     "parent": "banana-oat-pancakes-v1",
     "version_number": 2,
     "title": "Blueberry Banana Oat Pancakes",
+    "categories": ["breakfast", "vegetarian", "quick-easy"],
     "description": "The banana-oat pancakes with blueberries folded into each batch.",
     "servings": "4",
     "ingredients": [
@@ -47,6 +49,7 @@
     "key": "apple-cinnamon-overnight-oats-v1",
     "version_number": 1,
     "title": "Apple Cinnamon Overnight Oats",
+    "categories": ["breakfast", "vegetarian", "quick-easy"],
     "description": "A chilled make-ahead breakfast with apple, yogurt, and warm spice.",
     "servings": "2",
     "ingredients": [
@@ -69,6 +72,7 @@
     "parent": "apple-cinnamon-overnight-oats-v1",
     "version_number": 2,
     "title": "Oat-Milk Apple Overnight Oats",
+    "categories": ["breakfast", "vegetarian", "quick-easy"],
     "description": "The apple overnight oats with oat milk in place of dairy milk.",
     "servings": "2",
     "ingredients": [
@@ -90,6 +94,7 @@
     "key": "spinach-tomato-egg-skillet-v1",
     "version_number": 1,
     "title": "Spinach Tomato Egg Skillet",
+    "categories": ["breakfast", "vegetarian", "quick-easy"],
     "description": "A savory skillet breakfast with tender greens and tomatoes.",
     "servings": "2",
     "ingredients": [
@@ -111,6 +116,7 @@
     "key": "lemon-chickpea-toast-v1",
     "version_number": 1,
     "title": "Lemon Chickpea Toast",
+    "categories": ["lunch", "breads", "vegetarian"],
     "description": "A bright Mediterranean-inspired chickpea spread on crisp whole-wheat toast.",
     "servings": "2",
     "ingredients": [
@@ -132,6 +138,7 @@
     "key": "peanut-butter-apple-oat-bites-v1",
     "version_number": 1,
     "title": "Peanut Butter Apple Oat Bites",
+    "categories": ["breakfast", "vegetarian", "quick-easy"],
     "description": "A no-bake oat snack with crisp apple and peanut butter.",
     "servings": "4",
     "ingredients": [
@@ -152,6 +159,7 @@
     "key": "red-lentil-coconut-stew-v1",
     "version_number": 1,
     "title": "Red Lentil Coconut Stew",
+    "categories": ["dinner", "vegetarian"],
     "description": "A pantry-friendly, South Asian-inspired stew with ginger and gentle curry spices.",
     "servings": "4",
     "ingredients": [
@@ -176,6 +184,7 @@
     "parent": "red-lentil-coconut-stew-v1",
     "version_number": 2,
     "title": "Sweet Potato Red Lentil Stew",
+    "categories": ["dinner", "vegetarian"],
     "description": "A thicker child variant with sweet potato and slightly milder seasoning.",
     "servings": "4",
     "ingredients": [
@@ -200,6 +209,7 @@
     "key": "tomato-white-bean-soup-v1",
     "version_number": 1,
     "title": "Tomato White Bean Soup",
+    "categories": ["lunch", "vegetarian", "quick-easy"],
     "description": "A rustic Mediterranean-inspired soup with beans, vegetables, and basil.",
     "servings": "4",
     "ingredients": [
@@ -223,6 +233,7 @@
     "key": "black-bean-sweet-potato-chili-v1",
     "version_number": 1,
     "title": "Black Bean Sweet Potato Chili",
+    "categories": ["dinner", "vegetarian"],
     "description": "A Mexican-inspired meatless chili with smoky spice and tender sweet potato.",
     "servings": "6",
     "ingredients": [
@@ -246,6 +257,7 @@
     "key": "chicken-ginger-rice-soup-v1",
     "version_number": 1,
     "title": "Chicken Ginger Rice Soup",
+    "categories": ["lunch", "dinner"],
     "description": "An East Asian-inspired chicken soup with ginger, rice, and scallions.",
     "servings": "4",
     "ingredients": [
@@ -269,6 +281,7 @@
     "key": "mushroom-barley-soup-v1",
     "version_number": 1,
     "title": "Mushroom Barley Soup",
+    "categories": ["lunch", "vegetarian"],
     "description": "A hearty vegetable soup with earthy mushrooms and chewy pearl barley.",
     "servings": "4",
     "ingredients": [
@@ -292,6 +305,7 @@
     "key": "lemon-herb-chickpea-quinoa-bowl-v1",
     "version_number": 1,
     "title": "Lemon Herb Chickpea Quinoa Bowl",
+    "categories": ["lunch", "vegetarian", "quick-easy"],
     "description": "A fresh Mediterranean-inspired grain bowl with chickpeas and tahini dressing.",
     "servings": "4",
     "ingredients": [
@@ -315,6 +329,7 @@
     "parent": "lemon-herb-chickpea-quinoa-bowl-v1",
     "version_number": 2,
     "title": "Brown Rice Chickpea Bowl",
+    "categories": ["lunch", "vegetarian", "quick-easy"],
     "description": "The lemon-herb bowl made with cooked brown rice instead of quinoa.",
     "servings": "4",
     "ingredients": [
@@ -337,6 +352,7 @@
     "key": "sesame-tofu-broccoli-rice-bowl-v1",
     "version_number": 1,
     "title": "Sesame Tofu Broccoli Rice Bowl",
+    "categories": ["dinner", "vegetarian"],
     "description": "An East Asian-inspired rice bowl with crisp-edged tofu and a savory sesame sauce.",
     "servings": "4",
     "ingredients": [
@@ -362,6 +378,7 @@
     "parent": "sesame-tofu-broccoli-rice-bowl-v1",
     "version_number": 2,
     "title": "Sesame Tempeh Broccoli Rice Bowl",
+    "categories": ["dinner", "vegetarian"],
     "description": "The sesame rice bowl with nutty browned tempeh in place of tofu.",
     "servings": "4",
     "ingredients": [
@@ -386,6 +403,7 @@
     "key": "roasted-vegetable-couscous-salad-v1",
     "version_number": 1,
     "title": "Roasted Vegetable Couscous Salad",
+    "categories": ["lunch", "vegetarian"],
     "description": "A colorful North African-inspired couscous salad with roasted vegetables and chickpeas.",
     "servings": "4",
     "ingredients": [
@@ -408,6 +426,7 @@
     "key": "tuna-white-bean-salad-v1",
     "version_number": 1,
     "title": "Tuna White Bean Salad",
+    "categories": ["lunch", "quick-easy"],
     "description": "A no-cook Mediterranean-inspired salad with tuna, beans, and crisp vegetables.",
     "servings": "3",
     "ingredients": [
@@ -430,6 +449,7 @@
     "key": "lentil-beet-walnut-salad-v1",
     "version_number": 1,
     "title": "Lentil Beet Walnut Salad",
+    "categories": ["lunch", "vegetarian"],
     "description": "An earthy lentil salad balanced with roasted beets, feta, and walnuts.",
     "servings": "4",
     "ingredients": [
@@ -451,6 +471,7 @@
     "key": "tomato-basil-spaghetti-v1",
     "version_number": 1,
     "title": "Tomato Basil Spaghetti",
+    "categories": ["dinner", "vegetarian", "quick-easy"],
     "description": "A simple Italian-inspired pasta with a garlic tomato sauce and fresh basil.",
     "servings": "4",
     "ingredients": [
@@ -474,6 +495,7 @@
     "parent": "tomato-basil-spaghetti-v1",
     "version_number": 2,
     "title": "Whole-Wheat Spinach Tomato Spaghetti",
+    "categories": ["dinner", "vegetarian", "quick-easy"],
     "description": "The tomato basil pasta with whole-wheat spaghetti and spinach.",
     "servings": "4",
     "ingredients": [
@@ -499,6 +521,7 @@
     "parent": "whole-wheat-spinach-spaghetti-v2",
     "version_number": 3,
     "title": "Mushroom Whole-Wheat Tomato Spaghetti",
+    "categories": ["dinner", "vegetarian", "quick-easy"],
     "description": "A third-generation tomato pasta variant with browned mushrooms and spinach.",
     "servings": "4",
     "ingredients": [
@@ -524,6 +547,7 @@
     "key": "mushroom-pea-risotto-v1",
     "version_number": 1,
     "title": "Mushroom Pea Risotto",
+    "categories": ["dinner", "vegetarian"],
     "description": "A creamy Italian-inspired rice dish with mushrooms, peas, and Parmesan.",
     "servings": "4",
     "ingredients": [
@@ -547,6 +571,7 @@
     "key": "sheet-pan-lemon-chicken-vegetables-v1",
     "version_number": 1,
     "title": "Sheet-Pan Lemon Chicken and Vegetables",
+    "categories": ["dinner", "quick-easy"],
     "description": "A practical sheet-pan dinner with lemon, oregano, potatoes, and broccoli.",
     "servings": "4",
     "ingredients": [
@@ -568,6 +593,7 @@
     "key": "baked-dill-salmon-potatoes-v1",
     "version_number": 1,
     "title": "Baked Dill Salmon with Potatoes",
+    "categories": ["dinner"],
     "description": "A bright salmon dinner with dill, green beans, and roasted potatoes.",
     "servings": "4",
     "ingredients": [
@@ -589,6 +615,7 @@
     "key": "turkey-meatballs-tomato-spaghetti-v1",
     "version_number": 1,
     "title": "Turkey Meatballs with Tomato Spaghetti",
+    "categories": ["dinner"],
     "description": "An Italian American-style pasta dinner with tender turkey meatballs and tomato sauce.",
     "servings": "4",
     "ingredients": [
@@ -613,6 +640,7 @@
     "key": "black-bean-tacos-v1",
     "version_number": 1,
     "title": "Black Bean Tacos",
+    "categories": ["dinner", "vegetarian", "quick-easy"],
     "description": "A Mexican-inspired taco filling with sautéed peppers, beans, and crunchy cabbage.",
     "servings": "4",
     "ingredients": [
@@ -637,6 +665,7 @@
     "key": "vegetable-fried-rice-v1",
     "version_number": 1,
     "title": "Vegetable Fried Rice",
+    "categories": ["dinner", "vegetarian", "quick-easy"],
     "description": "An East Asian-inspired fried rice designed for cooked, chilled rice.",
     "servings": "4",
     "ingredients": [
@@ -660,6 +689,7 @@
     "key": "herbed-chickpea-patties-tahini-v1",
     "version_number": 1,
     "title": "Herbed Chickpea Patties with Tahini",
+    "categories": ["dinner", "vegetarian"],
     "description": "A Middle Eastern-inspired baked chickpea patty with parsley and lemon tahini.",
     "servings": "4",
     "ingredients": [
@@ -684,6 +714,7 @@
     "key": "carrot-walnut-snack-cake-v1",
     "version_number": 1,
     "title": "Carrot Walnut Snack Cake",
+    "categories": ["desserts", "vegetarian"],
     "description": "A simple spiced carrot cake with walnuts and an unfrosted finish.",
     "servings": "8",
     "ingredients": [
@@ -709,6 +740,7 @@
     "parent": "carrot-walnut-snack-cake-v1",
     "version_number": 2,
     "title": "Lower-Sugar Pecan Carrot Cake",
+    "categories": ["desserts", "vegetarian"],
     "description": "The carrot snack cake with less sugar and pecans replacing the walnuts.",
     "servings": "8",
     "ingredients": [
@@ -734,6 +766,7 @@
     "parent": "carrot-walnut-snack-cake-v1",
     "version_number": 3,
     "title": "Orange Raisin Carrot Cake",
+    "categories": ["desserts", "vegetarian"],
     "description": "A sibling carrot-cake variant with orange zest and raisins instead of walnuts.",
     "servings": "8",
     "ingredients": [
@@ -759,6 +792,7 @@
     "key": "blueberry-oat-muffins-v1",
     "version_number": 1,
     "title": "Blueberry Oat Muffins",
+    "categories": ["breakfast", "breads", "vegetarian"],
     "description": "A lightly spiced breakfast muffin with blueberries and an oat-studded crumb.",
     "servings": "8",
     "ingredients": [

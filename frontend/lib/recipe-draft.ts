@@ -5,6 +5,8 @@ import type {
   MissingIngredientRequest,
 } from "./ingredient-catalog-api";
 import type { CatalogUnit } from "./measurement-unit-api";
+import type { RecipeCategory } from "./recipe-api";
+import { MAX_RECIPE_CATEGORIES } from "./recipe-category";
 import {
   type RecipeDraftDetail,
   type RecipeDraftRequestSelection,
@@ -48,6 +50,7 @@ export interface RecipeDraftEditorState {
   title: string;
   description: string;
   servings: string;
+  categories: RecipeCategory[];
   ingredients: RecipeDraftIngredientState[];
   instructions: RecipeDraftInstructionState[];
 }
@@ -109,6 +112,7 @@ export function hydrateRecipeDraft(detail: RecipeDraftDetail): RecipeDraftEditor
     title: detail.title,
     description: detail.description ?? "",
     servings: detail.servings ?? "",
+    categories: detail.categories.map((category) => ({ ...category })),
     ingredients,
     instructions: detail.instructions.map((instruction) => ({
       key: instruction.id,
@@ -192,6 +196,20 @@ export function validateRecipeDraft(
   if (titleError) fieldErrors.title = titleError;
   if (descriptionError) fieldErrors.description = descriptionError;
   if (portionError) fieldErrors.servings = portionError;
+  const categoryIds = state.categories.map((category) => category.id);
+  if (state.categories.length > MAX_RECIPE_CATEGORIES) {
+    fieldErrors.categories = `Choose no more than ${MAX_RECIPE_CATEGORIES} recipe categories.`;
+  } else if (
+    new Set(categoryIds).size !== categoryIds.length ||
+    categoryIds.some(
+      (id) =>
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          id,
+        ),
+    )
+  ) {
+    fieldErrors.categories = "Choose recipe categories from the curated list.";
+  }
   if (state.ingredients.length > 200) formErrors.push("Use no more than 200 ingredient rows.");
   if (state.instructions.length > 100) formErrors.push("Use no more than 100 instruction steps.");
 
@@ -288,6 +306,7 @@ export function validateRecipeDraft(
       title: state.title.trim(),
       description: state.description.trim() || null,
       servings: state.servings.trim() || null,
+      category_ids: categoryIds,
       ingredients,
       instructions,
     },
@@ -355,6 +374,10 @@ export function recipeDraftFieldErrorsFromIssues(
     const [section, index, field, nestedIndex, nestedField, measurePart] = path;
     if (section === "title" || section === "description" || section === "servings") {
       errors[section] = issue.message;
+      continue;
+    }
+    if (section === "category_ids" || section === "categories") {
+      errors.categories = issue.message;
       continue;
     }
     if (section === "ingredients" && typeof index === "number") {

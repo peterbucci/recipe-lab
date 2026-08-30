@@ -22,6 +22,13 @@ function editorState(): RecipeDraftEditorState {
     title: "Bread",
     description: "A test draft",
     servings: "4",
+    categories: [
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "Baking",
+        slug: "baking",
+      },
+    ],
     ingredients: [
       createDraftIngredientState("ingredient-a"),
       createDraftIngredientState("ingredient-b"),
@@ -69,6 +76,7 @@ describe("recipe draft editor transformations", () => {
     expect(result.instructions[1]).toBe(replacementInstruction);
     expect(result.ingredients.at(-1)).toBe(newIngredient);
     expect(result.instructions.at(-1)).toBe(newInstruction);
+    expect(result.categories).toBe(original.categories);
     expect(original.ingredients[1]?.preparationNotes).toBe("");
     expect(original.instructions[1]?.text).toBe("");
   });
@@ -99,6 +107,7 @@ describe("recipe draft editor transformations", () => {
       "instruction-b",
       "instruction-c",
     ]);
+    expect(result.categories).toBe(original.categories);
   });
 
   it("returns the original draft for invalid or boundary operations", () => {

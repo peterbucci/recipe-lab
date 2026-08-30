@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, Numeric, cast, exists, func, or_, select
@@ -13,6 +14,7 @@ from app.models import (
     RecipeRating,
     RecipeStructuralFingerprint,
     RecipeVersion,
+    RecipeVersionCategory,
     RecipeVersionPublication,
 )
 from app.repositories.ingredients import resolve_ingredient_name
@@ -65,6 +67,8 @@ def browse_recipe_versions(
     lineage_id: UUID | None,
     ingredient_name: str | None,
     is_variant: bool | None,
+    category_slug: str | None = None,
+    sort: Literal["title", "newest"] = "title",
     offset: int,
     limit: int,
 ) -> RecipeBrowseResult:
@@ -97,30 +101,91 @@ def browse_recipe_versions(
                 RecipeIngredient.ingredient_id == ingredient.id,
             )
         )
+    if category_slug is not None:
+        filters.append(
+            exists().where(
+                RecipeVersionCategory.recipe_version_id == RecipeVersion.id,
+                RecipeVersionCategory.category_slug == category_slug,
+            )
+        )
 
     filters.append(publicly_readable_recipe_version_filter())
     total = session.scalar(select(func.count()).select_from(RecipeVersion).where(*filters))
-    statement = (
-        select(RecipeVersion)
-        .options(
-            joinedload(RecipeVersion.author),
-            selectinload(
-                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
-            ).joinedload(RecipeVersion.author),
-            raiseload("*"),
-        )
-        .where(*filters)
-        .order_by(
+    ordering: tuple[Any, ...]
+    if sort == "title":
+        ordering = (
             func.lower(func.btrim(RecipeVersion.title)),
             func.btrim(RecipeVersion.title),
             RecipeVersion.version_number,
             RecipeVersion.id,
         )
+    elif sort == "newest":
+        published_at = (
+            select(RecipeVersionPublication.published_at)
+            .where(
+                RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+                RecipeVersionPublication.state == "published",
+            )
+            .correlate(RecipeVersion)
+            .scalar_subquery()
+        )
+        ordering = (published_at.desc(), RecipeVersion.id)
+    else:
+        raise ValueError(f"Unsupported recipe browse sort {sort!r}.")
+
+    statement = (
+        select(RecipeVersion)
+        .options(
+            joinedload(RecipeVersion.author),
+            joinedload(RecipeVersion.publication),
+            selectinload(
+                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
+            ).joinedload(RecipeVersion.author),
+            selectinload(RecipeVersion.categories),
+            raiseload("*"),
+        )
+        .where(*filters)
+        .order_by(*ordering)
         .offset(offset)
         .limit(limit)
     )
     items = list(session.scalars(statement))
     return RecipeBrowseResult(items=items, total=total or 0)
+
+
+def list_public_recipe_versions_in_order(
+    session: Session,
+    recipe_version_ids: tuple[UUID, ...],
+) -> list[RecipeVersion]:
+    """Resolve a bounded editorial selection without weakening public visibility."""
+
+    if not recipe_version_ids:
+        return []
+    if len(recipe_version_ids) != len(set(recipe_version_ids)):
+        raise ValueError("Editorial recipe selections cannot contain duplicate IDs.")
+
+    statement = (
+        select(RecipeVersion)
+        .options(
+            joinedload(RecipeVersion.author),
+            joinedload(RecipeVersion.publication),
+            selectinload(
+                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
+            ).joinedload(RecipeVersion.author),
+            selectinload(RecipeVersion.categories),
+            raiseload("*"),
+        )
+        .where(
+            RecipeVersion.id.in_(recipe_version_ids),
+            publicly_readable_recipe_version_filter(),
+        )
+    )
+    recipes_by_id = {recipe.id: recipe for recipe in session.scalars(statement)}
+    return [
+        recipes_by_id[recipe_version_id]
+        for recipe_version_id in recipe_version_ids
+        if recipe_version_id in recipes_by_id
+    ]
 
 
 def get_recipe_version(
@@ -133,12 +198,14 @@ def get_recipe_version(
         select(RecipeVersion)
         .options(
             joinedload(RecipeVersion.author),
+            joinedload(RecipeVersion.publication),
             selectinload(
                 RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
             ).joinedload(RecipeVersion.author),
             selectinload(
                 RecipeVersion.descendants.and_(publicly_readable_recipe_version_filter())
             ).joinedload(RecipeVersion.author),
+            selectinload(RecipeVersion.categories),
             selectinload(RecipeVersion.ingredients).options(
                 joinedload(RecipeIngredient.ingredient),
                 joinedload(RecipeIngredient.measurement_unit),
@@ -180,9 +247,11 @@ def browse_public_recipe_versions_by_author(
         select(RecipeVersion)
         .options(
             joinedload(RecipeVersion.author),
+            joinedload(RecipeVersion.publication),
             selectinload(
                 RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
             ).joinedload(RecipeVersion.author),
+            selectinload(RecipeVersion.categories),
             raiseload("*"),
         )
         .where(*filters)

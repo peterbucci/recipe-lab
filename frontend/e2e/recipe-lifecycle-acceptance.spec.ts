@@ -36,6 +36,11 @@ async function confirmPublicationRequirements(page: Page): Promise<void> {
 async function fillCompleteRecipe(page: Page, title: string): Promise<void> {
   await page.getByLabel("Title", { exact: true }).fill(title);
   await page.getByLabel("Servings", { exact: true }).fill("2");
+  const categories = page.getByRole("group", {
+    name: "Curated recipe categories",
+  });
+  await categories.getByRole("checkbox", { name: "Breakfast" }).check();
+  await categories.getByRole("checkbox", { name: "Quick & Easy" }).check();
   await page.getByRole("button", { name: "Add ingredient", exact: true }).click();
   const ingredient = page.getByRole("group", { name: "Ingredient 1", exact: true });
   const search = ingredient.getByRole("combobox", {
@@ -100,6 +105,9 @@ async function finishOriginalPublication(
   expect(publication.headers().location).toBe(body.location);
   await expect(page).toHaveURL("/account/recipes?view=published");
   await page.goto(body.location as string);
+  const categories = page.getByRole("list", { name: /^Categories for / });
+  await expect(categories.getByText("Breakfast", { exact: true })).toBeVisible();
+  await expect(categories.getByText("Quick & Easy", { exact: true })).toBeVisible();
   return body.recipe_version_id as string;
 }
 
@@ -174,6 +182,9 @@ async function publishUnchangedFork(
   expect(publication.headers().location).toBe(body.location);
   await expect(page).toHaveURL("/account/recipes?view=published");
   await page.goto(body.location as string);
+  const categories = page.getByRole("list", { name: /^Categories for / });
+  await expect(categories.getByText("Breakfast", { exact: true })).toBeVisible();
+  await expect(categories.getByText("Quick & Easy", { exact: true })).toBeVisible();
   return body.recipe_version_id as string;
 }
 
@@ -191,6 +202,17 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
     const sourceTitle = `RCP30 lifecycle parent ${runId}`;
     const childTitle = `RCP30 lifecycle child ${runId}`;
     const sourceId = await publishOriginal(page, "alice", sourceTitle);
+
+    await page.goto(
+      `/recipes?category=breakfast&q=${encodeURIComponent(sourceTitle)}`,
+    );
+    await expect(
+      page.getByRole("link", { name: sourceTitle, exact: true }),
+    ).toBeVisible();
+    await page.goto(`/recipes?category=lunch&q=${encodeURIComponent(sourceTitle)}`);
+    await expect(
+      page.getByRole("link", { name: sourceTitle, exact: true }),
+    ).toHaveCount(0);
 
     const bobHeaders = await csrfHeaders(page, "bob");
     const withdrawnReplayKey = crypto.randomUUID();

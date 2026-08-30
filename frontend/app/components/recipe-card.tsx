@@ -5,6 +5,7 @@ import { formatServings } from "../../lib/format";
 import type { RecipeSummary } from "../../lib/recipe-api";
 import { PublicCookAttribution } from "./public-cook-attribution";
 import { RecipeArtwork } from "./recipe-artwork";
+import { RecipeCategoryList } from "./recipe-category-list";
 
 interface RecipeCardProps {
   actions?: ReactNode;
@@ -41,6 +42,10 @@ export function RecipeCard({
           {recipe.description ? (
             <p className="recipe-card__description">{recipe.description}</p>
           ) : null}
+          <RecipeCategoryList
+            categories={recipe.categories}
+            label={`Categories for ${recipe.title}`}
+          />
           {recipe.parent ? (
             <p className="recipe-card__parent">
               Based on{" "}

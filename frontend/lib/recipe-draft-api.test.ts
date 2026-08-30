@@ -14,6 +14,7 @@ import {
 const DRAFT_ID = "11111111-1111-4111-8111-111111111111";
 const SOURCE_ID = "22222222-2222-4222-8222-222222222222";
 const ACTION_ID = "33333333-3333-4333-8333-333333333333";
+const CATEGORY_ID = "44444444-4444-4444-8444-444444444444";
 
 const blankDetail = {
   id: DRAFT_ID,
@@ -23,6 +24,9 @@ const blankDetail = {
   title: "",
   description: null,
   servings: null,
+  categories: [
+    { id: CATEGORY_ID, name: "Quick & easy", slug: "quick-easy" },
+  ],
   ingredients: [],
   instructions: [],
   created_at: "2026-08-25T12:00:00Z",
@@ -40,12 +44,21 @@ describe("private recipe draft API", () => {
       id: DRAFT_ID,
       revision: 1,
       title: "",
+      categories: [
+        { id: CATEGORY_ID, name: "Quick & easy", slug: "quick-easy" },
+      ],
       ingredients: [],
     });
   });
 
   it("rejects unordered or malformed private responses", () => {
     expect(() => parseRecipeDraftDetail({ ...blankDetail, revision: 0 })).toThrow(RecipeDraftApiError);
+    expect(() =>
+      parseRecipeDraftDetail({
+        ...blankDetail,
+        categories: [blankDetail.categories[0], blankDetail.categories[0]],
+      }),
+    ).toThrow(RecipeDraftApiError);
     expect(() => parseRecipeDraftPage({
       items: [{
         id: DRAFT_ID,
@@ -218,6 +231,7 @@ describe("private recipe draft API", () => {
           title: "Unsaved title",
           description: null,
           servings: null,
+          category_ids: [],
           ingredients: [],
           instructions: [],
         },
@@ -246,6 +260,11 @@ describe("private recipe draft API", () => {
                 code: "invalid_recipe_draft",
                 message: `Canonical ingredient occurrence ${internalId} failed validation.`,
                 issues: [
+                  {
+                    location: ["body", "category_ids", 0],
+                    message: `Category UUID ${internalId} is not active.`,
+                    type: "internal_catalog_policy_failure",
+                  },
                   {
                     location: ["body", "ingredients", 0, "selection", "ingredient_id"],
                     message: `Ingredient UUID ${internalId} is not canonical.`,
@@ -283,6 +302,7 @@ describe("private recipe draft API", () => {
         title: "Unsaved title",
         description: null,
         servings: null,
+        category_ids: [],
         ingredients: [],
         instructions: [],
       },
@@ -293,6 +313,11 @@ describe("private recipe draft API", () => {
       code: "invalid_recipe_draft",
       message: "Some draft fields need attention. Review them and try again.",
       issues: [
+        {
+          location: ["body", "category_ids", 0],
+          message: "Review the recipe categories.",
+          type: "validation_error",
+        },
         {
           location: ["body", "ingredients", 0, "selection", "ingredient_id"],
           message: "Review this ingredient.",

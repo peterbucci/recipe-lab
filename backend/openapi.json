@@ -507,6 +507,23 @@
         "title": "ExactMeasureResponse",
         "type": "object"
       },
+      "FeaturedRecipeListResponse": {
+        "properties": {
+          "items": {
+            "description": "Deploy-reviewed public recipe versions in editorial display order. The list is global, not personalized or popularity-ranked.",
+            "items": {
+              "$ref": "#/components/schemas/RecipeSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "FeaturedRecipeListResponse",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2068,6 +2085,54 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "RecipeCategoryListResponse": {
+        "properties": {
+          "items": {
+            "description": "Active curated categories in stable product display order.",
+            "items": {
+              "$ref": "#/components/schemas/RecipeCategorySummary"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "RecipeCategoryListResponse",
+        "type": "object"
+      },
+      "RecipeCategorySummary": {
+        "properties": {
+          "id": {
+            "description": "Stable identity from the curated category vocabulary.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "description": "Exact stable value accepted by the public recipe category filter.",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ],
+        "title": "RecipeCategorySummary",
+        "type": "object"
+      },
       "RecipeDetailResponse": {
         "properties": {
           "author": {
@@ -2087,6 +2152,14 @@
             ],
             "description": "Average of ratings currently recorded for this recipe version, rounded to two decimal places.",
             "title": "Average Rating"
+          },
+          "categories": {
+            "description": "Immutable curated category snapshots selected for this exact recipe version.",
+            "items": {
+              "$ref": "#/components/schemas/RecipeCategorySummary"
+            },
+            "title": "Categories",
+            "type": "array"
           },
           "children": {
             "items": {
@@ -2162,6 +2235,12 @@
             "description": "Direct parent version, or null for the original root.",
             "title": "Parent Version Id"
           },
+          "published_at": {
+            "description": "Timestamp when this immutable version first became public.",
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
           "rating_count": {
             "description": "Number of ratings included in the aggregate.",
             "minimum": 0.0,
@@ -2207,8 +2286,10 @@
           "description",
           "servings",
           "created_at",
+          "published_at",
           "author",
           "parent",
+          "categories",
           "average_rating",
           "rating_count",
           "viewer_state",
@@ -2503,6 +2584,13 @@
       "RecipeDraftDetailResponse": {
         "additionalProperties": false,
         "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeCategorySummary"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -2594,6 +2682,7 @@
           "title",
           "description",
           "servings",
+          "categories",
           "ingredients",
           "instructions",
           "created_at",
@@ -3033,6 +3122,16 @@
       "RecipeDraftUpdateRequest": {
         "additionalProperties": false,
         "properties": {
+          "category_ids": {
+            "description": "Unique active curated category identities selected for this draft.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 3,
+            "title": "Category Ids",
+            "type": "array"
+          },
           "description": {
             "anyOf": [
               {
@@ -4424,6 +4523,14 @@
             "$ref": "#/components/schemas/PublicUserReference",
             "description": "Public author of this exact immutable recipe version."
           },
+          "categories": {
+            "description": "Immutable curated category snapshots selected for this exact recipe version.",
+            "items": {
+              "$ref": "#/components/schemas/RecipeCategorySummary"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
           "created_at": {
             "description": "Timestamp when this version was created.",
             "format": "date-time",
@@ -4477,6 +4584,12 @@
             "description": "Direct parent version, or null for the original root.",
             "title": "Parent Version Id"
           },
+          "published_at": {
+            "description": "Timestamp when this immutable version first became public.",
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
           "servings": {
             "description": "Exact serving yield, serialized as a JSON string.",
             "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,9}0*$)\\d{0,6}\\.\\d{0,2}0*$)",
@@ -4505,8 +4618,10 @@
           "description",
           "servings",
           "created_at",
+          "published_at",
           "author",
-          "parent"
+          "parent",
+          "categories"
         ],
         "title": "RecipeSummary",
         "type": "object"
@@ -6290,7 +6405,7 @@
     },
     "/api/ingredient-requests/mine": {
       "get": {
-        "description": "Returns only requests submitted by the active member. Optional status and literal text filters remain inside that member scope. Approved and duplicate requests carry a trusted current catalog identity; pending and rejected request text is never selectable.",
+        "description": "Returns only requests submitted by the active member. Optional status and literal text filters remain inside that member scope. The reviewed-only view excludes pending requests and orders terminal decisions by review time for bounded activity surfaces. Approved and duplicate requests carry a trusted current catalog identity; pending and rejected request text is never selectable.",
         "operationId": "my_ingredient_requests_api_ingredient_requests_mine_get",
         "parameters": [
           {
@@ -6337,6 +6452,16 @@
                 }
               ],
               "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reviewed_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Reviewed Only",
+              "type": "boolean"
             }
           },
           {
@@ -7721,6 +7846,53 @@
         "x-recipe-lab-external-consumer-status": "unknown_pending"
       }
     },
+    "/api/recipe-categories": {
+      "get": {
+        "description": "Returns the active governed discovery vocabulary in stable display order. Categories are editorial labels and are never inferred from recipe prose.",
+        "operationId": "recipe_categories_api_recipe_categories_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeCategoryListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "List curated recipe categories",
+        "tags": [
+          "recipe categories"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/lib/recipe-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending"
+      }
+    },
     "/api/recipe-drafts": {
       "get": {
         "operationId": "my_private_recipe_drafts_api_recipe_drafts_get",
@@ -8789,6 +8961,43 @@
               "description": "Use true for variants or false for original root versions.",
               "title": "Is Variant"
             }
+          },
+          {
+            "description": "Return only recipes with this exact curated category slug.",
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return only recipes with this exact curated category slug.",
+              "title": "Category"
+            }
+          },
+          {
+            "description": "Use title for the stable catalog order or newest for reverse publication time with a stable recipe-ID tie-break.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "title",
+              "description": "Use title for the stable catalog order or newest for reverse publication time with a stable recipe-ID tie-break.",
+              "enum": [
+                "title",
+                "newest"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8834,6 +9043,53 @@
           }
         },
         "summary": "Browse recipe versions",
+        "tags": [
+          "recipes"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/lib/recipe-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending"
+      }
+    },
+    "/api/recipes/featured": {
+      "get": {
+        "description": "Returns one deploy-reviewed editorial selection in display order. The result is the same for every viewer, is not a recommendation, and silently omits any selected version that is no longer publicly readable.",
+        "operationId": "featured_recipes_api_recipes_featured_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeaturedRecipeListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "List globally featured recipes",
         "tags": [
           "recipes"
         ],
