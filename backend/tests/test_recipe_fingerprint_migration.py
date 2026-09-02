@@ -1,34 +1,72 @@
-from decimal import Decimal
 from hashlib import sha256
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import Connection, Engine
-from sqlalchemy.orm import Session
 
-from app.models import (
-    Ingredient,
-    RecipeIngredient,
-    RecipeInstruction,
-    RecipeInstructionAction,
-    RecipeInstructionActionInput,
-    RecipeLineage,
-    RecipeVersion,
+from migrations.frozen.catalog_20260824 import action_uuid, measurement_uuid
+from migrations.frozen.recipe_fingerprints_0011 import (
+    STRUCTURAL_FINGERPRINT_STORAGE_VERSION,
 )
-from app.seeds.identifiers import action_uuid, measurement_uuid
-from app.services.recipe_fingerprints import STRUCTURAL_FINGERPRINT_STORAGE_VERSION
+
+_USER_ID = UUID("00000000-0000-0000-0000-000000000101")
+_COMPLETE_LINEAGE_ID = UUID("00000000-0000-0000-0000-000000000102")
+_INCOMPLETE_LINEAGE_ID = UUID("00000000-0000-0000-0000-000000000103")
+_COMPLETE_VERSION_ID = UUID("00000000-0000-0000-0000-000000000110")
+_INCOMPLETE_VERSION_ID = UUID("00000000-0000-0000-0000-000000000111")
+_INGREDIENT_ID = UUID("00000000-0000-0000-0000-000000000112")
+_RECIPE_INGREDIENT_ID = UUID("00000000-0000-0000-0000-000000000113")
+_INSTRUCTION_ID = UUID("00000000-0000-0000-0000-000000000114")
+_ACTION_ID = UUID("00000000-0000-0000-0000-000000000115")
+
+_EXPECTED_CANONICAL_PAYLOAD = (
+    '{"ingredients":[{"ingredient":"00000000-0000-0000-0000-000000000112",'
+    '"measure":{"mode":"exact","unit":{"dimension":"mass",'
+    '"family":"metric-mass","key":"g","normalization":"reviewed_base"},'
+    '"value":{"denominator":1,"numerator":100}},"multiplicity":1,'
+    '"occurrences":["ingredient:0000"]}],"instructions":[{"actions":'
+    '[{"action":"mix","inputs":["ingredient:0000"],"parameters":[]}]}],'
+    '"schema":"recipe-lab.recipe-structure","version":1}'
+)
+_EXPECTED_DIGEST = "2f04d99487dd7667ca41049fb4ebcc807fc82d32da29feb2d4a03a8558dc1117"
 
 _CONTENT_TABLES_AND_ORDER = (
-    ("recipe_versions", "id"),
-    ("recipe_version_ingredients", "id"),
-    ("recipe_version_instructions", "id"),
-    ("recipe_instruction_actions", "id"),
-    ("recipe_instruction_action_inputs", "id"),
+    (
+        "recipe_versions",
+        "lineage_id, parent_version_id, created_by_user_id, version_number, "
+        "title, description, servings, id, created_at",
+        "id",
+    ),
+    (
+        "recipe_version_ingredients",
+        "recipe_version_id, name, quantity_min, unit_display, preparation_notes, "
+        "display_order, id, ingredient_id, measure_mode, quantity_max, "
+        "measurement_unit_id, package_size_id",
+        "id",
+    ),
+    (
+        "recipe_version_instructions",
+        "recipe_version_id, instruction, display_order, id",
+        "id",
+    ),
+    (
+        "recipe_instruction_actions",
+        "id, recipe_version_id, recipe_instruction_id, action_type_id, display_order",
+        "id",
+    ),
+    (
+        "recipe_instruction_action_inputs",
+        "id, recipe_version_id, recipe_instruction_action_id, recipe_ingredient_id, display_order",
+        "id",
+    ),
     (
         "recipe_instruction_action_measures",
+        "recipe_instruction_action_id, semantic, measure_mode, quantity_min, "
+        "quantity_max, measurement_unit_id, unit_display",
         "recipe_instruction_action_id, semantic",
     ),
 )
@@ -37,103 +75,125 @@ _CONTENT_TABLES_AND_ORDER = (
 def _recipe_content_snapshot(connection: Connection) -> dict[str, list[tuple[object, ...]]]:
     return {
         table_name: list(
-            connection.execute(sa.text(f"SELECT * FROM {table_name} ORDER BY {order_by}")).tuples()
+            connection.execute(
+                sa.text(f"SELECT {columns} FROM {table_name} ORDER BY {order_by}")
+            ).tuples()
         )
-        for table_name, order_by in _CONTENT_TABLES_AND_ORDER
+        for table_name, columns, order_by in _CONTENT_TABLES_AND_ORDER
     }
 
 
 def _load_complete_and_incomplete_versions(connection: Connection) -> tuple[UUID, UUID]:
-    with (
-        Session(
-            bind=connection,
-            expire_on_commit=False,
-            join_transaction_mode="create_savepoint",
-        ) as session,
-        session.begin(),
-    ):
-        user_id = uuid4()
-        session.execute(
-            sa.text(
-                "INSERT INTO users "
-                "(id, email, display_name, account_kind, status) "
-                "VALUES (:id, :email, 'Fingerprint migration', 'member', 'active')"
-            ),
-            {
-                "id": user_id,
-                "email": f"incomplete-fingerprint-{uuid4()}@example.test",
-            },
-        )
-        ingredient = Ingredient(canonical_name=f"Migration ingredient {uuid4()}")
-        session.add(ingredient)
-        session.flush()
-
-        complete_lineage = RecipeLineage(created_by_user_id=user_id)
-        session.add(complete_lineage)
-        session.flush()
-        complete = RecipeVersion(
-            lineage_id=complete_lineage.id,
-            parent_version_id=None,
-            created_by_user_id=user_id,
-            version_number=1,
-            title="Mapped recipe",
-            description="This prose is outside the fingerprint.",
-            servings=Decimal("1.00"),
-        )
-        session.add(complete)
-        session.flush()
-        recipe_ingredient = RecipeIngredient(
-            recipe_version_id=complete.id,
-            ingredient_id=ingredient.id,
-            name=ingredient.canonical_name,
-            measure_mode="exact",
-            quantity_min=Decimal("100.0000"),
-            quantity_max=None,
-            measurement_unit_id=measurement_uuid("unit", "g"),
-            unit_display="g",
-            package_size_id=None,
-            preparation_notes="Display-only preparation prose.",
-            display_order=0,
-        )
-        instruction = RecipeInstruction(
-            recipe_version_id=complete.id,
-            instruction="Mix the ingredient.",
-            display_order=0,
-        )
-        session.add_all([recipe_ingredient, instruction])
-        session.flush()
-        action = RecipeInstructionAction(
-            recipe_version_id=complete.id,
-            recipe_instruction_id=instruction.id,
-            action_type_id=action_uuid("action-type", "mix"),
-            display_order=0,
-        )
-        session.add(action)
-        session.flush()
-        session.add(
-            RecipeInstructionActionInput(
-                recipe_version_id=complete.id,
-                recipe_instruction_action_id=action.id,
-                recipe_ingredient_id=recipe_ingredient.id,
-                display_order=0,
-            )
-        )
-
-        incomplete_lineage = RecipeLineage(created_by_user_id=user_id)
-        session.add(incomplete_lineage)
-        session.flush()
-        incomplete = RecipeVersion(
-            lineage_id=incomplete_lineage.id,
-            parent_version_id=None,
-            created_by_user_id=user_id,
-            version_number=1,
-            title="Unmapped legacy recipe",
-            description="No reviewed structural rows.",
-            servings=Decimal("1.00"),
-        )
-        session.add(incomplete)
-        session.flush()
-        return complete.id, incomplete.id
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO users (id, email, display_name, account_kind, status)
+            VALUES (:id, 'fingerprint-migration@example.test',
+                    'Fingerprint migration', 'member', 'active')
+            """
+        ),
+        {"id": _USER_ID},
+    )
+    connection.execute(
+        sa.text("INSERT INTO ingredients (id, canonical_name) VALUES (:id, :name)"),
+        {"id": _INGREDIENT_ID, "name": "Migration ingredient"},
+    )
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO recipe_lineages (id, created_by_user_id)
+            VALUES (:complete_id, :user_id), (:incomplete_id, :user_id)
+            """
+        ),
+        {
+            "complete_id": _COMPLETE_LINEAGE_ID,
+            "incomplete_id": _INCOMPLETE_LINEAGE_ID,
+            "user_id": _USER_ID,
+        },
+    )
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO recipe_versions
+                (id, lineage_id, parent_version_id, created_by_user_id,
+                 version_number, title, description, servings)
+            VALUES
+                (:complete_id, :complete_lineage_id, NULL, :user_id, 1,
+                 'Mapped recipe', 'This prose is outside the fingerprint.', 1.00),
+                (:incomplete_id, :incomplete_lineage_id, NULL, :user_id, 1,
+                 'Unmapped legacy recipe', 'No reviewed structural rows.', 1.00)
+            """
+        ),
+        {
+            "complete_id": _COMPLETE_VERSION_ID,
+            "complete_lineage_id": _COMPLETE_LINEAGE_ID,
+            "incomplete_id": _INCOMPLETE_VERSION_ID,
+            "incomplete_lineage_id": _INCOMPLETE_LINEAGE_ID,
+            "user_id": _USER_ID,
+        },
+    )
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO recipe_version_ingredients
+                (id, recipe_version_id, ingredient_id, name, measure_mode,
+                 quantity_min, quantity_max, measurement_unit_id, unit_display,
+                 package_size_id, preparation_notes, display_order)
+            VALUES
+                (:id, :version_id, :ingredient_id, 'Migration ingredient', 'exact',
+                 100.0000, NULL, :unit_id, 'g', NULL,
+                 'Display-only preparation prose.', 0)
+            """
+        ),
+        {
+            "id": _RECIPE_INGREDIENT_ID,
+            "version_id": _COMPLETE_VERSION_ID,
+            "ingredient_id": _INGREDIENT_ID,
+            "unit_id": measurement_uuid("unit", "g"),
+        },
+    )
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO recipe_version_instructions
+                (id, recipe_version_id, instruction, display_order)
+            VALUES (:id, :version_id, 'Mix the ingredient.', 0)
+            """
+        ),
+        {"id": _INSTRUCTION_ID, "version_id": _COMPLETE_VERSION_ID},
+    )
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO recipe_instruction_actions
+                (id, recipe_version_id, recipe_instruction_id, action_type_id, display_order)
+            VALUES (:id, :version_id, :instruction_id, :action_type_id, 0)
+            """
+        ),
+        {
+            "id": _ACTION_ID,
+            "version_id": _COMPLETE_VERSION_ID,
+            "instruction_id": _INSTRUCTION_ID,
+            "action_type_id": action_uuid("action-type", "mix"),
+        },
+    )
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO recipe_instruction_action_inputs
+                (id, recipe_version_id, recipe_instruction_action_id,
+                 recipe_ingredient_id, display_order)
+            VALUES (:id, :version_id, :action_id, :ingredient_id, 0)
+            """
+        ),
+        {
+            "id": UUID("00000000-0000-0000-0000-000000000116"),
+            "version_id": _COMPLETE_VERSION_ID,
+            "action_id": _ACTION_ID,
+            "ingredient_id": _RECIPE_INGREDIENT_ID,
+        },
+    )
+    return _COMPLETE_VERSION_ID, _INCOMPLETE_VERSION_ID
 
 
 def _stored_fingerprints(connection: Connection) -> list[tuple[object, ...]]:
@@ -162,16 +222,16 @@ def test_migration_backfills_only_complete_versions_without_mutating_content(
 
         command.upgrade(alembic_config, "head")
 
-        assert MigrationContext.configure(connection).get_current_revision() == ("20260830_0021")
+        expected_head = ScriptDirectory.from_config(alembic_config).get_current_head()
+        assert MigrationContext.configure(connection).get_current_revision() == expected_head
         stored = _stored_fingerprints(connection)
         assert len(stored) == 1
         assert stored[0][0] == complete_id
         assert incomplete_id not in {row[0] for row in stored}
         assert {row[1] for row in stored} == {STRUCTURAL_FINGERPRINT_STORAGE_VERSION}
-        for row in stored:
-            canonical_payload = row[3]
-            assert isinstance(canonical_payload, str)
-            assert row[2] == sha256(canonical_payload.encode("utf-8")).hexdigest()
+        assert stored[0][2] == _EXPECTED_DIGEST
+        assert stored[0][3] == _EXPECTED_CANONICAL_PAYLOAD
+        assert stored[0][2] == sha256(stored[0][3].encode("utf-8")).hexdigest()
         assert _recipe_content_snapshot(connection) == before
 
         index_is_unique = connection.scalar(
