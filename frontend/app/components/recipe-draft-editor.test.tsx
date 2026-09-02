@@ -11,6 +11,7 @@ import { AUTH_SESSION_EXPIRED_EVENT } from "../../lib/auth-api";
 import type { RecipeDetail } from "../../lib/recipe-api";
 import type { RecipeDraftDetail } from "../../lib/recipe-draft-api";
 import { RecipeDraftApiError } from "../../lib/recipe-draft-api";
+import { deferred } from "../../test/deferred";
 import {
   AuthSessionProvider,
   SessionRecoveryNotice,
@@ -168,16 +169,6 @@ function publicSourceRecipe(
     ingredients: [],
     instructions: [],
   };
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  return { promise, reject, resolve };
 }
 
 function renderEditor(

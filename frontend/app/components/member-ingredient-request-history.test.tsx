@@ -10,6 +10,7 @@ import {
   fetchMyIngredientRequest,
   IngredientCatalogApiError,
 } from "../../lib/ingredient-catalog-api";
+import { deferred } from "../../test/deferred";
 import { MemberIngredientRequestHistory } from "./member-ingredient-request-history";
 
 const mocks = vi.hoisted(() => ({
@@ -98,16 +99,6 @@ function requestPage(
     total_pages: items.length > 0 ? 1 : 0,
     ...overrides,
   };
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  return { promise, reject, resolve };
 }
 
 beforeEach(() => {

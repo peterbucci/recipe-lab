@@ -12,16 +12,15 @@ vi.mock("../../lib/member-follow-api", async (importOriginal) => ({
 
 import type { AuthSession } from "../../lib/auth-api";
 import type { RecipeSummary } from "../../lib/recipe-api";
+import { buildRecipeSummary } from "../../test/builders/recipe";
 import { AuthSessionProvider } from "./auth-session-provider";
 import { HomeCommunityFeed } from "./home-community-feed";
 import { HomeLoadNotice, HomeLoadStateProvider } from "./home-load-state";
 
 function recipe(overrides: Partial<RecipeSummary> = {}): RecipeSummary {
-  return {
+  return buildRecipeSummary({
     id: "11111111-1111-4111-8111-111111111111",
     lineage_id: "22222222-2222-4222-8222-222222222222",
-    parent_version_id: null,
-    version_number: 1,
     title: "Garden Toast",
     description: "A bright toast.",
     servings: "2.00",
@@ -32,10 +31,8 @@ function recipe(overrides: Partial<RecipeSummary> = {}): RecipeSummary {
       handle: "alice-cook",
       display_name: "Alice Cook",
     },
-    parent: null,
-    categories: [],
     ...overrides,
-  };
+  });
 }
 
 const authenticated: AuthSession = {

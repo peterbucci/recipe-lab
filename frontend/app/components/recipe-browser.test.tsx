@@ -7,6 +7,7 @@ import type {
   RecipeCategory,
   RecipePage,
 } from "../../lib/recipe-api";
+import { buildRecipeCardSummary } from "../../test/builders/recipe";
 import { AuthSessionProvider } from "./auth-session-provider";
 import { RecipeBrowser } from "./recipe-browser";
 
@@ -20,24 +21,15 @@ vi.mock("next/navigation", () => ({
 }));
 
 function recipe(overrides: Partial<RecipeCardSummary> = {}): RecipeCardSummary {
-  return {
-    id: "recipe-one",
-    lineage_id: "lineage-one",
-    parent_version_id: null,
-    version_number: 1,
+  return buildRecipeCardSummary({
     title: "Carrot Walnut Snack Cake",
     description: "A softly spiced cake built for an afternoon snack.",
     servings: "8.00",
-    created_at: "2026-08-20T00:00:00Z",
-    published_at: "2026-08-21T00:00:00Z",
-    categories: [],
-    author: { id: "cook-one", handle: "alice", display_name: "Alice Cook" },
-    parent: null,
     average_rating: 4.5,
     rating_count: 2,
     save_count: 12,
     ...overrides,
-  };
+  });
 }
 
 function AnonymousAuth({ children }: PropsWithChildren) {

@@ -6,6 +6,7 @@ import {
   type MemberDashboard,
 } from "../../lib/member-activity-api";
 import type { RecipeDraftListItem } from "../../lib/recipe-draft-api";
+import { deferred } from "../../test/deferred";
 import { HomeLoadNotice, HomeLoadStateProvider } from "./home-load-state";
 import { MemberHomeSummary } from "./member-home-summary";
 
@@ -64,14 +65,6 @@ const DASHBOARD: MemberDashboard = {
     versionsPublished: 4,
   },
 };
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
-  return { promise, resolve };
-}
 
 function metric(label: string): HTMLElement {
   const container = screen
