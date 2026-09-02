@@ -7,12 +7,20 @@ import type {
   CatalogIngredientSelection,
   IngredientCatalogRequestStatus,
 } from "../../lib/ingredient-catalog-api";
-import { SectionLoading } from "./loading-ui";
 import { MemberIngredientRequestList } from "./member-ingredient-request-list";
 import { useMemberIngredientResolutionSelection } from "./use-member-ingredient-resolution-selection";
 import { useMemberIngredientRequestHistory } from "./use-member-ingredient-request-history";
 import { WorkspaceEmptyState } from "./workspace-empty-state";
 import { WorkspacePanelHeader } from "./workspace-panel-header";
+import {
+  WorkspaceErrorState,
+  WorkspaceLoadingState,
+} from "./workspace-state";
+import {
+  WorkspaceTabButton,
+  WorkspaceTabItems,
+  WorkspaceTabMenu,
+} from "./workspace-tab-menu";
 
 interface MemberIngredientRequestHistoryProps {
   contextLabel?: string;
@@ -243,34 +251,36 @@ export function MemberIngredientRequestHistory({
         </div>
       ) : (
         <>
-          <form
-            className="member-request-history__toolbar workspace-tab-menu"
+          <WorkspaceTabMenu
+            as="form"
+            className="member-request-history__toolbar"
             onSubmit={(event) => {
               event.preventDefault();
               submitHistorySearch();
             }}
           >
-            <nav
-              className="member-request-history__status-tabs workspace-tab-menu__items"
+            <WorkspaceTabItems
+              as="nav"
+              className="member-request-history__status-tabs"
               aria-label="Ingredient request status"
             >
               {STANDALONE_STATUS_TABS.map((tab) => (
-                <button
+                <WorkspaceTabButton
                   key={tab.value || "all"}
-                  className="member-request-history__status-tab workspace-tab-menu__item"
+                  className="member-request-history__status-tab"
                   type="button"
-                  aria-pressed={statusFilter === tab.value}
+                  active={statusFilter === tab.value}
+                  count={
+                    statusFilter === tab.value && !loading && requestPage
+                      ? requestPage.total
+                      : null
+                  }
                   onClick={() => changeHistoryStatus(tab.value)}
                 >
                   {tab.label}
-                  {statusFilter === tab.value && !loading && requestPage ? (
-                    <span className="workspace-tab-menu__count" aria-hidden="true">
-                      {requestPage.total}
-                    </span>
-                  ) : null}
-                </button>
+                </WorkspaceTabButton>
               ))}
-            </nav>
+            </WorkspaceTabItems>
             <div
               className="member-request-history__search member-request-history__search--compact workspace-tab-menu__search"
               role="search"
@@ -290,7 +300,7 @@ export function MemberIngredientRequestHistory({
                 onChange={(event) => updateQueryInput(event.target.value)}
               />
             </div>
-          </form>
+          </WorkspaceTabMenu>
           <WorkspacePanelHeader
             description={activeStandaloneTab.description}
             headingId={`${idPrefix}-selected-status-heading`}
@@ -307,12 +317,13 @@ export function MemberIngredientRequestHistory({
       )}
 
       {loadError ? (
-        <div className="member-request-history__error" role="alert">
-          <p>{loadError}</p>
-          <button className="button button--secondary" type="button" onClick={refreshHistory}>
+        <WorkspaceErrorState
+          action={<button className="button button--secondary" type="button" onClick={refreshHistory}>
             Try again
-          </button>
-        </div>
+          </button>}
+          className="member-request-history__error"
+          message={loadError}
+        />
       ) : null}
 
       {selectionError ? (
@@ -340,7 +351,7 @@ export function MemberIngredientRequestHistory({
       ) : null}
 
       {loading && requestPage === null ? (
-        <SectionLoading
+        <WorkspaceLoadingState
           className="member-request-history__state"
           count={4}
           label="Loading your ingredient requests…"
@@ -349,7 +360,7 @@ export function MemberIngredientRequestHistory({
       ) : null}
 
       {loading && requestPage !== null ? (
-        <SectionLoading
+        <WorkspaceLoadingState
           label="Updating your ingredient requests…"
           refreshing
         />

@@ -75,6 +75,8 @@ describe("AccountSettings", () => {
     expect(dangerPanel).not.toBeNull();
     expect(profileTab).toHaveAttribute("aria-selected", "true");
     expect(profileTab).toHaveAttribute("aria-controls", "account-settings-profile-panel");
+    expect(within(profileTab).getByText("1")).toHaveClass("workspace-tab-menu__count");
+    expect(within(dangerTab).getByText("1")).toHaveClass("workspace-tab-menu__count");
     expect(profilePanel).not.toHaveAttribute("hidden");
     const profileHeader = within(profilePanel)
       .getByRole("heading", { level: 2, name: "Public profile" })

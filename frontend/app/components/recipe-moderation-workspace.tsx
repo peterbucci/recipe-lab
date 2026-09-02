@@ -5,12 +5,20 @@ import { useCallback, useMemo, useState } from "react";
 
 import type { RecipeModerationStatus } from "../../lib/recipe-moderation-api";
 import { useAuthSession } from "./auth-session-provider";
-import { AuthGateLoading, SectionLoading } from "./loading-ui";
+import { AuthGateLoading } from "./loading-ui";
 import { RecipeModerationCaseDetail } from "./recipe-moderation-case-detail";
 import { RecipeModerationQueue } from "./recipe-moderation-queue";
 import { useRecipeModerationWorkspace } from "./use-recipe-moderation-workspace";
 import { WorkspaceEmptyState } from "./workspace-empty-state";
 import { WorkspacePanelHeader } from "./workspace-panel-header";
+import {
+  WorkspaceErrorState,
+  WorkspaceLoadingState,
+} from "./workspace-state";
+import {
+  WorkspaceTabButton,
+  WorkspaceTabMenu,
+} from "./workspace-tab-menu";
 
 const STATUS_FILTERS: ReadonlyArray<{
   value: RecipeModerationStatus;
@@ -137,7 +145,6 @@ function AuthorizedModerationWorkspace({
     detailLoading,
     goToNextPage,
     goToPreviousPage,
-    page,
     privateNote,
     queue,
     queueError,
@@ -198,35 +205,38 @@ function AuthorizedModerationWorkspace({
       </header>
 
       <div className="staff-workspace__tab-shell">
-        <div
-          className="staff-filter-strip staff-workspace__filters moderation-workspace__filters workspace-tab-menu workspace-tab-menu--items-only"
+        <WorkspaceTabMenu
+          className="staff-filter-strip staff-workspace__filters moderation-workspace__filters"
+          itemsOnly
           role="group"
           aria-label="Filter moderation cases"
         >
           {STATUS_FILTERS.map((filter) => (
-            <button
+            <WorkspaceTabButton
               key={filter.value}
               className={
                 caseStatus === filter.value
-                  ? "moderation-workspace__tab moderation-workspace__tab--active workspace-tab-menu__item"
-                  : "moderation-workspace__tab workspace-tab-menu__item"
+                  ? "moderation-workspace__tab moderation-workspace__tab--active"
+                  : "moderation-workspace__tab"
               }
               type="button"
-              aria-pressed={caseStatus === filter.value}
+              active={caseStatus === filter.value}
+              count={
+                caseStatus === filter.value && queue && !queueLoading
+                  ? queue.total
+                  : null
+              }
+              countClassName="moderation-workspace__tab-count"
+              countHidden={false}
               onClick={() => {
                 setQueueSearch("");
                 changeCaseStatus(filter.value);
               }}
             >
               <span>{filter.label}</span>
-              {caseStatus === filter.value && queue && !queueLoading ? (
-                <span className="moderation-workspace__tab-count workspace-tab-menu__count">
-                  {queue.total}
-                </span>
-              ) : null}
-            </button>
+            </WorkspaceTabButton>
           ))}
-        </div>
+        </WorkspaceTabMenu>
         <WorkspacePanelHeader
           description={STATUS_PANEL_COPY[caseStatus].description}
           meta={
@@ -254,26 +264,23 @@ function AuthorizedModerationWorkspace({
       </div>
 
       {queueError ? (
-        <div
-          className="staff-workspace__notice staff-workspace__notice--error form-alert"
-          role="alert"
-        >
-          <p>{queueError}</p>
-          <button
+        <WorkspaceErrorState
+          action={<button
             className="button button--secondary"
             type="button"
             onClick={reloadQueue}
           >
             Retry queue
-          </button>
-        </div>
+          </button>}
+          className="staff-workspace__notice staff-workspace__notice--error form-alert"
+          message={queueError}
+        />
       ) : null}
 
       {!queueIsEmpty ? (
         <div className="staff-workspace__layout moderation-workspace__layout">
         <RecipeModerationQueue
           caseStatus={caseStatus}
-          page={page}
           queue={queue}
           queueLoading={queueLoading}
           searchQuery={queueSearch}
@@ -307,7 +314,7 @@ function AuthorizedModerationWorkspace({
               <h2 className="visually-hidden" id="moderation-detail-title">
                 Case details
               </h2>
-              <SectionLoading
+              <WorkspaceLoadingState
                 count={1}
                 label="Loading case details…"
                 layout="panel"
@@ -331,7 +338,7 @@ function AuthorizedModerationWorkspace({
           ) : detail ? (
             <>
               {detailLoading ? (
-                <SectionLoading label="Updating case details…" refreshing />
+                <WorkspaceLoadingState label="Updating case details…" refreshing />
               ) : null}
               <RecipeModerationCaseDetail
                 detail={detail}

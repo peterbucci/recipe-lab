@@ -3,6 +3,7 @@ import type {
   MemberIngredientRequestPage,
 } from "../../lib/ingredient-catalog-api";
 import { MemberIngredientRequestCard } from "./member-ingredient-request-card";
+import { WorkspacePagination } from "./workspace-pagination";
 
 interface MemberIngredientRequestListProps {
   contextLabel?: string;
@@ -63,29 +64,14 @@ export function MemberIngredientRequestList({
         ))}
       </div>
 
-      {requestPage.total_pages > 1 ? (
-        <nav className="member-request-history__pagination" aria-label={`${regionLabel} pages`}>
-          <button
-            className="button button--quiet"
-            type="button"
-            disabled={requestPage.page <= 1}
-            onClick={() => onChangePage(requestPage.page - 1)}
-          >
-            ← Previous
-          </button>
-          <span aria-current="page">
-            Page {requestPage.page} of {requestPage.total_pages}
-          </span>
-          <button
-            className="button button--quiet"
-            type="button"
-            disabled={requestPage.page >= requestPage.total_pages}
-            onClick={() => onChangePage(requestPage.page + 1)}
-          >
-            Next →
-          </button>
-        </nav>
-      ) : null}
+      <WorkspacePagination
+        buttonClassName="button button--quiet"
+        className="member-request-history__pagination"
+        currentPage={requestPage.page}
+        label={`${regionLabel} pages`}
+        onPageChange={onChangePage}
+        totalPages={requestPage.total_pages}
+      />
     </>
   );
 }

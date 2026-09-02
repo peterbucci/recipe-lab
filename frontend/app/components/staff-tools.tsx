@@ -1,11 +1,13 @@
 "use client";
 
-import { type KeyboardEvent, useRef, useState } from "react";
+import { useState } from "react";
 
 import { useAuthSession } from "./auth-session-provider";
 import { AuthGateLoading } from "./loading-ui";
 import { GuardedLink } from "./navigation-blocker-provider";
 import { WorkspacePanelHeader } from "./workspace-panel-header";
+import { WorkspaceEmptyState } from "./workspace-empty-state";
+import { WorkspaceTabs } from "./workspace-tab-menu";
 
 const STAFF_PATH = "/staff";
 
@@ -33,38 +35,6 @@ function AuthorizedStaffTools({
   const activeRole = availableRoles.includes(requestedActiveRole)
     ? requestedActiveRole
     : firstAvailableRole;
-  const tabRefs = useRef<Record<StaffRole, HTMLButtonElement | null>>({
-    curator: null,
-    moderator: null,
-  });
-
-  const handleTabKeyDown = (
-    event: KeyboardEvent<HTMLButtonElement>,
-    currentRole: StaffRole,
-  ) => {
-    const currentIndex = availableRoles.indexOf(currentRole);
-    let nextIndex: number | null = null;
-
-    if (event.key === "ArrowRight") {
-      nextIndex = (currentIndex + 1) % availableRoles.length;
-    } else if (event.key === "ArrowLeft") {
-      nextIndex = (currentIndex - 1 + availableRoles.length) % availableRoles.length;
-    } else if (event.key === "Home") {
-      nextIndex = 0;
-    } else if (event.key === "End") {
-      nextIndex = availableRoles.length - 1;
-    }
-
-    if (nextIndex === null) {
-      return;
-    }
-
-    event.preventDefault();
-    const nextRole = availableRoles[nextIndex];
-    setRequestedActiveRole(nextRole);
-    tabRefs.current[nextRole]?.focus();
-  };
-
   return (
     <main id="main-content" className="page-shell staff-tools-page">
       <header className="page-intro staff-tools__intro">
@@ -73,60 +43,21 @@ function AuthorizedStaffTools({
       </header>
 
       <section className="staff-tools__shell">
-        <div
-          className="staff-tools__role-tabs workspace-tab-menu workspace-tab-menu--items-only"
-          role="tablist"
-          aria-label="Staff tool categories"
-        >
-          {canReviewIngredients ? (
-            <button
-              ref={(node) => {
-                tabRefs.current.curator = node;
-              }}
-              id="staff-curator-tab"
-              className="staff-tools__role-tab workspace-tab-menu__item"
-              type="button"
-              role="tab"
-              aria-controls="staff-curator-panel"
-              aria-selected={activeRole === "curator"}
-              tabIndex={activeRole === "curator" ? 0 : -1}
-              onClick={() => setRequestedActiveRole("curator")}
-              onKeyDown={(event) => handleTabKeyDown(event, "curator")}
-            >
-              Curator tools
-              <span
-                className="staff-tools__role-count workspace-tab-menu__count"
-                aria-hidden="true"
-              >
-                1
-              </span>
-            </button>
-          ) : null}
-          {canModerateRecipes ? (
-            <button
-              ref={(node) => {
-                tabRefs.current.moderator = node;
-              }}
-              id="staff-moderator-tab"
-              className="staff-tools__role-tab workspace-tab-menu__item"
-              type="button"
-              role="tab"
-              aria-controls="staff-moderator-panel"
-              aria-selected={activeRole === "moderator"}
-              tabIndex={activeRole === "moderator" ? 0 : -1}
-              onClick={() => setRequestedActiveRole("moderator")}
-              onKeyDown={(event) => handleTabKeyDown(event, "moderator")}
-            >
-              Moderator tools
-              <span
-                className="staff-tools__role-count workspace-tab-menu__count"
-                aria-hidden="true"
-              >
-                1
-              </span>
-            </button>
-          ) : null}
-        </div>
+        <WorkspaceTabs
+          className="staff-tools__role-tabs"
+          ariaLabel="Staff tool categories"
+          items={availableRoles.map((role) => ({
+            className: "staff-tools__role-tab",
+            count: 1,
+            countClassName: "staff-tools__role-count",
+            id: `staff-${role}-tab`,
+            label: role === "curator" ? "Curator tools" : "Moderator tools",
+            panelId: `staff-${role}-panel`,
+            value: role,
+          }))}
+          value={activeRole}
+          onChange={setRequestedActiveRole}
+        />
 
         {canReviewIngredients ? (
           <section
@@ -318,14 +249,16 @@ export function StaffTools() {
         <h1>Staff Tools</h1>
         <p>Open the staff tools available to your account.</p>
       </header>
-      <section className="empty-state staff-tools__empty" aria-labelledby="staff-empty-title">
-        <p className="eyebrow">No staff role</p>
-        <h2 id="staff-empty-title">No staff tools are assigned to this account.</h2>
-        <p>Your recipes and account are still available from the regular member navigation.</p>
-        <GuardedLink className="button button--primary" href="/account/recipes?view=drafts">
+      <WorkspaceEmptyState
+        action={<GuardedLink className="button button--primary" href="/account/recipes?view=drafts">
           Go to My recipes
-        </GuardedLink>
-      </section>
+        </GuardedLink>}
+        className="staff-tools__empty"
+        description="Your recipes and account are still available from the regular member navigation."
+        eyebrow="No staff role"
+        headingId="staff-empty-title"
+        title="No staff tools are assigned to this account."
+      />
     </main>
   );
 }

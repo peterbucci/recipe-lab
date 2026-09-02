@@ -29,13 +29,18 @@ import {
   MyRecipesHubNavigation,
   myRecipesHref,
 } from "./my-recipes-hub";
-import { LoadingButton, SectionLoading } from "./loading-ui";
+import { LoadingButton } from "./loading-ui";
 import { MemberRecipeCard } from "./member-recipe-card";
 import { GuardedLink } from "./navigation-blocker-provider";
 import { RecipeArtwork } from "./recipe-artwork";
 import { RecipeVisibilityControl } from "./recipe-visibility-control";
 import { WorkspaceEmptyState } from "./workspace-empty-state";
+import { WorkspacePagination } from "./workspace-pagination";
 import { WorkspacePanelHeader } from "./workspace-panel-header";
+import {
+  WorkspaceErrorState,
+  WorkspaceLoadingState,
+} from "./workspace-state";
 
 interface MyRecipeLibraryProps {
   pageNumber: number;
@@ -108,37 +113,26 @@ function MyRecipePagination({
   totalPages: number;
   view: MyRecipeLibraryView;
 }) {
-  if (totalPages <= 1) return null;
   return (
-    <nav className="pagination" aria-label={`${viewLabel(view)} recipe pages`}>
-      {currentPage > 1 ? (
-        <GuardedLink
-          className="button button--secondary"
-          href={myRecipesHref(view, currentPage - 1)}
-        >
-          ← Previous
-        </GuardedLink>
-      ) : (
-        <span className="button button--disabled" aria-disabled="true">
-          ← Previous
-        </span>
-      )}
-      <span className="pagination__status" aria-current="page">
-        Page {currentPage} of {totalPages}
-      </span>
-      {currentPage < totalPages ? (
-        <GuardedLink
-          className="button button--secondary"
-          href={myRecipesHref(view, currentPage + 1)}
-        >
-          Next →
-        </GuardedLink>
-      ) : (
-        <span className="button button--disabled" aria-disabled="true">
-          Next →
-        </span>
-      )}
-    </nav>
+    <WorkspacePagination
+      currentPage={currentPage}
+      label={`${viewLabel(view)} recipe pages`}
+      totalPages={totalPages}
+      renderControl={({ disabled, label, page }) =>
+        disabled ? (
+          <span className="button button--disabled" aria-disabled="true">
+            {label}
+          </span>
+        ) : (
+          <GuardedLink
+            className="button button--secondary"
+            href={myRecipesHref(view, page)}
+          >
+            {label}
+          </GuardedLink>
+        )
+      }
+    />
   );
 }
 
@@ -404,19 +398,20 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
             </div>
           ) : null}
           {error ? (
-            <div className="form-alert" role="alert">
-              <p>{error}</p>
-              <button
+            <WorkspaceErrorState
+              className="form-alert"
+              message={error}
+              action={<button
                 className="button button--secondary"
                 type="button"
                 onClick={() => void load(view, pageNumber)}
               >
                 Refresh {copy.heading.toLowerCase()}
-              </button>
-            </div>
+              </button>}
+            />
           ) : null}
           {loading ? (
-            <SectionLoading
+            <WorkspaceLoadingState
               count={4}
               label={`${page ? "Updating" : "Loading"} ${copy.heading.toLowerCase()}…`}
               layout="cards"
@@ -443,21 +438,18 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
           ) : null}
 
           {!loading && beyondLastPage && page ? (
-            <section
-              className="empty-state"
-              aria-labelledby={`stale-my-recipes-${view}`}
-            >
-              <h2 id={`stale-my-recipes-${view}`}>
-                That page is beyond your {copy.resultName}s.
-              </h2>
-              <p>This view currently has {page.total_pages} pages.</p>
-              <GuardedLink
+            <WorkspaceEmptyState
+              action={<GuardedLink
                 className="button button--secondary"
                 href={myRecipesHref(view)}
               >
                 Return to the first page
-              </GuardedLink>
-            </section>
+              </GuardedLink>}
+              description={`This view currently has ${page.total_pages} pages.`}
+              eyebrow="Page unavailable"
+              headingId={`stale-my-recipes-${view}`}
+              title={`That page is beyond your ${copy.resultName}s.`}
+            />
           ) : null}
 
           {page && !beyondLastPage && page.items.length > 0 ? (

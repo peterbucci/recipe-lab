@@ -13,28 +13,14 @@ export function PrivateLibraryPagination({
   onPageChange,
   totalPages,
 }: PrivateLibraryPaginationProps) {
-  if (totalPages <= 1) return null;
   return (
-    <nav className="pagination" aria-label={label}>
-      <button
-        className="button button--secondary"
-        type="button"
-        disabled={loading || currentPage <= 1}
-        onClick={() => onPageChange(currentPage - 1)}
-      >
-        ← Previous
-      </button>
-      <span className="pagination__status" aria-current="page">
-        Page {currentPage} of {totalPages}
-      </span>
-      <button
-        className="button button--secondary"
-        type="button"
-        disabled={loading || currentPage >= totalPages}
-        onClick={() => onPageChange(currentPage + 1)}
-      >
-        Next →
-      </button>
-    </nav>
+    <WorkspacePagination
+      currentPage={currentPage}
+      label={label}
+      loading={loading}
+      onPageChange={onPageChange}
+      totalPages={totalPages}
+    />
   );
 }
+import { WorkspacePagination } from "./workspace-pagination";
