@@ -1,0 +1,368 @@
+.staff-tools-page {
+  width: min(68.75rem, 100% - 4rem);
+  min-height: calc(100dvh - var(--header-height) - 4rem);
+  margin-inline: auto;
+  padding-block: 1.875rem 4.5rem;
+}
+.staff-tools-page.state-page,
+.staff-tools-page.auth-page {
+  place-items: center;
+  display: grid;
+}
+.staff-tools__intro {
+  max-width: none;
+  padding-bottom: 1.5rem;
+}
+.staff-tools__intro h1 {
+  margin-bottom: 0.45rem;
+  font-size: clamp(2rem, 4vw, 2.6rem);
+  line-height: 1.05;
+}
+.staff-tools__intro > p:last-child {
+  max-width: 42rem;
+  color: var(--muted);
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+.staff-tools__shell {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  overflow: hidden;
+}
+.staff-tools__role-tabs {
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  min-height: 3.625rem;
+  align-items: flex-end;
+  gap: 0.25rem;
+  overflow: hidden;
+  padding: 0 0.875rem;
+  display: flex;
+}
+.staff-tools__role-tab {
+  border: 0;
+  background: transparent;
+  min-height: 3.5625rem;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  align-items: center;
+  gap: 0.45rem;
+  position: relative;
+  padding: 0.15rem 0.95rem 0;
+  font-size: 0.78rem;
+  font-weight: 780;
+  display: inline-flex;
+}
+.staff-tools__role-tab:after {
+  content: "";
+  border-radius: 999px;
+  background: transparent;
+  height: 2px;
+  position: absolute;
+  right: 0.8125rem;
+  bottom: -1px;
+  left: 0.8125rem;
+}
+.staff-tools__role-tab:hover {
+  color: var(--leaf-dark);
+}
+.staff-tools__role-tab[aria-selected="true"] {
+  color: var(--leaf-dark);
+}
+.staff-tools__role-tab[aria-selected="true"]:after {
+  background: var(--leaf);
+}
+.staff-tools__role-count {
+  border-radius: 999px;
+  background: var(--surface-soft);
+  min-width: 1.25rem;
+  min-height: 1.2rem;
+  color: var(--muted);
+  place-items: center;
+  padding: 0 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 820;
+  display: inline-grid;
+}
+.staff-tools__role-tab[aria-selected="true"] .staff-tools__role-count {
+  background: var(--leaf-soft);
+  color: var(--leaf-dark);
+}
+.workspace-panel-header {
+  border-bottom: 1px solid var(--line);
+  background: #fcfcfe;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1.125rem;
+  padding: 1.05rem 1.125rem 0.8rem;
+  display: flex;
+}
+.workspace-panel-header__copy {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+.workspace-panel-header h2,
+.workspace-panel-header p {
+  margin: 0;
+}
+.workspace-panel-header h2 {
+  font-size: 1rem;
+  line-height: 1.2;
+}
+.workspace-panel-header p {
+  max-width: 44rem;
+  color: var(--muted);
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+.workspace-panel-header__meta {
+  color: var(--muted);
+  white-space: nowrap;
+  flex: 0 0 auto;
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
+.staff-tools__panel[hidden] {
+  display: none;
+}
+.staff-tools__tool-copy h3,
+.staff-tools__tool-copy p,
+.staff-tools__tool-copy small {
+  margin: 0;
+}
+.staff-tools__tool-list {
+  display: grid;
+}
+.staff-tools__tool-row {
+  grid-template-columns: 2.875rem minmax(0, 1fr) auto;
+  gap: 0.875rem;
+  align-items: center;
+  min-height: 6.75rem;
+  padding: 1rem 1.125rem;
+  display: grid;
+}
+.staff-tools__tool-icon {
+  border-radius: 0.7rem;
+  width: 2.875rem;
+  height: 2.875rem;
+  place-items: center;
+  font-size: 1.15rem;
+  font-weight: 850;
+  display: grid;
+}
+.staff-tools__tool-icon--curator {
+  background: #eaf7ee;
+  color: #28784a;
+}
+.staff-tools__tool-icon--moderator {
+  background: #eef3ff;
+  color: #4966aa;
+}
+.staff-tools__tool-copy {
+  min-width: 0;
+}
+.staff-tools__tool-copy h3 {
+  font-size: 0.94rem;
+  line-height: 1.3;
+}
+.staff-tools__tool-copy p {
+  color: var(--muted);
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+.staff-tools__tool-copy small {
+  color: var(--muted);
+  margin-top: 0.3rem;
+  font-size: 0.66rem;
+  line-height: 1.45;
+  display: block;
+}
+.staff-tools__tool-action {
+  min-width: 7rem;
+}
+.staff-tools__empty {
+  max-width: 46rem;
+  margin-top: 0;
+}
+@media (max-width: 56.25rem) {
+  .member-library__navigation-row {
+    width: min(100%, 46rem);
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+@media (max-width: 43.75rem) {
+  .member-library__navigation-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 0.55rem;
+  }
+  .member-library__navigation-row .member-library__views {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: grid;
+  }
+  .member-library__view-link {
+    min-width: 0;
+    padding-inline: 0.45rem;
+  }
+  .staff-tools-page {
+    width: 100%;
+    padding: 1.25rem 0.75rem 2.8125rem;
+  }
+  .staff-tools__intro h1 {
+    font-size: clamp(1.8rem, 9vw, 2.25rem);
+  }
+  .staff-tools__shell {
+    border-inline: 0;
+    border-radius: 0;
+    margin-inline: -0.75rem;
+  }
+  .staff-tools__role-tabs {
+    padding-inline: 0.375rem;
+  }
+  .staff-tools__role-tab {
+    padding-inline: 0.7rem;
+  }
+  .workspace-panel-header {
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    padding-inline: 0.75rem;
+  }
+  .staff-tools__panel .workspace-panel-header__meta {
+    display: none;
+  }
+  .staff-tools__tool-row {
+    grid-template-columns: 2.625rem minmax(0, 1fr);
+    gap: 0.625rem 0.75rem;
+    padding: 0.875rem 0.75rem;
+  }
+  .staff-tools__tool-icon {
+    width: 2.625rem;
+    height: 2.625rem;
+  }
+  .staff-tools__tool-action {
+    grid-column: 2;
+    justify-self: start;
+    min-width: 0;
+  }
+}
+@media (forced-colors: active) {
+  .account-menu__identity-action:focus-visible,
+  .staff-tools__shell,
+  .workspace-panel-header,
+  .staff-tools__tool-icon {
+    border-color: canvastext;
+  }
+  .workspace-panel-header {
+    background: canvas;
+    color: canvastext;
+  }
+  .staff-tools__role-tab[aria-selected="true"]:after {
+    background: highlight;
+  }
+}
+.recipe-detail__member-actions .recipe-member-actions {
+  gap: 0;
+}
+.recipe-detail__member-actions .recipe-detail__social-row {
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  min-height: 3.5rem;
+  display: flex;
+}
+.recipe-detail__social-row .rating-summary {
+  align-items: center;
+  gap: 0.5rem;
+  display: inline-flex;
+}
+.recipe-detail__social-row .rating-summary__score {
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 1.375rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.recipe-detail__social-row .rating-summary__details {
+  align-items: start;
+  line-height: 1;
+  display: grid;
+}
+.rating-summary__stars {
+  color: #c4c4cf;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1;
+  display: inline-block;
+  position: relative;
+}
+.rating-summary__stars-base {
+  color: #bbbcc8;
+}
+.rating-summary__stars-fill {
+  color: var(--mustard);
+  white-space: nowrap;
+  position: absolute;
+  inset: 0 auto 0 0;
+  overflow: hidden;
+}
+.rating-summary__stars--empty {
+  color: #9b9cab;
+}
+.recipe-detail__social-row .rating-summary__count {
+  color: #797a8b;
+  margin-top: 0.25rem;
+  font-size: 0.5625rem;
+  line-height: 1;
+}
+.recipe-detail__member-actions .recipe-report {
+  order: initial;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+.recipe-detail__member-actions .recipe-report__toggle {
+  color: #737485;
+  background: 0 0;
+  border: 0;
+  min-height: auto;
+  padding: 0.4rem 0;
+  font-size: 0.625rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+.recipe-detail__member-actions .recipe-report__toggle:hover {
+  color: var(--leaf);
+  background: 0 0;
+  text-decoration: underline;
+}
+.recipe-detail__member-actions .recipe-report__body {
+  z-index: 30;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 0.75rem;
+  width: min(28rem, 100vw - 2rem);
+  max-height: min(38rem, 100vh - 6rem);
+  padding: 1rem;
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  overflow-y: auto;
+  box-shadow: 0 1rem 2.5rem #2018432e;
+}
+.recipe-detail__member-actions .recipe-interactions {
+  box-shadow: none;
+  background: 0 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: block;
+  position: relative;
+}

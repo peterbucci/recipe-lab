@@ -86,9 +86,11 @@ visualization remain outside the frontend MVP.
 
 #### Global styling foundation
 
-The root layout imports `frontend/app/globals.css` once. That stylesheet's
-source order is intentional, so additional global CSS entry points or imports
-must not be introduced casually.
+The root layout imports `frontend/app/globals.css` once. That file is an ordered
+manifest for `styles/tokens.css`, `styles/base.css`, shared primitives, and
+feature-owned stylesheets. The first split preserved the former stylesheet byte
+order when the imported files are concatenated; later moves between files must
+still treat cascade order as an observable contract.
 
 Shared styling primitives are low-specificity, opt-in classes for declarations
 that are already identical in multiple features. A feature adopts a primitive

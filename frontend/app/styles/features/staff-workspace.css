@@ -1,0 +1,174 @@
+.staff-workspace {
+  width: min(88rem, 100% - 3rem);
+  padding-block: 2rem 3rem;
+}
+.staff-workspace__header {
+  border: 1px solid var(--line);
+  border-top: 0.2rem solid var(--leaf);
+  border-radius: var(--radius);
+  background: var(--surface);
+  max-width: none;
+  box-shadow: var(--shadow-panel-subtle);
+  margin-bottom: 0.75rem;
+  padding: clamp(1.15rem, 3vw, 1.65rem);
+}
+.staff-workspace--curation .staff-workspace__header,
+.staff-workspace--curation .staff-workspace__queue,
+.staff-workspace--curation .staff-workspace__detail {
+  border-top-color: var(--mustard);
+}
+.staff-workspace--moderation .staff-workspace__header,
+.staff-workspace--moderation .staff-workspace__queue,
+.staff-workspace--moderation .staff-workspace__detail {
+  border-top-color: var(--clay);
+}
+.staff-workspace__header h1 {
+  margin-bottom: 0.45rem;
+  font-size: clamp(1.9rem, 3.5vw, 2.65rem);
+  line-height: 1.02;
+}
+.staff-workspace__header > p:last-child,
+.staff-workspace__header-copy > p:last-child {
+  max-width: 54rem;
+  color: var(--muted);
+  margin-bottom: 0;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+.staff-workspace__resource-link {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  flex: none;
+  align-items: center;
+  min-height: 2.55rem;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.76rem;
+  text-decoration: none;
+  display: inline-flex;
+}
+.staff-workspace__resource-link:hover {
+  border-color: var(--leaf);
+  background: var(--leaf-soft);
+}
+.staff-workspace__filters {
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel-subtle);
+  margin-bottom: 0.75rem;
+}
+.staff-workspace__layout {
+  grid-template-columns: minmax(18rem, 0.72fr) minmax(0, 1.65fr);
+  gap: 0.75rem;
+}
+.staff-workspace__queue,
+.staff-workspace__detail {
+  border-top: 0.2rem solid var(--leaf);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-panel-subtle);
+}
+.staff-workspace__queue {
+  padding: 1rem;
+  top: 5.25rem;
+}
+.staff-workspace__detail {
+  padding: clamp(1rem, 2.5vw, 1.35rem);
+}
+.staff-workspace__decision {
+  border: 1px solid var(--line);
+  border-left: 0.2rem solid var(--leaf);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  padding: 1rem;
+}
+.staff-workspace--curation .staff-workspace__decision {
+  border-left-color: var(--mustard);
+}
+.staff-workspace--moderation .staff-workspace__decision {
+  border-left-color: var(--clay);
+}
+.staff-workspace__notice {
+  border-radius: var(--radius-sm);
+  max-width: none;
+  box-shadow: none;
+}
+.staff-workspace__notice--error {
+  border-color: #e5b3ae;
+  border-left: 0.2rem solid var(--clay);
+  background: var(--clay-soft);
+}
+.staff-workspace__notice--success,
+.staff-workspace__status:not(:empty) {
+  border: 1px solid #c9bee9;
+  border-left: 0.2rem solid var(--leaf);
+  border-radius: var(--radius-sm);
+  background: var(--leaf-soft);
+}
+.staff-workspace__status:not(:empty) {
+  padding: 0.75rem 0.85rem;
+}
+.staff-workspace__pagination {
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+}
+@media (max-width: 56.25rem) {
+  .staff-workspace__header,
+  .staff-workspace__filters,
+  .staff-workspace > .staff-workspace__notice,
+  .staff-workspace__layout,
+  .staff-workspace__status {
+    width: min(100%, 46rem);
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .staff-workspace__layout {
+    grid-template-columns: 1fr;
+  }
+  .staff-workspace__queue {
+    max-height: none;
+    position: static;
+    overflow-y: visible;
+  }
+  .staff-workspace__queue-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 43.75rem) {
+  .staff-workspace {
+    width: min(88rem, 100% - 2rem);
+    padding-block: 1rem 2rem;
+  }
+  .staff-workspace__header,
+  .staff-workspace__detail {
+    padding: 1rem;
+  }
+  .staff-workspace__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .staff-workspace__queue-list,
+  .staff-workspace--moderation .moderation-detail__facts {
+    grid-template-columns: 1fr;
+  }
+  .staff-workspace__resource-link {
+    align-self: flex-start;
+  }
+  .staff-workspace--curation .curation-filter {
+    min-width: 0;
+    padding-inline: 0.4rem;
+    font-size: 0.75rem;
+  }
+}
+@media (forced-colors: active) {
+  .staff-workspace__header,
+  .staff-workspace__filters,
+  .staff-workspace__queue,
+  .staff-workspace__detail,
+  .staff-workspace__decision,
+  .staff-workspace__notice,
+  .staff-workspace__status:not(:empty),
+  .staff-workspace__resource-link {
+    background: canvas;
+    border-color: canvastext;
+  }
+}
