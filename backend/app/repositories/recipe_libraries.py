@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Literal, cast
 from uuid import UUID
 
-from sqlalchemy import func, literal, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
 from app.models import (
@@ -74,54 +74,44 @@ def browse_my_recipes(
     """Database-page one explicit view of a member's authored recipe work."""
 
     if view == "drafts":
-        activity_statement = select(
-            literal("draft").label("kind"),
-            RecipeDraft.id.label("entity_id"),
-            RecipeDraft.updated_at.label("activity_at"),
-        ).where(
-            RecipeDraft.author_user_id == actor_user_id,
-            RecipeDraft.status == "active",
+        return _browse_my_drafts(
+            session,
+            actor_user_id=actor_user_id,
+            offset=offset,
+            limit=limit,
         )
-    else:
-        publication_states = (
-            ("published", "moderation_hidden") if view == "published" else ("author_withdrawn",)
-        )
-        activity_at = (
-            RecipeVersionPublication.published_at
-            if view == "published"
-            else RecipeVersionPublication.state_changed_at
-        )
-        activity_statement = (
-            select(
-                literal("published").label("kind"),
-                RecipeVersion.id.label("entity_id"),
-                activity_at.label("activity_at"),
-            )
-            .join(
-                RecipeVersionPublication,
-                RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
-            )
-            .where(
-                RecipeVersion.created_by_user_id == actor_user_id,
-                RecipeVersionPublication.state.in_(publication_states),
-            )
-        )
-    activity = activity_statement.subquery("my_recipe_library_activity")
-    total = session.scalar(select(func.count()).select_from(activity)) or 0
-    page_rows = list(
-        session.execute(
-            select(activity.c.kind, activity.c.entity_id)
-            .order_by(
-                activity.c.activity_at.desc(),
-                activity.c.entity_id,
-            )
+    return _browse_my_publications(
+        session,
+        actor_user_id=actor_user_id,
+        view=view,
+        offset=offset,
+        limit=limit,
+    )
+
+
+def _browse_my_drafts(
+    session: Session,
+    *,
+    actor_user_id: UUID,
+    offset: int,
+    limit: int,
+) -> MyRecipeLibraryResult:
+    filters = (
+        RecipeDraft.author_user_id == actor_user_id,
+        RecipeDraft.status == "active",
+    )
+    total = session.scalar(select(func.count()).select_from(RecipeDraft).where(*filters)) or 0
+    draft_ids = list(
+        session.scalars(
+            select(RecipeDraft.id)
+            .where(*filters)
+            .order_by(RecipeDraft.updated_at.desc(), RecipeDraft.id)
             .offset(offset)
             .limit(limit)
         )
     )
-
-    draft_ids = {entity_id for kind, entity_id in page_rows if kind == "draft"}
-    recipe_ids = {entity_id for kind, entity_id in page_rows if kind == "published"}
+    if not draft_ids:
+        return MyRecipeLibraryResult(items=[], total=total)
 
     ingredient_count = (
         select(func.count())
@@ -172,7 +162,63 @@ def browse_my_recipes(
             stored_source_recipe_title,
         ) in rows
     }
+    return MyRecipeLibraryResult(
+        items=[
+            MyRecipeLibraryEntry(kind="draft", draft=drafts[draft_id])
+            for draft_id in draft_ids
+            if draft_id in drafts
+        ],
+        total=total,
+    )
 
+
+def _browse_my_publications(
+    session: Session,
+    *,
+    actor_user_id: UUID,
+    view: Literal["published", "withdrawn"],
+    offset: int,
+    limit: int,
+) -> MyRecipeLibraryResult:
+    publication_states = (
+        ("published", "moderation_hidden") if view == "published" else ("author_withdrawn",)
+    )
+    activity_at = (
+        RecipeVersionPublication.published_at
+        if view == "published"
+        else RecipeVersionPublication.state_changed_at
+    )
+    filters = (
+        RecipeVersion.created_by_user_id == actor_user_id,
+        RecipeVersionPublication.state.in_(publication_states),
+    )
+    total = (
+        session.scalar(
+            select(func.count())
+            .select_from(RecipeVersion)
+            .join(
+                RecipeVersionPublication,
+                RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+            )
+            .where(*filters)
+        )
+        or 0
+    )
+    recipe_ids = list(
+        session.scalars(
+            select(RecipeVersion.id)
+            .join(
+                RecipeVersionPublication,
+                RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+            )
+            .where(*filters)
+            .order_by(activity_at.desc(), RecipeVersion.id)
+            .offset(offset)
+            .limit(limit)
+        )
+    )
+    if not recipe_ids:
+        return MyRecipeLibraryResult(items=[], total=total)
     statement = (
         select(
             RecipeVersion,
@@ -192,21 +238,18 @@ def browse_my_recipes(
         recipe.id: (recipe, visibility_state)
         for recipe, visibility_state in session.execute(statement)
     }
-
-    items: list[MyRecipeLibraryEntry] = []
-    for kind, entity_id in page_rows:
-        if kind == "draft" and entity_id in drafts:
-            items.append(MyRecipeLibraryEntry(kind="draft", draft=drafts[entity_id]))
-        elif kind == "published" and entity_id in recipes:
-            recipe, visibility_state = recipes[entity_id]
-            items.append(
-                MyRecipeLibraryEntry(
-                    kind="published",
-                    recipe=recipe,
-                    visibility_state=cast(RecipeVisibilityState, visibility_state),
-                )
+    return MyRecipeLibraryResult(
+        items=[
+            MyRecipeLibraryEntry(
+                kind="published",
+                recipe=recipes[recipe_id][0],
+                visibility_state=cast(RecipeVisibilityState, recipes[recipe_id][1]),
             )
-    return MyRecipeLibraryResult(items=items, total=total)
+            for recipe_id in recipe_ids
+            if recipe_id in recipes
+        ],
+        total=total,
+    )
 
 
 def browse_my_saved_recipes(
