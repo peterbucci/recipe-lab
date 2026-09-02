@@ -114,6 +114,12 @@ secret. When issuer or client ID is absent, the product
 remains browsable but the sign-in start endpoint reports that authentication is
 unavailable.
 
+OIDC discovery metadata and signing keys are cached by one client owned by the
+FastAPI application lifespan. Requests reuse that client instead of rebuilding
+provider state for every login or callback. The application closes its HTTP
+resources during shutdown; provider tokens remain request-local and are never
+added to either cache.
+
 See `.env.example` for session lifetime, scopes, signing algorithms, login
 lifetime, network timeout, and clock-skew settings. Cookie names are a fixed
 cross-layer contract so runtime configuration cannot silently break CSRF.
