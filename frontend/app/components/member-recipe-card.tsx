@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { RecipeSummary } from "../../lib/recipe-api";
 import { PublicCookAttribution } from "./public-cook-attribution";
 import { RecipeArtwork } from "./recipe-artwork";
+import { RecipeCardShell } from "./recipe-card-shell";
 
 export type MemberRecipeCardState =
   | "published"
@@ -154,12 +155,10 @@ export function MemberRecipeCard({
   );
 
   return (
-    <li className="member-recipe-card__item">
-      <article
-        className={`member-recipe-card member-recipe-card--${state}`}
-        aria-labelledby={titleId}
-      >
-        {publiclyAccessible ? (
+    <RecipeCardShell
+      aria-labelledby={titleId}
+      artwork={
+        publiclyAccessible ? (
           <Link
             aria-label={`View ${recipe.title}`}
             className="member-recipe-card__artwork"
@@ -169,41 +168,42 @@ export function MemberRecipeCard({
           </Link>
         ) : (
           <div className="member-recipe-card__artwork">{artwork}</div>
+        )
+      }
+      bodyClassName="member-recipe-card__body"
+      className={`member-recipe-card member-recipe-card--${state}`}
+      itemClassName="member-recipe-card__item"
+    >
+      <div className="member-recipe-card__topline">
+        <span
+          className={`member-recipe-card__status member-recipe-card__status--${state}`}
+        >
+          {lineageLabel}
+        </span>
+      </div>
+
+      <h3 id={titleId}>
+        {publiclyAccessible ? (
+          <Link href={`/recipes/${recipe.id}`}>{recipe.title}</Link>
+        ) : (
+          recipe.title
         )}
+      </h3>
+      <RecipeContext recipe={recipe} state={state} />
+      <CardDescription recipe={recipe} state={state} />
+      <CardMetadata recipe={recipe} savedAt={savedAt} state={state} />
 
-        <div className="member-recipe-card__body">
-          <div className="member-recipe-card__topline">
-            <span
-              className={`member-recipe-card__status member-recipe-card__status--${state}`}
-            >
-              {lineageLabel}
-            </span>
-          </div>
-
-          <h3 id={titleId}>
-            {publiclyAccessible ? (
-              <Link href={`/recipes/${recipe.id}`}>{recipe.title}</Link>
-            ) : (
-              recipe.title
-            )}
-          </h3>
-          <RecipeContext recipe={recipe} state={state} />
-          <CardDescription recipe={recipe} state={state} />
-          <CardMetadata recipe={recipe} savedAt={savedAt} state={state} />
-
-          <div className="member-recipe-card__actions">
-            {publiclyAccessible ? (
-              <Link
-                className="button button--secondary member-recipe-card__view"
-                href={`/recipes/${recipe.id}`}
-              >
-                View recipe
-              </Link>
-            ) : null}
-            {actions}
-          </div>
-        </div>
-      </article>
-    </li>
+      <div className="member-recipe-card__actions">
+        {publiclyAccessible ? (
+          <Link
+            className="button button--secondary member-recipe-card__view"
+            href={`/recipes/${recipe.id}`}
+          >
+            View recipe
+          </Link>
+        ) : null}
+        {actions}
+      </div>
+    </RecipeCardShell>
   );
 }

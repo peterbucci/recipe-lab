@@ -33,6 +33,7 @@ import { LoadingButton } from "./loading-ui";
 import { MemberRecipeCard } from "./member-recipe-card";
 import { GuardedLink } from "./navigation-blocker-provider";
 import { RecipeArtwork } from "./recipe-artwork";
+import { RecipeCardShell } from "./recipe-card-shell";
 import { RecipeVisibilityControl } from "./recipe-visibility-control";
 import { WorkspaceEmptyState } from "./workspace-empty-state";
 import { WorkspacePagination } from "./workspace-pagination";
@@ -497,120 +498,114 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
                     const title = draft.title.trim() || "Untitled recipe";
                     const confirming = confirmingId === draft.id;
                     return (
-                      <li
-                        className="member-recipe-card__item"
-                        key={`draft-${draft.id}`}
-                      >
-                        <article
-                          className="member-recipe-card member-recipe-card--draft"
-                          aria-labelledby={`my-draft-${draft.id}`}
-                        >
+                      <RecipeCardShell
+                        aria-labelledby={`my-draft-${draft.id}`}
+                        artwork={
                           <div className="member-recipe-card__artwork">
                             <RecipeArtwork
                               className="member-recipe-card__artwork-graphic"
                               recipeKey={draft.source_version_id ?? draft.id}
                             />
                           </div>
-                          <div className="member-recipe-card__body">
-                            <div className="member-recipe-card__topline">
-                              <span className="member-recipe-card__status member-recipe-card__status--draft">
-                                {draft.source_version_id
-                                  ? "Version"
-                                  : "Original"}
-                              </span>
-                            </div>
-                            <h3 id={`my-draft-${draft.id}`}>{title}</h3>
-                            {draft.source_version_id &&
-                            item.source_recipe_title ? (
-                              <p className="member-recipe-card__context">
-                                Based on{" "}
-                                <GuardedLink
-                                  href={`/recipes/${draft.source_version_id}`}
-                                >
-                                  {item.source_recipe_title}
-                                </GuardedLink>
-                              </p>
-                            ) : null}
-                            {item.description ? (
-                              <p className="member-recipe-card__description">
-                                {item.description}
-                              </p>
-                            ) : null}
-                            <div className="member-recipe-card__metadata">
-                              <span>
-                                Edited{" "}
-                                <time dateTime={draft.updated_at}>
-                                  {formatActivity(draft.updated_at)}
-                                </time>
-                              </span>
-                            </div>
-                            <div className="member-recipe-card__actions">
-                              <GuardedLink
-                                className="button button--primary"
-                                href={`/recipes/drafts/${draft.id}`}
-                              >
-                                Continue editing
-                              </GuardedLink>
-                              <button
-                                className="button button--quiet"
+                        }
+                        bodyClassName="member-recipe-card__body"
+                        className="member-recipe-card member-recipe-card--draft"
+                        itemClassName="member-recipe-card__item"
+                        key={`draft-${draft.id}`}
+                      >
+                        <div className="member-recipe-card__topline">
+                          <span className="member-recipe-card__status member-recipe-card__status--draft">
+                            {draft.source_version_id ? "Version" : "Original"}
+                          </span>
+                        </div>
+                        <h3 id={`my-draft-${draft.id}`}>{title}</h3>
+                        {draft.source_version_id && item.source_recipe_title ? (
+                          <p className="member-recipe-card__context">
+                            Based on{" "}
+                            <GuardedLink
+                              href={`/recipes/${draft.source_version_id}`}
+                            >
+                              {item.source_recipe_title}
+                            </GuardedLink>
+                          </p>
+                        ) : null}
+                        {item.description ? (
+                          <p className="member-recipe-card__description">
+                            {item.description}
+                          </p>
+                        ) : null}
+                        <div className="member-recipe-card__metadata">
+                          <span>
+                            Edited{" "}
+                            <time dateTime={draft.updated_at}>
+                              {formatActivity(draft.updated_at)}
+                            </time>
+                          </span>
+                        </div>
+                        <div className="member-recipe-card__actions">
+                          <GuardedLink
+                            className="button button--primary"
+                            href={`/recipes/drafts/${draft.id}`}
+                          >
+                            Continue editing
+                          </GuardedLink>
+                          <button
+                            className="button button--quiet"
+                            type="button"
+                            aria-expanded={confirming}
+                            aria-controls={`discard-${draft.id}`}
+                            onClick={(event) => {
+                              if (!confirming)
+                                discardReturnFocusRef.current = event.currentTarget;
+                              setConfirmation(
+                                confirming ? null : { key, id: draft.id },
+                              );
+                            }}
+                          >
+                            Discard
+                          </button>
+                        </div>
+                        {confirming ? (
+                          <div
+                            id={`discard-${draft.id}`}
+                            className="draft-discard"
+                            role="group"
+                            aria-label={`Discard ${title}`}
+                          >
+                            <p>
+                              <strong>Discard {title}?</strong>
+                            </p>
+                            <p>
+                              This permanently deletes this private draft. It
+                              cannot be restored.
+                            </p>
+                            <div className="button-row">
+                              <LoadingButton
+                                className="button button--danger"
                                 type="button"
-                                aria-expanded={confirming}
-                                aria-controls={`discard-${draft.id}`}
-                                onClick={(event) => {
-                                  if (!confirming)
-                                    discardReturnFocusRef.current =
-                                      event.currentTarget;
-                                  setConfirmation(
-                                    confirming ? null : { key, id: draft.id },
+                                pending={discardingId === draft.id}
+                                pendingLabel="Discarding…"
+                                onClick={() => void discard(draft)}
+                              >
+                                Discard permanently
+                              </LoadingButton>
+                              <button
+                                className="button button--secondary"
+                                type="button"
+                                disabled={discardingId === draft.id}
+                                onClick={() => {
+                                  setConfirmation(null);
+                                  window.requestAnimationFrame(() =>
+                                    discardReturnFocusRef.current?.focus(),
                                   );
                                 }}
                               >
-                                Discard
+                                Keep draft
                               </button>
                             </div>
-                            {confirming ? (
-                              <div
-                                id={`discard-${draft.id}`}
-                                className="draft-discard"
-                                role="group"
-                                aria-label={`Discard ${title}`}
-                              >
-                                <p>
-                                  <strong>Discard {title}?</strong>
-                                </p>
-                                <p>
-                                  This permanently deletes this private draft.
-                                  It cannot be restored.
-                                </p>
-                                <div className="button-row">
-                                  <LoadingButton
-                                    className="button button--danger"
-                                    type="button"
-                                    pending={discardingId === draft.id}
-                                    pendingLabel="Discarding…"
-                                    onClick={() => void discard(draft)}
-                                  >
-                                    Discard permanently
-                                  </LoadingButton>
-                                  <button
-                                    className="button button--secondary"
-                                    type="button"
-                                    disabled={discardingId === draft.id}
-                                    onClick={() => {
-                                      setConfirmation(null);
-                                      window.requestAnimationFrame(() =>
-                                        discardReturnFocusRef.current?.focus(),
-                                      );
-                                    }}
-                                  >
-                                    Keep draft
-                                  </button>
-                                </div>
-                              </div>
-                            ) : null}
                           </div>
-                        </article>
-                      </li>
+                        ) : null}
+                      </RecipeCardShell>
                     );
                   })}
                 </ul>
