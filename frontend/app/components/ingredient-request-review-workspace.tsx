@@ -13,9 +13,9 @@ import {
   type IngredientCatalogReviewPage,
 } from "../../lib/ingredient-catalog-api";
 import { isAbortError } from "../../lib/abort-error";
+import { INGREDIENT_REQUEST_STATUS_LABELS } from "../../lib/ingredient-request-presentation";
 import { useAuthSession } from "./auth-session-provider";
 import { IngredientRequestReviewDetail } from "./ingredient-request-review-detail";
-import { STATUS_LABELS } from "./ingredient-request-review-model";
 import {
   IngredientRequestReviewQueue,
   IngredientRequestStatusFilters,
@@ -290,7 +290,7 @@ function AuthorizedReviewWorkspace({
 
   function handleReviewed(updated: IngredientCatalogReviewItem) {
     setWorkspaceStatus(
-      `${updated.proposed_name} is now ${STATUS_LABELS[updated.status].toLocaleLowerCase()}.`,
+      `${updated.proposed_name} is now ${INGREDIENT_REQUEST_STATUS_LABELS[updated.status].toLocaleLowerCase()}.`,
     );
     setDetail((current) => (current?.id === updated.id ? { ...current, ...updated } : current));
     reloadQueue();

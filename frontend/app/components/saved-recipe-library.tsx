@@ -17,10 +17,10 @@ import {
 } from "./my-recipes-hub";
 import { MemberRecipeCard } from "./member-recipe-card";
 import { GuardedLink } from "./navigation-blocker-provider";
-import { PrivateLibraryPagination } from "./private-library-pagination";
 import { LoadingButton, SectionLoading } from "./loading-ui";
 import { WorkspaceEmptyState } from "./workspace-empty-state";
 import { WorkspacePanelHeader } from "./workspace-panel-header";
+import { WorkspacePagination } from "./workspace-pagination";
 
 const RETURN_TO = "/account/recipes?view=saved";
 
@@ -283,7 +283,7 @@ function SavedRecipeLibraryInner() {
                   ))}
                 </ul>
               </section>
-              <PrivateLibraryPagination
+              <WorkspacePagination
                 currentPage={page.page}
                 label="Saved recipe pages"
                 loading={loading}

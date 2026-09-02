@@ -8,11 +8,11 @@ import type {
   IngredientCatalogReviewPage,
 } from "../../lib/ingredient-catalog-api";
 import {
-  formatRequestDate,
-  formatRequestTime,
-  STATUS_FILTERS,
-  STATUS_LABELS,
-} from "./ingredient-request-review-model";
+  formatIngredientRequestDate,
+  formatIngredientRequestTime,
+  INGREDIENT_REQUEST_STATUS_LABELS,
+} from "../../lib/ingredient-request-presentation";
+import { STATUS_FILTERS } from "./ingredient-request-review-model";
 import { WorkspacePagination } from "./workspace-pagination";
 import {
   WorkspaceErrorState,
@@ -119,7 +119,7 @@ export function IngredientRequestReviewQueue({
     >
       <div className="curation-panel-heading">
         <h2 id="curation-queue-heading">
-          {STATUS_LABELS[requestStatus]} requests
+          {INGREDIENT_REQUEST_STATUS_LABELS[requestStatus]} requests
         </h2>
         {queue ? (
           <span className="curation-panel-heading__count">
@@ -147,7 +147,7 @@ export function IngredientRequestReviewQueue({
         <WorkspaceLoadingState
           className="curation-panel-state"
           count={5}
-          label={`Loading ${STATUS_LABELS[requestStatus].toLocaleLowerCase()} requests…`}
+          label={`Loading ${INGREDIENT_REQUEST_STATUS_LABELS[requestStatus].toLocaleLowerCase()} requests…`}
           layout="rows"
           refreshing={Boolean(queue)}
         />
@@ -167,7 +167,7 @@ export function IngredientRequestReviewQueue({
       ) : null}
       {!queueLoading && !queueError && queue?.items.length === 0 ? (
         <p className="curation-queue__empty">
-          No {STATUS_LABELS[requestStatus].toLocaleLowerCase()} requests.
+          No {INGREDIENT_REQUEST_STATUS_LABELS[requestStatus].toLocaleLowerCase()} requests.
         </p>
       ) : null}
       {!queueLoading &&
@@ -180,7 +180,7 @@ export function IngredientRequestReviewQueue({
       {visibleItems.length > 0 ? (
         <ol
           className="staff-workspace__queue-list curation-request-list"
-          aria-label={`${STATUS_LABELS[requestStatus]} requests`}
+          aria-label={`${INGREDIENT_REQUEST_STATUS_LABELS[requestStatus]} requests`}
         >
           {visibleItems.map((item) => (
             <li key={item.id}>
@@ -192,15 +192,15 @@ export function IngredientRequestReviewQueue({
                 <span className="curation-request-list__top">
                   <strong>{item.proposed_name}</strong>
                   <span className={`curation-status curation-status--${item.status}`}>
-                    {STATUS_LABELS[item.status]}
+                    {INGREDIENT_REQUEST_STATUS_LABELS[item.status]}
                   </span>
                 </span>
                 <span className="curation-request-list__meta">
                   <time
                     dateTime={item.created_at}
-                    aria-label={`Submitted ${formatRequestTime(item.created_at)}`}
+                    aria-label={`Submitted ${formatIngredientRequestTime(item.created_at)}`}
                   >
-                    {formatRequestDate(item.created_at)}
+                    {formatIngredientRequestDate(item.created_at)}
                   </time>
                 </span>
                 <span className="curation-request-list__context">

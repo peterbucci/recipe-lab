@@ -3,7 +3,10 @@ import type {
   RecipeModerationCaseSummary,
   RecipeModerationStatus,
 } from "../../lib/recipe-moderation-api";
-import { formatModerationTime } from "./use-recipe-moderation-workspace";
+import {
+  formatModerationTime,
+  RECIPE_MODERATION_STATUS_LABELS,
+} from "../../lib/recipe-moderation-presentation";
 import { WorkspacePagination } from "./workspace-pagination";
 import { WorkspaceLoadingState } from "./workspace-state";
 
@@ -40,7 +43,7 @@ export function RecipeModerationQueue({
     >
       <div className="moderation-section-heading">
         <h2 id="moderation-queue-title">
-          {caseStatus === "open" ? "Open" : "Resolved"} cases
+          {RECIPE_MODERATION_STATUS_LABELS[caseStatus]} cases
         </h2>
         <span>
           {queue
@@ -69,7 +72,7 @@ export function RecipeModerationQueue({
       {visibleItems.length ? (
         <ul
           className="staff-workspace__queue-list"
-          aria-label={`${caseStatus === "open" ? "Open" : "Resolved"} cases`}
+          aria-label={`${RECIPE_MODERATION_STATUS_LABELS[caseStatus]} cases`}
         >
           {visibleItems.map((item) => (
             <li key={item.recipe_version_id}>

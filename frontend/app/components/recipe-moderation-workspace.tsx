@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 
 import type { RecipeModerationStatus } from "../../lib/recipe-moderation-api";
+import { RECIPE_MODERATION_STATUS_LABELS } from "../../lib/recipe-moderation-presentation";
 import { useAuthSession } from "./auth-session-provider";
 import { AuthGateLoading } from "./loading-ui";
 import { RecipeModerationCaseDetail } from "./recipe-moderation-case-detail";
@@ -24,8 +25,8 @@ const STATUS_FILTERS: ReadonlyArray<{
   value: RecipeModerationStatus;
   label: string;
 }> = [
-  { value: "open", label: "Open" },
-  { value: "resolved", label: "Resolved" },
+  { value: "open", label: RECIPE_MODERATION_STATUS_LABELS.open },
+  { value: "resolved", label: RECIPE_MODERATION_STATUS_LABELS.resolved },
 ];
 
 const STATUS_PANEL_COPY: Record<

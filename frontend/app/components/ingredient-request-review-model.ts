@@ -14,37 +14,9 @@ export const STATUS_FILTERS: Array<{
   { label: "Rejected", value: "rejected" },
 ];
 
-export const STATUS_LABELS: Record<IngredientCatalogRequestStatus, string> = {
-  pending: "Pending",
-  approved: "Approved",
-  rejected: "Rejected",
-  duplicate: "Duplicate",
-};
-
 export interface ReviewDetailProps {
   detail: IngredientCatalogReviewDetail;
   onAuthorizationLost: () => void;
   onRefresh: () => Promise<void>;
   onReviewed: (request: IngredientCatalogReviewItem) => void;
-}
-
-export function formatRequestTime(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(parsed);
-}
-
-export function formatRequestDate(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-  }).format(parsed);
 }

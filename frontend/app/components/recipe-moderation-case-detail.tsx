@@ -8,8 +8,11 @@ import {
   type RecipeModerationVisibility,
 } from "../../lib/recipe-moderation-api";
 import type { RecipeReportReason } from "../../lib/recipe-report-api";
+import {
+  formatModerationTime,
+  RECIPE_MODERATION_STATUS_LABELS,
+} from "../../lib/recipe-moderation-presentation";
 import { LoadingButton } from "./loading-ui";
-import { formatModerationTime } from "./use-recipe-moderation-workspace";
 
 const REASON_LABELS: Record<RecipeReportReason, string> = {
   spam: "Spam or misleading content",
@@ -54,7 +57,7 @@ export function RecipeModerationCaseDetail({
             <span
               className={`moderation-detail__status-pill moderation-detail__status-pill--${detail.status}`}
             >
-              {detail.status === "open" ? "Open" : "Resolved"}
+              {RECIPE_MODERATION_STATUS_LABELS[detail.status]}
             </span>
             <h2 id="moderation-detail-title">{detail.title}</h2>
             <p className="moderation-detail__author">

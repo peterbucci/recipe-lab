@@ -44,15 +44,6 @@ export interface RecipeModerationWorkspaceState {
   selectCase: (recipeVersionId: string | null) => void;
 }
 
-export function formatModerationTime(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf())) return value;
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(parsed);
-}
-
 export function useRecipeModerationWorkspace({
   onAuthorizationLost,
 }: {

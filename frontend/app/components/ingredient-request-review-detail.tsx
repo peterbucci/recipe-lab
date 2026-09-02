@@ -1,12 +1,12 @@
 import { useEffect, useRef } from "react";
 
 import type { IngredientCatalogReviewDetail } from "../../lib/ingredient-catalog-api";
-import { IngredientRequestDecisionForm } from "./ingredient-request-decision-form";
 import {
-  formatRequestTime,
-  type ReviewDetailProps,
-  STATUS_LABELS,
-} from "./ingredient-request-review-model";
+  formatIngredientRequestTime,
+  INGREDIENT_REQUEST_STATUS_LABELS,
+} from "../../lib/ingredient-request-presentation";
+import { IngredientRequestDecisionForm } from "./ingredient-request-decision-form";
+import { type ReviewDetailProps } from "./ingredient-request-review-model";
 
 export function IngredientRequestReviewDetail(props: ReviewDetailProps) {
   const { detail } = props;
@@ -21,13 +21,15 @@ export function IngredientRequestReviewDetail(props: ReviewDetailProps) {
       <header className="curation-detail__header">
         <div>
           <span className={`curation-status curation-status--${detail.status}`}>
-            {STATUS_LABELS[detail.status]}
+            {INGREDIENT_REQUEST_STATUS_LABELS[detail.status]}
           </span>
           <h2 id="curation-detail-heading" ref={headingRef} tabIndex={-1}>
             {detail.proposed_name}
           </h2>
         </div>
-        <time dateTime={detail.created_at}>{formatRequestTime(detail.created_at)}</time>
+        <time dateTime={detail.created_at}>
+          {formatIngredientRequestTime(detail.created_at)}
+        </time>
       </header>
 
       <p className="curation-requester">
@@ -58,7 +60,9 @@ export function IngredientRequestReviewDetail(props: ReviewDetailProps) {
           <div>
             <dt>Last updated</dt>
             <dd>
-              <time dateTime={detail.updated_at}>{formatRequestTime(detail.updated_at)}</time>
+              <time dateTime={detail.updated_at}>
+                {formatIngredientRequestTime(detail.updated_at)}
+              </time>
             </dd>
           </div>
         </dl>
@@ -98,7 +102,9 @@ function CandidateSummary({ detail }: { detail: IngredientCatalogReviewDetail })
             <li key={`request-${candidate.id}`}>
               <div>
                 <strong>{candidate.proposed_name}</strong>
-                <small>{STATUS_LABELS[candidate.status]} request</small>
+                <small>
+                  {INGREDIENT_REQUEST_STATUS_LABELS[candidate.status]} request
+                </small>
                 {candidate.approved_canonical_name ? (
                   <small>Approved as: {candidate.approved_canonical_name}</small>
                 ) : null}
