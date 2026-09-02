@@ -4,7 +4,6 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
-from sqlalchemy.exc import IntegrityError
 
 from app.api.dependencies import (
     CsrfProtectedSessionDependency,
@@ -21,16 +20,7 @@ from app.core.security import (
     AUTH_FORCE_LOGIN_COOKIE_NAME,
     AUTH_LOGIN_COOKIE_NAME,
     AUTH_SESSION_COOKIE_NAME,
-    secrets_match,
-    token_digest,
 )
-from app.models.auth import OIDC_LOGIN_PURPOSE_REAUTHENTICATE
-from app.repositories.auth import (
-    consume_oidc_login_transaction,
-    delete_oidc_login_transaction,
-)
-from app.repositories.catalog_requests import is_catalog_curator
-from app.repositories.moderation import is_community_moderator
 from app.schemas.auth import (
     AccountCapabilitiesResponse,
     AccountDeletionRequest,
@@ -41,31 +31,23 @@ from app.schemas.auth import (
     MemberSessionResponse,
 )
 from app.schemas.errors import ErrorResponse
-from app.services.abuse_limits import (
-    enforce_oidc_identity_rate_limit,
-)
-from app.services.account_lifecycle import (
-    AccountDeletionConfirmationError,
-    AccountDeletionNotAllowedError,
-    RecentAuthenticationRequiredError,
-    delete_member_account,
-)
-from app.services.auth import (
-    AccountCannotAuthenticateError,
-    AuthenticatedSession,
-    HandleUnavailableError,
-    begin_oidc_login,
-    begin_oidc_reauthentication,
-    issue_member_session,
-    issue_reauthenticated_session,
-    revoke_authenticated_session,
-    update_member_profile,
-    utc_now,
-)
-from app.services.oidc import (
-    InvalidOIDCLoginError,
-    OIDCConfigurationError,
-    OIDCProviderUnavailableError,
+from app.services.auth_workflows import (
+    AccountConfirmationInvalidWorkflowError,
+    AuthenticationRequiredWorkflowError,
+    AuthenticationUnavailableError,
+    HandleUnavailableWorkflowError,
+    InvalidLoginWorkflowError,
+    InvalidReturnPathError,
+    MemberSessionSnapshot,
+    ReauthenticationFailedError,
+    RecentAuthenticationRequiredWorkflowError,
+    complete_login_workflow,
+    delete_account_workflow,
+    logout_workflow,
+    read_account_session_workflow,
+    start_login_workflow,
+    start_reauthentication_workflow,
+    update_account_profile_workflow,
 )
 
 router = APIRouter(prefix="/auth")
@@ -98,9 +80,9 @@ def _invalid_login(error: Exception | None = None) -> ApiError:
 
 
 def _member_response(
-    session: SessionDependency,
-    authenticated: AuthenticatedSession,
+    snapshot: MemberSessionSnapshot,
 ) -> MemberSessionResponse:
+    authenticated = snapshot.authenticated
     return MemberSessionResponse(
         status="authenticated" if authenticated.handle is not None else "onboarding_required",
         user=AccountUserResponse(
@@ -110,14 +92,8 @@ def _member_response(
             description=authenticated.profile_description,
         ),
         capabilities=AccountCapabilitiesResponse(
-            review_ingredient_requests=(
-                authenticated.handle is not None
-                and is_catalog_curator(session, authenticated.user_id)
-            ),
-            moderate_recipe_reports=(
-                authenticated.handle is not None
-                and is_community_moderator(session, authenticated.user_id)
-            ),
+            review_ingredient_requests=snapshot.can_review_ingredient_requests,
+            moderate_recipe_reports=snapshot.can_moderate_recipe_reports,
         ),
     )
 
@@ -247,22 +223,20 @@ def start_login(
 ) -> RedirectResponse:
     force_reauthentication = request.cookies.get(AUTH_FORCE_LOGIN_COOKIE_NAME) == "1"
     try:
-        with session.begin():
-            login = begin_oidc_login(
-                session,
-                settings=settings,
-                oidc_client=oidc_client,
-                return_path=return_to,
-                now=utc_now(),
-                force_reauthentication=force_reauthentication,
-            )
-    except ValueError as error:
+        login = start_login_workflow(
+            session,
+            settings=settings,
+            oidc_client=oidc_client,
+            return_path=return_to,
+            force_reauthentication=force_reauthentication,
+        )
+    except InvalidReturnPathError as error:
         raise ApiError(
             status_code=422,
             code="invalid_return_path",
             message="The return path is invalid.",
         ) from error
-    except (OIDCConfigurationError, OIDCProviderUnavailableError) as error:
+    except AuthenticationUnavailableError as error:
         raise _auth_unavailable(error) from error
 
     response = RedirectResponse(
@@ -301,31 +275,26 @@ def start_reauthentication(
     ] = "/account",
 ) -> RedirectResponse:
     try:
-        login = begin_oidc_reauthentication(
+        login = start_reauthentication_workflow(
             session,
             settings=settings,
             oidc_client=oidc_client,
             authenticated=authenticated,
             return_path=return_to,
-            now=utc_now(),
         )
-        session.commit()
-    except AccountCannotAuthenticateError as error:
-        session.rollback()
+    except AuthenticationRequiredWorkflowError as error:
         raise ApiError(
             status_code=401,
             code="authentication_required",
             message="Sign in to continue.",
         ) from error
-    except ValueError as error:
-        session.rollback()
+    except InvalidReturnPathError as error:
         raise ApiError(
             status_code=422,
             code="invalid_return_path",
             message="The return path is invalid.",
         ) from error
-    except (OIDCConfigurationError, OIDCProviderUnavailableError) as error:
-        session.rollback()
+    except AuthenticationUnavailableError as error:
         raise _auth_unavailable(error) from error
 
     response = RedirectResponse(
@@ -361,97 +330,29 @@ def complete_login(
     code: Annotated[str | None, Query(min_length=1, max_length=4096)] = None,
     provider_error: Annotated[str | None, Query(alias="error", max_length=256)] = None,
 ) -> RedirectResponse:
-    flow_cookie = request.cookies.get(AUTH_LOGIN_COOKIE_NAME)
-    if flow_cookie is None or len(flow_cookie) > 512 or not secrets_match(flow_cookie, state_value):
-        raise _invalid_login()
-
-    now = utc_now()
-    with session.begin():
-        login_transaction = consume_oidc_login_transaction(
-            session,
-            state_digest=token_digest(state_value),
-            now=now,
-        )
-        if login_transaction is None:
-            raise _invalid_login()
-        nonce = login_transaction.nonce
-        verifier = login_transaction.pkce_verifier
-        return_path = login_transaction.return_path
-        login_purpose = login_transaction.purpose
-        bound_session_id = login_transaction.bound_session_id
-        reauthentication_started_at = login_transaction.created_at
-        delete_oidc_login_transaction(session, login_transaction)
-
-    if provider_error is not None or code is None:
-        if login_purpose == OIDC_LOGIN_PURPOSE_REAUTHENTICATE:
-            return _reauthentication_failure_redirect(
-                settings=settings,
-                return_path=return_path,
-            )
-        raise _invalid_login()
-
     try:
-        identity = oidc_client.exchange_code(
-            code=code,
-            code_verifier=verifier,
-            expected_nonce=nonce,
-            require_auth_time_after=(
-                reauthentication_started_at
-                if login_purpose == OIDC_LOGIN_PURPOSE_REAUTHENTICATE
-                else None
-            ),
-        )
-        enforce_oidc_identity_rate_limit(
+        completed = complete_login_workflow(
             session,
             settings=settings,
-            issuer=identity.issuer,
-            subject=identity.subject,
-            now=utc_now(),
+            oidc_client=oidc_client,
+            flow_cookie=request.cookies.get(AUTH_LOGIN_COOKIE_NAME),
+            state_value=state_value,
+            code=code,
+            provider_error=provider_error,
         )
-        with session.begin():
-            if login_purpose == OIDC_LOGIN_PURPOSE_REAUTHENTICATE:
-                if bound_session_id is None:
-                    raise AccountCannotAuthenticateError("Account cannot authenticate.")
-                issued = issue_reauthenticated_session(
-                    session,
-                    settings=settings,
-                    identity=identity,
-                    bound_session_id=bound_session_id,
-                    return_path=return_path,
-                    now=utc_now(),
-                )
-            else:
-                issued = issue_member_session(
-                    session,
-                    settings=settings,
-                    identity=identity,
-                    return_path=return_path,
-                    now=utc_now(),
-                )
-    except InvalidOIDCLoginError as error:
-        if login_purpose == OIDC_LOGIN_PURPOSE_REAUTHENTICATE:
-            return _reauthentication_failure_redirect(
-                settings=settings,
-                return_path=return_path,
-            )
+    except ReauthenticationFailedError as error:
+        return _reauthentication_failure_redirect(
+            settings=settings,
+            return_path=error.return_path,
+        )
+    except InvalidLoginWorkflowError as error:
         raise _invalid_login(error) from error
-    except AccountCannotAuthenticateError as error:
-        if login_purpose == OIDC_LOGIN_PURPOSE_REAUTHENTICATE:
-            return _reauthentication_failure_redirect(
-                settings=settings,
-                return_path=return_path,
-            )
-        raise _invalid_login(error) from error
-    except (OIDCConfigurationError, OIDCProviderUnavailableError) as error:
-        if login_purpose == OIDC_LOGIN_PURPOSE_REAUTHENTICATE:
-            return _reauthentication_failure_redirect(
-                settings=settings,
-                return_path=return_path,
-            )
+    except AuthenticationUnavailableError as error:
         raise _auth_unavailable(error) from error
 
+    issued = completed.issued_session
     redirect_target = issued.return_path
-    if login_purpose != OIDC_LOGIN_PURPOSE_REAUTHENTICATE and issued.user.handle is None:
+    if not completed.is_reauthentication and issued.user.handle is None:
         redirect_target = f"/onboarding?{urlencode({'return_to': issued.return_path})}"
     response = RedirectResponse(redirect_target, status_code=status.HTTP_303_SEE_OTHER)
     _set_session_cookies(
@@ -487,13 +388,12 @@ def account_session(
     authenticated: OptionalAuthenticatedSessionDependency,
 ) -> AnonymousSessionResponse | MemberSessionResponse:
     _set_no_store(response)
-    if authenticated is None:
-        session.rollback()
+    snapshot = read_account_session_workflow(session, authenticated)
+    if snapshot is None:
         if AUTH_SESSION_COOKIE_NAME in request.cookies or AUTH_CSRF_COOKIE_NAME in request.cookies:
             _clear_auth_cookies(response, settings)
         return AnonymousSessionResponse()
-    session.commit()
-    return _member_response(session, authenticated)
+    return _member_response(snapshot)
 
 
 @router.patch(
@@ -509,7 +409,7 @@ def update_account_profile(
     authenticated: CsrfProtectedSessionDependency,
 ) -> MemberSessionResponse:
     try:
-        updated = update_member_profile(
+        updated = update_account_profile_workflow(
             session,
             authenticated=authenticated,
             handle=payload.handle,
@@ -517,23 +417,20 @@ def update_account_profile(
             profile_description=payload.description,
             update_profile_description="description" in payload.model_fields_set,
         )
-        session.commit()
-    except (HandleUnavailableError, IntegrityError) as error:
-        session.rollback()
+    except HandleUnavailableWorkflowError as error:
         raise ApiError(
             status_code=409,
             code="handle_unavailable",
             message="That handle is unavailable.",
         ) from error
-    except AccountCannotAuthenticateError as error:
-        session.rollback()
+    except AuthenticationRequiredWorkflowError as error:
         raise ApiError(
             status_code=401,
             code="authentication_required",
             message="Sign in to continue.",
         ) from error
     _set_no_store(response)
-    return _member_response(session, updated)
+    return _member_response(updated)
 
 
 @router.post(
@@ -548,12 +445,7 @@ def logout(
     settings: SettingsDependency,
     authenticated: CsrfProtectedSessionDependency,
 ) -> Response:
-    revoke_authenticated_session(
-        session,
-        authenticated=authenticated,
-        now=utc_now(),
-    )
-    session.commit()
+    logout_workflow(session, authenticated=authenticated)
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     _clear_auth_cookies(response, settings)
     _require_fresh_login_after_sign_out(response, settings)
@@ -580,30 +472,25 @@ def delete_account(
     authenticated: CsrfProtectedUntouchedSessionDependency,
 ) -> Response:
     try:
-        delete_member_account(
+        delete_account_workflow(
             session,
+            settings=settings,
             authenticated=authenticated,
             confirmation=payload.confirmation,
-            recent_auth_ttl_seconds=settings.session.recent_ttl_seconds,
-            now=utc_now(),
         )
-        session.commit()
-    except RecentAuthenticationRequiredError as error:
-        session.rollback()
+    except RecentAuthenticationRequiredWorkflowError as error:
         raise ApiError(
             status_code=403,
             code="recent_authentication_required",
             message="Sign in again before deleting your account.",
         ) from error
-    except AccountDeletionConfirmationError as error:
-        session.rollback()
+    except AccountConfirmationInvalidWorkflowError as error:
         raise ApiError(
             status_code=400,
             code="account_confirmation_invalid",
             message="Type the current account confirmation phrase exactly.",
         ) from error
-    except AccountDeletionNotAllowedError as error:
-        session.rollback()
+    except AuthenticationRequiredWorkflowError as error:
         raise ApiError(
             status_code=401,
             code="authentication_required",
