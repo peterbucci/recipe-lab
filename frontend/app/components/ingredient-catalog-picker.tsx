@@ -5,8 +5,8 @@ import {
   type KeyboardEvent,
   useEffect,
   useLayoutEffect,
+  useReducer,
   useRef,
-  useState,
 } from "react";
 
 import {
@@ -22,6 +22,11 @@ import {
 } from "../../lib/ingredient-catalog-api";
 import { isAbortError } from "../../lib/abort-error";
 import { retryTransientRead } from "../../lib/api-transport/transient-read-retry";
+import {
+  createIngredientCatalogPickerState,
+  ingredientCatalogPickerReducer,
+  type IngredientSearchResource,
+} from "../../lib/ingredient-catalog-picker-state";
 import { InlineLoading, LoadingButton } from "./loading-ui";
 import { MissingIngredientRequestPanel } from "./missing-ingredient-request-panel";
 
@@ -57,8 +62,6 @@ interface PendingRequestSuggestion {
   id: string;
   proposedName: string;
 }
-
-type IngredientSearchResource = "catalog" | "requests";
 
 const SEARCH_DELAY_MS = 200;
 const MINIMUM_QUERY_LENGTH = 2;
@@ -124,6 +127,7 @@ export function IngredientCatalogPicker({
   const resultPageRef = useRef<CatalogIngredientPage | null>(null);
   const pendingRequestsRef = useRef<MemberIngredientRequest[]>([]);
   const pendingRequestTotalRef = useRef(0);
+  const suppressFocusOpenRef = useRef(false);
   const selectionDisplayName =
     value?.displayName ?? requestValue?.proposed_name ?? "";
   const selectionKey = value
@@ -131,59 +135,40 @@ export function IngredientCatalogPicker({
     : requestValue
       ? `request:${requestValue.id}:${requestValue.status}:${requestValue.proposed_name}:${requestValue.resolved_ingredient?.id ?? ""}`
       : "";
-  const [query, setQuery] = useState(selectionDisplayName);
-  const [searchedQuery, setSearchedQuery] = useState("");
-  const [resultPage, setResultPage] = useState<CatalogIngredientPage | null>(
-    null,
+  const [pickerState, dispatch] = useReducer(
+    ingredientCatalogPickerReducer,
+    { disabled, query: selectionDisplayName, selectionKey },
+    createIngredientCatalogPickerState,
   );
-  const [pendingRequests, setPendingRequests] = useState<
-    MemberIngredientRequest[]
-  >([]);
-  const [failedSearchResources, setFailedSearchResources] = useState<
-    IngredientSearchResource[]
-  >([]);
-  const [authenticationSearchError, setAuthenticationSearchError] =
-    useState("");
-  const [searchStatus, setSearchStatus] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [searchActive, setSearchActive] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [popupOpen, setPopupOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const [requestOpen, setRequestOpen] = useState(false);
-  const [searchRetryRevision, setSearchRetryRevision] = useState(0);
-  const [syncedSelectionKey, setSyncedSelectionKey] = useState(selectionKey);
-  const [syncedDisabled, setSyncedDisabled] = useState(disabled);
 
-  if (selectionKey !== syncedSelectionKey) {
-    setSyncedSelectionKey(selectionKey);
-    setQuery(selectionDisplayName);
-    setSearchActive(false);
-    setSearching(false);
-    setResultPage(null);
-    setPendingRequests([]);
-    setFailedSearchResources([]);
-    setAuthenticationSearchError("");
-    setPopupOpen(false);
-    setActiveIndex(-1);
-    setHasSearched(false);
+  if (
+    selectionKey !== pickerState.selectionKey ||
+    disabled !== pickerState.disabled
+  ) {
+    dispatch({
+      type: "synchronize",
+      disabled,
+      query: selectionDisplayName,
+      selectionKey,
+    });
   }
 
-  if (disabled !== syncedDisabled) {
-    setSyncedDisabled(disabled);
-    if (disabled) {
-      setSearching(false);
-      setSearchActive(false);
-      setResultPage(null);
-      setPendingRequests([]);
-      setFailedSearchResources([]);
-      setAuthenticationSearchError("");
-      setPopupOpen(false);
-      setActiveIndex(-1);
-      setHasSearched(false);
-      setRequestOpen(false);
-    }
-  }
+  const {
+    activeIndex,
+    authenticationSearchError,
+    failedSearchResources,
+    hasSearched,
+    pendingRequests,
+    popupOpen,
+    query,
+    requestOpen,
+    resultPage,
+    searchedQuery,
+    searching,
+    searchActive,
+    searchRetryRevision,
+    searchStatus,
+  } = pickerState;
 
   useEffect(
     () => () => {
@@ -273,13 +258,7 @@ export function IngredientCatalogPicker({
       searchControllerRef.current?.abort();
       const controller = new AbortController();
       searchControllerRef.current = controller;
-      setSearching(true);
-      setFailedSearchResources([]);
-      setAuthenticationSearchError("");
-      setSearchStatus("Searching ingredients…");
-      setSearchedQuery(normalizedQuery);
-      setHasSearched(false);
-      setActiveIndex(-1);
+      dispatch({ type: "search-started", query: normalizedQuery });
 
       const catalogLookup = searchCatalogIngredients({
         query: normalizedQuery,
@@ -306,15 +285,11 @@ export function IngredientCatalogPicker({
 
           if (catalogResult.status === "fulfilled") {
             resultPageRef.current = catalogResult.value;
-            setResultPage(catalogResult.value);
-            setHasSearched(true);
           }
           if (requestResult.status === "fulfilled") {
             pendingRequestsRef.current = requestResult.value.items;
             pendingRequestTotalRef.current = requestResult.value.total;
-            setPendingRequests(requestResult.value.items);
           }
-          setPopupOpen(inputFocusedRef.current);
 
           const failedResources: IngredientSearchResource[] = [];
           let authenticationError = "";
@@ -339,18 +314,16 @@ export function IngredientCatalogPicker({
             authenticationError ||= requestAuthenticationError;
             if (!requestAuthenticationError) failedResources.push("requests");
           }
-          setFailedSearchResources(failedResources);
-          setAuthenticationSearchError(authenticationError);
-
           const approvedCount = resultPageRef.current?.total ?? 0;
           const pendingCount = pendingRequestTotalRef.current;
+          let nextSearchStatus = "";
           if (
             catalogResult.status === "fulfilled" &&
             requestResult.status === "fulfilled" &&
             approvedCount === 0 &&
             pendingCount === 0
           ) {
-            setSearchStatus(`No ingredients match ${normalizedQuery}.`);
+            nextSearchStatus = `No ingredients match ${normalizedQuery}.`;
           } else if (approvedCount > 0 || pendingCount > 0) {
             const parts = [];
             if (approvedCount > 0) {
@@ -363,14 +336,30 @@ export function IngredientCatalogPicker({
                 `${pendingCount} pending request${pendingCount === 1 ? "" : "s"}`,
               );
             }
-            setSearchStatus(`${parts.join(" and ")} found.`);
+            nextSearchStatus = `${parts.join(" and ")} found.`;
           } else if (failedResources.length > 0 || authenticationError) {
-            setSearchStatus("Some ingredient suggestions are unavailable.");
+            nextSearchStatus = "Some ingredient suggestions are unavailable.";
           }
+
+          dispatch({
+            type: "search-settled",
+            authenticationSearchError: authenticationError,
+            catalogPage:
+              catalogResult.status === "fulfilled"
+                ? catalogResult.value
+                : undefined,
+            failedSearchResources: failedResources,
+            pendingRequests:
+              requestResult.status === "fulfilled"
+                ? requestResult.value.items
+                : undefined,
+            popupOpen: inputFocusedRef.current,
+            searchStatus: nextSearchStatus,
+          });
         })
         .finally(() => {
           if (sequence === searchSequenceRef.current && !disabledRef.current) {
-            setSearching(false);
+            dispatch({ type: "search-finished" });
           }
         });
     }, SEARCH_DELAY_MS);
@@ -378,49 +367,48 @@ export function IngredientCatalogPicker({
     return () => window.clearTimeout(timeout);
   }, [disabled, query, searchActive, searchRetryRevision]);
 
-  function invalidateSearch() {
+  function invalidateSearchRequest() {
     searchControllerRef.current?.abort();
     searchSequenceRef.current += 1;
-    setSearching(false);
-    setResultPage(null);
     resultPageRef.current = null;
-    setPendingRequests([]);
     pendingRequestsRef.current = [];
     pendingRequestTotalRef.current = 0;
-    setFailedSearchResources([]);
-    setAuthenticationSearchError("");
-    setPopupOpen(false);
-    setActiveIndex(-1);
   }
 
   function selectCatalogIngredient(selection: CatalogIngredientSelection) {
     if (disabled) return;
-    invalidateSearch();
-    setSearchActive(false);
-    setHasSearched(false);
-    setQuery(selection.displayName);
-    setSearchedQuery("");
-    setRequestOpen(false);
-    setSearchStatus(`${selection.displayName} selected for ${contextLabel}.`);
+    invalidateSearchRequest();
+    dispatch({
+      type: "ingredient-selected",
+      query: selection.displayName,
+      searchStatus: `${selection.displayName} selected for ${contextLabel}.`,
+      selectionKey: `catalog:${selection.ingredientId}:${selection.canonicalName}:${selection.displayName}`,
+    });
     onChange(selection);
-    inputRef.current?.focus();
+    if (document.activeElement !== inputRef.current) {
+      suppressFocusOpenRef.current = true;
+      inputRef.current?.focus();
+      suppressFocusOpenRef.current = false;
+    }
   }
 
   function handleComboboxKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "ArrowDown" && approvedOptions.length > 0) {
       event.preventDefault();
-      setPopupOpen(true);
-      setActiveIndex((current) =>
-        current < approvedOptions.length - 1 ? current + 1 : 0,
-      );
+      dispatch({
+        type: "move-active",
+        direction: "next",
+        optionCount: approvedOptions.length,
+      });
       return;
     }
     if (event.key === "ArrowUp" && approvedOptions.length > 0) {
       event.preventDefault();
-      setPopupOpen(true);
-      setActiveIndex((current) =>
-        current > 0 ? current - 1 : approvedOptions.length - 1,
-      );
+      dispatch({
+        type: "move-active",
+        direction: "previous",
+        optionCount: approvedOptions.length,
+      });
       return;
     }
     if (event.key === "Enter") {
@@ -436,17 +424,15 @@ export function IngredientCatalogPicker({
       (searchActive || searching || popupOpen || resultPage)
     ) {
       event.preventDefault();
-      invalidateSearch();
-      setSearchActive(false);
-      setHasSearched(false);
-      setSearchStatus("Ingredient suggestions closed.");
+      invalidateSearchRequest();
+      dispatch({ type: "suggestions-closed" });
       if (document.activeElement !== inputRef.current)
         inputRef.current?.focus();
     }
   }
 
   function closeRequest() {
-    setRequestOpen(false);
+    dispatch({ type: "request-closed" });
     window.setTimeout(() => inputRef.current?.focus(), 0);
   }
 
@@ -456,7 +442,7 @@ export function IngredientCatalogPicker({
     if (nextTarget instanceof Node && popupRef.current?.contains(nextTarget)) {
       return;
     }
-    setPopupOpen(false);
+    dispatch({ type: "blur" });
   }
 
   const helpId = `${idPrefix}-search-help`;
@@ -502,28 +488,28 @@ export function IngredientCatalogPicker({
           onFocus={() => {
             if (disabled) return;
             inputFocusedRef.current = true;
-            setPopupOpen(true);
-            setSearchActive(true);
+            if (suppressFocusOpenRef.current) return;
+            dispatch({ type: "focus" });
           }}
           onChange={(event) => {
             const nextQuery = event.target.value;
-            invalidateSearch();
-            if ((value || requestValue) && nextQuery !== selectionDisplayName) {
-              setSyncedSelectionKey("");
+            const clearsSelection =
+              Boolean(value || requestValue) &&
+              nextQuery !== selectionDisplayName;
+            invalidateSearchRequest();
+            dispatch({
+              type: "input-changed",
+              query: nextQuery,
+              searchStatus:
+                nextQuery.trim().length > 0 &&
+                nextQuery.trim().length < MINIMUM_QUERY_LENGTH
+                  ? `Type at least ${MINIMUM_QUERY_LENGTH} characters to search.`
+                  : "",
+              selectionKey: clearsSelection ? "" : selectionKey,
+            });
+            if (clearsSelection) {
               onChange(null);
             }
-            setQuery(nextQuery);
-            setSearchActive(true);
-            setPopupOpen(true);
-            setFailedSearchResources([]);
-            setAuthenticationSearchError("");
-            setSearchStatus(
-              nextQuery.trim().length > 0 &&
-                nextQuery.trim().length < MINIMUM_QUERY_LENGTH
-                ? `Type at least ${MINIMUM_QUERY_LENGTH} characters to search.`
-                : "",
-            );
-            setHasSearched(false);
           }}
           onKeyDown={handleComboboxKeyDown}
         />
@@ -626,8 +612,7 @@ export function IngredientCatalogPicker({
               aria-haspopup="dialog"
               disabled={disabled}
               onClick={() => {
-                setPopupOpen(false);
-                setRequestOpen(true);
+                dispatch({ type: "request-opened" });
               }}
             >
               <span>Request missing ingredient</span>
@@ -660,9 +645,7 @@ export function IngredientCatalogPicker({
             pendingLabel="Trying again…"
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => {
-              setSearching(true);
-              setSearchStatus("Searching ingredients…");
-              setSearchRetryRevision((revision) => revision + 1);
+              dispatch({ type: "retry-requested" });
             }}
           >
             Try again
@@ -691,13 +674,12 @@ export function IngredientCatalogPicker({
           initialName={query.trim()}
           onClose={closeRequest}
           onSubmitted={(request) => {
-            setRequestOpen(false);
-            setQuery(request.proposed_name);
-            setSearchActive(false);
-            setHasSearched(false);
-            setSearchStatus(
-              `${request.proposed_name} is pending review and cannot be used yet.`,
-            );
+            dispatch({
+              type: "request-submitted",
+              query: request.proposed_name,
+              searchStatus: `${request.proposed_name} is pending review and cannot be used yet.`,
+              selectionKey: `request:${request.id}:${request.status}:${request.proposed_name}:`,
+            });
             onRequestSubmitted?.(request);
             window.setTimeout(() => inputRef.current?.focus(), 0);
           }}
