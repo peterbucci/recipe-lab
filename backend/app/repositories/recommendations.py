@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
+from app.core.config import settings
 from app.models import (
     PreferenceEvent,
     RecipeIngredient,
@@ -17,6 +18,26 @@ from app.services.recommendation_scoring import (
     QualitativeIngredientMeasure,
     RecommendationIngredientMeasure,
 )
+
+MAX_RECOMMENDATION_CANDIDATES = settings.research.recommendation_max_candidates
+MAX_RECOMMENDATION_PROFILE_RECORDS = settings.research.recommendation_max_profile_records
+
+
+class RecommendationDataCapacityError(RuntimeError):
+    """Raised before an in-memory research ranking exceeds its fixed work envelope."""
+
+
+def _bounded_rows[RowT](
+    rows: tuple[RowT, ...],
+    *,
+    maximum: int,
+    resource: str,
+) -> tuple[RowT, ...]:
+    if len(rows) > maximum:
+        raise RecommendationDataCapacityError(
+            f"Recommendation {resource} exceeds the configured capacity."
+        )
+    return rows
 
 
 def recommendation_ingredient_measure(item: RecipeIngredient) -> RecommendationIngredientMeasure:
@@ -161,6 +182,11 @@ def load_recommendation_data(
             RecipeVersion.id,
         )
     )
+    candidate_rows = _bounded_rows(
+        tuple(session.execute(candidate_statement.limit(MAX_RECOMMENDATION_CANDIDATES + 1))),
+        maximum=MAX_RECOMMENDATION_CANDIDATES,
+        resource="candidate catalog",
+    )
     candidates = tuple(
         RecommendationCandidateData(
             recipe=recipe,
@@ -173,27 +199,64 @@ def load_recommendation_data(
             fork_count=int(fork_count),
             view_count=int(view_count),
         )
-        for recipe, rating_sum, rating_count, save_count, fork_count, view_count in session.execute(
-            candidate_statement
-        )
+        for recipe, rating_sum, rating_count, save_count, fork_count, view_count in candidate_rows
     )
 
     saved_recipe_version_ids: frozenset[UUID] = frozenset()
     ratings: tuple[RecommendationUserRating, ...] = ()
     events: tuple[RecommendationUserEvent, ...] = ()
     if user_id is not None:
-        saved_recipe_version_ids = frozenset(
-            session.scalars(
-                select(RecipeSave.recipe_version_id).where(RecipeSave.user_id == user_id)
-            )
+        saved_rows = _bounded_rows(
+            tuple(
+                session.scalars(
+                    select(RecipeSave.recipe_version_id)
+                    .where(RecipeSave.user_id == user_id)
+                    .order_by(RecipeSave.recipe_version_id)
+                    .limit(MAX_RECOMMENDATION_PROFILE_RECORDS + 1)
+                )
+            ),
+            maximum=MAX_RECOMMENDATION_PROFILE_RECORDS,
+            resource="member profile",
+        )
+        saved_recipe_version_ids = frozenset(saved_rows)
+        remaining_profile_capacity = MAX_RECOMMENDATION_PROFILE_RECORDS - len(saved_rows)
+        rating_rows = _bounded_rows(
+            tuple(
+                session.execute(
+                    select(RecipeRating.recipe_version_id, RecipeRating.rating)
+                    .where(RecipeRating.user_id == user_id)
+                    .order_by(RecipeRating.recipe_version_id)
+                    .limit(remaining_profile_capacity + 1)
+                )
+            ),
+            maximum=remaining_profile_capacity,
+            resource="member profile",
         )
         ratings = tuple(
             RecommendationUserRating(recipe_version_id=recipe_version_id, rating=int(rating))
-            for recipe_version_id, rating in session.execute(
-                select(RecipeRating.recipe_version_id, RecipeRating.rating)
-                .where(RecipeRating.user_id == user_id)
-                .order_by(RecipeRating.recipe_version_id)
-            )
+            for recipe_version_id, rating in rating_rows
+        )
+        remaining_profile_capacity -= len(rating_rows)
+        event_rows = _bounded_rows(
+            tuple(
+                session.execute(
+                    select(
+                        PreferenceEvent.recipe_version_id,
+                        PreferenceEvent.event_type,
+                        PreferenceEvent.related_recipe_version_id,
+                    )
+                    .where(PreferenceEvent.user_id == user_id)
+                    .distinct()
+                    .order_by(
+                        PreferenceEvent.recipe_version_id,
+                        PreferenceEvent.event_type,
+                        PreferenceEvent.related_recipe_version_id,
+                    )
+                    .limit(remaining_profile_capacity + 1)
+                )
+            ),
+            maximum=remaining_profile_capacity,
+            resource="member profile",
         )
         events = tuple(
             RecommendationUserEvent(
@@ -201,20 +264,7 @@ def load_recommendation_data(
                 event_type=event_type,
                 related_recipe_version_id=related_recipe_version_id,
             )
-            for recipe_version_id, event_type, related_recipe_version_id in session.execute(
-                select(
-                    PreferenceEvent.recipe_version_id,
-                    PreferenceEvent.event_type,
-                    PreferenceEvent.related_recipe_version_id,
-                )
-                .where(PreferenceEvent.user_id == user_id)
-                .distinct()
-                .order_by(
-                    PreferenceEvent.recipe_version_id,
-                    PreferenceEvent.event_type,
-                    PreferenceEvent.related_recipe_version_id,
-                )
-            )
+            for recipe_version_id, event_type, related_recipe_version_id in event_rows
         )
     return RecommendationData(
         candidates=candidates,

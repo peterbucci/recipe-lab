@@ -27,6 +27,16 @@ additional personal data.
 returns the standard HTTP 422 error envelope. Public cold-start requests do not
 depend on the seeded Demo Cook identity.
 
+The adapter reads the complete eligible catalog and the complete active
+member profile so it never silently changes `baseline-v1` by ranking a partial
+input. Both reads have validated operational ceilings. A catalog above
+`RECOMMENDATION_MAX_CANDIDATES`, or a signed-in profile whose combined saves,
+ratings, and distinct preference events exceed
+`RECOMMENDATION_MAX_PROFILE_RECORDS`, fails closed with the generic
+`recommendation_unavailable` 503 response. Queries fetch at most one row beyond
+their ceiling to detect overflow before scoring; raising either ceiling is an
+explicit capacity decision, not a model change.
+
 Because the same URL may vary by the private member session, the API marks every
 recommendation response `private, no-store` and varies it by cookie. No
 recommendation result is embedded in a shared cache or public server-rendered
