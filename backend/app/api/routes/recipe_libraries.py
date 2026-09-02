@@ -7,6 +7,7 @@ from app.api.dependencies import RequiredAuthenticatedSessionDependency, Session
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor
 from app.models import RecipeVersion
+from app.pagination import PageParams
 from app.repositories.auth import get_user_by_handle
 from app.repositories.member_follows import count_followers
 from app.repositories.recipe_drafts import RecipeDraftBrowseItem
@@ -98,6 +99,7 @@ def public_cook_profile(
     page: Annotated[int, Query(ge=1, le=1_000_000)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> PublicCookProfileResponse:
+    pagination = PageParams(page=page, page_size=page_size)
     cook = get_user_by_handle(session, handle)
     if cook is None:
         raise ApiError(
@@ -108,7 +110,7 @@ def public_cook_profile(
     stored = browse_public_recipe_versions_by_author(
         session,
         author_user_id=cook.id,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
     )
     engagement = get_recipe_card_engagement_aggregates(
@@ -123,7 +125,7 @@ def public_cook_profile(
         page=page,
         page_size=page_size,
         total=stored.total,
-        total_pages=(stored.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(stored.total),
     )
 
 
@@ -147,11 +149,12 @@ def my_recipe_library(
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> MyRecipeLibraryResponse:
     actor_id = lock_active_member_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
     stored = browse_my_recipes(
         session,
         actor_user_id=actor_id,
         view=view,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
     )
     items: list[MyRecipeDraftItem | MyPublishedRecipeItem] = []
@@ -180,7 +183,7 @@ def my_recipe_library(
         page=page,
         page_size=page_size,
         total=stored.total,
-        total_pages=(stored.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(stored.total),
     )
     session.commit()
     apply_private_no_store(response)
@@ -201,10 +204,11 @@ def my_saved_recipe_library(
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> SavedRecipeLibraryResponse:
     actor_id = lock_active_member_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
     stored = browse_my_saved_recipes(
         session,
         actor_user_id=actor_id,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
     )
     result = SavedRecipeLibraryResponse(
@@ -218,7 +222,7 @@ def my_saved_recipe_library(
         page=page,
         page_size=page_size,
         total=stored.total,
-        total_pages=(stored.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(stored.total),
     )
     session.commit()
     apply_private_no_store(response)

@@ -15,6 +15,7 @@ from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor, recipe_viewer_state_response
 from app.homepage_content import FEATURED_RECIPE_VERSION_IDS
 from app.models import RecipeIngredient, RecipeInstruction, RecipeVersion
+from app.pagination import PageParams
 from app.repositories.interactions import get_recipe_viewer_states
 from app.repositories.recipe_diffs import (
     get_direct_substitution_pairs,
@@ -250,6 +251,7 @@ def browse_recipes(
         ),
     ] = "title",
 ) -> RecipePageResponse:
+    pagination = PageParams(page=page, page_size=page_size)
     result = browse_recipe_versions(
         session,
         search=q,
@@ -258,7 +260,7 @@ def browse_recipes(
         is_variant=is_variant,
         category_slug=category,
         sort=sort,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
     )
     engagement = get_recipe_card_engagement_aggregates(
@@ -270,7 +272,7 @@ def browse_recipes(
         page=page,
         page_size=page_size,
         total=result.total,
-        total_pages=(result.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(result.total),
     )
 
 

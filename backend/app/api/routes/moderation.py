@@ -12,6 +12,7 @@ from app.api.dependencies import (
 )
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor, lock_recipe_moderator_actor
+from app.pagination import PageParams
 from app.repositories.moderation import (
     ModerationCaseQueueItem,
     browse_moderation_cases,
@@ -186,10 +187,11 @@ def moderation_queue(
     case_status: Annotated[ModerationCaseStatus | None, Query(alias="status")] = None,
 ) -> RecipeModerationCasePage:
     lock_recipe_moderator_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
     result = browse_moderation_cases(
         session,
         status=case_status,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
     )
     page_response = RecipeModerationCasePage(
@@ -197,7 +199,7 @@ def moderation_queue(
         page=page,
         page_size=page_size,
         total=result.total,
-        total_pages=(result.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(result.total),
     )
     session.commit()
     apply_private_no_store(response)

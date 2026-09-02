@@ -14,6 +14,7 @@ from app.api.dependencies import (
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor, lock_catalog_curator_actor
 from app.models import Ingredient, IngredientCatalogRequest
+from app.pagination import PageParams
 from app.repositories.catalog_requests import (
     browse_catalog_requests,
     find_catalog_request_candidates,
@@ -127,10 +128,11 @@ def ingredient_catalog(
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     q: Annotated[SearchTerm | None, Query()] = None,
 ) -> IngredientCatalogPage:
+    pagination = PageParams(page=page, page_size=page_size)
     result = browse_ingredients(
         session,
         search=q,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
     )
     return IngredientCatalogPage(
@@ -138,7 +140,7 @@ def ingredient_catalog(
         page=page,
         page_size=page_size,
         total=result.total,
-        total_pages=(result.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(result.total),
     )
 
 
@@ -212,12 +214,13 @@ def my_ingredient_requests(
     q: Annotated[SearchTerm | None, Query()] = None,
 ) -> IngredientCatalogRequestPage:
     actor_id = lock_active_member_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
     result = browse_catalog_requests(
         session,
         requester_user_id=actor_id,
         status=request_status,
         search=q,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
         include_resolved_ingredient=True,
         include_approval_snapshot_matches=False,
@@ -228,7 +231,7 @@ def my_ingredient_requests(
         page=page,
         page_size=page_size,
         total=result.total,
-        total_pages=(result.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(result.total),
     )
     session.commit()
     apply_private_no_store(response)
@@ -284,12 +287,13 @@ def review_queue(
     q: Annotated[SearchTerm | None, Query()] = None,
 ) -> IngredientCatalogReviewPage:
     lock_catalog_curator_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
     result = browse_catalog_requests(
         session,
         requester_user_id=None,
         status=request_status,
         search=q,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
         include_approval_snapshot_matches=True,
     )
@@ -300,7 +304,7 @@ def review_queue(
         page=page,
         page_size=page_size,
         total=result.total,
-        total_pages=(result.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(result.total),
     )
     session.commit()
     apply_private_no_store(response)
