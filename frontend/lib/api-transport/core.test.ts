@@ -195,6 +195,30 @@ describe("shared API transport core", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("allows a query with an explicit recovery UI to opt out of retries", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ error: { code: "temporary_failure" } }, { status: 503 }),
+      )
+      .mockResolvedValueOnce(Response.json({ items: ["recipe"] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      executeJsonApiRequest(
+        "/api/example",
+        { method: "GET" },
+        {
+          errorContract: ERROR_CONTRACT,
+          kind: "query",
+          retry: "never",
+          timeoutMs: 1_000,
+        },
+      ),
+    ).rejects.toMatchObject({ reason: "http", status: 503 });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it("stops after one retry when a transient query remains unavailable", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
