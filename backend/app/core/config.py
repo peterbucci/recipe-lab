@@ -61,6 +61,11 @@ class AbuseSettings(ConcernSettings):
     rate_limit_window_seconds: int
 
 
+class ResearchSettings(ConcernSettings):
+    recommendation_max_candidates: int
+    recommendation_max_profile_records: int
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -97,6 +102,9 @@ class Settings(BaseSettings):
     abuse_rate_limit_report_network: int = Field(default=120, ge=1, le=100_000)
     abuse_rate_limit_interaction_account: int = Field(default=600, ge=1, le=100_000)
     abuse_rate_limit_interaction_network: int = Field(default=2_400, ge=1, le=100_000)
+
+    recommendation_max_candidates: int = Field(default=2_000, ge=50, le=50_000)
+    recommendation_max_profile_records: int = Field(default=5_000, ge=50, le=100_000)
 
     oidc_issuer: str = ""
     oidc_client_id: str = ""
@@ -228,6 +236,13 @@ class Settings(BaseSettings):
             rate_limit_report_network=self.abuse_rate_limit_report_network,
             rate_limit_secret=self.abuse_rate_limit_secret,
             rate_limit_window_seconds=self.abuse_rate_limit_window_seconds,
+        )
+
+    @property
+    def research(self) -> ResearchSettings:
+        return ResearchSettings(
+            recommendation_max_candidates=self.recommendation_max_candidates,
+            recommendation_max_profile_records=self.recommendation_max_profile_records,
         )
 
 

@@ -12313,6 +12313,16 @@
               }
             },
             "description": "A durable account, identity, or network rate limit was exceeded."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The complete research ranking exceeds its configured safe capacity."
           }
         },
         "summary": "Research preview: get deterministic baseline rankings",

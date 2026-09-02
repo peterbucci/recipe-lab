@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query, Response
 
 from app.api.cache import apply_private_no_store
 from app.api.dependencies import OptionalAuthenticatedSessionDependency, SessionDependency
+from app.api.errors import ApiError
 from app.schemas.errors import ErrorResponse
 from app.schemas.recommendations import (
     RecipeRecommendationResponse,
@@ -23,6 +24,7 @@ from app.services.recommendations import (
     RATING_PRIOR_STRENGTH,
     SAVE_POPULARITY_WEIGHT,
     VIEW_POPULARITY_WEIGHT,
+    RecommendationCapacityError,
     recommend_recipe_versions,
 )
 
@@ -32,6 +34,10 @@ RECOMMENDATION_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     422: {
         "model": ErrorResponse,
         "description": "The requested recommendation limit is invalid.",
+    },
+    503: {
+        "model": ErrorResponse,
+        "description": "The complete research ranking exceeds its configured safe capacity.",
     },
 }
 
@@ -63,11 +69,19 @@ def get_recommendations(
     ] = 10,
 ) -> RecipeRecommendationsResponse:
     apply_private_no_store(response)
-    result = recommend_recipe_versions(
-        session,
-        authenticated.user_id if authenticated is not None else None,
-        limit,
-    )
+    try:
+        result = recommend_recipe_versions(
+            session,
+            authenticated.user_id if authenticated is not None else None,
+            limit,
+        )
+    except RecommendationCapacityError as error:
+        session.rollback()
+        raise ApiError(
+            status_code=503,
+            code="recommendation_unavailable",
+            message="Recommendations are temporarily unavailable. Please try again later.",
+        ) from error
     recommendations_response = RecipeRecommendationsResponse(
         strategy=BASELINE_STRATEGY,
         personalized=result.personalized,

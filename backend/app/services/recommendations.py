@@ -5,7 +5,10 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models import RecipeVersion
-from app.repositories.recommendations import load_recommendation_data
+from app.repositories.recommendations import (
+    RecommendationDataCapacityError,
+    load_recommendation_data,
+)
 from app.services.recommendation_scoring import (
     BASELINE_STRATEGY,
     FORK_POPULARITY_WEIGHT,
@@ -36,6 +39,7 @@ __all__ = [
     "RATING_PRIOR_MEAN",
     "RATING_PRIOR_STRENGTH",
     "RecommendationItem",
+    "RecommendationCapacityError",
     "RecommendationResult",
     "RecommendationSourceKind",
     "SAVE_POPULARITY_WEIGHT",
@@ -43,6 +47,10 @@ __all__ = [
     "VIEW_POPULARITY_WEIGHT",
     "recommend_recipe_versions",
 ]
+
+
+class RecommendationCapacityError(RuntimeError):
+    """Raised when the preview cannot rank the complete input within its safe bounds."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,7 +89,10 @@ def recommend_recipe_versions(
     if not 1 <= limit <= MAX_RECOMMENDATIONS:
         raise ValueError(f"limit must be between 1 and {MAX_RECOMMENDATIONS}.")
 
-    data = load_recommendation_data(session, user_id)
+    try:
+        data = load_recommendation_data(session, user_id)
+    except RecommendationDataCapacityError as error:
+        raise RecommendationCapacityError from error
     recipes_by_id = {candidate.recipe.id: candidate.recipe for candidate in data.candidates}
     scoring_result = score_baseline_recommendations(
         BaselineScoringInput(

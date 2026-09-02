@@ -24,6 +24,7 @@ from app.models import (
     RecipeVersion,
     User,
 )
+from app.repositories import recommendations as recommendation_repository
 from app.repositories.recommendations import load_recommendation_data
 from app.seeds.identifiers import seed_uuid
 from tests.member_session import (
@@ -600,6 +601,24 @@ def test_missing_session_member_falls_back_to_public_cold_start(
     assert _json_object(response.json())["personalized"] is False
 
 
+def test_complete_catalog_over_capacity_fails_closed_without_partial_ranking(
+    recommendation_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(recommendation_repository, "MAX_RECOMMENDATION_CANDIDATES", 1)
+
+    response = recommendation_client.get("/api/recommendations")
+
+    assert response.status_code == 503
+    assert response.headers["cache-control"] == "private, no-store"
+    assert _json_object(response.json())["error"] == {
+        "code": "recommendation_unavailable",
+        "message": "Recommendations are temporarily unavailable. Please try again later.",
+        "issues": [],
+        "correlation_id": response.headers["x-correlation-id"],
+    }
+
+
 def test_openapi_documents_the_bounded_read_only_recommendation_contract(
     recommendation_client: TestClient,
 ) -> None:
@@ -627,6 +646,9 @@ def test_openapi_documents_the_bounded_read_only_recommendation_contract(
         "/RecipeRecommendationsResponse"
     )
     assert responses["422"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/ErrorResponse"
+    )
+    assert responses["503"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/ErrorResponse"
     )
     parameters = {parameter["name"]: parameter for parameter in operation["parameters"]}

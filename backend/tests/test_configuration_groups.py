@@ -16,6 +16,8 @@ def test_environment_backed_settings_have_immutable_concern_views() -> None:
         oidc_issuer="https://identity.example.test",
         oidc_redirect_uri="https://app.example.test/api/auth/callback",
         oidc_scopes="openid email profile email",
+        recommendation_max_candidates=750,
+        recommendation_max_profile_records=1_250,
     )
 
     assert settings.database.operation_timeout_seconds == 7
@@ -26,6 +28,8 @@ def test_environment_backed_settings_have_immutable_concern_views() -> None:
     assert settings.session.ttl_seconds == 3_600
     assert settings.oidc.allowed_signing_algorithms == ("RS256", "ES256")
     assert settings.oidc.scopes == ("openid", "email", "profile")
+    assert settings.research.recommendation_max_candidates == 750
+    assert settings.research.recommendation_max_profile_records == 1_250
 
     with pytest.raises(ValidationError, match="frozen_instance"):
         settings.database.operation_timeout_seconds = 9
