@@ -12,12 +12,56 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
 from app.api.errors import ApiError
+from app.core.domain_errors import (
+    DomainConflictError,
+    DomainForbiddenError,
+    DomainNotFoundError,
+    DomainPreconditionFailedError,
+    DomainRateLimitedError,
+    DomainUnavailableError,
+    DomainValidationError,
+)
 from app.core.observability import (
     OPERATIONAL_FAILURE_EVENTS,
     emit_operational_failure,
     new_correlation_id,
 )
 from app.main import create_app
+
+
+class _MissingDomainResource(DomainNotFoundError):
+    code = "missing_domain_resource"
+    public_message = "The domain resource was not found."
+
+
+class _ForbiddenDomainAction(DomainForbiddenError):
+    code = "forbidden_domain_action"
+    public_message = "This domain action is not allowed."
+
+
+class _ConflictingDomainAction(DomainConflictError):
+    code = "conflicting_domain_action"
+    public_message = "The domain state conflicts with this action."
+
+
+class _FailedDomainPrecondition(DomainPreconditionFailedError):
+    code = "failed_domain_precondition"
+    public_message = "The domain precondition no longer holds."
+
+
+class _InvalidDomainInput(DomainValidationError):
+    code = "invalid_domain_input"
+    public_message = "The domain input is invalid."
+
+
+class _LimitedDomainAction(DomainRateLimitedError):
+    code = "limited_domain_action"
+    public_message = "The domain action limit was exceeded."
+
+
+class _UnavailableDomainCapability(DomainUnavailableError):
+    code = "unavailable_domain_capability"
+    public_message = "The domain capability is temporarily unavailable."
 
 
 def _assert_uuid4(value: str) -> None:
@@ -32,6 +76,81 @@ def _event_payloads(caplog: pytest.LogCaptureFixture) -> list[dict[str, str]]:
         for record in caplog.records
         if record.name == "recipe_lab.operations"
     ]
+
+
+@pytest.mark.parametrize(
+    ("exception", "expected_status", "expected_code", "expected_message"),
+    [
+        (
+            _MissingDomainResource("private lookup detail"),
+            404,
+            "missing_domain_resource",
+            "The domain resource was not found.",
+        ),
+        (
+            _ForbiddenDomainAction("private authorization detail"),
+            403,
+            "forbidden_domain_action",
+            "This domain action is not allowed.",
+        ),
+        (
+            _ConflictingDomainAction("private conflict detail"),
+            409,
+            "conflicting_domain_action",
+            "The domain state conflicts with this action.",
+        ),
+        (
+            _FailedDomainPrecondition("private revision detail"),
+            412,
+            "failed_domain_precondition",
+            "The domain precondition no longer holds.",
+        ),
+        (
+            _InvalidDomainInput("private validation detail"),
+            422,
+            "invalid_domain_input",
+            "The domain input is invalid.",
+        ),
+        (
+            _LimitedDomainAction("private quota detail"),
+            429,
+            "limited_domain_action",
+            "The domain action limit was exceeded.",
+        ),
+        (
+            _UnavailableDomainCapability("private dependency detail"),
+            503,
+            "unavailable_domain_capability",
+            "The domain capability is temporarily unavailable.",
+        ),
+    ],
+)
+def test_domain_errors_map_to_one_stable_http_contract(
+    exception: Exception,
+    expected_status: int,
+    expected_code: str,
+    expected_message: str,
+) -> None:
+    application = create_app()
+
+    @application.get("/test/domain-error")
+    def fail_with_domain_error() -> None:
+        raise exception
+
+    with TestClient(application) as client:
+        response = client.get("/test/domain-error")
+
+    correlation_id = response.headers["X-Correlation-ID"]
+    assert response.status_code == expected_status
+    assert response.json() == {
+        "error": {
+            "code": expected_code,
+            "message": expected_message,
+            "issues": [],
+            "correlation_id": correlation_id,
+        }
+    }
+    assert "private" not in response.text
 
 
 def test_correlation_ids_are_cryptographically_random_per_request_and_ignore_input() -> None:
