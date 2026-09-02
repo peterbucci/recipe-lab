@@ -103,7 +103,9 @@ def _load_recipe_version_for_fingerprint(
     return session.scalar(statement)
 
 
-def _canonical_unit(unit: MeasurementUnit | None) -> CanonicalUnit | None:
+def canonical_unit_from_measurement(unit: MeasurementUnit | None) -> CanonicalUnit | None:
+    """Adapt reviewed ORM measurement metadata to the pure fingerprint contract."""
+
     if unit is None:
         return None
     rule = unit.conversion_rule
@@ -133,7 +135,7 @@ def _ingredient_measure(ingredient: RecipeIngredient) -> StructuralMeasure:
         mode=ingredient.measure_mode,
         quantity_min=ingredient.quantity_min,
         quantity_max=ingredient.quantity_max,
-        unit=_canonical_unit(ingredient.measurement_unit),
+        unit=canonical_unit_from_measurement(ingredient.measurement_unit),
         package_size_identity=(
             str(ingredient.package_size_id) if ingredient.package_size_id is not None else None
         ),
@@ -149,7 +151,7 @@ def _action_measure(
         mode=measure.measure_mode,
         quantity_min=measure.quantity_min,
         quantity_max=measure.quantity_max,
-        unit=_canonical_unit(measure.measurement_unit),
+        unit=canonical_unit_from_measurement(measure.measurement_unit),
     )
 
 

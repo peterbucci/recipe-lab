@@ -1,5 +1,3 @@
-import hashlib
-import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
@@ -7,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.canonical_documents import canonical_document_sha256
 from app.core.domain_errors import DomainConflictError, DomainNotFoundError
 from app.models import (
     MODERATION_ACTION_HIDE,
@@ -80,8 +79,7 @@ class ModerationActionResult:
 
 
 def _fingerprint(document: dict[str, object]) -> str:
-    canonical = json.dumps(document, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return canonical_document_sha256(document)
 
 
 def recipe_report_request_fingerprint(

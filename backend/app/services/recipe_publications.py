@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -13,6 +11,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.canonical_documents import canonical_document_sha256
 from app.core.domain_errors import (
     DomainConflictError,
     DomainNotFoundError,
@@ -52,7 +51,11 @@ from app.schemas.measurements import (
 from app.schemas.recipe_duplicates import RecipeDuplicatePreflightResponse
 from app.schemas.recipe_publications import RecipeDraftPublicationRequest
 from app.services.actions import ActionContractError, validate_structured_actions
-from app.services.measurements import MeasurementError, validate_measure_input
+from app.services.measurements import (
+    MeasurementError,
+    measurement_unit_snapshot_label,
+    validate_measure_input,
+)
 from app.services.preference_events import PreferenceEventIntent, record_preference_event
 from app.services.recipe_duplicate_preflights import (
     RecipeDuplicatePreflightServiceResult,
@@ -61,12 +64,11 @@ from app.services.recipe_duplicate_preflights import (
     run_structural_recipe_duplicate_preflight,
 )
 from app.services.recipe_fingerprint_persistence import (
+    canonical_unit_from_measurement,
     fingerprint_and_store_recipe_version,
 )
 from app.services.recipe_fingerprints import (
-    CanonicalUnit,
     RecipeStructure,
-    ReviewedAffineConversion,
     StructuralAction,
     StructuralFingerprint,
     StructuralIngredient,
@@ -214,10 +216,6 @@ def _invalid(message: str) -> InvalidRecipeDraftPublicationError:
     return InvalidRecipeDraftPublicationError(message)
 
 
-def _unit_display(unit: MeasurementUnit) -> str:
-    return unit.symbol or unit.canonical_label
-
-
 def _stored_measure_input(
     *,
     mode: str,
@@ -313,7 +311,10 @@ def _validate_ingredient_identity(
     if unit is None:
         if item.unit_display is not None:
             raise _invalid("A qualitative ingredient measure has stale unit metadata.")
-    elif item.unit_display != _unit_display(unit):
+    elif item.unit_display != measurement_unit_snapshot_label(
+        unit.symbol,
+        unit.canonical_label,
+    ):
         raise _invalid("An ingredient measurement label is no longer authoritative.")
 
 
@@ -358,31 +359,6 @@ def _validate_action_contract(
             raise _invalid("A structured action measurement is no longer authoritative.")
 
 
-def _canonical_unit(unit: MeasurementUnit | None) -> CanonicalUnit | None:
-    if unit is None:
-        return None
-    rule = unit.conversion_rule
-    conversion = None
-    if rule is not None:
-        conversion = ReviewedAffineConversion(
-            base_unit_key=rule.base_unit.key,
-            base_dimension=rule.base_unit.dimension,
-            base_conversion_family=rule.base_unit.conversion_family,
-            scale_numerator=rule.scale_numerator,
-            scale_denominator=rule.scale_denominator,
-            offset_numerator=rule.offset_numerator,
-            offset_denominator=rule.offset_denominator,
-            reviewed=True,
-            active=rule.active,
-        )
-    return CanonicalUnit(
-        key=unit.key,
-        dimension=unit.dimension,
-        conversion_family=unit.conversion_family,
-        conversion=conversion,
-    )
-
-
 def _structural_measure(
     *,
     mode: str,
@@ -395,7 +371,7 @@ def _structural_measure(
         mode=mode,
         quantity_min=quantity_min,
         quantity_max=quantity_max,
-        unit=_canonical_unit(unit),
+        unit=canonical_unit_from_measurement(unit),
         package_size_identity=str(package_size_id) if package_size_id is not None else None,
     )
 
@@ -485,8 +461,7 @@ def _preflight_request_fingerprint(
     }
     if draft.source_version_id is not None:
         document["source_version_id"] = str(draft.source_version_id)
-    canonical = json.dumps(document, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return canonical_document_sha256(document)
 
 
 def recipe_draft_publication_request_fingerprint(
@@ -507,8 +482,7 @@ def recipe_draft_publication_request_fingerprint(
     }
     if source_version_id is not None:
         document["source_version_id"] = str(source_version_id)
-    canonical = json.dumps(document, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return canonical_document_sha256(document)
 
 
 # Preserve the RCP-27 helper import and its exact fingerprint bytes for source-less

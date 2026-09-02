@@ -23,7 +23,12 @@ from app.schemas.actions import (
     StructuredActionInput,
 )
 from app.schemas.measurements import ExactMeasureInput, MeasurementSemantic, RangeMeasureInput
-from app.services.measurements import MeasurementError, serialize_measure, validate_measure_input
+from app.services.measurements import (
+    MeasurementError,
+    measurement_unit_snapshot_label,
+    serialize_measure,
+    validate_measure_input,
+)
 
 
 class ActionContractError(ValueError):
@@ -65,10 +70,6 @@ def cooking_action_type_catalog_item(
     )
 
 
-def _unit_display_snapshot(symbol: str | None, canonical_label: str) -> str:
-    return symbol or canonical_label
-
-
 def _validate_action_measure(
     session: Session,
     *,
@@ -90,7 +91,7 @@ def _validate_action_measure(
             quantity_min=measure.value,
             quantity_max=None,
             measurement_unit_id=unit.id,
-            unit_display=_unit_display_snapshot(unit.symbol, unit.canonical_label),
+            unit_display=measurement_unit_snapshot_label(unit.symbol, unit.canonical_label),
         )
     if isinstance(measure, RangeMeasureInput):
         return ValidatedActionMeasure(
@@ -99,7 +100,7 @@ def _validate_action_measure(
             quantity_min=measure.minimum,
             quantity_max=measure.maximum,
             measurement_unit_id=unit.id,
-            unit_display=_unit_display_snapshot(unit.symbol, unit.canonical_label),
+            unit_display=measurement_unit_snapshot_label(unit.symbol, unit.canonical_label),
         )
     raise AssertionError("Unsupported action measure input.")
 
