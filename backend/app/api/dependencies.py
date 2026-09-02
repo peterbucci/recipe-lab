@@ -29,9 +29,10 @@ SessionDependency = Annotated[Session, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
 
 
-def get_oidc_client(settings: SettingsDependency) -> Iterator[OIDCClient]:
-    with OIDCClient(settings) as client:
-        yield client
+def get_oidc_client(request: Request) -> OIDCClient:
+    """Return the application-owned client so provider caches persist."""
+
+    return request.app.state.resources.oidc_client
 
 
 OIDCClientDependency = Annotated[OIDCClient, Depends(get_oidc_client)]
