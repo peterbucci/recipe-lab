@@ -50,7 +50,7 @@ def test_loader_reads_only_through_the_configured_byte_boundary(tmp_path: Path) 
 
 def test_loader_rejects_invalid_utf8_without_exposing_the_path(tmp_path: Path) -> None:
     path = tmp_path / "private-name.json"
-    path.write_bytes(b'\xff')
+    path.write_bytes(b"\xff")
 
     with pytest.raises(JsonCodecError) as raised:
         load_json_document(path, limits=_limits(), document_name="fixture")
