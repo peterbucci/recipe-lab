@@ -20,10 +20,10 @@ from app.models import (
     RecipeVersionPublication,
 )
 from app.policies.recipe_visibility import (
-    publicly_readable_recipe_publication_filter as publicly_readable_recipe_publication_filter,
+    publicly_readable_recipe_publication_filter as _publicly_readable_recipe_publication_filter,
 )
 from app.policies.recipe_visibility import (
-    publicly_readable_recipe_version_filter as publicly_readable_recipe_version_filter,
+    publicly_readable_recipe_version_filter as _publicly_readable_recipe_version_filter,
 )
 from app.repositories.ingredients import resolve_ingredient_name
 
@@ -110,7 +110,7 @@ def browse_recipe_versions(
             )
         )
 
-    filters.append(publicly_readable_recipe_version_filter())
+    filters.append(_publicly_readable_recipe_version_filter())
     total = session.scalar(select(func.count()).select_from(RecipeVersion).where(*filters))
     ordering: tuple[Any, ...]
     if sort == "title":
@@ -125,7 +125,7 @@ def browse_recipe_versions(
             select(RecipeVersionPublication.published_at)
             .where(
                 RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
-                publicly_readable_recipe_publication_filter(),
+                _publicly_readable_recipe_publication_filter(),
             )
             .correlate(RecipeVersion)
             .scalar_subquery()
@@ -140,7 +140,7 @@ def browse_recipe_versions(
             joinedload(RecipeVersion.author),
             joinedload(RecipeVersion.publication),
             selectinload(
-                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
+                RecipeVersion.parent.and_(_publicly_readable_recipe_version_filter())
             ).joinedload(RecipeVersion.author),
             selectinload(RecipeVersion.categories),
             raiseload("*"),
@@ -171,14 +171,14 @@ def list_public_recipe_versions_in_order(
             joinedload(RecipeVersion.author),
             joinedload(RecipeVersion.publication),
             selectinload(
-                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
+                RecipeVersion.parent.and_(_publicly_readable_recipe_version_filter())
             ).joinedload(RecipeVersion.author),
             selectinload(RecipeVersion.categories),
             raiseload("*"),
         )
         .where(
             RecipeVersion.id.in_(recipe_version_ids),
-            publicly_readable_recipe_version_filter(),
+            _publicly_readable_recipe_version_filter(),
         )
     )
     recipes_by_id = {recipe.id: recipe for recipe in session.scalars(statement)}
@@ -201,10 +201,10 @@ def get_recipe_version(
             joinedload(RecipeVersion.author),
             joinedload(RecipeVersion.publication),
             selectinload(
-                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
+                RecipeVersion.parent.and_(_publicly_readable_recipe_version_filter())
             ).joinedload(RecipeVersion.author),
             selectinload(
-                RecipeVersion.descendants.and_(publicly_readable_recipe_version_filter())
+                RecipeVersion.descendants.and_(_publicly_readable_recipe_version_filter())
             ).joinedload(RecipeVersion.author),
             selectinload(RecipeVersion.categories),
             selectinload(RecipeVersion.ingredients).options(
@@ -224,7 +224,7 @@ def get_recipe_version(
         )
         .where(
             RecipeVersion.id == recipe_version_id,
-            publicly_readable_recipe_version_filter(),
+            _publicly_readable_recipe_version_filter(),
         )
     )
     return session.scalar(statement)
@@ -241,7 +241,7 @@ def browse_public_recipe_versions_by_author(
 
     filters = (
         RecipeVersion.created_by_user_id == author_user_id,
-        publicly_readable_recipe_version_filter(),
+        _publicly_readable_recipe_version_filter(),
     )
     total = session.scalar(select(func.count()).select_from(RecipeVersion).where(*filters)) or 0
     statement = (
@@ -250,7 +250,7 @@ def browse_public_recipe_versions_by_author(
             joinedload(RecipeVersion.author),
             joinedload(RecipeVersion.publication),
             selectinload(
-                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
+                RecipeVersion.parent.and_(_publicly_readable_recipe_version_filter())
             ).joinedload(RecipeVersion.author),
             selectinload(RecipeVersion.categories),
             raiseload("*"),
@@ -288,7 +288,7 @@ def list_public_recipe_duplicate_candidates(
             RecipeStructuralFingerprint.recipe_version_id == RecipeVersion.id,
         )
         .where(
-            publicly_readable_recipe_version_filter(),
+            _publicly_readable_recipe_version_filter(),
             RecipeStructuralFingerprint.algorithm_version == algorithm_version,
         )
         .order_by(RecipeVersion.id)
@@ -324,7 +324,7 @@ def get_public_recipe_version_titles(
     if not recipe_version_ids:
         return {}
     statement = select(RecipeVersion.id, RecipeVersion.title).where(
-        publicly_readable_recipe_version_filter(),
+        _publicly_readable_recipe_version_filter(),
         RecipeVersion.id.in_(recipe_version_ids),
     )
     return {recipe_version_id: title for recipe_version_id, title in session.execute(statement)}

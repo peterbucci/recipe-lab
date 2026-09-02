@@ -24,8 +24,8 @@ from app.models import (
     User,
     UserFollow,
 )
+from app.policies.recipe_visibility import publicly_readable_recipe_version_filter
 from app.repositories.recipe_drafts import RecipeDraftBrowseItem
-from app.repositories.recipes import publicly_readable_recipe_version_filter
 from app.services.member_activity import (
     MemberActivityCursor,
     MemberActivityFilter,

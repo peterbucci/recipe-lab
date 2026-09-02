@@ -11,13 +11,13 @@ from app.models import (
     RecipeVersionPublication,
 )
 from app.policies.recipe_visibility import (
-    AuthorRecipeVisibilityState as AuthorRecipeVisibilityState,
+    AuthorRecipeVisibilityState as _AuthorRecipeVisibilityState,
 )
 from app.policies.recipe_visibility import (
-    RecipeVisibilityState as RecipeVisibilityState,
+    RecipeVisibilityState as _RecipeVisibilityState,
 )
 from app.policies.recipe_visibility import (
-    effective_recipe_visibility_state as effective_recipe_visibility_state,
+    effective_recipe_visibility_state as _effective_recipe_visibility_state,
 )
 from app.repositories.recipe_publications import (
     get_owned_recipe_publication_for_update,
@@ -36,7 +36,7 @@ class RecipeVisibilityModerationConflictError(RuntimeError):
 @dataclass(frozen=True, slots=True)
 class RecipeVisibilityResult:
     recipe_version_id: UUID
-    state: RecipeVisibilityState
+    state: _RecipeVisibilityState
     state_changed_at: datetime
     changed: bool
 
@@ -51,7 +51,7 @@ def set_authored_recipe_visibility(
     *,
     actor_user_id: UUID,
     recipe_version_id: UUID,
-    desired_state: AuthorRecipeVisibilityState,
+    desired_state: _AuthorRecipeVisibilityState,
 ) -> RecipeVisibilityResult:
     """Apply one author-controlled visibility axis without changing recipe topology.
 
@@ -94,13 +94,13 @@ def set_authored_recipe_visibility(
     if next_author_withdrawn_at == publication.author_withdrawn_at:
         return RecipeVisibilityResult(
             recipe_version_id=publication.recipe_version_id,
-            state=cast(RecipeVisibilityState, publication.state),
+            state=cast(_RecipeVisibilityState, publication.state),
             state_changed_at=publication.state_changed_at,
             changed=False,
         )
 
     publication.author_withdrawn_at = next_author_withdrawn_at
-    effective_state = effective_recipe_visibility_state(publication)
+    effective_state = _effective_recipe_visibility_state(publication)
     publication.state = effective_state
     publication.state_changed_at = changed_at
     publication.state_changed_by_user_id = actor_user_id

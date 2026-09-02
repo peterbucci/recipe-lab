@@ -22,6 +22,10 @@ services consume that policy boundary instead of defining local `published`
 checks, so a future visibility state has one application-level read contract to
 update.
 
+The earlier repository and service compatibility re-exports have been removed
+now that every maintained caller imports this policy boundary directly.
+Migration history and stored visibility evidence are unchanged.
+
 Publication rows support three effective states:
 
 - `published`: anonymously readable and eligible for all public consumers;
