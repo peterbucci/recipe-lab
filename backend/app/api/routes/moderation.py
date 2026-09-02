@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Header, Query, Response, status
 from sqlalchemy.exc import IntegrityError
 
+from app.api.cache import apply_private_no_store
 from app.api.dependencies import (
     CsrfProtectedSessionDependency,
     RequiredAuthenticatedSessionDependency,
@@ -88,11 +89,6 @@ REPORT_RECIPE_RESPONSES: dict[int | str, dict[str, object]] = {
 }
 
 
-def _private_no_store(response: Response) -> None:
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
-
-
 def _case_summary(item: ModerationCaseQueueItem) -> RecipeModerationCaseSummary:
     return RecipeModerationCaseSummary(
         recipe_version_id=item.moderation_case.recipe_version_id,
@@ -167,7 +163,7 @@ def report_recipe(
 
     if result.state == "reused":
         response.status_code = status.HTTP_200_OK
-    _private_no_store(response)
+    apply_private_no_store(response)
     return RecipeReportReceipt(
         id=result.report.id,
         recipe_version_id=result.report.recipe_version_id,
@@ -204,7 +200,7 @@ def moderation_queue(
         total_pages=(result.total + page_size - 1) // page_size,
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return page_response
 
 
@@ -269,7 +265,7 @@ def moderation_case_detail(
         history_truncated=history_total > len(history),
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return detail
 
 
@@ -326,7 +322,7 @@ def moderate_recipe(
             message="The moderation case changed concurrently. Refresh and try again.",
         ) from error
 
-    _private_no_store(response)
+    apply_private_no_store(response)
     return RecipeModerationActionResponse(
         recipe_version_id=result.event.recipe_version_id,
         action=cast(ModerationAction, result.event.action),

@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, aliased, contains_eager, selectinload
 
+from app.db.query import LIKE_ESCAPE, literal_contains_pattern
 from app.models import Ingredient, IngredientAlias, IngredientSubstitution
 
 
@@ -11,10 +12,6 @@ from app.models import Ingredient, IngredientAlias, IngredientSubstitution
 class IngredientCatalogBrowseResult:
     items: list[Ingredient]
     total: int
-
-
-def _escape_like(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def browse_ingredients(
@@ -28,18 +25,18 @@ def browse_ingredients(
 
     filters = []
     if search is not None:
-        pattern = f"%{_escape_like(search)}%"
+        pattern = literal_contains_pattern(search)
         alias_matches = (
             select(IngredientAlias.id)
             .where(
                 IngredientAlias.ingredient_id == Ingredient.id,
-                IngredientAlias.alias.ilike(pattern, escape="\\"),
+                IngredientAlias.alias.ilike(pattern, escape=LIKE_ESCAPE),
             )
             .exists()
         )
         filters.append(
             or_(
-                Ingredient.canonical_name.ilike(pattern, escape="\\"),
+                Ingredient.canonical_name.ilike(pattern, escape=LIKE_ESCAPE),
                 alias_matches,
             )
         )
@@ -72,18 +69,18 @@ def find_ingredient_candidates(
     for term in search_terms:
         if not term:
             continue
-        pattern = f"%{_escape_like(term)}%"
+        pattern = literal_contains_pattern(term)
         alias_matches = (
             select(IngredientAlias.id)
             .where(
                 IngredientAlias.ingredient_id == Ingredient.id,
-                IngredientAlias.alias.ilike(pattern, escape="\\"),
+                IngredientAlias.alias.ilike(pattern, escape=LIKE_ESCAPE),
             )
             .exists()
         )
         matches.append(
             or_(
-                Ingredient.canonical_name.ilike(pattern, escape="\\"),
+                Ingredient.canonical_name.ilike(pattern, escape=LIKE_ESCAPE),
                 alias_matches,
             )
         )

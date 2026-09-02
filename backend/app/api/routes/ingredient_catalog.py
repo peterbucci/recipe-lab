@@ -5,6 +5,7 @@ from fastapi import APIRouter, Body, Query, Response, status
 from pydantic import StringConstraints
 from sqlalchemy.exc import IntegrityError
 
+from app.api.cache import apply_private_no_store
 from app.api.dependencies import (
     CsrfProtectedSessionDependency,
     RequiredAuthenticatedSessionDependency,
@@ -83,11 +84,6 @@ INGREDIENT_REQUEST_CREATE_RESPONSES: dict[int | str, dict[str, object]] = {
         },
     },
 }
-
-
-def _private_no_store(response: Response) -> None:
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
 
 
 def _catalog_item(item: Ingredient) -> IngredientCatalogItem:
@@ -188,7 +184,7 @@ def create_ingredient_request(
         ) from error
 
     response.headers["Location"] = f"/api/ingredient-requests/{result.id}"
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result
 
 
@@ -235,7 +231,7 @@ def my_ingredient_requests(
         total_pages=(result.total + page_size - 1) // page_size,
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return page_response
 
 
@@ -268,7 +264,7 @@ def ingredient_request_detail(
         )
     result = _member_request_response(request)
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result
 
 
@@ -307,7 +303,7 @@ def review_queue(
         total_pages=(result.total + page_size - 1) // page_size,
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return page_response
 
 
@@ -364,7 +360,7 @@ def review_request_detail(
         ],
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return detail
 
 
@@ -427,5 +423,5 @@ def review_ingredient_request(
             message="The reviewed catalog names conflict with a concurrent catalog change.",
         ) from error
 
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result

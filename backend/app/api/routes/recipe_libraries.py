@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query, Response
 
+from app.api.cache import apply_private_no_store
 from app.api.dependencies import RequiredAuthenticatedSessionDependency, SessionDependency
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor
@@ -47,11 +48,6 @@ MY_RECIPE_LIBRARY_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     **PRIVATE_LIBRARY_ERROR_RESPONSES,
     422: {"model": ErrorResponse, "description": "A view or page parameter is invalid."},
 }
-
-
-def _private_no_store(response: Response) -> None:
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
 
 
 def _draft_summary(item: RecipeDraftBrowseItem) -> RecipeDraftSummaryResponse:
@@ -187,7 +183,7 @@ def my_recipe_library(
         total_pages=(stored.total + page_size - 1) // page_size,
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result
 
 
@@ -225,5 +221,5 @@ def my_saved_recipe_library(
         total_pages=(stored.total + page_size - 1) // page_size,
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result

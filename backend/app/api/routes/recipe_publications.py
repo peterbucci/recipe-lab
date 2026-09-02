@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, Header, Response, status
 
+from app.api.cache import apply_private_no_store
 from app.api.dependencies import CsrfProtectedSessionDependency, SessionDependency
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor
@@ -121,11 +122,6 @@ VISIBILITY_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
 }
 
 
-def _private_no_store(response: Response) -> None:
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
-
-
 def _draft_not_found(draft_id: UUID) -> ApiError:
     return ApiError(
         status_code=404,
@@ -182,7 +178,7 @@ def update_authored_recipe_visibility(
             message="This recipe cannot be restored by its author.",
         ) from error
 
-    _private_no_store(response)
+    apply_private_no_store(response)
     session.commit()
     return RecipeVisibilityResponse(
         recipe_version_id=result.recipe_version_id,
@@ -278,7 +274,7 @@ def create_original_draft_duplicate_preflight(
             message="Duplicate preflight is temporarily unavailable. Please try again later.",
         ) from error
 
-    _private_no_store(response)
+    apply_private_no_store(response)
     session.commit()
     return result.response
 
@@ -388,7 +384,7 @@ def publish_original_draft(
         ) from error
 
     response.headers["Location"] = result.location
-    _private_no_store(response)
+    apply_private_no_store(response)
     session.commit()
     return RecipeDraftPublicationResponse(
         recipe_version_id=result.recipe_version_id,

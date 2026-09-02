@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, Header, Query, Response, status
 
+from app.api.cache import apply_private_no_store
 from app.api.dependencies import (
     CsrfProtectedSessionDependency,
     RequiredAuthenticatedSessionDependency,
@@ -66,11 +67,6 @@ DRAFT_CREATE_RESPONSES: dict[int | str, dict[str, object]] = {
         },
     },
 }
-
-
-def _private_no_store(response: Response) -> None:
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
 
 
 def _draft_not_found(draft_id: UUID) -> ApiError:
@@ -144,7 +140,7 @@ def create_private_recipe_draft(
     result = recipe_draft_detail_response(stored)
     session.commit()
     response.headers["Location"] = f"/api/recipe-drafts/{draft_id}"
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result
 
 
@@ -198,7 +194,7 @@ def my_private_recipe_drafts(
         total_pages=(stored.total + page_size - 1) // page_size,
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result
 
 
@@ -225,7 +221,7 @@ def private_recipe_draft_detail(
         raise _draft_not_found(draft_id)
     result = recipe_draft_detail_response(draft)
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result
 
 
@@ -281,7 +277,7 @@ def save_private_recipe_draft(
         raise RuntimeError("The saved private draft could not be reloaded.")
     result = recipe_draft_detail_response(stored)
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result
 
 
@@ -318,5 +314,5 @@ def delete_private_recipe_draft(
         raise _draft_not_found(draft_id)
     session.commit()
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
-    _private_no_store(response)
+    apply_private_no_store(response)
     return response
