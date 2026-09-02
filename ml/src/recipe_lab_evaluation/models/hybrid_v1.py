@@ -13,6 +13,7 @@ from ..protocol import (
     ModelTrainingData,
     derive_model_seed,
 )
+from ._ranking import validate_ranking_request
 from .baseline_v1 import BaselineV1Model
 from .collaborative_v1 import (
     MIN_ITEM_SIGNAL_PROFILES,
@@ -160,16 +161,12 @@ class _FittedHybridV1:
         candidate_ids: tuple[UUID, ...],
         limit: int,
     ) -> tuple[HybridRecommendation, ...]:
-        if (
-            isinstance(limit, bool)
-            or not isinstance(limit, int)
-            or not 0 <= limit <= len(candidate_ids)
-        ):
-            raise ValueError("limit must be between zero and the candidate count")
-
-        # content-v1 owns the shared duplicate, catalog-membership, and subset validation.
+        validate_ranking_request(
+            candidate_ids=candidate_ids,
+            limit=limit,
+            fitted_recipe_ids=self.recipes_by_id.keys(),
+        )
         if limit == 0:
-            self.content.rank(user_id=user_id, candidate_ids=candidate_ids, limit=0)
             return ()
 
         window = min(len(candidate_ids), HYBRID_FUSION_WINDOW)

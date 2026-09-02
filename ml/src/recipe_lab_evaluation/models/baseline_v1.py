@@ -25,6 +25,7 @@ from app.services.recommendation_scoring import (
 
 from ..dataset import SnapshotEvent, SnapshotIngredientMeasure
 from ..protocol import ModelMetadata, ModelTrainingData
+from ._ranking import validate_ranking_request
 
 
 def _latest_state_events(
@@ -69,18 +70,12 @@ class _FittedBaselineV1:
         candidate_ids: tuple[UUID, ...],
         limit: int,
     ) -> tuple[UUID, ...]:
-        if (
-            isinstance(limit, bool)
-            or not isinstance(limit, int)
-            or not 0 <= limit <= len(candidate_ids)
-        ):
-            raise ValueError("limit must be between zero and the candidate count")
-        if len(candidate_ids) != len(set(candidate_ids)):
-            raise ValueError("candidate_ids must not contain duplicates")
         catalog_ids = frozenset(candidate.recipe_version_id for candidate in self.candidates)
-        requested_ids = frozenset(candidate_ids)
-        if not requested_ids <= catalog_ids:
-            raise ValueError("candidate_ids contains a recipe outside the fitted catalog")
+        requested_ids = validate_ranking_request(
+            candidate_ids=candidate_ids,
+            limit=limit,
+            fitted_recipe_ids=catalog_ids,
+        )
         if limit == 0:
             return ()
 
