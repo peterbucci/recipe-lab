@@ -21,14 +21,13 @@ only the snapshot schema, fingerprint, and cutoff identify the source contract.
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
-from datetime import UTC, datetime
+from datetime import datetime
 from fractions import Fraction
 from typing import Literal
 from uuid import UUID
 
 from .dataset import (
     EvaluationSnapshot,
-    canonical_json,
     parse_snapshot_json,
     snapshot_to_json,
 )
@@ -38,6 +37,7 @@ from .models.collaborative_v1 import (
     score_collaborative_candidate,
 )
 from .models.content_based_v1 import derive_preference_signals
+from .reporting import report_envelope, serialize_report_document, utc_timestamp
 from .split import split_snapshot
 
 READINESS_REPORT_SCHEMA_VERSION = "recipe-lab-collaborative-readiness-report-v2"
@@ -432,10 +432,6 @@ def assess_readiness(
     )
 
 
-def _timestamp(value: datetime) -> str:
-    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
-
-
 def _threshold_document(thresholds: ReadinessThresholds) -> dict[str, int]:
     return {
         threshold_field.name: getattr(thresholds, threshold_field.name)
@@ -463,111 +459,115 @@ def readiness_report_to_document(report: ReadinessReport) -> dict[str, object]:
             "denominator": sparsity.possible_training_pairs,
         }
     )
-    return {
-        "schema_version": report.schema_version,
-        "protocol_version": report.protocol_version,
-        "status": report.status,
-        "reason_codes": list(report.reason_codes),
-        "snapshot": {
-            "schema_version": report.snapshot_schema_version,
-            "sha256": report.snapshot_sha256,
-            "cutoff": _timestamp(report.cutoff),
+    return report_envelope(
+        schema_version=report.schema_version,
+        protocol_version=report.protocol_version,
+        status=report.status,
+        reason_codes=report.reason_codes,
+        limitations=report.limitations,
+        payload={
+            "snapshot": {
+                "schema_version": report.snapshot_schema_version,
+                "sha256": report.snapshot_sha256,
+                "cutoff": utc_timestamp(report.cutoff),
+            },
+            "thresholds": _threshold_document(report.thresholds),
+            "counts": {
+                "profiles": {
+                    "total": report.counts.profiles.total,
+                    "training": report.counts.profiles.training,
+                    "holdout": report.counts.profiles.holdout,
+                },
+                "items": {
+                    "total": report.counts.items.total,
+                    "available_at_cutoff": report.counts.items.available_at_cutoff,
+                    "observed_in_training": report.counts.items.observed_in_training,
+                },
+                "interactions": {
+                    "total": report.counts.interactions.total,
+                    "training": report.counts.interactions.training,
+                    "holdout": report.counts.interactions.holdout,
+                },
+                "support": {
+                    "profiles_meeting_history_minimum": (
+                        report.counts.support.profiles_meeting_history_minimum
+                    ),
+                    "items_meeting_profile_minimum": (
+                        report.counts.support.items_meeting_profile_minimum
+                    ),
+                },
+                "sparsity": {
+                    "possible_training_pairs": sparsity.possible_training_pairs,
+                    "observed_training_pairs": sparsity.observed_training_pairs,
+                    "unobserved_training_pairs": sparsity.unobserved_training_pairs,
+                    "density": density,
+                    "sparsity": sparsity_fraction,
+                },
+                "effective_signals": {
+                    "profiles_with_nonzero_signals": (
+                        report.counts.effective_signals.profiles_with_nonzero_signals
+                    ),
+                    "items_with_nonzero_signals": (
+                        report.counts.effective_signals.items_with_nonzero_signals
+                    ),
+                    "nonzero_signal_pairs": report.counts.effective_signals.nonzero_signal_pairs,
+                    "profiles_meeting_signal_minimum": (
+                        report.counts.effective_signals.profiles_meeting_signal_minimum
+                    ),
+                    "items_meeting_signal_minimum": (
+                        report.counts.effective_signals.items_meeting_signal_minimum
+                    ),
+                },
+                "collaborative_evidence": {
+                    "profiles_with_supported_targets": (
+                        report.counts.collaborative_evidence.profiles_with_supported_targets
+                    ),
+                    "profiles_with_usable_candidate_evidence": (
+                        report.counts.collaborative_evidence.profiles_with_usable_candidate_evidence
+                    ),
+                    "candidate_items_with_usable_evidence": (
+                        report.counts.collaborative_evidence.candidate_items_with_usable_evidence
+                    ),
+                },
+                "temporal_evaluation": {
+                    "split_eligible_profiles": (
+                        report.counts.temporal_evaluation.split_eligible_profiles
+                    ),
+                    "split_eligible_relevant_items": (
+                        report.counts.temporal_evaluation.split_eligible_relevant_items
+                    ),
+                    "profiles_with_collaborative_evidence": (
+                        report.counts.temporal_evaluation.profiles_with_collaborative_evidence
+                    ),
+                    "relevant_items_for_collaborative_profiles": (
+                        report.counts.temporal_evaluation.relevant_items_for_collaborative_profiles
+                    ),
+                    "raw_relevant_items": report.counts.temporal_evaluation.raw_relevant_items,
+                    "filtered_already_interacted": (
+                        report.counts.temporal_evaluation.filtered_already_interacted
+                    ),
+                    "filtered_unavailable": (
+                        report.counts.temporal_evaluation.filtered_unavailable
+                    ),
+                },
+            },
+            "checks": {
+                check.metric: {
+                    "actual": check.actual,
+                    "minimum": check.minimum,
+                    "passed": check.passed,
+                    "failure_reason": check.failure_reason,
+                }
+                for check in report.checks
+            },
         },
-        "thresholds": _threshold_document(report.thresholds),
-        "counts": {
-            "profiles": {
-                "total": report.counts.profiles.total,
-                "training": report.counts.profiles.training,
-                "holdout": report.counts.profiles.holdout,
-            },
-            "items": {
-                "total": report.counts.items.total,
-                "available_at_cutoff": report.counts.items.available_at_cutoff,
-                "observed_in_training": report.counts.items.observed_in_training,
-            },
-            "interactions": {
-                "total": report.counts.interactions.total,
-                "training": report.counts.interactions.training,
-                "holdout": report.counts.interactions.holdout,
-            },
-            "support": {
-                "profiles_meeting_history_minimum": (
-                    report.counts.support.profiles_meeting_history_minimum
-                ),
-                "items_meeting_profile_minimum": (
-                    report.counts.support.items_meeting_profile_minimum
-                ),
-            },
-            "sparsity": {
-                "possible_training_pairs": sparsity.possible_training_pairs,
-                "observed_training_pairs": sparsity.observed_training_pairs,
-                "unobserved_training_pairs": sparsity.unobserved_training_pairs,
-                "density": density,
-                "sparsity": sparsity_fraction,
-            },
-            "effective_signals": {
-                "profiles_with_nonzero_signals": (
-                    report.counts.effective_signals.profiles_with_nonzero_signals
-                ),
-                "items_with_nonzero_signals": (
-                    report.counts.effective_signals.items_with_nonzero_signals
-                ),
-                "nonzero_signal_pairs": report.counts.effective_signals.nonzero_signal_pairs,
-                "profiles_meeting_signal_minimum": (
-                    report.counts.effective_signals.profiles_meeting_signal_minimum
-                ),
-                "items_meeting_signal_minimum": (
-                    report.counts.effective_signals.items_meeting_signal_minimum
-                ),
-            },
-            "collaborative_evidence": {
-                "profiles_with_supported_targets": (
-                    report.counts.collaborative_evidence.profiles_with_supported_targets
-                ),
-                "profiles_with_usable_candidate_evidence": (
-                    report.counts.collaborative_evidence.profiles_with_usable_candidate_evidence
-                ),
-                "candidate_items_with_usable_evidence": (
-                    report.counts.collaborative_evidence.candidate_items_with_usable_evidence
-                ),
-            },
-            "temporal_evaluation": {
-                "split_eligible_profiles": (
-                    report.counts.temporal_evaluation.split_eligible_profiles
-                ),
-                "split_eligible_relevant_items": (
-                    report.counts.temporal_evaluation.split_eligible_relevant_items
-                ),
-                "profiles_with_collaborative_evidence": (
-                    report.counts.temporal_evaluation.profiles_with_collaborative_evidence
-                ),
-                "relevant_items_for_collaborative_profiles": (
-                    report.counts.temporal_evaluation.relevant_items_for_collaborative_profiles
-                ),
-                "raw_relevant_items": report.counts.temporal_evaluation.raw_relevant_items,
-                "filtered_already_interacted": (
-                    report.counts.temporal_evaluation.filtered_already_interacted
-                ),
-                "filtered_unavailable": (report.counts.temporal_evaluation.filtered_unavailable),
-            },
-        },
-        "checks": {
-            check.metric: {
-                "actual": check.actual,
-                "minimum": check.minimum,
-                "passed": check.passed,
-                "failure_reason": check.failure_reason,
-            }
-            for check in report.checks
-        },
-        "limitations": list(report.limitations),
-    }
+    )
 
 
 def readiness_report_to_json(report: ReadinessReport) -> str:
     """Serialize readiness results to stable canonical JSON bytes."""
 
-    return canonical_json(readiness_report_to_document(report)) + "\n"
+    return serialize_report_document(readiness_report_to_document(report))
 
 
 __all__ = [

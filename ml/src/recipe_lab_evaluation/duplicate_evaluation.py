@@ -40,6 +40,7 @@ from .duplicate_dataset import (
     duplicate_benchmark_to_json,
     parse_duplicate_benchmark_json,
 )
+from .reporting import decimal_text, report_envelope, serialize_report_document
 
 DUPLICATE_EVALUATION_REPORT_SCHEMA_VERSION = "recipe-lab-duplicate-evaluation-report-v1"
 DUPLICATE_EVALUATION_PROTOCOL_VERSION = "labeled-structural-pair-evaluation-v1"
@@ -370,10 +371,6 @@ def _class_counts_document(counts: DuplicateClassCounts) -> dict[str, int]:
     }
 
 
-def _metric(value: Decimal | None) -> str | None:
-    return format(value, ".6f") if value is not None else None
-
-
 def _category_document(
     values: tuple[DuplicateErrorCategory, ...],
 ) -> list[dict[str, object]]:
@@ -383,96 +380,102 @@ def _category_document(
 def duplicate_evaluation_report_to_document(
     report: DuplicateEvaluationReport,
 ) -> dict[str, object]:
-    return {
-        "advisory_only": report.advisory_only,
-        "benchmark_sha256": report.benchmark_sha256,
-        "confusion_matrix": {
-            expected: {
-                predicted: report.confusion_matrix[expected][predicted]
-                for predicted in _CLASSIFICATIONS
-            }
-            for expected in _CLASSIFICATIONS
-        },
-        "counts": {
-            "cases": report.counts.cases,
-            "cases_with_complete_explanations": (report.counts.cases_with_complete_explanations),
-            "cases_matching_expected_components": (
-                report.counts.cases_matching_expected_components
-            ),
-            "classification_matches": report.counts.classification_matches,
-            "covered_categories": report.counts.covered_categories,
-            "evaluated_cases": report.counts.evaluated_cases,
-            "expected": _class_counts_document(report.counts.expected),
-            "expected_positive": report.counts.expected_positive,
-            "false_negatives": report.counts.false_negatives,
-            "false_positives": report.counts.false_positives,
-            "predicted": _class_counts_document(report.counts.predicted),
-            "predicted_positive": report.counts.predicted_positive,
-            "required_categories": report.counts.required_categories,
-            "true_positives": report.counts.true_positives,
-        },
-        "error_categories": {
-            "classification_mismatches": _category_document(
-                report.classification_mismatch_categories
-            ),
-            "component_mismatches": _category_document(report.component_mismatch_categories),
-            "explanation_mismatches": _category_document(report.explanation_mismatch_categories),
-            "false_negatives": _category_document(report.false_negative_categories),
-            "false_positives": _category_document(report.false_positive_categories),
-        },
-        "learned_classifier_attempted": report.learned_classifier_attempted,
-        "limitations": list(report.limitations),
-        "metrics": {
-            "category_coverage": _metric(report.metrics.category_coverage),
-            "component_expectation_coverage": _metric(
-                report.metrics.component_expectation_coverage
-            ),
-            "evaluated_coverage": _metric(report.metrics.evaluated_coverage),
-            "explanation_coverage": _metric(report.metrics.explanation_coverage),
-            "precision": _metric(report.metrics.precision),
-            "recall": _metric(report.metrics.recall),
-            "three_class_accuracy": _metric(report.metrics.three_class_accuracy),
-        },
-        "protocol_version": report.protocol_version,
-        "positive_classifications": ["exact_duplicate", "probable_duplicate"],
-        "reason_codes": list(report.reason_codes),
-        "required_categories": list(REQUIRED_DUPLICATE_BENCHMARK_CATEGORIES),
-        "run_id": report.run_id,
-        "schema_version": report.schema_version,
-        "scoring": {
-            "action_subweights": {
-                "action_order": _fraction_metric(ACTION_ORDER_SUBWEIGHT),
-                "duration_temperature": _fraction_metric(DURATION_TEMPERATURE_SUBWEIGHT),
-                "ordered_inputs": _fraction_metric(ORDERED_INPUT_SUBWEIGHT),
+    return report_envelope(
+        schema_version=report.schema_version,
+        protocol_version=report.protocol_version,
+        run_id=report.run_id,
+        status=report.status,
+        reason_codes=report.reason_codes,
+        limitations=report.limitations,
+        payload={
+            "advisory_only": report.advisory_only,
+            "benchmark_sha256": report.benchmark_sha256,
+            "confusion_matrix": {
+                expected: {
+                    predicted: report.confusion_matrix[expected][predicted]
+                    for predicted in _CLASSIFICATIONS
+                }
+                for expected in _CLASSIFICATIONS
             },
-            "algorithm": "deterministic_explainable_structural_similarity",
-            "algorithm_version": DUPLICATE_CANDIDATE_SCORING_ALGORITHM_VERSION,
-            "capacity": {
-                "maximum_actions_per_structure": MAX_DUPLICATE_ACTIONS,
-                "maximum_flattened_inputs_per_structure": MAX_DUPLICATE_FLATTENED_INPUTS,
-                "maximum_ingredient_occurrences_per_structure": (
-                    MAX_DUPLICATE_INGREDIENT_OCCURRENCES
+            "counts": {
+                "cases": report.counts.cases,
+                "cases_with_complete_explanations": (
+                    report.counts.cases_with_complete_explanations
                 ),
-                "maximum_nonexact_pair_work_units": MAX_DUPLICATE_PAIR_WORK_UNITS,
-                "overflow_behavior": "fail_closed",
-                "pair_work_estimate": DUPLICATE_PAIR_WORK_ESTIMATE,
+                "cases_matching_expected_components": (
+                    report.counts.cases_matching_expected_components
+                ),
+                "classification_matches": report.counts.classification_matches,
+                "covered_categories": report.counts.covered_categories,
+                "evaluated_cases": report.counts.evaluated_cases,
+                "expected": _class_counts_document(report.counts.expected),
+                "expected_positive": report.counts.expected_positive,
+                "false_negatives": report.counts.false_negatives,
+                "false_positives": report.counts.false_positives,
+                "predicted": _class_counts_document(report.counts.predicted),
+                "predicted_positive": report.counts.predicted_positive,
+                "required_categories": report.counts.required_categories,
+                "true_positives": report.counts.true_positives,
             },
-            "maximum_reasons": MAX_DUPLICATE_REASONS,
-            "parameter_sha256": DUPLICATE_CANDIDATE_PARAMETER_HASH,
-            "probable_duplicate_threshold": _fraction_metric(PROBABLE_DUPLICATE_THRESHOLD),
-            "structure_version": STRUCTURAL_FINGERPRINT_ALGORITHM_VERSION,
-            "weights": {
-                "ingredient_multiset": _fraction_metric(INGREDIENT_MULTISET_WEIGHT),
-                "normalized_quantities": _fraction_metric(NORMALIZED_QUANTITY_WEIGHT),
-                "structured_actions": _fraction_metric(STRUCTURED_ACTION_WEIGHT),
+            "error_categories": {
+                "classification_mismatches": _category_document(
+                    report.classification_mismatch_categories
+                ),
+                "component_mismatches": _category_document(report.component_mismatch_categories),
+                "explanation_mismatches": _category_document(
+                    report.explanation_mismatch_categories
+                ),
+                "false_negatives": _category_document(report.false_negative_categories),
+                "false_positives": _category_document(report.false_positive_categories),
+            },
+            "learned_classifier_attempted": report.learned_classifier_attempted,
+            "metrics": {
+                "category_coverage": decimal_text(report.metrics.category_coverage, places=6),
+                "component_expectation_coverage": decimal_text(
+                    report.metrics.component_expectation_coverage, places=6
+                ),
+                "evaluated_coverage": decimal_text(report.metrics.evaluated_coverage, places=6),
+                "explanation_coverage": decimal_text(report.metrics.explanation_coverage, places=6),
+                "precision": decimal_text(report.metrics.precision, places=6),
+                "recall": decimal_text(report.metrics.recall, places=6),
+                "three_class_accuracy": decimal_text(report.metrics.three_class_accuracy, places=6),
+            },
+            "positive_classifications": ["exact_duplicate", "probable_duplicate"],
+            "required_categories": list(REQUIRED_DUPLICATE_BENCHMARK_CATEGORIES),
+            "scoring": {
+                "action_subweights": {
+                    "action_order": _fraction_metric(ACTION_ORDER_SUBWEIGHT),
+                    "duration_temperature": _fraction_metric(DURATION_TEMPERATURE_SUBWEIGHT),
+                    "ordered_inputs": _fraction_metric(ORDERED_INPUT_SUBWEIGHT),
+                },
+                "algorithm": "deterministic_explainable_structural_similarity",
+                "algorithm_version": DUPLICATE_CANDIDATE_SCORING_ALGORITHM_VERSION,
+                "capacity": {
+                    "maximum_actions_per_structure": MAX_DUPLICATE_ACTIONS,
+                    "maximum_flattened_inputs_per_structure": MAX_DUPLICATE_FLATTENED_INPUTS,
+                    "maximum_ingredient_occurrences_per_structure": (
+                        MAX_DUPLICATE_INGREDIENT_OCCURRENCES
+                    ),
+                    "maximum_nonexact_pair_work_units": MAX_DUPLICATE_PAIR_WORK_UNITS,
+                    "overflow_behavior": "fail_closed",
+                    "pair_work_estimate": DUPLICATE_PAIR_WORK_ESTIMATE,
+                },
+                "maximum_reasons": MAX_DUPLICATE_REASONS,
+                "parameter_sha256": DUPLICATE_CANDIDATE_PARAMETER_HASH,
+                "probable_duplicate_threshold": _fraction_metric(PROBABLE_DUPLICATE_THRESHOLD),
+                "structure_version": STRUCTURAL_FINGERPRINT_ALGORITHM_VERSION,
+                "weights": {
+                    "ingredient_multiset": _fraction_metric(INGREDIENT_MULTISET_WEIGHT),
+                    "normalized_quantities": _fraction_metric(NORMALIZED_QUANTITY_WEIGHT),
+                    "structured_actions": _fraction_metric(STRUCTURED_ACTION_WEIGHT),
+                },
             },
         },
-        "status": report.status,
-    }
+    )
 
 
 def duplicate_evaluation_report_to_json(report: DuplicateEvaluationReport) -> str:
-    return canonical_json(duplicate_evaluation_report_to_document(report)) + "\n"
+    return serialize_report_document(duplicate_evaluation_report_to_document(report))
 
 
 __all__ = [

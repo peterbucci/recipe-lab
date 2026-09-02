@@ -7,6 +7,7 @@ from typing import Literal
 from uuid import UUID
 
 from .dataset import canonical_json
+from .reporting import decimal_text, report_envelope, serialize_report_document
 from .substitution_dataset import (
     SubstitutionBenchmark,
     parse_substitution_benchmark_json,
@@ -283,62 +284,72 @@ def evaluate_substitution_rules(
     )
 
 
-def _metric(value: Decimal | None) -> str | None:
-    return format(value, ".6f") if value is not None else None
-
-
 def substitution_evaluation_report_to_document(
     report: SubstitutionEvaluationReport,
 ) -> dict[str, object]:
-    return {
-        "schema_version": report.schema_version,
-        "protocol_version": report.protocol_version,
-        "run_id": report.run_id,
-        "benchmark_sha256": report.benchmark_sha256,
-        "status": report.status,
-        "reason_codes": list(report.reason_codes),
-        "strategy": report.strategy,
-        "learned_ranking_attempted": report.learned_ranking_attempted,
-        "counts": {
-            "cases": report.counts.cases,
-            "cases_with_expected_results": report.counts.cases_with_expected_results,
-            "empty_expected_cases": report.counts.empty_expected_cases,
-            "exact_ranking_matches": report.counts.exact_ranking_matches,
-            "top1_matches": report.counts.top1_matches,
-            "expected_candidates": report.counts.expected_candidates,
-            "returned_candidates": report.counts.returned_candidates,
-            "matching_candidates": report.counts.matching_candidates,
-            "direct_candidates_considered": report.counts.direct_candidates_considered,
-            "eligible_candidates": report.counts.eligible_candidates,
-            "dietary_filtered": report.counts.dietary_filtered,
-            "allergen_filtered": report.counts.allergen_filtered,
-            "non_direct_outputs": report.counts.non_direct_outputs,
-            "constraint_violations": report.counts.constraint_violations,
-            "missing_ratio_or_guidance": report.counts.missing_ratio_or_guidance,
-            "missing_provenance_or_confidence": (report.counts.missing_provenance_or_confidence),
-            "missing_explanations": report.counts.missing_explanations,
-            "caution_mismatches": report.counts.caution_mismatches,
+    return report_envelope(
+        schema_version=report.schema_version,
+        protocol_version=report.protocol_version,
+        run_id=report.run_id,
+        status=report.status,
+        reason_codes=report.reason_codes,
+        limitations=report.limitations,
+        payload={
+            "benchmark_sha256": report.benchmark_sha256,
+            "strategy": report.strategy,
+            "learned_ranking_attempted": report.learned_ranking_attempted,
+            "counts": {
+                "cases": report.counts.cases,
+                "cases_with_expected_results": report.counts.cases_with_expected_results,
+                "empty_expected_cases": report.counts.empty_expected_cases,
+                "exact_ranking_matches": report.counts.exact_ranking_matches,
+                "top1_matches": report.counts.top1_matches,
+                "expected_candidates": report.counts.expected_candidates,
+                "returned_candidates": report.counts.returned_candidates,
+                "matching_candidates": report.counts.matching_candidates,
+                "direct_candidates_considered": report.counts.direct_candidates_considered,
+                "eligible_candidates": report.counts.eligible_candidates,
+                "dietary_filtered": report.counts.dietary_filtered,
+                "allergen_filtered": report.counts.allergen_filtered,
+                "non_direct_outputs": report.counts.non_direct_outputs,
+                "constraint_violations": report.counts.constraint_violations,
+                "missing_ratio_or_guidance": report.counts.missing_ratio_or_guidance,
+                "missing_provenance_or_confidence": (
+                    report.counts.missing_provenance_or_confidence
+                ),
+                "missing_explanations": report.counts.missing_explanations,
+                "caution_mismatches": report.counts.caution_mismatches,
+            },
+            "metrics": {
+                "exact_ranking_accuracy": decimal_text(
+                    report.metrics.exact_ranking_accuracy, places=6
+                ),
+                "top1_accuracy": decimal_text(report.metrics.top1_accuracy, places=6),
+                "candidate_recall": decimal_text(report.metrics.candidate_recall, places=6),
+                "direct_edge_precision": decimal_text(
+                    report.metrics.direct_edge_precision, places=6
+                ),
+                "constraint_compliance": decimal_text(
+                    report.metrics.constraint_compliance, places=6
+                ),
+                "ratio_or_guidance_coverage": decimal_text(
+                    report.metrics.ratio_or_guidance_coverage, places=6
+                ),
+                "provenance_or_confidence_coverage": decimal_text(
+                    report.metrics.provenance_or_confidence_coverage, places=6
+                ),
+                "explanation_coverage": decimal_text(report.metrics.explanation_coverage, places=6),
+                "caution_compliance": decimal_text(report.metrics.caution_compliance, places=6),
+                "empty_result_accuracy": decimal_text(
+                    report.metrics.empty_result_accuracy, places=6
+                ),
+            },
         },
-        "metrics": {
-            "exact_ranking_accuracy": _metric(report.metrics.exact_ranking_accuracy),
-            "top1_accuracy": _metric(report.metrics.top1_accuracy),
-            "candidate_recall": _metric(report.metrics.candidate_recall),
-            "direct_edge_precision": _metric(report.metrics.direct_edge_precision),
-            "constraint_compliance": _metric(report.metrics.constraint_compliance),
-            "ratio_or_guidance_coverage": _metric(report.metrics.ratio_or_guidance_coverage),
-            "provenance_or_confidence_coverage": _metric(
-                report.metrics.provenance_or_confidence_coverage
-            ),
-            "explanation_coverage": _metric(report.metrics.explanation_coverage),
-            "caution_compliance": _metric(report.metrics.caution_compliance),
-            "empty_result_accuracy": _metric(report.metrics.empty_result_accuracy),
-        },
-        "limitations": list(report.limitations),
-    }
+    )
 
 
 def substitution_evaluation_report_to_json(report: SubstitutionEvaluationReport) -> str:
-    return canonical_json(substitution_evaluation_report_to_document(report)) + "\n"
+    return serialize_report_document(substitution_evaluation_report_to_document(report))
 
 
 __all__ = [
