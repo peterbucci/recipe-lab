@@ -1720,6 +1720,143 @@
         "title": "MeasurementUnitSummary",
         "type": "object"
       },
+      "MemberActivityCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "all": {
+            "minimum": 0.0,
+            "title": "All",
+            "type": "integer"
+          },
+          "recipes": {
+            "minimum": 0.0,
+            "title": "Recipes",
+            "type": "integer"
+          },
+          "requests": {
+            "minimum": 0.0,
+            "title": "Requests",
+            "type": "integer"
+          },
+          "saved": {
+            "minimum": 0.0,
+            "title": "Saved",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "all",
+          "recipes",
+          "saved",
+          "requests"
+        ],
+        "title": "MemberActivityCounts",
+        "type": "object"
+      },
+      "MemberActivityFilter": {
+        "enum": [
+          "all",
+          "recipes",
+          "saved",
+          "requests"
+        ],
+        "type": "string"
+      },
+      "MemberActivityItem": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MemberActivityKind"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemberActivityState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "maxLength": 200,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "occurred_at"
+        ],
+        "title": "MemberActivityItem",
+        "type": "object"
+      },
+      "MemberActivityKind": {
+        "enum": [
+          "draft",
+          "published",
+          "withdrawn",
+          "saved",
+          "ingredient-request"
+        ],
+        "type": "string"
+      },
+      "MemberActivityState": {
+        "enum": [
+          "published",
+          "author_withdrawn",
+          "moderation_hidden",
+          "approved",
+          "rejected",
+          "duplicate"
+        ],
+        "type": "string"
+      },
+      "MemberDashboardStats": {
+        "additionalProperties": false,
+        "properties": {
+          "active_drafts": {
+            "minimum": 0.0,
+            "title": "Active Drafts",
+            "type": "integer"
+          },
+          "followers": {
+            "minimum": 0.0,
+            "title": "Followers",
+            "type": "integer"
+          },
+          "saved_recipes": {
+            "minimum": 0.0,
+            "title": "Saved Recipes",
+            "type": "integer"
+          },
+          "versions_published": {
+            "minimum": 0.0,
+            "title": "Versions Published",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "versions_published",
+          "active_drafts",
+          "saved_recipes",
+          "followers"
+        ],
+        "title": "MemberDashboardStats",
+        "type": "object"
+      },
       "MemberIngredientCatalogRequestResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1975,6 +2112,77 @@
           "total_pages"
         ],
         "title": "MyFollowersResponse",
+        "type": "object"
+      },
+      "MyMemberActivityResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/MemberActivityCounts"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MemberActivityItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "selected_filter": {
+            "$ref": "#/components/schemas/MemberActivityFilter"
+          }
+        },
+        "required": [
+          "items",
+          "counts",
+          "selected_filter",
+          "next_cursor"
+        ],
+        "title": "MyMemberActivityResponse",
+        "type": "object"
+      },
+      "MyMemberDashboardResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "latest_draft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecipeDraftSummaryResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recent_activity": {
+            "items": {
+              "$ref": "#/components/schemas/MemberActivityItem"
+            },
+            "maxItems": 3,
+            "title": "Recent Activity",
+            "type": "array"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/MemberDashboardStats"
+          }
+        },
+        "required": [
+          "latest_draft",
+          "recent_activity",
+          "stats"
+        ],
+        "title": "MyMemberDashboardResponse",
         "type": "object"
       },
       "MyPublishedRecipeItem": {
@@ -8699,6 +8907,143 @@
         "x-recipe-lab-external-consumer-status": "unknown_pending"
       }
     },
+    "/api/my/activity": {
+      "get": {
+        "description": "Returns one bounded, cursor-paginated page across active drafts, current recipe publications, saved recipes, and reviewed ingredient requests.",
+        "operationId": "my_member_activity_api_my_activity_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/MemberActivityFilter",
+              "default": "all"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "pattern": "^[^\\x00]*$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 24,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyMemberActivityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A valid member session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Account setup is incomplete."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "An activity query parameter is invalid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "List my recent account activity",
+        "tags": [
+          "member activity"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/lib/member-activity-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending"
+      }
+    },
     "/api/my/community-activity": {
       "get": {
         "description": "Returns publicly readable original recipes and new versions authored by active cooks the signed-in member currently follows, ordered by publication time.",
@@ -8798,6 +9143,83 @@
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/member-follow-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending"
+      }
+    },
+    "/api/my/dashboard": {
+      "get": {
+        "description": "Returns the latest active draft, three recent activity items, and account totals in one bounded private read model.",
+        "operationId": "my_member_dashboard_api_my_dashboard_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyMemberDashboardResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A valid member session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Account setup is incomplete."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "An activity query parameter is invalid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "Read my dashboard summary",
+        "tags": [
+          "member activity"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/lib/member-activity-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending"
       }

@@ -7,6 +7,7 @@ from app.api.routes import (
     ingredient_catalog,
     interactions,
     measurements,
+    member_activity,
     member_follows,
     moderation,
     recipe_categories,
@@ -38,6 +39,7 @@ api_router.include_router(actions.router, tags=["cooking actions"])
 api_router.include_router(recipe_categories.router, tags=["recipe categories"])
 api_router.include_router(recipe_drafts.router, tags=["recipe drafts"])
 api_router.include_router(recipe_libraries.router, tags=["cook profiles and recipe libraries"])
+api_router.include_router(member_activity.router, tags=["member activity"])
 api_router.include_router(member_follows.router, tags=["member follows"])
 api_router.include_router(recipe_publications.router, tags=["recipe publication"])
 api_router.include_router(moderation.router, tags=["recipe moderation"])

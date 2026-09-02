@@ -1,6 +1,8 @@
 from app.core.demo_identity import DEMO_USER_DISPLAY_NAME, DEMO_USER_ID
 from app.models import ACCOUNT_KIND_DEMO, USER_STATUS_DELETED, RecipeVersion, User
+from app.repositories.recipe_drafts import RecipeDraftBrowseItem
 from app.schemas.recipe_categories import RecipeCategorySummary
+from app.schemas.recipe_drafts import RecipeDraftSummaryResponse
 from app.schemas.recipes import RecipeSummary, RecipeVersionReference
 from app.schemas.users import PublicUserReference
 
@@ -62,4 +64,22 @@ def recipe_summary_response(version: RecipeVersion) -> RecipeSummary:
             )
             for item in version.categories
         ],
+    )
+
+
+def recipe_draft_summary_response(
+    item: RecipeDraftBrowseItem,
+) -> RecipeDraftSummaryResponse:
+    """Serialize the shared compact representation of an active private draft."""
+
+    return RecipeDraftSummaryResponse(
+        id=item.draft.id,
+        source_version_id=item.draft.source_version_id,
+        status="active",
+        revision=item.draft.revision,
+        title=item.draft.title,
+        ingredient_count=item.ingredient_count,
+        instruction_count=item.instruction_count,
+        created_at=item.draft.created_at,
+        updated_at=item.draft.updated_at,
     )

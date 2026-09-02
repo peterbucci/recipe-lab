@@ -335,3 +335,95 @@ def test_actor_spoof_payloads_and_incomplete_accounts_cannot_mutate(
     assert _json_object(incomplete_view.json())["error"]["code"] == "account_setup_required"
     assert _json_object(incomplete_draft.json())["error"]["code"] == "account_setup_required"
     assert _activity_counts(member_activity_api.engine) == before
+
+
+def test_private_activity_and_dashboard_use_one_bounded_member_read_model(
+    member_activity_api: MemberActivityApi,
+) -> None:
+    anonymous_activity = member_activity_api.anonymous.get("/api/my/activity")
+    incomplete_dashboard = member_activity_api.incomplete.get("/api/my/dashboard")
+    assert anonymous_activity.status_code == 401
+    assert incomplete_dashboard.status_code == 403
+
+    initial = member_activity_api.member_a.get("/api/my/dashboard")
+    assert initial.status_code == 200
+    assert initial.headers["cache-control"] == "private, no-store"
+    assert "Cookie" in initial.headers["vary"]
+    assert initial.json() == {
+        "latest_draft": None,
+        "recent_activity": [],
+        "stats": {
+            "versions_published": 0,
+            "active_drafts": 0,
+            "saved_recipes": 0,
+            "followers": 0,
+        },
+    }
+
+    created = member_activity_api.member_a.post(
+        "/api/recipe-drafts",
+        headers=_headers(),
+        json={"source_version_id": None},
+    )
+    saved = member_activity_api.member_a.put(
+        f"/api/recipes/{CARROT_ROOT_ID}/save",
+        headers=_headers(),
+    )
+    assert created.status_code == 201
+    assert saved.status_code == 200
+
+    dashboard = member_activity_api.member_a.get("/api/my/dashboard")
+    assert dashboard.status_code == 200
+    dashboard_body = _json_object(dashboard.json())
+    assert dashboard_body["latest_draft"]["id"] == _json_object(created.json())["id"]
+    assert dashboard_body["stats"] == {
+        "versions_published": 0,
+        "active_drafts": 1,
+        "saved_recipes": 1,
+        "followers": 0,
+    }
+    assert {item["kind"] for item in dashboard_body["recent_activity"]} == {
+        "draft",
+        "saved",
+    }
+
+    first_page = member_activity_api.member_a.get(
+        "/api/my/activity",
+        params={"filter": "all", "page_size": 1},
+    )
+    assert first_page.status_code == 200
+    first_body = _json_object(first_page.json())
+    assert first_body["counts"] == {
+        "all": 2,
+        "recipes": 1,
+        "saved": 1,
+        "requests": 0,
+    }
+    assert len(first_body["items"]) == 1
+    assert isinstance(first_body["next_cursor"], str)
+
+    second_page = member_activity_api.member_a.get(
+        "/api/my/activity",
+        params={"cursor": first_body["next_cursor"], "page_size": 1},
+    )
+    assert second_page.status_code == 200
+    second_body = _json_object(second_page.json())
+    assert len(second_body["items"]) == 1
+    assert second_body["items"][0]["id"] != first_body["items"][0]["id"]
+    assert second_body["next_cursor"] is None
+
+    saved_search = member_activity_api.member_a.get(
+        "/api/my/activity",
+        params={"filter": "saved", "q": "carrot"},
+    )
+    assert saved_search.status_code == 200
+    saved_body = _json_object(saved_search.json())
+    assert saved_body["selected_filter"] == "saved"
+    assert [item["kind"] for item in saved_body["items"]] == ["saved"]
+
+    invalid_cursor = member_activity_api.member_a.get(
+        "/api/my/activity",
+        params={"cursor": "not-base64!"},
+    )
+    assert invalid_cursor.status_code == 422
+    assert _json_object(invalid_cursor.json())["error"]["code"] == ("invalid_activity_cursor")
