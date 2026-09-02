@@ -6,6 +6,13 @@ are OIDC login/account creation, private draft creation and mutation, fork-capab
 draft creation, publication, recipe reports and moderator decisions, and
 save/rate/view interactions.
 
+Protected route families, accepted methods, persisted operation names, and the
+settings that supply their account/network limits are declared in the single
+`app/policies/abuse.py` registry. Route matching and limit resolution use that
+registry; durable counter enforcement remains a separate service. Adding or
+changing a sensitive route therefore requires an explicit registry declaration
+and route-classification test rather than another ordered conditional.
+
 Every protected request increments a canonical network bucket. Authenticated
 member requests also increment an account bucket. After an OIDC token has been
 verified, the callback increments a separate issuer-and-subject identity bucket

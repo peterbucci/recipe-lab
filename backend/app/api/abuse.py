@@ -2,10 +2,10 @@ from fastapi import Request
 
 from app.api.dependencies import SessionDependency, SettingsDependency
 from app.core.security import AUTH_SESSION_COOKIE_NAME
+from app.policies.abuse import classify_rate_limited_request
 from app.services.abuse_limits import (
     RateLimitUnavailableError,
     abuse_protection_unavailable_error,
-    classify_rate_limited_request,
     client_network_subject,
     enforce_request_rate_limit,
 )

@@ -4,9 +4,7 @@ import ipaddress
 import math
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Literal
 from uuid import UUID
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -19,106 +17,24 @@ from app.models.abuse import (
     RATE_LIMIT_DIMENSION_IDENTITY,
     RATE_LIMIT_DIMENSION_NETWORK,
 )
+from app.policies.abuse import (
+    RateLimitOperation as RateLimitOperation,
+)
+from app.policies.abuse import (
+    RateLimitPolicy as RateLimitPolicy,
+)
+from app.policies.abuse import (
+    classify_rate_limited_request as classify_rate_limited_request,
+)
 from app.repositories.abuse_limits import record_rate_limit_attempt
-
-RateLimitOperation = Literal[
-    "account_auth",
-    "draft_mutation",
-    "fork_creation",
-    "publication",
-    "recipe_report",
-    "interaction",
-]
-
-_IDENTIFIER_PATH_PART = r"[^/]{1,64}"
-_DRAFT_PATH = re.compile(rf"^/api/recipe-drafts/{_IDENTIFIER_PATH_PART}$")
-_DRAFT_PREFLIGHT_PATH = re.compile(
-    rf"^/api/recipe-drafts/{_IDENTIFIER_PATH_PART}/duplicate-preflights$"
-)
-_PUBLICATION_PATH = re.compile(rf"^/api/recipe-drafts/{_IDENTIFIER_PATH_PART}/publish$")
-_REPORT_PATH = re.compile(rf"^/api/recipes/{_IDENTIFIER_PATH_PART}/reports$")
-_MODERATION_ACTION_PATH = re.compile(
-    rf"^/api/moderation/recipe-reports/{_IDENTIFIER_PATH_PART}/actions$"
-)
-_INTERACTION_PATH = re.compile(rf"^/api/recipes/{_IDENTIFIER_PATH_PART}/(?:view|save|rating)$")
-_FOLLOW_PATH = re.compile(rf"^/api/cooks/{_IDENTIFIER_PATH_PART}/follow$")
 
 NETWORK_HEADER = "x-recipe-lab-client-network"
 NETWORK_TIMESTAMP_HEADER = "x-recipe-lab-network-timestamp"
 NETWORK_SIGNATURE_HEADER = "x-recipe-lab-network-signature"
 
 
-@dataclass(frozen=True, slots=True)
-class RateLimitPolicy:
-    operation: RateLimitOperation
-    account_limit: int | None
-    network_limit: int
-
-
 class RateLimitUnavailableError(RuntimeError):
     pass
-
-
-def classify_rate_limited_request(
-    *,
-    method: str,
-    path: str,
-    settings: Settings,
-) -> RateLimitPolicy | None:
-    normalized_method = method.upper()
-    normalized_path = path.rstrip("/") or "/"
-    if normalized_method == "GET" and normalized_path in {
-        "/api/auth/login",
-        "/api/auth/reauthenticate",
-        "/api/auth/callback",
-    }:
-        return RateLimitPolicy(
-            operation="account_auth",
-            account_limit=None,
-            network_limit=settings.abuse_rate_limit_auth_network,
-        )
-    if normalized_method == "POST" and normalized_path == "/api/recipe-drafts":
-        return RateLimitPolicy(
-            operation="fork_creation",
-            account_limit=settings.abuse_rate_limit_fork_account,
-            network_limit=settings.abuse_rate_limit_fork_network,
-        )
-    if normalized_method in {"PUT", "DELETE"} and _DRAFT_PATH.fullmatch(normalized_path):
-        return RateLimitPolicy(
-            operation="draft_mutation",
-            account_limit=settings.abuse_rate_limit_draft_account,
-            network_limit=settings.abuse_rate_limit_draft_network,
-        )
-    if normalized_method == "POST" and _DRAFT_PREFLIGHT_PATH.fullmatch(normalized_path):
-        return RateLimitPolicy(
-            operation="draft_mutation",
-            account_limit=settings.abuse_rate_limit_draft_account,
-            network_limit=settings.abuse_rate_limit_draft_network,
-        )
-    if normalized_method == "POST" and _PUBLICATION_PATH.fullmatch(normalized_path):
-        return RateLimitPolicy(
-            operation="publication",
-            account_limit=settings.abuse_rate_limit_publication_account,
-            network_limit=settings.abuse_rate_limit_publication_network,
-        )
-    if normalized_method == "POST" and (
-        _REPORT_PATH.fullmatch(normalized_path)
-        or _MODERATION_ACTION_PATH.fullmatch(normalized_path)
-    ):
-        return RateLimitPolicy(
-            operation="recipe_report",
-            account_limit=settings.abuse_rate_limit_report_account,
-            network_limit=settings.abuse_rate_limit_report_network,
-        )
-    if normalized_method in {"POST", "PUT", "DELETE"} and (
-        _INTERACTION_PATH.fullmatch(normalized_path) or _FOLLOW_PATH.fullmatch(normalized_path)
-    ):
-        return RateLimitPolicy(
-            operation="interaction",
-            account_limit=settings.abuse_rate_limit_interaction_account,
-            network_limit=settings.abuse_rate_limit_interaction_network,
-        )
-    return None
 
 
 def canonical_network_subject(client_host: str | None) -> str:
