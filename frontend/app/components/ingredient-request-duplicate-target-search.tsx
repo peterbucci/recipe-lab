@@ -7,7 +7,7 @@ import {
   type IngredientCatalogReviewPage,
   searchCatalogIngredients,
 } from "../../lib/ingredient-catalog-api";
-import { isAbortError } from "./ingredient-request-review-model";
+import { isAbortError } from "../../lib/abort-error";
 import { LoadingButton } from "./loading-ui";
 
 interface DuplicateTargetSearchProps {

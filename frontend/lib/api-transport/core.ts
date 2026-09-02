@@ -1,3 +1,4 @@
+import { isAbortError } from "../abort-error";
 import { retryTransientRead } from "./transient-read-retry";
 
 export type ApiRequestKind = "query" | "mutation";
@@ -244,7 +245,7 @@ function transportReason(
   if (timedOut) return "timeout";
   if (
     externalSignal?.aborted ||
-    (error instanceof DOMException && error.name === "AbortError")
+    isAbortError(error)
   ) {
     return "aborted";
   }
@@ -346,7 +347,7 @@ async function executeJsonApiRequestOnce(
       if (
         timedOut ||
         options.signal?.aborted ||
-        (error instanceof DOMException && error.name === "AbortError")
+        isAbortError(error)
       ) {
         throw executionError(
           transportReason(timedOut, options.signal, error),

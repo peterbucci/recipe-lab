@@ -1,3 +1,5 @@
+import { isAbortError } from "../abort-error";
+
 const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
 const TRANSIENT_ERROR_CODES = new Set([
   "network_error",
@@ -24,10 +26,6 @@ export interface TransientReadRetryOptions {
 
 function isErrorShape(value: unknown): value is RetryableErrorShape {
   return typeof value === "object" && value !== null;
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "AbortError";
 }
 
 function isInvalidResponseCode(code: unknown): boolean {

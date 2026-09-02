@@ -28,10 +28,6 @@ export interface ReviewDetailProps {
   onReviewed: (request: IngredientCatalogReviewItem) => void;
 }
 
-export function isAbortError(reason: unknown): boolean {
-  return reason instanceof DOMException && reason.name === "AbortError";
-}
-
 export function formatRequestTime(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.valueOf())) {

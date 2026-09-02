@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 
+import { isAbortError } from "../../lib/abort-error";
 import { AuthApiError } from "../../lib/auth-api";
 import type { CatalogActionType } from "../../lib/cooking-action-api";
 import { createIdempotencyKey } from "../../lib/idempotency-key";
@@ -437,7 +438,7 @@ export function RecipeDraftPublication({
     } catch (reason) {
       if (
         request.controller.signal.aborted ||
-        (reason instanceof DOMException && reason.name === "AbortError")
+        isAbortError(reason)
       ) {
         return;
       }
@@ -527,7 +528,7 @@ export function RecipeDraftPublication({
     } catch (reason) {
       if (
         request.controller.signal.aborted ||
-        (reason instanceof DOMException && reason.name === "AbortError")
+        isAbortError(reason)
       ) {
         return;
       }

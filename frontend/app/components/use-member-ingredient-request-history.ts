@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { isAbortError } from "../../lib/abort-error";
 import {
   browseMyIngredientRequests,
   type IngredientCatalogRequestStatus,
@@ -23,10 +24,6 @@ export interface MemberIngredientRequestHistoryState {
   restoreAuthentication: () => void;
   submitSearch: () => void;
   updateQueryInput: (value: string) => void;
-}
-
-function isAbortError(reason: unknown): boolean {
-  return reason instanceof DOMException && reason.name === "AbortError";
 }
 
 export function useMemberIngredientRequestHistory({

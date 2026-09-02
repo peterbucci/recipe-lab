@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 
+import { isAbortError } from "../../lib/abort-error";
 import { AuthApiError } from "../../lib/auth-api";
 import { createIdempotencyKey } from "../../lib/idempotency-key";
 import {
@@ -209,7 +210,7 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
           setResult({ key: requestKey, page: nextPage });
         }
       } catch (reason) {
-        if (reason instanceof DOMException && reason.name === "AbortError")
+        if (isAbortError(reason))
           return;
         if (sequence === requestSequence.current) {
           setLoadError({

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 
+import { isAbortError } from "../../lib/abort-error";
 import {
   fetchRecipeViewerState,
   type RecipeViewerState,
@@ -142,7 +143,7 @@ export function RecipeMemberActions({
       .catch((reason: unknown) => {
         if (
           active &&
-          !(reason instanceof DOMException && reason.name === "AbortError")
+          !isAbortError(reason)
         ) {
           setPrivateState({ phase: "error", ownerId: memberId });
         }
@@ -171,7 +172,7 @@ export function RecipeMemberActions({
       .catch((reason: unknown) => {
         if (
           active &&
-          !(reason instanceof DOMException && reason.name === "AbortError")
+          !isAbortError(reason)
         ) {
           setActiveDraftState({ phase: "error", ownerId: memberId });
         }

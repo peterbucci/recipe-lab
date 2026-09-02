@@ -13,6 +13,7 @@ import {
   useSyncExternalStore,
 } from "react";
 
+import { isAbortError } from "../../lib/abort-error";
 import { createIdempotencyKey } from "../../lib/idempotency-key";
 import {
   fetchRecipeViewerState,
@@ -137,7 +138,7 @@ export function RecipeCardViewerStateProvider({
       .catch((reason: unknown) => {
         if (
           active &&
-          !(reason instanceof DOMException && reason.name === "AbortError")
+          !isAbortError(reason)
         ) {
           setState({ phase: "error", ownerId: memberId });
         }
@@ -264,7 +265,7 @@ export function RecipeCardEngagement({
       .catch((reason: unknown) => {
         if (
           active &&
-          !(reason instanceof DOMException && reason.name === "AbortError")
+          !isAbortError(reason)
         ) {
           setPrivateState({ phase: "error", ownerId: memberId });
         }

@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 
+import { isAbortError } from "../../lib/abort-error";
 import { AuthApiError } from "../../lib/auth-api";
 import type { CatalogActionType } from "../../lib/cooking-action-api";
 import { createIdempotencyKey } from "../../lib/idempotency-key";
@@ -132,7 +133,7 @@ async function fetchRecipeFamily(
   } catch (reason) {
     if (
       signal.aborted ||
-      (reason instanceof DOMException && reason.name === "AbortError")
+      isAbortError(reason)
     ) {
       throw reason;
     }
@@ -305,7 +306,7 @@ function RecipeDraftEditorInner({
         dispatch({ detail: loaded, draft: state, mode, type: "draft-loaded" });
         return "loaded";
       } catch (reason) {
-        if (reason instanceof DOMException && reason.name === "AbortError")
+        if (isAbortError(reason))
           return "failed";
         if (requestToken === loadRequestToken.current) {
           setLoadError(draftLoadErrorMessage(reason));
@@ -337,7 +338,7 @@ function RecipeDraftEditorInner({
         });
       })
       .catch((reason: unknown) => {
-        if (reason instanceof DOMException && reason.name === "AbortError") {
+        if (isAbortError(reason)) {
           return;
         }
         if (requestToken === loadRequestToken.current) {
@@ -386,7 +387,7 @@ function RecipeDraftEditorInner({
       .catch((reason: unknown) => {
         if (
           controller.signal.aborted ||
-          (reason instanceof DOMException && reason.name === "AbortError")
+          isAbortError(reason)
         ) {
           return;
         }
@@ -550,7 +551,7 @@ function RecipeDraftEditorInner({
     } catch (reason) {
       if (
         request.controller.signal.aborted ||
-        (reason instanceof DOMException && reason.name === "AbortError")
+        isAbortError(reason)
       ) {
         return;
       }

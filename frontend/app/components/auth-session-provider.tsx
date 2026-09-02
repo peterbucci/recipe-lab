@@ -17,6 +17,7 @@ import {
   type AuthSession,
   fetchAuthSession,
 } from "../../lib/auth-api";
+import { isAbortError } from "../../lib/abort-error";
 import { LoadingButton } from "./loading-ui";
 
 export type AuthSessionState =
@@ -113,7 +114,7 @@ export function AuthSessionProvider({
     void fetchAuthSession(controller.signal)
       .then(replaceSession)
       .catch((reason: unknown) => {
-        if (!(reason instanceof DOMException && reason.name === "AbortError")) {
+        if (!isAbortError(reason)) {
           setState({ phase: "error" });
         }
       });

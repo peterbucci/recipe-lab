@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 
+import { isAbortError } from "../../lib/abort-error";
 import type { RecipeCategory } from "../../lib/recipe-api";
 import { fetchActiveRecipeCategories } from "../../lib/recipe-category-client-api";
 import { MAX_RECIPE_CATEGORIES } from "../../lib/recipe-category";
@@ -27,10 +28,6 @@ interface RecipeCategorySelectorProps {
 }
 
 type LoadState = "error" | "loading" | "ready";
-
-function isAbortError(reason: unknown): boolean {
-  return reason instanceof DOMException && reason.name === "AbortError";
-}
 
 export function RecipeCategorySelector({
   disabled = false,
