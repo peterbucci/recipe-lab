@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Response
 
+from app.api.cache import apply_private_no_store
 from app.api.dependencies import OptionalAuthenticatedSessionDependency, SessionDependency
 from app.schemas.errors import ErrorResponse
 from app.schemas.recommendations import (
@@ -61,8 +62,7 @@ def get_recommendations(
         ),
     ] = 10,
 ) -> RecipeRecommendationsResponse:
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
+    apply_private_no_store(response)
     result = recommend_recipe_versions(
         session,
         authenticated.user_id if authenticated is not None else None,

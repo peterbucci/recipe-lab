@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
+from app.db.query import LIKE_ESCAPE, literal_contains_pattern
 from app.models import (
     ACCOUNT_KIND_MEMBER,
     USER_STATUS_ACTIVE,
@@ -77,14 +78,10 @@ def find_eligible_community_moderators(
             user_id = UUID(normalized_query)
         except ValueError:
             user_id = None
-        literal_pattern = (
-            "%"
-            + normalized_query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            + "%"
-        )
+        literal_pattern = literal_contains_pattern(normalized_query)
         matches: list[ColumnElement[bool]] = [
-            User.handle.ilike(literal_pattern, escape="\\"),
-            User.display_name.ilike(literal_pattern, escape="\\"),
+            User.handle.ilike(literal_pattern, escape=LIKE_ESCAPE),
+            User.display_name.ilike(literal_pattern, escape=LIKE_ESCAPE),
         ]
         if user_id is not None:
             matches.append(User.id == user_id)

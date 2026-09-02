@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Header, Response, status
 from sqlalchemy.orm import Session
 
+from app.api.cache import private_no_store_headers
 from app.api.dependencies import CsrfProtectedSessionDependency, SessionDependency
 from app.api.errors import ApiError
 from app.api.member_context import (
@@ -66,10 +67,6 @@ INTERACTION_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
 }
 
 
-def _private_no_store_headers() -> dict[str, str]:
-    return {"Cache-Control": "private, no-store", "Vary": "Cookie"}
-
-
 def _is_replay_or_error(
     session: Session,
     intent: PreferenceEventIntent,
@@ -112,7 +109,7 @@ def record_recipe_view_for_current_user(
     session.commit()
     return Response(
         status_code=status.HTTP_204_NO_CONTENT,
-        headers=_private_no_store_headers(),
+        headers=private_no_store_headers(),
     )
 
 
@@ -130,7 +127,7 @@ def save_recipe_for_current_user(
     authenticated: CsrfProtectedSessionDependency,
     _payload: Annotated[EmptyInteractionRequest | None, Body()] = None,
 ) -> RecipeViewerStateResponse:
-    response.headers.update(_private_no_store_headers())
+    response.headers.update(private_no_store_headers())
     actor_id = lock_active_member_actor(session, authenticated)
     intent = PreferenceEventIntent(
         action_id=action_id,
@@ -171,7 +168,7 @@ def unsave_recipe_for_current_user(
     authenticated: CsrfProtectedSessionDependency,
     _payload: Annotated[EmptyInteractionRequest | None, Body()] = None,
 ) -> RecipeViewerStateResponse:
-    response.headers.update(_private_no_store_headers())
+    response.headers.update(private_no_store_headers())
     actor_id = lock_active_member_actor(session, authenticated)
     intent = PreferenceEventIntent(
         action_id=action_id,
@@ -212,7 +209,7 @@ def rate_recipe_for_current_user(
     session: SessionDependency,
     authenticated: CsrfProtectedSessionDependency,
 ) -> RecipeViewerStateResponse:
-    response.headers.update(_private_no_store_headers())
+    response.headers.update(private_no_store_headers())
     actor_id = lock_active_member_actor(session, authenticated)
     intent = PreferenceEventIntent(
         action_id=action_id,
@@ -254,7 +251,7 @@ def unrate_recipe_for_current_user(
     authenticated: CsrfProtectedSessionDependency,
     _payload: Annotated[EmptyInteractionRequest | None, Body()] = None,
 ) -> RecipeViewerStateResponse:
-    response.headers.update(_private_no_store_headers())
+    response.headers.update(private_no_store_headers())
     actor_id = lock_active_member_actor(session, authenticated)
     intent = PreferenceEventIntent(
         action_id=action_id,

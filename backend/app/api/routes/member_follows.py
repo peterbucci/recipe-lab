@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Path, Query, Response
 
+from app.api.cache import apply_private_no_store
 from app.api.dependencies import (
     CsrfProtectedSessionDependency,
     RequiredAuthenticatedSessionDependency,
@@ -58,11 +59,6 @@ PRIVATE_FOLLOW_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     403: {"model": ErrorResponse, "description": "Account setup is incomplete."},
     422: {"model": ErrorResponse, "description": "A page parameter is invalid."},
 }
-
-
-def _private_no_store(response: Response) -> None:
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
 
 
 def _followable_cook(
@@ -134,7 +130,7 @@ def cook_follow_state(
     session: SessionDependency,
     authenticated: RequiredAuthenticatedSessionDependency,
 ) -> CookFollowStateResponse:
-    _private_no_store(response)
+    apply_private_no_store(response)
     actor_id = lock_active_member_actor(session, authenticated)
     cook = _followable_cook(session, handle)
     result = _state(session, actor_id=actor_id, cook=cook)
@@ -154,7 +150,7 @@ def follow_cook(
     session: SessionDependency,
     authenticated: CsrfProtectedSessionDependency,
 ) -> CookFollowStateResponse:
-    _private_no_store(response)
+    apply_private_no_store(response)
     actor_id, cook = _lock_follow_participants(
         session,
         authenticated=authenticated,
@@ -182,7 +178,7 @@ def unfollow_cook(
     session: SessionDependency,
     authenticated: CsrfProtectedSessionDependency,
 ) -> CookFollowStateResponse:
-    _private_no_store(response)
+    apply_private_no_store(response)
     actor_id, cook = _lock_follow_participants(
         session,
         authenticated=authenticated,
@@ -209,7 +205,7 @@ def my_follow_stats(
     session: SessionDependency,
     authenticated: RequiredAuthenticatedSessionDependency,
 ) -> MyFollowStatsResponse:
-    _private_no_store(response)
+    apply_private_no_store(response)
     actor_id = lock_active_member_actor(session, authenticated)
     counts = follow_counts(session, user_id=actor_id)
     session.commit()
@@ -236,7 +232,7 @@ def my_followers(
     page: Annotated[int, Query(ge=1, le=1_000_000)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> MyFollowersResponse:
-    _private_no_store(response)
+    apply_private_no_store(response)
     actor_id = lock_active_member_actor(session, authenticated)
     stored = browse_followers(
         session,
@@ -278,7 +274,7 @@ def my_community_activity(
     page: Annotated[int, Query(ge=1, le=1_000_000)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> MyCommunityActivityResponse:
-    _private_no_store(response)
+    apply_private_no_store(response)
     actor_id = lock_active_member_actor(session, authenticated)
     stored = browse_community_activity(
         session,

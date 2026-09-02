@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, Response
 from pydantic import StringConstraints
 from sqlalchemy.orm import Session
 
+from app.api.cache import apply_private_no_store
 from app.api.dependencies import (
     OptionalAuthenticatedSessionDependency,
     RequiredAuthenticatedSessionDependency,
@@ -339,7 +340,7 @@ def recipe_viewer_states_for_current_user(
         ]
     )
     session.commit()
-    response.headers.update({"Cache-Control": "private, no-store", "Vary": "Cookie"})
+    apply_private_no_store(response)
     return result
 
 
@@ -355,8 +356,7 @@ def recipe_detail(
     session: SessionDependency,
     authenticated: OptionalAuthenticatedSessionDependency,
 ) -> RecipeDetailResponse:
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
+    apply_private_no_store(response)
     version = get_recipe_version(session, recipe_version_id)
     if version is None:
         raise ApiError(

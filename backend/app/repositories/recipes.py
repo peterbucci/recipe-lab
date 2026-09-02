@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, Numeric, cast, exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
+from app.db.query import LIKE_ESCAPE, literal_contains_pattern
 from app.models import (
     RecipeIngredient,
     RecipeInstruction,
@@ -64,10 +65,6 @@ def publicly_readable_recipe_version_filter() -> ColumnElement[bool]:
     )
 
 
-def _escape_like(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
 def browse_recipe_versions(
     session: Session,
     *,
@@ -84,11 +81,14 @@ def browse_recipe_versions(
 
     filters: list[ColumnElement[bool]] = []
     if search is not None:
-        pattern = f"%{_escape_like(search)}%"
+        pattern = literal_contains_pattern(search)
         filters.append(
             or_(
-                RecipeVersion.title.ilike(pattern, escape="\\"),
-                func.coalesce(RecipeVersion.description, "").ilike(pattern, escape="\\"),
+                RecipeVersion.title.ilike(pattern, escape=LIKE_ESCAPE),
+                func.coalesce(RecipeVersion.description, "").ilike(
+                    pattern,
+                    escape=LIKE_ESCAPE,
+                ),
             )
         )
     if lineage_id is not None:
