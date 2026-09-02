@@ -66,7 +66,14 @@ jobs:
             --no-dev \
             --no-emit-project \
             --format requirements-txt \
-            --output-file "$SECURITY_PRIVATE_DIR/dependencies/requirements.txt"
+            --output-file "$SECURITY_PRIVATE_DIR/dependencies/requirements-api.txt"
+          uv export \
+            --frozen \
+            --package recipe-lab-evaluation \
+            --no-dev \
+            --no-emit-project \
+            --format requirements-txt \
+            --output-file "$SECURITY_PRIVATE_DIR/dependencies/requirements-evaluation.txt"
           cp -- frontend/package-lock.json \
             "$SECURITY_PRIVATE_DIR/dependencies/package-lock.json"
           trivy image --download-db-only --no-progress

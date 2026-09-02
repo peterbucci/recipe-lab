@@ -58,9 +58,9 @@ The reusable `Security rescan` workflow runs inside ordinary CI and on a weekly
 schedule. It uses exact Trivy 0.74.0 installed by a SHA-pinned setup action. The
 job first creates the reviewed safe-source archive, which applies its own two
 secret-scan passes and opaque-object policy. It then exports the frozen backend
-runtime graph from `uv.lock`, combines it with the committed npm lock, and
-blocks HIGH or CRITICAL dependency findings. A second Trivy pass scans the
-reviewed committed-source tree for vulnerabilities and secrets.
+and evaluation runtime graphs from `uv.lock`, combines them with the committed
+npm lock, and blocks HIGH or CRITICAL dependency findings. A second Trivy pass
+scans the reviewed committed-source tree for vulnerabilities and secrets.
 
 Raw source/secret scan JSON, exported requirements, archives, and scanner cache
 remain in a permission-restricted runner-temporary directory. Raw secret
