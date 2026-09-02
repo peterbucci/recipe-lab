@@ -143,5 +143,41 @@ def test_profile_policy_prefers_positive_ratings_then_distinct_recent_events() -
     assert "max(preference_events.occurred_at) DESC" in event_sql
 
 
+class _ShortlistSession:
+    def __init__(self) -> None:
+        self.global_statement: Any = None
+        self.personalized_statement: Any = None
+
+    def execute(self, statement: Any) -> tuple[tuple[UUID, int, int, int], ...]:
+        self.global_statement = statement
+        return (
+            (FIRST_ID, 8, 4, 2),
+            (SECOND_ID, 8, 4, 2),
+            (THIRD_ID, 8, 4, 2),
+        )
+
+    def scalars(self, statement: Any) -> tuple[UUID]:
+        self.personalized_statement = statement
+        return (THIRD_ID,)
+
+
+def test_personalized_lane_precedes_global_lane_and_global_rows_fill_capacity() -> None:
+    session = _ShortlistSession()
+
+    shortlist, normalization = repository._load_shortlist(
+        cast(Session, session),
+        user_id=USER_ID,
+        source_recipe_version_ids=(UUID("30000000-0000-4000-8000-000000000001"),),
+        capacity=3,
+    )
+
+    assert shortlist == (THIRD_ID, FIRST_ID, SECOND_ID)
+    assert normalization.maximum_save_count == 8
+    assert normalization.maximum_fork_count == 4
+    assert normalization.maximum_view_count == 2
+    assert "LIMIT 3" in _literal_sql(session.global_statement)
+    assert "LIMIT 1" in _literal_sql(session.personalized_statement)
+
+
 def test_shortlist_policy_version_is_explicit_and_stable() -> None:
     assert repository.RECOMMENDATION_SHORTLIST_POLICY == "baseline-v1-shortlist-v1"
