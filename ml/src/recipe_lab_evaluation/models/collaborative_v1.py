@@ -9,7 +9,7 @@ from fractions import Fraction
 from uuid import UUID
 
 from ..dataset import SnapshotEvent, SnapshotRecipe, canonical_json
-from ..protocol import FittedEvaluationModel, JsonScalar, ModelMetadata, ModelTrainingData
+from ..protocol import FittedRankingModel, JsonScalar, ModelMetadata, ModelTrainingData
 from ._ranking import validate_ranking_request
 from .content_based_v1 import (
     CONTENT_MODEL_ID,
@@ -210,7 +210,7 @@ class _FittedCollaborativeV1:
     signals_by_user: Mapping[UUID, Mapping[UUID, int]]
     profiles_by_recipe: Mapping[UUID, tuple[UUID, ...]]
     fitted_recipe_ids: frozenset[UUID]
-    fallback: FittedEvaluationModel
+    fallback: FittedRankingModel
 
     @property
     def collaborative_artifact_document(self) -> Mapping[str, JsonScalar]:

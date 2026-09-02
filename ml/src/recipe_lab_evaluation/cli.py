@@ -11,7 +11,8 @@ from pathlib import Path
 from sqlalchemy.exc import SQLAlchemyError
 
 from .dataset import SnapshotValidationError, load_snapshot, snapshot_to_json
-from .duplicate_dataset import DuplicateBenchmarkError, load_duplicate_benchmark
+from .duplicate_benchmark_codec import load_duplicate_benchmark
+from .duplicate_dataset import DuplicateBenchmarkError
 from .duplicate_evaluation import (
     duplicate_evaluation_report_to_json,
     evaluate_duplicate_candidates,
@@ -27,10 +28,8 @@ from .simulator import (
     simulate_preference_cohort,
 )
 from .sources import SnapshotExportError, export_postgres_snapshot
-from .substitution_dataset import (
-    SubstitutionBenchmarkError,
-    load_substitution_benchmark,
-)
+from .substitution_benchmark_codec import load_substitution_benchmark
+from .substitution_dataset import SubstitutionBenchmarkError
 from .substitution_evaluation import (
     evaluate_substitution_rules,
     substitution_evaluation_report_to_json,

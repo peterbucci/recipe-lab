@@ -8,7 +8,7 @@ from uuid import UUID
 
 from ..dataset import SnapshotRecipe
 from ..protocol import (
-    FittedEvaluationModel,
+    FittedRankingModel,
     ModelMetadata,
     ModelTrainingData,
     derive_model_seed,
@@ -119,7 +119,7 @@ def _positions(ranking: tuple[UUID, ...]) -> dict[UUID, int]:
     return {recipe_id: position for position, recipe_id in enumerate(ranking, start=1)}
 
 
-class _FittedCollaborativeComponent(FittedEvaluationModel, Protocol):
+class _FittedCollaborativeComponent(FittedRankingModel, Protocol):
     @property
     def signals_by_user(self) -> Mapping[UUID, Mapping[UUID, int]]: ...
 
@@ -131,9 +131,9 @@ class _FittedCollaborativeComponent(FittedEvaluationModel, Protocol):
 class _FittedHybridV1:
     metadata: ModelMetadata
     recipes_by_id: Mapping[UUID, SnapshotRecipe]
-    content: FittedEvaluationModel
+    content: FittedRankingModel
     collaborative: _FittedCollaborativeComponent
-    fallback: FittedEvaluationModel
+    fallback: FittedRankingModel
 
     def _collaborative_detail(
         self,

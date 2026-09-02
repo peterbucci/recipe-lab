@@ -2,6 +2,7 @@ import json
 from collections import Counter, defaultdict
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from typing import Any, cast
 from uuid import UUID
 
@@ -136,8 +137,13 @@ def test_same_catalog_config_and_seed_are_byte_identical() -> None:
     first = simulate_preference_cohort(catalog, config)
     second = simulate_preference_cohort(catalog, config)
 
-    assert snapshot_to_json(first) == snapshot_to_json(second)
+    serialized = snapshot_to_json(first)
+    assert serialized == snapshot_to_json(second)
     assert first.sha256 == second.sha256
+    assert first.sha256 == "a4b2dcc24d95b67ec44220d67b9f6979846ffe6c951a491eae3b37560e75cc3d"
+    assert sha256(serialized.encode("utf-8")).hexdigest() == (
+        "659d41828cdd11ca3f4494ea09145d6d85ab78dba21b2e0db4df16b5424677bd"
+    )
 
 
 def test_equivalent_input_order_and_stale_dataclass_fingerprint_are_normalized() -> None:
@@ -343,3 +349,24 @@ def test_restricted_dataset_id_and_fixed_assumptions_are_preserved() -> None:
 
     assert simulated.dataset_id == "recipe-lab:cohort_2026.08-v1"
     assert set(SIMULATION_ASSUMPTIONS).issubset(simulated.limitations)
+
+
+def test_generated_event_memory_boundary_is_explicit_and_inclusive() -> None:
+    boundary = CohortSimulationConfig(
+        seed=1,
+        profile_count=50,
+        training_items_per_profile=9_999,
+        holdout_items_per_profile=1,
+    )
+
+    assert boundary.generated_event_count == 1_000_000
+    with pytest.raises(
+        CohortSimulationError,
+        match="configuration would generate 1000100 events; the safety limit is 1000000",
+    ):
+        CohortSimulationConfig(
+            seed=1,
+            profile_count=50,
+            training_items_per_profile=10_000,
+            holdout_items_per_profile=1,
+        )

@@ -52,6 +52,9 @@ rating context. It refuses catalogs with recorded activity and omits fork events
 because the snapshot has no lineage contract. The default cohort deterministically
 produces 640 training events across 64 profiles and 320 distinct profile-item
 pairs, plus 64 supported temporal profiles and 128 eligible holdout items.
+Generation is capped at 1,000,000 events. Training and holdout phases stream
+drafts and timestamps into the final event tuple instead of retaining parallel
+event-sized working collections.
 
 The readiness report checks fixed minimums for profile, item, interaction,
 raw matrix support, effective nonzero signed support, sparsity, usable
@@ -316,7 +319,8 @@ Implement the `EvaluationModel` protocol:
 
 - declare a stable `ModelMetadata` ID, version, and JSON-safe parameters;
 - fit using only the provided `ModelTrainingData` and derived seed; and
-- rank the supplied complete candidate IDs without duplicates or unknown IDs.
+- return the explicit `FittedRankingModel` contract and rank the supplied complete
+  candidate IDs as a tuple without duplicates or unknown IDs.
 
 Call `evaluate(snapshot, models=(your_model,), config=...)`. The runner always
 adds `baseline-v1`, rejects attempts to replace it, and records raw metrics plus
@@ -324,6 +328,20 @@ baseline deltas for every model. Experiment code can supply additional adapters
 through the Python API; the CLI intentionally exposes only the fixed built-in
 content comparison and its explicit, readiness-gated collaborative and hybrid
 suites rather than accepting an arbitrary import path.
+
+## Artifact and benchmark boundaries
+
+Untrusted snapshot and benchmark files pass through one shared bounded UTF-8/JSON
+codec before domain validation. Snapshot files are limited to 512 MiB, 32 levels,
+and 16 million JSON nodes; each substitution or duplicate benchmark is limited to
+32 MiB, 32 levels, and one million nodes. Duplicate keys are rejected before schema
+validation. In-memory values are normalized once at each public evaluation boundary;
+the readiness gate reuses the runner's validated snapshot.
+
+Each benchmark keeps loading, rule/scorer execution, aggregate metric calculation,
+and report serialization in separate modules. All aggregate serializers use the
+same deterministic envelope and canonical newline-terminated JSON encoding while
+retaining their existing versioned field sets and byte-exact outputs.
 
 ## Checks
 

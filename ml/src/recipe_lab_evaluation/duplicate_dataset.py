@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -219,15 +218,6 @@ _REASON_CODE_SET = frozenset(
     | QUANTITY_DUPLICATE_REASON_CODES
     | ACTION_DUPLICATE_REASON_CODES
 )
-
-
-def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise DuplicateBenchmarkError("duplicate benchmark contains a duplicate JSON key")
-        result[key] = value
-    return result
 
 
 def _object(value: object, *, path: str) -> dict[str, object]:
@@ -1012,11 +1002,7 @@ def _validate_benchmark(benchmark: DuplicateBenchmark) -> None:
         raise DuplicateBenchmarkError("benchmark must label exact, probable, and distinct cases")
 
 
-def parse_duplicate_benchmark_json(text: str) -> DuplicateBenchmark:
-    try:
-        raw = json.loads(text, object_pairs_hook=_reject_duplicate_keys)
-    except json.JSONDecodeError as error:
-        raise DuplicateBenchmarkError(f"invalid JSON: {error.msg}") from error
+def _parse_duplicate_benchmark_document(raw: object) -> DuplicateBenchmark:
     document = _object(raw, path="benchmark")
     _exact_keys(document, expected=_TOP_LEVEL_KEYS, path="benchmark")
     benchmark = DuplicateBenchmark(
@@ -1043,12 +1029,28 @@ def parse_duplicate_benchmark_json(text: str) -> DuplicateBenchmark:
     )
 
 
-def load_duplicate_benchmark(path: Path) -> DuplicateBenchmark:
-    return parse_duplicate_benchmark_json(path.read_text(encoding="utf-8"))
+def parse_duplicate_benchmark_json(text: str) -> DuplicateBenchmark:
+    from .duplicate_benchmark_codec import parse_duplicate_benchmark_json as parse
+
+    return parse(text)
+
+
+def load_duplicate_benchmark(path: str | Path) -> DuplicateBenchmark:
+    from .duplicate_benchmark_codec import load_duplicate_benchmark as load
+
+    return load(path)
+
+
+def validate_duplicate_benchmark(benchmark: DuplicateBenchmark) -> DuplicateBenchmark:
+    """Validate and normalize a typed benchmark without reparsing serialized JSON."""
+
+    return _parse_duplicate_benchmark_document(_normalized_document(benchmark))
 
 
 def duplicate_benchmark_to_json(benchmark: DuplicateBenchmark) -> str:
-    return canonical_json(_normalized_document(benchmark)) + "\n"
+    from .duplicate_benchmark_codec import duplicate_benchmark_to_json as serialize
+
+    return serialize(benchmark)
 
 
 __all__ = [
@@ -1064,4 +1066,5 @@ __all__ = [
     "duplicate_benchmark_to_json",
     "load_duplicate_benchmark",
     "parse_duplicate_benchmark_json",
+    "validate_duplicate_benchmark",
 ]
