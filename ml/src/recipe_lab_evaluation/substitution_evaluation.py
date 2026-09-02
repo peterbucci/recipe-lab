@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
 from .dataset import canonical_json
+from .metrics import METRIC_QUANTUM, ratio_metric
 from .reporting import decimal_text, report_envelope, serialize_report_document
 from .substitution_dataset import (
     SubstitutionBenchmark,
@@ -21,7 +22,6 @@ from .substitution_rules import (
 
 SUBSTITUTION_EVALUATION_REPORT_SCHEMA_VERSION = "recipe-lab-substitution-evaluation-report-v1"
 SUBSTITUTION_EVALUATION_PROTOCOL_VERSION = "curated-direct-rules-benchmark-v1"
-METRIC_QUANTUM = Decimal("0.000001")
 
 type SubstitutionEvaluationStatus = Literal[
     "engineering_validated",
@@ -88,15 +88,6 @@ class SubstitutionEvaluationReport:
     counts: SubstitutionEvaluationCounts
     metrics: SubstitutionEvaluationMetrics
     limitations: tuple[str, ...]
-
-
-def _ratio(numerator: int, denominator: int) -> Decimal | None:
-    if denominator == 0:
-        return None
-    return (Decimal(numerator) / Decimal(denominator)).quantize(
-        METRIC_QUANTUM,
-        rounding=ROUND_HALF_UP,
-    )
 
 
 def _constraints_hold(
@@ -209,31 +200,31 @@ def evaluate_substitution_rules(
         caution_mismatches=caution_mismatches,
     )
     metrics = SubstitutionEvaluationMetrics(
-        exact_ranking_accuracy=_ratio(exact_ranking_matches, case_count),
-        top1_accuracy=_ratio(top1_matches, nonempty_cases),
-        candidate_recall=_ratio(matching_candidates, expected_candidates),
-        direct_edge_precision=_ratio(
+        exact_ranking_accuracy=ratio_metric(exact_ranking_matches, case_count),
+        top1_accuracy=ratio_metric(top1_matches, nonempty_cases),
+        candidate_recall=ratio_metric(matching_candidates, expected_candidates),
+        direct_edge_precision=ratio_metric(
             returned_candidates - non_direct_outputs,
             returned_candidates,
         ),
-        constraint_compliance=_ratio(
+        constraint_compliance=ratio_metric(
             returned_candidates - constraint_violations,
             returned_candidates,
         ),
-        ratio_or_guidance_coverage=_ratio(
+        ratio_or_guidance_coverage=ratio_metric(
             returned_candidates - missing_ratio_or_guidance,
             returned_candidates,
         ),
-        provenance_or_confidence_coverage=_ratio(
+        provenance_or_confidence_coverage=ratio_metric(
             returned_candidates - missing_provenance_or_confidence,
             returned_candidates,
         ),
-        explanation_coverage=_ratio(
+        explanation_coverage=ratio_metric(
             returned_candidates - missing_explanations,
             returned_candidates,
         ),
-        caution_compliance=_ratio(case_count - caution_mismatches, case_count),
-        empty_result_accuracy=_ratio(empty_result_matches, empty_cases),
+        caution_compliance=ratio_metric(case_count - caution_mismatches, case_count),
+        empty_result_accuracy=ratio_metric(empty_result_matches, empty_cases),
     )
 
     reasons: list[str] = []

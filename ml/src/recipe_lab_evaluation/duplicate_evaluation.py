@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from collections import Counter
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from fractions import Fraction
 from typing import Literal
 
@@ -39,11 +39,11 @@ from .duplicate_dataset import (
     DuplicateComponentExpectations,
     validate_duplicate_benchmark,
 )
+from .metrics import METRIC_QUANTUM, quantize_metric, ratio_metric
 from .reporting import decimal_text, report_envelope, serialize_report_document
 
 DUPLICATE_EVALUATION_REPORT_SCHEMA_VERSION = "recipe-lab-duplicate-evaluation-report-v1"
 DUPLICATE_EVALUATION_PROTOCOL_VERSION = "labeled-structural-pair-evaluation-v1"
-METRIC_QUANTUM = Decimal("0.000001")
 
 type DuplicateEvaluationStatus = Literal[
     "engineering_validated",
@@ -140,21 +140,9 @@ class DuplicateEvaluationReport:
     limitations: tuple[str, ...]
 
 
-def _ratio(numerator: int, denominator: int) -> Decimal | None:
-    if denominator == 0:
-        return None
-    return (Decimal(numerator) / Decimal(denominator)).quantize(
-        METRIC_QUANTUM,
-        rounding=ROUND_HALF_UP,
-    )
-
-
 def _fraction_metric(value: Fraction) -> str:
     return format(
-        (Decimal(value.numerator) / Decimal(value.denominator)).quantize(
-            METRIC_QUANTUM,
-            rounding=ROUND_HALF_UP,
-        ),
+        quantize_metric(Decimal(value.numerator) / Decimal(value.denominator)),
         ".6f",
     )
 
@@ -305,15 +293,15 @@ def evaluate_duplicate_candidates(benchmark: DuplicateBenchmark) -> DuplicateEva
         covered_categories=len(covered_categories),
     )
     metrics = DuplicateEvaluationMetrics(
-        precision=_ratio(true_positives, true_positives + false_positives),
-        recall=_ratio(true_positives, true_positives + false_negatives),
-        three_class_accuracy=_ratio(matches, evaluated),
-        evaluated_coverage=_ratio(evaluated, case_count),
-        category_coverage=_ratio(
+        precision=ratio_metric(true_positives, true_positives + false_positives),
+        recall=ratio_metric(true_positives, true_positives + false_negatives),
+        three_class_accuracy=ratio_metric(matches, evaluated),
+        evaluated_coverage=ratio_metric(evaluated, case_count),
+        category_coverage=ratio_metric(
             len(covered_categories), len(REQUIRED_DUPLICATE_BENCHMARK_CATEGORIES)
         ),
-        component_expectation_coverage=_ratio(matching_components, evaluated),
-        explanation_coverage=_ratio(complete_explanations, evaluated),
+        component_expectation_coverage=ratio_metric(matching_components, evaluated),
+        explanation_coverage=ratio_metric(complete_explanations, evaluated),
     )
 
     validation_reasons: list[str] = []

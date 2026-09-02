@@ -25,8 +25,19 @@ class MetricsAtK:
     popularity_bias: Decimal | None
 
 
+@dataclass(frozen=True, slots=True)
+class EvaluationMetricContext:
+    popularity_by_item: Mapping[UUID, Decimal]
+
+
 def quantize_metric(value: Decimal) -> Decimal:
     return value.quantize(METRIC_QUANTUM, rounding=ROUND_HALF_UP)
+
+
+def ratio_metric(numerator: int, denominator: int) -> Decimal | None:
+    if denominator == 0:
+        return None
+    return quantize_metric(Decimal(numerator) / Decimal(denominator))
 
 
 def _discount(rank: int) -> Decimal:
@@ -52,19 +63,32 @@ def _training_popularity(
     }
 
 
+def prepare_metric_context(
+    training_events: tuple[SnapshotEvent, ...],
+) -> EvaluationMetricContext:
+    """Prepare model-independent evidence once for all cutoffs and fitted models."""
+
+    return EvaluationMetricContext(popularity_by_item=_training_popularity(training_events))
+
+
 def calculate_metrics(
     *,
     k: int,
     cases: tuple[UserEvaluationCase, ...],
     rankings: Mapping[UUID, tuple[UUID, ...]],
     training_events: tuple[SnapshotEvent, ...],
+    context: EvaluationMetricContext | None = None,
 ) -> MetricsAtK:
     if k < 1:
         raise ValueError("k must be positive")
     if not cases:
         return MetricsAtK(k, 0, 0, None, None, None, None, None, None, None)
 
-    popularity = _training_popularity(training_events)
+    popularity = (
+        context.popularity_by_item
+        if context is not None
+        else prepare_metric_context(training_events).popularity_by_item
+    )
     precisions: list[Decimal] = []
     recalls: list[Decimal] = []
     ndcgs: list[Decimal] = []

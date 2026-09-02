@@ -19,7 +19,7 @@ from .dataset import (
     canonical_json,
     validate_snapshot,
 )
-from .metrics import MetricsAtK, calculate_metrics, quantize_metric
+from .metrics import MetricsAtK, calculate_metrics, prepare_metric_context, quantize_metric
 from .models.baseline_v1 import BaselineV1Model
 from .models.collaborative_v1 import (
     COLLABORATIVE_ARTIFACT_SCHEMA_VERSION,
@@ -492,6 +492,7 @@ def evaluate(
     metrics_by_model: dict[str, tuple[MetricsAtK, ...]] = {}
     seeds_by_model: dict[str, int] = {}
     artifacts_by_model: dict[str, dict[str, JsonScalar] | None] = {}
+    metric_context = prepare_metric_context(split.training_events)
     for model in evaluation_models:
         rankings, model_seed, artifact = _rank_model(
             model,
@@ -506,6 +507,7 @@ def evaluate(
                 cases=split.cases,
                 rankings=rankings,
                 training_events=split.training_events,
+                context=metric_context,
             )
             for k in resolved_config.ks
         )

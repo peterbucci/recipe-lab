@@ -3,7 +3,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from recipe_lab_evaluation.dataset import SnapshotEvent
-from recipe_lab_evaluation.metrics import calculate_metrics
+from recipe_lab_evaluation.metrics import calculate_metrics, prepare_metric_context, ratio_metric
 from recipe_lab_evaluation.split import UserEvaluationCase
 
 TARGET_USER = UUID("04a46aa4-dcd8-43a4-b879-7fab4034fbd0")
@@ -61,6 +61,31 @@ def test_all_five_metrics_match_a_hand_computed_example() -> None:
     assert metrics.mean_recommended_popularity == Decimal("0.750000")
     assert metrics.mean_candidate_popularity == Decimal("0.375000")
     assert metrics.popularity_bias == Decimal("0.375000")
+
+
+def test_prepared_metric_evidence_preserves_results_across_cutoffs() -> None:
+    events = _popularity_events()
+    context = prepare_metric_context(events)
+    cases = (_hand_computed_case(),)
+    rankings = {TARGET_USER: (ITEM_A, ITEM_B)}
+
+    assert calculate_metrics(
+        k=2,
+        cases=cases,
+        rankings=rankings,
+        training_events=events,
+        context=context,
+    ) == calculate_metrics(
+        k=2,
+        cases=cases,
+        rankings=rankings,
+        training_events=events,
+    )
+
+
+def test_shared_ratio_metric_has_fixed_precision_and_explicit_undefined_value() -> None:
+    assert ratio_metric(2, 3) == Decimal("0.666667")
+    assert ratio_metric(0, 0) is None
 
 
 def test_ndcg_discounts_a_relevant_item_at_the_second_rank() -> None:
