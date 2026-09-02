@@ -89,8 +89,9 @@ describe("recipe draft editor domain state", () => {
 
     const editedDraft = { ...savedDraft, title: "Edited soup" };
     const dirty = recipeDraftEditorReducer(clean, {
-      draft: editedDraft,
-      type: "draft-changed",
+      field: "title",
+      type: "text-field-changed",
+      value: editedDraft.title,
     });
     expect(dirty.work.status).toBe("dirty");
     expect(recipeDraftEditorIsDirty(dirty)).toBe(true);
@@ -130,8 +131,9 @@ describe("recipe draft editor domain state", () => {
   it("ignores a stale save completion and never replaces newer local work", () => {
     const submittedDraft = { ...savedDraft, title: "Submitted soup" };
     const dirty = recipeDraftEditorReducer(load(), {
-      draft: submittedDraft,
-      type: "draft-changed",
+      field: "title",
+      type: "text-field-changed",
+      value: submittedDraft.title,
     });
     const attempt = prepareDraftSaveAttempt(dirty, {
       fingerprint: recipeDraftFingerprint(submittedDraft),
@@ -147,9 +149,14 @@ describe("recipe draft editor domain state", () => {
       title: "Newer local soup",
       categories: [CATEGORY],
     };
-    const savingWithNewerWork = recipeDraftEditorReducer(saving, {
-      draft: newerDraft,
-      type: "draft-changed",
+    const savingWithNewTitle = recipeDraftEditorReducer(saving, {
+      field: "title",
+      type: "text-field-changed",
+      value: newerDraft.title,
+    });
+    const savingWithNewerWork = recipeDraftEditorReducer(savingWithNewTitle, {
+      categories: newerDraft.categories,
+      type: "categories-changed",
     });
 
     const staleCompletion = recipeDraftEditorReducer(savingWithNewerWork, {
@@ -329,18 +336,18 @@ describe("recipe draft editor domain state", () => {
       type: "ingredient-moved",
     });
     state = recipeDraftEditorReducer(state, {
-      ingredient: { ...secondIngredient, preparationNotes: "diced" },
       key: secondIngredient.key,
-      type: "ingredient-replaced",
+      notes: "diced",
+      type: "ingredient-notes-changed",
     });
     state = recipeDraftEditorReducer(state, {
       instruction,
       type: "instruction-added",
     });
     state = recipeDraftEditorReducer(state, {
-      instruction: { ...instruction, text: "Simmer." },
       key: instruction.key,
-      type: "instruction-replaced",
+      text: "Simmer.",
+      type: "instruction-text-changed",
     });
     state = recipeDraftEditorReducer(state, {
       fieldErrors: { title: "Required" },

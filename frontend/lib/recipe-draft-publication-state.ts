@@ -27,14 +27,20 @@ export type PublicationFailureStatus =
   | "revision-conflict"
   | "source-unavailable";
 
+export type PublicationFailureRecovery =
+  | "latest-draft"
+  | "publish"
+  | "review"
+  | "source";
+
 export type PublicationWorkflow =
   | { status: "idle" }
-  | { status: "validating" }
-  | { scope: PublicationScope; status: "checking" }
+  | { phase: "validating"; status: "reviewing" }
+  | { phase: "checking"; scope: PublicationScope; status: "reviewing" }
   | {
       acknowledged: boolean;
       review: PublicationReview;
-      status: "review-required";
+      status: "confirmation";
     }
   | { acknowledged: boolean; context: PublicationContext; status: "publishing" }
   | {
@@ -48,8 +54,10 @@ export type PublicationWorkflow =
       context: PublicationContext | null;
       message: string;
       operation: "preflight" | "publish";
+      recovery: PublicationFailureRecovery;
       scope: PublicationScope;
-      status: PublicationFailureStatus;
+      status: "failed";
+      kind: PublicationFailureStatus;
     };
 
 export interface RecipeDraftPublicationState {
@@ -128,9 +136,21 @@ export function preparePublicationAttempt(
 
 export function publicationIsBusy(state: RecipeDraftPublicationState): boolean {
   return (
-    state.workflow.status === "checking" ||
+    (state.workflow.status === "reviewing" &&
+      state.workflow.phase === "checking") ||
     state.workflow.status === "publishing" ||
     state.workflow.status === "published"
+  );
+}
+
+export function publicationBlocksDismissal(
+  state: RecipeDraftPublicationState,
+): boolean {
+  return (
+    publicationIsBusy(state) ||
+    (state.workflow.status === "failed" &&
+      state.workflow.kind === "ambiguous-result" &&
+      state.workflow.recovery === "publish")
   );
 }
 
@@ -140,13 +160,7 @@ export function publicationContext(
   if (workflow.status === "publishing" || workflow.status === "published") {
     return workflow.context;
   }
-  if (
-    workflow.status === "ambiguous-result" ||
-    workflow.status === "authentication-interruption" ||
-    workflow.status === "failed-retryable" ||
-    workflow.status === "revision-conflict" ||
-    workflow.status === "source-unavailable"
-  ) {
+  if (workflow.status === "failed") {
     return workflow.context;
   }
   return null;
@@ -155,7 +169,7 @@ export function publicationContext(
 export function publicationReview(
   workflow: PublicationWorkflow,
 ): { acknowledged: boolean; review: PublicationReview } | null {
-  if (workflow.status === "review-required") {
+  if (workflow.status === "confirmation") {
     return { acknowledged: workflow.acknowledged, review: workflow.review };
   }
   const context = publicationContext(workflow);
@@ -174,7 +188,10 @@ export function recipeDraftPublicationReducer(
 ): RecipeDraftPublicationState {
   switch (event.type) {
     case "validation-started":
-      return { ...state, workflow: { status: "validating" } };
+      return {
+        ...state,
+        workflow: { phase: "validating", status: "reviewing" },
+      };
 
     case "validation-failed":
       return { ...state, workflow: { status: "idle" } };
@@ -182,13 +199,18 @@ export function recipeDraftPublicationReducer(
     case "preflight-started":
       return {
         attempts: { ...state.attempts, preflight: event.attempt },
-        workflow: { scope: event.scope, status: "checking" },
+        workflow: {
+          phase: "checking",
+          scope: event.scope,
+          status: "reviewing",
+        },
       };
 
     case "review-required": {
       const workflow = state.workflow;
       if (
-        workflow.status !== "checking" ||
+        workflow.status !== "reviewing" ||
+        workflow.phase !== "checking" ||
         state.attempts.preflight?.idempotencyKey !== event.attemptId
       ) {
         return state;
@@ -198,26 +220,19 @@ export function recipeDraftPublicationReducer(
         workflow: {
           acknowledged: false,
           review: { result: event.result, scope: workflow.scope },
-          status: "review-required",
+          status: "confirmation",
         },
       };
     }
 
     case "acknowledgement-changed":
-      if (state.workflow.status === "review-required") {
+      if (state.workflow.status === "confirmation") {
         return {
           ...state,
           workflow: { ...state.workflow, acknowledged: event.acknowledged },
         };
       }
-      if (
-        (state.workflow.status === "ambiguous-result" ||
-          state.workflow.status === "authentication-interruption" ||
-          state.workflow.status === "failed-retryable" ||
-          state.workflow.status === "revision-conflict" ||
-          state.workflow.status === "source-unavailable") &&
-        state.workflow.context
-      ) {
+      if (state.workflow.status === "failed" && state.workflow.context) {
         return {
           ...state,
           workflow: { ...state.workflow, acknowledged: event.acknowledged },
@@ -260,7 +275,9 @@ export function recipeDraftPublicationReducer(
       const workflow = state.workflow;
       if (
         activeAttempt?.idempotencyKey !== event.attemptId ||
-        (event.operation === "preflight" && workflow.status !== "checking") ||
+        (event.operation === "preflight" &&
+          (workflow.status !== "reviewing" ||
+            workflow.phase !== "checking")) ||
         (event.operation === "publish" && workflow.status !== "publishing")
       ) {
         return state;
@@ -272,12 +289,20 @@ export function recipeDraftPublicationReducer(
           ? workflow.context
           : null;
       const scope =
-        workflow.status === "checking"
+        workflow.status === "reviewing" && workflow.phase === "checking"
           ? workflow.scope
           : workflow.status === "publishing"
             ? workflow.context.scope
             : null;
       if (!scope) return state;
+      const recovery: PublicationFailureRecovery =
+        event.kind === "revision-conflict"
+          ? "latest-draft"
+          : event.kind === "source-unavailable"
+            ? "source"
+            : event.operation === "publish" && context !== null
+              ? "publish"
+              : "review";
       return {
         attempts: event.resetReview
           ? { preflight: null, publish: null }
@@ -290,8 +315,10 @@ export function recipeDraftPublicationReducer(
           context,
           message: event.message,
           operation: event.operation,
+          recovery,
           scope,
-          status: event.kind,
+          status: "failed",
+          kind: event.kind,
         },
       };
     }
@@ -303,7 +330,7 @@ export function recipeDraftPublicationReducer(
           workflow: {
             acknowledged: event.context.decision === "continue",
             review: event.context,
-            status: "review-required",
+            status: "confirmation",
           },
         };
       }

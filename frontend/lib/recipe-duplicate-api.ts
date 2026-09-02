@@ -381,6 +381,7 @@ async function duplicateMutation(
   path: string,
   body: unknown,
   idempotencyKey: string,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const response = await fetch(path, {
     method: "POST",
@@ -393,6 +394,7 @@ async function duplicateMutation(
       ...memberMutationHeaders(),
     },
     body: JSON.stringify(body),
+    signal,
   });
   if (!response.ok) {
     if (response.status === 401) {
@@ -415,11 +417,13 @@ export async function createRecipeDraftDuplicatePreflight(
   draftId: string,
   revision: number,
   idempotencyKey: string,
+  signal?: AbortSignal,
 ): Promise<RecipeDuplicatePreflight> {
   const result = await duplicateMutation(
     `/api/recipe-drafts/${encodeURIComponent(draftId)}/duplicate-preflights`,
     { revision },
     idempotencyKey,
+    signal,
   );
   return parseRecipeDuplicatePreflight(result);
 }

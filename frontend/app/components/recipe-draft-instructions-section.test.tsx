@@ -86,6 +86,13 @@ function Harness({
       ingredientOptions={[]}
       instructions={instructions}
       measurementUnits={[]}
+      onActionsChange={(key, actions) =>
+        setInstructions((current) =>
+          current.map((item) =>
+            item.key === key ? { ...item, actions } : item,
+          ),
+        )
+      }
       onAdd={() =>
         setInstructions((current) => [
           ...current,
@@ -106,9 +113,16 @@ function Harness({
           current.filter((_, candidateIndex) => candidateIndex !== index),
         )
       }
-      onReplace={(key, replacement) =>
+      onTextChange={(key, text) =>
         setInstructions((current) =>
-          current.map((item) => (item.key === key ? replacement : item)),
+          current.map((item) => (item.key === key ? { ...item, text } : item)),
+        )
+      }
+      onTitleChange={(key, title) =>
+        setInstructions((current) =>
+          current.map((item) =>
+            item.key === key ? { ...item, title } : item,
+          ),
         )
       }
     />

@@ -4,6 +4,7 @@ import {
   type FormEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useReducer,
   useRef,
   useState,
@@ -32,22 +33,9 @@ import {
   hydrateRecipeDraft,
   recipeDraftFieldErrorsFromIssues,
   recipeDraftFingerprint,
-  type RecipeDraftEditorState,
-  type RecipeDraftIngredientState,
-  type RecipeDraftInstructionState,
   type RecipeDraftValidation,
   validateRecipeDraft,
 } from "../../lib/recipe-draft";
-import {
-  appendDraftIngredient,
-  appendDraftInstruction,
-  moveDraftIngredient,
-  moveDraftInstruction,
-  removeDraftIngredient,
-  removeDraftInstruction,
-  replaceDraftIngredient,
-  replaceDraftInstruction,
-} from "../../lib/recipe-draft-editor-transforms";
 import {
   type DraftFailureKind,
   initialRecipeDraftEditorDomainState,
@@ -55,6 +43,11 @@ import {
   recipeDraftEditorIsDirty,
   recipeDraftEditorReducer,
 } from "../../lib/recipe-draft-editor-state";
+import {
+  initialRecipeDraftPublicationState,
+  publicationBlocksDismissal,
+  recipeDraftPublicationReducer,
+} from "../../lib/recipe-draft-publication-state";
 import { MemberRouteGate } from "./member-route-gate";
 import { Dialog } from "./overlay-primitives";
 import { useAuthSession } from "./auth-session-provider";
@@ -98,6 +91,11 @@ interface LoadedRecipeFamily {
   recipe: RecipeDetail;
   sourceVersionId: string;
   versions: readonly RecipeCardSummary[];
+}
+
+interface EditorRequest {
+  controller: AbortController;
+  id: number;
 }
 
 async function fetchRecipeFamily(
@@ -231,11 +229,12 @@ function RecipeDraftEditorInner({
     initialDetail,
     initialEditorDomainState,
   );
+  const [publicationState, publicationDispatch] = useReducer(
+    recipeDraftPublicationReducer,
+    initialRecipeDraftPublicationState,
+  );
   const [loading, setLoading] = useState(initialDetail === undefined);
-  const [publicationBusy, setPublicationBusy] = useState(false);
   const [loadError, setLoadError] = useState("");
-  const [formError, setFormError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [announcement, setAnnouncement] = useState("");
   const [finishOpen, setFinishOpen] = useState(false);
   const [loadedRecipeFamily, setLoadedRecipeFamily] =
@@ -245,7 +244,6 @@ function RecipeDraftEditorInner({
   >(null);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const finishTriggerRef = useRef<HTMLButtonElement>(null);
-  const pendingRef = useRef(false);
   const pendingFocusId = useRef<string | null>(null);
   const latestDraftFingerprint = useRef(
     domain.work.status === "unavailable"
@@ -253,11 +251,15 @@ function RecipeDraftEditorInner({
       : recipeDraftFingerprint(domain.work.draft),
   );
   const loadRequestToken = useRef(0);
+  const nextSaveRequestId = useRef(0);
+  const activeSaveRequest = useRef<EditorRequest | null>(null);
 
   const work = domain.work.status === "unavailable" ? null : domain.work;
   const detail = work?.detail ?? null;
   const draft = work?.draft ?? null;
+  const { fieldErrors, formError } = domain.validation;
   const dirty = recipeDraftEditorIsDirty(domain);
+  const publicationBusy = publicationBlocksDismissal(publicationState);
   const pending = domain.save.status === "saving" ? "save" : null;
   const conflict = domain.save.status === "revision-conflict";
   const authenticationInterrupted =
@@ -301,8 +303,6 @@ function RecipeDraftEditorInner({
         }
         latestDraftFingerprint.current = recipeDraftFingerprint(state);
         dispatch({ detail: loaded, draft: state, mode, type: "draft-loaded" });
-        setFieldErrors({});
-        setFormError("");
         return "loaded";
       } catch (reason) {
         if (reason instanceof DOMException && reason.name === "AbortError")
@@ -335,12 +335,11 @@ function RecipeDraftEditorInner({
           mode: "initial",
           type: "draft-loaded",
         });
-        setFieldErrors({});
-        setFormError("");
       })
       .catch((reason: unknown) => {
-        if (reason instanceof DOMException && reason.name === "AbortError")
+        if (reason instanceof DOMException && reason.name === "AbortError") {
           return;
+        }
         if (requestToken === loadRequestToken.current) {
           setLoadError(draftLoadErrorMessage(reason));
         }
@@ -355,6 +354,20 @@ function RecipeDraftEditorInner({
       });
     return () => controller.abort();
   }, [draftId, initialDetail]);
+
+  useLayoutEffect(() => {
+    if (draft) {
+      latestDraftFingerprint.current = recipeDraftFingerprint(draft);
+    }
+  }, [draft]);
+
+  useEffect(
+    () => () => {
+      activeSaveRequest.current?.controller.abort();
+      activeSaveRequest.current = null;
+    },
+    [],
+  );
 
   const sourceVersionId = detail?.source_version_id ?? null;
   const hasProvidedRecipeFamily =
@@ -392,33 +405,11 @@ function RecipeDraftEditorInner({
     pendingFocusId.current = null;
   }, [draft]);
 
-  function change(next: RecipeDraftEditorState) {
-    latestDraftFingerprint.current = recipeDraftFingerprint(next);
-    dispatch({ draft: next, type: "draft-changed" });
-    setFormError("");
-  }
-
-  function replaceIngredient(
-    key: string,
-    ingredient: RecipeDraftIngredientState,
-  ) {
-    if (!draft) return;
-    change(replaceDraftIngredient(draft, key, ingredient));
-  }
-
-  function replaceInstruction(
-    key: string,
-    instruction: RecipeDraftInstructionState,
-  ) {
-    if (!draft) return;
-    change(replaceDraftInstruction(draft, key, instruction));
-  }
-
   function addIngredient() {
     if (!draft || draft.ingredients.length >= 200) return;
     const row = createDraftIngredientState();
     pendingFocusId.current = `draft-${row.key}-ingredient-search`;
-    change(appendDraftIngredient(draft, row));
+    dispatch({ ingredient: row, type: "ingredient-added" });
     setAnnouncement(`Added ingredient ${draft.ingredients.length + 1}.`);
   }
 
@@ -442,14 +433,14 @@ function RecipeDraftEditorInner({
     ) {
       return;
     }
-    const next = removeDraftIngredient(draft, index);
-    if (next === draft) return;
-    const focus =
-      next.ingredients[Math.min(index, next.ingredients.length - 1)];
+    const remaining = draft.ingredients.filter(
+      (_, ingredientIndex) => ingredientIndex !== index,
+    );
+    const focus = remaining[Math.min(index, remaining.length - 1)];
     pendingFocusId.current = focus
       ? `draft-${focus.key}-ingredient-search`
       : "draft-add-ingredient";
-    change(next);
+    dispatch({ index, type: "ingredient-removed" });
     setAnnouncement(`Removed ingredient ${index + 1}.`);
   }
 
@@ -459,12 +450,10 @@ function RecipeDraftEditorInner({
     if (destination < 0 || destination >= draft.ingredients.length) return;
     const moved = draft.ingredients[index];
     if (!moved) return;
-    const next = moveDraftIngredient(draft, index, direction);
-    if (next === draft) return;
     pendingFocusId.current = `draft-${moved.key}-ingredient-move-${direction < 0 ? "up" : "down"}`;
-    change(next);
+    dispatch({ direction, index, type: "ingredient-moved" });
     setAnnouncement(
-      `Moved ingredient to position ${destination + 1} of ${next.ingredients.length}.`,
+      `Moved ingredient to position ${destination + 1} of ${draft.ingredients.length}.`,
     );
   }
 
@@ -472,20 +461,20 @@ function RecipeDraftEditorInner({
     if (!draft || draft.instructions.length >= 100) return;
     const row = createDraftInstructionState();
     pendingFocusId.current = `draft-${row.key}-instruction-text`;
-    change(appendDraftInstruction(draft, row));
+    dispatch({ instruction: row, type: "instruction-added" });
     setAnnouncement(`Added instruction ${draft.instructions.length + 1}.`);
   }
 
   function removeInstruction(index: number) {
     if (!draft) return;
-    const next = removeDraftInstruction(draft, index);
-    if (next === draft) return;
-    const focus =
-      next.instructions[Math.min(index, next.instructions.length - 1)];
+    const remaining = draft.instructions.filter(
+      (_, instructionIndex) => instructionIndex !== index,
+    );
+    const focus = remaining[Math.min(index, remaining.length - 1)];
     pendingFocusId.current = focus
       ? `draft-${focus.key}-instruction-text`
       : "draft-add-instruction";
-    change(next);
+    dispatch({ index, type: "instruction-removed" });
     setAnnouncement(`Removed instruction ${index + 1}.`);
   }
 
@@ -495,29 +484,29 @@ function RecipeDraftEditorInner({
     if (destination < 0 || destination >= draft.instructions.length) return;
     const moved = draft.instructions[index];
     if (!moved) return;
-    const next = moveDraftInstruction(draft, index, direction);
-    if (next === draft) return;
     pendingFocusId.current = `draft-${moved.key}-instruction-move-${direction < 0 ? "up" : "down"}`;
-    change(next);
+    dispatch({ direction, index, type: "instruction-moved" });
     setAnnouncement(
-      `Moved instruction to position ${destination + 1} of ${next.instructions.length}.`,
+      `Moved instruction to position ${destination + 1} of ${draft.instructions.length}.`,
     );
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!draft || !detail || pendingRef.current || pending) return;
+    if (!draft || !detail || activeSaveRequest.current || pending) return;
     const validation = validateRecipeDraft(
       draft,
       detail.revision,
       measurementUnits,
       actionTypes,
     );
-    setFieldErrors(validation.fieldErrors);
     if (!validation.payload) {
-      setFormError(
-        "Review the highlighted fields. Your draft has not been changed on the server.",
-      );
+      dispatch({
+        fieldErrors: validation.fieldErrors,
+        formError:
+          "Review the highlighted fields. Your draft has not been changed on the server.",
+        type: "validation-applied",
+      });
       window.setTimeout(() => errorSummaryRef.current?.focus(), 0);
       return;
     }
@@ -527,15 +516,26 @@ function RecipeDraftEditorInner({
       newIdempotencyKey: createIdempotencyKey(),
       revision: detail.revision,
     });
-    pendingRef.current = true;
+    const request = {
+      controller: new AbortController(),
+      id: ++nextSaveRequestId.current,
+    };
+    activeSaveRequest.current = request;
     dispatch({ attempt, type: "save-started" });
-    setFormError("");
+    dispatch({ type: "validation-cleared" });
     try {
       const saved = await updateRecipeDraft(
         draftId,
         validation.payload,
         attempt.idempotencyKey,
+        request.controller.signal,
       );
+      if (
+        activeSaveRequest.current?.id !== request.id ||
+        request.controller.signal.aborted
+      ) {
+        return;
+      }
       const savedState = hydrateRecipeDraft(saved);
       const hasNewerLocalWork =
         latestDraftFingerprint.current !== attempt.fingerprint;
@@ -547,8 +547,14 @@ function RecipeDraftEditorInner({
       });
       if (!hasNewerLocalWork)
         latestDraftFingerprint.current = recipeDraftFingerprint(savedState);
-      setFieldErrors({});
     } catch (reason) {
+      if (
+        request.controller.signal.aborted ||
+        (reason instanceof DOMException && reason.name === "AbortError")
+      ) {
+        return;
+      }
+      if (activeSaveRequest.current?.id !== request.id) return;
       const kind = draftFailureKind(reason);
       dispatch({
         attemptId: attempt.idempotencyKey,
@@ -560,26 +566,38 @@ function RecipeDraftEditorInner({
           ? recipeDraftFieldErrorsFromIssues(draft, reason.issues)
           : {};
       if (Object.keys(serverFieldErrors).length > 0) {
-        setFieldErrors(serverFieldErrors);
-        setFormError(
-          "Review the highlighted fields. Your edits are still here.",
-        );
+        dispatch({
+          fieldErrors: serverFieldErrors,
+          formError: "Review the highlighted fields. Your edits are still here.",
+          type: "validation-applied",
+        });
       } else if (kind === "revision-conflict") {
-        setFormError(
-          "This draft changed in another tab. Your unsaved version is still here.",
-        );
+        dispatch({
+          fieldErrors: {},
+          formError:
+            "This draft changed in another tab. Your unsaved version is still here.",
+          type: "validation-applied",
+        });
       } else if (kind === "authentication-interruption") {
-        setFormError(
-          "Your session expired. Your edits are still here. Sign in again before saving.",
-        );
+        dispatch({
+          fieldErrors: {},
+          formError:
+            "Your session expired. Your edits are still here. Sign in again before saving.",
+          type: "validation-applied",
+        });
       } else {
-        setFormError(
-          "Recipe Lab could not save this draft. Your edits are still here.",
-        );
+        dispatch({
+          fieldErrors: {},
+          formError:
+            "Recipe Lab could not save this draft. Your edits are still here.",
+          type: "validation-applied",
+        });
       }
       window.setTimeout(() => errorSummaryRef.current?.focus(), 0);
     } finally {
-      pendingRef.current = false;
+      if (activeSaveRequest.current?.id === request.id) {
+        activeSaveRequest.current = null;
+      }
     }
   }
 
@@ -595,17 +613,18 @@ function RecipeDraftEditorInner({
   }
 
   function applyPublicationValidation(validation: RecipeDraftValidation) {
-    setFieldErrors(validation.fieldErrors);
     if (validation.payload) {
-      setFormError("");
-      if (draft) dispatch({ draft, type: "draft-changed" });
+      dispatch({ type: "validation-cleared" });
       return;
     }
-    setFormError(
-      validation.formErrors.length > 0
-        ? validation.formErrors.join(" ")
-        : "Review the highlighted fields. Your saved draft is still private and unchanged.",
-    );
+    dispatch({
+      fieldErrors: validation.fieldErrors,
+      formError:
+        validation.formErrors.length > 0
+          ? validation.formErrors.join(" ")
+          : "Review the highlighted fields. Your saved draft is still private and unchanged.",
+      type: "validation-applied",
+    });
     setFinishOpen(false);
     window.setTimeout(() => errorSummaryRef.current?.focus(), 0);
   }
@@ -622,6 +641,7 @@ function RecipeDraftEditorInner({
 
   function closeFinishDialog() {
     if (publicationBusy) return;
+    publicationDispatch({ type: "keep-editing" });
     setFinishOpen(false);
     window.setTimeout(() => finishTriggerRef.current?.focus(), 0);
   }
@@ -796,9 +816,19 @@ function RecipeDraftEditorInner({
                   disabled={editorDisabled}
                   errors={fieldErrors}
                   onDescriptionChange={(description) =>
-                    change({ ...draft, description })
+                    dispatch({
+                      field: "description",
+                      type: "text-field-changed",
+                      value: description,
+                    })
                   }
-                  onTitleChange={(title) => change({ ...draft, title })}
+                  onTitleChange={(title) =>
+                    dispatch({
+                      field: "title",
+                      type: "text-field-changed",
+                      value: title,
+                    })
+                  }
                   isVersion={isVersion}
                   title={draft.title}
                   titleContext={
@@ -834,7 +864,9 @@ function RecipeDraftEditorInner({
                   disabled={editorDisabled}
                   error={fieldErrors.categories}
                   initialActiveCategories={initialCategories}
-                  onChange={(categories) => change({ ...draft, categories })}
+                  onChange={(categories) =>
+                    dispatch({ categories, type: "categories-changed" })
+                  }
                   presentation="recipe"
                   value={draft.categories}
                 />
@@ -858,16 +890,28 @@ function RecipeDraftEditorInner({
                   disabled={editorDisabled}
                   errors={fieldErrors}
                   onActiveTimeMinutesChange={(activeTimeMinutes) =>
-                    change({ ...draft, activeTimeMinutes })
+                    dispatch({
+                      field: "activeTimeMinutes",
+                      type: "text-field-changed",
+                      value: activeTimeMinutes,
+                    })
                   }
                   onDifficultyChange={(difficulty) =>
-                    change({ ...draft, difficulty })
+                    dispatch({ type: "difficulty-changed", value: difficulty })
                   }
                   onServingsChange={(servings) =>
-                    change({ ...draft, servings })
+                    dispatch({
+                      field: "servings",
+                      type: "text-field-changed",
+                      value: servings,
+                    })
                   }
                   onTotalTimeMinutesChange={(totalTimeMinutes) =>
-                    change({ ...draft, totalTimeMinutes })
+                    dispatch({
+                      field: "totalTimeMinutes",
+                      type: "text-field-changed",
+                      value: totalTimeMinutes,
+                    })
                   }
                   servings={draft.servings}
                   totalTimeMinutes={draft.totalTimeMinutes}
@@ -937,7 +981,23 @@ function RecipeDraftEditorInner({
                   onAdd={addIngredient}
                   onMove={moveIngredient}
                   onRemove={removeIngredient}
-                  onReplace={replaceIngredient}
+                  onMeasureChange={(key, measure) =>
+                    dispatch({
+                      key,
+                      measure,
+                      type: "ingredient-measure-changed",
+                    })
+                  }
+                  onNotesChange={(key, notes) =>
+                    dispatch({ key, notes, type: "ingredient-notes-changed" })
+                  }
+                  onSelectionChange={(key, selection) =>
+                    dispatch({
+                      key,
+                      selection,
+                      type: "ingredient-selection-changed",
+                    })
+                  }
                 />
                 <RecipeDraftInstructionsSection
                   actionTypes={actionTypes}
@@ -949,7 +1009,23 @@ function RecipeDraftEditorInner({
                   onAdd={addInstruction}
                   onMove={moveInstruction}
                   onRemove={removeInstruction}
-                  onReplace={replaceInstruction}
+                  onActionsChange={(key, actions) =>
+                    dispatch({
+                      actions,
+                      key,
+                      type: "instruction-actions-changed",
+                    })
+                  }
+                  onTextChange={(key, text) =>
+                    dispatch({ key, text, type: "instruction-text-changed" })
+                  }
+                  onTitleChange={(key, title) =>
+                    dispatch({
+                      key,
+                      title,
+                      type: "instruction-title-changed",
+                    })
+                  }
                 />
               </div>
             }
@@ -958,7 +1034,13 @@ function RecipeDraftEditorInner({
                 disabled={editorDisabled}
                 error={fieldErrors.notes}
                 notes={draft.notes}
-                onChange={(notes) => change({ ...draft, notes })}
+                onChange={(notes) =>
+                  dispatch({
+                    field: "notes",
+                    type: "text-field-changed",
+                    value: notes,
+                  })
+                }
               />
             }
             family={
@@ -1037,9 +1119,10 @@ function RecipeDraftEditorInner({
                   draftId={draftId}
                   dirty={dirty}
                   measurementUnits={measurementUnits}
-                  onBusyChange={setPublicationBusy}
                   onRequestClose={closeFinishDialog}
                   onValidation={applyPublicationValidation}
+                  publicationDispatch={publicationDispatch}
+                  publicationState={publicationState}
                   revision={detail.revision}
                   sourceRecipeTitle={sourceRecipeTitle}
                   sourceVersionId={detail.source_version_id}

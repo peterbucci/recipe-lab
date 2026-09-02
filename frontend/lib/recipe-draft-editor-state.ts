@@ -72,7 +72,6 @@ export type RecipeDraftEditorEvent =
       mode: "initial" | "replacement";
       type: "draft-loaded";
     }
-  | { draft: RecipeDraftEditorState; type: "draft-changed" }
   | { attempt: DraftSaveAttempt; type: "save-started" }
   | {
       attemptId: string;
@@ -97,17 +96,37 @@ export type RecipeDraftEditorEvent =
     }
   | { ingredient: RecipeDraftIngredientState; type: "ingredient-added" }
   | {
-      ingredient: RecipeDraftIngredientState;
       key: string;
-      type: "ingredient-replaced";
+      measure: RecipeDraftIngredientState["measure"];
+      type: "ingredient-measure-changed";
+    }
+  | {
+      key: string;
+      selection: RecipeDraftIngredientState["selection"];
+      type: "ingredient-selection-changed";
+    }
+  | {
+      key: string;
+      notes: string;
+      type: "ingredient-notes-changed";
     }
   | { index: number; type: "ingredient-removed" }
   | { direction: -1 | 1; index: number; type: "ingredient-moved" }
   | { instruction: RecipeDraftInstructionState; type: "instruction-added" }
   | {
-      instruction: RecipeDraftInstructionState;
       key: string;
-      type: "instruction-replaced";
+      text: string;
+      type: "instruction-text-changed";
+    }
+  | {
+      key: string;
+      title: string;
+      type: "instruction-title-changed";
+    }
+  | {
+      actions: RecipeDraftInstructionState["actions"];
+      key: string;
+      type: "instruction-actions-changed";
     }
   | { index: number; type: "instruction-removed" }
   | { direction: -1 | 1; index: number; type: "instruction-moved" }
@@ -183,6 +202,40 @@ function changeDraft(
   };
 }
 
+function changeIngredient(
+  state: RecipeDraftEditorDomainState,
+  key: string,
+  update: (ingredient: RecipeDraftIngredientState) => RecipeDraftIngredientState,
+): RecipeDraftEditorDomainState {
+  if (state.work.status === "unavailable") return state;
+  const ingredient = state.work.draft.ingredients.find((row) => row.key === key);
+  return ingredient
+    ? changeDraft(
+        state,
+        replaceDraftIngredient(state.work.draft, key, update(ingredient)),
+      )
+    : state;
+}
+
+function changeInstruction(
+  state: RecipeDraftEditorDomainState,
+  key: string,
+  update: (
+    instruction: RecipeDraftInstructionState,
+  ) => RecipeDraftInstructionState,
+): RecipeDraftEditorDomainState {
+  if (state.work.status === "unavailable") return state;
+  const instruction = state.work.draft.instructions.find(
+    (row) => row.key === key,
+  );
+  return instruction
+    ? changeDraft(
+        state,
+        replaceDraftInstruction(state.work.draft, key, update(instruction)),
+      )
+    : state;
+}
+
 export function recipeDraftEditorReducer(
   state: RecipeDraftEditorDomainState,
   event: RecipeDraftEditorEvent,
@@ -200,10 +253,6 @@ export function recipeDraftEditorReducer(
           status: "clean",
         },
       };
-
-    case "draft-changed": {
-      return changeDraft(state, event.draft);
-    }
 
     case "text-field-changed":
       return state.work.status === "unavailable"
@@ -237,17 +286,23 @@ export function recipeDraftEditorReducer(
             appendDraftIngredient(state.work.draft, event.ingredient),
           );
 
-    case "ingredient-replaced":
-      return state.work.status === "unavailable"
-        ? state
-        : changeDraft(
-            state,
-            replaceDraftIngredient(
-              state.work.draft,
-              event.key,
-              event.ingredient,
-            ),
-          );
+    case "ingredient-measure-changed":
+      return changeIngredient(state, event.key, (ingredient) => ({
+        ...ingredient,
+        measure: event.measure,
+      }));
+
+    case "ingredient-selection-changed":
+      return changeIngredient(state, event.key, (ingredient) => ({
+        ...ingredient,
+        selection: event.selection,
+      }));
+
+    case "ingredient-notes-changed":
+      return changeIngredient(state, event.key, (ingredient) => ({
+        ...ingredient,
+        preparationNotes: event.notes,
+      }));
 
     case "ingredient-removed":
       return state.work.status === "unavailable"
@@ -277,17 +332,23 @@ export function recipeDraftEditorReducer(
             appendDraftInstruction(state.work.draft, event.instruction),
           );
 
-    case "instruction-replaced":
-      return state.work.status === "unavailable"
-        ? state
-        : changeDraft(
-            state,
-            replaceDraftInstruction(
-              state.work.draft,
-              event.key,
-              event.instruction,
-            ),
-          );
+    case "instruction-text-changed":
+      return changeInstruction(state, event.key, (instruction) => ({
+        ...instruction,
+        text: event.text,
+      }));
+
+    case "instruction-title-changed":
+      return changeInstruction(state, event.key, (instruction) => ({
+        ...instruction,
+        title: event.title,
+      }));
+
+    case "instruction-actions-changed":
+      return changeInstruction(state, event.key, (instruction) => ({
+        ...instruction,
+        actions: event.actions,
+      }));
 
     case "instruction-removed":
       return state.work.status === "unavailable"

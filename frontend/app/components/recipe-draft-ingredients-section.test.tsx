@@ -127,9 +127,20 @@ function renderSection({
       ingredients={nextRows}
       measurementUnits={[gram]}
       onAdd={onAdd}
+      onMeasureChange={(key, measure) => {
+        const current = nextRows.find((row) => row.key === key);
+        if (current) onReplace(key, { ...current, measure });
+      }}
       onMove={onMove}
+      onNotesChange={(key, preparationNotes) => {
+        const current = nextRows.find((row) => row.key === key);
+        if (current) onReplace(key, { ...current, preparationNotes });
+      }}
       onRemove={onRemove}
-      onReplace={onReplace}
+      onSelectionChange={(key, selection) => {
+        const current = nextRows.find((row) => row.key === key);
+        if (current) onReplace(key, { ...current, selection });
+      }}
     />
   );
   const view = render(renderRows(rows));
