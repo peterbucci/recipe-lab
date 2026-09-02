@@ -25,6 +25,7 @@ import { WorkspacePagination } from "./workspace-pagination";
 const RETURN_TO = "/account/recipes?view=saved";
 
 function SavedRecipeLibraryInner() {
+  const loadControllerRef = useRef<AbortController | null>(null);
   const removeAttempts = useRef(new Map<string, string>());
   const statusRef = useRef<HTMLParagraphElement>(null);
   const [pageNumber, setPageNumber] = useState(1);
@@ -39,57 +40,42 @@ function SavedRecipeLibraryInner() {
   );
 
   const load = useCallback(
-    async (requestedPage: number, signal?: AbortSignal) => {
+    async (requestedPage: number) => {
+      loadControllerRef.current?.abort();
+      const controller = new AbortController();
+      loadControllerRef.current = controller;
       setLoading(true);
       setError("");
       try {
         const result = await fetchSavedRecipeLibrary({
           page: requestedPage,
           pageSize: 12,
-          signal,
+          signal: controller.signal,
         });
+        if (loadControllerRef.current !== controller) return;
         setPage(result);
         setPageNumber(result.page);
       } catch (reason) {
-        if (isAbortError(reason))
-          return;
+        if (isAbortError(reason) || loadControllerRef.current !== controller) return;
         setError(
           reason instanceof RecipeLibraryApiError
             ? reason.message
             : "Recipe Lab could not load your saved recipes. Please try again.",
         );
       } finally {
-        if (!signal?.aborted) setLoading(false);
+        if (loadControllerRef.current === controller) {
+          loadControllerRef.current = null;
+          setLoading(false);
+        }
       }
     },
     [],
   );
 
   useEffect(() => {
-    const controller = new AbortController();
-    void fetchSavedRecipeLibrary({
-      page: pageNumber,
-      pageSize: 12,
-      signal: controller.signal,
-    })
-      .then((result) => {
-        setPage(result);
-        setPageNumber(result.page);
-      })
-      .catch((reason: unknown) => {
-        if (isAbortError(reason))
-          return;
-        setError(
-          reason instanceof RecipeLibraryApiError
-            ? reason.message
-            : "Recipe Lab could not load your saved recipes. Please try again.",
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [pageNumber]);
+    void load(pageNumber);
+    return () => loadControllerRef.current?.abort();
+  }, [load, pageNumber]);
 
   function changePage(nextPage: number) {
     setLoading(true);
