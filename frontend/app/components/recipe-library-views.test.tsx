@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PublicCookProfilePage } from "../../lib/recipe-library-api";
 import type { RecipeCardSummary } from "../../lib/recipe-api";
 import { CSRF_COOKIE_NAME } from "../../lib/auth-api";
+import { buildRecipeCardSummary } from "../../test/builders/recipe";
+import { deferred } from "../../test/deferred";
 import CookProfileError from "../cooks/[handle]/error";
 import CookProfileLoading from "../cooks/[handle]/loading";
 import CookProfileNotFound from "../cooks/[handle]/not-found";
@@ -42,24 +44,20 @@ const catalog = {
 function original(
   overrides: Partial<RecipeCardSummary> = {},
 ): RecipeCardSummary {
-  return {
+  return buildRecipeCardSummary({
     id: ROOT_ID,
     lineage_id: LINEAGE_ID,
-    parent_version_id: null,
-    version_number: 1,
     title: "Alice’s tomato soup",
     description: "A bright soup.",
     servings: "4.00",
     created_at: "2026-08-25T10:00:00Z",
     published_at: "2026-08-25T11:00:00Z",
-    categories: [],
     author: alice,
-    parent: null,
     average_rating: 4.5,
     rating_count: 2,
     save_count: 7,
     ...overrides,
-  };
+  });
 }
 
 function fork(): RecipeCardSummary {
@@ -116,14 +114,6 @@ function anonymous(children: React.ReactNode) {
       {children}
     </AuthSessionProvider>,
   );
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
-  return { promise, resolve };
 }
 
 afterEach(() => {

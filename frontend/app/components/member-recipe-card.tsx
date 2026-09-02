@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import type { RecipeSummary } from "../../lib/recipe-api";
+import { formatMemberRecipeDate } from "../../lib/member-recipe-presentation";
 import { PublicCookAttribution } from "./public-cook-attribution";
 import { RecipeArtwork } from "./recipe-artwork";
 import { RecipeCardShell } from "./recipe-card-shell";
@@ -17,12 +18,6 @@ interface MemberRecipeCardProps {
   recipe: RecipeSummary;
   savedAt?: string;
   state: MemberRecipeCardState;
-}
-
-function formatCardDate(timestamp: string): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-    new Date(timestamp),
-  );
 }
 
 function RecipeContext({
@@ -116,13 +111,13 @@ function CardMetadata({
       {state === "saved" && savedAt ? (
         <span>
           Saved{" "}
-          <time dateTime={savedAt}>{formatCardDate(savedAt)}</time>
+          <time dateTime={savedAt}>{formatMemberRecipeDate(savedAt)}</time>
         </span>
       ) : (
         <span>
           {state === "withdrawn" ? "Originally published" : "Published"}{" "}
           <time dateTime={recipe.published_at}>
-            {formatCardDate(recipe.published_at)}
+            {formatMemberRecipeDate(recipe.published_at)}
           </time>
         </span>
       )}
@@ -130,7 +125,7 @@ function CardMetadata({
         <span>
           Published{" "}
           <time dateTime={recipe.published_at}>
-            {formatCardDate(recipe.published_at)}
+            {formatMemberRecipeDate(recipe.published_at)}
           </time>
         </span>
       ) : null}

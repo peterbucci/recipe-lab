@@ -12,6 +12,7 @@ import {
 import { isAbortError } from "../../lib/abort-error";
 import { AuthApiError } from "../../lib/auth-api";
 import { createIdempotencyKey } from "../../lib/idempotency-key";
+import { formatMemberRecipeDate } from "../../lib/member-recipe-presentation";
 import {
   discardRecipeDraft,
   RecipeDraftApiError,
@@ -89,12 +90,6 @@ const VIEW_COPY: Record<MyRecipeLibraryView, ViewCopy> = {
     resultName: "withdrawn recipe",
   },
 };
-
-function formatActivity(timestamp: string): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-    new Date(timestamp),
-  );
-}
 
 function viewLabel(view: MyRecipeLibraryView): string {
   return view.slice(0, 1).toUpperCase() + view.slice(1);
@@ -539,7 +534,7 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
                           <span>
                             Edited{" "}
                             <time dateTime={draft.updated_at}>
-                              {formatActivity(draft.updated_at)}
+                              {formatMemberRecipeDate(draft.updated_at)}
                             </time>
                           </span>
                         </div>

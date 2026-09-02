@@ -3,20 +3,50 @@ export interface RelativeTimeLabel {
   relativeLabel: string;
 }
 
-const relativeTimeFormatter = new Intl.RelativeTimeFormat("en", {
+const naturalRelativeTimeFormatter = new Intl.RelativeTimeFormat("en", {
   numeric: "auto",
 });
+
+const numericRelativeTimeFormatter = new Intl.RelativeTimeFormat("en", {
+  numeric: "always",
+});
+
+interface RelativeTimePresentation {
+  absoluteDateTime: boolean;
+  formatter: Intl.RelativeTimeFormat;
+}
 
 export function relativeTimeLabel(
   value: string,
   now = Date.now(),
+): RelativeTimeLabel | null {
+  return formatRelativeTimeLabel(value, now, {
+    absoluteDateTime: true,
+    formatter: naturalRelativeTimeFormatter,
+  });
+}
+
+export function communityPublicationTimeLabel(
+  value: string,
+  now = Date.now(),
+): RelativeTimeLabel | null {
+  return formatRelativeTimeLabel(value, now, {
+    absoluteDateTime: false,
+    formatter: numericRelativeTimeFormatter,
+  });
+}
+
+function formatRelativeTimeLabel(
+  value: string,
+  now: number,
+  presentation: RelativeTimePresentation,
 ): RelativeTimeLabel | null {
   const date = new Date(value);
   if (!Number.isFinite(date.valueOf())) return null;
 
   const absoluteLabel = new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
-    timeStyle: "short",
+    ...(presentation.absoluteDateTime ? { timeStyle: "short" as const } : {}),
     timeZone: "UTC",
   }).format(date);
   const secondsFromNow = (date.valueOf() - now) / 1_000;
@@ -50,7 +80,7 @@ export function relativeTimeLabel(
 
   return {
     absoluteLabel,
-    relativeLabel: relativeTimeFormatter.format(
+    relativeLabel: presentation.formatter.format(
       Math.round(secondsFromNow / unitSeconds),
       unit,
     ),

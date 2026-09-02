@@ -12,6 +12,7 @@ import type { AuthSession } from "../../lib/auth-api";
 import type { RecipeViewerState } from "../../lib/interaction-api";
 import type { RecipeDraftListItem } from "../../lib/recipe-draft-api";
 import type { RecipeDraftEditorEntry } from "../../lib/recipe-draft-editor-entry";
+import { deferred } from "../../test/deferred";
 import { AuthSessionProvider, useAuthSession } from "./auth-session-provider";
 import { RecipeMemberActions } from "./recipe-member-actions";
 
@@ -130,16 +131,6 @@ function renderActions(
       />
     </AuthSessionProvider>,
   );
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  return { promise, reject, resolve };
 }
 
 beforeEach(() => {

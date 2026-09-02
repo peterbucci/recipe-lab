@@ -1,21 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import {
-  browseIngredientCatalogReviewRequests,
-  fetchIngredientCatalogReviewDetail,
   type IngredientCatalogRequestStatus,
-  IngredientCatalogApiError,
-  type IngredientCatalogReviewDetail,
   type IngredientCatalogReviewItem,
-  type IngredientCatalogReviewPage,
 } from "../../lib/ingredient-catalog-api";
-import { isAbortError } from "../../lib/abort-error";
 import { useAuthSession } from "./auth-session-provider";
 import { IngredientRequestReviewDetail } from "./ingredient-request-review-detail";
-import { STATUS_LABELS } from "./ingredient-request-review-model";
 import {
   IngredientRequestReviewQueue,
   IngredientRequestStatusFilters,
@@ -27,6 +20,7 @@ import {
   WorkspaceErrorState,
   WorkspaceLoadingState,
 } from "./workspace-state";
+import { useIngredientRequestReviewWorkspace } from "./use-ingredient-request-review-workspace";
 
 const REQUEST_STATUS_PANEL_COPY: Record<
   IngredientCatalogRequestStatus,
@@ -141,165 +135,30 @@ function AuthorizedReviewWorkspace({
 }: {
   onAuthorizationLost: () => void;
 }) {
-  const [requestStatus, setRequestStatus] =
-    useState<IngredientCatalogRequestStatus>("pending");
-  const [pageNumber, setPageNumber] = useState(1);
-  const [queue, setQueue] = useState<IngredientCatalogReviewPage | null>(null);
-  const [queueError, setQueueError] = useState("");
-  const [queueLoading, setQueueLoading] = useState(true);
-  const [queueReload, setQueueReload] = useState(0);
-  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
-  const selectedRequestIdRef = useRef<string | null>(null);
-  const [detail, setDetail] = useState<IngredientCatalogReviewDetail | null>(null);
-  const [detailError, setDetailError] = useState("");
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [workspaceStatus, setWorkspaceStatus] = useState("");
   const workspaceStatusRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void browseIngredientCatalogReviewRequests({
-      status: requestStatus,
-      page: pageNumber,
-      pageSize: 20,
-      signal: controller.signal,
-    })
-      .then((result) => {
-        setQueue(result);
-        const current = selectedRequestIdRef.current;
-        const next =
-          current && result.items.some((item) => item.id === current)
-            ? current
-            : (result.items[0]?.id ?? null);
-        if (next !== current) {
-          selectRequest(next);
-        }
-      })
-      .catch((reason: unknown) => {
-        if (isAbortError(reason)) {
-          return;
-        }
-        setQueue(null);
-        setSelectedRequestId(null);
-        if (reason instanceof IngredientCatalogApiError && reason.status === 403) {
-          onAuthorizationLost();
-          return;
-        }
-        setQueueError("The ingredient review queue could not be loaded. Please try again.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setQueueLoading(false);
-        }
-      });
-    return () => controller.abort();
-  }, [onAuthorizationLost, pageNumber, queueReload, requestStatus]);
-
-  const loadDetail = useCallback(
-    async (requestId: string, signal?: AbortSignal) => {
-      try {
-        const result = await fetchIngredientCatalogReviewDetail(requestId, signal);
-        setDetail(result);
-        setDetailError("");
-      } catch (reason) {
-        if (isAbortError(reason)) {
-          return;
-        }
-        if (reason instanceof IngredientCatalogApiError && reason.status === 403) {
-          onAuthorizationLost();
-          return;
-        }
-        setDetailError("This ingredient request could not be loaded. Please try again.");
-      }
-    },
-    [onAuthorizationLost],
-  );
-
-  useEffect(() => {
-    if (!selectedRequestId) {
-      return;
-    }
-    const controller = new AbortController();
-    void fetchIngredientCatalogReviewDetail(selectedRequestId, controller.signal)
-      .then((result) => {
-        setDetail(result);
-        setDetailError("");
-      })
-      .catch((reason: unknown) => {
-        if (isAbortError(reason)) {
-          return;
-        }
-        if (reason instanceof IngredientCatalogApiError && reason.status === 403) {
-          onAuthorizationLost();
-          return;
-        }
-        setDetailError("This ingredient request could not be loaded. Please try again.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setDetailLoading(false);
-        }
-      });
-    return () => controller.abort();
-  }, [onAuthorizationLost, selectedRequestId]);
-
-  async function refreshDetail() {
-    if (!selectedRequestId) {
-      return;
-    }
-    setDetailLoading(true);
-    await loadDetail(selectedRequestId);
-    setDetailLoading(false);
-  }
-
-  function selectRequest(requestId: string | null) {
-    if (selectedRequestIdRef.current === requestId) {
-      return;
-    }
-    selectedRequestIdRef.current = requestId;
-    setSelectedRequestId(requestId);
-    setDetail(null);
-    setDetailError("");
-    setDetailLoading(requestId !== null);
-  }
-
-  function reloadQueue() {
-    setQueueLoading(true);
-    setQueueError("");
-    setQueueReload((value) => value + 1);
-  }
-
-  function changePage(nextPage: number) {
-    setQueueLoading(true);
-    setQueueError("");
-    setPageNumber(nextPage);
-  }
-
-  function changeStatus(nextStatus: IngredientCatalogRequestStatus) {
-    if (nextStatus === requestStatus) {
-      return;
-    }
-    setRequestStatus(nextStatus);
-    setPageNumber(1);
-    setQueueLoading(true);
-    setQueueError("");
-    setQueue(null);
-    selectRequest(null);
-    setWorkspaceStatus("");
-  }
+  const {
+    changePage,
+    changeStatus,
+    detail,
+    detailError,
+    detailLoading,
+    queue,
+    queueError,
+    queueIsEmpty,
+    queueLoading,
+    recordReviewed,
+    refreshDetail,
+    reloadQueue,
+    requestStatus,
+    selectedRequestId,
+    selectRequest,
+    workspaceStatus,
+  } = useIngredientRequestReviewWorkspace(onAuthorizationLost);
 
   function handleReviewed(updated: IngredientCatalogReviewItem) {
-    setWorkspaceStatus(
-      `${updated.proposed_name} is now ${STATUS_LABELS[updated.status].toLocaleLowerCase()}.`,
-    );
-    setDetail((current) => (current?.id === updated.id ? { ...current, ...updated } : current));
-    reloadQueue();
+    recordReviewed(updated);
     window.setTimeout(() => workspaceStatusRef.current?.focus(), 0);
   }
-
-  const queueIsEmpty = Boolean(
-    queue && !queueLoading && !queueError && queue.total === 0,
-  );
 
   return (
     <main

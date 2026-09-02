@@ -12,7 +12,7 @@ import { relativeTimeLabel } from "../../lib/relative-time";
 import { useAuthSession } from "./auth-session-provider";
 import { SectionLoading } from "./loading-ui";
 import { MemberRouteGate } from "./member-route-gate";
-import { PrivateLibraryPagination } from "./private-library-pagination";
+import { WorkspacePagination } from "./workspace-pagination";
 
 const FOLLOWER_PAGE_SIZE = 20;
 const RETURN_TO = "/account/followers";
@@ -195,7 +195,7 @@ function MemberFollowersListInner({ userId }: { userId: string }) {
                 );
               })}
             </ol>
-            <PrivateLibraryPagination
+            <WorkspacePagination
               currentPage={page.page}
               label="Follower pages"
               loading={loading}

@@ -7,12 +7,12 @@ import {
   type IngredientCatalogReviewInput,
   reviewIngredientCatalogRequest,
 } from "../../lib/ingredient-catalog-api";
-import { DuplicateTargetSearch } from "./ingredient-request-duplicate-target-search";
 import {
-  formatRequestTime,
-  type ReviewDetailProps,
-  STATUS_LABELS,
-} from "./ingredient-request-review-model";
+  formatIngredientRequestTime,
+  INGREDIENT_REQUEST_STATUS_LABELS,
+} from "../../lib/ingredient-request-presentation";
+import { DuplicateTargetSearch } from "./ingredient-request-duplicate-target-search";
+import { type ReviewDetailProps } from "./ingredient-request-review-model";
 import { LoadingButton } from "./loading-ui";
 
 interface ReviewFieldErrors {
@@ -553,7 +553,7 @@ function RecordedDecision({
       <dl>
         <div>
           <dt>Status</dt>
-          <dd>{STATUS_LABELS[detail.status]}</dd>
+          <dd>{INGREDIENT_REQUEST_STATUS_LABELS[detail.status]}</dd>
         </div>
         {detail.decision_reason ? (
           <div>
@@ -583,7 +583,9 @@ function RecordedDecision({
           <div>
             <dt>Reviewed</dt>
             <dd>
-              <time dateTime={detail.reviewed_at}>{formatRequestTime(detail.reviewed_at)}</time>
+              <time dateTime={detail.reviewed_at}>
+                {formatIngredientRequestTime(detail.reviewed_at)}
+              </time>
             </dd>
           </div>
         ) : null}

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { deferred } from "../test/deferred";
 import type { CatalogActionType } from "./cooking-action-api";
 import type { CatalogUnit } from "./measurement-unit-api";
 import type { RecipeDraftDetail } from "./recipe-draft-api";
@@ -95,16 +96,6 @@ const detail: RecipeDraftDetail = {
   created_at: "2026-08-30T12:00:00Z",
   updated_at: "2026-08-30T13:00:00Z",
 };
-
-function deferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  return { promise, reject, resolve };
-}
 
 async function flushMicrotasks() {
   await Promise.resolve();

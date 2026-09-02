@@ -17,14 +17,15 @@ import {
 } from "./my-recipes-hub";
 import { MemberRecipeCard } from "./member-recipe-card";
 import { GuardedLink } from "./navigation-blocker-provider";
-import { PrivateLibraryPagination } from "./private-library-pagination";
 import { LoadingButton, SectionLoading } from "./loading-ui";
 import { WorkspaceEmptyState } from "./workspace-empty-state";
 import { WorkspacePanelHeader } from "./workspace-panel-header";
+import { WorkspacePagination } from "./workspace-pagination";
 
 const RETURN_TO = "/account/recipes?view=saved";
 
 function SavedRecipeLibraryInner() {
+  const loadControllerRef = useRef<AbortController | null>(null);
   const removeAttempts = useRef(new Map<string, string>());
   const statusRef = useRef<HTMLParagraphElement>(null);
   const [pageNumber, setPageNumber] = useState(1);
@@ -38,58 +39,51 @@ function SavedRecipeLibraryInner() {
     page && page.total > 0 && page.items.length === 0,
   );
 
-  const load = useCallback(
-    async (requestedPage: number, signal?: AbortSignal) => {
-      setLoading(true);
-      setError("");
+  const runLoad = useCallback(
+    async (requestedPage: number, controller: AbortController) => {
+      if (controller.signal.aborted) return;
       try {
         const result = await fetchSavedRecipeLibrary({
           page: requestedPage,
           pageSize: 12,
-          signal,
+          signal: controller.signal,
         });
+        if (loadControllerRef.current !== controller) return;
         setPage(result);
         setPageNumber(result.page);
       } catch (reason) {
-        if (isAbortError(reason))
-          return;
+        if (isAbortError(reason) || loadControllerRef.current !== controller) return;
         setError(
           reason instanceof RecipeLibraryApiError
             ? reason.message
             : "Recipe Lab could not load your saved recipes. Please try again.",
         );
       } finally {
-        if (!signal?.aborted) setLoading(false);
+        if (loadControllerRef.current === controller) {
+          loadControllerRef.current = null;
+          setLoading(false);
+        }
       }
     },
     [],
   );
 
   useEffect(() => {
+    loadControllerRef.current?.abort();
     const controller = new AbortController();
-    void fetchSavedRecipeLibrary({
-      page: pageNumber,
-      pageSize: 12,
-      signal: controller.signal,
-    })
-      .then((result) => {
-        setPage(result);
-        setPageNumber(result.page);
-      })
-      .catch((reason: unknown) => {
-        if (isAbortError(reason))
-          return;
-        setError(
-          reason instanceof RecipeLibraryApiError
-            ? reason.message
-            : "Recipe Lab could not load your saved recipes. Please try again.",
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [pageNumber]);
+    loadControllerRef.current = controller;
+    void Promise.resolve().then(() => runLoad(pageNumber, controller));
+    return () => loadControllerRef.current?.abort();
+  }, [pageNumber, runLoad]);
+
+  function retryLoad() {
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    setLoading(true);
+    setError("");
+    void runLoad(pageNumber, controller);
+  }
 
   function changePage(nextPage: number) {
     setLoading(true);
@@ -189,7 +183,7 @@ function SavedRecipeLibraryInner() {
               <button
                 className="button button--secondary"
                 type="button"
-                onClick={() => void load(pageNumber)}
+                onClick={retryLoad}
               >
                 Refresh saved recipes
               </button>
@@ -283,7 +277,7 @@ function SavedRecipeLibraryInner() {
                   ))}
                 </ul>
               </section>
-              <PrivateLibraryPagination
+              <WorkspacePagination
                 currentPage={page.page}
                 label="Saved recipe pages"
                 loading={loading}

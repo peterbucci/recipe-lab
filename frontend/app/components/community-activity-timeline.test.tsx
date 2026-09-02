@@ -9,18 +9,15 @@ vi.mock("../../lib/member-follow-api", async (importOriginal) => ({
 }));
 
 import type { RecipeSummary } from "../../lib/recipe-api";
+import { buildRecipeSummary } from "../../test/builders/recipe";
 import { AuthSessionProvider } from "./auth-session-provider";
 import { CommunityActivityTimeline } from "./community-activity-timeline";
 
 function recipe(id: string, title: string): RecipeSummary {
-  return {
+  return buildRecipeSummary({
     id,
     lineage_id: "22222222-2222-4222-8222-222222222222",
-    parent_version_id: null,
-    version_number: 1,
     title,
-    description: null,
-    servings: "4.00",
     created_at: "2026-08-29T12:00:00Z",
     published_at: "2026-08-30T12:00:00Z",
     author: {
@@ -28,9 +25,7 @@ function recipe(id: string, title: string): RecipeSummary {
       handle: "alice-cook",
       display_name: "Alice Cook",
     },
-    parent: null,
-    categories: [],
-  };
+  });
 }
 
 function renderTimeline(authenticated = true) {

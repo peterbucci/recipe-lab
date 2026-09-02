@@ -13,6 +13,7 @@ import {
   submitMissingIngredientRequest,
 } from "../../lib/ingredient-catalog-api";
 import type { RecipeDraftRequestSelection } from "../../lib/recipe-draft-api";
+import { deferred } from "../../test/deferred";
 import { IngredientCatalogPicker } from "./ingredient-catalog-picker";
 
 const mocks = vi.hoisted(() => ({
@@ -74,14 +75,6 @@ function submittedRequest(proposedName = "Dragon fruit"): MissingIngredientReque
     decision_reason: null,
     resolved_ingredient_id: null,
   };
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
-  return { promise, resolve };
 }
 
 function PickerHarness({

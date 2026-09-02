@@ -16,26 +16,18 @@ vi.mock("next/navigation", () => ({
 }));
 
 import type { RecipeSummary } from "../../lib/recipe-api";
+import { buildRecipeSummary } from "../../test/builders/recipe";
 import { AuthSessionProvider } from "./auth-session-provider";
 import { HomeLoadNotice, HomeLoadStateProvider } from "./home-load-state";
 import { HomePublicDiscovery } from "./home-public-discovery";
 
 function recipe(overrides: Partial<RecipeSummary> = {}): RecipeSummary {
-  return {
-    id: "recipe-one",
-    lineage_id: "lineage-one",
-    parent_version_id: null,
-    version_number: 1,
+  return buildRecipeSummary({
     title: "Carrot Walnut Snack Cake",
     description: "A softly spiced cake.",
     servings: "8.00",
-    created_at: "2026-08-20T00:00:00Z",
-    published_at: "2026-08-21T00:00:00Z",
-    categories: [],
-    author: { id: "cook-one", handle: "alice", display_name: "Alice Cook" },
-    parent: null,
     ...overrides,
-  };
+  });
 }
 
 beforeEach(() => {
