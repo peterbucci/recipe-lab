@@ -90,6 +90,7 @@ interface ExecuteApiRequestOptions {
   errorContract: PublicApiErrorContract;
   kind: ApiRequestKind;
   responseBody?: "json" | "empty";
+  retry?: "never" | "transient";
   signal?: AbortSignal;
   timeoutMs: number;
 }
@@ -370,7 +371,7 @@ export async function executeJsonApiRequest(
   init: RequestInit,
   options: ExecuteApiRequestOptions,
 ): Promise<ApiJsonResponse> {
-  if (options.kind === "mutation") {
+  if (options.kind === "mutation" || options.retry === "never") {
     return executeJsonApiRequestOnce(target, init, options);
   }
 

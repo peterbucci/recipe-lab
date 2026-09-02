@@ -1,10 +1,13 @@
+import type { components } from "./api-contracts/generated";
+
 export type RatingValue = 1 | 2 | 3 | 4 | 5;
 
-export interface RecipeViewerState {
-  recipe_version_id: string;
-  saved: boolean;
+type RecipeViewerStateContract =
+  components["schemas"]["RecipeViewerStateResponse"];
+
+export type RecipeViewerState = Omit<RecipeViewerStateContract, "rating"> & {
   rating: RatingValue | null;
-}
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;

@@ -49,19 +49,21 @@ describe("interaction API client", () => {
         setRecipeSaved(viewerState.recipe_version_id, saved, IDEMPOTENCY_KEY),
       ).resolves.toEqual(responseState);
 
-      expect(fetchMock).toHaveBeenCalledWith(
+      expect(fetchMock).toHaveBeenCalledOnce();
+      const [target, init] = fetchMock.mock.calls[0];
+      expect(target).toBe(
         `/api/recipes/${viewerState.recipe_version_id}/save`,
-        {
-          method,
-          cache: "no-store",
-          headers: {
-            Accept: "application/json",
-            "Idempotency-Key": IDEMPOTENCY_KEY,
-            "X-CSRF-Token": "test-csrf-token",
-          },
-          credentials: "same-origin",
-        },
       );
+      expect(init).toMatchObject({
+        cache: "no-store",
+        credentials: "same-origin",
+        method,
+        redirect: "error",
+      });
+      const headers = new Headers(init?.headers);
+      expect(headers.get("Accept")).toBe("application/json");
+      expect(headers.get("Idempotency-Key")).toBe(IDEMPOTENCY_KEY);
+      expect(headers.get("X-CSRF-Token")).toBe("test-csrf-token");
     },
   );
 
@@ -76,21 +78,23 @@ describe("interaction API client", () => {
 
     await setRecipeRating(viewerState.recipe_version_id, 4, IDEMPOTENCY_KEY);
 
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [target, init] = fetchMock.mock.calls[0];
+    expect(target).toBe(
       `/api/recipes/${viewerState.recipe_version_id}/rating`,
-      {
-        method: "PUT",
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "Idempotency-Key": IDEMPOTENCY_KEY,
-          "X-CSRF-Token": "test-csrf-token",
-        },
-        body: JSON.stringify({ rating: 4 }),
-        credentials: "same-origin",
-      },
     );
+    expect(init).toMatchObject({
+      body: JSON.stringify({ rating: 4 }),
+      cache: "no-store",
+      credentials: "same-origin",
+      method: "PUT",
+      redirect: "error",
+    });
+    const headers = new Headers(init?.headers);
+    expect(headers.get("Accept")).toBe("application/json");
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(headers.get("Idempotency-Key")).toBe(IDEMPOTENCY_KEY);
+    expect(headers.get("X-CSRF-Token")).toBe("test-csrf-token");
   });
 
   it("removes a rating with the same protected interaction contract", async () => {
@@ -107,19 +111,21 @@ describe("interaction API client", () => {
       clearRecipeRating(viewerState.recipe_version_id, IDEMPOTENCY_KEY),
     ).resolves.toEqual(clearedState);
 
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [target, init] = fetchMock.mock.calls[0];
+    expect(target).toBe(
       `/api/recipes/${viewerState.recipe_version_id}/rating`,
-      {
-        method: "DELETE",
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "Idempotency-Key": IDEMPOTENCY_KEY,
-          "X-CSRF-Token": "test-csrf-token",
-        },
-        credentials: "same-origin",
-      },
     );
+    expect(init).toMatchObject({
+      cache: "no-store",
+      credentials: "same-origin",
+      method: "DELETE",
+      redirect: "error",
+    });
+    const headers = new Headers(init?.headers);
+    expect(headers.get("Accept")).toBe("application/json");
+    expect(headers.get("Idempotency-Key")).toBe(IDEMPOTENCY_KEY);
+    expect(headers.get("X-CSRF-Token")).toBe("test-csrf-token");
   });
 
   it("records a view without sending user or free-form context", async () => {
@@ -132,19 +138,22 @@ describe("interaction API client", () => {
       recordRecipeView(viewerState.recipe_version_id, IDEMPOTENCY_KEY),
     ).resolves.toBeUndefined();
 
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [target, init] = fetchMock.mock.calls[0];
+    expect(target).toBe(
       `/api/recipes/${viewerState.recipe_version_id}/view`,
-      {
-        method: "POST",
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "Idempotency-Key": IDEMPOTENCY_KEY,
-          "X-CSRF-Token": "test-csrf-token",
-        },
-        credentials: "same-origin",
-      },
     );
+    expect(init).toMatchObject({
+      cache: "no-store",
+      credentials: "same-origin",
+      method: "POST",
+      redirect: "error",
+    });
+    expect(init?.body).toBeUndefined();
+    const headers = new Headers(init?.headers);
+    expect(headers.get("Accept")).toBe("application/json");
+    expect(headers.get("Idempotency-Key")).toBe(IDEMPOTENCY_KEY);
+    expect(headers.get("X-CSRF-Token")).toBe("test-csrf-token");
   });
 
   it("preserves the API error envelope and uses a stable non-JSON fallback", async () => {
@@ -234,6 +243,51 @@ describe("interaction API client", () => {
         method: "GET",
       }),
     );
+  });
+
+  it("leaves transient viewer-state recovery to the calling UI", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json(
+          { error: { code: "activity_unavailable" } },
+          { status: 503 },
+        ),
+      )
+      .mockResolvedValueOnce(Response.json({ viewer_state: viewerState }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      fetchRecipeViewerState(viewerState.recipe_version_id),
+    ).rejects.toMatchObject({
+      code: "activity_unavailable",
+      status: 503,
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("preserves caller aborts for viewer-state effects", async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(
+      (_target, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(init.signal?.reason),
+            { once: true },
+          );
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = fetchRecipeViewerState(
+      viewerState.recipe_version_id,
+      controller.signal,
+    );
+    controller.abort(new DOMException("Unmounted", "AbortError"));
+
+    await expect(request).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("loads ordered private state for multiple recipe cards in one request", async () => {
