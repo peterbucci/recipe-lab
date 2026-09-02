@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -23,14 +23,9 @@ from app.models import (
     RecipeDraftIngredient,
     RecipeDraftInstructionAction,
     RecipeDraftInstructionActionMeasure,
-    RecipeIngredient,
-    RecipeInstruction,
-    RecipeInstructionAction,
-    RecipeInstructionActionInput,
-    RecipeInstructionActionMeasure,
-    RecipeLineage,
+    RecipeDuplicateDecision,
+    RecipeDuplicatePreflight,
     RecipeVersion,
-    RecipeVersionCategory,
     RecipeVersionPublication,
 )
 from app.policies.recipe_visibility import publicly_readable_recipe_version_filter
@@ -74,8 +69,64 @@ from app.services.recipe_fingerprints import (
     StructuralMeasure,
     build_structural_fingerprint,
 )
+from app.services.recipe_publication_snapshots import (
+    RecipeForkSourceUnavailableError as RecipeForkSourceUnavailableError,
+)
+from app.services.recipe_publication_snapshots import (
+    copy_recipe_version_action_inputs,
+    copy_recipe_version_action_measures,
+    copy_recipe_version_actions,
+    copy_recipe_version_categories,
+    copy_recipe_version_ingredients,
+    copy_recipe_version_instructions,
+    create_recipe_version_identity,
+)
 
 CURRENT_COMMUNITY_RULES_VERSION = "community-rules-v1"
+
+type PublicationWritePhase = Literal[
+    "duplicate_evidence",
+    "version_identity",
+    "categories",
+    "ingredients",
+    "instructions",
+    "actions",
+    "action_inputs",
+    "action_measures",
+    "structural_fingerprint",
+    "publication_receipt",
+    "fork_preference_event",
+    "draft_terminal_state",
+]
+
+_PUBLICATION_WRITE_PHASES: tuple[PublicationWritePhase, ...] = (
+    "duplicate_evidence",
+    "version_identity",
+    "categories",
+    "ingredients",
+    "instructions",
+    "actions",
+    "action_inputs",
+    "action_measures",
+    "structural_fingerprint",
+    "publication_receipt",
+    "fork_preference_event",
+    "draft_terminal_state",
+)
+
+
+def _test_publication_write_checkpoint(_phase: PublicationWritePhase) -> None:
+    """Private no-op seam that rollback tests replace with one injected failure."""
+
+
+def _finish_publication_write_phase(
+    session: Session,
+    phase: PublicationWritePhase,
+) -> None:
+    """Flush one named write boundary before the test-only failure checkpoint."""
+
+    session.flush()
+    _test_publication_write_checkpoint(phase)
 
 
 class RecipePublicationNotFoundError(LookupError):
@@ -92,10 +143,6 @@ class InvalidRecipeDraftPublicationError(ValueError):
 
 class InvalidOriginalRecipePublicationError(InvalidRecipeDraftPublicationError):
     """Preserve the RCP-27 error contract for invalid source-less drafts."""
-
-
-class RecipeForkSourceUnavailableError(RuntimeError):
-    """Raised when a source-backed draft's immutable public parent is unavailable."""
 
 
 class RecipePublicationIdempotencyConflictError(RuntimeError):
@@ -122,6 +169,12 @@ class RecipeDraftPublicationResult:
     @property
     def location(self) -> str:
         return f"/recipes/{self.recipe_version_id}"
+
+
+@dataclass(frozen=True, slots=True)
+class RevalidatedPublicationEvidence:
+    preflight: RecipeDuplicatePreflight
+    decision: RecipeDuplicateDecision | None
 
 
 def _invalid(message: str) -> InvalidRecipeDraftPublicationError:
@@ -536,169 +589,93 @@ def run_recipe_draft_duplicate_preflight(
 run_original_recipe_draft_duplicate_preflight = run_recipe_draft_duplicate_preflight
 
 
-def _copy_draft_snapshot(
+def _copy_draft_snapshot_phases(
     session: Session,
     *,
     draft: RecipeDraft,
     author_user_id: UUID,
 ) -> RecipeVersion:
-    source_version_id = draft.source_version_id
-    parent_version_id: UUID | None = None
-    if source_version_id is None:
-        lineage = RecipeLineage(created_by_user_id=author_user_id)
-        session.add(lineage)
-        session.flush()
-        lineage_id = lineage.id
-        version_number = 1
-    else:
-        source_lineage_id = session.scalar(
-            select(RecipeVersion.lineage_id).where(
-                RecipeVersion.id == source_version_id,
-                publicly_readable_recipe_version_filter(),
-            )
-        )
-        if source_lineage_id is None:
-            raise RecipeForkSourceUnavailableError(
-                "The public source recipe is no longer available."
-            )
-        locked_lineage_id = session.scalar(
-            select(RecipeLineage.id).where(RecipeLineage.id == source_lineage_id).with_for_update()
-        )
-        if locked_lineage_id is None:
-            raise RecipeForkSourceUnavailableError(
-                "The public source recipe is no longer available."
-            )
-        confirmed_lineage_id = session.scalar(
-            select(RecipeVersion.lineage_id).where(
-                RecipeVersion.id == source_version_id,
-                RecipeVersion.lineage_id == locked_lineage_id,
-                publicly_readable_recipe_version_filter(),
-            )
-        )
-        if confirmed_lineage_id != locked_lineage_id:
-            raise RecipeForkSourceUnavailableError(
-                "The public source recipe is no longer available."
-            )
-        highest_version = session.scalar(
-            select(func.max(RecipeVersion.version_number)).where(
-                RecipeVersion.lineage_id == locked_lineage_id
-            )
-        )
-        lineage_id = locked_lineage_id
-        parent_version_id = source_version_id
-        version_number = (highest_version or 0) + 1
-
-    version = RecipeVersion(
-        lineage_id=lineage_id,
-        parent_version_id=parent_version_id,
-        created_by_user_id=author_user_id,
-        version_number=version_number,
-        title=draft.title,
-        description=draft.description,
-        servings=draft.servings,
-        total_time_minutes=draft.total_time_minutes,
-        active_time_minutes=draft.active_time_minutes,
-        difficulty=draft.difficulty,
-        notes=draft.notes,
+    version = create_recipe_version_identity(
+        session,
+        draft=draft,
+        author_user_id=author_user_id,
     )
-    session.add(version)
-    session.flush()
-
-    session.add_all(
-        [
-            RecipeVersionCategory(
-                recipe_version_id=version.id,
-                recipe_category_id=item.recipe_category_id,
-                category_name=item.category.name,
-                category_slug=item.category.slug,
-                display_order=item.display_order,
-            )
-            for item in draft.categories
-        ]
+    _finish_publication_write_phase(session, "version_identity")
+    copy_recipe_version_categories(
+        session,
+        draft=draft,
+        recipe_version_id=version.id,
     )
-
-    ingredient_rows = [
-        RecipeIngredient(
-            recipe_version_id=version.id,
-            ingredient_id=item.ingredient_id,
-            name=item.name,
-            measure_mode=item.measure_mode,
-            quantity_min=item.quantity_min,
-            quantity_max=item.quantity_max,
-            measurement_unit_id=item.measurement_unit_id,
-            unit_display=item.unit_display,
-            package_size_id=item.package_size_id,
-            preparation_notes=item.preparation_notes,
-            display_order=item.display_order,
-        )
-        for item in draft.ingredients
-    ]
-    session.add_all(ingredient_rows)
-    session.flush()
-    ingredient_ids = {
-        draft_item.id: version_item.id
-        for draft_item, version_item in zip(draft.ingredients, ingredient_rows, strict=True)
-    }
-
-    instruction_rows = [
-        RecipeInstruction(
-            recipe_version_id=version.id,
-            title=item.title,
-            instruction=item.instruction,
-            display_order=item.display_order,
-        )
-        for item in draft.instructions
-    ]
-    session.add_all(instruction_rows)
-    session.flush()
-    for draft_instruction, version_instruction in zip(
-        draft.instructions,
-        instruction_rows,
-        strict=True,
-    ):
-        action_rows = [
-            RecipeInstructionAction(
-                recipe_version_id=version.id,
-                recipe_instruction_id=version_instruction.id,
-                action_type_id=action.action_type_id,
-                display_order=action.display_order,
-            )
-            for action in draft_instruction.actions
-        ]
-        session.add_all(action_rows)
-        session.flush()
-        for draft_action, version_action in zip(
-            draft_instruction.actions,
-            action_rows,
-            strict=True,
-        ):
-            session.add_all(
-                [
-                    RecipeInstructionActionInput(
-                        recipe_version_id=version.id,
-                        recipe_instruction_action_id=version_action.id,
-                        recipe_ingredient_id=ingredient_ids[draft_input.recipe_draft_ingredient_id],
-                        display_order=draft_input.display_order,
-                    )
-                    for draft_input in draft_action.inputs
-                ]
-            )
-            session.add_all(
-                [
-                    RecipeInstructionActionMeasure(
-                        recipe_instruction_action_id=version_action.id,
-                        semantic=measure.semantic,
-                        measure_mode=measure.measure_mode,
-                        quantity_min=measure.quantity_min,
-                        quantity_max=measure.quantity_max,
-                        measurement_unit_id=measure.measurement_unit_id,
-                        unit_display=measure.unit_display,
-                    )
-                    for measure in draft_action.measures
-                ]
-            )
-    session.flush()
+    _finish_publication_write_phase(session, "categories")
+    ingredient_ids = copy_recipe_version_ingredients(
+        session,
+        draft=draft,
+        recipe_version_id=version.id,
+    )
+    _finish_publication_write_phase(session, "ingredients")
+    instruction_ids = copy_recipe_version_instructions(
+        session,
+        draft=draft,
+        recipe_version_id=version.id,
+    )
+    _finish_publication_write_phase(session, "instructions")
+    action_ids = copy_recipe_version_actions(
+        session,
+        draft=draft,
+        recipe_version_id=version.id,
+        instruction_ids=instruction_ids,
+    )
+    _finish_publication_write_phase(session, "actions")
+    copy_recipe_version_action_inputs(
+        session,
+        draft=draft,
+        recipe_version_id=version.id,
+        action_ids=action_ids,
+        ingredient_ids=ingredient_ids,
+    )
+    _finish_publication_write_phase(session, "action_inputs")
+    copy_recipe_version_action_measures(
+        session,
+        draft=draft,
+        action_ids=action_ids,
+    )
+    _finish_publication_write_phase(session, "action_measures")
     return version
+
+
+def _find_reused_publication(
+    session: Session,
+    *,
+    author_user_id: UUID,
+    action_id: UUID,
+    draft: RecipeDraft,
+    request_fingerprint: str,
+) -> RecipeDraftPublicationResult | None:
+    replay = get_recipe_publication_by_action(
+        session,
+        actor_user_id=author_user_id,
+        action_id=action_id,
+    )
+    if replay is not None:
+        return _reused_publication(
+            session,
+            replay,
+            request_fingerprint=request_fingerprint,
+            draft=draft,
+        )
+    completed = get_recipe_publication_by_draft(
+        session,
+        actor_user_id=author_user_id,
+        draft_id=draft.id,
+    )
+    if completed is None:
+        return None
+    return _reused_publication(
+        session,
+        completed,
+        request_fingerprint=request_fingerprint,
+        draft=draft,
+    )
 
 
 def _reused_publication(
@@ -739,6 +716,123 @@ def _reused_publication(
     )
 
 
+def _revalidate_duplicate_evidence_phase(
+    session: Session,
+    *,
+    author_user_id: UUID,
+    action_id: UUID,
+    draft: RecipeDraft,
+    prepared: PreparedRecipeDraft,
+    payload: RecipeDraftPublicationRequest,
+) -> RevalidatedPublicationEvidence:
+    review = payload.duplicate_review
+    try:
+        preflight, decision = revalidate_recipe_duplicate_publication_evidence(
+            session,
+            preflight_id=review.preflight_id,
+            actor_user_id=author_user_id,
+            request_fingerprint=prepared.preflight_request_fingerprint,
+            subject_fingerprint=prepared.structural_fingerprint,
+            source_version_id=draft.source_version_id,
+            acknowledged_policy_version=review.policy_version,
+            acknowledged_result_digest=review.result_digest,
+            decision=review.decision,
+            decision_action_id=action_id,
+        )
+    except RecipeDuplicatePreflightUnavailableError as error:
+        raise RecipeForkSourceUnavailableError(
+            "The public source recipe is no longer available."
+        ) from error
+    _finish_publication_write_phase(session, "duplicate_evidence")
+    return RevalidatedPublicationEvidence(preflight=preflight, decision=decision)
+
+
+def _fingerprint_snapshot_phase(
+    session: Session,
+    *,
+    version: RecipeVersion,
+    expected: StructuralFingerprint,
+) -> None:
+    result = fingerprint_and_store_recipe_version(session, version.id)
+    stored = result.fingerprint
+    if (
+        result.state == "incomplete"
+        or stored is None
+        or stored.algorithm_version != expected.algorithm_version
+        or stored.digest != expected.digest
+        or stored.canonical_payload != expected.canonical_json
+    ):
+        raise PublishedRecipeFingerprintMismatchError(
+            "The published snapshot differs from its fully validated private draft."
+        )
+    _finish_publication_write_phase(session, "structural_fingerprint")
+
+
+def _write_publication_receipt_phase(
+    session: Session,
+    *,
+    version: RecipeVersion,
+    draft: RecipeDraft,
+    author_user_id: UUID,
+    action_id: UUID,
+    request_fingerprint: str,
+    evidence: RevalidatedPublicationEvidence,
+) -> None:
+    published_at = datetime.now(UTC)
+    session.add(
+        RecipeVersionPublication(
+            recipe_version_id=version.id,
+            state=RECIPE_PUBLICATION_STATE_PUBLISHED,
+            state_changed_at=published_at,
+            state_changed_by_user_id=author_user_id,
+            source_draft_id=draft.id,
+            actor_user_id=author_user_id,
+            action_id=action_id,
+            request_fingerprint=request_fingerprint,
+            draft_revision=draft.revision,
+            duplicate_preflight_id=evidence.preflight.id,
+            duplicate_policy_version=evidence.preflight.policy_version,
+            duplicate_result_digest=evidence.preflight.result_digest,
+            duplicate_decision_id=(evidence.decision.id if evidence.decision is not None else None),
+            community_rules_version=CURRENT_COMMUNITY_RULES_VERSION,
+            publication_rights_confirmed_at=published_at,
+            published_at=published_at,
+        )
+    )
+    _finish_publication_write_phase(session, "publication_receipt")
+
+
+def _write_fork_preference_event_phase(
+    session: Session,
+    *,
+    version: RecipeVersion,
+    draft: RecipeDraft,
+    author_user_id: UUID,
+    action_id: UUID,
+    request_fingerprint: str,
+) -> None:
+    source_version_id = draft.source_version_id
+    if source_version_id is None:
+        return
+    record_preference_event(
+        session,
+        PreferenceEventIntent(
+            action_id=action_id,
+            user_id=author_user_id,
+            recipe_version_id=source_version_id,
+            event_type="fork",
+            request_fingerprint=request_fingerprint,
+        ),
+        related_recipe_version_id=version.id,
+    )
+    _finish_publication_write_phase(session, "fork_preference_event")
+
+
+def _complete_draft_phase(session: Session, draft: RecipeDraft) -> None:
+    draft.status = RECIPE_DRAFT_STATUS_PUBLISHED
+    _finish_publication_write_phase(session, "draft_terminal_state")
+
+
 def publish_recipe_draft(
     session: Session,
     *,
@@ -764,56 +858,26 @@ def publish_recipe_draft(
 
     # A concurrent identical request may have committed while this transaction waited
     # for the draft row lock. Resolve its receipt before interpreting published status.
-    replay = get_recipe_publication_by_action(
+    reused = _find_reused_publication(
         session,
-        actor_user_id=author_user_id,
+        author_user_id=author_user_id,
         action_id=action_id,
+        draft=draft,
+        request_fingerprint=request_fingerprint,
     )
-    if replay is not None:
-        return _reused_publication(
-            session,
-            replay,
-            request_fingerprint=request_fingerprint,
-            draft=draft,
-        )
-    completed = get_recipe_publication_by_draft(
-        session,
-        actor_user_id=author_user_id,
-        draft_id=draft_id,
-    )
-    if completed is not None:
-        return _reused_publication(
-            session,
-            completed,
-            request_fingerprint=request_fingerprint,
-            draft=draft,
-        )
+    if reused is not None:
+        return reused
 
     lock_recipe_publication_guard(session)
-    replay = get_recipe_publication_by_action(
+    reused = _find_reused_publication(
         session,
-        actor_user_id=author_user_id,
+        author_user_id=author_user_id,
         action_id=action_id,
+        draft=draft,
+        request_fingerprint=request_fingerprint,
     )
-    if replay is not None:
-        return _reused_publication(
-            session,
-            replay,
-            request_fingerprint=request_fingerprint,
-            draft=draft,
-        )
-    completed = get_recipe_publication_by_draft(
-        session,
-        actor_user_id=author_user_id,
-        draft_id=draft_id,
-    )
-    if completed is not None:
-        return _reused_publication(
-            session,
-            completed,
-            request_fingerprint=request_fingerprint,
-            draft=draft,
-        )
+    if reused is not None:
+        return reused
 
     if (
         draft.source_version_id is not None
@@ -849,78 +913,43 @@ def publish_recipe_draft(
         expected_revision=payload.revision,
     )
 
-    review = payload.duplicate_review
-    try:
-        preflight, decision = revalidate_recipe_duplicate_publication_evidence(
-            session,
-            preflight_id=review.preflight_id,
-            actor_user_id=author_user_id,
-            request_fingerprint=prepared.preflight_request_fingerprint,
-            subject_fingerprint=prepared.structural_fingerprint,
-            source_version_id=draft.source_version_id,
-            acknowledged_policy_version=review.policy_version,
-            acknowledged_result_digest=review.result_digest,
-            decision=review.decision,
-            decision_action_id=action_id,
-        )
-    except RecipeDuplicatePreflightUnavailableError as error:
-        raise RecipeForkSourceUnavailableError(
-            "The public source recipe is no longer available."
-        ) from error
+    evidence = _revalidate_duplicate_evidence_phase(
+        session,
+        author_user_id=author_user_id,
+        action_id=action_id,
+        draft=draft,
+        prepared=prepared,
+        payload=payload,
+    )
 
-    version = _copy_draft_snapshot(
+    version = _copy_draft_snapshot_phases(
         session,
         draft=draft,
         author_user_id=author_user_id,
     )
-    fingerprint_result = fingerprint_and_store_recipe_version(session, version.id)
-    stored = fingerprint_result.fingerprint
-    expected = prepared.structural_fingerprint
-    if (
-        fingerprint_result.state == "incomplete"
-        or stored is None
-        or stored.algorithm_version != expected.algorithm_version
-        or stored.digest != expected.digest
-        or stored.canonical_payload != expected.canonical_json
-    ):
-        raise PublishedRecipeFingerprintMismatchError(
-            "The published snapshot differs from its fully validated private draft."
-        )
-
-    published_at = datetime.now(UTC)
-    publication = RecipeVersionPublication(
-        recipe_version_id=version.id,
-        state=RECIPE_PUBLICATION_STATE_PUBLISHED,
-        state_changed_at=published_at,
-        state_changed_by_user_id=author_user_id,
-        source_draft_id=draft.id,
-        actor_user_id=author_user_id,
+    _fingerprint_snapshot_phase(
+        session,
+        version=version,
+        expected=prepared.structural_fingerprint,
+    )
+    _write_publication_receipt_phase(
+        session,
+        version=version,
+        draft=draft,
+        author_user_id=author_user_id,
         action_id=action_id,
         request_fingerprint=request_fingerprint,
-        draft_revision=draft.revision,
-        duplicate_preflight_id=preflight.id,
-        duplicate_policy_version=preflight.policy_version,
-        duplicate_result_digest=preflight.result_digest,
-        duplicate_decision_id=decision.id if decision is not None else None,
-        community_rules_version=CURRENT_COMMUNITY_RULES_VERSION,
-        publication_rights_confirmed_at=published_at,
-        published_at=published_at,
+        evidence=evidence,
     )
-    session.add(publication)
-    if draft.source_version_id is not None:
-        record_preference_event(
-            session,
-            PreferenceEventIntent(
-                action_id=action_id,
-                user_id=author_user_id,
-                recipe_version_id=draft.source_version_id,
-                event_type="fork",
-                request_fingerprint=request_fingerprint,
-            ),
-            related_recipe_version_id=version.id,
-        )
-    draft.status = RECIPE_DRAFT_STATUS_PUBLISHED
-    session.flush()
+    _write_fork_preference_event_phase(
+        session,
+        version=version,
+        draft=draft,
+        author_user_id=author_user_id,
+        action_id=action_id,
+        request_fingerprint=request_fingerprint,
+    )
+    _complete_draft_phase(session, draft)
     return RecipeDraftPublicationResult(recipe_version_id=version.id, state="created")
 
 
