@@ -77,9 +77,14 @@ for both curator approvals and seed loads. A seed may reuse only the existing
 case-insensitive, outer-trimmed label identity; a compatibility-only or
 internal-whitespace match is reported as a candidate conflict. A partial unique
 index is a second guard against two pending requests for the same normalized
-candidate. Catalog approval rechecks canonical and alias names while holding
-the same locks, so a collision or concurrent decision rolls back the
-ingredient, aliases, request transition, and audit event together.
+candidate. Approved canonical names and aliases also occupy one durable
+`ingredient_catalog_names` namespace keyed by a SHA-256 digest and the full
+normalized value. Deferred database guards require every source name to have
+exactly one matching namespace row, while the unique digest prevents
+cross-table collisions even for direct database writes. Catalog approval
+rechecks that indexed namespace while holding the same locks, so a collision
+or concurrent decision rolls back the ingredient, aliases, request transition,
+and audit event together.
 
 ## Curator authorization
 

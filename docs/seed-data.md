@@ -25,6 +25,11 @@ and an immutable stable key. The catalog also uses one fixed UTC publication
 timestamp. As a result, loading the same version into independent empty
 databases produces the same IDs and content.
 
+Canonical ingredient names and aliases are mirrored into their shared
+normalized-name namespace in the same transaction. Those derived rows use a
+stable UUIDv5 based on the source row, and reruns resolve them through the
+digest index rather than scanning the ingredient and alias tables.
+
 Action-type UUIDs use their own versioned namespace. Action instance and input
 UUIDs derive from the recipe, instruction, action, and ingredient stable keys.
 The action asset maps seed keys directly; validation and loading never infer
