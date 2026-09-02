@@ -1,6 +1,7 @@
 import json
 from contextlib import nullcontext
-from uuid import UUID, uuid4
+from functools import partial
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.orm import Session
@@ -23,32 +24,14 @@ from app.models import (
     USER_STATUS_ACTIVE,
     USER_STATUS_SUSPENDED,
     CatalogCurator,
-    User,
 )
+from tests.builders.actors import persist_member
 
-
-def _member(
-    session: Session,
-    *,
-    user_id: UUID | None = None,
-    handle: str | None = "catalog-operator-test",
-    display_name: str = "Catalog operator test member",
-    email: str | None = None,
-    account_kind: str = ACCOUNT_KIND_MEMBER,
-    status: str = USER_STATUS_ACTIVE,
-) -> User:
-    resolved_id = user_id or uuid4()
-    user = User(
-        id=resolved_id,
-        email=email or f"{resolved_id}@example.test",
-        display_name=display_name,
-        handle=handle,
-        account_kind=account_kind,
-        status=status,
-    )
-    session.add(user)
-    session.flush()
-    return user
+_member = partial(
+    persist_member,
+    handle="catalog-operator-test",
+    display_name="Catalog operator test member",
+)
 
 
 def test_grant_and_revoke_are_idempotent_by_stable_user_id(db_session: Session) -> None:
