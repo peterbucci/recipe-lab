@@ -12,6 +12,7 @@ from app.api.dependencies import (
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor
 from app.models import USER_STATUS_ACTIVE, User
+from app.pagination import PageParams
 from app.repositories.account_lifecycle import lock_account_lifecycle_user
 from app.repositories.auth import get_user_by_handle
 from app.repositories.member_follows import (
@@ -234,10 +235,11 @@ def my_followers(
 ) -> MyFollowersResponse:
     apply_private_no_store(response)
     actor_id = lock_active_member_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
     stored = browse_followers(
         session,
         followed_user_id=actor_id,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
     )
     result = MyFollowersResponse(
@@ -251,7 +253,7 @@ def my_followers(
         page=page,
         page_size=page_size,
         total=stored.total,
-        total_pages=(stored.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(stored.total),
     )
     session.commit()
     return result
@@ -276,10 +278,11 @@ def my_community_activity(
 ) -> MyCommunityActivityResponse:
     apply_private_no_store(response)
     actor_id = lock_active_member_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
     stored = browse_community_activity(
         session,
         follower_user_id=actor_id,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
     )
     result = MyCommunityActivityResponse(
@@ -287,7 +290,7 @@ def my_community_activity(
         page=page,
         page_size=page_size,
         total=stored.total,
-        total_pages=(stored.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(stored.total),
     )
     session.commit()
     return result

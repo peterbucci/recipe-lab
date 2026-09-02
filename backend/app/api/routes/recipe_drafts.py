@@ -11,6 +11,7 @@ from app.api.dependencies import (
 )
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor
+from app.pagination import PageParams
 from app.repositories.recipe_drafts import browse_owned_recipe_drafts, get_owned_recipe_draft
 from app.schemas.errors import ErrorResponse
 from app.schemas.recipe_drafts import (
@@ -166,11 +167,12 @@ def my_private_recipe_drafts(
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> RecipeDraftPageResponse:
     actor_id = lock_active_member_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
     stored = browse_owned_recipe_drafts(
         session,
         author_user_id=actor_id,
         source_version_id=source_version_id,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
     )
     result = RecipeDraftPageResponse(
@@ -191,7 +193,7 @@ def my_private_recipe_drafts(
         page=page,
         page_size=page_size,
         total=stored.total,
-        total_pages=(stored.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(stored.total),
     )
     session.commit()
     apply_private_no_store(response)
