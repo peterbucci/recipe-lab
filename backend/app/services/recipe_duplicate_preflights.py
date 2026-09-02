@@ -17,6 +17,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.core.domain_errors import DomainConflictError, DomainUnavailableError
+from app.core.idempotency import IdempotencyConflictError, require_same_request
 from app.models import (
     RECIPE_DUPLICATE_DISTINCT,
     RECIPE_DUPLICATE_EXACT,
@@ -198,10 +199,9 @@ class RecipeDuplicatePreflightStaleError(DomainConflictError):
     public_message = "The duplicate preflight is no longer current. Run it again."
 
 
-class RecipeDuplicatePreflightIdempotencyConflictError(DomainConflictError):
+class RecipeDuplicatePreflightIdempotencyConflictError(IdempotencyConflictError):
     """Raised when one preflight action identifier represents different evidence."""
 
-    code = "idempotency_key_conflict"
     public_message = "The Idempotency-Key conflicts with an earlier duplicate preflight."
 
 
@@ -545,13 +545,16 @@ def _replay_recipe_duplicate_preflight(
         action_id=action_id,
     )
     if replay is not None:
-        if replay.request_fingerprint != request_fingerprint or (
-            subject_fingerprint is not None
-            and (
-                replay.source_version_id != source_version_id
-                or replay.subject_fingerprint_algorithm != subject_fingerprint.algorithm_version
-                or replay.subject_fingerprint_digest != subject_fingerprint.digest
-            )
+        require_same_request(
+            replay.request_fingerprint,
+            request_fingerprint,
+            conflict_error=RecipeDuplicatePreflightIdempotencyConflictError,
+            detail="The preflight action identifier is already bound to another request.",
+        )
+        if subject_fingerprint is not None and (
+            replay.source_version_id != source_version_id
+            or replay.subject_fingerprint_algorithm != subject_fingerprint.algorithm_version
+            or replay.subject_fingerprint_digest != subject_fingerprint.digest
         ):
             raise RecipeDuplicatePreflightIdempotencyConflictError(
                 "The preflight action identifier is already bound to another request."

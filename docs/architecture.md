@@ -113,6 +113,10 @@ Core, model, policy, repository, and service modules are transport-independent:
 they must not import FastAPI or `app.api`. The read-only
 `scripts/verify_architecture.py` check enforces that dependency direction in CI
 so expected domain outcomes reach the API only through the shared error mapper.
+Durable action workflows use the typed primitives in `app.core.idempotency` for
+versioned canonical request fingerprints and replay matching. Feature-specific
+conflict classes retain useful public copy, but share one stable domain error
+code and cannot silently redefine the fingerprint metadata fields.
 
 Environment variables retain their stable flat names, while application code
 consumes immutable settings views grouped by database, HTTP, session, OIDC, and

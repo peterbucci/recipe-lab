@@ -11,11 +11,15 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.canonical_documents import canonical_document_sha256
 from app.core.domain_errors import (
     DomainConflictError,
     DomainNotFoundError,
     DomainValidationError,
+)
+from app.core.idempotency import (
+    IdempotencyConflictError,
+    canonical_request_fingerprint,
+    require_same_request,
 )
 from app.models import (
     RECIPE_DRAFT_SELECTION_CATALOG,
@@ -177,10 +181,9 @@ class RecipeDraftAlreadyPublishedError(DomainConflictError):
     public_message = "This private draft has already completed publication."
 
 
-class RecipePublicationIdempotencyConflictError(DomainConflictError):
+class RecipePublicationIdempotencyConflictError(IdempotencyConflictError):
     """Raised when an action or completed draft is bound to another request."""
 
-    code = "idempotency_key_conflict"
     public_message = "The Idempotency-Key or completed draft conflicts with another request."
 
 
@@ -439,7 +442,7 @@ def _preflight_request_fingerprint(
     draft: RecipeDraft,
     structural_fingerprint: StructuralFingerprint,
 ) -> str:
-    document = {
+    fields = {
         "draft_id": str(draft.id),
         "revision": draft.revision,
         "structural_algorithm": structural_fingerprint.algorithm_version,
@@ -452,16 +455,18 @@ def _preflight_request_fingerprint(
         "active_time_minutes": draft.active_time_minutes,
         "difficulty": draft.difficulty,
         "notes": draft.notes,
-        "schema": (
+    }
+    if draft.source_version_id is not None:
+        fields["source_version_id"] = str(draft.source_version_id)
+    return canonical_request_fingerprint(
+        schema=(
             "recipe-lab.original-draft-preflight-request"
             if draft.source_version_id is None
             else "recipe-lab.variant-draft-preflight-request"
         ),
-        "version": 2,
-    }
-    if draft.source_version_id is not None:
-        document["source_version_id"] = str(draft.source_version_id)
-    return canonical_document_sha256(document)
+        version=2,
+        fields=fields,
+    )
 
 
 def recipe_draft_publication_request_fingerprint(
@@ -470,19 +475,21 @@ def recipe_draft_publication_request_fingerprint(
     *,
     source_version_id: UUID | None = None,
 ) -> str:
-    document = {
+    fields = {
         "draft_id": str(draft_id),
         "payload": payload.model_dump(mode="json"),
-        "schema": (
+    }
+    if source_version_id is not None:
+        fields["source_version_id"] = str(source_version_id)
+    return canonical_request_fingerprint(
+        schema=(
             "recipe-lab.original-recipe-publication-request"
             if source_version_id is None
             else "recipe-lab.variant-recipe-publication-request"
         ),
-        "version": 1,
-    }
-    if source_version_id is not None:
-        document["source_version_id"] = str(source_version_id)
-    return canonical_document_sha256(document)
+        version=1,
+        fields=fields,
+    )
 
 
 # Preserve the RCP-27 helper import and its exact fingerprint bytes for source-less
@@ -692,13 +699,16 @@ def _reused_publication(
     request_fingerprint: str,
     draft: RecipeDraft,
 ) -> RecipeDraftPublicationResult:
-    if (
-        publication.source_draft_id != draft.id
-        or publication.request_fingerprint != request_fingerprint
-    ):
+    if publication.source_draft_id != draft.id:
         raise RecipePublicationIdempotencyConflictError(
             "The publication action or completed draft is bound to another request."
         )
+    require_same_request(
+        publication.request_fingerprint,
+        request_fingerprint,
+        conflict_error=RecipePublicationIdempotencyConflictError,
+        detail="The publication action or completed draft is bound to another request.",
+    )
     if draft.source_version_id is not None:
         if publication.action_id is None:
             raise RuntimeError("A published recipe fork is missing its operation identifier.")
