@@ -9,6 +9,7 @@ import type { RecipeCategory } from "./recipe-api";
 import { MAX_RECIPE_CATEGORIES } from "./recipe-category";
 import {
   type RecipeDraftDetail,
+  type RecipeDifficulty,
   type RecipeDraftRequestSelection,
   type RecipeDraftUpdateRequest,
 } from "./recipe-draft-api";
@@ -42,6 +43,7 @@ export interface RecipeDraftIngredientState {
 
 export interface RecipeDraftInstructionState {
   key: string;
+  title: string;
   text: string;
   actions: StructuredActionDraft[];
 }
@@ -50,6 +52,10 @@ export interface RecipeDraftEditorState {
   title: string;
   description: string;
   servings: string;
+  totalTimeMinutes: string;
+  activeTimeMinutes: string;
+  difficulty: RecipeDifficulty | "";
+  notes: string;
   categories: RecipeCategory[];
   ingredients: RecipeDraftIngredientState[];
   instructions: RecipeDraftInstructionState[];
@@ -71,7 +77,7 @@ export function createDraftIngredientState(key = `ingredient-${crypto.randomUUID
 }
 
 export function createDraftInstructionState(key = `instruction-${crypto.randomUUID()}`): RecipeDraftInstructionState {
-  return { key, text: "", actions: [] };
+  return { key, title: "", text: "", actions: [] };
 }
 
 export function requestSelectionFromSubmission(
@@ -112,10 +118,15 @@ export function hydrateRecipeDraft(detail: RecipeDraftDetail): RecipeDraftEditor
     title: detail.title,
     description: detail.description ?? "",
     servings: detail.servings ?? "",
+    totalTimeMinutes: detail.total_time_minutes?.toString() ?? "",
+    activeTimeMinutes: detail.active_time_minutes?.toString() ?? "",
+    difficulty: detail.difficulty ?? "",
+    notes: detail.notes ?? "",
     categories: detail.categories.map((category) => ({ ...category })),
     ingredients,
     instructions: detail.instructions.map((instruction) => ({
       key: instruction.id,
+      title: instruction.title ?? "",
       text: instruction.text,
       actions: hydrateStructuredActionDrafts(
         instruction.actions,
@@ -141,6 +152,10 @@ export function draftIngredientMeasureFieldKey(
 
 export function draftInstructionFieldKey(key: string): string {
   return `instruction.${key}.text`;
+}
+
+export function draftInstructionTitleFieldKey(key: string): string {
+  return `instruction.${key}.title`;
 }
 
 export function draftInstructionActionFieldKey(key: string, field: string): string {
@@ -182,6 +197,22 @@ function servingsError(value: string): string | null {
   return null;
 }
 
+function recipeTimeError(value: string, label: string): string | null {
+  const normalized = value.trim();
+  if (!normalized) return null;
+  if (!/^\d+$/.test(normalized)) {
+    return `${label} must be a positive whole number of minutes.`;
+  }
+  const minutes = Number(normalized);
+  if (!Number.isSafeInteger(minutes) || minutes <= 0) {
+    return `${label} must be greater than zero.`;
+  }
+  if (minutes > 525_600) {
+    return `${label} must be 525,600 minutes or fewer.`;
+  }
+  return null;
+}
+
 export function validateRecipeDraft(
   state: RecipeDraftEditorState,
   revision: number,
@@ -193,9 +224,32 @@ export function validateRecipeDraft(
   const titleError = textError(state.title, "Title", 200, false);
   const descriptionError = textError(state.description, "Description", 2_000, false);
   const portionError = servingsError(state.servings);
+  const totalTimeError = recipeTimeError(state.totalTimeMinutes, "Total time");
+  const activeTimeError = recipeTimeError(state.activeTimeMinutes, "Active time");
+  const notesError = textError(state.notes, "Notes", 5_000, false);
   if (titleError) fieldErrors.title = titleError;
   if (descriptionError) fieldErrors.description = descriptionError;
   if (portionError) fieldErrors.servings = portionError;
+  if (totalTimeError) fieldErrors.totalTimeMinutes = totalTimeError;
+  if (activeTimeError) fieldErrors.activeTimeMinutes = activeTimeError;
+  if (notesError) fieldErrors.notes = notesError;
+  const totalTimeMinutes = totalTimeError
+    ? null
+    : state.totalTimeMinutes.trim()
+      ? Number(state.totalTimeMinutes.trim())
+      : null;
+  const activeTimeMinutes = activeTimeError
+    ? null
+    : state.activeTimeMinutes.trim()
+      ? Number(state.activeTimeMinutes.trim())
+      : null;
+  if (
+    totalTimeMinutes !== null &&
+    activeTimeMinutes !== null &&
+    activeTimeMinutes > totalTimeMinutes
+  ) {
+    fieldErrors.activeTimeMinutes = "Active time cannot be longer than total time.";
+  }
   const categoryIds = state.categories.map((category) => category.id);
   if (state.categories.length > MAX_RECIPE_CATEGORIES) {
     fieldErrors.categories = `Choose no more than ${MAX_RECIPE_CATEGORIES} recipe categories.`;
@@ -268,6 +322,10 @@ export function validateRecipeDraft(
   const occurrences = draftIngredientOptions(state.ingredients);
   const instructions: RecipeDraftUpdateRequest["instructions"] = [];
   for (const instruction of state.instructions) {
+    const titleError = textError(instruction.title, "Step title", 200, false);
+    if (titleError) {
+      fieldErrors[draftInstructionTitleFieldKey(instruction.key)] = titleError;
+    }
     const instructionError = textError(instruction.text, "Instruction", 5_000, true);
     if (instructionError) fieldErrors[draftInstructionFieldKey(instruction.key)] = instructionError;
     const actionValidation =
@@ -277,9 +335,10 @@ export function validateRecipeDraft(
     for (const [field, message] of Object.entries(actionValidation.fieldErrors)) {
       fieldErrors[draftInstructionActionFieldKey(instruction.key, field)] = message;
     }
-    if (!instructionError && actionValidation.actions) {
+    if (!titleError && !instructionError && actionValidation.actions) {
       instructions.push({
         ref: instruction.key,
+        title: instruction.title.trim() || null,
         text: instruction.text.trim(),
         actions: actionValidation.actions.map((action) => ({
           action_type_id: action.action_type_id,
@@ -306,6 +365,10 @@ export function validateRecipeDraft(
       title: state.title.trim(),
       description: state.description.trim() || null,
       servings: state.servings.trim() || null,
+      total_time_minutes: totalTimeMinutes,
+      active_time_minutes: activeTimeMinutes,
+      difficulty: state.difficulty || null,
+      notes: state.notes.trim() || null,
       category_ids: categoryIds,
       ingredients,
       instructions,
@@ -372,8 +435,13 @@ export function recipeDraftFieldErrorsFromIssues(
   for (const issue of issues) {
     const path = issue.location[0] === "body" ? issue.location.slice(1) : issue.location;
     const [section, index, field, nestedIndex, nestedField, measurePart] = path;
-    if (section === "title" || section === "description" || section === "servings") {
+    if (section === "title" || section === "description" || section === "servings" || section === "notes" || section === "difficulty") {
       errors[section] = issue.message;
+      continue;
+    }
+    if (section === "total_time_minutes" || section === "active_time_minutes") {
+      errors[section === "total_time_minutes" ? "totalTimeMinutes" : "activeTimeMinutes"] =
+        issue.message;
       continue;
     }
     if (section === "category_ids" || section === "categories") {
@@ -398,6 +466,10 @@ export function recipeDraftFieldErrorsFromIssues(
     if (!instruction) continue;
     if (field === "text") {
       errors[draftInstructionFieldKey(instruction.key)] = issue.message;
+      continue;
+    }
+    if (field === "title") {
+      errors[draftInstructionTitleFieldKey(instruction.key)] = issue.message;
       continue;
     }
     if (field !== "actions") continue;

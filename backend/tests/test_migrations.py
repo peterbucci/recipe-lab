@@ -60,6 +60,7 @@ DOMAIN_TABLES = {
     "recipe_instruction_actions",
     "recipe_ratings",
     "recipe_saves",
+    "user_follows",
     "recipe_structural_fingerprints",
     "recipe_version_ingredients",
     "recipe_version_categories",
@@ -1612,3 +1613,66 @@ def test_community_moderation_downgrade_refuses_durable_attestation_evidence(
 
         with pytest.raises(ProgrammingError, match="cannot downgrade community moderation"):
             command.downgrade(alembic_config, "20260826_0017")
+
+
+def test_public_profile_description_migration_is_nullable_bounded_and_scrubbed_on_delete(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    member_id = uuid4()
+
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260830_0025")
+        legacy_metadata = sa.MetaData()
+        legacy_users = sa.Table("users", legacy_metadata, autoload_with=connection)
+        connection.execute(
+            legacy_users.insert().values(
+                id=member_id,
+                email="profile-migration@example.test",
+                handle="profile_migration",
+                display_name="Profile Migration",
+                account_kind="member",
+                status="active",
+            )
+        )
+
+        command.upgrade(alembic_config, "head")
+        migrated_metadata = sa.MetaData()
+        users = sa.Table("users", migrated_metadata, autoload_with=connection)
+        assert users.c.profile_description.nullable is True
+        profile_description_type = users.c.profile_description.type
+        assert isinstance(profile_description_type, sa.String)
+        assert profile_description_type.length == 500
+        assert (
+            connection.scalar(sa.select(users.c.profile_description).where(users.c.id == member_id))
+            is None
+        )
+
+        connection.execute(
+            users.update()
+            .where(users.c.id == member_id)
+            .values(profile_description="Weeknight recipes.")
+        )
+        with pytest.raises(IntegrityError, match="profile_description_valid"):
+            with connection.begin_nested():
+                connection.execute(
+                    users.update().where(users.c.id == member_id).values(profile_description="   ")
+                )
+        with pytest.raises(IntegrityError, match="lifecycle_shape_valid"):
+            with connection.begin_nested():
+                connection.execute(
+                    users.update()
+                    .where(users.c.id == member_id)
+                    .values(
+                        status="deleted",
+                        email=None,
+                        handle=None,
+                        display_name="Deleted cook",
+                        deleted_at=sa.func.now(),
+                    )
+                )
+
+        command.downgrade(alembic_config, "20260830_0025")
+        downgraded_columns = {column["name"] for column in inspect(connection).get_columns("users")}
+        assert "profile_description" not in downgraded_columns

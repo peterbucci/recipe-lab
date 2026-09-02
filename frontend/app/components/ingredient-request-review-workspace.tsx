@@ -19,6 +19,39 @@ import {
   IngredientRequestReviewQueue,
   IngredientRequestStatusFilters,
 } from "./ingredient-request-review-queue";
+import { AuthGateLoading, SectionLoading } from "./loading-ui";
+import { WorkspaceEmptyState } from "./workspace-empty-state";
+import { WorkspacePanelHeader } from "./workspace-panel-header";
+
+const REQUEST_STATUS_PANEL_COPY: Record<
+  IngredientCatalogRequestStatus,
+  { description: string; emptyDescription: string; emptyTitle: string; title: string }
+> = {
+  approved: {
+    description: "Requests that added a new ingredient to the catalog.",
+    emptyDescription: "Approved ingredient requests will appear here after a curator adds them to the catalog.",
+    emptyTitle: "There are no approved ingredient requests.",
+    title: "Approved requests",
+  },
+  duplicate: {
+    description: "Requests resolved to an ingredient already in the catalog.",
+    emptyDescription: "Requests resolved to an existing ingredient will appear here.",
+    emptyTitle: "There are no duplicate ingredient requests.",
+    title: "Duplicate requests",
+  },
+  pending: {
+    description: "Review requests waiting for a catalog decision.",
+    emptyDescription: "New requests will appear here when cooks submit ingredients for review.",
+    emptyTitle: "There are no pending ingredient requests.",
+    title: "Pending requests",
+  },
+  rejected: {
+    description: "Requests that were not added to the catalog.",
+    emptyDescription: "Rejected ingredient requests will appear here after a curator reviews them.",
+    emptyTitle: "There are no rejected ingredient requests.",
+    title: "Rejected requests",
+  },
+};
 
 function unavailablePage() {
   return (
@@ -27,7 +60,6 @@ function unavailablePage() {
       className="state-page staff-state-page staff-state-page--curation staff-state-page--authorization"
     >
       <div className="error-state staff-state-panel" role="alert">
-        <p className="eyebrow">Page unavailable</p>
         <h1>We couldn’t find that page.</h1>
         <p>Browse the recipe collection to find something to cook.</p>
         <Link className="button button--primary" href="/recipes">
@@ -53,15 +85,10 @@ export function IngredientRequestReviewWorkspace() {
         id="main-content"
         className="state-page staff-state-page staff-state-page--curation staff-state-page--loading"
       >
-        <div
-          className="loading-state staff-state-panel"
-          role="status"
-          aria-live="polite"
-        >
-          <span className="loading-state__pulse" aria-hidden="true" />
-          <strong>Checking review access…</strong>
-          <span>Loading your account permissions.</span>
-        </div>
+        <AuthGateLoading
+          className="staff-state-panel"
+          label="Checking review access…"
+        />
       </main>
     );
   }
@@ -265,24 +292,51 @@ function AuthorizedReviewWorkspace({
     window.setTimeout(() => workspaceStatusRef.current?.focus(), 0);
   }
 
+  const queueIsEmpty = Boolean(
+    queue && !queueLoading && !queueError && queue.total === 0,
+  );
+
   return (
     <main
       id="main-content"
       className="page-shell staff-workspace staff-workspace--curation curation-page"
     >
       <header className="page-intro staff-workspace__header curation-page__intro">
-        <p className="eyebrow">Catalog curation</p>
-        <h1>Review ingredient requests.</h1>
-        <p>
-          Make one accountable decision for each request. Candidate matches are suggestions only;
-          they never establish ingredient identity automatically.
-        </p>
+        <h1>Ingredient requests</h1>
+        <p>Review missing ingredients, compare possible matches, and record one catalog decision.</p>
       </header>
 
-      <IngredientRequestStatusFilters
-        requestStatus={requestStatus}
-        onChangeStatus={changeStatus}
-      />
+      <div className="staff-workspace__tab-shell">
+        <IngredientRequestStatusFilters
+          count={queue && !queueLoading ? queue.total : null}
+          requestStatus={requestStatus}
+          onChangeStatus={changeStatus}
+        />
+        <WorkspacePanelHeader
+          description={REQUEST_STATUS_PANEL_COPY[requestStatus].description}
+          meta={
+            queue && !queueLoading ? (
+              <span aria-live="polite">
+                {queue.total} request{queue.total === 1 ? "" : "s"}
+              </span>
+            ) : null
+          }
+          title={REQUEST_STATUS_PANEL_COPY[requestStatus].title}
+        />
+        {queueIsEmpty ? (
+          <WorkspaceEmptyState
+            action={
+              <button className="button button--primary" type="button" onClick={reloadQueue}>
+                Refresh requests
+              </button>
+            }
+            description={REQUEST_STATUS_PANEL_COPY[requestStatus].emptyDescription}
+            headingId={`empty-curation-${requestStatus}`}
+            headingLevel={3}
+            title={REQUEST_STATUS_PANEL_COPY[requestStatus].emptyTitle}
+          />
+        ) : null}
+      </div>
 
       {workspaceStatus ? (
         <div
@@ -297,8 +351,10 @@ function AuthorizedReviewWorkspace({
         </div>
       ) : null}
 
-      <div className="staff-workspace__layout curation-workspace">
+      {!queueIsEmpty ? (
+        <div className="staff-workspace__layout curation-workspace">
         <IngredientRequestReviewQueue
+          key={requestStatus}
           queue={queue}
           queueError={queueError}
           queueLoading={queueLoading}
@@ -320,9 +376,20 @@ function AuthorizedReviewWorkspace({
             </div>
           ) : null}
           {detailLoading ? (
-            <div className="curation-panel-state" role="status">
-              Loading request details…
-            </div>
+            <>
+              {!detail ? (
+                <h2 className="visually-hidden" id="curation-detail-heading">
+                  Request details
+                </h2>
+              ) : null}
+              <SectionLoading
+                className="curation-panel-state"
+                count={1}
+                label="Loading request details…"
+                layout="panel"
+                refreshing={Boolean(detail)}
+              />
+            </>
           ) : null}
           {detailError ? (
             <div
@@ -350,7 +417,8 @@ function AuthorizedReviewWorkspace({
             />
           ) : null}
         </section>
-      </div>
+        </div>
+      ) : null}
     </main>
   );
 }

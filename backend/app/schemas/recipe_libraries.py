@@ -3,8 +3,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.recipe_drafts import RecipeDraftSummaryResponse
-from app.schemas.recipes import RecipeSummary
+from app.schemas.recipe_drafts import DraftDescription, RecipeDraftSummaryResponse
+from app.schemas.recipes import RecipeCardSummary, RecipeSummary
 from app.schemas.users import PublicUserReference
 
 
@@ -14,7 +14,9 @@ class RecipeLibrarySchema(BaseModel):
 
 class PublicCookProfileResponse(RecipeLibrarySchema):
     cook: PublicUserReference
-    items: list[RecipeSummary]
+    follower_count: int = Field(ge=0)
+    description: str | None = Field(max_length=500)
+    items: list[RecipeCardSummary]
     page: int = Field(ge=1)
     page_size: int = Field(ge=1, le=100)
     total: int = Field(ge=0)
@@ -24,6 +26,8 @@ class PublicCookProfileResponse(RecipeLibrarySchema):
 class MyRecipeDraftItem(RecipeLibrarySchema):
     kind: Literal["draft"] = "draft"
     draft: RecipeDraftSummaryResponse
+    source_recipe_title: str | None = Field(max_length=200)
+    description: DraftDescription | None
 
 
 class MyPublishedRecipeItem(RecipeLibrarySchema):

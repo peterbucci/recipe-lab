@@ -10,8 +10,8 @@ export const STATUS_FILTERS: Array<{
 }> = [
   { label: "Pending", value: "pending" },
   { label: "Approved", value: "approved" },
-  { label: "Rejected", value: "rejected" },
   { label: "Duplicate", value: "duplicate" },
+  { label: "Rejected", value: "rejected" },
 ];
 
 export const STATUS_LABELS: Record<IngredientCatalogRequestStatus, string> = {
@@ -40,5 +40,15 @@ export function formatRequestTime(value: string): string {
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
+  }).format(parsed);
+}
+
+export function formatRequestDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
   }).format(parsed);
 }

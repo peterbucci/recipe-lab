@@ -16,10 +16,12 @@ describe("account lifecycle route states", () => {
       "account-access-page",
       "account-access-page--callback",
     );
-    expect(screen.getByRole("status")).toHaveClass(
+    expect(screen.getByRole("status").closest(".auth-gate-loading")).toHaveClass(
       "account-access-state",
       "account-access-state--loading",
     );
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Finishing sign-in…");
 
     unmount();
     render(<AuthCallbackError />);
@@ -42,7 +44,11 @@ describe("account lifecycle route states", () => {
       "account-access-page",
       "account-access-page--onboarding",
     );
-    expect(screen.getByRole("status")).toHaveClass("account-access-state--loading");
+    expect(screen.getByRole("status").closest(".auth-gate-loading")).toHaveClass(
+      "account-access-state--loading",
+    );
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Opening account setup…");
 
     unmount();
     render(<OnboardingError reset={reset} />);
@@ -56,9 +62,12 @@ describe("account lifecycle route states", () => {
     const { unmount } = render(<AccountSettingsLoading />);
 
     expect(screen.getByRole("main")).toHaveClass(
+      "page-loading--settings",
       "account-settings-page",
       "account-settings-page--loading",
     );
+    expect(screen.getByText("Settings")).toBeVisible();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
     expect(screen.getByRole("status")).toHaveTextContent("Loading account settings");
 
     unmount();

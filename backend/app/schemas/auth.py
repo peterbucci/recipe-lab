@@ -22,6 +22,7 @@ class AccountUserResponse(BaseModel):
     id: UUID
     handle: str | None = Field(default=None, min_length=3, max_length=30)
     display_name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
 
 
 class AnonymousSessionResponse(BaseModel):
@@ -56,6 +57,7 @@ class AccountProfileUpdateRequest(BaseModel):
 
     handle: Handle
     display_name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
 
     @field_validator("handle", mode="before")
     @classmethod
@@ -70,6 +72,23 @@ class AccountProfileUpdateRequest(BaseModel):
             unicodedata.category(character).startswith("C") for character in normalized
         ):
             raise ValueError("Display name must not be blank or contain control characters.")
+        return normalized
+
+    @field_validator("description")
+    @classmethod
+    def normalize_description(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.replace("\r\n", "\n").replace("\r", "\n").strip()
+        if not normalized:
+            return None
+        if any(
+            unicodedata.category(character).startswith("C") and character != "\n"
+            for character in normalized
+        ):
+            raise ValueError(
+                "Description must not contain control characters other than line breaks."
+            )
         return normalized
 
 

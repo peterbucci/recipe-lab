@@ -24,6 +24,7 @@ vi.mock("../../lib/recipe-moderation-api", async (importOriginal) => {
 });
 
 const RECIPE_ID = "11111111-1111-4111-8111-111111111111";
+const SECOND_RECIPE_ID = "55555555-5555-4555-8555-555555555555";
 const AUTHOR_ID = "22222222-2222-4222-8222-222222222222";
 const REPORT_ID = "33333333-3333-4333-8333-333333333333";
 const MODERATOR_ID = "44444444-4444-4444-8444-444444444444";
@@ -39,6 +40,18 @@ const summary = {
   opened_at: NOW,
   last_reported_at: NOW,
   resolved_at: null,
+};
+
+const secondSummary = {
+  ...summary,
+  recipe_version_id: SECOND_RECIPE_ID,
+  title: "Flagged noodles",
+  author: {
+    id: "66666666-6666-4666-8666-666666666666",
+    handle: "noodle-cook",
+    display_name: "Noodle Cook",
+  },
+  reporter_count: 1,
 };
 
 const detail = {
@@ -66,6 +79,29 @@ const detail = {
   history_truncated: false,
 };
 
+function renderAuthorizedWorkspace() {
+  return render(
+    <AuthSessionProvider
+      initialSession={{
+        status: "authenticated",
+        user: { id: MODERATOR_ID, handle: "morgan", display_name: "Morgan Moderator" },
+        capabilities: { review_ingredient_requests: false, moderate_recipe_reports: true },
+      }}
+    >
+      <RecipeModerationWorkspace />
+    </AuthSessionProvider>,
+  );
+}
+
+function openDisclosure(label: string): HTMLDetailsElement {
+  const labelElement = screen.getByText(label, { exact: true });
+  const disclosure = labelElement.closest("details");
+  expect(disclosure).not.toBeNull();
+  fireEvent.click(labelElement);
+  expect(disclosure).toHaveAttribute("open");
+  return disclosure as HTMLDetailsElement;
+}
+
 beforeEach(() => {
   mocks.browse.mockReset().mockResolvedValue({
     items: [summary],
@@ -87,6 +123,15 @@ beforeEach(() => {
 });
 
 describe("RecipeModerationWorkspace", () => {
+  it("uses the shared section loader while the moderation queue resolves", () => {
+    mocks.browse.mockReturnValue(new Promise(() => undefined));
+    renderAuthorizedWorkspace();
+
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Loading recipe-report cases…");
+    expect(status.closest(".section-loading--rows")).not.toBeNull();
+  });
+
   it("does not reveal the workspace to ordinary members", () => {
     render(
       <AuthSessionProvider
@@ -107,22 +152,55 @@ describe("RecipeModerationWorkspace", () => {
     );
     expect(screen.getByRole("alert")).toHaveClass("staff-state-panel");
     expect(screen.getByRole("heading", { name: "We couldn’t find that page." })).toBeVisible();
+    expect(screen.queryByText("Page unavailable")).not.toBeInTheDocument();
     expect(screen.queryByText(/moderator/i)).not.toBeInTheDocument();
     expect(mocks.browse).not.toHaveBeenCalled();
   });
 
-  it("shows de-identified evidence and records a private moderator action", async () => {
-    render(
-      <AuthSessionProvider
-        initialSession={{
-          status: "authenticated",
-          user: { id: MODERATOR_ID, handle: "morgan", display_name: "Morgan Moderator" },
-          capabilities: { review_ingredient_requests: false, moderate_recipe_reports: true },
-        }}
-      >
-        <RecipeModerationWorkspace />
-      </AuthSessionProvider>,
+  it("uses the shared full-width empty state when the open queue has no cases", async () => {
+    mocks.browse.mockResolvedValue({
+      items: [],
+      page: 1,
+      page_size: 20,
+      total: 0,
+      total_pages: 0,
+    });
+
+    renderAuthorizedWorkspace();
+
+    const emptyHeading = await screen.findByRole("heading", {
+      level: 3,
+      name: "There are no open recipe-report cases.",
+    });
+    const emptyState = emptyHeading.closest("section");
+    const openHeader = screen
+      .getByRole("heading", { level: 2, name: "Open cases" })
+      .closest("header");
+
+    expect(emptyState).toHaveClass("empty-state", "workspace-empty-state");
+    expect(emptyState?.parentElement).toHaveClass("staff-workspace__tab-shell");
+    expect(within(emptyState!).getByText("Nothing here yet")).toHaveClass(
+      "eyebrow",
+      "workspace-empty-state__eyebrow",
     );
+    expect(
+      within(emptyState!).getByText(
+        "New reports will appear here when they need moderator review.",
+      ),
+    ).toBeVisible();
+    expect(openHeader).toHaveTextContent("0 cases");
+    expect(screen.queryByRole("searchbox", { name: "Search these cases" })).toBeNull();
+    expect(mocks.detail).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      within(emptyState!).getByRole("button", { name: "Refresh cases" }),
+    );
+    await waitFor(() => expect(mocks.browse).toHaveBeenCalledTimes(2));
+    expect(mocks.detail).not.toHaveBeenCalled();
+  });
+
+  it("shows de-identified evidence and records a private moderator action", async () => {
+    renderAuthorizedWorkspace();
 
     const detailHeading = await screen.findByRole("heading", {
       name: "Reported soup",
@@ -137,9 +215,16 @@ describe("RecipeModerationWorkspace", () => {
     expect(
       screen.getByRole("heading", { name: "Recipe reports", level: 1 }).closest("header"),
     ).toHaveClass("staff-workspace__header", "moderation-workspace__header");
+    expect(screen.queryByText("Moderator workspace")).not.toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Filter moderation cases" })).toHaveClass(
       "staff-workspace__filters",
     );
+    const openHeader = document.querySelector(
+      ".staff-workspace--moderation .workspace-panel-header",
+    );
+    expect(openHeader).toHaveTextContent("Open cases");
+    expect(openHeader).toHaveTextContent("Cases waiting for a moderation decision.");
+    expect(openHeader).toHaveTextContent("1 case");
     const queueList = screen.getByRole("list", { name: "Open cases" });
     expect(queueList).toHaveClass("staff-workspace__queue-list");
     expect(queueList.closest("section")).toHaveClass("staff-workspace__queue");
@@ -148,11 +233,12 @@ describe("RecipeModerationWorkspace", () => {
       "staff-workspace__layout",
     );
     expect(screen.getByText("2 reporters")).toBeVisible();
-    const evidence = screen.getByRole("heading", { name: "De-identified reports" }).closest("section");
+    const evidence = screen.getByRole("list", { name: "De-identified reports" });
     expect(evidence).not.toBeNull();
-    expect(within(evidence!).getByText("Repeated affiliate links")).toBeVisible();
-    expect(within(evidence!).queryByText(/reporter id|email/i)).not.toBeInTheDocument();
-    expect(screen.getByText("Previous private note")).toBeVisible();
+    expect(within(evidence).getByText("Repeated affiliate links")).toBeVisible();
+    expect(within(evidence).queryByText(/reporter id|email/i)).not.toBeInTheDocument();
+    const auditDisclosure = openDisclosure("Private audit history");
+    expect(within(auditDisclosure).getByText("Previous private note")).toBeVisible();
     expect(screen.getByRole("link", { name: "Community rules" })).toHaveClass(
       "staff-workspace__resource-link",
     );
@@ -162,7 +248,8 @@ describe("RecipeModerationWorkspace", () => {
       `/recipes/${RECIPE_ID}`,
     );
 
-    fireEvent.change(screen.getByLabelText("Private note (optional)"), {
+    const noteDisclosure = openDisclosure("Private moderator note");
+    fireEvent.change(within(noteDisclosure).getByLabelText("Private note (optional)"), {
       target: { value: "  Links confirmed in recipe body.  " },
     });
     fireEvent.click(screen.getByRole("button", { name: "Hide recipe" }));
@@ -195,19 +282,11 @@ describe("RecipeModerationWorkspace", () => {
         visibility_state: "moderation_hidden",
         acted_at: NOW,
       });
-    render(
-      <AuthSessionProvider
-        initialSession={{
-          status: "authenticated",
-          user: { id: MODERATOR_ID, handle: "morgan", display_name: "Morgan Moderator" },
-          capabilities: { review_ingredient_requests: false, moderate_recipe_reports: true },
-        }}
-      >
-        <RecipeModerationWorkspace />
-      </AuthSessionProvider>,
-    );
+    renderAuthorizedWorkspace();
 
-    const note = await screen.findByLabelText("Private note (optional)");
+    await screen.findByRole("heading", { name: "Reported soup", level: 2 });
+    const noteDisclosure = openDisclosure("Private moderator note");
+    const note = within(noteDisclosure).getByLabelText("Private note (optional)");
     fireEvent.change(note, { target: { value: "Keep this private note for retry." } });
     fireEvent.click(screen.getByRole("button", { name: "Hide recipe" }));
 
@@ -238,5 +317,115 @@ describe("RecipeModerationWorkspace", () => {
       "moderation-key",
     );
     expect(mocks.key).toHaveBeenCalledTimes(1);
+  });
+
+  it("filters the current queue locally without hiding workspace controls", async () => {
+    mocks.browse.mockResolvedValue({
+      items: [summary, secondSummary],
+      page: 1,
+      page_size: 20,
+      total: 2,
+      total_pages: 1,
+    });
+    mocks.detail.mockImplementation((recipeId: string) =>
+      Promise.resolve(
+        recipeId === SECOND_RECIPE_ID
+          ? {
+              ...detail,
+              ...secondSummary,
+              reason_counts: detail.reason_counts,
+              reports: detail.reports,
+              history: detail.history,
+            }
+          : detail,
+      ),
+    );
+    renderAuthorizedWorkspace();
+
+    await screen.findByRole("heading", { name: "Reported soup", level: 2 });
+    const search = screen.getByRole("searchbox", { name: "Search these cases" });
+    expect(screen.getByRole("button", { name: /Reported soup/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+
+    fireEvent.change(search, { target: { value: "Noodle Cook" } });
+    expect(screen.queryByRole("button", { name: /Reported soup/ })).not.toBeInTheDocument();
+    const secondCase = screen.getByRole("button", { name: /Flagged noodles/ });
+    expect(secondCase).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("heading", { name: "No case selected", level: 2 })).toBeVisible();
+
+    fireEvent.click(secondCase);
+    expect(await screen.findByRole("heading", { name: "Flagged noodles", level: 2 })).toBeVisible();
+    expect(secondCase).toHaveAttribute("aria-current", "true");
+    expect(mocks.detail).toHaveBeenCalledWith(SECOND_RECIPE_ID, expect.any(AbortSignal));
+
+    fireEvent.change(search, { target: { value: "not in the queue" } });
+    expect(screen.getByText("No cases match your search on this page.")).toBeVisible();
+    expect(screen.getByRole("searchbox", { name: "Search these cases" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "Filter moderation cases" })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Open/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Resolved/ })).toBeVisible();
+  });
+
+  it("marks the active status tab and gives its count an accessible name", async () => {
+    const resolvedSummary = {
+      ...summary,
+      status: "resolved" as const,
+      resolved_at: NOW,
+    };
+    mocks.browse.mockImplementation(({ status }: { status: "open" | "resolved" }) =>
+      Promise.resolve({
+        items: status === "open" ? [summary, secondSummary] : [resolvedSummary],
+        page: 1,
+        page_size: 20,
+        total: status === "open" ? 2 : 1,
+        total_pages: 1,
+      }),
+    );
+    renderAuthorizedWorkspace();
+
+    const openTab = await screen.findByRole("button", { name: /^Open\s*2$/ });
+    const resolvedTab = screen.getByRole("button", { name: "Resolved" });
+    expect(openTab).toHaveAttribute("aria-pressed", "true");
+    expect(resolvedTab).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(resolvedTab);
+    const activeResolvedTab = await screen.findByRole("button", {
+      name: /^Resolved\s*1$/,
+    });
+    expect(activeResolvedTab).toHaveAttribute("aria-pressed", "true");
+    const resolvedHeader = document.querySelector(
+      ".staff-workspace--moderation .workspace-panel-header",
+    );
+    expect(resolvedHeader).toHaveTextContent("Resolved cases");
+    expect(resolvedHeader).toHaveTextContent(
+      "Cases with a completed moderation decision.",
+    );
+    expect(resolvedHeader).toHaveTextContent("1 case");
+    expect(screen.getByRole("button", { name: "Open" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(mocks.browse).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "resolved", page: 1 }),
+    );
+  });
+
+  it("offers only valid actions when a resolved recipe is hidden", async () => {
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      status: "resolved",
+      visibility_state: "moderation_hidden",
+      resolved_at: NOW,
+    });
+    renderAuthorizedWorkspace();
+
+    await screen.findByRole("heading", { name: "Reported soup", level: 2 });
+    expect(screen.queryByRole("link", { name: "Open public recipe" })).not.toBeInTheDocument();
+    expect(screen.getByText("Not publicly available")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Hide recipe" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Restore recipe" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Resolve case" })).toBeDisabled();
   });
 });

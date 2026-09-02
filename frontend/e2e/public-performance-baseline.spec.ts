@@ -309,7 +309,7 @@ test.describe("RCP-34B public performance baseline", () => {
             path: "/",
             ready: (currentPage) =>
               currentPage.getByRole("heading", {
-                name: "Recipes change. Recipe Lab keeps track.",
+                name: "All recipes",
                 level: 1,
               }),
           },

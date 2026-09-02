@@ -1,3 +1,5 @@
+import { LoadingButton } from "./loading-ui";
+
 const DISCARD_COPY =
   "Discard permanently deletes this draft and its private content immediately. It cannot be restored.";
 
@@ -29,7 +31,16 @@ export function RecipeDraftDiscardSection({
         <div className="draft-discard">
           <p><strong>Are you sure?</strong></p>
           <div className="button-row">
-            <button className="button button--danger" type="button" disabled={disabled} onClick={() => void onConfirm()}>{discarding ? "Discarding…" : "Discard permanently"}</button>
+            <LoadingButton
+              className="button button--danger"
+              type="button"
+              disabled={disabled}
+              pending={discarding}
+              pendingLabel="Discarding…"
+              onClick={() => void onConfirm()}
+            >
+              Discard permanently
+            </LoadingButton>
             <button className="button button--secondary" type="button" disabled={disabled} onClick={onCancel}>Keep draft</button>
           </div>
         </div>

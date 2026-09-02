@@ -15,7 +15,11 @@ from sqlalchemy.orm import Session
 import app.api.routes.auth as auth_routes
 from app.api.dependencies import get_oidc_client, get_session
 from app.core.config import Settings, get_settings
-from app.core.security import AUTH_CSRF_COOKIE_NAME, token_digest
+from app.core.security import (
+    AUTH_CSRF_COOKIE_NAME,
+    AUTH_FORCE_LOGIN_COOKIE_NAME,
+    token_digest,
+)
 from app.main import create_app
 from app.models import AbuseRateLimitBucket, OIDCIdentity, OIDCLoginTransaction, User, UserSession
 from app.models.auth import OIDC_LOGIN_PURPOSE_REAUTHENTICATE
@@ -207,7 +211,13 @@ def test_proxy_callback_creates_one_member_and_routes_first_login_to_onboarding(
     session_response = auth_api.client.get("/api/auth/session")
     assert session_response.status_code == 200
     assert session_response.json()["status"] == "onboarding_required"
-    assert set(session_response.json()["user"]) == {"id", "handle", "display_name"}
+    assert set(session_response.json()["user"]) == {
+        "id",
+        "handle",
+        "display_name",
+        "description",
+    }
+    assert session_response.json()["user"]["description"] is None
     assert session_response.json()["capabilities"] == {
         "review_ingredient_requests": False,
         "moderate_recipe_reports": False,
@@ -252,6 +262,7 @@ def test_onboarding_requires_origin_and_session_bound_csrf_then_logout_revokes(
             "id": updated.json()["user"]["id"],
             "handle": "test-cook",
             "display_name": "Test Cook",
+            "description": None,
         },
         "capabilities": {
             "review_ingredient_requests": False,
@@ -259,16 +270,64 @@ def test_onboarding_requires_origin_and_session_bound_csrf_then_logout_revokes(
         },
     }
 
+    described = auth_api.client.patch(
+        "/api/auth/session/profile",
+        json={
+            **profile,
+            "description": "  Weeknight recipes and weekend baking.  ",
+        },
+        headers={"Origin": "http://app.example.test", "X-CSRF-Token": csrf},
+    )
+    assert described.status_code == 200
+    assert described.json()["user"]["description"] == ("Weeknight recipes and weekend baking.")
+    assert auth_api.client.get("/api/auth/session").json()["user"]["description"] == (
+        "Weeknight recipes and weekend baking."
+    )
+
     logout = auth_api.client.post(
         "/api/auth/logout",
         headers={"Origin": "http://app.example.test", "X-CSRF-Token": csrf},
     )
     assert logout.status_code == 204
+    force_login_cookie = next(
+        value
+        for value in logout.headers.get_list("set-cookie")
+        if value.startswith(f"{AUTH_FORCE_LOGIN_COOKIE_NAME}=")
+    )
+    assert "HttpOnly" in force_login_cookie
+    assert "SameSite=lax" in force_login_cookie
+    assert "Path=/api/auth/login" in force_login_cookie
     with Session(bind=auth_api.engine) as session:
         stored = session.scalar(select(UserSession))
         assert stored is not None
         assert stored.revoked_at is not None
     assert auth_api.client.get("/api/auth/session").json() == {"status": "anonymous"}
+
+    next_login = auth_api.client.get(
+        "/api/auth/login",
+        params={"return_to": "/recipes"},
+        follow_redirects=False,
+    )
+    assert next_login.status_code == 307
+    authorization_query = parse_qs(urlsplit(next_login.headers["location"]).query)
+    assert authorization_query["prompt"] == ["login"]
+    assert authorization_query["max_age"] == ["0"]
+    assert auth_api.oidc.force_reauthentication is True
+    assert auth_api.client.cookies.get(AUTH_FORCE_LOGIN_COOKIE_NAME) is None
+
+
+def test_normal_login_keeps_provider_sso_available(auth_api: AuthApi) -> None:
+    login = auth_api.client.get(
+        "/api/auth/login",
+        params={"return_to": "/recipes"},
+        follow_redirects=False,
+    )
+
+    assert login.status_code == 307
+    authorization_query = parse_qs(urlsplit(login.headers["location"]).query)
+    assert "prompt" not in authorization_query
+    assert "max_age" not in authorization_query
+    assert auth_api.oidc.force_reauthentication is False
 
 
 def test_existing_onboarded_member_returns_directly_to_validated_path(auth_api: AuthApi) -> None:
@@ -499,6 +558,7 @@ def test_account_deletion_requires_recent_auth_and_erases_private_identity_state
         user = session.scalar(select(User).where(User.account_kind == "member"))
         assert user is not None
         deleted_user_id = user.id
+        user.profile_description = "Profile prose that must be erased."
         session.add(
             RecipeDraft(
                 author_user_id=user.id,
@@ -568,6 +628,7 @@ def test_account_deletion_requires_recent_auth_and_erases_private_identity_state
         assert tombstone.email is None
         assert tombstone.handle is None
         assert tombstone.display_name == "Deleted cook"
+        assert tombstone.profile_description is None
         assert tombstone.deleted_at is not None
         assert session.scalar(select(func.count()).select_from(OIDCIdentity)) == 0
         assert session.scalar(select(func.count()).select_from(UserSession)) == 0

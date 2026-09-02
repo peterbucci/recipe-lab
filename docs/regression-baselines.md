@@ -106,6 +106,10 @@ image is produced from the same sanitized fixture contract.
 | Sign-in, intermediate width         | `account-access-intermediate-normal`  | —                          |
 | Onboarding form                     | `onboarding-form-normal`              | —                          |
 | Auth callback error, intermediate   | `auth-callback-error-intermediate`    | —                          |
+| Settings, Profile                   | `account-settings-profile-normal`     | `account-settings-profile-normal` |
+| Settings, Profile, intermediate     | `account-settings-profile-intermediate-normal` | —                  |
+| Settings, Danger zone               | `account-settings-danger-normal`      | `account-settings-danger-normal` |
+| Settings, Danger zone, intermediate | `account-settings-danger-intermediate-normal` | —                   |
 | My Recipes, private drafts          | `my-recipes-normal`                   | `my-recipes-normal`        |
 | My Recipes, intermediate width      | `my-recipes-intermediate-normal`      | —                          |
 | New recipe entry                    | `authoring-entry-desktop-normal`      | —                          |

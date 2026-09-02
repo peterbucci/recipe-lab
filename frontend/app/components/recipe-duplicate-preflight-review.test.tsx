@@ -164,11 +164,68 @@ describe("RecipeDuplicatePreflightReview", () => {
         name: "I reviewed these similar recipes and want to publish my recipe anyway.",
       }),
     ).toBeVisible();
-    expect(screen.getByRole("region", { name: "Review similar recipes" })).toHaveClass(
-      "duplicate-preflight-review--publication",
-    );
-    expect(screen.getByRole("button", { name: "Publish recipe anyway" })).toBeDisabled();
+    const publicationReview = screen.getByRole("region", {
+      name: "This recipe is similar to another public recipe",
+    });
+    expect(publicationReview).toHaveClass("duplicate-preflight-review--publication");
+    expect(
+      within(publicationReview).getByRole("link", { name: /Public carrot cake/i }),
+    ).toHaveAttribute("target", "_blank");
+    expect(
+      within(publicationReview)
+        .getByText("Why is Recipe Lab showing this?")
+        .closest("details"),
+    ).not.toHaveAttribute("open");
+    expect(screen.getByRole("button", { name: "Publish recipe" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveClass("visually-hidden");
     expect(screen.queryByRole("button", { name: /without checking similar recipes/i })).toBeNull();
+  });
+
+  it("uses the compact source-match confirmation for a publication version", () => {
+    render(
+      <RecipeDuplicatePreflightReview
+        mode="publication"
+        publicationKind="fork"
+        result={result({
+          classification: "exact_duplicate",
+          same_lineage_no_change: true,
+          candidates: [],
+          warnings: [
+            {
+              code: "same_lineage_no_change",
+              message: "The structured recipe is unchanged from its direct parent.",
+            },
+          ],
+        })}
+        acknowledged={false}
+        decisionFailure={null}
+        pendingDecision={null}
+        onAcknowledgedChange={vi.fn()}
+        onContinue={vi.fn()}
+        onRevise={vi.fn()}
+        onRetryDecision={vi.fn()}
+        onCreateWithoutRecordedDecision={vi.fn()}
+        onReturnWithoutRecordedDecision={vi.fn()}
+      />,
+    );
+
+    const review = screen.getByRole("region", {
+      name: "This version is very close to its source",
+    });
+    expect(review).toHaveTextContent(
+      "You can still publish it as a separate version if that’s intentional.",
+    );
+    expect(
+      within(review).getByRole("checkbox", {
+        name: /closely matches its source.*publish it separately/i,
+      }),
+    ).not.toBeChecked();
+    expect(within(review).getByRole("button", { name: "Publish version" })).toBeDisabled();
+    expect(
+      within(review)
+        .getByText("Why is Recipe Lab showing this?")
+        .closest("details"),
+    ).not.toHaveAttribute("open");
   });
 
   it("presents a cook-facing unchanged-version warning without inventing a candidate", () => {

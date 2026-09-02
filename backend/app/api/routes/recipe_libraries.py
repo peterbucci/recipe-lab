@@ -5,14 +5,20 @@ from fastapi import APIRouter, Path, Query, Response
 from app.api.dependencies import RequiredAuthenticatedSessionDependency, SessionDependency
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor
+from app.models import RecipeVersion
 from app.repositories.auth import get_user_by_handle
+from app.repositories.member_follows import count_followers
 from app.repositories.recipe_drafts import RecipeDraftBrowseItem
 from app.repositories.recipe_libraries import (
     MyRecipeLibraryView,
     browse_my_recipes,
     browse_my_saved_recipes,
 )
-from app.repositories.recipes import browse_public_recipe_versions_by_author
+from app.repositories.recipes import (
+    RecipeCardEngagementAggregate,
+    browse_public_recipe_versions_by_author,
+    get_recipe_card_engagement_aggregates,
+)
 from app.schemas.errors import ErrorResponse
 from app.schemas.recipe_drafts import RecipeDraftSummaryResponse
 from app.schemas.recipe_libraries import (
@@ -23,6 +29,7 @@ from app.schemas.recipe_libraries import (
     SavedRecipeLibraryItem,
     SavedRecipeLibraryResponse,
 )
+from app.schemas.recipes import RecipeCardSummary
 from app.services.recipe_responses import public_user_reference, recipe_summary_response
 
 router = APIRouter()
@@ -61,6 +68,20 @@ def _draft_summary(item: RecipeDraftBrowseItem) -> RecipeDraftSummaryResponse:
     )
 
 
+def _card_summary(
+    recipe: RecipeVersion,
+    engagement: RecipeCardEngagementAggregate,
+) -> RecipeCardSummary:
+    summary = recipe_summary_response(recipe)
+    average_rating = engagement.average_rating
+    return RecipeCardSummary(
+        **summary.model_dump(),
+        average_rating=float(average_rating) if average_rating is not None else None,
+        rating_count=engagement.rating_count,
+        save_count=engagement.save_count,
+    )
+
+
 @router.get(
     "/cooks/{handle}",
     response_model=PublicCookProfileResponse,
@@ -94,9 +115,15 @@ def public_cook_profile(
         offset=(page - 1) * page_size,
         limit=page_size,
     )
+    engagement = get_recipe_card_engagement_aggregates(
+        session,
+        [recipe.id for recipe in stored.items],
+    )
     return PublicCookProfileResponse(
         cook=public_user_reference(cook),
-        items=[recipe_summary_response(recipe) for recipe in stored.items],
+        follower_count=count_followers(session, user_id=cook.id),
+        description=cook.profile_description,
+        items=[_card_summary(recipe, engagement[recipe.id]) for recipe in stored.items],
         page=page,
         page_size=page_size,
         total=stored.total,
@@ -136,7 +163,13 @@ def my_recipe_library(
         if item.kind == "draft":
             if item.draft is None:
                 raise RuntimeError("Draft library entry is missing its draft.")
-            items.append(MyRecipeDraftItem(draft=_draft_summary(item.draft)))
+            items.append(
+                MyRecipeDraftItem(
+                    draft=_draft_summary(item.draft),
+                    source_recipe_title=item.draft.source_recipe_title,
+                    description=item.draft.draft.description,
+                )
+            )
         else:
             if item.recipe is None or item.visibility_state is None:
                 raise RuntimeError("Published library entry is missing visibility metadata.")

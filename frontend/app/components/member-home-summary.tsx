@@ -3,11 +3,17 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { retryTransientRead } from "../../lib/api-transport/transient-read-retry";
 import {
   browseMyIngredientRequests,
   IngredientCatalogApiError,
   type MemberIngredientRequest,
 } from "../../lib/ingredient-catalog-api";
+import {
+  fetchMyFollowStats,
+  MemberFollowApiError,
+  type MyFollowStats,
+} from "../../lib/member-follow-api";
 import type { RecipeDraftListItem } from "../../lib/recipe-draft-api";
 import {
   fetchMyRecipeLibrary,
@@ -16,6 +22,12 @@ import {
   RecipeLibraryApiError,
   type SavedRecipeLibraryPage,
 } from "../../lib/recipe-library-api";
+import { buildMemberActivities } from "../../lib/member-activity";
+import { relativeTimeLabel } from "../../lib/relative-time";
+import { LoadingBlock, SectionLoading } from "./loading-ui";
+import { MemberActivityIcon } from "./member-activity-icon";
+import { useHomeLoadIssue } from "./home-load-state";
+import { RecipeArtwork } from "./recipe-artwork";
 
 interface MemberHomeSummaryProps {
   userId: string;
@@ -24,7 +36,7 @@ interface MemberHomeSummaryProps {
 type ResourceState<T> =
   | { phase: "loading" }
   | { data: T; phase: "ready" }
-  | { message: string; phase: "error" };
+  | { message: string; phase: "error"; reportAsHomeIssue: boolean };
 
 interface StoredResourceState<T> {
   state: ResourceState<T>;
@@ -36,23 +48,11 @@ interface MemberHomeResource<T> {
   state: ResourceState<T>;
 }
 
-interface MemberHomeActivity {
-  detail?: string;
-  href: string;
-  id: string;
-  label: string;
-  timestamp: string;
-  title: string;
-}
-
 interface IngredientRequestSummary {
   items: MemberIngredientRequest[];
-  total: number;
 }
 
 interface ActivityResource {
-  name: string;
-  retry: () => void;
   state: ResourceState<unknown>;
 }
 
@@ -95,29 +95,45 @@ function loadSaved(signal: AbortSignal): Promise<SavedRecipeLibraryPage> {
   });
 }
 
+function loadFollowStats(signal: AbortSignal): Promise<MyFollowStats> {
+  return fetchMyFollowStats(signal);
+}
+
 async function loadIngredientRequests(
   signal: AbortSignal,
 ): Promise<IngredientRequestSummary> {
-  const [allRequests, reviewedRequests] = await Promise.all([
-    browseMyIngredientRequests({ page: 1, pageSize: 1, signal }),
-    browseMyIngredientRequests({
-      page: 1,
-      pageSize: SUMMARY_PAGE_SIZE,
-      reviewedOnly: true,
-      signal,
-    }),
-  ]);
+  const reviewedRequests = await retryTransientRead(
+    (readSignal) =>
+      browseMyIngredientRequests({
+        page: 1,
+        pageSize: SUMMARY_PAGE_SIZE,
+        reviewedOnly: true,
+        signal: readSignal,
+      }),
+    { signal },
+  );
   return {
     items: reviewedRequests.items,
-    total: allRequests.total,
   };
 }
 
 function resourceErrorMessage(reason: unknown, fallback: string): string {
   return reason instanceof RecipeLibraryApiError ||
-    reason instanceof IngredientCatalogApiError
+    reason instanceof IngredientCatalogApiError ||
+    reason instanceof MemberFollowApiError
     ? reason.message
     : fallback;
+}
+
+function reportAsHomeIssue(reason: unknown): boolean {
+  if (
+    reason instanceof RecipeLibraryApiError ||
+    reason instanceof IngredientCatalogApiError ||
+    reason instanceof MemberFollowApiError
+  ) {
+    return reason.status !== 401 && reason.status !== 403;
+  }
+  return true;
 }
 
 function useMemberHomeResource<T>(
@@ -157,6 +173,7 @@ function useMemberHomeResource<T>(
           state: {
             message: resourceErrorMessage(reason, fallbackError),
             phase: "error",
+            reportAsHomeIssue: reportAsHomeIssue(reason),
           },
           userId,
         });
@@ -196,120 +213,20 @@ function latestDraft(page: MyRecipeLibraryPage): RecipeDraftListItem | null {
   );
 }
 
-function requestActivityLabel(status: string): string {
-  if (status === "approved") return "Ingredient request approved";
-  if (status === "duplicate") return "Ingredient request matched";
-  if (status === "rejected") return "Ingredient request rejected";
-  return "Ingredient request reviewed";
-}
-
-function buildRecentActivities({
-  drafts,
-  ingredientRequests,
-  published,
-  saved,
-  withdrawn,
-}: {
-  drafts?: MyRecipeLibraryPage;
-  ingredientRequests?: IngredientRequestSummary;
-  published?: MyRecipeLibraryPage;
-  saved?: SavedRecipeLibraryPage;
-  withdrawn?: MyRecipeLibraryPage;
-}): MemberHomeActivity[] {
-  const activities: MemberHomeActivity[] = [];
-
-  for (const item of drafts?.items ?? []) {
-    if (item.kind !== "draft") continue;
-    activities.push({
-      href: `/account/recipe-drafts/${item.draft.id}`,
-      id: `draft:${item.draft.id}`,
-      label: "Updated draft",
-      timestamp: item.draft.updated_at,
-      title: item.draft.title.trim() || "Untitled recipe",
-    });
-  }
-
-  for (const item of published?.items ?? []) {
-    if (item.kind !== "published") continue;
-    activities.push({
-      detail:
-        item.visibility_state === "moderation_hidden"
-          ? "Currently hidden by moderation"
-          : undefined,
-      href: "/account/recipes?view=published",
-      id: `published:${item.recipe.id}`,
-      label: "Published recipe version",
-      timestamp: item.recipe.published_at,
-      title: item.recipe.title,
-    });
-  }
-
-  for (const item of withdrawn?.items ?? []) {
-    if (item.kind !== "published") continue;
-    activities.push({
-      detail: "Currently withdrawn",
-      href: "/account/recipes?view=withdrawn",
-      id: `withdrawn:${item.recipe.id}`,
-      label: "Published recipe version",
-      timestamp: item.recipe.published_at,
-      title: item.recipe.title,
-    });
-  }
-
-  for (const item of saved?.items ?? []) {
-    activities.push({
-      href: "/account/saved-recipes",
-      id: `saved:${item.recipe.id}`,
-      label: "Saved recipe",
-      timestamp: item.saved_at,
-      title: item.recipe.title,
-    });
-  }
-
-  for (const item of ingredientRequests?.items ?? []) {
-    if (item.reviewed_at === null) continue;
-    activities.push({
-      detail: `Status: ${item.status}`,
-      href: "/account/ingredient-requests",
-      id: `ingredient-request:${item.id}`,
-      label: requestActivityLabel(item.status),
-      timestamp: item.reviewed_at,
-      title: item.proposed_name,
-    });
-  }
-
-  return activities
-    .filter((activity) => Number.isFinite(Date.parse(activity.timestamp)))
-    .sort((left, right) => {
-      const byTime =
-        timestampValue(right.timestamp) - timestampValue(left.timestamp);
-      return byTime || left.id.localeCompare(right.id);
-    })
-    .slice(0, 3);
-}
-
-function formatActivity(timestamp: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "UTC",
-  }).format(new Date(timestamp));
-}
-
 function readyData<T>(state: ResourceState<T>): T | undefined {
   return state.phase === "ready" ? state.data : undefined;
 }
 
 function ResourceMetric<T>({
+  href,
   label,
-  retry,
-  retryLabel,
+  linkLabel,
   state,
   total,
 }: {
+  href: string;
   label: string;
-  retry: () => void;
-  retryLabel: string;
+  linkLabel?: string;
   state: ResourceState<T>;
   total: (data: T) => number;
 }) {
@@ -318,87 +235,26 @@ function ResourceMetric<T>({
       <dt>{label}</dt>
       <dd>
         {state.phase === "loading" ? (
-          <span role="status">Loading…</span>
+          <span aria-label={`${label} loading`}>
+            <LoadingBlock className="loading-block--small" />
+          </span>
         ) : state.phase === "error" ? (
-          <span className="member-home-summary__metric-error" role="alert">
-            <span>Unavailable. {state.message}</span>
-            <button
-              className="button button--quiet"
-              type="button"
-              onClick={retry}
-            >
-              {retryLabel}
-            </button>
+          <span
+            aria-label={`${label} unavailable`}
+            className="member-home-summary__metric-unavailable"
+            title="Unavailable"
+          >
+            —
           </span>
         ) : (
-          total(state.data)
+          <Link
+            aria-label={linkLabel ?? `View ${label.toLowerCase()}`}
+            className="member-home-summary__metric-value"
+            href={href}
+          >
+            {total(state.data)}
+          </Link>
         )}
-      </dd>
-    </div>
-  );
-}
-
-function PublishedVersionMetric({
-  published,
-  retryPublished,
-  retryWithdrawn,
-  withdrawn,
-}: {
-  published: ResourceState<MyRecipeLibraryPage>;
-  retryPublished: () => void;
-  retryWithdrawn: () => void;
-  withdrawn: ResourceState<MyRecipeLibraryPage>;
-}) {
-  const loading =
-    published.phase === "loading" || withdrawn.phase === "loading";
-  const errors = [
-    published.phase === "error"
-      ? {
-          label: "Retry published recipes",
-          message: published.message,
-          retry: retryPublished,
-        }
-      : null,
-    withdrawn.phase === "error"
-      ? {
-          label: "Retry withdrawn recipes",
-          message: withdrawn.message,
-          retry: retryWithdrawn,
-        }
-      : null,
-  ].filter(
-    (
-      item,
-    ): item is { label: string; message: string; retry: () => void } =>
-      item !== null,
-  );
-
-  return (
-    <div className="member-home-summary__metric">
-      <dt>Versions published</dt>
-      <dd>
-        {errors.length > 0 ? (
-          <span className="member-home-summary__metric-error" role="alert">
-            <span>Unavailable</span>
-            {errors.map((error) => (
-              <span key={error.label}>
-                <span>{error.message}</span>
-                <button
-                  className="button button--quiet"
-                  type="button"
-                  onClick={error.retry}
-                >
-                  {error.label}
-                </button>
-              </span>
-            ))}
-            {loading ? <span>Other version totals are still loading.</span> : null}
-          </span>
-        ) : loading ? (
-          <span role="status">Loading…</span>
-        ) : published.phase === "ready" && withdrawn.phase === "ready" ? (
-          published.data.total + withdrawn.data.total
-        ) : null}
       </dd>
     </div>
   );
@@ -406,71 +262,69 @@ function PublishedVersionMetric({
 
 function ContinueDraftPanel({
   drafts,
-  retry,
 }: {
   drafts: ResourceState<MyRecipeLibraryPage>;
-  retry: () => void;
 }) {
   let content;
   if (drafts.phase === "loading") {
     content = (
-      <p className="member-home-summary__resource-state" role="status">
-        Loading your latest draft…
-      </p>
+      <SectionLoading
+        className="member-home-summary__resource-state"
+        count={1}
+        label="Loading your latest draft…"
+        layout="summary"
+      />
     );
   } else if (drafts.phase === "error") {
     content = (
-      <div className="member-home-summary__resource-state" role="alert">
-        <p>{drafts.message}</p>
-        <button
-          className="button button--secondary"
-          type="button"
-          onClick={retry}
-        >
-          Retry drafts
-        </button>
-      </div>
+      <p className="member-home-summary__resource-state">
+        Latest draft unavailable.
+      </p>
     );
   } else {
     const draft = latestDraft(drafts.data);
-    content = draft ? (
+    if (!draft) return null;
+
+    const edited = relativeTimeLabel(draft.updated_at);
+    content = (
       <article
         className="member-home-summary__draft"
         aria-labelledby={`member-home-draft-${draft.id}`}
       >
-        <p className="eyebrow">
-          {draft.source_version_id ? "Version draft" : "Original draft"}
-        </p>
-        <h3 id={`member-home-draft-${draft.id}`}>
-          {draft.title.trim() || "Untitled recipe"}
-        </h3>
-        <p>
+        <div className="member-home-summary__draft-preview">
+          <RecipeArtwork
+            className="member-home-summary__draft-thumbnail"
+            recipeKey={draft.id}
+          />
+          <div className="member-home-summary__draft-copy">
+            <h3 id={`member-home-draft-${draft.id}`}>
+              {draft.title.trim() || "Untitled recipe"}
+            </h3>
+            <span>
+              {draft.source_version_id ? "Forked recipe" : "Original recipe"}
+            </span>
+            <small>
+              Edited{" "}
+              <time dateTime={draft.updated_at} title={edited?.absoluteLabel}>
+                {edited?.relativeLabel ?? "recently"}
+              </time>
+            </small>
+          </div>
+        </div>
+        <p className="member-home-summary__draft-counts">
           {draft.ingredient_count} ingredient
           {draft.ingredient_count === 1 ? "" : "s"}
           {" · "}
           {draft.instruction_count} step
           {draft.instruction_count === 1 ? "" : "s"}
         </p>
-        <p>
-          Updated{" "}
-          <time dateTime={draft.updated_at}>
-            {formatActivity(draft.updated_at)}
-          </time>
-        </p>
         <Link
           className="button button--primary"
-          href={`/account/recipe-drafts/${draft.id}`}
+          href={`/recipes/drafts/${draft.id}`}
         >
-          Continue draft
+          Open draft
         </Link>
       </article>
-    ) : (
-      <div className="member-home-summary__resource-state">
-        <p>You have no active drafts right now.</p>
-        <Link className="button button--primary" href="/recipes/new">
-          Start a recipe
-        </Link>
-      </div>
     );
   }
 
@@ -488,10 +342,8 @@ function ContinueDraftPanel({
 function activityResourceNames(
   resources: ActivityResource[],
   phase: "error" | "loading",
-): string[] {
-  return resources.flatMap((resource) =>
-    resource.state.phase === phase ? [resource.name] : [],
-  );
+): ActivityResource[] {
+  return resources.filter((resource) => resource.state.phase === phase);
 }
 
 export function MemberHomeSummary({ userId }: MemberHomeSummaryProps) {
@@ -520,77 +372,58 @@ export function MemberHomeSummary({ userId }: MemberHomeSummaryProps) {
     loadIngredientRequests,
     "Your ingredient requests could not be loaded. Please try again.",
   );
+  const followStats = useMemberHomeResource(
+    userId,
+    loadFollowStats,
+    "Your follower count could not be loaded. Please try again.",
+  );
 
   const resources: ActivityResource[] = [
-    { name: "drafts", retry: drafts.retry, state: drafts.state },
-    {
-      name: "published recipes",
-      retry: published.retry,
-      state: published.state,
-    },
-    {
-      name: "withdrawn recipes",
-      retry: withdrawn.retry,
-      state: withdrawn.state,
-    },
-    { name: "saved recipes", retry: saved.retry, state: saved.state },
-    {
-      name: "ingredient requests",
-      retry: ingredientRequests.retry,
-      state: ingredientRequests.state,
-    },
+    { state: drafts.state },
+    { state: published.state },
+    { state: withdrawn.state },
+    { state: saved.state },
+    { state: ingredientRequests.state },
   ];
   const loadingResources = activityResourceNames(resources, "loading");
-  const failedResources = resources.filter(
-    (resource) => resource.state.phase === "error",
+  const failedResources = activityResourceNames(resources, "error");
+  const allResources = [
+    drafts,
+    published,
+    withdrawn,
+    saved,
+    ingredientRequests,
+    followStats,
+  ];
+  const hasReportableFailure = allResources.some(
+    (resource) =>
+      resource.state.phase === "error" && resource.state.reportAsHomeIssue,
   );
-  const activities = buildRecentActivities({
+  useHomeLoadIssue({
+    active: hasReportableFailure,
+    id: "member-summary",
+    retry: () => {
+      for (const resource of allResources) {
+        if (
+          resource.state.phase === "error" &&
+          resource.state.reportAsHomeIssue
+        ) {
+          resource.retry();
+        }
+      }
+    },
+  });
+  const activities = buildMemberActivities({
     drafts: readyData(drafts.state),
     ingredientRequests: readyData(ingredientRequests.state),
     published: readyData(published.state),
     saved: readyData(saved.state),
     withdrawn: readyData(withdrawn.state),
-  });
+  }).slice(0, SUMMARY_PAGE_SIZE);
 
   return (
     <div className="member-home-summary">
-      <ContinueDraftPanel drafts={drafts.state} retry={drafts.retry} />
-
-      <section
-        className="member-home-summary__panel member-home-summary__stats"
-        aria-labelledby="member-home-stats-title"
-      >
-        <h2 id="member-home-stats-title">Your stats</h2>
-        <dl className="member-home-summary__metrics">
-          <PublishedVersionMetric
-            published={published.state}
-            retryPublished={published.retry}
-            retryWithdrawn={withdrawn.retry}
-            withdrawn={withdrawn.state}
-          />
-          <ResourceMetric
-            label="Active drafts"
-            retry={drafts.retry}
-            retryLabel="Retry drafts"
-            state={drafts.state}
-            total={(page) => page.total}
-          />
-          <ResourceMetric
-            label="Saved recipes"
-            retry={saved.retry}
-            retryLabel="Retry saved recipes"
-            state={saved.state}
-            total={(page) => page.total}
-          />
-          <ResourceMetric
-            label="Ingredient requests"
-            retry={ingredientRequests.retry}
-            retryLabel="Retry ingredient requests"
-            state={ingredientRequests.state}
-            total={(page) => page.total}
-          />
-        </dl>
-      </section>
+      <ContinueDraftPanel drafts={drafts.state} />
 
       <section
         className="member-home-summary__panel member-home-summary__activity"
@@ -602,48 +435,87 @@ export function MemberHomeSummary({ userId }: MemberHomeSummaryProps) {
             className="member-home-summary__activity-list"
             aria-label="Recent account activity"
           >
-            {activities.map((activity) => (
-              <li key={activity.id}>
-                <Link href={activity.href}>
-                  <span>{activity.label}</span>
-                  <strong>{activity.title}</strong>
-                </Link>
-                {activity.detail ? <span>{activity.detail}</span> : null}
-                <time dateTime={activity.timestamp}>
-                  {formatActivity(activity.timestamp)}
-                </time>
-              </li>
-            ))}
+            {activities.map((activity) => {
+              const occurred = relativeTimeLabel(activity.timestamp);
+              return (
+                <li key={activity.id}>
+                  <span className="member-home-summary__activity-icon">
+                    <MemberActivityIcon kind={activity.kind} />
+                  </span>
+                  <div className="member-home-summary__activity-copy">
+                    <Link href={activity.href}>
+                      <span>{activity.label}</span>
+                      <strong>{activity.title}</strong>
+                    </Link>
+                    <time
+                      dateTime={activity.timestamp}
+                      title={occurred?.absoluteLabel}
+                    >
+                      {occurred?.relativeLabel ?? "Recently"}
+                    </time>
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         ) : loadingResources.length === 0 && failedResources.length === 0 ? (
           <p>No recent account activity yet.</p>
         ) : null}
         {loadingResources.length > 0 ? (
-          <p className="member-home-summary__activity-state" role="status">
-            {activities.length > 0
-              ? "Checking for other recent activity…"
-              : "Loading recent activity…"}
-          </p>
+          <SectionLoading
+            className="member-home-summary__activity-state"
+            count={3}
+            label={
+              activities.length > 0
+                ? "Checking for other recent activity…"
+                : "Loading recent activity…"
+            }
+            layout="rows"
+            refreshing={activities.length > 0}
+          />
         ) : null}
-        {failedResources.length > 0 ? (
-          <div className="member-home-summary__activity-state" role="alert">
-            <p>
-              Some recent activity is unavailable from {failedResources
-                .map((resource) => resource.name)
-                .join(", ")}.
-            </p>
-            {failedResources.map((resource) => (
-              <button
-                className="button button--quiet"
-                key={resource.name}
-                type="button"
-                onClick={resource.retry}
-              >
-                Retry {resource.name} for activity
-              </button>
-            ))}
-          </div>
+        {activities.length === 0 &&
+        loadingResources.length === 0 &&
+        failedResources.length > 0 ? (
+          <p className="member-home-summary__activity-state">Unavailable.</p>
         ) : null}
+        <Link className="member-home-summary__view-all" href="/account/activity">
+          View all activity <span aria-hidden="true">→</span>
+        </Link>
+      </section>
+
+      <section
+        className="member-home-summary__panel member-home-summary__stats"
+        aria-labelledby="member-home-stats-title"
+      >
+        <h2 id="member-home-stats-title">Your stats</h2>
+        <dl className="member-home-summary__metrics">
+          <ResourceMetric
+            href="/account/recipes?view=published"
+            label="Versions published"
+            linkLabel="View published versions"
+            state={published.state}
+            total={(page) => page.total}
+          />
+          <ResourceMetric
+            href="/account/recipes?view=drafts"
+            label="Active drafts"
+            state={drafts.state}
+            total={(page) => page.total}
+          />
+          <ResourceMetric
+            href="/account/recipes?view=saved"
+            label="Saved recipes"
+            state={saved.state}
+            total={(page) => page.total}
+          />
+          <ResourceMetric
+            href="/account/followers"
+            label="Followers"
+            state={followStats.state}
+            total={(stats) => stats.follower_count}
+          />
+        </dl>
       </section>
     </div>
   );

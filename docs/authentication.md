@@ -16,7 +16,7 @@ versions. The account surface adds:
 - `GET /api/auth/session` to read anonymous, onboarding-required, or
   authenticated state;
 - `PATCH /api/auth/session/profile` to finish onboarding or update the account
-  handle and display name; and
+  handle, display name, and optional public profile description; and
 - `POST /api/auth/logout` to revoke the current application session;
 - `GET /api/auth/reauthenticate?return_to=/relative-path` to require a fresh,
   session-bound provider authentication before a sensitive action; and
@@ -25,8 +25,9 @@ versions. The account surface adds:
   private account data while preserving anonymous public recipe topology.
 
 The browser calls these endpoints through the same-origin Next.js `/api`
-proxy. Browser session responses contain only the local user ID, handle, and
-display name plus narrow boolean catalog-review and recipe-moderation
+proxy. Browser session responses contain only the local user ID, handle,
+display name, optional public profile description, and narrow boolean
+catalog-review and recipe-moderation
 capabilities. Those capability flags are derived from live, separate database
 grants and confer no role-management authority. Session responses never contain the private email, OIDC issuer or subject,
 provider tokens, application session token, or token digests.
@@ -136,8 +137,8 @@ public reads and anonymous recommendations do not require the Demo identity to
 exist. The legacy `/api/me` demo route is removed; `/api/auth/session` is the
 only browser identity/session contract.
 
-Deleting an account atomically removes its OIDC mapping, private email and
-handle, every application session, saves, ratings, preference events, private
+Deleting an account atomically removes its OIDC mapping, private email,
+handle, public profile description, every application session, saves, ratings, preference events, private
 draft content, and other unreferenced private workflow evidence. Published
 snapshots and fork relationships are not hard-deleted. Their stable author UUID
 resolves only to an irreversible `Deleted cook` tombstone with no profile link.

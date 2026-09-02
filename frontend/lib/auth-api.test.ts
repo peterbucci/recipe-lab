@@ -32,6 +32,7 @@ describe("auth API client", () => {
           id: "cook-id",
           display_name: "Alice Cook",
           handle: "alice",
+          description: "Weeknight recipes and bread experiments.",
           email: "not-copied@example.test",
         },
         capabilities: {
@@ -41,7 +42,12 @@ describe("auth API client", () => {
       }),
     ).toEqual({
       status: "authenticated",
-      user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
+      user: {
+        id: "cook-id",
+        display_name: "Alice Cook",
+        handle: "alice",
+        description: "Weeknight recipes and bread experiments.",
+      },
       capabilities: {
         review_ingredient_requests: true,
         moderate_recipe_reports: false,
@@ -97,7 +103,11 @@ describe("auth API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      updateAccountProfile({ handle: "alice", display_name: "Alice Cook" }),
+      updateAccountProfile({
+        handle: "alice",
+        display_name: "Alice Cook",
+        description: "Home cook.",
+      }),
     ).resolves.toMatchObject({ status: "authenticated" });
     await expect(signOut()).resolves.toBeUndefined();
     await expect(deleteAccount("alice")).resolves.toBeUndefined();
@@ -112,6 +122,11 @@ describe("auth API client", () => {
           "Content-Type": "application/json",
           "X-CSRF-Token": "token value",
         },
+        body: JSON.stringify({
+          handle: "alice",
+          display_name: "Alice Cook",
+          description: "Home cook.",
+        }),
       }),
     ]);
     expect(fetchMock.mock.calls[1]).toEqual([
@@ -219,6 +234,11 @@ describe("auth API client", () => {
                   type: "internal_display_name_policy_failure",
                 },
                 {
+                  location: ["body", "description"],
+                  message: "Private profile moderation detail.",
+                  type: "internal_description_policy_failure",
+                },
+                {
                   location: ["body", internalId],
                   message: "Private identifier detail.",
                   type: "internal_error",
@@ -250,6 +270,11 @@ describe("auth API client", () => {
         {
           location: ["body", "display_name"],
           message: "Enter a display name with 1–120 visible characters.",
+          type: "validation_error",
+        },
+        {
+          location: ["body", "description"],
+          message: "Keep your profile description to 500 visible characters or fewer.",
           type: "validation_error",
         },
       ],

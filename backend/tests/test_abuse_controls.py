@@ -86,7 +86,10 @@ def test_networks_are_canonicalized_and_subjects_are_pseudonymous() -> None:
         ("PUT", f"/api/recipes/{uuid4()}/save", "interaction"),
         ("DELETE", f"/api/recipes/{uuid4()}/save", "interaction"),
         ("PUT", f"/api/recipes/{uuid4()}/rating", "interaction"),
+        ("DELETE", f"/api/recipes/{uuid4()}/rating", "interaction"),
         ("POST", f"/api/recipes/{uuid4()}/view", "interaction"),
+        ("PUT", "/api/cooks/member-alpha/follow", "interaction"),
+        ("DELETE", "/api/cooks/member-alpha/follow", "interaction"),
     ],
 )
 def test_protected_actions_have_explicit_policies(

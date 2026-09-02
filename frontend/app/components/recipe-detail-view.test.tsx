@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthSession } from "../../lib/auth-api";
@@ -8,7 +8,9 @@ import { AuthSessionProvider } from "./auth-session-provider";
 import { RecipeDetailView } from "./recipe-detail-view";
 
 const mocks = vi.hoisted(() => ({
+  fetchCookFollowState: vi.fn(),
   fetchRecipeViewerState: vi.fn(),
+  setCookFollowing: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -16,8 +18,19 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("../../lib/interaction-api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../lib/interaction-api")>();
+  const actual =
+    await importOriginal<typeof import("../../lib/interaction-api")>();
   return { ...actual, fetchRecipeViewerState: mocks.fetchRecipeViewerState };
+});
+
+vi.mock("../../lib/member-follow-api", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../lib/member-follow-api")>();
+  return {
+    ...actual,
+    fetchCookFollowState: mocks.fetchCookFollowState,
+    setCookFollowing: mocks.setCookFollowing,
+  };
 });
 
 vi.mock("./recipe-view-tracker", () => ({
@@ -46,22 +59,41 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     ],
     created_at: "2026-08-20T00:00:00Z",
     published_at: "2026-08-21T00:00:00Z",
-    author: { id: "cook-two", handle: "second-cook", display_name: "Second Cook" },
+    author: {
+      id: "cook-two",
+      handle: "second-cook",
+      display_name: "Second Cook",
+    },
     average_rating: 4.5,
     rating_count: 2,
+    save_count: 876,
+    total_time_minutes: 85,
+    active_time_minutes: 25,
+    difficulty: "medium",
+    notes: null,
     viewer_state: null,
     parent: {
       id: "carrot-v1",
       version_number: 1,
       title: "Carrot Walnut Snack Cake",
-      author: { id: "cook-one", handle: "first-cook", display_name: "First Cook" },
+      author: {
+        id: "cook-one",
+        handle: "first-cook",
+        display_name: "First Cook",
+      },
     },
-    children: [{
-      id: "carrot-v3",
-      version_number: 3,
-      title: "Orange Raisin Carrot Cake",
-      author: { id: "cook-three", handle: "third-cook", display_name: "Third Cook" },
-    }],
+    children: [
+      {
+        id: "carrot-v3",
+        version_number: 3,
+        title: "Orange Raisin Carrot Cake",
+        author: {
+          id: "cook-three",
+          handle: "third-cook",
+          display_name: "Third Cook",
+        },
+      },
+    ],
     ingredients: [
       {
         id: "sugar-line",
@@ -106,12 +138,14 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     instructions: [
       {
         id: "step-one",
+        title: null,
         text: "Heat the oven and prepare the pan.",
         display_order: 0,
         actions: [],
       },
       {
         id: "step-two",
+        title: null,
         text: "Fold the dry ingredients into the wet mixture.",
         display_order: 1,
         actions: [],
@@ -121,7 +155,10 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
   };
 }
 
-function renderDetail(recipe: RecipeDetail, session: AuthSession = { status: "anonymous" }) {
+function renderDetail(
+  recipe: RecipeDetail,
+  session: AuthSession = { status: "anonymous" },
+) {
   return render(
     <AuthSessionProvider initialSession={session}>
       <RecipeDetailView recipe={recipe} />
@@ -152,10 +189,16 @@ function structuredAction(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.history.replaceState(null, "", "/");
   mocks.fetchRecipeViewerState.mockResolvedValue({
     recipe_version_id: "carrot-v2",
     saved: false,
     rating: null,
+  });
+  mocks.fetchCookFollowState.mockResolvedValue({
+    cook_id: "cook-two",
+    follower_count: 3,
+    following: false,
   });
 });
 
@@ -164,27 +207,76 @@ describe("RecipeDetailView", () => {
     const { container } = renderDetail(detail());
 
     expect(
-      screen.getByRole("heading", { name: /lower-sugar pecan carrot cake/i, level: 1 }),
+      screen.getByRole("heading", {
+        name: /lower-sugar pecan carrot cake/i,
+        level: 1,
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Recipe", { selector: ".eyebrow" })).toBeVisible();
-    expect(screen.queryByText("Version", { selector: ".eyebrow" })).toBeNull();
-    expect(screen.queryByText(/version \d+/i)).toBeNull();
+    expect(
+      screen.getByText("Version", {
+        selector: ".recipe-detail__version-badge",
+      }),
+    ).toBeVisible();
+    expect(screen.queryByText("Recipe", { selector: ".eyebrow" })).toBeNull();
+    expect(
+      container.querySelector(".recipe-detail__intro"),
+    ).not.toHaveTextContent(/version \d+/i);
     expect(container.querySelector(".recipe-detail__artwork")).toHaveAttribute(
       "aria-hidden",
       "true",
     );
-    expect(screen.getByLabelText(/4\.5 out of 5 from 2 ratings/i)).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: /member recipe actions/i })).toHaveTextContent(
-      /sign in to save or rate/i,
+    expect(
+      screen.getByLabelText(/4\.5 out of 5 from 2 ratings/i),
+    ).toBeInTheDocument();
+    expect(container.querySelector(".rating-summary__label")).toBeNull();
+    expect(container.querySelector(".rating-summary__stars")).toHaveTextContent(
+      "★★★★★",
     );
-    expect(screen.queryByRole("region", { name: /save and rate this recipe/i })).toBeNull();
+    expect(
+      within(
+        container.querySelector(".recipe-detail__member-actions")!,
+      ).getByText("876 saves"),
+    ).toBeVisible();
+    expect(screen.getByText("1 hr 25 min")).toBeVisible();
+    expect(screen.getByText("25 min")).toBeVisible();
+    expect(screen.getByText("Medium")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save recipe" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Rate recipe" })).toBeVisible();
+    expect(
+      screen.queryByRole("region", { name: /save and rate this recipe/i }),
+    ).toBeNull();
     expect(screen.queryByTestId("view-tracker")).toBeNull();
     expect(mocks.fetchRecipeViewerState).not.toHaveBeenCalled();
-    expect(screen.getByRole("link", { name: /see what changed/i })).toHaveAttribute(
-      "href",
-      "/recipes/carrot-v2/compare",
-    );
+    expect(
+      screen.queryByRole("link", { name: /see what changed/i }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("region", { name: "Recipe family context" }),
+    ).toBeNull();
     expect(screen.getByText("140 g")).toBeInTheDocument();
+    expect(screen.getByLabelText("Mark White sugar as gathered")).toBeVisible();
+    const ingredients = screen
+      .getByRole("heading", { name: "Ingredients", level: 2 })
+      .closest("section");
+    expect(ingredients).not.toBeNull();
+    expect(within(ingredients!).queryByText("8 servings")).toBeNull();
+    const tabs = screen.getByRole("tablist", { name: "Recipe sections" });
+    const recipeTab = within(tabs).getByRole("tab", { name: "Recipe" });
+    const notesTab = within(tabs).getByRole("tab", { name: "Notes" });
+    const familyTab = within(tabs).getByRole("tab", { name: "Family" });
+    expect(recipeTab).toHaveAttribute("aria-selected", "true");
+    expect(notesTab).toHaveAttribute("aria-selected", "false");
+    expect(familyTab).toHaveAttribute("aria-selected", "false");
+    const followLink = screen.getByRole("link", { name: "Follow" });
+    expect(followLink).toHaveAttribute(
+      "href",
+      "/sign-in?return_to=%2Frecipes%2Fcarrot-v2",
+    );
+    const followControl = followLink.closest(".cook-follow-control");
+    const authorRow = followLink.closest(".recipe-detail__author-row");
+    expect(authorRow).not.toBeNull();
+    expect(followControl?.parentElement).toBe(authorRow);
+    expect(authorRow?.lastElementChild).toBe(followControl);
     const categories = screen.getByRole("list", {
       name: "Categories for Lower-Sugar Pecan Carrot Cake",
     });
@@ -192,58 +284,124 @@ describe("RecipeDetailView", () => {
     expect(within(categories).getByText("Dessert")).toBeVisible();
     expect(within(categories).queryByRole("link")).not.toBeInTheDocument();
     expect(screen.queryByText(/catalog name:/i)).toBeNull();
-    expect(screen.getAllByRole("link", { name: "Second Cook" })[0]).toHaveAttribute(
-      "href",
-      "/cooks/second-cook",
-    );
-    expect(container.querySelector(".recipe-detail__parent-context")).toHaveTextContent(
-      "Based on Carrot Walnut Snack Cake by First Cook",
-    );
-    expect(screen.getAllByRole("link", { name: "First Cook" })[0]).toHaveAttribute(
-      "href",
-      "/cooks/first-cook",
-    );
+    expect(
+      screen.getAllByRole("link", { name: "Second Cook" })[0],
+    ).toHaveAttribute("href", "/cooks/second-cook");
+    expect(
+      container.querySelector(".recipe-detail__parent-context"),
+    ).toHaveTextContent("Based on Carrot Walnut Snack Cake by First Cook");
+    expect(
+      screen.getAllByRole("link", { name: "First Cook" })[0],
+    ).toHaveAttribute("href", "/cooks/first-cook");
 
-    const instructions = screen.getByRole("heading", { name: /instructions/i }).closest("section");
+    const instructions = screen
+      .getByRole("heading", { name: /instructions/i })
+      .closest("section");
     expect(instructions).not.toBeNull();
     expect(within(instructions!).getAllByRole("listitem")).toHaveLength(2);
-    expect(within(instructions!).queryByText(/cooking actions added/i)).toBeNull();
-    expect(within(instructions!).queryByText(/structured actions/i)).toBeNull();
-    const recipeHistory = screen.getByRole("list", { name: /recipe history/i });
-    expect(within(recipeHistory).getAllByRole("listitem")).toHaveLength(3);
-    expect(within(recipeHistory).getByLabelText("This recipe")).toHaveTextContent(
-      "Lower-Sugar Pecan Carrot Cake",
-    );
     expect(
-      within(recipeHistory).getByRole("link", {
-        name: "Based on: Carrot Walnut Snack Cake, by First Cook",
+      within(instructions!).queryByText(/cooking actions added/i),
+    ).toBeNull();
+    expect(instructions).not.toHaveTextContent(
+      /Inputs:|Duration:|Temperature:/,
+    );
+
+    fireEvent.click(notesTab);
+    expect(notesTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("heading", { name: "Notes from Second Cook" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText("No notes were added for this recipe."),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("tabpanel", { name: "Notes" }).querySelector(".eyebrow"),
+    ).toBeNull();
+
+    fireEvent.keyDown(notesTab, { key: "ArrowRight" });
+    expect(familyTab).toHaveFocus();
+    expect(familyTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen
+        .getByRole("tabpanel", { name: "Family" })
+        .querySelector(".eyebrow"),
+    ).toBeNull();
+    const familyPanel = screen.getByRole("tabpanel", { name: "Family" });
+    expect(
+      within(familyPanel).getByLabelText(
+        "Selected family recipe: Lower-Sugar Pecan Carrot Cake",
+      ),
+    ).toHaveTextContent("Lower-Sugar Pecan Carrot Cake");
+    expect(
+      within(familyPanel).getByRole("button", {
+        name: "Show Carrot Walnut Snack Cake in the family tree",
+      }),
+    ).toBeVisible();
+    expect(
+      within(familyPanel).getByRole("link", {
+        name: "Carrot Walnut Snack Cake",
       }),
     ).toHaveAttribute("href", "/recipes/carrot-v1");
+    fireEvent.click(
+      within(familyPanel).getByRole("button", {
+        name: "Show Orange Raisin Carrot Cake in the family tree",
+      }),
+    );
     expect(
-      within(recipeHistory).getByRole("link", {
-        name: "Another version: Orange Raisin Carrot Cake, by Third Cook",
+      within(familyPanel).getByLabelText(
+        "Selected family recipe: Orange Raisin Carrot Cake",
+      ),
+    ).toBeVisible();
+    expect(
+      within(familyPanel).getByRole("link", {
+        name: "Orange Raisin Carrot Cake",
       }),
     ).toHaveAttribute("href", "/recipes/carrot-v3");
+    expect(
+      within(familyPanel).getByRole("link", {
+        name: "Compare with Lower-Sugar Pecan Carrot Cake →",
+      }),
+    ).toHaveAttribute(
+      "href",
+      "/recipes/carrot-v3/compare?base_version_id=carrot-v2",
+    );
   });
 
   it("renders deleted attribution and an unavailable parent without leaking links or comparison", () => {
     renderDetail(
       detail({
-        author: { id: "deleted-id", handle: null, display_name: "Deleted cook" },
+        author: {
+          id: "deleted-id",
+          handle: null,
+          display_name: "Deleted cook",
+        },
         parent: null,
         children: [],
       }),
     );
 
-    expect(screen.getAllByText("Deleted cook", { exact: true })).not.toHaveLength(0);
+    expect(
+      screen.getAllByText("Deleted cook", { exact: true }),
+    ).not.toHaveLength(0);
     expect(screen.queryByRole("link", { name: "Deleted cook" })).toBeNull();
-    expect(screen.getAllByText("Source unavailable", { exact: true })).toHaveLength(2);
-    expect(screen.queryByRole("link", { name: /see what changed/i })).toBeNull();
-    const recipeHistory = screen.getByRole("list", { name: /recipe history/i });
-    expect(within(recipeHistory).getAllByRole("listitem")).toHaveLength(2);
-    expect(within(recipeHistory).queryByText("Carrot Walnut Snack Cake")).toBeNull();
-    expect(within(recipeHistory).queryByText("First Cook")).toBeNull();
-    expect(within(recipeHistory).getByLabelText("This recipe")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Source unavailable", { exact: true }),
+    ).toHaveLength(2);
+    expect(
+      screen.queryByRole("link", { name: /see what changed/i }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Family" }));
+    const familyPanel = screen.getByRole("tabpanel", { name: "Family" });
+    expect(
+      within(familyPanel).queryByText("Carrot Walnut Snack Cake"),
+    ).toBeNull();
+    expect(within(familyPanel).queryByText("First Cook")).toBeNull();
+    expect(within(familyPanel).getByText("Source unavailable")).toBeVisible();
+    expect(
+      within(familyPanel).getByLabelText(
+        "Selected family recipe: Lower-Sugar Pecan Carrot Cake",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("renders the legacy Demo Cook identity without a profile link", () => {
@@ -257,30 +415,47 @@ describe("RecipeDetailView", () => {
       }),
     );
 
-    expect(screen.getAllByText("Demo Cook", { exact: true })).not.toHaveLength(0);
+    expect(screen.getAllByText("Demo Cook", { exact: true })).not.toHaveLength(
+      0,
+    );
     expect(screen.queryByRole("link", { name: "Demo Cook" })).toBeNull();
   });
 
   it("hydrates private controls only after the authenticated member state loads", async () => {
-    renderDetail(detail(), member);
+    const { container } = renderDetail(detail(), member);
 
-    expect(screen.getByRole("region", { name: /member recipe actions/i })).toHaveTextContent(
-      /loading your saved and rating state/i,
-    );
-    expect(await screen.findByRole("region", { name: /save and rate this recipe/i })).toBeVisible();
+    expect(
+      screen.getByRole("region", { name: /member recipe actions/i }),
+    ).toHaveTextContent(/loading your saved and rating state/i);
+    expect(
+      await screen.findByRole("region", { name: /save and rate this recipe/i }),
+    ).toBeVisible();
     expect(mocks.fetchRecipeViewerState).toHaveBeenCalledWith(
       "carrot-v2",
       expect.any(AbortSignal),
     );
-    expect(screen.getByRole("button", { name: /save recipe/i })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
-    expect(screen.getByRole("link", { name: /make your own version/i })).toHaveAttribute(
-      "href",
-      "/recipes/carrot-v2/fork",
-    );
+    expect(
+      screen.getByRole("button", { name: /save recipe/i }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(
+      screen.getByRole("button", { name: /make your own version/i }),
+    ).toBeVisible();
     expect(screen.getByTestId("view-tracker")).toHaveTextContent("carrot-v2");
+    const socialRow = container.querySelector<HTMLElement>(
+      ".recipe-detail__social-row",
+    );
+    expect(socialRow).not.toBeNull();
+    expect(
+      within(socialRow!).getByLabelText(/4\.5 out of 5 from 2 ratings/i),
+    ).toBeVisible();
+    expect(within(socialRow!).getByText("876 saves")).toBeVisible();
+    const publicationRow = container.querySelector<HTMLElement>(
+      ".recipe-detail__label-row",
+    );
+    expect(publicationRow).not.toBeNull();
+    expect(
+      within(publicationRow!).getByRole("button", { name: "Report recipe" }),
+    ).toBeVisible();
   });
 
   it("keeps prose primary while rendering ordered action structure and exact ingredient occurrences", () => {
@@ -305,25 +480,71 @@ describe("RecipeDetailView", () => {
     const unavailableIngredientId = "99999999-9999-4999-8999-999999999999";
     const fold = structuredAction("fold", "fold", 1, [unavailableIngredientId]);
     fold.action_type.active = false;
-    recipe.instructions[0].actions = [fold, mix];
+    const line = structuredAction("line", "line", 2, []);
+    recipe.instructions[0].title = "Prepare the pan";
+    recipe.instructions[0].actions = [line, fold, mix];
 
     renderDetail(recipe);
 
-    expect(screen.getByText("Heat the oven and prepare the pan.")).toBeInTheDocument();
-    const actions = screen.getByRole("list", { name: "Cooking details for step 1" });
-    const rendered = within(actions).getAllByRole("listitem");
-    expect(rendered).toHaveLength(2);
-    expect(within(rendered[0]).getByText("mix")).toBeInTheDocument();
     expect(
-      within(rendered[0]).getByText("With White sugar · For 5 minutes"),
+      screen.getByText("Heat the oven and prepare the pan."),
     ).toBeInTheDocument();
-    expect(within(rendered[1]).getByText("fold")).toBeInTheDocument();
-    expect(within(rendered[1]).getByText("Previously used action")).toBeInTheDocument();
     expect(
-      within(rendered[1]).getByText("With ingredient no longer available"),
+      screen.getByRole("heading", { name: "Prepare the pan" }),
+    ).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Steps" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Cooking breakdown" }));
+    const actions = screen.getByRole("list", {
+      name: "Cooking breakdown for step 1",
+    });
+    const rendered = within(actions).getAllByRole("listitem");
+    expect(rendered).toHaveLength(3);
+    expect(within(rendered[0]).getByText("Mix")).toBeInTheDocument();
+    expect(within(rendered[0]).getByText("White sugar")).toBeInTheDocument();
+    expect(within(rendered[0]).getByText("5 minutes")).toBeInTheDocument();
+    expect(within(rendered[1]).getByText("Fold")).toBeInTheDocument();
+    expect(
+      within(rendered[1]).getByText("Previously used action"),
+    ).toBeInTheDocument();
+    expect(
+      within(rendered[1]).getByText("Ingredient no longer available"),
+    ).toBeInTheDocument();
+    expect(within(rendered[2]).getByText("Line pan")).toBeInTheDocument();
+    expect(
+      within(rendered[2]).getByText("No ingredient linked"),
     ).toBeInTheDocument();
     expect(actions).not.toHaveTextContent(unavailableIngredientId);
-    expect(actions).not.toHaveTextContent(/Inputs:|Duration:|Temperature:|Historical action/);
+    expect(actions).not.toHaveTextContent(
+      /Inputs:|Duration:|Temperature:|Historical action/,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Steps" }));
+    expect(
+      screen.getByText("Heat the oven and prepare the pan."),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Notes" }));
+    expect(
+      screen.getByText("No notes were added for this recipe."),
+    ).toBeVisible();
+  });
+
+  it("renders authored recipe notes in the Notes tab", () => {
+    renderDetail(
+      detail({
+        notes: "Rest the cake completely before adding the glaze.",
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Notes" }));
+    expect(
+      screen.getByText("Rest the cake completely before adding the glaze."),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("No notes were added for this recipe."),
+    ).toBeNull();
   });
 
   it("renders honest empty aggregate and recipe-history states without exposing private controls", () => {
@@ -339,10 +560,19 @@ describe("RecipeDetailView", () => {
     );
 
     expect(screen.getByLabelText(/no ratings yet/i)).toBeInTheDocument();
-    expect(screen.queryByText("Original", { selector: ".eyebrow" })).toBeNull();
+    expect(
+      screen.getByText("Original", {
+        selector: ".recipe-detail__version-badge",
+      }),
+    ).toBeVisible();
     expect(screen.queryByText(/version \d+/i)).toBeNull();
-    expect(screen.getByText(/does not have another version yet/i)).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /see what changed/i })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Family" }));
+    expect(
+      screen.getByText(/no versions have been created from this recipe yet/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /see what changed/i }),
+    ).toBeNull();
     expect(screen.queryByRole("link", { name: /based on/i })).toBeNull();
   });
 });

@@ -18,6 +18,7 @@ from app.api.dependencies import (
 from app.api.errors import ApiError
 from app.core.security import (
     AUTH_CSRF_COOKIE_NAME,
+    AUTH_FORCE_LOGIN_COOKIE_NAME,
     AUTH_LOGIN_COOKIE_NAME,
     AUTH_SESSION_COOKIE_NAME,
     secrets_match,
@@ -108,6 +109,7 @@ def _member_response(
             id=authenticated.user_id,
             handle=authenticated.handle,
             display_name=authenticated.display_name,
+            description=authenticated.profile_description,
         ),
         capabilities=AccountCapabilitiesResponse(
             review_ingredient_requests=(
@@ -174,6 +176,34 @@ def _clear_auth_cookies(response: Response, settings: SettingsDependency) -> Non
     )
 
 
+def _require_fresh_login_after_sign_out(
+    response: Response,
+    settings: SettingsDependency,
+) -> None:
+    response.set_cookie(
+        AUTH_FORCE_LOGIN_COOKIE_NAME,
+        "1",
+        max_age=settings.auth_session_ttl_seconds,
+        secure=settings.auth_cookie_secure,
+        httponly=True,
+        samesite="lax",
+        path="/api/auth/login",
+    )
+
+
+def _clear_fresh_login_requirement(
+    response: Response,
+    settings: SettingsDependency,
+) -> None:
+    response.delete_cookie(
+        AUTH_FORCE_LOGIN_COOKIE_NAME,
+        path="/api/auth/login",
+        secure=settings.auth_cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )
+
+
 def _reauthentication_failure_redirect(
     *,
     settings: SettingsDependency,
@@ -208,6 +238,7 @@ def _reauthentication_failure_redirect(
     summary="Start a secure OpenID Connect login",
 )
 def start_login(
+    request: Request,
     session: SessionDependency,
     settings: SettingsDependency,
     oidc_client: OIDCClientDependency,
@@ -216,6 +247,7 @@ def start_login(
         Query(min_length=1, max_length=2048, description="Local path to return to after login."),
     ] = "/",
 ) -> RedirectResponse:
+    force_reauthentication = request.cookies.get(AUTH_FORCE_LOGIN_COOKIE_NAME) == "1"
     try:
         with session.begin():
             login = begin_oidc_login(
@@ -224,6 +256,7 @@ def start_login(
                 oidc_client=oidc_client,
                 return_path=return_to,
                 now=utc_now(),
+                force_reauthentication=force_reauthentication,
             )
     except ValueError as error:
         raise ApiError(
@@ -247,6 +280,7 @@ def start_login(
         samesite="lax",
         path="/api/auth/callback",
     )
+    _clear_fresh_login_requirement(response, settings)
     response.headers["Referrer-Policy"] = "no-referrer"
     _set_no_store(response)
     return response
@@ -471,7 +505,7 @@ def account_session(
     "/session/profile",
     response_model=MemberSessionResponse,
     responses=AUTH_ERROR_RESPONSES,
-    summary="Complete account onboarding",
+    summary="Update the account profile",
 )
 def update_account_profile(
     payload: AccountProfileUpdateRequest,
@@ -485,6 +519,8 @@ def update_account_profile(
             authenticated=authenticated,
             handle=payload.handle,
             display_name=payload.display_name,
+            profile_description=payload.description,
+            update_profile_description="description" in payload.model_fields_set,
         )
         session.commit()
     except (HandleUnavailableError, IntegrityError) as error:
@@ -525,6 +561,7 @@ def logout(
     session.commit()
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     _clear_auth_cookies(response, settings)
+    _require_fresh_login_after_sign_out(response, settings)
     _set_no_store(response)
     return response
 

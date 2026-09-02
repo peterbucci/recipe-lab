@@ -121,6 +121,58 @@ def test_signed_in_member_gets_private_viewer_state_without_legacy_identity_rout
     assert "Cookie" in detail_response.headers["vary"]
 
 
+def test_signed_in_member_loads_card_viewer_states_in_one_bounded_request(
+    interaction_client: TestClient,
+) -> None:
+    save_response = interaction_client.put(
+        f"/api/recipes/{CARROT_ROOT_ID}/save",
+        headers=_action_headers(),
+    )
+    rating_response = interaction_client.put(
+        f"/api/recipes/{CARROT_PECAN_ID}/rating",
+        json={"rating": 4},
+        headers=_action_headers(),
+    )
+    assert save_response.status_code == 200
+    assert rating_response.status_code == 200
+
+    missing_recipe_id = uuid4()
+    response = interaction_client.get(
+        "/api/recipes/viewer-states",
+        params=[
+            ("recipe_version_id", str(CARROT_ROOT_ID)),
+            ("recipe_version_id", str(CARROT_PECAN_ID)),
+            ("recipe_version_id", str(CARROT_ROOT_ID)),
+            ("recipe_version_id", str(missing_recipe_id)),
+        ],
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            _expected_state(CARROT_ROOT_ID, saved=True, rating=None),
+            _expected_state(CARROT_PECAN_ID, saved=False, rating=4),
+            _expected_state(missing_recipe_id, saved=False, rating=None),
+        ]
+    }
+    assert response.headers["cache-control"] == "private, no-store"
+    assert "Cookie" in response.headers["vary"]
+
+
+def test_card_viewer_states_require_a_member_session(
+    interaction_client: TestClient,
+) -> None:
+    interaction_client.cookies.clear()
+
+    response = interaction_client.get(
+        "/api/recipes/viewer-states",
+        params={"recipe_version_id": str(CARROT_ROOT_ID)},
+    )
+
+    assert response.status_code == 401
+    assert _json_object(response.json())["error"]["code"] == "authentication_required"
+
+
 def test_save_and_unsave_are_retry_safe_and_database_unique(
     interaction_client: TestClient,
     seeded_api_engine: Engine,
@@ -301,6 +353,71 @@ def test_rating_create_retry_and_update_keep_one_current_state_row(
     )
 
 
+def test_rating_removal_retry_clears_current_state_and_public_aggregate(
+    interaction_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    initial_rating = interaction_client.put(
+        f"/api/recipes/{CARROT_ROOT_ID}/rating",
+        json={"rating": 4},
+        headers=_action_headers(),
+    )
+    assert initial_rating.status_code == 200
+
+    removal_action_id = uuid4()
+    first_removal = interaction_client.delete(
+        f"/api/recipes/{CARROT_ROOT_ID}/rating",
+        headers=_action_headers(removal_action_id),
+    )
+    repeated_removal = interaction_client.delete(
+        f"/api/recipes/{CARROT_ROOT_ID}/rating",
+        headers=_action_headers(removal_action_id),
+    )
+
+    expected_state = _expected_state(CARROT_ROOT_ID, saved=False, rating=None)
+    assert first_removal.status_code == 200
+    assert first_removal.json() == expected_state
+    assert repeated_removal.status_code == 200
+    assert repeated_removal.json() == expected_state
+    assert (
+        _interaction_count(
+            seeded_api_engine,
+            RecipeRating,
+            recipe_version_id=CARROT_ROOT_ID,
+        )
+        == 0
+    )
+
+    conflicting_reuse = interaction_client.put(
+        f"/api/recipes/{CARROT_ROOT_ID}/rating",
+        json={"rating": 5},
+        headers=_action_headers(removal_action_id),
+    )
+    assert conflicting_reuse.status_code == 409
+    assert _json_object(conflicting_reuse.json())["error"]["code"] == ("idempotency_key_conflict")
+
+    with Session(bind=seeded_api_engine) as session:
+        rating_events = list(
+            session.scalars(
+                select(PreferenceEvent).where(
+                    PreferenceEvent.user_id == MEMBER_USER_ID,
+                    PreferenceEvent.recipe_version_id == CARROT_ROOT_ID,
+                    PreferenceEvent.event_type == "rating",
+                )
+            )
+        )
+    assert len(rating_events) == 2
+    assert sum(event.rating_value == 4 for event in rating_events) == 1
+    assert sum(event.rating_value is None for event in rating_events) == 1
+
+    detail_response = interaction_client.get(f"/api/recipes/{CARROT_ROOT_ID}")
+    assert detail_response.status_code == 200
+    detail = _json_object(detail_response.json())
+    assert detail["average_rating"] is None
+    assert detail["rating_count"] == 0
+    assert detail["viewer_state"] == expected_state
+
+
 @pytest.mark.parametrize(
     "invalid_rating",
     [True, "5", 5.0, None, 0, 6],
@@ -379,6 +496,7 @@ def test_rating_rejects_incomplete_or_identity_overriding_payloads(
         ("PUT", "save", None),
         ("DELETE", "save", None),
         ("PUT", "rating", {"rating": 4}),
+        ("DELETE", "rating", None),
     ],
 )
 def test_interaction_writes_reject_missing_recipe_versions(
@@ -418,6 +536,7 @@ def test_interaction_writes_reject_missing_recipe_versions(
         ("PUT", "save", None),
         ("DELETE", "save", None),
         ("PUT", "rating", {"rating": 4}),
+        ("DELETE", "rating", None),
     ],
 )
 def test_interaction_writes_reject_malformed_recipe_identifiers(
@@ -536,6 +655,7 @@ def test_missing_session_member_leaves_public_reads_available_and_rejects_writes
         ("save", "PUT"),
         ("save", "DELETE"),
         ("rating", "PUT"),
+        ("rating", "DELETE"),
     ],
 )
 def test_direct_browser_interaction_writes_allow_the_loopback_frontend_origin(
@@ -588,11 +708,12 @@ def test_openapi_documents_member_viewer_state_and_interactions(
     assert schemas["RatingUpdateRequest"]["required"] == ["rating"]
 
     assert {"put", "delete"} <= set(paths["/api/recipes/{recipe_version_id}/save"])
-    assert "put" in paths["/api/recipes/{recipe_version_id}/rating"]
+    assert {"put", "delete"} <= set(paths["/api/recipes/{recipe_version_id}/rating"])
     for path, method in [
         ("/api/recipes/{recipe_version_id}/save", "put"),
         ("/api/recipes/{recipe_version_id}/save", "delete"),
         ("/api/recipes/{recipe_version_id}/rating", "put"),
+        ("/api/recipes/{recipe_version_id}/rating", "delete"),
     ]:
         responses = paths[path][method]["responses"]
         for status_code in ("401", "403", "422"):

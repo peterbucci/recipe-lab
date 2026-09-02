@@ -9,6 +9,7 @@ import type { RecipeDraftListItem } from "./recipe-draft-api";
 import type {
   ActivePublicUserReference,
   PublicUserReference,
+  RecipeCardSummary,
   RecipeSummary,
   RecipeVersionReference,
 } from "./recipe-api";
@@ -32,7 +33,9 @@ export type MyRecipeLibraryView =
 
 export interface PublicCookProfilePage {
   cook: ActivePublicUserReference;
-  items: RecipeSummary[];
+  follower_count: number;
+  description: string | null;
+  items: RecipeCardSummary[];
   page: number;
   page_size: number;
   total: number;
@@ -237,6 +240,31 @@ export function parseRecipeSummary(value: unknown): RecipeSummary | null {
   };
 }
 
+function parseRecipeCardSummary(value: unknown): RecipeCardSummary | null {
+  const recipe = parseRecipeSummary(value);
+  if (
+    recipe === null ||
+    !isRecord(value) ||
+    (value.average_rating !== null &&
+      (typeof value.average_rating !== "number" ||
+        !Number.isFinite(value.average_rating) ||
+        value.average_rating < 1 ||
+        value.average_rating > 5)) ||
+    !Number.isInteger(value.rating_count) ||
+    (value.rating_count as number) < 0 ||
+    !Number.isInteger(value.save_count) ||
+    (value.save_count as number) < 0
+  ) {
+    return null;
+  }
+  return {
+    ...recipe,
+    average_rating: value.average_rating as number | null,
+    rating_count: value.rating_count as number,
+    save_count: value.save_count as number,
+  };
+}
+
 function parseDraft(value: unknown): RecipeDraftListItem | null {
   if (
     !isRecord(value) ||
@@ -305,15 +333,31 @@ export function parsePublicCookProfilePage(
   const envelope = parsePageEnvelope(value);
   if (!isRecord(value)) throw invalidResponse();
   const cook = parsePublicUserReference(value.cook);
-  const items = envelope.items.map(parseRecipeSummary);
+  const items = envelope.items.map(parseRecipeCardSummary);
   if (!cook || cook.handle === null || items.some((item) => item === null)) {
+    throw invalidResponse();
+  }
+  if (
+    !Number.isInteger(value.follower_count) ||
+    (value.follower_count as number) < 0
+  ) {
+    throw invalidResponse();
+  }
+  const description = value.description ?? null;
+  if (description !== null && !boundedText(description, 500)) {
     throw invalidResponse();
   }
   const activeCook: ActivePublicUserReference = {
     ...cook,
     handle: cook.handle,
   };
-  return { ...envelope, cook: activeCook, items: items as RecipeSummary[] };
+  return {
+    ...envelope,
+    cook: activeCook,
+    follower_count: value.follower_count as number,
+    description: description as string | null,
+    items: items as RecipeCardSummary[],
+  };
 }
 
 export function parseMyRecipeLibraryPage(value: unknown): MyRecipeLibraryPage {
@@ -322,7 +366,30 @@ export function parseMyRecipeLibraryPage(value: unknown): MyRecipeLibraryPage {
     if (!isRecord(item)) return null;
     if (item.kind === "draft") {
       const draft = parseDraft(item.draft);
-      return draft ? { kind: "draft", draft } : null;
+      const sourceRecipeTitle = item.source_recipe_title;
+      const description = item.description;
+      if (
+        sourceRecipeTitle !== undefined &&
+        sourceRecipeTitle !== null &&
+        !boundedText(sourceRecipeTitle, 200)
+      ) {
+        return null;
+      }
+      if (
+        description !== undefined &&
+        description !== null &&
+        !boundedText(description, 2_000)
+      ) {
+        return null;
+      }
+      return draft
+        ? {
+            kind: "draft",
+            draft,
+            source_recipe_title: sourceRecipeTitle ?? null,
+            description: description ?? null,
+          }
+        : null;
     }
     if (item.kind === "published") {
       const recipe = parseRecipeSummary(item.recipe);

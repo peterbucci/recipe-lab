@@ -27,10 +27,12 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         </a>
         <NavigationBlockerProvider>
           <AuthSessionProvider>
-            <SessionRecoveryNotice />
-            <SiteHeader />
-            {children}
-            <SiteFooter />
+            <div className="app-shell">
+              <SessionRecoveryNotice />
+              <SiteHeader />
+              {children}
+              <SiteFooter />
+            </div>
           </AuthSessionProvider>
         </NavigationBlockerProvider>
       </body>

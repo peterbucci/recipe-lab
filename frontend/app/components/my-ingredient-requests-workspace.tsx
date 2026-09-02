@@ -1,14 +1,31 @@
 "use client";
 
 import Link from "next/link";
+import { Plus } from "lucide-react";
+import { useRef, useState } from "react";
 
 import { useAuthSession } from "./auth-session-provider";
+import { AuthGateLoading } from "./loading-ui";
 import { MemberIngredientRequestHistory } from "./member-ingredient-request-history";
+import { MissingIngredientRequestPanel } from "./missing-ingredient-request-panel";
 
 const RETURN_TO = "/account/ingredient-requests";
+const REQUEST_MODAL_ID_PREFIX = "account-new-ingredient-request";
 
 export function MyIngredientRequestsWorkspace() {
   const { state, refreshSession } = useAuthSession();
+  const requestButtonRef = useRef<HTMLButtonElement>(null);
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [historyRevision, setHistoryRevision] = useState(0);
+
+  function returnFocusToRequestButton() {
+    window.setTimeout(() => requestButtonRef.current?.focus(), 0);
+  }
+
+  function closeRequestDialog() {
+    setRequestOpen(false);
+    returnFocusToRequestButton();
+  }
 
   if (state.phase === "loading") {
     return (
@@ -16,11 +33,7 @@ export function MyIngredientRequestsWorkspace() {
         id="main-content"
         className="state-page account-workspace-page account-ingredient-requests-page"
       >
-        <div className="loading-state" role="status" aria-live="polite">
-          <span className="loading-state__pulse" aria-hidden="true" />
-          <strong>Loading your ingredient requests…</strong>
-          <span>Checking your account and request history.</span>
-        </div>
+        <AuthGateLoading label="Checking your account…" />
       </main>
     );
   }
@@ -111,19 +124,45 @@ export function MyIngredientRequestsWorkspace() {
       id="main-content"
       className="page-shell account-workspace-page account-ingredient-requests-page member-request-page"
     >
-      <nav className="breadcrumb" aria-label="Breadcrumb">
-        <Link href="/recipes">← Back to recipes</Link>
-      </nav>
       <header className="page-intro member-request-page__intro">
-        <p className="eyebrow">Catalog requests</p>
-        <h1>My ingredient requests</h1>
-        <p>
-          Follow each missing-ingredient request from review to resolution. Approved and duplicate
-          resolutions become available in ingredient pickers; pending and rejected request text
-          never becomes a trusted ingredient.
-        </p>
+        <div>
+          <h1>Ingredient Requests</h1>
+          <p>Track ingredients you&apos;ve asked Recipe Lab to add to the catalog.</p>
+        </div>
+        <button
+          ref={requestButtonRef}
+          aria-label="Request an ingredient"
+          aria-controls={`${REQUEST_MODAL_ID_PREFIX}-request-dialog`}
+          aria-expanded={requestOpen}
+          aria-haspopup="dialog"
+          className="button button--primary member-request-page__create"
+          type="button"
+          onClick={() => setRequestOpen(true)}
+        >
+          <Plus
+            aria-hidden="true"
+            className="member-request-page__create-icon"
+          />
+          <span>Request an ingredient</span>
+        </button>
       </header>
-      <MemberIngredientRequestHistory idPrefix="account-ingredient-requests" />
+      <MemberIngredientRequestHistory
+        key={historyRevision}
+        idPrefix="account-ingredient-requests"
+        onRequestIngredient={() => setRequestOpen(true)}
+      />
+      {requestOpen ? (
+        <MissingIngredientRequestPanel
+          idPrefix={REQUEST_MODAL_ID_PREFIX}
+          initialName=""
+          onClose={closeRequestDialog}
+          onSubmitted={() => {
+            setRequestOpen(false);
+            setHistoryRevision((revision) => revision + 1);
+            returnFocusToRequestButton();
+          }}
+        />
+      ) : null}
     </main>
   );
 }

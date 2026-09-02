@@ -26,6 +26,7 @@ import type {
 } from "./structured-measure";
 
 export type RecipeDraftStatus = "active";
+export type RecipeDifficulty = "easy" | "medium" | "hard";
 
 export interface RecipeDraftListItem {
   id: string;
@@ -83,6 +84,7 @@ export interface RecipeDraftAction {
 export interface RecipeDraftInstruction {
   id: string;
   display_order: number;
+  title: string | null;
   text: string;
   actions: RecipeDraftAction[];
 }
@@ -95,6 +97,10 @@ export interface RecipeDraftDetail {
   title: string;
   description: string | null;
   servings: string | null;
+  total_time_minutes: number | null;
+  active_time_minutes: number | null;
+  difficulty: RecipeDifficulty | null;
+  notes: string | null;
   categories: RecipeCategory[];
   ingredients: RecipeDraftIngredient[];
   instructions: RecipeDraftInstruction[];
@@ -132,6 +138,7 @@ export interface RecipeDraftActionInput {
 
 export interface RecipeDraftInstructionInput {
   ref: string;
+  title: string | null;
   text: string;
   actions: RecipeDraftActionInput[];
 }
@@ -141,6 +148,10 @@ export interface RecipeDraftUpdateRequest {
   title: string;
   description: string | null;
   servings: string | null;
+  total_time_minutes: number | null;
+  active_time_minutes: number | null;
+  difficulty: RecipeDifficulty | null;
+  notes: string | null;
   category_ids: string[];
   ingredients: RecipeDraftIngredientInput[];
   instructions: RecipeDraftInstructionInput[];
@@ -432,6 +443,9 @@ function parseInstruction(value: unknown): RecipeDraftInstruction | null {
     !isUuid(value.id) ||
     !Number.isInteger(value.display_order) ||
     (value.display_order as number) < 0 ||
+    (value.title !== undefined &&
+      value.title !== null &&
+      !boundedText(value.title, 200)) ||
     !boundedText(value.text, 5_000) ||
     !Array.isArray(value.actions)
   ) {
@@ -444,6 +458,10 @@ function parseInstruction(value: unknown): RecipeDraftInstruction | null {
   return {
     id: value.id,
     display_order: value.display_order as number,
+    title:
+      value.title === undefined || value.title === null
+        ? null
+        : (value.title as string),
     text: value.text,
     actions: actions as RecipeDraftAction[],
   };
@@ -451,6 +469,26 @@ function parseInstruction(value: unknown): RecipeDraftInstruction | null {
 
 function ordered<T extends { display_order: number }>(items: T[]): boolean {
   return items.every((item, index) => item.display_order === index);
+}
+
+function optionalRecipeTime(value: unknown): value is number | null {
+  return (
+    value === null ||
+    (Number.isInteger(value) &&
+      (value as number) > 0 &&
+      (value as number) <= 525_600)
+  );
+}
+
+function optionalRecipeDifficulty(
+  value: unknown,
+): value is RecipeDifficulty | null {
+  return (
+    value === null ||
+    value === "easy" ||
+    value === "medium" ||
+    value === "hard"
+  );
 }
 
 export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
@@ -464,6 +502,13 @@ export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
     !boundedText(value.title, 200, true) ||
     (value.description !== null && !boundedText(value.description, 2_000)) ||
     (value.servings !== null && !boundedText(value.servings, 64)) ||
+    !optionalRecipeTime(value.total_time_minutes) ||
+    !optionalRecipeTime(value.active_time_minutes) ||
+    (typeof value.total_time_minutes === "number" &&
+      typeof value.active_time_minutes === "number" &&
+      value.active_time_minutes > value.total_time_minutes) ||
+    !optionalRecipeDifficulty(value.difficulty) ||
+    (value.notes !== null && !boundedText(value.notes, 5_000)) ||
     !Array.isArray(value.categories) ||
     !Array.isArray(value.ingredients) ||
     !Array.isArray(value.instructions) ||
@@ -510,6 +555,10 @@ export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
     title: value.title,
     description: value.description as string | null,
     servings: value.servings as string | null,
+    total_time_minutes: value.total_time_minutes as number | null,
+    active_time_minutes: value.active_time_minutes as number | null,
+    difficulty: value.difficulty as RecipeDifficulty | null,
+    notes: value.notes as string | null,
     categories,
     ingredients: ingredients as RecipeDraftIngredient[],
     instructions: instructions as RecipeDraftInstruction[],
@@ -854,20 +903,52 @@ export async function createRecipeDraft(
 export async function browseRecipeDrafts({
   page = 1,
   pageSize = 20,
+  sourceVersionId,
   signal,
 }: {
   page?: number;
   pageSize?: number;
+  sourceVersionId?: string;
   signal?: AbortSignal;
 } = {}): Promise<RecipeDraftPage> {
   const query = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
   });
+  if (sourceVersionId !== undefined) {
+    query.set("source_version_id", sourceVersionId.toLowerCase());
+  }
   const response = await draftFetch(`/api/recipe-drafts?${query.toString()}`, {
     signal,
   });
   return parseRecipeDraftPage(await response.json());
+}
+
+export async function findActiveRecipeDraftForSource(
+  sourceVersionId: string,
+  signal?: AbortSignal,
+): Promise<RecipeDraftListItem | null> {
+  if (!isUuid(sourceVersionId)) {
+    throw new RecipeDraftApiError(
+      "Recipe Lab could not identify the recipe you want to continue.",
+      0,
+      "invalid_identifier",
+    );
+  }
+  const normalizedSourceVersionId = sourceVersionId.toLowerCase();
+  const page = await browseRecipeDrafts({
+    pageSize: 1,
+    sourceVersionId: normalizedSourceVersionId,
+    signal,
+  });
+  const draft = page.items[0] ?? null;
+  if (
+    draft !== null &&
+    draft.source_version_id?.toLowerCase() !== normalizedSourceVersionId
+  ) {
+    throw invalidResponse();
+  }
+  return draft;
 }
 
 export async function fetchRecipeDraft(

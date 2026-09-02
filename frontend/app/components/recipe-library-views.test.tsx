@@ -8,7 +8,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PublicCookProfilePage } from "../../lib/recipe-library-api";
-import type { RecipeSummary } from "../../lib/recipe-api";
+import type { RecipeCardSummary } from "../../lib/recipe-api";
 import { CSRF_COOKIE_NAME } from "../../lib/auth-api";
 import CookProfileError from "../cooks/[handle]/error";
 import CookProfileLoading from "../cooks/[handle]/loading";
@@ -30,6 +30,7 @@ const ROOT_ID = "33333333-3333-4333-8333-333333333333";
 const FORK_ID = "44444444-4444-4444-8444-444444444444";
 const LINEAGE_ID = "55555555-5555-4555-8555-555555555555";
 const DRAFT_ID = "66666666-6666-4666-8666-666666666666";
+const ORIGINAL_DRAFT_ID = "77777777-7777-4777-8777-777777777777";
 
 const alice = { id: ALICE_ID, handle: "alice", display_name: "Alice Cook" };
 const catalog = {
@@ -38,7 +39,9 @@ const catalog = {
   display_name: "Recipe Lab catalog",
 };
 
-function original(overrides: Partial<RecipeSummary> = {}): RecipeSummary {
+function original(
+  overrides: Partial<RecipeCardSummary> = {},
+): RecipeCardSummary {
   return {
     id: ROOT_ID,
     lineage_id: LINEAGE_ID,
@@ -52,16 +55,22 @@ function original(overrides: Partial<RecipeSummary> = {}): RecipeSummary {
     categories: [],
     author: alice,
     parent: null,
+    average_rating: 4.5,
+    rating_count: 2,
+    save_count: 7,
     ...overrides,
   };
 }
 
-function fork(): RecipeSummary {
+function fork(): RecipeCardSummary {
   return original({
     id: FORK_ID,
     parent_version_id: ROOT_ID,
     version_number: 2,
     title: "Creamy tomato soup",
+    average_rating: null,
+    rating_count: 0,
+    save_count: 3,
     parent: {
       id: ROOT_ID,
       version_number: 1,
@@ -76,6 +85,8 @@ function profile(
 ): PublicCookProfilePage {
   return {
     cook: alice,
+    follower_count: 4,
+    description: "A home cook sharing practical weeknight recipes.",
     items: [original(), fork()],
     page: 1,
     page_size: 12,
@@ -99,6 +110,14 @@ function authenticated(children: React.ReactNode) {
   return render(authenticatedTree(children));
 }
 
+function anonymous(children: React.ReactNode) {
+  return render(
+    <AuthSessionProvider initialSession={{ status: "anonymous" }}>
+      {children}
+    </AuthSessionProvider>,
+  );
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((resolvePromise) => {
@@ -114,13 +133,39 @@ afterEach(() => {
 });
 
 describe("cook profile and private recipe libraries", () => {
-  it("renders a public cook heading, bounded authorship, parent context, and links", () => {
-    render(<CookProfileView data={profile()} />);
+  it("renders public profile recipes with the shared engagement-card layout", () => {
+    anonymous(<CookProfileView data={profile()} />);
 
     expect(
       screen.getByRole("heading", { name: "Alice Cook", level: 1 }),
     ).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Recipes", level: 2 }),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("Only publicly readable versions appear here."),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "← All recipes" }),
+    ).toBeNull();
     expect(screen.getByText("@alice", { exact: true })).toBeVisible();
+    expect(screen.getByText("4 followers", { exact: true })).toBeVisible();
+    expect(screen.getByText("13 recipes", { exact: true })).toBeVisible();
+    expect(screen.getByText(/home cook sharing practical weeknight recipes/i)).toBeVisible();
+    expect(screen.queryByText("Cook profile", { exact: true })).toBeNull();
+    expect(document.querySelector(".cook-profile__meta")).toHaveTextContent(
+      "@alice•4 followers•13 recipes",
+    );
+    expect(document.querySelector(".cook-profile__avatar")).toHaveTextContent("A");
+    const description = document.querySelector(".cook-profile__description");
+    const follow = screen.getByRole("link", { name: "Follow" });
+    expect(description?.compareDocumentPosition(follow)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(follow).toHaveAttribute(
+      "href",
+      "/sign-in?return_to=%2Fcooks%2Falice",
+    );
     const list = screen.getByRole("list", {
       name: "Public recipes by Alice Cook",
     });
@@ -129,10 +174,36 @@ describe("cook profile and private recipe libraries", () => {
       within(list).getAllByRole("link", { name: "Alice Cook" })[0],
     ).toHaveAttribute("href", "/cooks/alice");
     expect(within(list).queryByText(/^version \d+$/i)).not.toBeInTheDocument();
+    expect(within(list).getByText("Original", { exact: true })).toBeVisible();
+    expect(within(list).getByText(/based on/i)).toHaveTextContent(
+      "Based on Catalog tomato soup",
+    );
+    expect(within(list).queryByText(/by Recipe Lab catalog/i)).toBeNull();
+    expect(within(list).queryByText("A bright soup.")).toBeNull();
+    expect(
+      within(list).getByRole("img", {
+        name: "4.5 out of 5 from 2 ratings",
+      }),
+    ).toBeVisible();
+    expect(
+      within(list).getByRole("img", { name: "No ratings yet" }),
+    ).toBeVisible();
+    expect(within(list).getByText("7 saves")).toBeVisible();
+    expect(within(list).getByText("3 saves")).toBeVisible();
     expect(within(list).getAllByText("4 servings")).toHaveLength(2);
     expect(within(list).getByText(/based on/i)).toHaveTextContent(
-      "Based on Catalog tomato soup by Recipe Lab catalog",
+      "Based on Catalog tomato soup",
     );
+    expect(
+      within(list).getByRole("link", {
+        name: "Sign in to save Alice’s tomato soup",
+      }),
+    ).toBeVisible();
+    expect(
+      within(list).getByRole("link", {
+        name: "Sign in to save Creamy tomato soup",
+      }),
+    ).toBeVisible();
     const pages = screen.getByRole("navigation", {
       name: "Recipe pages for Alice Cook",
     });
@@ -146,8 +217,36 @@ describe("cook profile and private recipe libraries", () => {
     );
   });
 
+  it("pluralizes profile counts and omits an empty description without a placeholder", () => {
+    authenticated(
+      <CookProfileView
+        data={profile({
+          description: null,
+          follower_count: 1,
+          items: [original()],
+          total: 1,
+          total_pages: 1,
+        })}
+      />,
+    );
+
+    expect(document.querySelector(".cook-profile__meta")).toHaveTextContent(
+      "@alice•1 follower•1 recipe",
+    );
+    expect(document.querySelector(".cook-profile__description")).toBeNull();
+    const header = document.querySelector<HTMLElement>(
+      ".cook-profile__header",
+    );
+    expect(
+      within(header!).queryByRole("button", { name: /follow/i }),
+    ).toBeNull();
+    expect(
+      within(header!).queryByRole("link", { name: "Follow" }),
+    ).toBeNull();
+  });
+
   it("treats a cook with no public recipes as a valid empty profile", () => {
-    render(
+    anonymous(
       <CookProfileView
         data={profile({ items: [], total: 0, total_pages: 0 })}
       />,
@@ -166,9 +265,12 @@ describe("cook profile and private recipe libraries", () => {
   it("announces public-profile loading, failure, retry, and missing states", () => {
     const retry = vi.fn();
     const { rerender } = render(<CookProfileLoading />);
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Loading this cook’s public recipes.",
+    expect(screen.getByRole("main")).toHaveClass(
+      "page-loading--cook",
+      "public-cook-page",
     );
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading cook profile…");
 
     rerender(<CookProfileError retry={retry} />);
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -186,12 +288,14 @@ describe("cook profile and private recipe libraries", () => {
     ).toHaveAttribute("href", "/recipes");
   });
 
-  it("lists private drafts without Original or Version labels and links every server view", async () => {
+  it("labels version and original drafts while showing source names only for versions", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
         items: [
           {
             kind: "draft",
+            source_recipe_title: "Catalog tomato soup",
+            description: "A silky tomato soup with a bright basil finish.",
             draft: {
               id: DRAFT_ID,
               source_version_id: ROOT_ID,
@@ -204,10 +308,26 @@ describe("cook profile and private recipe libraries", () => {
               updated_at: "2026-08-25T12:00:00Z",
             },
           },
+          {
+            kind: "draft",
+            source_recipe_title: null,
+            description: null,
+            draft: {
+              id: ORIGINAL_DRAFT_ID,
+              source_version_id: null,
+              status: "active",
+              revision: 1,
+              title: "Original soup in progress",
+              ingredient_count: 2,
+              instruction_count: 1,
+              created_at: "2026-08-25T09:00:00Z",
+              updated_at: "2026-08-25T11:00:00Z",
+            },
+          },
         ],
         page: 1,
         page_size: 12,
-        total: 1,
+        total: 2,
         total_pages: 1,
       }),
     );
@@ -222,22 +342,82 @@ describe("cook profile and private recipe libraries", () => {
     expect(
       within(views).getByRole("link", { name: "Published" }),
     ).toHaveAttribute("href", "/account/recipes?view=published");
+    expect(within(views).getByRole("link", { name: "Saved" })).toHaveAttribute(
+      "href",
+      "/account/recipes?view=saved",
+    );
     expect(
       within(views).getByRole("link", { name: "Withdrawn" }),
     ).toHaveAttribute("href", "/account/recipes?view=withdrawn");
+    expect(
+      screen.queryByRole("link", { name: "Ingredient requests →" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "Ingredient requests" }),
+    ).toBeNull();
     const list = await screen.findByRole("list", {
       name: "Private recipe drafts",
     });
+    const draftsHeader = screen
+      .getByRole("heading", { level: 2, name: "Private drafts" })
+      .closest("header");
+    expect(draftsHeader).toHaveClass("workspace-panel-header");
+    expect(draftsHeader).toHaveTextContent(
+      "Only you can see these drafts. They never appear in public recipes or search.",
+    );
+    expect(draftsHeader).toHaveTextContent("2 drafts");
     const workspace = list.closest("main");
-    expect(workspace).toHaveClass("account-workspace-page", "account-recipes-page");
+    expect(workspace).toHaveClass(
+      "account-workspace-page",
+      "account-recipes-page",
+    );
     expect(list.closest("section")).toHaveClass("member-library__collection");
+
+    const versionCard = within(list).getByRole("article", {
+      name: "Soup in progress",
+    });
+    expect(versionCard).toHaveClass(
+      "member-recipe-card",
+      "member-recipe-card--draft",
+    );
     expect(
-      within(list).getByText("Private draft", { exact: true }),
+      within(versionCard).getByText("Version", { exact: true }),
     ).toBeVisible();
-    expect(within(list).queryByText(/original|version draft/i)).toBeNull();
+    expect(within(versionCard).getByText(/based on/i)).toHaveTextContent(
+      "Based on Catalog tomato soup",
+    );
     expect(
-      within(list).getByRole("link", { name: "Resume draft" }),
-    ).toHaveAttribute("href", `/account/recipe-drafts/${DRAFT_ID}`);
+      within(versionCard).getByRole("link", {
+        name: "Catalog tomato soup",
+      }),
+    ).toHaveAttribute("href", `/recipes/${ROOT_ID}`);
+    expect(within(versionCard).queryByText("a public recipe")).toBeNull();
+    expect(
+      within(versionCard).queryByRole("link", { name: "View source" }),
+    ).toBeNull();
+    expect(
+      within(versionCard).getByRole("link", { name: "Continue editing" }),
+    ).toHaveAttribute("href", `/recipes/drafts/${DRAFT_ID}`);
+    expect(versionCard).toHaveTextContent(
+      "A silky tomato soup with a bright basil finish.",
+    );
+    expect(versionCard).not.toHaveTextContent("4 ingredients");
+    expect(versionCard).not.toHaveTextContent("3 steps");
+    expect(versionCard).toHaveTextContent(/Edited/);
+
+    const originalCard = within(list).getByRole("article", {
+      name: "Original soup in progress",
+    });
+    expect(
+      within(originalCard).getByText("Original", { exact: true }),
+    ).toBeVisible();
+    expect(
+      originalCard.querySelector(".member-library__draft-origin"),
+    ).toBeNull();
+    expect(within(originalCard).queryByText(/original recipe/i)).toBeNull();
+    expect(
+      within(originalCard).queryByRole("link", { name: "View source" }),
+    ).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/my/recipes?view=drafts&page=1&page_size=12",
       expect.objectContaining({ credentials: "same-origin" }),
@@ -266,6 +446,28 @@ describe("cook profile and private recipe libraries", () => {
     authenticated(<MyRecipeLibrary pageNumber={2} view="published" />);
 
     const list = await screen.findByRole("list", { name: "Published recipes" });
+    const publishedHeader = screen
+      .getByRole("heading", { level: 2, name: "Published recipes" })
+      .closest("header");
+    expect(publishedHeader).toHaveClass("workspace-panel-header");
+    expect(publishedHeader).toHaveTextContent(
+      "These recipes have been published. A recipe hidden by moderation remains visible to you here with its current status.",
+    );
+    expect(publishedHeader).toHaveTextContent("25 published recipes");
+    const publishedCard = within(list).getByRole("article", {
+      name: "Creamy tomato soup",
+    });
+    expect(publishedCard).toHaveClass(
+      "member-recipe-card",
+      "member-recipe-card--published",
+    );
+    expect(
+      within(publishedCard).getByText("Version", { exact: true }),
+    ).toBeVisible();
+    expect(within(publishedCard).queryByText("4 servings")).toBeNull();
+    expect(
+      within(publishedCard).getByRole("link", { name: "View recipe" }),
+    ).toHaveAttribute("href", `/recipes/${FORK_ID}`);
     expect(
       within(list).getByRole("link", { name: "Creamy tomato soup" }),
     ).toBeVisible();
@@ -315,7 +517,7 @@ describe("cook profile and private recipe libraries", () => {
   });
 
   it("renders Deleted cook and an unavailable source without profile or source links", () => {
-    render(
+    anonymous(
       <CookProfileView
         data={profile({
           items: [
@@ -345,7 +547,7 @@ describe("cook profile and private recipe libraries", () => {
       within(list).queryByRole("link", { name: "Deleted cook" }),
     ).toBeNull();
     expect(
-      within(list).getByText("Source unavailable", { exact: true }),
+      within(list).getByText("Based on unavailable source", { exact: true }),
     ).toBeVisible();
   });
 
@@ -468,6 +670,28 @@ describe("cook profile and private recipe libraries", () => {
     authenticated(<MyRecipeLibrary pageNumber={1} view="withdrawn" />);
 
     const list = await screen.findByRole("list", { name: "Withdrawn recipes" });
+    const withdrawnHeader = screen
+      .getByRole("heading", { level: 2, name: "Withdrawn recipes" })
+      .closest("header");
+    expect(withdrawnHeader).toHaveClass("workspace-panel-header");
+    expect(withdrawnHeader).toHaveTextContent(
+      "Withdrawn recipes are no longer public, but you can review or restore them here.",
+    );
+    expect(withdrawnHeader).toHaveTextContent("1 withdrawn recipe");
+    const withdrawnCard = within(list).getByRole("article", {
+      name: "Alice’s tomato soup",
+    });
+    expect(withdrawnCard).toHaveClass(
+      "member-recipe-card",
+      "member-recipe-card--withdrawn",
+    );
+    expect(
+      within(withdrawnCard).getByText("Original", { exact: true }),
+    ).toBeVisible();
+    expect(within(withdrawnCard).queryByText("4 servings")).toBeNull();
+    expect(
+      within(withdrawnCard).getByText(/recipe-family history is preserved/i),
+    ).toBeVisible();
     expect(
       within(list).queryByRole("link", { name: "Alice’s tomato soup" }),
     ).toBeNull();
@@ -560,9 +784,7 @@ describe("cook profile and private recipe libraries", () => {
     authenticated(<MyRecipeLibrary pageNumber={1} view="published" />);
 
     const list = await screen.findByRole("list", { name: "Published recipes" });
-    expect(
-      within(list).getByText("Hidden by moderation", { exact: true }),
-    ).toBeVisible();
+    expect(within(list).getByText("Original", { exact: true })).toBeVisible();
     expect(
       within(list).getByText(/visibility cannot be changed here/i),
     ).toBeVisible();
@@ -884,12 +1106,27 @@ describe("cook profile and private recipe libraries", () => {
   });
 
   it.each([
-    ["drafts", "You have no private drafts yet."],
-    ["published", "You have no published recipes yet."],
-    ["withdrawn", "You have no withdrawn recipes."],
+    [
+      "drafts",
+      "You have no private drafts yet.",
+      "Start an original recipe, or make your own version of a public recipe.",
+      "Start a new recipe",
+    ],
+    [
+      "published",
+      "You have no published recipes yet.",
+      "Publish a private draft when it is ready to share.",
+      null,
+    ],
+    [
+      "withdrawn",
+      "You have no withdrawn recipes.",
+      "Recipes you withdraw from public view will stay available to you here.",
+      null,
+    ],
   ] as const)(
     "shows a useful empty state for the %s view",
-    async (view, heading) => {
+    async (view, heading, description, actionLabel) => {
       vi.stubGlobal(
         "fetch",
         vi.fn<typeof fetch>().mockResolvedValue(
@@ -904,9 +1141,26 @@ describe("cook profile and private recipe libraries", () => {
       );
       authenticated(<MyRecipeLibrary pageNumber={1} view={view} />);
 
-      expect(
-        await screen.findByRole("heading", { name: heading }),
-      ).toBeVisible();
+      const emptyHeading = await screen.findByRole("heading", {
+        level: 2,
+        name: heading,
+      });
+      const emptyState = emptyHeading.closest("section");
+
+      expect(emptyHeading).toBeVisible();
+      expect(emptyState).toHaveClass("empty-state", "workspace-empty-state");
+      expect(within(emptyState!).getByText("Nothing here yet")).toHaveClass(
+        "eyebrow",
+        "workspace-empty-state__eyebrow",
+      );
+      expect(within(emptyState!).getByText(description)).toBeVisible();
+      if (actionLabel) {
+        expect(
+          within(emptyState!).getByRole("link", { name: actionLabel }),
+        ).toHaveAttribute("href", "/recipes/new");
+      } else {
+        expect(within(emptyState!).queryByRole("link")).not.toBeInTheDocument();
+      }
     },
   );
 
@@ -960,15 +1214,57 @@ describe("cook profile and private recipe libraries", () => {
     authenticated(<SavedRecipeLibrary />);
 
     expect(
+      screen.getByRole("heading", { level: 1, name: "My recipes" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: "Ingredient requests →" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "Ingredient requests" }),
+    ).toBeNull();
+    expect(
+      within(
+        screen.getByRole("navigation", { name: "My recipe views" }),
+      ).getByRole("link", {
+        name: "Saved",
+      }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
       await screen.findByRole("list", { name: "Saved recipes" }),
     ).toHaveTextContent("Creamy tomato soup");
+    const savedHeader = screen
+      .getByRole("heading", { level: 2, name: "Saved recipes" })
+      .closest("header");
+    expect(savedHeader).toHaveClass("workspace-panel-header");
+    expect(savedHeader).toHaveTextContent(
+      "Recipes you’ve saved to come back to later.",
+    );
+    expect(savedHeader).toHaveTextContent("13 saved recipes");
     const savedList = screen.getByRole("list", { name: "Saved recipes" });
+    const savedCard = within(savedList).getByRole("article", {
+      name: "Creamy tomato soup",
+    });
+    expect(savedCard).toHaveClass(
+      "member-recipe-card",
+      "member-recipe-card--saved",
+    );
+    expect(
+      savedCard.querySelector(".member-recipe-card__status"),
+    ).toHaveTextContent("Version");
+    expect(within(savedCard).queryByText("4 servings")).toBeNull();
+    expect(
+      within(savedCard).getByRole("button", {
+        name: "Remove saved Creamy tomato soup",
+      }),
+    ).toBeVisible();
     expect(savedList).toHaveClass("member-library__grid");
     expect(savedList.closest("main")).toHaveClass(
       "account-workspace-page",
       "account-saved-recipes-page",
     );
-    expect(savedList.closest("section")).toHaveClass("member-library__collection");
+    expect(savedList.closest("section")).toHaveClass(
+      "member-library__collection",
+    );
     const pages = screen.getByRole("navigation", {
       name: "Saved recipe pages",
     });
@@ -985,6 +1281,102 @@ describe("cook profile and private recipe libraries", () => {
       "/api/my/saved-recipes?page=2&page_size=12",
       expect.objectContaining({ credentials: "same-origin" }),
     );
+  });
+
+  it("removes a saved recipe from its card and announces the result", async () => {
+    document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          items: [{ recipe: original(), saved_at: "2026-08-25T12:00:00Z" }],
+          page: 1,
+          page_size: 12,
+          total: 1,
+          total_pages: 1,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          recipe_version_id: ROOT_ID,
+          saved: false,
+          rating: null,
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    authenticated(<SavedRecipeLibrary />);
+
+    const list = await screen.findByRole("list", { name: "Saved recipes" });
+    fireEvent.click(
+      within(list).getByRole("button", {
+        name: "Remove saved Alice’s tomato soup",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(`/api/recipes/${ROOT_ID}/save`, {
+        method: "DELETE",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "Idempotency-Key": expect.any(String),
+          "X-CSRF-Token": "csrf-value",
+        },
+        credentials: "same-origin",
+      }),
+    );
+    const completion = await screen.findByRole("status");
+    expect(completion).toHaveTextContent(
+      "Alice’s tomato soup removed from Saved.",
+    );
+    await waitFor(() => expect(completion).toHaveFocus());
+    expect(
+      screen.getByRole("heading", { name: "You have no saved recipes yet." }),
+    ).toBeVisible();
+  });
+
+  it("keeps a saved card intact when removing it fails", async () => {
+    document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          items: [{ recipe: original(), saved_at: "2026-08-25T12:00:00Z" }],
+          page: 1,
+          page_size: 12,
+          total: 1,
+          total_pages: 1,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            error: {
+              code: "interaction_unavailable",
+              message:
+                "Canonical UUID 99999999-9999-4999-8999-999999999999 failed an operator policy check.",
+            },
+          },
+          { status: 503 },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    authenticated(<SavedRecipeLibrary />);
+
+    const list = await screen.findByRole("list", { name: "Saved recipes" });
+    const remove = within(list).getByRole("button", {
+      name: "Remove saved Alice’s tomato soup",
+    });
+    fireEvent.click(remove);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "We couldn’t remove this saved recipe. Your saved list is unchanged.",
+    );
+    expect(screen.queryByText(/99999999|canonical|uuid|operator|policy/i)).toBeNull();
+    expect(
+      within(list).getByRole("article", { name: "Alice’s tomato soup" }),
+    ).toBeVisible();
+    await waitFor(() => expect(remove).toBeEnabled());
   });
 
   it("offers a useful empty state and a retry without exposing service details", async () => {
@@ -1014,11 +1406,27 @@ describe("cook profile and private recipe libraries", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Refresh saved recipes" }),
     );
+    const emptyHeading = await screen.findByRole("heading", {
+      level: 2,
+      name: "You have no saved recipes yet.",
+    });
+    const emptyState = emptyHeading.closest("section");
+
+    expect(emptyHeading).toBeVisible();
+    expect(emptyState).toHaveClass("empty-state", "workspace-empty-state");
+    expect(within(emptyState!).getByText("Nothing here yet")).toHaveClass(
+      "eyebrow",
+      "workspace-empty-state__eyebrow",
+    );
     expect(
-      await screen.findByRole("heading", {
-        name: "You have no saved recipes yet.",
-      }),
+      within(emptyState!).getByText(
+        "Use “Save recipe” on a public recipe to keep it in this private list.",
+      ),
     ).toBeVisible();
+    expect(
+      within(emptyState!).getByRole("link", { name: "Explore recipes" }),
+    ).toHaveAttribute("href", "/recipes");
+    expect(screen.queryByText("Nothing bookmarked")).not.toBeInTheDocument();
   });
 
   it("recovers from a stale private-library page without claiming the account is empty", async () => {

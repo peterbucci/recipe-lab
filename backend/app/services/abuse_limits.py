@@ -41,6 +41,7 @@ _MODERATION_ACTION_PATH = re.compile(
     rf"^/api/moderation/recipe-reports/{_IDENTIFIER_PATH_PART}/actions$"
 )
 _INTERACTION_PATH = re.compile(rf"^/api/recipes/{_IDENTIFIER_PATH_PART}/(?:view|save|rating)$")
+_FOLLOW_PATH = re.compile(rf"^/api/cooks/{_IDENTIFIER_PATH_PART}/follow$")
 
 NETWORK_HEADER = "x-recipe-lab-client-network"
 NETWORK_TIMESTAMP_HEADER = "x-recipe-lab-network-timestamp"
@@ -109,8 +110,8 @@ def classify_rate_limited_request(
             account_limit=settings.abuse_rate_limit_report_account,
             network_limit=settings.abuse_rate_limit_report_network,
         )
-    if normalized_method in {"POST", "PUT", "DELETE"} and _INTERACTION_PATH.fullmatch(
-        normalized_path
+    if normalized_method in {"POST", "PUT", "DELETE"} and (
+        _INTERACTION_PATH.fullmatch(normalized_path) or _FOLLOW_PATH.fullmatch(normalized_path)
     ):
         return RateLimitPolicy(
             operation="interaction",

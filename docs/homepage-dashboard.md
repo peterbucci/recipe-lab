@@ -10,11 +10,13 @@ still completing onboarding, or unable to load account state.
   personalized, popularity-ranked, or produced by the research recommendation endpoint.
 - **Explore by category** uses the curated recipe-category vocabulary. Category links apply an
   exact category filter; they are not keyword searches or inferred dietary claims.
-- **From the community** shows a bounded newest-first list of currently readable public
-  publications. It never includes drafts, saves, ratings, moderation activity, or hidden and
-  withdrawn recipes.
-- Every public section has its own empty and unavailable state. A failure in one section does not
-  replace the rest of the homepage.
+- **From your community** is personalized after account resolution. Signed-in members see the two
+  newest currently readable originals or versions from cooks they follow, with a link to the
+  paginated community-activity page. Signed-out visitors see a sign-in prompt and never request
+  the private feed API. Drafts, saves, ratings, moderation activity, and hidden or withdrawn
+  recipes are not community-feed events.
+- Every homepage section has its own empty and unavailable state. A failure in one section does
+  not replace the rest of the homepage.
 
 ## Member summary
 
@@ -27,6 +29,9 @@ member. Anonymous and onboarding sessions do not request its APIs.
 - **Your activity** combines up to three events from bounded recent results supported by stored
   timestamps: draft updates, recipe publications, saves, and reviewed ingredient requests. It is
   intentionally labeled as recent activity rather than claiming to be a complete account ledger.
+- **Community activity** is a separate paginated publication feed. It is based on the member’s
+  current follow graph and does not mix other members’ updates into the member’s own account
+  activity history.
 - Each private resource loads and retries independently. Changing accounts aborts in-flight work
   and prevents one member’s data from appearing for another.
 

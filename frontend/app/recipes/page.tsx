@@ -6,12 +6,16 @@ import {
   fetchRecipePage,
   type RecipeCategory,
 } from "../../lib/recipe-api";
+import {
+  isVariantForRecipeBrowseType,
+  parseRecipeBrowseType,
+} from "../../lib/recipe-browse-query";
 import { RecipeBrowser } from "../components/recipe-browser";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Find something to cook",
+  title: "Explore recipes",
   description: "Browse recipes and versions made from them.",
 };
 
@@ -21,6 +25,7 @@ interface RecipeBrowsePageProps {
     page?: string | string[];
     q?: string | string[];
     sort?: string | string[];
+    type?: string | string[];
   }>;
 }
 
@@ -37,17 +42,19 @@ function pageNumber(value: string | string[] | undefined): number {
   return Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= 1_000_000 ? parsed : 1;
 }
 
-function sortValue(value: string | string[] | undefined): "newest" | "title" | undefined {
+function sortValue(value: string | string[] | undefined): "newest" | "title" {
   const candidate = firstValue(value);
-  return candidate === "newest" || candidate === "title" ? candidate : undefined;
+  return candidate === "title" ? "title" : "newest";
 }
 
-async function activeCategory(slug: string): Promise<RecipeCategory | undefined> {
+function activeCategory(
+  slug: string,
+  categories: readonly RecipeCategory[],
+): RecipeCategory | undefined {
   if (!slug) {
     return undefined;
   }
-  const categories = await fetchRecipeCategories();
-  const category = categories.items.find((item) => item.slug === slug);
+  const category = categories.find((item) => item.slug === slug);
   if (!category) {
     notFound();
   }
@@ -60,18 +67,42 @@ export default async function RecipeBrowsePage({ searchParams }: RecipeBrowsePag
   const query = firstValue(parameters.q).trim();
   const page = pageNumber(parameters.page);
   const sort = sortValue(parameters.sort);
-  const category = await activeCategory(categorySlug);
-  const data = await fetchRecipePage({
-    category: category?.slug,
-    page,
-    pageSize: 12,
-    query,
-    sort,
-  });
+  const recipeType = parseRecipeBrowseType(parameters.type);
+  const [recipeResult, categoryResult] = await Promise.allSettled([
+    fetchRecipePage({
+      category: categorySlug || undefined,
+      isVariant: isVariantForRecipeBrowseType(recipeType),
+      page,
+      pageSize: 12,
+      query,
+      sort,
+    }),
+    fetchRecipeCategories(),
+  ]);
+
+  if (recipeResult.status === "rejected") {
+    throw recipeResult.reason;
+  }
+
+  const categories =
+    categoryResult.status === "fulfilled" ? categoryResult.value.items : [];
+  const categoriesUnavailable = categoryResult.status === "rejected";
+  const category = categoriesUnavailable
+    ? undefined
+    : activeCategory(categorySlug, categories);
 
   return (
     <main id="main-content" className="page-shell page-shell--catalog">
-      <RecipeBrowser category={category} data={data} query={query} sort={sort} />
+      <RecipeBrowser
+        categories={categories}
+        categoriesUnavailable={categoriesUnavailable}
+        category={category}
+        categorySlug={categorySlug || undefined}
+        data={recipeResult.value}
+        query={query}
+        recipeType={recipeType}
+        sort={sort}
+      />
     </main>
   );
 }

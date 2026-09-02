@@ -5,16 +5,17 @@ import { SiteFooter } from "./site-footer";
 
 describe("SiteFooter", () => {
   it("identifies Recipe Lab and links only to reviewed existing destinations", () => {
-    render(<SiteFooter />);
+    const { container } = render(<SiteFooter />);
 
     const footer = screen.getByRole("contentinfo");
     expect(
       within(footer).getByRole("link", { name: "Recipe Lab home" }),
     ).toHaveAttribute("href", "/");
     expect(
-      within(footer).getByText(
-        "Cook from a recipe, publish your version, and keep its history connected.",
-      ),
+      container.querySelector(".site-footer__home .brand__mark svg"),
+    ).toBeInTheDocument();
+    expect(
+      within(footer).getByText("Try it. Change it. Make it yours."),
     ).toBeVisible();
     expect(within(footer).getByText("© 2026 Recipe Lab.")).toBeVisible();
 
@@ -28,12 +29,9 @@ describe("SiteFooter", () => {
       within(navigation).getByRole("link", { name: "Recipes" }),
     ).toHaveAttribute("href", "/recipes");
     expect(
-      within(navigation).getByRole("link", { name: "How it works" }),
-    ).toHaveAttribute("href", "/#how-it-works");
-    expect(
       within(navigation).getByRole("link", { name: "Community rules" }),
     ).toHaveAttribute("href", "/community-rules");
-    expect(within(navigation).getAllByRole("link")).toHaveLength(3);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(2);
   });
 
   it("presents future destinations as visibly inactive text, not broken links", () => {
@@ -47,6 +45,7 @@ describe("SiteFooter", () => {
       "Categories",
       "Community",
       "Help",
+      "How it works",
       "Terms",
       "Privacy",
     ]) {

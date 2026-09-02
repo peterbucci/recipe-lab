@@ -35,6 +35,24 @@ function renderForm() {
 }
 
 describe("OnboardingForm", () => {
+  it("uses the shared account gate while the session resolves", () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+    render(
+      <AuthSessionProvider>
+        <OnboardingForm returnTo="/recipes" />
+      </AuthSessionProvider>,
+    );
+
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Checking your account…",
+    );
+    expect(screen.getByRole("status").closest(".auth-gate-loading")).toHaveClass(
+      "account-access-state--loading",
+    );
+    expect(document.querySelector(".loading-state__pulse")).toBeNull();
+  });
+
   it("validates the unique public handle without sending an invalid request", () => {
     const fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal("fetch", fetchMock);

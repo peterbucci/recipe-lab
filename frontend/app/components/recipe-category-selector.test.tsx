@@ -36,10 +36,38 @@ const categories: RecipeCategory[] = [
   },
 ];
 
+function elementBounds(top: number, bottom: number): DOMRect {
+  return {
+    bottom,
+    height: bottom - top,
+    left: 0,
+    right: 320,
+    top,
+    width: 320,
+    x: 0,
+    y: top,
+    toJSON: () => ({}),
+  };
+}
+
 function Harness({ initial = [] }: { initial?: RecipeCategory[] }) {
   const [value, setValue] = useState(initial);
+  return <RecipeCategorySelector onChange={setValue} value={value} />;
+}
+
+function RecipePresentationHarness({
+  initial = [categories[0]],
+}: {
+  initial?: RecipeCategory[];
+}) {
+  const [value, setValue] = useState(initial);
   return (
-    <RecipeCategorySelector onChange={setValue} value={value} />
+    <RecipeCategorySelector
+      initialActiveCategories={categories}
+      onChange={setValue}
+      presentation="recipe"
+      value={value}
+    />
   );
 }
 
@@ -53,12 +81,22 @@ describe("RecipeCategorySelector", () => {
   it("loads only curated checkboxes and enforces the three-category limit", async () => {
     render(<Harness />);
 
-    const breakfast = await screen.findByRole("checkbox", { name: "Breakfast" });
+    expect(
+      screen
+        .getByText("Loading curated categories…")
+        .closest(".section-loading--rows"),
+    ).not.toBeNull();
+
+    const breakfast = await screen.findByRole("checkbox", {
+      name: "Breakfast",
+    });
     const lunch = screen.getByRole("checkbox", { name: "Lunch" });
     const dinner = screen.getByRole("checkbox", { name: "Dinner" });
     const dessert = screen.getByRole("checkbox", { name: "Dessert" });
 
-    expect(screen.getByRole("group", { name: "Curated recipe categories" })).toBeVisible();
+    expect(
+      screen.getByRole("group", { name: "Curated recipe categories" }),
+    ).toBeVisible();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
 
@@ -102,7 +140,9 @@ describe("RecipeCategorySelector", () => {
     expect(inactiveChoice).toBeChecked();
     expect(inactiveChoice).toBeEnabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Try loading categories again" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Try loading categories again" }),
+    );
     await waitFor(() =>
       expect(screen.getByRole("checkbox", { name: "Breakfast" })).toBeVisible(),
     );
@@ -112,5 +152,87 @@ describe("RecipeCategorySelector", () => {
       }),
     ).toBeChecked();
     expect(mocks.fetchActiveRecipeCategories).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens recipe category editing as an anchored floating panel", async () => {
+    render(<RecipePresentationHarness />);
+
+    const trigger = screen.getByRole("button", { name: "Edit categories" });
+    expect(trigger).toHaveTextContent("");
+    expect(trigger.querySelector('svg[data-icon="menu"]')).not.toBeNull();
+    expect(
+      screen.queryByRole("dialog", { name: "Edit recipe categories" }),
+    ).toBeNull();
+
+    fireEvent.click(trigger);
+
+    const panel = screen.getByRole("dialog", {
+      name: "Edit recipe categories",
+    });
+    expect(panel).toHaveClass("recipe-workspace__category-choices");
+    expect(panel).toHaveAttribute("data-placement", "below");
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("checkbox", { name: "Breakfast" })).toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(
+      screen.queryByRole("dialog", { name: "Edit recipe categories" }),
+    ).toBeNull();
+    await waitFor(() => expect(trigger).toHaveFocus());
+
+    fireEvent.click(trigger);
+
+    const reopenedPanel = screen.getByRole("dialog", {
+      name: "Edit recipe categories",
+    });
+
+    fireEvent.keyDown(reopenedPanel, { key: "Escape" });
+
+    expect(
+      screen.queryByRole("dialog", { name: "Edit recipe categories" }),
+    ).toBeNull();
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it("starts recipe category editing closed when no categories are selected", () => {
+    render(<RecipePresentationHarness initial={[]} />);
+
+    expect(screen.getByText("No categories yet")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Edit categories" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Edit recipe categories" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens the category panel above when it would overflow the viewport", async () => {
+    vi.stubGlobal("innerHeight", 600);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        if (this.classList.contains("recipe-workspace__category-toggle")) {
+          return elementBounds(500, 540);
+        }
+        if (this.classList.contains("recipe-workspace__category-choices")) {
+          return elementBounds(546, 806);
+        }
+        return elementBounds(0, 0);
+      },
+    );
+    render(<RecipePresentationHarness />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit categories" }));
+
+    const panel = screen.getByRole("dialog", {
+      name: "Edit recipe categories",
+    });
+    await waitFor(() =>
+      expect(panel).toHaveAttribute("data-placement", "above"),
+    );
+    expect(panel.style.getPropertyValue("--floating-panel-max-height")).toBe(
+      "478px",
+    );
   });
 });

@@ -54,6 +54,20 @@ async function mockEmptyHomeSummary(page: Page) {
   );
 }
 
+async function mockEmptyRecipeViewerStates(page: Page) {
+  await page.route(/\/api\/recipes\/viewer-states(?:\?.*)?$/, async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "[]",
+    });
+  });
+}
+
 async function expectNoSeriousAccessibilityViolations(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
@@ -65,9 +79,11 @@ test("keeps browsing anonymous and starts sign-in with a keyboard", async ({ pag
   await mockSession(page, () => ({ status: "anonymous" }));
   await page.goto("/");
 
+  await expect(page).toHaveURL("/recipes");
   const signIn = page.getByRole("link", { name: "Sign in", exact: true });
   await expect(signIn).toBeVisible();
-  await expect(page.getByRole("link", { name: "Explore recipes", exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "All recipes", level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create recipe" })).toHaveCount(0);
   await signIn.focus();
   await expect(signIn).toBeFocused();
   await page.keyboard.press("Enter");
@@ -75,7 +91,8 @@ test("keeps browsing anonymous and starts sign-in with a keyboard", async ({ pag
   await expect(page).toHaveURL("/sign-in");
   await expect(page).toHaveTitle("Sign in · Recipe Lab");
   await expect(page.getByRole("heading", { name: "Sign in to Recipe Lab" })).toBeVisible();
-  await expect(page.getByText(/sign in to save and rate recipes/i)).toBeVisible();
+  await expect(page.getByText("Save recipes", { exact: true })).toBeVisible();
+  await expect(page.getByText("Keep private drafts", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Keep browsing" })).toHaveAttribute(
     "href",
     "/recipes",
@@ -88,6 +105,7 @@ test("opens the signed-in account menu and signs out on a phone", async ({ page 
   await page.setViewportSize({ width: 390, height: 844 });
   await mockSession(page, () => session);
   await mockEmptyHomeSummary(page);
+  await mockEmptyRecipeViewerStates(page);
   await page.route("**/api/auth/logout", async (route) => {
     expect(route.request().method()).toBe("POST");
     expect(route.request().headers()["x-csrf-token"]).toBe("csrf-value");
@@ -108,6 +126,8 @@ test("opens the signed-in account menu and signs out on a phone", async ({ page 
 
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("link", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page).toHaveURL("/recipes");
+  await expect(page.getByRole("link", { name: "Create recipe" })).toHaveCount(0);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -142,6 +162,7 @@ test("validates onboarding and completes account setup", async ({ page }) => {
   await page.goto("/onboarding?return_to=%2F");
   await page.evaluate(() => {
     document.cookie = "recipe_lab_csrf=csrf-value; Path=/; SameSite=Lax";
+    document.cookie = "recipe_lab_session=test-session; Path=/; SameSite=Lax";
   });
 
   await page.getByLabel("Handle").fill("-a");

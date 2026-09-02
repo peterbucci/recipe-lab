@@ -386,12 +386,16 @@ def _preflight_request_fingerprint(
         "description": draft.description,
         "category_ids": [str(item.recipe_category_id) for item in draft.categories],
         "servings": str(draft.servings),
+        "total_time_minutes": draft.total_time_minutes,
+        "active_time_minutes": draft.active_time_minutes,
+        "difficulty": draft.difficulty,
+        "notes": draft.notes,
         "schema": (
             "recipe-lab.original-draft-preflight-request"
             if draft.source_version_id is None
             else "recipe-lab.variant-draft-preflight-request"
         ),
-        "version": 1,
+        "version": 2,
     }
     if draft.source_version_id is not None:
         document["source_version_id"] = str(draft.source_version_id)
@@ -592,6 +596,10 @@ def _copy_draft_snapshot(
         title=draft.title,
         description=draft.description,
         servings=draft.servings,
+        total_time_minutes=draft.total_time_minutes,
+        active_time_minutes=draft.active_time_minutes,
+        difficulty=draft.difficulty,
+        notes=draft.notes,
     )
     session.add(version)
     session.flush()
@@ -635,6 +643,7 @@ def _copy_draft_snapshot(
     instruction_rows = [
         RecipeInstruction(
             recipe_version_id=version.id,
+            title=item.title,
             instruction=item.instruction,
             display_order=item.display_order,
         )

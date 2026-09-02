@@ -122,7 +122,7 @@ export type paths = {
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
-        /** Complete account onboarding */
+        /** Update the account profile */
         readonly patch: operations["update_account_profile_api_auth_session_profile_patch"];
         readonly trace?: never;
     };
@@ -161,6 +161,25 @@ export type paths = {
         readonly put?: never;
         readonly post?: never;
         readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/cooks/{handle}/follow": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Read my follow state for a cook */
+        readonly get: operations["cook_follow_state_api_cooks__handle__follow_get"];
+        /** Follow a cook */
+        readonly put: operations["follow_cook_api_cooks__handle__follow_put"];
+        readonly post?: never;
+        /** Unfollow a cook */
+        readonly delete: operations["unfollow_cook_api_cooks__handle__follow_delete"];
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
@@ -370,6 +389,63 @@ export type paths = {
         readonly put?: never;
         /** Hide, restore, or resolve a recipe-report case */
         readonly post: operations["moderate_recipe_api_moderation_recipe_reports__recipe_version_id__actions_post"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/my/community-activity": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List publications from cooks I follow
+         * @description Returns publicly readable original recipes and new versions authored by active cooks the signed-in member currently follows, ordered by publication time.
+         */
+        readonly get: operations["my_community_activity_api_my_community_activity_get"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/my/follow-stats": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Read my follower and following totals */
+        readonly get: operations["my_follow_stats_api_my_follow_stats_get"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/my/followers": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List my followers
+         * @description Returns only active public follower identities for the signed-in member. Private account, email, identity-provider, and session data are never exposed.
+         */
+        readonly get: operations["my_followers_api_my_followers_get"];
+        readonly put?: never;
+        readonly post?: never;
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -601,7 +677,8 @@ export type paths = {
         /** Set a recipe rating for the signed-in member */
         readonly put: operations["rate_recipe_for_current_user_api_recipes__recipe_version_id__rating_put"];
         readonly post?: never;
-        readonly delete?: never;
+        /** Remove the signed-in member's recipe rating */
+        readonly delete: operations["unrate_recipe_for_current_user_api_recipes__recipe_version_id__rating_delete"];
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
@@ -702,6 +779,23 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/recipes/viewer-states": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Load my saved and rating state for visible recipe cards */
+        readonly get: operations["recipe_viewer_states_for_current_user_api_recipes_viewer_states_get"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/recommendations": {
         readonly parameters: {
             readonly query?: never;
@@ -749,6 +843,8 @@ export type components = {
         };
         /** AccountProfileUpdateRequest */
         readonly AccountProfileUpdateRequest: {
+            /** Description */
+            readonly description?: string | null;
             /** Display Name */
             readonly display_name: string;
             /** Handle */
@@ -756,6 +852,8 @@ export type components = {
         };
         /** AccountUserResponse */
         readonly AccountUserResponse: {
+            /** Description */
+            readonly description?: string | null;
             /** Display Name */
             readonly display_name: string;
             /** Handle */
@@ -789,6 +887,18 @@ export type components = {
             readonly provenance: string;
             /** Reason */
             readonly reason: string;
+        };
+        /** CookFollowStateResponse */
+        readonly CookFollowStateResponse: {
+            /**
+             * Cook Id
+             * Format: uuid
+             */
+            readonly cook_id: string;
+            /** Follower Count */
+            readonly follower_count: number;
+            /** Following */
+            readonly following: boolean;
         };
         /** CookingActionTypeCatalogItem */
         readonly CookingActionTypeCatalogItem: {
@@ -927,7 +1037,80 @@ export type components = {
              * Items
              * @description Deploy-reviewed public recipe versions in editorial display order. The list is global, not personalized or popularity-ranked.
              */
-            readonly items: readonly components["schemas"]["RecipeSummary"][];
+            readonly items: readonly components["schemas"]["FeaturedRecipeSummary"][];
+        };
+        /**
+         * FeaturedRecipeSummary
+         * @description Editorially selected recipe card with anonymous engagement totals.
+         */
+        readonly FeaturedRecipeSummary: {
+            /** @description Public author of this exact immutable recipe version. */
+            readonly author: components["schemas"]["PublicUserReference"];
+            /**
+             * Average Rating
+             * @description Average public rating for this recipe version, or null when unrated.
+             */
+            readonly average_rating: number | null;
+            /**
+             * Categories
+             * @description Immutable curated category snapshots selected for this exact recipe version.
+             */
+            readonly categories: readonly components["schemas"]["RecipeCategorySummary"][];
+            /**
+             * Created At
+             * Format: date-time
+             * @description Timestamp when this version was created.
+             */
+            readonly created_at: string;
+            /** Description */
+            readonly description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             * @description Stable identifier for this immutable recipe version.
+             */
+            readonly id: string;
+            /**
+             * Lineage Id
+             * Format: uuid
+             * @description Identifier shared by every version in the lineage.
+             */
+            readonly lineage_id: string;
+            /** @description Bounded direct-parent context for a fork. It is null for an original or when the referenced parent is not publicly readable. Parent authorship does not imply endorsement or lineage ownership. */
+            readonly parent: components["schemas"]["RecipeVersionReference"] | null;
+            /**
+             * Parent Version Id
+             * @description Direct parent version, or null for the original root.
+             */
+            readonly parent_version_id: string | null;
+            /**
+             * Published At
+             * Format: date-time
+             * @description Timestamp when this immutable version first became public.
+             */
+            readonly published_at: string;
+            /**
+             * Rating Count
+             * @description Number of ratings in the average.
+             */
+            readonly rating_count: number;
+            /**
+             * Save Count
+             * @description Number of members who saved this recipe version.
+             */
+            readonly save_count: number;
+            /**
+             * Servings
+             * @description Exact serving yield, serialized as a JSON string.
+             */
+            readonly servings: string;
+            /** Title */
+            readonly title: string;
+            /**
+             * Version Number
+             * @description Lineage-wide version number.
+             */
+            readonly version_number: number;
         };
         /** HealthResponse */
         readonly HealthResponse: {
@@ -1272,6 +1455,48 @@ export type components = {
             readonly status: "authenticated" | "onboarding_required";
             readonly user: components["schemas"]["AccountUserResponse"];
         };
+        /** MyCommunityActivityResponse */
+        readonly MyCommunityActivityResponse: {
+            /** Items */
+            readonly items: readonly components["schemas"]["RecipeSummary"][];
+            /** Page */
+            readonly page: number;
+            /** Page Size */
+            readonly page_size: number;
+            /** Total */
+            readonly total: number;
+            /** Total Pages */
+            readonly total_pages: number;
+        };
+        /** MyFollowerItem */
+        readonly MyFollowerItem: {
+            /**
+             * Followed At
+             * Format: date-time
+             */
+            readonly followed_at: string;
+            readonly follower: components["schemas"]["PublicUserReference"];
+        };
+        /** MyFollowersResponse */
+        readonly MyFollowersResponse: {
+            /** Items */
+            readonly items: readonly components["schemas"]["MyFollowerItem"][];
+            /** Page */
+            readonly page: number;
+            /** Page Size */
+            readonly page_size: number;
+            /** Total */
+            readonly total: number;
+            /** Total Pages */
+            readonly total_pages: number;
+        };
+        /** MyFollowStatsResponse */
+        readonly MyFollowStatsResponse: {
+            /** Follower Count */
+            readonly follower_count: number;
+            /** Following Count */
+            readonly following_count: number;
+        };
         /** MyPublishedRecipeItem */
         readonly MyPublishedRecipeItem: {
             /**
@@ -1288,12 +1513,16 @@ export type components = {
         };
         /** MyRecipeDraftItem */
         readonly MyRecipeDraftItem: {
+            /** Description */
+            readonly description: string | null;
             readonly draft: components["schemas"]["RecipeDraftSummaryResponse"];
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
             readonly kind: "draft";
+            /** Source Recipe Title */
+            readonly source_recipe_title: string | null;
         };
         /** MyRecipeLibraryResponse */
         readonly MyRecipeLibraryResponse: {
@@ -1313,8 +1542,12 @@ export type components = {
         /** PublicCookProfileResponse */
         readonly PublicCookProfileResponse: {
             readonly cook: components["schemas"]["PublicUserReference"];
+            /** Description */
+            readonly description: string | null;
+            /** Follower Count */
+            readonly follower_count: number;
             /** Items */
-            readonly items: readonly components["schemas"]["RecipeSummary"][];
+            readonly items: readonly components["schemas"]["RecipeCardSummary"][];
             /** Page */
             readonly page: number;
             /** Page Size */
@@ -1425,6 +1658,76 @@ export type components = {
              */
             readonly status: "ready";
         };
+        /** RecipeCardSummary */
+        readonly RecipeCardSummary: {
+            /** @description Public author of this exact immutable recipe version. */
+            readonly author: components["schemas"]["PublicUserReference"];
+            /**
+             * Average Rating
+             * @description Average public rating for this recipe version, or null when unrated.
+             */
+            readonly average_rating: number | null;
+            /**
+             * Categories
+             * @description Immutable curated category snapshots selected for this exact recipe version.
+             */
+            readonly categories: readonly components["schemas"]["RecipeCategorySummary"][];
+            /**
+             * Created At
+             * Format: date-time
+             * @description Timestamp when this version was created.
+             */
+            readonly created_at: string;
+            /** Description */
+            readonly description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             * @description Stable identifier for this immutable recipe version.
+             */
+            readonly id: string;
+            /**
+             * Lineage Id
+             * Format: uuid
+             * @description Identifier shared by every version in the lineage.
+             */
+            readonly lineage_id: string;
+            /** @description Bounded direct-parent context for a fork. It is null for an original or when the referenced parent is not publicly readable. Parent authorship does not imply endorsement or lineage ownership. */
+            readonly parent: components["schemas"]["RecipeVersionReference"] | null;
+            /**
+             * Parent Version Id
+             * @description Direct parent version, or null for the original root.
+             */
+            readonly parent_version_id: string | null;
+            /**
+             * Published At
+             * Format: date-time
+             * @description Timestamp when this immutable version first became public.
+             */
+            readonly published_at: string;
+            /**
+             * Rating Count
+             * @description Number of ratings in the average.
+             */
+            readonly rating_count: number;
+            /**
+             * Save Count
+             * @description Number of members who saved this recipe version.
+             */
+            readonly save_count: number;
+            /**
+             * Servings
+             * @description Exact serving yield, serialized as a JSON string.
+             */
+            readonly servings: string;
+            /** Title */
+            readonly title: string;
+            /**
+             * Version Number
+             * @description Lineage-wide version number.
+             */
+            readonly version_number: number;
+        };
         /** RecipeCategoryListResponse */
         readonly RecipeCategoryListResponse: {
             /**
@@ -1451,6 +1754,11 @@ export type components = {
         };
         /** RecipeDetailResponse */
         readonly RecipeDetailResponse: {
+            /**
+             * Active Time Minutes
+             * @description Hands-on cooking time in whole minutes, or null when not provided.
+             */
+            readonly active_time_minutes?: number | null;
             /** @description Public author of this exact immutable recipe version. */
             readonly author: components["schemas"]["PublicUserReference"];
             /**
@@ -1474,6 +1782,11 @@ export type components = {
             /** Description */
             readonly description: string | null;
             /**
+             * Difficulty
+             * @description Author-selected difficulty, or null when not provided.
+             */
+            readonly difficulty?: ("easy" | "medium" | "hard") | null;
+            /**
              * Id
              * Format: uuid
              * @description Stable identifier for this immutable recipe version.
@@ -1489,6 +1802,11 @@ export type components = {
              * @description Identifier shared by every version in the lineage.
              */
             readonly lineage_id: string;
+            /**
+             * Notes
+             * @description Optional public notes authored for this immutable recipe version.
+             */
+            readonly notes?: string | null;
             /** @description Bounded direct-parent context for a fork. It is null for an original or when the referenced parent is not publicly readable. Parent authorship does not imply endorsement or lineage ownership. */
             readonly parent: components["schemas"]["RecipeVersionReference"] | null;
             /**
@@ -1508,12 +1826,22 @@ export type components = {
              */
             readonly rating_count: number;
             /**
+             * Save Count
+             * @description Number of members who saved this recipe version.
+             */
+            readonly save_count: number;
+            /**
              * Servings
              * @description Exact serving yield, serialized as a JSON string.
              */
             readonly servings: string;
             /** Title */
             readonly title: string;
+            /**
+             * Total Time Minutes
+             * @description Total elapsed cooking time in whole minutes, or null when not provided.
+             */
+            readonly total_time_minutes?: number | null;
             /**
              * Version Number
              * @description Lineage-wide version number.
@@ -1603,6 +1931,8 @@ export type components = {
         };
         /** RecipeDraftDetailResponse */
         readonly RecipeDraftDetailResponse: {
+            /** Active Time Minutes */
+            readonly active_time_minutes: number | null;
             /** Categories */
             readonly categories: readonly components["schemas"]["RecipeCategorySummary"][];
             /**
@@ -1612,6 +1942,8 @@ export type components = {
             readonly created_at: string;
             /** Description */
             readonly description: string | null;
+            /** Difficulty */
+            readonly difficulty: ("easy" | "medium" | "hard") | null;
             /**
              * Id
              * Format: uuid
@@ -1621,6 +1953,8 @@ export type components = {
             readonly ingredients: readonly components["schemas"]["RecipeDraftIngredientResponse"][];
             /** Instructions */
             readonly instructions: readonly components["schemas"]["RecipeDraftInstructionResponse"][];
+            /** Notes */
+            readonly notes: string | null;
             /** Revision */
             readonly revision: number;
             /** Servings */
@@ -1634,6 +1968,8 @@ export type components = {
             readonly status: "active";
             /** Title */
             readonly title: string;
+            /** Total Time Minutes */
+            readonly total_time_minutes: number | null;
             /**
              * Updated At
              * Format: date-time
@@ -1696,6 +2032,8 @@ export type components = {
             readonly ref: string;
             /** Text */
             readonly text: string;
+            /** Title */
+            readonly title?: string | null;
         };
         /** RecipeDraftInstructionResponse */
         readonly RecipeDraftInstructionResponse: {
@@ -1710,6 +2048,8 @@ export type components = {
             readonly id: string;
             /** Text */
             readonly text: string;
+            /** Title */
+            readonly title: string | null;
         };
         /** RecipeDraftPageResponse */
         readonly RecipeDraftPageResponse: {
@@ -1781,6 +2121,8 @@ export type components = {
         };
         /** RecipeDraftUpdateRequest */
         readonly RecipeDraftUpdateRequest: {
+            /** Active Time Minutes */
+            readonly active_time_minutes?: number | null;
             /**
              * Category Ids
              * @description Unique active curated category identities selected for this draft.
@@ -1788,16 +2130,22 @@ export type components = {
             readonly category_ids?: readonly string[];
             /** Description */
             readonly description?: string | null;
+            /** Difficulty */
+            readonly difficulty?: ("easy" | "medium" | "hard") | null;
             /** Ingredients */
             readonly ingredients?: readonly components["schemas"]["RecipeDraftIngredientInput"][];
             /** Instructions */
             readonly instructions?: readonly components["schemas"]["RecipeDraftInstructionInput"][];
+            /** Notes */
+            readonly notes?: string | null;
             /** Revision */
             readonly revision: number;
             /** Servings */
             readonly servings?: (number | string) | null;
             /** Title */
             readonly title: string;
+            /** Total Time Minutes */
+            readonly total_time_minutes?: number | null;
         };
         /** RecipeDuplicateAcknowledgementResponse */
         readonly RecipeDuplicateAcknowledgementResponse: {
@@ -1877,8 +2225,8 @@ export type components = {
             readonly field: components["schemas"]["RecipeFieldName"];
         };
         /** @enum {string} */
-        readonly RecipeFieldName: "title" | "description" | "servings";
-        readonly RecipeFieldValue: string | null;
+        readonly RecipeFieldName: "title" | "description" | "servings" | "total_time_minutes" | "active_time_minutes" | "difficulty" | "notes";
+        readonly RecipeFieldValue: string | number | null;
         /** @enum {string} */
         readonly RecipeIngredientChangedField: "ingredient" | "display_name" | "measure" | "preparation_notes";
         /**
@@ -1960,7 +2308,7 @@ export type components = {
             readonly temperature: (components["schemas"]["ExactMeasureResponse"] | components["schemas"]["RangeMeasureResponse"]) | null;
         };
         /** @enum {string} */
-        readonly RecipeInstructionChangedField: "text" | "actions" | "inputs" | "action_order" | "duration" | "temperature";
+        readonly RecipeInstructionChangedField: "title" | "text" | "actions" | "inputs" | "action_order" | "duration" | "temperature";
         /** RecipeInstructionDiff */
         readonly RecipeInstructionDiff: {
             /** Added */
@@ -1993,6 +2341,11 @@ export type components = {
             readonly id: string;
             /** Text */
             readonly text: string;
+            /**
+             * Title
+             * @description Optional authored heading for this step. Historical instructions may omit it.
+             */
+            readonly title: string | null;
         };
         /** RecipeModerationActionRequest */
         readonly RecipeModerationActionRequest: {
@@ -2205,7 +2558,7 @@ export type components = {
         /** RecipePageResponse */
         readonly RecipePageResponse: {
             /** Items */
-            readonly items: readonly components["schemas"]["RecipeSummary"][];
+            readonly items: readonly components["schemas"]["RecipeCardSummary"][];
             /** Page */
             readonly page: number;
             /** Page Size */
@@ -2372,6 +2725,14 @@ export type components = {
             readonly title: string;
             /** Version Number */
             readonly version_number: number;
+        };
+        /** RecipeViewerStateListResponse */
+        readonly RecipeViewerStateListResponse: {
+            /**
+             * Items
+             * @description Private member state for each requested recipe version, in request order.
+             */
+            readonly items: readonly components["schemas"]["RecipeViewerStateResponse"][];
         };
         /** RecipeViewerStateResponse */
         readonly RecipeViewerStateResponse: {
@@ -3310,6 +3671,265 @@ export interface operations {
                 };
             };
             /** @description A handle or page parameter is invalid. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly cook_follow_state_api_cooks__handle__follow_get: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly handle: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CookFollowStateResponse"];
+                };
+            };
+            /** @description A valid member session is required. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description CSRF or Origin evidence is invalid, or account setup is incomplete. */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The public cook handle was not found. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A member cannot follow their own account. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The cook handle is invalid. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly follow_cook_api_cooks__handle__follow_put: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: {
+                readonly "X-CSRF-Token"?: string | null;
+            };
+            readonly path: {
+                readonly handle: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CookFollowStateResponse"];
+                };
+            };
+            /** @description A valid member session is required. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description CSRF or Origin evidence is invalid, or account setup is incomplete. */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The public cook handle was not found. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A member cannot follow their own account. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The cook handle is invalid. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly unfollow_cook_api_cooks__handle__follow_delete: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: {
+                readonly "X-CSRF-Token"?: string | null;
+            };
+            readonly path: {
+                readonly handle: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CookFollowStateResponse"];
+                };
+            };
+            /** @description A valid member session is required. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description CSRF or Origin evidence is invalid, or account setup is incomplete. */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The public cook handle was not found. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A member cannot follow their own account. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The cook handle is invalid. */
             readonly 422: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -4304,6 +4924,225 @@ export interface operations {
             };
         };
     };
+    readonly my_community_activity_api_my_community_activity_get: {
+        readonly parameters: {
+            readonly query?: {
+                readonly page?: number;
+                readonly page_size?: number;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["MyCommunityActivityResponse"];
+                };
+            };
+            /** @description A valid member session is required. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Account setup is incomplete. */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A page parameter is invalid. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly my_follow_stats_api_my_follow_stats_get: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["MyFollowStatsResponse"];
+                };
+            };
+            /** @description A valid member session is required. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description CSRF or Origin evidence is invalid, or account setup is incomplete. */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The public cook handle was not found. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A member cannot follow their own account. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The cook handle is invalid. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly my_followers_api_my_followers_get: {
+        readonly parameters: {
+            readonly query?: {
+                readonly page?: number;
+                readonly page_size?: number;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["MyFollowersResponse"];
+                };
+            };
+            /** @description A valid member session is required. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Account setup is incomplete. */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A page parameter is invalid. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     readonly my_recipe_library_api_my_recipes_get: {
         readonly parameters: {
             readonly query: {
@@ -4513,6 +5352,8 @@ export interface operations {
             readonly query?: {
                 readonly page?: number;
                 readonly page_size?: number;
+                /** @description Return only active drafts copied from this exact immutable recipe version. */
+                readonly source_version_id?: string | null;
             };
             readonly header?: never;
             readonly path?: never;
@@ -5432,6 +6273,99 @@ export interface operations {
             };
         };
     };
+    readonly unrate_recipe_for_current_user_api_recipes__recipe_version_id__rating_delete: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque UUID scoped to this member and operation. Reusing it with the same action safely replays the request; conflicting reuse within that scope returns 409. */
+                readonly "Idempotency-Key": string;
+                readonly "X-CSRF-Token"?: string | null;
+            };
+            readonly path: {
+                readonly recipe_version_id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["EmptyInteractionRequest"] | null;
+            };
+        };
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["RecipeViewerStateResponse"];
+                };
+            };
+            /** @description A valid member session is required. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description CSRF or Origin evidence is invalid, or account setup is incomplete. */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The requested recipe version does not exist. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The Idempotency-Key conflicts within this member and operation. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The request contains an invalid identifier, action key, or rating. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     readonly report_recipe_api_recipes__recipe_version_id__reports_post: {
         readonly parameters: {
             readonly query?: never;
@@ -5922,6 +6856,73 @@ export interface operations {
             };
             /** @description The raw request body exceeds the configured maximum size. */
             readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly recipe_viewer_states_for_current_user_api_recipes_viewer_states_get: {
+        readonly parameters: {
+            readonly query: {
+                readonly recipe_version_id: readonly string[];
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["RecipeViewerStateListResponse"];
+                };
+            };
+            /** @description A valid member session is required. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Account setup is incomplete. */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The request contains an invalid identifier or query parameter. */
+            readonly 422: {
                 headers: {
                     readonly [name: string]: unknown;
                 };

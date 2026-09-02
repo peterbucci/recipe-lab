@@ -1,7 +1,9 @@
 import Link from "next/link";
 
 import type { PublicCookProfilePage } from "../../lib/recipe-library-api";
+import { CookFollowControl } from "./cook-follow-control";
 import { RecipeCard } from "./recipe-card";
+import { RecipeCardViewerStateProvider } from "./recipe-card-engagement";
 
 interface CookProfileViewProps {
   data: PublicCookProfilePage;
@@ -14,35 +16,30 @@ function profileHref(handle: string, page: number): string {
 
 export function CookProfileView({ data }: CookProfileViewProps) {
   const beyondLastPage = data.total > 0 && data.items.length === 0;
-  const recipeLabel = data.total === 1 ? "public recipe" : "public recipes";
 
   return (
     <>
-      <nav className="breadcrumb" aria-label="Breadcrumb">
-        <Link href="/recipes">← All recipes</Link>
-      </nav>
       <header className="cook-profile__header">
         <span className="cook-profile__avatar" aria-hidden="true">
           {data.cook.display_name.trim().slice(0, 1).toLocaleUpperCase() || "C"}
         </span>
-        <div>
-          <p className="eyebrow">Cook profile</p>
+        <div className="cook-profile__identity">
           <h1>{data.cook.display_name}</h1>
-          <p className="cook-profile__handle">@{data.cook.handle}</p>
-          <p className="cook-profile__count">
-            {data.total} {recipeLabel}
-          </p>
+          <CookFollowControl
+            cookId={data.cook.id}
+            displayName={data.cook.display_name}
+            handle={data.cook.handle}
+            initialFollowerCount={data.follower_count}
+            profileDescription={data.description}
+            recipeCount={data.total}
+            variant="profile"
+          />
         </div>
       </header>
 
       <section className="cook-profile__recipes" aria-labelledby="cook-recipes-heading">
         <div className="section-heading section-heading--compact">
-          <div>
-            <h2 id="cook-recipes-heading">Recipes by {data.cook.display_name}</h2>
-            <p className="result-count" aria-live="polite">
-              Only publicly readable versions appear here.
-            </p>
-          </div>
+          <h2 id="cook-recipes-heading">Recipes</h2>
         </div>
 
         {data.total === 0 ? (
@@ -62,11 +59,27 @@ export function CookProfileView({ data }: CookProfileViewProps) {
             </Link>
           </div>
         ) : (
-          <ul className="recipe-grid" aria-label={`Public recipes by ${data.cook.display_name}`}>
-            {data.items.map((recipe) => (
-              <RecipeCard key={recipe.id} recipe={recipe} />
-            ))}
-          </ul>
+          <RecipeCardViewerStateProvider
+            key={data.items.map((recipe) => recipe.id).join(":")}
+            recipeVersionIds={data.items.map((recipe) => recipe.id)}
+          >
+            <ul
+              className="recipe-grid"
+              aria-label={`Public recipes by ${data.cook.display_name}`}
+            >
+              {data.items.map((recipe) => (
+                <RecipeCard
+                  engagement={{
+                    averageRating: recipe.average_rating,
+                    ratingCount: recipe.rating_count,
+                    saveCount: recipe.save_count,
+                  }}
+                  key={recipe.id}
+                  recipe={recipe}
+                />
+              ))}
+            </ul>
+          </RecipeCardViewerStateProvider>
         )}
       </section>
 

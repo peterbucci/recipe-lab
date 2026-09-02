@@ -111,7 +111,8 @@ test.describe("recipe reporting and moderation acceptance", () => {
     const moderator = await applyAcceptanceMember(page, "moderator");
     await page.goto("/");
     await page.getByLabel("Account menu for Morgan Moderator").click();
-    await page.getByRole("link", { name: "Review recipe reports", exact: true }).click();
+    await page.getByRole("link", { name: "Staff tools", exact: true }).click();
+    await page.getByRole("link", { name: "Open recipe reports", exact: true }).click();
     await expect(page).toHaveURL("/moderation/recipes");
     await expect(page.getByRole("heading", { name: "Recipe reports", level: 1 })).toBeVisible();
     await expect(page.getByRole("heading", { name: recipe.title, level: 2 })).toBeVisible();
@@ -122,7 +123,16 @@ test.describe("recipe reporting and moderation acceptance", () => {
     await expect(page.getByText(moderator.user_id, { exact: true })).toHaveCount(0);
     await expectNoAccessibilityViolations(page);
 
-    await page.getByLabel("Private note (optional)").fill("Hide while the report is reviewed.");
+    const privateNoteDisclosure = page
+      .locator("details")
+      .filter({ hasText: "Private moderator note" });
+    await privateNoteDisclosure
+      .getByText("Private moderator note", { exact: true })
+      .click();
+    await expect(privateNoteDisclosure).toHaveAttribute("open", "");
+    await privateNoteDisclosure
+      .getByLabel("Private note (optional)")
+      .fill("Hide while the report is reviewed.");
     const hideResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
@@ -201,8 +211,15 @@ test.describe("recipe reporting and moderation acceptance", () => {
     await expect(page.getByText(/Case resolved\. The moderation record was updated\./)).toBeVisible();
     await page.getByRole("button", { name: "Resolved", exact: true }).click();
     await expect(page.getByRole("heading", { name: recipe.title, level: 2 })).toBeVisible();
-    await expect(page.getByText("Resolved case", { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Private audit history", level: 3 })).toBeVisible();
+    await expect(page.locator(".moderation-detail__status-pill")).toHaveText("Resolved");
+    const auditHistoryDisclosure = page
+      .locator("details")
+      .filter({ hasText: "Private audit history" });
+    await auditHistoryDisclosure
+      .getByText("Private audit history", { exact: true })
+      .click();
+    await expect(auditHistoryDisclosure).toHaveAttribute("open", "");
+    await expect(auditHistoryDisclosure.getByText("Case resolved", { exact: true })).toBeVisible();
     await expectNoAccessibilityViolations(page);
   });
 });

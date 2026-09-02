@@ -56,6 +56,7 @@ def tombstone_member_from_durable_deletion_evidence(
     user.email = None
     user.handle = None
     user.display_name = DELETED_COOK_DISPLAY_NAME
+    user.profile_description = None
     session.flush()
 
     purge_member_private_data(

@@ -6,6 +6,7 @@ export const RCP46_THEME_FAMILIES = [
   "recipe-authoring",
   "staff-curation",
   "staff-moderation",
+  "staff-tools",
   "system-state",
 ] as const;
 
@@ -25,9 +26,24 @@ interface RouteStateThemeInventoryItem {
 
 export const RCP46_PAGE_THEME_INVENTORY = [
   {
+    file: "app/account/activity/page.tsx",
+    route: "/account/activity",
+    family: "account-workspace",
+  },
+  {
+    file: "app/account/community-activity/page.tsx",
+    route: "/account/community-activity",
+    family: "account-workspace",
+  },
+  {
     file: "app/account/deleted/page.tsx",
     route: "/account/deleted",
     family: "account-access",
+  },
+  {
+    file: "app/account/followers/page.tsx",
+    route: "/account/followers",
+    family: "account-workspace",
   },
   {
     file: "app/account/ingredient-requests/page.tsx",
@@ -106,12 +122,18 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     family: "public-context",
   },
   {
+    file: "app/recipes/drafts/[draftId]/page.tsx",
+    route: "/recipes/drafts/[draftId]",
+    family: "recipe-authoring",
+  },
+  {
     file: "app/recipes/new/page.tsx",
     route: "/recipes/new",
     family: "recipe-authoring",
   },
   { file: "app/recipes/page.tsx", route: "/recipes", family: "discovery" },
   { file: "app/sign-in/page.tsx", route: "/sign-in", family: "account-access" },
+  { file: "app/staff/page.tsx", route: "/staff", family: "staff-tools" },
 ] as const satisfies readonly PageThemeInventoryItem[];
 
 export const RCP46_ROUTE_STATE_THEME_INVENTORY = [
@@ -230,6 +252,21 @@ export const RCP46_ROUTE_STATE_THEME_INVENTORY = [
     file: "app/recipes/[recipeVersionId]/not-found.tsx",
     kind: "not-found",
     family: "public-context",
+  },
+  {
+    file: "app/recipes/drafts/[draftId]/error.tsx",
+    kind: "error",
+    family: "recipe-authoring",
+  },
+  {
+    file: "app/recipes/drafts/[draftId]/loading.tsx",
+    kind: "loading",
+    family: "recipe-authoring",
+  },
+  {
+    file: "app/recipes/drafts/[draftId]/not-found.tsx",
+    kind: "not-found",
+    family: "recipe-authoring",
   },
   { file: "app/recipes/error.tsx", kind: "error", family: "discovery" },
   { file: "app/recipes/loading.tsx", kind: "loading", family: "discovery" },

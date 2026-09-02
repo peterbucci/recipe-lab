@@ -31,5 +31,6 @@ describe("OnboardingPage", () => {
       .toHaveClass("account-access-card", "account-access-card--onboarding");
     expect(screen.getByRole("button", { name: "Finish account setup" }).closest("form"))
       .toHaveClass("account-profile-form");
+    expect(screen.queryByText("One last step")).not.toBeInTheDocument();
   });
 });

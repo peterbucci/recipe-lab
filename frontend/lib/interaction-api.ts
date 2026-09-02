@@ -160,6 +160,16 @@ export async function setRecipeRating(
   });
 }
 
+export async function clearRecipeRating(
+  recipeVersionId: string,
+  idempotencyKey: string,
+): Promise<RecipeViewerState> {
+  return interactionRequest(interactionUrl(recipeVersionId, "rating"), {
+    method: "DELETE",
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+}
+
 export async function recordRecipeView(
   recipeVersionId: string,
   idempotencyKey: string,
@@ -230,6 +240,70 @@ export async function fetchRecipeViewerState(
     }
     throw new InteractionApiError(
       "Recipe Lab received an invalid private recipe state.",
+      502,
+      "invalid_interaction_response",
+    );
+  }
+}
+
+export async function fetchRecipeViewerStates(
+  recipeVersionIds: readonly string[],
+  signal?: AbortSignal,
+): Promise<RecipeViewerState[]> {
+  const uniqueIds = [...new Set(recipeVersionIds)];
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const searchParams = new URLSearchParams();
+  for (const recipeVersionId of uniqueIds) {
+    searchParams.append("recipe_version_id", recipeVersionId);
+  }
+  const response = await fetch(
+    `/api/recipes/viewer-states?${searchParams.toString()}`,
+    {
+      method: "GET",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal,
+    },
+  );
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      notifySessionExpired();
+    }
+    throw await apiError(response);
+  }
+
+  try {
+    const payload: unknown = await response.json();
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("items" in payload) ||
+      !Array.isArray((payload as Record<string, unknown>).items)
+    ) {
+      throw new TypeError("Missing viewer states.");
+    }
+    const items = (payload as { items: unknown[] }).items.map((item) =>
+      parseRecipeViewerState(item),
+    );
+    if (
+      items.some((item) => item === null) ||
+      items.length !== uniqueIds.length ||
+      items.some((item, index) => item?.recipe_version_id !== uniqueIds[index])
+    ) {
+      throw new TypeError("Private states do not match the requested recipes.");
+    }
+    return items as RecipeViewerState[];
+  } catch (reason) {
+    if (reason instanceof InteractionApiError) {
+      throw reason;
+    }
+    throw new InteractionApiError(
+      "Recipe Lab received invalid private recipe states.",
       502,
       "invalid_interaction_response",
     );

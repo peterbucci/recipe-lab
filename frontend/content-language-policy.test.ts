@@ -71,7 +71,11 @@ function isCopySetter(name: string): boolean {
 }
 
 function propertyName(node: ts.PropertyName): string | undefined {
-  if (ts.isIdentifier(node) || ts.isStringLiteral(node) || ts.isNumericLiteral(node)) {
+  if (
+    ts.isIdentifier(node) ||
+    ts.isStringLiteral(node) ||
+    ts.isNumericLiteral(node)
+  ) {
     return node.text;
   }
   if (ts.isComputedPropertyName(node) && ts.isStringLiteral(node.expression)) {
@@ -92,7 +96,8 @@ const RULES: ReadonlyArray<{ id: RuleId; pattern: RegExp }> = [
   },
   {
     id: "internal-recipe-language",
-    pattern: /\b(?:forks?|lineage|snapshots?|immutable|moderation[- ]hidden)\b/i,
+    pattern:
+      /\b(?:forks?|lineage|snapshots?|immutable|moderation[- ]hidden)\b/i,
   },
   {
     id: "catalog-internals",
@@ -109,7 +114,9 @@ const RULES: ReadonlyArray<{ id: RuleId; pattern: RegExp }> = [
 // These modules are access-controlled staff surfaces. Exceptions are per rule:
 // no staff page is allowed to make consumer recommendation claims or to use
 // internal recipe-version language merely because it is staff-only.
-const STAFF_DIAGNOSTIC_EXCEPTIONS: Readonly<Record<string, ReadonlySet<RuleId>>> = {
+const STAFF_DIAGNOSTIC_EXCEPTIONS: Readonly<
+  Record<string, ReadonlySet<RuleId>>
+> = {
   "app/catalog/ingredient-requests/loading.tsx": new Set([
     "catalog-internals",
     "staff-identifiers",
@@ -118,9 +125,15 @@ const STAFF_DIAGNOSTIC_EXCEPTIONS: Readonly<Record<string, ReadonlySet<RuleId>>>
     "catalog-internals",
     "staff-identifiers",
   ]),
-  "app/components/ingredient-request-decision-form.tsx": new Set(["catalog-internals"]),
-  "app/components/ingredient-request-review-detail.tsx": new Set(["staff-identifiers"]),
-  "app/components/recipe-moderation-workspace.tsx": new Set(["staff-identifiers"]),
+  "app/components/ingredient-request-decision-form.tsx": new Set([
+    "catalog-internals",
+  ]),
+  "app/components/ingredient-request-review-detail.tsx": new Set([
+    "staff-identifiers",
+  ]),
+  "app/components/recipe-moderation-workspace.tsx": new Set([
+    "staff-identifiers",
+  ]),
   "app/moderation/recipes/loading.tsx": new Set(["staff-identifiers"]),
   "app/moderation/recipes/page.tsx": new Set(["staff-identifiers"]),
 };
@@ -133,7 +146,11 @@ function ordinaryUiFiles(directory = APP_ROOT): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = resolve(directory, entry.name);
     if (entry.isDirectory()) return ordinaryUiFiles(path);
-    if (!entry.isFile() || !entry.name.endsWith(".tsx") || entry.name.endsWith(".test.tsx")) {
+    if (
+      !entry.isFile() ||
+      !entry.name.endsWith(".tsx") ||
+      entry.name.endsWith(".test.tsx")
+    ) {
       return [];
     }
     return [path];
@@ -144,7 +161,10 @@ function normalizedText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-function collectPublicCopy(source: string, fileName = "surface.tsx"): CopyFragment[] {
+function collectPublicCopy(
+  source: string,
+  fileName = "surface.tsx",
+): CopyFragment[] {
   const sourceFile = ts.createSourceFile(
     fileName,
     source,
@@ -165,14 +185,19 @@ function collectPublicCopy(source: string, fileName = "surface.tsx"): CopyFragme
   function add(node: ts.Node, text: string) {
     const normalized = normalizedText(text);
     if (!normalized) return;
-    const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+    const line =
+      sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line +
+      1;
     const key = `${line}:${normalized}`;
     if (seen.has(key)) return;
     seen.add(key);
     fragments.push({ line, text: normalized });
   }
 
-  function collectLiterals(node: ts.Node | undefined, resolveStaticIdentifiers = true): void {
+  function collectLiterals(
+    node: ts.Node | undefined,
+    resolveStaticIdentifiers = true,
+  ): void {
     if (!node) return;
     if (ts.isIdentifier(node)) {
       if (!resolveStaticIdentifiers) return;
@@ -292,7 +317,10 @@ function collectPublicCopy(source: string, fileName = "surface.tsx"): CopyFragme
     return false;
   }
 
-  function collectReferencedHelpers(node: ts.Node | undefined, names = publicHelperNames): void {
+  function collectReferencedHelpers(
+    node: ts.Node | undefined,
+    names = publicHelperNames,
+  ): void {
     if (!node) return;
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
       names.add(node.expression.text);
@@ -303,7 +331,8 @@ function collectPublicCopy(source: string, fileName = "surface.tsx"): CopyFragme
   function returnedExpressions(
     helper: ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction,
   ): ts.Expression[] {
-    if (ts.isArrowFunction(helper) && !ts.isBlock(helper.body)) return [helper.body];
+    if (ts.isArrowFunction(helper) && !ts.isBlock(helper.body))
+      return [helper.body];
     if (!helper.body) return [];
 
     const expressions: ts.Expression[] = [];
@@ -333,16 +362,19 @@ function collectPublicCopy(source: string, fileName = "surface.tsx"): CopyFragme
   function indexPublicCopy(node: ts.Node): void {
     if (ts.isFunctionDeclaration(node) && node.name) {
       helperDefinitions.set(node.name.text, node);
-      if (node.name.text === "generateMetadata") publicHelperNames.add(node.name.text);
+      if (node.name.text === "generateMetadata")
+        publicHelperNames.add(node.name.text);
     }
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
       node.initializer &&
-      (ts.isFunctionExpression(node.initializer) || ts.isArrowFunction(node.initializer))
+      (ts.isFunctionExpression(node.initializer) ||
+        ts.isArrowFunction(node.initializer))
     ) {
       helperDefinitions.set(node.name.text, node.initializer);
-      if (node.name.text === "generateMetadata") publicHelperNames.add(node.name.text);
+      if (node.name.text === "generateMetadata")
+        publicHelperNames.add(node.name.text);
     }
     if (
       ts.isVariableDeclaration(node) &&
@@ -374,7 +406,8 @@ function collectPublicCopy(source: string, fileName = "surface.tsx"): CopyFragme
     }
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
       if (isCopySetter(node.expression.text)) {
-        for (const argument of node.arguments) collectReferencedHelpers(argument);
+        for (const argument of node.arguments)
+          collectReferencedHelpers(argument);
       }
     }
     ts.forEachChild(node, indexPublicCopy);
@@ -400,7 +433,8 @@ function collectPublicCopy(source: string, fileName = "surface.tsx"): CopyFragme
   for (const helperName of expandedHelpers) {
     const helper = helperDefinitions.get(helperName);
     if (!helper) continue;
-    for (const expression of returnedExpressions(helper)) collectLiterals(expression);
+    for (const expression of returnedExpressions(helper))
+      collectLiterals(expression);
   }
 
   function visit(node: ts.Node): void {
@@ -458,7 +492,10 @@ function formatViolations(violations: readonly Violation[]): string {
 describe("public product language policy", () => {
   it("keeps public positioning limited to the shipped cook experience", () => {
     const read = (path: string) =>
-      readFileSync(resolve(REPOSITORY_ROOT, path), "utf8").replace(/\r\n/g, "\n");
+      readFileSync(resolve(REPOSITORY_ROOT, path), "utf8").replace(
+        /\r\n/g,
+        "\n",
+      );
     const readme = read("README.md");
 
     expect(readme).toContain(
@@ -467,7 +504,9 @@ describe("public product language policy", () => {
     expect(readme).toContain(
       "Research-preview engineering capabilities, which are not consumer product\nsurfaces",
     );
-    expect(readme).toContain("[product language and recommendation boundary](docs/product-language.md)");
+    expect(readme).toContain(
+      "[product language and recommendation boundary](docs/product-language.md)",
+    );
 
     const publicReadme = readme.split("### Research preview:", 1)[0];
     const positioningSources = [
@@ -480,7 +519,8 @@ describe("public product language policy", () => {
     const unsupportedClaims =
       /remember(?:s|ed)? what worked|learned substitutions?|personal intelligence|outcome[- ]based recommendations?|picked for you|tailored to your cooking|get recommendations shaped by your activity/i;
 
-    for (const source of positioningSources) expect(source).not.toMatch(unsupportedClaims);
+    for (const source of positioningSources)
+      expect(source).not.toMatch(unsupportedClaims);
   });
 
   it("uses the preferred relationship and similarity labels", () => {
@@ -491,15 +531,25 @@ describe("public product language policy", () => {
         "utf8",
       ),
     ].join("\n");
-    const detail = readFileSync(resolve(APP_ROOT, "components/recipe-detail-view.tsx"), "utf8");
+    const detail = [
+      readFileSync(
+        resolve(APP_ROOT, "components/recipe-detail-view.tsx"),
+        "utf8",
+      ),
+      readFileSync(
+        resolve(APP_ROOT, "components/recipe-family-navigator.tsx"),
+        "utf8",
+      ),
+    ].join("\n");
     const similarity = readFileSync(
       resolve(APP_ROOT, "components/recipe-duplicate-preflight-review.tsx"),
       "utf8",
     );
 
-    expect(home).toContain("Your version");
+    expect(home).toContain("Featured recipes");
     expect(detail).toContain("Based on");
-    expect(detail).toContain("Recipe history");
+    expect(detail).toContain("Recipe family");
+    expect(similarity).toContain("Your version");
     expect(similarity).toContain("Similar recipes");
   });
 
@@ -507,9 +557,10 @@ describe("public product language policy", () => {
     const files = ordinaryUiFiles();
     const inventory = new Set(files.map(repositoryPath));
     for (const exception of Object.keys(STAFF_DIAGNOSTIC_EXCEPTIONS)) {
-      expect(inventory, `${exception} must remain an explicit, existing UI module`).toContain(
-        exception,
-      );
+      expect(
+        inventory,
+        `${exception} must remain an explicit, existing UI module`,
+      ).toContain(exception);
     }
 
     const violations = files.flatMap((path) => {
@@ -541,7 +592,9 @@ describe("public product language policy", () => {
         return <><p>Canonical identity</p><p>Get recommendations shaped by your activity.</p></>;
       }`,
     );
-    expect(staff.map(({ rule }) => rule)).toEqual(["consumer-recommendation-language"]);
+    expect(staff.map(({ rule }) => rule)).toEqual([
+      "consumer-recommendation-language",
+    ]);
   });
 
   it("checks UUID-shaped copy and statically initialized rendered aliases", () => {

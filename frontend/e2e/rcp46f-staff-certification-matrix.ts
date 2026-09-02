@@ -8,14 +8,14 @@ export const RCP46F_STAFF_ROUTES = {
   curator: {
     path: "/catalog/ingredient-requests",
     capability: "review_ingredient_requests",
-    navigationLabel: "Review ingredient requests",
+    navigationLabel: "Open ingredient catalog",
     apiRouteLabel: "ingredient-review-queue",
     authorizationDeniedApiRouteLabel: "ingredient-review-authorization-denied",
   },
   moderator: {
     path: "/moderation/recipes",
     capability: "moderate_recipe_reports",
-    navigationLabel: "Review recipe reports",
+    navigationLabel: "Open recipe reports",
     apiRouteLabel: "moderation-queue",
     authorizationDeniedApiRouteLabel: "moderation-authorization-denied",
   },

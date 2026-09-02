@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { recipeBrowseHref } from "./recipe-browse-query";
+import {
+  isVariantForRecipeBrowseType,
+  parseRecipeBrowseType,
+  recipeBrowseHref,
+} from "./recipe-browse-query";
 
 describe("recipe browse query", () => {
   it("preserves search while omitting an empty query and page one", () => {
@@ -11,12 +15,25 @@ describe("recipe browse query", () => {
     expect(recipeBrowseHref(1, "")).toBe("/recipes");
   });
 
-  it("preserves exact category and sort filters", () => {
+  it("preserves exact category, recipe type, and sort filters", () => {
     expect(
       recipeBrowseHref(2, "toast", {
         category: "quick-easy",
+        recipeType: "versions",
         sort: "newest",
       }),
-    ).toBe("/recipes?q=toast&category=quick-easy&sort=newest&page=2");
+    ).toBe(
+      "/recipes?q=toast&category=quick-easy&type=versions&sort=newest&page=2",
+    );
+  });
+
+  it("parses the public recipe-type filter and maps it to the API query", () => {
+    expect(parseRecipeBrowseType("originals")).toBe("originals");
+    expect(parseRecipeBrowseType("versions")).toBe("versions");
+    expect(parseRecipeBrowseType("all")).toBeUndefined();
+    expect(parseRecipeBrowseType(["versions", "originals"])).toBeUndefined();
+    expect(isVariantForRecipeBrowseType("originals")).toBe(false);
+    expect(isVariantForRecipeBrowseType("versions")).toBe(true);
+    expect(isVariantForRecipeBrowseType(undefined)).toBeUndefined();
   });
 });

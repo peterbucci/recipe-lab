@@ -1,3 +1,5 @@
+import { retryTransientRead } from "./transient-read-retry";
+
 export type ApiRequestKind = "query" | "mutation";
 
 export type ApiMutationOutcome = "rejected" | "unknown";
@@ -276,7 +278,7 @@ async function publicApiError(
   }
 }
 
-export async function executeJsonApiRequest(
+async function executeJsonApiRequestOnce(
   target: string | URL,
   init: RequestInit,
   options: ExecuteApiRequestOptions,
@@ -360,5 +362,27 @@ export async function executeJsonApiRequest(
   } finally {
     globalThis.clearTimeout(timeout);
     options.signal?.removeEventListener("abort", abortFromCaller);
+  }
+}
+
+export async function executeJsonApiRequest(
+  target: string | URL,
+  init: RequestInit,
+  options: ExecuteApiRequestOptions,
+): Promise<ApiJsonResponse> {
+  if (options.kind === "mutation") {
+    return executeJsonApiRequestOnce(target, init, options);
+  }
+
+  try {
+    return await retryTransientRead(
+      () => executeJsonApiRequestOnce(target, init, options),
+      { signal: options.signal },
+    );
+  } catch (error) {
+    if (options.signal?.aborted && !(error instanceof ApiTransportError)) {
+      throw executionError("aborted", options.kind);
+    }
+    throw error;
   }
 }

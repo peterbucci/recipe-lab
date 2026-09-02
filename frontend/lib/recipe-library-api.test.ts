@@ -17,6 +17,7 @@ const PARENT_ID = "44444444-4444-4444-8444-444444444444";
 const LINEAGE_ID = "55555555-5555-4555-8555-555555555555";
 const DRAFT_ID = "66666666-6666-4666-8666-666666666666";
 const CATEGORY_ID = "77777777-7777-4777-8777-777777777777";
+const ORIGINAL_DRAFT_ID = "88888888-8888-4888-8888-888888888888";
 const DEMO_COOK_ID = "1fc5b3b8-cf73-54ce-b5d6-ed3c30df9fd9";
 
 const cook = {
@@ -39,6 +40,9 @@ const recipe = {
   created_at: "2026-08-25T12:00:00Z",
   published_at: "2026-08-25T12:30:00Z",
   author: cook,
+  average_rating: 4.25,
+  rating_count: 4,
+  save_count: 11,
   parent: {
     id: PARENT_ID,
     version_number: 1,
@@ -67,13 +71,23 @@ describe("recipe library API", () => {
   it("fetches a public cook page from the server endpoint without caching", async () => {
     vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      Response.json({ cook, items: [recipe], ...envelope }),
+      Response.json({
+        cook,
+        follower_count: 4,
+        description: "Weeknight baking and family recipes.",
+        items: [recipe],
+        ...envelope,
+      }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
       fetchPublicCookProfile({ handle: "Alice_Cook", page: 2, pageSize: 6 }),
-    ).resolves.toMatchObject({ cook, items: [recipe] });
+    ).resolves.toMatchObject({
+      cook,
+      description: "Weeknight baking and family recipes.",
+      items: [recipe],
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       new URL("http://api.example.test/api/cooks/Alice_Cook?page=2&page_size=6"),
       { cache: "no-store", headers: { Accept: "application/json" } },
@@ -88,20 +102,71 @@ describe("recipe library API", () => {
   it("projects only the bounded public identity and recipe fields", () => {
     const result = parsePublicCookProfilePage({
       cook: { ...cook, email: "private@example.test", provider_subject: "private-subject" },
+      follower_count: 4,
+      description: "  A public profile description.  ",
       items: [{ ...recipe, private_events: ["save"], author: { ...cook, email: "hidden" } }],
       ...envelope,
     });
 
     expect(result.cook).toEqual(cook);
+    expect(result.follower_count).toBe(4);
+    expect(result.description).toBe("  A public profile description.  ");
     expect(result.items[0].author).toEqual(cook);
     expect(result.items[0].categories).toEqual(recipe.categories);
+    expect(result.items[0]).toMatchObject({
+      average_rating: 4.25,
+      rating_count: 4,
+      save_count: 11,
+    });
     expect(result.cook).not.toHaveProperty("email");
     expect(result.items[0]).not.toHaveProperty("private_events");
+  });
+
+  it("rejects missing or malformed public-profile engagement totals", () => {
+    const invalidItems = [
+      { ...recipe, average_rating: 0 },
+      { ...recipe, average_rating: 5.1 },
+      { ...recipe, rating_count: -1 },
+      { ...recipe, save_count: 1.5 },
+    ];
+
+    for (const item of invalidItems) {
+      expect(() =>
+        parsePublicCookProfilePage({
+          cook,
+          follower_count: 4,
+          items: [item],
+          ...envelope,
+        }),
+      ).toThrow(RecipeLibraryApiError);
+    }
+  });
+
+  it("accepts a missing legacy description as empty and rejects malformed descriptions", () => {
+    expect(
+      parsePublicCookProfilePage({
+        cook,
+        follower_count: 4,
+        items: [recipe],
+        ...envelope,
+      }).description,
+    ).toBeNull();
+
+    expect(() =>
+      parsePublicCookProfilePage({
+        cook,
+        follower_count: 4,
+        description: "x".repeat(501),
+        items: [recipe],
+        ...envelope,
+      }),
+    ).toThrow(RecipeLibraryApiError);
   });
 
   it("keeps a fork label without exposing an unreadable direct parent", () => {
     const result = parsePublicCookProfilePage({
       cook,
+      follower_count: 4,
       items: [{ ...recipe, parent: null }],
       ...envelope,
     });
@@ -115,7 +180,7 @@ describe("recipe library API", () => {
   it("requests one server-filtered My Recipes view with independent pagination", async () => {
     const draft = {
       id: DRAFT_ID,
-      source_version_id: null,
+      source_version_id: PARENT_ID,
       status: "active",
       revision: 2,
       title: "Weeknight soup",
@@ -124,10 +189,30 @@ describe("recipe library API", () => {
       created_at: "2026-08-25T10:00:00Z",
       updated_at: "2026-08-25T12:00:00Z",
     };
+    const originalDraft = {
+      ...draft,
+      id: ORIGINAL_DRAFT_ID,
+      source_version_id: null,
+      title: "Original weeknight soup",
+    };
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
-        items: [{ kind: "draft", draft }],
+        items: [
+          {
+            kind: "draft",
+            draft,
+            source_recipe_title: "Catalog carrot cake",
+            description: "A weeknight soup with a silky finish.",
+          },
+          {
+            kind: "draft",
+            draft: originalDraft,
+            source_recipe_title: null,
+            description: null,
+          },
+        ],
         ...envelope,
+        total: 2,
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -135,7 +220,20 @@ describe("recipe library API", () => {
     await expect(
       fetchMyRecipeLibrary({ view: "drafts", page: 3, pageSize: 8 }),
     ).resolves.toMatchObject({
-      items: [{ kind: "draft", draft }],
+      items: [
+        {
+          kind: "draft",
+          draft,
+          source_recipe_title: "Catalog carrot cake",
+          description: "A weeknight soup with a silky finish.",
+        },
+        {
+          kind: "draft",
+          draft: originalDraft,
+          source_recipe_title: null,
+          description: null,
+        },
+      ],
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/my/recipes?view=drafts&page=3&page_size=8",
@@ -194,6 +292,7 @@ describe("recipe library API", () => {
     expect(() =>
       parsePublicCookProfilePage({
         cook: deletedCook,
+        follower_count: 0,
         items: [],
         ...envelope,
         total: 0,
@@ -261,7 +360,16 @@ describe("recipe library API", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(fetchSavedRecipeLibrary()).resolves.toMatchObject({
-      items: [{ recipe, saved_at: "2026-08-25T13:00:00Z" }],
+      items: [
+        {
+          recipe: {
+            id: RECIPE_ID,
+            title: "Alice’s carrot cake",
+            author: cook,
+          },
+          saved_at: "2026-08-25T13:00:00Z",
+        },
+      ],
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/my/saved-recipes?page=1&page_size=12",

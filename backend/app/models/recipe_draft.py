@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.models.common import CreatedAtMixin, UpdatedAtMixin, UUIDPrimaryKeyMixin
+from app.models.recipe import RECIPE_DIFFICULTIES
 
 if TYPE_CHECKING:
     from app.models.action import CookingActionType
@@ -65,6 +66,28 @@ class RecipeDraft(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
             name="description_valid",
         ),
         CheckConstraint("servings IS NULL OR servings > 0", name="servings_positive"),
+        CheckConstraint(
+            "total_time_minutes IS NULL OR total_time_minutes > 0",
+            name="total_time_minutes_positive",
+        ),
+        CheckConstraint(
+            "active_time_minutes IS NULL OR active_time_minutes > 0",
+            name="active_time_minutes_positive",
+        ),
+        CheckConstraint(
+            "total_time_minutes IS NULL OR active_time_minutes IS NULL "
+            "OR active_time_minutes <= total_time_minutes",
+            name="active_time_not_greater_than_total",
+        ),
+        CheckConstraint(
+            f"difficulty IS NULL OR difficulty IN {RECIPE_DIFFICULTIES!r}",
+            name="difficulty_supported",
+        ),
+        CheckConstraint(
+            "notes IS NULL OR (NULLIF(btrim(notes), '') IS NOT NULL "
+            "AND char_length(notes) <= 5000)",
+            name="notes_valid",
+        ),
         CheckConstraint(
             "(creation_action_id IS NULL AND creation_request_fingerprint IS NULL) OR "
             "(creation_action_id IS NOT NULL AND creation_request_fingerprint IS NOT NULL)",
@@ -130,6 +153,10 @@ class RecipeDraft(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     servings: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
+    total_time_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    active_time_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    difficulty: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     author: Mapped["User"] = relationship()
     source_version: Mapped["RecipeVersion | None"] = relationship()
@@ -266,6 +293,10 @@ class RecipeDraftInstruction(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "recipe_draft_instructions"
     __table_args__ = (
         CheckConstraint("btrim(instruction) <> ''", name="instruction_not_blank"),
+        CheckConstraint(
+            "title IS NULL OR (NULLIF(btrim(title), '') IS NOT NULL AND char_length(title) <= 200)",
+            name="title_valid",
+        ),
         CheckConstraint("display_order >= 0", name="display_order_nonnegative"),
         UniqueConstraint(
             "recipe_draft_id",
@@ -284,6 +315,7 @@ class RecipeDraftInstruction(UUIDPrimaryKeyMixin, Base):
         ForeignKey("recipe_drafts.id", ondelete="CASCADE"),
         nullable=False,
     )
+    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     instruction: Mapped[str] = mapped_column(Text, nullable=False)
     display_order: Mapped[int] = mapped_column(Integer, nullable=False)
 

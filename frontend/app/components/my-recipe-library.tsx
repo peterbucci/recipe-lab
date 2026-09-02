@@ -24,9 +24,18 @@ import {
   type RecipeVisibilityState,
 } from "../../lib/recipe-library-api";
 import { MemberRouteGate } from "./member-route-gate";
+import {
+  MyRecipesHubHeader,
+  MyRecipesHubNavigation,
+  myRecipesHref,
+} from "./my-recipes-hub";
+import { LoadingButton, SectionLoading } from "./loading-ui";
+import { MemberRecipeCard } from "./member-recipe-card";
 import { GuardedLink } from "./navigation-blocker-provider";
-import { RecipeCard } from "./recipe-card";
+import { RecipeArtwork } from "./recipe-artwork";
 import { RecipeVisibilityControl } from "./recipe-visibility-control";
+import { WorkspaceEmptyState } from "./workspace-empty-state";
+import { WorkspacePanelHeader } from "./workspace-panel-header";
 
 interface MyRecipeLibraryProps {
   pageNumber: number;
@@ -41,8 +50,6 @@ interface ViewCopy {
   privacy: string;
   resultName: string;
 }
-
-const VIEW_ORDER: MyRecipeLibraryView[] = ["drafts", "published", "withdrawn"];
 
 const VIEW_COPY: Record<MyRecipeLibraryView, ViewCopy> = {
   drafts: {
@@ -76,12 +83,6 @@ const VIEW_COPY: Record<MyRecipeLibraryView, ViewCopy> = {
   },
 };
 
-const VISIBILITY_LABELS = {
-  published: "Public",
-  author_withdrawn: "Withdrawn",
-  moderation_hidden: "Hidden by moderation",
-} as const;
-
 function formatActivity(timestamp: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
     new Date(timestamp),
@@ -90,12 +91,6 @@ function formatActivity(timestamp: string): string {
 
 function viewLabel(view: MyRecipeLibraryView): string {
   return view.slice(0, 1).toUpperCase() + view.slice(1);
-}
-
-function libraryHref(view: MyRecipeLibraryView, page = 1): string {
-  const query = new URLSearchParams({ view });
-  if (page > 1) query.set("page", String(page));
-  return `/account/recipes?${query.toString()}`;
 }
 
 function libraryItemKey(item: MyRecipeLibraryItem): string {
@@ -119,7 +114,7 @@ function MyRecipePagination({
       {currentPage > 1 ? (
         <GuardedLink
           className="button button--secondary"
-          href={libraryHref(view, currentPage - 1)}
+          href={myRecipesHref(view, currentPage - 1)}
         >
           ← Previous
         </GuardedLink>
@@ -134,7 +129,7 @@ function MyRecipePagination({
       {currentPage < totalPages ? (
         <GuardedLink
           className="button button--secondary"
-          href={libraryHref(view, currentPage + 1)}
+          href={myRecipesHref(view, currentPage + 1)}
         >
           Next →
         </GuardedLink>
@@ -293,7 +288,7 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
     discardReturnFocusRef.current = null;
     setStatus({ focus: true, key: targetKey, message });
     if (targetPage !== pageNumber) {
-      router.replace(libraryHref(view, targetPage));
+      router.replace(myRecipesHref(view, targetPage));
       return;
     }
     await load(view, pageNumber);
@@ -371,255 +366,273 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
       id="main-content"
       className="page-shell account-workspace-page account-recipes-page member-library"
     >
-      <nav className="breadcrumb" aria-label="Breadcrumb">
-        <GuardedLink href="/recipes">← Back to recipes</GuardedLink>
-      </nav>
-      <header className="page-intro member-library__intro">
-        <div>
-          <p className="eyebrow">Your recipe workspace</p>
-          <h1>My recipes</h1>
-          <p>
-            Find private drafts, published recipes, and recipes you have
-            withdrawn.
-          </p>
-        </div>
-        <GuardedLink className="button button--primary" href="/recipes/new">
-          Start a new recipe
-        </GuardedLink>
-      </header>
+      <MyRecipesHubHeader />
 
-      <nav className="member-library__views" aria-label="My recipe views">
-        {VIEW_ORDER.map((candidate) => (
-          <GuardedLink
-            aria-current={candidate === view ? "page" : undefined}
-            className="member-library__view-link"
-            href={libraryHref(candidate)}
-            key={candidate}
-          >
-            {viewLabel(candidate)}
-          </GuardedLink>
-        ))}
-      </nav>
+      <div className="member-library__frame">
+        <MyRecipesHubNavigation
+          activeCount={page && !beyondLastPage ? page.total : null}
+          activeView={view}
+        />
+        <WorkspacePanelHeader
+          description={copy.privacy}
+          headingId="my-recipes-list-heading"
+          meta={
+            page && !beyondLastPage ? (
+              <span aria-live="polite">
+                {page.total} {copy.resultName}
+                {page.total === 1 ? "" : "s"}
+              </span>
+            ) : null
+          }
+          title={copy.heading}
+        />
 
-      <p className="member-library__privacy">{copy.privacy}</p>
-      {status ? (
-        <p className="form-status" role="status" tabIndex={-1} ref={statusRef}>
-          {status}
-        </p>
-      ) : null}
-      {operationError ? (
-        <div className="form-alert" role="alert">
-          <p>{operationError}</p>
-        </div>
-      ) : null}
-      {error ? (
-        <div className="form-alert" role="alert">
-          <p>{error}</p>
-          <button
-            className="button button--secondary"
-            type="button"
-            onClick={() => void load(view, pageNumber)}
-          >
-            Refresh {copy.heading.toLowerCase()}
-          </button>
-        </div>
-      ) : null}
-      {loading && !page ? (
-        <p role="status">Loading {copy.heading.toLowerCase()}…</p>
-      ) : null}
-
-      {!loading && page?.total === 0 ? (
-        <section
-          className="empty-state"
-          aria-labelledby={`empty-my-recipes-${view}`}
-        >
-          <p className="eyebrow">Nothing here yet</p>
-          <h2 id={`empty-my-recipes-${view}`}>{copy.emptyTitle}</h2>
-          <p>{copy.emptyBody}</p>
-          {view === "drafts" ? (
-            <GuardedLink className="button button--primary" href="/recipes/new">
-              Start a new recipe
-            </GuardedLink>
-          ) : null}
-        </section>
-      ) : null}
-
-      {!loading && beyondLastPage && page ? (
-        <section
-          className="empty-state"
-          aria-labelledby={`stale-my-recipes-${view}`}
-        >
-          <h2 id={`stale-my-recipes-${view}`}>
-            That page is beyond your {copy.resultName}s.
-          </h2>
-          <p>This view currently has {page.total_pages} pages.</p>
-          <GuardedLink
-            className="button button--secondary"
-            href={libraryHref(view)}
-          >
-            Return to the first page
-          </GuardedLink>
-        </section>
-      ) : null}
-
-      {page && !beyondLastPage && page.items.length > 0 ? (
-        <>
-          <section
-            className="member-library__collection"
-            aria-labelledby="my-recipes-list-heading"
-          >
-            <div className="section-heading section-heading--compact">
-              <div>
-                <h2 id="my-recipes-list-heading">{copy.heading}</h2>
-                <p className="result-count" aria-live="polite">
-                  {page.total} {copy.resultName}
-                  {page.total === 1 ? "" : "s"}
-                </p>
-              </div>
-            </div>
-            <ul
-              className="recipe-grid member-library__grid"
-              aria-label={copy.listLabel}
-              aria-busy={loading}
+        <div className="member-library__content">
+          {status ? (
+            <p
+              className="form-status"
+              role="status"
+              tabIndex={-1}
+              ref={statusRef}
             >
-              {page.items.map((item) => {
-                if (item.kind === "published") {
-                  return (
-                    <RecipeCard
-                      key={`published-${item.recipe.id}`}
-                      actions={
-                        <RecipeVisibilityControl
-                          onChanged={(visibilityState) =>
-                            handleVisibilityChanged(
-                              item.recipe.id,
-                              item.recipe.title,
-                              visibilityState,
-                            )
-                          }
-                          recipeTitle={item.recipe.title}
-                          recipeVersionId={item.recipe.id}
-                          state={item.visibility_state}
-                        />
-                      }
-                      publiclyAccessible={item.visibility_state === "published"}
-                      recipe={item.recipe}
-                      visibilityLabel={VISIBILITY_LABELS[item.visibility_state]}
-                    />
-                  );
-                }
+              {status}
+            </p>
+          ) : null}
+          {operationError ? (
+            <div className="form-alert" role="alert">
+              <p>{operationError}</p>
+            </div>
+          ) : null}
+          {error ? (
+            <div className="form-alert" role="alert">
+              <p>{error}</p>
+              <button
+                className="button button--secondary"
+                type="button"
+                onClick={() => void load(view, pageNumber)}
+              >
+                Refresh {copy.heading.toLowerCase()}
+              </button>
+            </div>
+          ) : null}
+          {loading ? (
+            <SectionLoading
+              count={4}
+              label={`${page ? "Updating" : "Loading"} ${copy.heading.toLowerCase()}…`}
+              layout="cards"
+              refreshing={Boolean(page)}
+            />
+          ) : null}
 
-                const draft = item.draft;
-                const title = draft.title.trim() || "Untitled recipe";
-                const confirming = confirmingId === draft.id;
-                return (
-                  <li
-                    className="member-library__draft-card"
-                    key={`draft-${draft.id}`}
-                  >
-                    <article aria-labelledby={`my-draft-${draft.id}`}>
-                      <div className="member-library__card-meta">
-                        <span>Private draft</span>
-                      </div>
-                      <h3 id={`my-draft-${draft.id}`}>{title}</h3>
-                      <p>
-                        {draft.ingredient_count} ingredient
-                        {draft.ingredient_count === 1 ? "" : "s"}
-                        {" · "}
-                        {draft.instruction_count} step
-                        {draft.instruction_count === 1 ? "" : "s"}
-                      </p>
-                      <p>
-                        Updated{" "}
-                        <time dateTime={draft.updated_at}>
-                          {formatActivity(draft.updated_at)}
-                        </time>
-                      </p>
-                      <div className="button-row">
-                        <GuardedLink
-                          className="button button--primary"
-                          href={`/account/recipe-drafts/${draft.id}`}
+          {!loading && page?.total === 0 ? (
+            <WorkspaceEmptyState
+              action={
+                view === "drafts" ? (
+                <GuardedLink
+                  className="button button--primary"
+                  href="/recipes/new"
+                >
+                  Start a new recipe
+                </GuardedLink>
+                ) : null
+              }
+              description={copy.emptyBody}
+              headingId={`empty-my-recipes-${view}`}
+              title={copy.emptyTitle}
+            />
+          ) : null}
+
+          {!loading && beyondLastPage && page ? (
+            <section
+              className="empty-state"
+              aria-labelledby={`stale-my-recipes-${view}`}
+            >
+              <h2 id={`stale-my-recipes-${view}`}>
+                That page is beyond your {copy.resultName}s.
+              </h2>
+              <p>This view currently has {page.total_pages} pages.</p>
+              <GuardedLink
+                className="button button--secondary"
+                href={myRecipesHref(view)}
+              >
+                Return to the first page
+              </GuardedLink>
+            </section>
+          ) : null}
+
+          {page && !beyondLastPage && page.items.length > 0 ? (
+            <>
+              <section
+                className="member-library__collection"
+                aria-labelledby="my-recipes-list-heading"
+              >
+                <ul
+                  className="recipe-grid member-library__grid"
+                  aria-label={copy.listLabel}
+                  aria-busy={loading}
+                >
+                  {page.items.map((item) => {
+                    if (item.kind === "published") {
+                      return (
+                        <MemberRecipeCard
+                          key={`published-${item.recipe.id}`}
+                          actions={
+                            <RecipeVisibilityControl
+                              compact
+                              onChanged={(visibilityState) =>
+                                handleVisibilityChanged(
+                                  item.recipe.id,
+                                  item.recipe.title,
+                                  visibilityState,
+                                )
+                              }
+                              recipeTitle={item.recipe.title}
+                              recipeVersionId={item.recipe.id}
+                              state={item.visibility_state}
+                            />
+                          }
+                          recipe={item.recipe}
+                          state={
+                            item.visibility_state === "author_withdrawn"
+                              ? "withdrawn"
+                              : item.visibility_state
+                          }
+                        />
+                      );
+                    }
+
+                    const draft = item.draft;
+                    const title = draft.title.trim() || "Untitled recipe";
+                    const confirming = confirmingId === draft.id;
+                    return (
+                      <li
+                        className="member-recipe-card__item"
+                        key={`draft-${draft.id}`}
+                      >
+                        <article
+                          className="member-recipe-card member-recipe-card--draft"
+                          aria-labelledby={`my-draft-${draft.id}`}
                         >
-                          Resume draft
-                        </GuardedLink>
-                        {draft.source_version_id ? (
-                          <GuardedLink
-                            className="button button--quiet"
-                            href={`/recipes/${draft.source_version_id}`}
-                          >
-                            View source
-                          </GuardedLink>
-                        ) : null}
-                        <button
-                          className="button button--quiet"
-                          type="button"
-                          aria-expanded={confirming}
-                          aria-controls={`discard-${draft.id}`}
-                          onClick={(event) => {
-                            if (!confirming)
-                              discardReturnFocusRef.current =
-                                event.currentTarget;
-                            setConfirmation(
-                              confirming ? null : { key, id: draft.id },
-                            );
-                          }}
-                        >
-                          Discard
-                        </button>
-                      </div>
-                      {confirming ? (
-                        <div
-                          id={`discard-${draft.id}`}
-                          className="draft-discard"
-                          role="group"
-                          aria-label={`Discard ${title}`}
-                        >
-                          <p>
-                            <strong>Discard {title}?</strong>
-                          </p>
-                          <p>
-                            This permanently deletes this private draft. It
-                            cannot be restored.
-                          </p>
-                          <div className="button-row">
-                            <button
-                              className="button button--danger"
-                              type="button"
-                              disabled={discardingId === draft.id}
-                              onClick={() => void discard(draft)}
-                            >
-                              {discardingId === draft.id
-                                ? "Discarding…"
-                                : "Discard permanently"}
-                            </button>
-                            <button
-                              className="button button--secondary"
-                              type="button"
-                              disabled={discardingId === draft.id}
-                              onClick={() => {
-                                setConfirmation(null);
-                                window.requestAnimationFrame(() =>
-                                  discardReturnFocusRef.current?.focus(),
-                                );
-                              }}
-                            >
-                              Keep draft
-                            </button>
+                          <div className="member-recipe-card__artwork">
+                            <RecipeArtwork
+                              className="member-recipe-card__artwork-graphic"
+                              recipeKey={draft.source_version_id ?? draft.id}
+                            />
                           </div>
-                        </div>
-                      ) : null}
-                    </article>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-          <MyRecipePagination
-            currentPage={page.page}
-            totalPages={page.total_pages}
-            view={view}
-          />
-        </>
-      ) : null}
+                          <div className="member-recipe-card__body">
+                            <div className="member-recipe-card__topline">
+                              <span className="member-recipe-card__status member-recipe-card__status--draft">
+                                {draft.source_version_id
+                                  ? "Version"
+                                  : "Original"}
+                              </span>
+                            </div>
+                            <h3 id={`my-draft-${draft.id}`}>{title}</h3>
+                            {draft.source_version_id &&
+                            item.source_recipe_title ? (
+                              <p className="member-recipe-card__context">
+                                Based on{" "}
+                                <GuardedLink
+                                  href={`/recipes/${draft.source_version_id}`}
+                                >
+                                  {item.source_recipe_title}
+                                </GuardedLink>
+                              </p>
+                            ) : null}
+                            {item.description ? (
+                              <p className="member-recipe-card__description">
+                                {item.description}
+                              </p>
+                            ) : null}
+                            <div className="member-recipe-card__metadata">
+                              <span>
+                                Edited{" "}
+                                <time dateTime={draft.updated_at}>
+                                  {formatActivity(draft.updated_at)}
+                                </time>
+                              </span>
+                            </div>
+                            <div className="member-recipe-card__actions">
+                              <GuardedLink
+                                className="button button--primary"
+                                href={`/recipes/drafts/${draft.id}`}
+                              >
+                                Continue editing
+                              </GuardedLink>
+                              <button
+                                className="button button--quiet"
+                                type="button"
+                                aria-expanded={confirming}
+                                aria-controls={`discard-${draft.id}`}
+                                onClick={(event) => {
+                                  if (!confirming)
+                                    discardReturnFocusRef.current =
+                                      event.currentTarget;
+                                  setConfirmation(
+                                    confirming ? null : { key, id: draft.id },
+                                  );
+                                }}
+                              >
+                                Discard
+                              </button>
+                            </div>
+                            {confirming ? (
+                              <div
+                                id={`discard-${draft.id}`}
+                                className="draft-discard"
+                                role="group"
+                                aria-label={`Discard ${title}`}
+                              >
+                                <p>
+                                  <strong>Discard {title}?</strong>
+                                </p>
+                                <p>
+                                  This permanently deletes this private draft.
+                                  It cannot be restored.
+                                </p>
+                                <div className="button-row">
+                                  <LoadingButton
+                                    className="button button--danger"
+                                    type="button"
+                                    pending={discardingId === draft.id}
+                                    pendingLabel="Discarding…"
+                                    onClick={() => void discard(draft)}
+                                  >
+                                    Discard permanently
+                                  </LoadingButton>
+                                  <button
+                                    className="button button--secondary"
+                                    type="button"
+                                    disabled={discardingId === draft.id}
+                                    onClick={() => {
+                                      setConfirmation(null);
+                                      window.requestAnimationFrame(() =>
+                                        discardReturnFocusRef.current?.focus(),
+                                      );
+                                    }}
+                                  >
+                                    Keep draft
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        </article>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+              <MyRecipePagination
+                currentPage={page.page}
+                totalPages={page.total_pages}
+                view={view}
+              />
+            </>
+          ) : null}
+        </div>
+      </div>
+
     </main>
   );
 }
@@ -628,7 +641,7 @@ export function MyRecipeLibrary(props: MyRecipeLibraryProps) {
   return (
     <MemberRouteGate
       eyebrow="Your recipe workspace"
-      returnTo={libraryHref(props.view, props.pageNumber)}
+      returnTo={myRecipesHref(props.view, props.pageNumber)}
       title="My recipes"
     >
       <MyRecipeLibraryInner {...props} />

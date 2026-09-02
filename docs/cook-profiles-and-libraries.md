@@ -1,11 +1,11 @@
 # Cook profiles and recipe libraries
 
-RCP-29 makes persisted recipe authorship visible without turning Recipe Lab
-accounts into a general social graph. Public recipe cards and details identify
-the author of the exact immutable version being shown. A direct fork also names
-its exact parent version and that parent's author when the parent remains
-publicly readable. This describes provenance only; it does not imply
-endorsement, collaboration, or ownership of another cook's descendants.
+RCP-29 makes persisted recipe authorship visible. Public recipe cards and
+details identify the author of the exact immutable version being shown. A
+direct fork also names its exact parent version and that parent's author when
+the parent remains publicly readable. This describes provenance only; it does
+not imply endorsement, collaboration, or ownership of another cook's
+descendants.
 
 ## Public identity boundary
 
@@ -64,8 +64,35 @@ so the former profile route becomes the same opaque not-found response as an
 unknown handle. Private drafts, saves, ratings, events, authentication data,
 and recipes authored by someone else do not enter the response.
 
+The profile response also carries one optional, plain-text `description` at
+the profile level. It is bounded to 500 characters, is never copied into the
+three-field author reference, and is cleared when the member deletes their
+account. The web header presents the handle, live follower total, and public
+recipe total in one metadata row, followed by the optional description and the
+follow action.
+
 The web route `/cooks/{handle}` presents that same public-only list with normal
 loading, not-found, empty, error, pagination, keyboard, and responsive states.
+
+## Member following
+
+A signed-in member can follow or unfollow another active cook from that cook's
+public profile. Follow relationships are deliberately small in scope: they do
+not grant access to drafts, private activity, email, sessions, or any other
+account data. A member cannot follow their own account, repeated follow and
+unfollow requests are safe, and deleting either account removes the
+relationship.
+
+The public profile includes only the cook's follower total. Private follow
+state is read from `GET /api/cooks/{handle}/follow`, changed with `PUT` or
+`DELETE` on the same route, and derived from the signed-in session rather than
+a caller-supplied user ID. `GET /api/my/follow-stats` supplies the current
+member's follower and following totals, while `GET /api/my/followers` pages
+only the active public identities represented by the follower total. Neither
+private route exposes email, identity-provider, or session data. Private
+responses are not cached and vary on the session cookie. The homepage uses the
+follower total in **Your stats**; ingredient requests remain available in
+member activity and their dedicated workspace.
 
 ## Private member libraries
 
@@ -83,15 +110,19 @@ no-store`, and vary on the session cookie:
 - `GET /api/my/saved-recipes` database-pages only public versions currently
   saved by the current member, ordered by the server-recorded save time.
 
-The matching web routes are `/account/recipes?view=...` and
-`/account/saved-recipes`. The former `/account/recipe-drafts` collection route
-redirects to the Drafts view while individual editor URLs remain stable.
+The matching member workspace is `/account/recipes?view=...`, with Drafts,
+Published, Saved, and Withdrawn views. Saved continues to use its separate
+private API contract, while the old `/account/saved-recipes` route redirects to
+the Saved view for compatibility. The former `/account/recipe-drafts`
+collection route redirects to the Drafts view while individual editor URLs
+remain stable. Ingredient-request history is linked from this workspace rather
+than exposed as a separate global account-menu destination.
 Signed-out visitors use the existing account gate. One member cannot select
 another member's drafts, authored-library entries, or saves by changing a query
 parameter or URL because no such selector exists.
 
-Recipe withdrawal and deletion do not add follows, comments, feeds, messages,
-notifications, public email, analytics, profile images, or a moderation queue.
+Recipe withdrawal and deletion do not add comments, messages, notifications,
+public email, analytics, profile images, or a moderation queue.
 
 ## Verification contract
 
@@ -102,4 +133,5 @@ private-library isolation, cache headers, recursive private-field exclusion,
 and fixed query-count bounds as page size grows. Frontend unit and browser
 coverage exercises public profile and private library loading, empty, error,
 not-found, pagination, account gating, authorship labels, fork provenance,
-keyboard access, responsive layouts, and the absence of per-card API fan-out.
+keyboard access, responsive layouts, follow and unfollow behavior, follower
+statistics, and the absence of per-card API fan-out.

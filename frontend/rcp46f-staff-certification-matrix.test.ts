@@ -13,7 +13,7 @@ describe("RCP-46F staff certification inventory", () => {
       curator: {
         path: "/catalog/ingredient-requests",
         capability: "review_ingredient_requests",
-        navigationLabel: "Review ingredient requests",
+        navigationLabel: "Open ingredient catalog",
         apiRouteLabel: "ingredient-review-queue",
         authorizationDeniedApiRouteLabel:
           "ingredient-review-authorization-denied",
@@ -21,7 +21,7 @@ describe("RCP-46F staff certification inventory", () => {
       moderator: {
         path: "/moderation/recipes",
         capability: "moderate_recipe_reports",
-        navigationLabel: "Review recipe reports",
+        navigationLabel: "Open recipe reports",
         apiRouteLabel: "moderation-queue",
         authorizationDeniedApiRouteLabel: "moderation-authorization-denied",
       },

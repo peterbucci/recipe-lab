@@ -38,6 +38,18 @@
       "AccountProfileUpdateRequest": {
         "additionalProperties": false,
         "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
           "display_name": {
             "maxLength": 120,
             "minLength": 1,
@@ -62,6 +74,18 @@
       "AccountUserResponse": {
         "additionalProperties": false,
         "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
           "display_name": {
             "maxLength": 120,
             "minLength": 1,
@@ -155,6 +179,32 @@
           "provenance"
         ],
         "title": "ApproveIngredientCatalogRequest",
+        "type": "object"
+      },
+      "CookFollowStateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "cook_id": {
+            "format": "uuid",
+            "title": "Cook Id",
+            "type": "string"
+          },
+          "follower_count": {
+            "minimum": 0.0,
+            "title": "Follower Count",
+            "type": "integer"
+          },
+          "following": {
+            "title": "Following",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cook_id",
+          "following",
+          "follower_count"
+        ],
+        "title": "CookFollowStateResponse",
         "type": "object"
       },
       "CookingActionTypeCatalogItem": {
@@ -512,7 +562,7 @@
           "items": {
             "description": "Deploy-reviewed public recipe versions in editorial display order. The list is global, not personalized or popularity-ranked.",
             "items": {
-              "$ref": "#/components/schemas/RecipeSummary"
+              "$ref": "#/components/schemas/FeaturedRecipeSummary"
             },
             "title": "Items",
             "type": "array"
@@ -522,6 +572,145 @@
           "items"
         ],
         "title": "FeaturedRecipeListResponse",
+        "type": "object"
+      },
+      "FeaturedRecipeSummary": {
+        "description": "Editorially selected recipe card with anonymous engagement totals.",
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/PublicUserReference",
+            "description": "Public author of this exact immutable recipe version."
+          },
+          "average_rating": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average public rating for this recipe version, or null when unrated.",
+            "title": "Average Rating"
+          },
+          "categories": {
+            "description": "Immutable curated category snapshots selected for this exact recipe version.",
+            "items": {
+              "$ref": "#/components/schemas/RecipeCategorySummary"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "created_at": {
+            "description": "Timestamp when this version was created.",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "description": "Stable identifier for this immutable recipe version.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lineage_id": {
+            "description": "Identifier shared by every version in the lineage.",
+            "format": "uuid",
+            "title": "Lineage Id",
+            "type": "string"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecipeVersionReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Bounded direct-parent context for a fork. It is null for an original or when the referenced parent is not publicly readable. Parent authorship does not imply endorsement or lineage ownership."
+          },
+          "parent_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Direct parent version, or null for the original root.",
+            "title": "Parent Version Id"
+          },
+          "published_at": {
+            "description": "Timestamp when this immutable version first became public.",
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "rating_count": {
+            "description": "Number of ratings in the average.",
+            "minimum": 0.0,
+            "title": "Rating Count",
+            "type": "integer"
+          },
+          "save_count": {
+            "description": "Number of members who saved this recipe version.",
+            "minimum": 0.0,
+            "title": "Save Count",
+            "type": "integer"
+          },
+          "servings": {
+            "description": "Exact serving yield, serialized as a JSON string.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,9}0*$)\\d{0,6}\\.\\d{0,2}0*$)",
+            "title": "Servings",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "version_number": {
+            "description": "Lineage-wide version number.",
+            "minimum": 1.0,
+            "title": "Version Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "lineage_id",
+          "parent_version_id",
+          "version_number",
+          "title",
+          "description",
+          "servings",
+          "created_at",
+          "published_at",
+          "author",
+          "parent",
+          "categories",
+          "average_rating",
+          "rating_count",
+          "save_count"
+        ],
+        "title": "FeaturedRecipeSummary",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -1664,6 +1853,130 @@
         "title": "MemberSessionResponse",
         "type": "object"
       },
+      "MyCommunityActivityResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "total_pages": {
+            "minimum": 0.0,
+            "title": "Total Pages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total",
+          "total_pages"
+        ],
+        "title": "MyCommunityActivityResponse",
+        "type": "object"
+      },
+      "MyFollowStatsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "follower_count": {
+            "minimum": 0.0,
+            "title": "Follower Count",
+            "type": "integer"
+          },
+          "following_count": {
+            "minimum": 0.0,
+            "title": "Following Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "follower_count",
+          "following_count"
+        ],
+        "title": "MyFollowStatsResponse",
+        "type": "object"
+      },
+      "MyFollowerItem": {
+        "additionalProperties": false,
+        "properties": {
+          "followed_at": {
+            "format": "date-time",
+            "title": "Followed At",
+            "type": "string"
+          },
+          "follower": {
+            "$ref": "#/components/schemas/PublicUserReference"
+          }
+        },
+        "required": [
+          "follower",
+          "followed_at"
+        ],
+        "title": "MyFollowerItem",
+        "type": "object"
+      },
+      "MyFollowersResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MyFollowerItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "total_pages": {
+            "minimum": 0.0,
+            "title": "Total Pages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total",
+          "total_pages"
+        ],
+        "title": "MyFollowersResponse",
+        "type": "object"
+      },
       "MyPublishedRecipeItem": {
         "additionalProperties": false,
         "properties": {
@@ -1696,6 +2009,20 @@
       "MyRecipeDraftItem": {
         "additionalProperties": false,
         "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "minLength": 1,
+                "pattern": "^[^\\x00]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
           "draft": {
             "$ref": "#/components/schemas/RecipeDraftSummaryResponse"
           },
@@ -1704,10 +2031,24 @@
             "default": "draft",
             "title": "Kind",
             "type": "string"
+          },
+          "source_recipe_title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Recipe Title"
           }
         },
         "required": [
-          "draft"
+          "draft",
+          "source_recipe_title",
+          "description"
         ],
         "title": "MyRecipeDraftItem",
         "type": "object"
@@ -1782,9 +2123,26 @@
           "cook": {
             "$ref": "#/components/schemas/PublicUserReference"
           },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "follower_count": {
+            "minimum": 0.0,
+            "title": "Follower Count",
+            "type": "integer"
+          },
           "items": {
             "items": {
-              "$ref": "#/components/schemas/RecipeSummary"
+              "$ref": "#/components/schemas/RecipeCardSummary"
             },
             "title": "Items",
             "type": "array"
@@ -1813,6 +2171,8 @@
         },
         "required": [
           "cook",
+          "follower_count",
+          "description",
           "items",
           "page",
           "page_size",
@@ -2085,6 +2445,144 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "RecipeCardSummary": {
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/PublicUserReference",
+            "description": "Public author of this exact immutable recipe version."
+          },
+          "average_rating": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average public rating for this recipe version, or null when unrated.",
+            "title": "Average Rating"
+          },
+          "categories": {
+            "description": "Immutable curated category snapshots selected for this exact recipe version.",
+            "items": {
+              "$ref": "#/components/schemas/RecipeCategorySummary"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "created_at": {
+            "description": "Timestamp when this version was created.",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "description": "Stable identifier for this immutable recipe version.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lineage_id": {
+            "description": "Identifier shared by every version in the lineage.",
+            "format": "uuid",
+            "title": "Lineage Id",
+            "type": "string"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecipeVersionReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Bounded direct-parent context for a fork. It is null for an original or when the referenced parent is not publicly readable. Parent authorship does not imply endorsement or lineage ownership."
+          },
+          "parent_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Direct parent version, or null for the original root.",
+            "title": "Parent Version Id"
+          },
+          "published_at": {
+            "description": "Timestamp when this immutable version first became public.",
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "rating_count": {
+            "description": "Number of ratings in the average.",
+            "minimum": 0.0,
+            "title": "Rating Count",
+            "type": "integer"
+          },
+          "save_count": {
+            "description": "Number of members who saved this recipe version.",
+            "minimum": 0.0,
+            "title": "Save Count",
+            "type": "integer"
+          },
+          "servings": {
+            "description": "Exact serving yield, serialized as a JSON string.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,9}0*$)\\d{0,6}\\.\\d{0,2}0*$)",
+            "title": "Servings",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "version_number": {
+            "description": "Lineage-wide version number.",
+            "minimum": 1.0,
+            "title": "Version Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "lineage_id",
+          "parent_version_id",
+          "version_number",
+          "title",
+          "description",
+          "servings",
+          "created_at",
+          "published_at",
+          "author",
+          "parent",
+          "categories",
+          "average_rating",
+          "rating_count",
+          "save_count"
+        ],
+        "title": "RecipeCardSummary",
+        "type": "object"
+      },
       "RecipeCategoryListResponse": {
         "properties": {
           "items": {
@@ -2135,6 +2633,19 @@
       },
       "RecipeDetailResponse": {
         "properties": {
+          "active_time_minutes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hands-on cooking time in whole minutes, or null when not provided.",
+            "title": "Active Time Minutes"
+          },
           "author": {
             "$ref": "#/components/schemas/PublicUserReference",
             "description": "Public author of this exact immutable recipe version."
@@ -2185,6 +2696,23 @@
             ],
             "title": "Description"
           },
+          "difficulty": {
+            "anyOf": [
+              {
+                "enum": [
+                  "easy",
+                  "medium",
+                  "hard"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Author-selected difficulty, or null when not provided.",
+            "title": "Difficulty"
+          },
           "id": {
             "description": "Stable identifier for this immutable recipe version.",
             "format": "uuid",
@@ -2210,6 +2738,19 @@
             "format": "uuid",
             "title": "Lineage Id",
             "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional public notes authored for this immutable recipe version.",
+            "title": "Notes"
           },
           "parent": {
             "anyOf": [
@@ -2247,6 +2788,12 @@
             "title": "Rating Count",
             "type": "integer"
           },
+          "save_count": {
+            "description": "Number of members who saved this recipe version.",
+            "minimum": 0.0,
+            "title": "Save Count",
+            "type": "integer"
+          },
           "servings": {
             "description": "Exact serving yield, serialized as a JSON string.",
             "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,9}0*$)\\d{0,6}\\.\\d{0,2}0*$)",
@@ -2258,6 +2805,19 @@
             "minLength": 1,
             "title": "Title",
             "type": "string"
+          },
+          "total_time_minutes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Total elapsed cooking time in whole minutes, or null when not provided.",
+            "title": "Total Time Minutes"
           },
           "version_number": {
             "description": "Lineage-wide version number.",
@@ -2292,6 +2852,7 @@
           "categories",
           "average_rating",
           "rating_count",
+          "save_count",
           "viewer_state",
           "children",
           "ingredients",
@@ -2584,6 +3145,19 @@
       "RecipeDraftDetailResponse": {
         "additionalProperties": false,
         "properties": {
+          "active_time_minutes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 525600.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Time Minutes"
+          },
           "categories": {
             "items": {
               "$ref": "#/components/schemas/RecipeCategorySummary"
@@ -2607,6 +3181,22 @@
             ],
             "title": "Description"
           },
+          "difficulty": {
+            "anyOf": [
+              {
+                "enum": [
+                  "easy",
+                  "medium",
+                  "hard"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difficulty"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -2625,6 +3215,18 @@
             },
             "title": "Instructions",
             "type": "array"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
           },
           "revision": {
             "minimum": 1.0,
@@ -2668,6 +3270,19 @@
             "title": "Title",
             "type": "string"
           },
+          "total_time_minutes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 525600.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Time Minutes"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -2682,6 +3297,10 @@
           "title",
           "description",
           "servings",
+          "total_time_minutes",
+          "active_time_minutes",
+          "difficulty",
+          "notes",
           "categories",
           "ingredients",
           "instructions",
@@ -2922,6 +3541,20 @@
             "pattern": "^[^\\x00]*$",
             "title": "Text",
             "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "pattern": "^[^\\x00]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
           }
         },
         "required": [
@@ -2956,10 +3589,24 @@
             "minLength": 1,
             "title": "Text",
             "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
           }
         },
         "required": [
           "id",
+          "title",
           "text",
           "actions",
           "display_order"
@@ -3122,6 +3769,19 @@
       "RecipeDraftUpdateRequest": {
         "additionalProperties": false,
         "properties": {
+          "active_time_minutes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 525600.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Time Minutes"
+          },
           "category_ids": {
             "description": "Unique active curated category identities selected for this draft.",
             "items": {
@@ -3146,6 +3806,22 @@
             ],
             "title": "Description"
           },
+          "difficulty": {
+            "anyOf": [
+              {
+                "enum": [
+                  "easy",
+                  "medium",
+                  "hard"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difficulty"
+          },
           "ingredients": {
             "items": {
               "$ref": "#/components/schemas/RecipeDraftIngredientInput"
@@ -3161,6 +3837,20 @@
             "maxItems": 100,
             "title": "Instructions",
             "type": "array"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "minLength": 1,
+                "pattern": "^[^\\x00]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
           },
           "revision": {
             "minimum": 1.0,
@@ -3194,6 +3884,19 @@
             "pattern": "^[^\\x00]*$",
             "title": "Title",
             "type": "string"
+          },
+          "total_time_minutes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 525600.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Time Minutes"
           }
         },
         "required": [
@@ -3415,7 +4118,11 @@
         "enum": [
           "title",
           "description",
-          "servings"
+          "servings",
+          "total_time_minutes",
+          "active_time_minutes",
+          "difficulty",
+          "notes"
         ],
         "type": "string"
       },
@@ -3427,6 +4134,9 @@
           {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "type": "string"
+          },
+          {
+            "type": "integer"
           },
           {
             "type": "null"
@@ -3688,6 +4398,7 @@
       },
       "RecipeInstructionChangedField": {
         "enum": [
+          "title",
           "text",
           "actions",
           "inputs",
@@ -3773,10 +4484,25 @@
             "minLength": 1,
             "title": "Text",
             "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional authored heading for this step. Historical instructions may omit it.",
+            "title": "Title"
           }
         },
         "required": [
           "id",
+          "title",
           "text",
           "display_order",
           "actions"
@@ -4284,7 +5010,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/RecipeSummary"
+              "$ref": "#/components/schemas/RecipeCardSummary"
             },
             "title": "Items",
             "type": "array"
@@ -4655,6 +5381,24 @@
           "author"
         ],
         "title": "RecipeVersionReference",
+        "type": "object"
+      },
+      "RecipeViewerStateListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Private member state for each requested recipe version, in request order.",
+            "items": {
+              "$ref": "#/components/schemas/RecipeViewerStateResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "RecipeViewerStateListResponse",
         "type": "object"
       },
       "RecipeViewerStateResponse": {
@@ -5893,7 +6637,7 @@
             "description": "Authentication is unavailable."
           }
         },
-        "summary": "Complete account onboarding",
+        "summary": "Update the account profile",
         "tags": [
           "authentication"
         ],
@@ -6076,6 +6820,364 @@
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-library-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending"
+      }
+    },
+    "/api/cooks/{handle}/follow": {
+      "delete": {
+        "operationId": "unfollow_cook_api_cooks__handle__follow_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "maxLength": 30,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{1,28}[A-Za-z0-9]$",
+              "title": "Handle",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CookFollowStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A valid member session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "CSRF or Origin evidence is invalid, or account setup is incomplete."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The public cook handle was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A member cannot follow their own account."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The cook handle is invalid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "Unfollow a cook",
+        "tags": [
+          "member follows"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/lib/member-follow-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending"
+      },
+      "get": {
+        "operationId": "cook_follow_state_api_cooks__handle__follow_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "maxLength": 30,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{1,28}[A-Za-z0-9]$",
+              "title": "Handle",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CookFollowStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A valid member session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "CSRF or Origin evidence is invalid, or account setup is incomplete."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The public cook handle was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A member cannot follow their own account."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The cook handle is invalid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "Read my follow state for a cook",
+        "tags": [
+          "member follows"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/lib/member-follow-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending"
+      },
+      "put": {
+        "operationId": "follow_cook_api_cooks__handle__follow_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "maxLength": 30,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{1,28}[A-Za-z0-9]$",
+              "title": "Handle",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CookFollowStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A valid member session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "CSRF or Origin evidence is invalid, or account setup is incomplete."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The public cook handle was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A member cannot follow their own account."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The cook handle is invalid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "Follow a cook",
+        "tags": [
+          "member follows"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/lib/member-follow-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending"
       }
@@ -7597,6 +8699,308 @@
         "x-recipe-lab-external-consumer-status": "unknown_pending"
       }
     },
+    "/api/my/community-activity": {
+      "get": {
+        "description": "Returns publicly readable original recipes and new versions authored by active cooks the signed-in member currently follows, ordered by publication time.",
+        "operationId": "my_community_activity_api_my_community_activity_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCommunityActivityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A valid member session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Account setup is incomplete."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A page parameter is invalid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "List publications from cooks I follow",
+        "tags": [
+          "member follows"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/lib/member-follow-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending"
+      }
+    },
+    "/api/my/follow-stats": {
+      "get": {
+        "operationId": "my_follow_stats_api_my_follow_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyFollowStatsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A valid member session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "CSRF or Origin evidence is invalid, or account setup is incomplete."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The public cook handle was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A member cannot follow their own account."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The cook handle is invalid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "Read my follower and following totals",
+        "tags": [
+          "member follows"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/lib/member-follow-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending"
+      }
+    },
+    "/api/my/followers": {
+      "get": {
+        "description": "Returns only active public follower identities for the signed-in member. Private account, email, identity-provider, and session data are never exposed.",
+        "operationId": "my_followers_api_my_followers_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyFollowersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A valid member session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Account setup is incomplete."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A page parameter is invalid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "List my followers",
+        "tags": [
+          "member follows"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/lib/member-follow-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending"
+      }
+    },
     "/api/my/recipes": {
       "get": {
         "description": "Returns independently paginated active drafts, current publications, or author-withdrawn publications. Moderation-hidden authored recipes remain in the published view with their accurate visibility state.",
@@ -7897,6 +9301,25 @@
       "get": {
         "operationId": "my_private_recipe_drafts_api_recipe_drafts_get",
         "parameters": [
+          {
+            "description": "Return only active drafts copied from this exact immutable recipe version.",
+            "in": "query",
+            "name": "source_version_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return only active drafts copied from this exact immutable recipe version.",
+              "title": "Source Version Id"
+            }
+          },
           {
             "in": "query",
             "name": "page",
@@ -9100,6 +10523,99 @@
         "x-recipe-lab-external-consumer-status": "unknown_pending"
       }
     },
+    "/api/recipes/viewer-states": {
+      "get": {
+        "operationId": "recipe_viewer_states_for_current_user_api_recipes_viewer_states_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "recipe_version_id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "maxItems": 100,
+              "minItems": 1,
+              "title": "Recipe Version Id",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeViewerStateListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A valid member session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Account setup is incomplete."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The request contains an invalid identifier or query parameter."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "Load my saved and rating state for visible recipe cards",
+        "tags": [
+          "recipes"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/lib/interaction-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending"
+      }
+    },
     "/api/recipes/{recipe_version_id}": {
       "get": {
         "operationId": "recipe_detail_api_recipes__recipe_version_id__get",
@@ -9277,6 +10793,157 @@
       }
     },
     "/api/recipes/{recipe_version_id}/rating": {
+      "delete": {
+        "operationId": "unrate_recipe_for_current_user_api_recipes__recipe_version_id__rating_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipe_version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Recipe Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque UUID scoped to this member and operation. Reusing it with the same action safely replays the request; conflicting reuse within that scope returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Opaque UUID scoped to this member and operation. Reusing it with the same action safely replays the request; conflicting reuse within that scope returns 409.",
+              "format": "uuid",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/EmptyInteractionRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": " Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeViewerStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A valid member session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "CSRF or Origin evidence is invalid, or account setup is incomplete."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The requested recipe version does not exist."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The Idempotency-Key conflicts within this member and operation."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The request contains an invalid identifier, action key, or rating."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "Remove the signed-in member's recipe rating",
+        "tags": [
+          "interactions"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/lib/interaction-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending"
+      },
       "put": {
         "operationId": "rate_recipe_for_current_user_api_recipes__recipe_version_id__rating_put",
         "parameters": [

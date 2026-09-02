@@ -78,7 +78,7 @@ function instruction(
   displayOrder: number,
   actions: RecipeInstructionAction[] = [],
 ): RecipeInstruction {
-  return { id, text, display_order: displayOrder, actions };
+  return { id, title: null, text, display_order: displayOrder, actions };
 }
 
 function structuredAction(
@@ -314,6 +314,61 @@ describe("RecipeDiffView", () => {
     ).not.toBeNull();
   });
 
+  it("formats timing, difficulty, and notes changes as recipe details", () => {
+    const diff = mixedDiff();
+    diff.metadata_changes = [
+      {
+        field: "total_time_minutes",
+        before: 420,
+        after: 445,
+      },
+      {
+        field: "active_time_minutes",
+        before: null,
+        after: 25,
+      },
+      { field: "difficulty", before: "easy", after: "medium" },
+      {
+        field: "notes",
+        before: null,
+        after: "Rest overnight before slicing.",
+      },
+    ];
+    diff.ingredients = { added: [], removed: [], replaced: [], modified: [] };
+    diff.instructions = { added: [], removed: [], modified: [] };
+
+    render(<RecipeDiffView diff={diff} />);
+
+    const details = sectionNamed("Recipe details");
+    const totalTime = within(details).getByRole("article", {
+      name: "Total time",
+    });
+    expect(within(totalTime).getByText("7 hr").closest("del")).not.toBeNull();
+    expect(
+      within(totalTime).getByText("7 hr 25 min").closest("ins"),
+    ).not.toBeNull();
+
+    const activeTime = within(details).getByRole("article", {
+      name: "Active time",
+    });
+    expect(
+      within(activeTime).getByText("Not provided").closest("del"),
+    ).not.toBeNull();
+    expect(within(activeTime).getByText("25 min").closest("ins")).not.toBeNull();
+
+    const difficulty = within(details).getByRole("article", {
+      name: "Difficulty",
+    });
+    expect(within(difficulty).getByText("Easy").closest("del")).not.toBeNull();
+    expect(within(difficulty).getByText("Medium").closest("ins")).not.toBeNull();
+
+    const notes = within(details).getByRole("article", { name: "Notes" });
+    expect(within(notes).getByText("Not provided").closest("del")).not.toBeNull();
+    expect(
+      within(notes).getByText("Rest overnight before slicing.").closest("ins"),
+    ).not.toBeNull();
+  });
+
   it("gives additions, removals, substitutions, amounts, and preparation changes distinct text", () => {
     render(<RecipeDiffView diff={mixedDiff()} />);
 
@@ -451,6 +506,43 @@ describe("RecipeDiffView", () => {
         .getByText("Cool completely before slicing.")
         .closest("del"),
     ).not.toBeNull();
+  });
+
+  it("shows authored step-title changes in the comparison", () => {
+    const diff = mixedDiff();
+    diff.metadata_changes = [];
+    diff.ingredients = { added: [], removed: [], replaced: [], modified: [] };
+    diff.instructions = {
+      added: [],
+      removed: [],
+      modified: [
+        {
+          before: {
+            ...instruction("before-step", "Blend until smooth.", 0),
+            title: "Mix the batter",
+          },
+          after: {
+            ...instruction("after-step", "Blend until smooth.", 0),
+            title: "Make the batter",
+          },
+          changed_fields: ["title"],
+        },
+      ],
+    };
+
+    render(<RecipeDiffView diff={diff} />);
+
+    const changed = screen.getByRole("article", { name: "Update step 1" });
+    expect(within(changed).getByText("Step title changed")).toBeInTheDocument();
+    expect(
+      within(changed).getByText("Mix the batter").closest("del"),
+    ).not.toBeNull();
+    expect(
+      within(changed).getByText("Make the batter").closest("ins"),
+    ).not.toBeNull();
+    expect(
+      screen.getByText("Rename step 1 to Make the batter."),
+    ).toBeInTheDocument();
   });
 
   it("renders every structural action change against full base and target ingredient context", () => {

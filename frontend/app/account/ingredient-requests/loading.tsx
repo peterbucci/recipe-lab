@@ -1,14 +1,12 @@
+import { PageLoadingSkeleton } from "../../components/loading-ui";
+
 export default function MyIngredientRequestsLoading() {
   return (
-    <main
-      id="main-content"
-      className="state-page account-workspace-page account-ingredient-requests-page"
-    >
-      <div className="loading-state" role="status" aria-live="polite">
-        <span className="loading-state__pulse" aria-hidden="true" />
-        <strong>Loading your ingredient requests…</strong>
-        <span>Checking your account and request history.</span>
-      </div>
-    </main>
+    <PageLoadingSkeleton
+      className="page-shell account-workspace-page account-ingredient-requests-page member-request-page"
+      label="Loading ingredient requests…"
+      title="Ingredient Requests"
+      variant="member"
+    />
   );
 }

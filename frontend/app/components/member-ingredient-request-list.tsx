@@ -27,11 +27,28 @@ export function MemberIngredientRequestList({
 }: MemberIngredientRequestListProps) {
   return (
     <>
-      <p className="member-request-history__summary" role="status" aria-live="polite">
+      <p
+        className={`member-request-history__summary${selectionEnabled ? "" : " visually-hidden"}`}
+        role="status"
+        aria-live="polite"
+      >
         {requestPage.total} request{requestPage.total === 1 ? "" : "s"}. Page {requestPage.page} of{" "}
         {requestPage.total_pages}.
       </p>
-      <div className="member-request-history__list">
+      {!selectionEnabled ? (
+        <div className="member-request-history__list-head" aria-hidden="true">
+          <span>Ingredient request</span>
+          <span>Status</span>
+          <span>Requested</span>
+          <span>Resolution</span>
+        </div>
+      ) : null}
+      <div
+        className={`member-request-history__list member-request-history__list--${
+          selectionEnabled ? "picker" : "standalone"
+        }`}
+        aria-busy={loading}
+      >
         {requestPage.items.map((request) => (
           <MemberIngredientRequestCard
             key={request.id}
@@ -40,6 +57,7 @@ export function MemberIngredientRequestList({
             request={request}
             selectingRequestId={selectingRequestId}
             selectionEnabled={selectionEnabled}
+            standalone={!selectionEnabled}
             onSelectResolution={onSelectResolution}
           />
         ))}

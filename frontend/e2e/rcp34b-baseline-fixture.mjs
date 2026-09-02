@@ -9,6 +9,7 @@ if (host !== "127.0.0.1" || port !== 4318) {
 const FIXED_TIME = "2026-08-27T12:00:00.000Z";
 const SAFE_CSRF = "rcp34b-public-csrf";
 const SAFE_COOKIE = `recipe_lab_csrf=${SAFE_CSRF}`;
+const SAFE_ORIGIN = "http://127.0.0.1:4317";
 const IDS = Object.freeze({
   user: "10000000-0000-4000-8000-000000000001",
   catalogUser: "10000000-0000-4000-8000-000000000002",
@@ -19,18 +20,27 @@ const IDS = Object.freeze({
   recipeVariant: "20000000-0000-4000-8000-000000000002",
   recipeChild: "20000000-0000-4000-8000-000000000003",
   lineage: "20000000-0000-4000-8000-000000000010",
+  activityPublishedRecipe: "20000000-0000-4000-8000-000000000021",
+  activityWithdrawnRecipe: "20000000-0000-4000-8000-000000000022",
+  activitySavedShrimp: "20000000-0000-4000-8000-000000000023",
+  activitySavedBread: "20000000-0000-4000-8000-000000000024",
   draft: "30000000-0000-4000-8000-000000000001",
+  activityDraftCarrot: "30000000-0000-4000-8000-000000000002",
+  activityDraftCurry: "30000000-0000-4000-8000-000000000003",
   draftIngredient: "30000000-0000-4000-8000-000000000011",
   draftInstruction: "30000000-0000-4000-8000-000000000021",
   draftAction: "30000000-0000-4000-8000-000000000031",
   tomato: "40000000-0000-4000-8000-000000000001",
   basil: "40000000-0000-4000-8000-000000000002",
+  sumac: "40000000-0000-4000-8000-000000000003",
   gram: "50000000-0000-4000-8000-000000000001",
   minute: "50000000-0000-4000-8000-000000000002",
   celsius: "50000000-0000-4000-8000-000000000003",
   simmer: "60000000-0000-4000-8000-000000000001",
   ingredientRequest: "70000000-0000-4000-8000-000000000001",
   approvedRequest: "70000000-0000-4000-8000-000000000002",
+  activityApprovedRequest: "70000000-0000-4000-8000-000000000003",
+  activityRejectedRequest: "70000000-0000-4000-8000-000000000004",
   report: "80000000-0000-4000-8000-000000000001",
   preflight: "90000000-0000-4000-8000-000000000001",
   breakfastCategory: "a1000000-0000-4000-8000-000000000001",
@@ -131,9 +141,21 @@ const celsiusSummary = Object.freeze({
   active: true,
 });
 const units = Object.freeze([
-  { ...gramSummary, aliases: ["grams"], provenance: "Synthetic baseline catalog." },
-  { ...minuteSummary, aliases: ["minutes"], provenance: "Synthetic baseline catalog." },
-  { ...celsiusSummary, aliases: ["Celsius"], provenance: "Synthetic baseline catalog." },
+  {
+    ...gramSummary,
+    aliases: ["grams"],
+    provenance: "Synthetic baseline catalog.",
+  },
+  {
+    ...minuteSummary,
+    aliases: ["minutes"],
+    provenance: "Synthetic baseline catalog.",
+  },
+  {
+    ...celsiusSummary,
+    aliases: ["Celsius"],
+    provenance: "Synthetic baseline catalog.",
+  },
 ]);
 const simmerAction = Object.freeze({
   id: IDS.simmer,
@@ -151,6 +173,11 @@ const basil = Object.freeze({
   id: IDS.basil,
   canonical_name: "Sweet basil",
   aliases: ["Basil"],
+});
+const sumac = Object.freeze({
+  id: IDS.sumac,
+  canonical_name: "Sumac",
+  aliases: ["Ground sumac"],
 });
 
 const recipeCategories = Object.freeze([
@@ -236,12 +263,52 @@ const childSummary = Object.freeze(
   }),
 );
 
+const featuredSummaries = Object.freeze([
+  Object.freeze({
+    ...variantSummary,
+    average_rating: 4.5,
+    rating_count: 8,
+    save_count: 14,
+  }),
+  Object.freeze({
+    ...rootSummary,
+    average_rating: 4.8,
+    rating_count: 12,
+    save_count: 21,
+  }),
+  Object.freeze({
+    ...childSummary,
+    average_rating: null,
+    rating_count: 0,
+    save_count: 3,
+  }),
+]);
+const catalogSummaries = Object.freeze([
+  featuredSummaries[1],
+  featuredSummaries[0],
+  featuredSummaries[2],
+]);
+const profileSummaries = Object.freeze([
+  featuredSummaries[0],
+  featuredSummaries[2],
+]);
+const communitySummaries = Object.freeze([
+  Object.freeze({ ...childSummary, author: catalogUser }),
+  Object.freeze({ ...variantSummary, author: catalogUser }),
+  rootSummary,
+]);
+
 function detailFor(summary) {
   const isRoot = summary.id === IDS.recipeRoot;
   return {
     ...summary,
+    total_time_minutes: 45,
+    active_time_minutes: 20,
+    difficulty: "easy",
+    notes: "Taste before serving and adjust the seasoning if needed.",
     average_rating: isRoot ? 4.8 : 4.5,
     rating_count: isRoot ? 12 : 8,
+    save_count: isRoot ? 21 : 14,
     viewer_state: {
       recipe_version_id: summary.id,
       saved: summary.id === IDS.recipeVariant,
@@ -300,6 +367,7 @@ function detailFor(summary) {
     instructions: [
       {
         id: "42000000-0000-4000-8000-000000000001",
+        title: "Simmer the tomatoes",
         text: "Simmer the tomatoes until soft and fragrant.",
         display_order: 0,
         actions: [
@@ -326,6 +394,7 @@ function detailFor(summary) {
       },
       {
         id: "42000000-0000-4000-8000-000000000002",
+        title: "Blend and finish",
         text: "Blend until smooth, then fold in the basil.",
         display_order: 1,
         actions: [],
@@ -381,12 +450,13 @@ const diff = Object.freeze({
       {
         before: {
           id: "42000000-0000-4000-8000-000000000010",
+          title: "Soften the tomatoes",
           text: "Simmer the tomatoes until soft.",
           display_order: 0,
           actions: [],
         },
         after: detailFor(variantSummary).instructions[0],
-        changed_fields: ["text", "actions"],
+        changed_fields: ["title", "text", "actions"],
       },
     ],
   },
@@ -396,12 +466,16 @@ const diff = Object.freeze({
 function draftDetail(complete, unresolvedIngredient = false) {
   return {
     id: IDS.draft,
-    source_version_id: null,
+    source_version_id: scenario === "fork-draft" ? IDS.recipeRoot : null,
     status: "active",
     revision: 4,
     title: complete ? "Late-Summer Tomato Pot" : "",
     description: complete ? "A small-batch soup for a shared table." : null,
     servings: complete ? "4" : null,
+    total_time_minutes: complete ? 35 : null,
+    active_time_minutes: complete ? 15 : null,
+    difficulty: complete ? "easy" : null,
+    notes: null,
     ingredients: complete
       ? [
           {
@@ -438,6 +512,7 @@ function draftDetail(complete, unresolvedIngredient = false) {
           {
             id: IDS.draftInstruction,
             display_order: 0,
+            title: "Simmer the soup",
             text: "Simmer until the tomatoes collapse into a glossy soup.",
             actions: [
               {
@@ -481,6 +556,111 @@ const draftListItem = Object.freeze({
   updated_at: FIXED_TIME,
 });
 
+const activityDraftItems = Object.freeze([
+  Object.freeze({
+    kind: "draft",
+    draft: Object.freeze({
+      ...draftListItem,
+      title: "Banana Oat Pancakes",
+      updated_at: "2026-08-27T11:00:00.000Z",
+    }),
+    source_recipe_title: null,
+    description: "A cozy breakfast draft with oats and ripe banana.",
+  }),
+  Object.freeze({
+    kind: "draft",
+    draft: Object.freeze({
+      ...draftListItem,
+      id: IDS.activityDraftCarrot,
+      title: "Orange Raisin Carrot Cake",
+      updated_at: "2026-08-27T09:00:00.000Z",
+    }),
+    source_recipe_title: null,
+    description: "A bright carrot cake draft with citrus and raisins.",
+  }),
+  Object.freeze({
+    kind: "draft",
+    draft: Object.freeze({
+      ...draftListItem,
+      id: IDS.activityDraftCurry,
+      title: "Weeknight Green Curry",
+      updated_at: "2026-08-26T09:02:00.000Z",
+    }),
+    source_recipe_title: null,
+    description: "A quick green curry for busy evenings.",
+  }),
+]);
+
+const activityPublishedRecipe = Object.freeze(
+  recipeSummary({
+    id: IDS.activityPublishedRecipe,
+    parentVersionId: null,
+    versionNumber: 1,
+    title: "Red Lentil Coconut Stew",
+    description: "A warm lentil stew with coconut milk and gentle spices.",
+    publishedAt: "2026-08-26T16:42:00.000Z",
+  }),
+);
+const activityWithdrawnRecipe = Object.freeze(
+  recipeSummary({
+    id: IDS.activityWithdrawnRecipe,
+    parentVersionId: null,
+    versionNumber: 1,
+    title: "Pecan Banana Oat Pancakes",
+    description: "A nutty pancake variation saved for another day.",
+    publishedAt: "2026-08-24T15:30:00.000Z",
+  }),
+);
+const activitySavedShrimp = Object.freeze(
+  recipeSummary({
+    id: IDS.activitySavedShrimp,
+    parentVersionId: null,
+    versionNumber: 1,
+    title: "Garlic Butter Shrimp Pasta",
+    description: "A quick pasta with garlic, shrimp, and lemon.",
+    publishedAt: "2026-08-20T12:00:00.000Z",
+  }),
+);
+const activitySavedBread = Object.freeze(
+  recipeSummary({
+    id: IDS.activitySavedBread,
+    parentVersionId: null,
+    versionNumber: 1,
+    title: "Sourdough Bread",
+    description: "A patient loaf with a crisp crust and open crumb.",
+    publishedAt: "2026-08-18T12:00:00.000Z",
+  }),
+);
+
+const activityRecipeItems = Object.freeze({
+  drafts: activityDraftItems,
+  published: Object.freeze([
+    Object.freeze({
+      kind: "published",
+      recipe: activityPublishedRecipe,
+      visibility_state: "published",
+    }),
+  ]),
+  withdrawn: Object.freeze([
+    Object.freeze({
+      kind: "published",
+      recipe: activityWithdrawnRecipe,
+      visibility_state: "author_withdrawn",
+    }),
+  ]),
+});
+
+const activitySavedItems = Object.freeze([
+  Object.freeze({
+    recipe: activitySavedShrimp,
+    saved_at: "2026-08-26T11:18:00.000Z",
+  }),
+  Object.freeze({
+    recipe: activitySavedBread,
+    saved_at: "2026-08-25T14:00:00.000Z",
+  }),
+]);
+
 const ingredientReviewItem = Object.freeze({
   id: IDS.ingredientRequest,
   proposed_name: "Sunberry tomato",
@@ -518,7 +698,8 @@ const reviewedIngredientReviewItem = Object.freeze({
   status: "approved",
   updated_at: FIXED_TIME,
   reviewed_at: FIXED_TIME,
-  decision_reason: "The current catalog review confirms this synthetic ingredient.",
+  decision_reason:
+    "The current catalog review confirms this synthetic ingredient.",
   resolved_ingredient_id: IDS.tomato,
   reviewer_user_id: IDS.curatorUser,
   approved_canonical_name: "Sunberry tomato",
@@ -541,6 +722,31 @@ const memberIngredientRequest = Object.freeze({
   resolved_ingredient_id: null,
   resolved_ingredient: null,
 });
+
+const activityIngredientRequests = Object.freeze([
+  Object.freeze({
+    id: IDS.activityApprovedRequest,
+    proposed_name: "Sumac",
+    context: "A tart red spice used to finish salads and flatbreads.",
+    status: "approved",
+    created_at: "2026-08-22T10:00:00.000Z",
+    reviewed_at: "2026-08-27T06:00:00.000Z",
+    decision_reason: "Approved for the shared ingredient catalog.",
+    resolved_ingredient_id: IDS.sumac,
+    resolved_ingredient: sumac,
+  }),
+  Object.freeze({
+    id: IDS.activityRejectedRequest,
+    proposed_name: "Test Ingredient",
+    context: "A deterministic request used by the activity baseline.",
+    status: "rejected",
+    created_at: "2026-08-21T10:00:00.000Z",
+    reviewed_at: "2026-08-25T08:30:00.000Z",
+    decision_reason: "The request needs a clearer common ingredient name.",
+    resolved_ingredient_id: null,
+    resolved_ingredient: null,
+  }),
+]);
 
 const moderationSummary = Object.freeze({
   recipe_version_id: IDS.recipeRoot,
@@ -613,11 +819,13 @@ const probablePreflight = Object.freeze({
 });
 
 const allowedScenarios = new Set([
+  "activity-normal",
   "anonymous-session",
   "auth-error",
   "curation-empty",
   "curation-stale-once",
   "curator-session",
+  "fork-draft",
   "normal",
   "homepage-empty",
   "homepage-partial-error",
@@ -632,6 +840,7 @@ const allowedScenarios = new Set([
   "library-failure",
   "expired-library",
   "public-context-failure",
+  "sparse-own-profile",
   "slow-session",
 ]);
 const curatorScenarios = new Set([
@@ -650,9 +859,13 @@ let audit = freshAudit();
 let scenarioState = freshScenarioState();
 
 function freshScenarioState() {
+  const homepageIsEmpty = scenario === "homepage-empty";
   return {
+    baselineCookFollowerCount: homepageIsEmpty ? 0 : 9,
     curationDecisionApplied: false,
     curationReviewAttempts: 0,
+    followingBaselineCook: false,
+    memberFollowingCount: homepageIsEmpty ? 0 : 3,
     moderationQueueAttempts: 0,
   };
 }
@@ -663,6 +876,37 @@ function currentSession() {
   if (curatorScenarios.has(scenario)) return curatorSession;
   if (moderatorScenarios.has(scenario)) return moderatorSession;
   return session;
+}
+
+function requireActiveMember(response) {
+  const activeSession = currentSession();
+  if (
+    activeSession.status === "authenticated" &&
+    activeSession.user.handle !== null
+  ) {
+    return activeSession;
+  }
+  if (activeSession.status === "onboarding_required") {
+    sendError(
+      response,
+      403,
+      "account_setup_required",
+      "Finish account setup to continue.",
+    );
+  } else {
+    sendError(response, 401, "authentication_required", "Sign in to continue.");
+  }
+  return null;
+}
+
+function hasValidMemberCsrf(request) {
+  const fetchSite = request.headers["sec-fetch-site"];
+  return (
+    request.headers.cookie === SAFE_COOKIE &&
+    request.headers.origin === SAFE_ORIGIN &&
+    request.headers["x-csrf-token"] === SAFE_CSRF &&
+    (fetchSite === undefined || fetchSite.toLowerCase() !== "cross-site")
+  );
 }
 
 function hasStaffCapability(capability) {
@@ -727,10 +971,10 @@ function requestHasPrivateMaterial(request) {
   const csrf = request.headers["x-csrf-token"];
   return Boolean(
     authorization ||
-      proxyAuthorization ||
-      apiKey ||
-      (cookie && cookie !== SAFE_COOKIE) ||
-      (csrf && csrf !== SAFE_CSRF),
+    proxyAuthorization ||
+    apiKey ||
+    (cookie && cookie !== SAFE_COOKIE) ||
+    (csrf && csrf !== SAFE_CSRF),
   );
 }
 
@@ -747,7 +991,12 @@ function apiPage(items, pageSize = 12) {
 async function handleApi(request, response, url) {
   if (requestHasPrivateMaterial(request)) {
     audit.privacy_rejections += 1;
-    sendError(response, 400, "baseline_private_material_rejected", "The fixture rejected this request.");
+    sendError(
+      response,
+      400,
+      "baseline_private_material_rejected",
+      "The fixture rejected this request.",
+    );
     return;
   }
 
@@ -777,9 +1026,11 @@ async function handleApi(request, response, url) {
     countRoute("recipe-catalog");
     const query = url.searchParams.get("q")?.trim() ?? "";
     const variant = url.searchParams.get("is_variant");
-    let items = query === "No baseline matches" ? [] : [rootSummary, variantSummary, childSummary];
-    if (variant === "true") items = items.filter((item) => item.parent_version_id !== null);
-    if (variant === "false") items = items.filter((item) => item.parent_version_id === null);
+    let items = query === "No baseline matches" ? [] : catalogSummaries;
+    if (variant === "true")
+      items = items.filter((item) => item.parent_version_id !== null);
+    if (variant === "false")
+      items = items.filter((item) => item.parent_version_id === null);
     const category = url.searchParams.get("category");
     if (category) {
       items = items.filter((item) =>
@@ -793,7 +1044,10 @@ async function handleApi(request, response, url) {
           left.id.localeCompare(right.id),
       );
     }
-    if (scenario === "homepage-empty" && url.searchParams.get("sort") === "newest") {
+    if (
+      scenario === "homepage-empty" &&
+      url.searchParams.get("sort") === "newest"
+    ) {
       items = [];
     }
     const requestedPageSize = Number.parseInt(
@@ -816,7 +1070,23 @@ async function handleApi(request, response, url) {
       return;
     }
     sendJson(response, 200, {
-      items: scenario === "homepage-empty" ? [] : [variantSummary, rootSummary, childSummary],
+      items: scenario === "homepage-empty" ? [] : featuredSummaries,
+    });
+    return;
+  }
+
+  if (method === "GET" && path === "/api/recipes/viewer-states") {
+    countRoute("recipe-viewer-states");
+    if (requireActiveMember(response) === null) return;
+    const recipeVersionIds = [
+      ...new Set(url.searchParams.getAll("recipe_version_id")),
+    ];
+    sendJson(response, 200, {
+      items: recipeVersionIds.map((recipeVersionId) => ({
+        recipe_version_id: recipeVersionId,
+        saved: recipeVersionId === IDS.recipeVariant,
+        rating: recipeVersionId === IDS.recipeVariant ? 4 : null,
+      })),
     });
     return;
   }
@@ -840,9 +1110,76 @@ async function handleApi(request, response, url) {
       );
       return;
     }
+    const sparseOwnProfile = scenario === "sparse-own-profile";
     sendJson(response, 200, {
-      ...apiPage([variantSummary, childSummary]),
+      ...apiPage(
+        sparseOwnProfile ? profileSummaries.slice(0, 1) : profileSummaries,
+      ),
       cook: user,
+      description: sparseOwnProfile
+        ? null
+        : "Weeknight recipes shaped by small experiments and shared tables.",
+      follower_count: scenarioState.baselineCookFollowerCount,
+    });
+    return;
+  }
+
+  const cookFollowMatch = path.match(/^\/api\/cooks\/([^/]+)\/follow$/i);
+  if (
+    cookFollowMatch &&
+    (method === "GET" || method === "PUT" || method === "DELETE")
+  ) {
+    countRoute(
+      method === "GET"
+        ? "cook-follow-state"
+        : method === "PUT"
+          ? "cook-follow"
+          : "cook-unfollow",
+    );
+    const activeSession = requireActiveMember(response);
+    if (activeSession === null) return;
+
+    const targetHandle = decodeURIComponent(cookFollowMatch[1]).toLowerCase();
+    if (targetHandle !== user.handle) {
+      sendError(response, 404, "cook_not_found", "The cook was not found.");
+      return;
+    }
+
+    if (method !== "GET") {
+      if (!hasValidMemberCsrf(request)) {
+        sendError(
+          response,
+          403,
+          "invalid_csrf",
+          "The request could not be verified.",
+        );
+        return;
+      }
+      if (activeSession.user.id === user.id) {
+        sendError(
+          response,
+          409,
+          "cannot_follow_self",
+          "You cannot follow your own account.",
+        );
+        return;
+      }
+
+      const shouldFollow = method === "PUT";
+      if (shouldFollow !== scenarioState.followingBaselineCook) {
+        scenarioState.followingBaselineCook = shouldFollow;
+        scenarioState.baselineCookFollowerCount += shouldFollow ? 1 : -1;
+        scenarioState.memberFollowingCount += shouldFollow ? 1 : -1;
+      }
+    }
+
+    sendJson(response, 200, {
+      cook_id: user.id,
+      following:
+        activeSession.user.id === user.id
+          ? false
+          : scenarioState.followingBaselineCook,
+      follower_count: scenarioState.baselineCookFollowerCount,
     });
     return;
   }
@@ -855,7 +1192,11 @@ async function handleApi(request, response, url) {
   }
 
   const viewMatch = path.match(/^\/api\/recipes\/([0-9a-f-]+)\/view$/i);
-  if (method === "POST" && viewMatch && [IDS.recipeRoot, IDS.recipeVariant, IDS.recipeChild].includes(viewMatch[1])) {
+  if (
+    method === "POST" &&
+    viewMatch &&
+    [IDS.recipeRoot, IDS.recipeVariant, IDS.recipeChild].includes(viewMatch[1])
+  ) {
     countRoute("recipe-view");
     sendJson(response, 200, { recorded: true });
     return;
@@ -888,21 +1229,81 @@ async function handleApi(request, response, url) {
     return;
   }
 
+  if (method === "GET" && path === "/api/my/follow-stats") {
+    countRoute("follow-stats");
+    const activeSession = requireActiveMember(response);
+    if (activeSession === null) return;
+    sendJson(response, 200, {
+      follower_count:
+        activeSession.user.id === user.id
+          ? scenarioState.baselineCookFollowerCount
+          : 0,
+      following_count: scenarioState.memberFollowingCount,
+    });
+    return;
+  }
+
+  if (method === "GET" && path === "/api/my/community-activity") {
+    countRoute("community-activity");
+    if (requireActiveMember(response) === null) return;
+    const requestedPage = Number.parseInt(
+      url.searchParams.get("page") ?? "1",
+      10,
+    );
+    const requestedPageSize = Number.parseInt(
+      url.searchParams.get("page_size") ?? "20",
+      10,
+    );
+    const allItems = scenario === "homepage-empty" ? [] : communitySummaries;
+    const start = (requestedPage - 1) * requestedPageSize;
+    sendJson(response, 200, {
+      items: allItems.slice(start, start + requestedPageSize),
+      page: requestedPage,
+      page_size: requestedPageSize,
+      total: allItems.length,
+      total_pages: allItems.length
+        ? Math.ceil(allItems.length / requestedPageSize)
+        : 0,
+    });
+    return;
+  }
+
   if (method === "GET" && path === "/api/my/recipes") {
     countRoute("my-recipes");
     if (scenario === "library-failure") {
-      sendError(response, 503, "baseline_service_unavailable", "The synthetic recipe library is temporarily unavailable.");
+      sendError(
+        response,
+        503,
+        "baseline_service_unavailable",
+        "The synthetic recipe library is temporarily unavailable.",
+      );
       return;
     }
     if (scenario === "expired-library") {
-      sendError(response, 401, "session_expired", "Your session expired. Sign in again to continue.");
+      sendError(
+        response,
+        401,
+        "session_expired",
+        "Your session expired. Sign in again to continue.",
+      );
       return;
     }
     const view = url.searchParams.get("view");
     const itemsByView = {
-      drafts: [{ kind: "draft", draft: draftListItem }],
+      drafts: [
+        {
+          kind: "draft",
+          draft: draftListItem,
+          source_recipe_title: null,
+          description: "A small-batch soup for a shared table.",
+        },
+      ],
       published: [
-        { kind: "published", recipe: rootSummary, visibility_state: "published" },
+        {
+          kind: "published",
+          recipe: rootSummary,
+          visibility_state: "published",
+        },
         {
           kind: "published",
           recipe: variantSummary,
@@ -917,7 +1318,10 @@ async function handleApi(request, response, url) {
         },
       ],
     };
-    const items = itemsByView[view];
+    const items =
+      scenario === "activity-normal"
+        ? activityRecipeItems[view]
+        : itemsByView[view];
     if (!items) {
       sendError(
         response,
@@ -956,7 +1360,9 @@ async function handleApi(request, response, url) {
     const savedItems =
       scenario === "homepage-empty"
         ? []
-        : [{ recipe: variantSummary, saved_at: FIXED_TIME }];
+        : scenario === "activity-normal"
+          ? activitySavedItems
+          : [{ recipe: variantSummary, saved_at: FIXED_TIME }];
     const requestedPageSize = Number.parseInt(
       url.searchParams.get("page_size") ?? "12",
       10,
@@ -980,7 +1386,9 @@ async function handleApi(request, response, url) {
       temperature: new Set(["temperature"]),
     };
     const allowed = dimensions[semantic] ?? new Set();
-    sendJson(response, 200, { items: units.filter((unit) => allowed.has(unit.dimension)) });
+    sendJson(response, 200, {
+      items: units.filter((unit) => allowed.has(unit.dimension)),
+    });
     return;
   }
 
@@ -1025,7 +1433,12 @@ async function handleApi(request, response, url) {
   if (method === "GET" && path === "/api/ingredient-requests/mine") {
     countRoute("member-ingredient-requests");
     const requestItems =
-      scenario === "homepage-empty" ? [] : [memberIngredientRequest];
+      scenario === "homepage-empty"
+        ? []
+        : scenario === "activity-normal" &&
+            url.searchParams.get("reviewed_only") === "true"
+          ? activityIngredientRequests
+          : [memberIngredientRequest];
     const requestedPageSize = Number.parseInt(
       url.searchParams.get("page_size") ?? "20",
       10,
@@ -1051,13 +1464,17 @@ async function handleApi(request, response, url) {
 
   if (method === "GET" && path === "/api/ingredient-requests") {
     if (!hasStaffCapability("review_ingredient_requests")) {
-      rejectStaffAuthorization(response, "ingredient-review-authorization-denied");
+      rejectStaffAuthorization(
+        response,
+        "ingredient-review-authorization-denied",
+      );
       return;
     }
     countRoute("ingredient-review-queue");
     const items =
       scenario === "curation-empty" ||
-      (scenario === "curation-stale-once" && scenarioState.curationDecisionApplied)
+      (scenario === "curation-stale-once" &&
+        scenarioState.curationDecisionApplied)
         ? []
         : [ingredientReviewItem];
     sendJson(response, 200, {
@@ -1073,9 +1490,15 @@ async function handleApi(request, response, url) {
   const ingredientReviewMatch = path.match(
     /^\/api\/ingredient-requests\/([0-9a-f-]+)\/review$/i,
   );
-  if (method === "GET" && ingredientReviewMatch?.[1] === IDS.ingredientRequest) {
+  if (
+    method === "GET" &&
+    ingredientReviewMatch?.[1] === IDS.ingredientRequest
+  ) {
     if (!hasStaffCapability("review_ingredient_requests")) {
-      rejectStaffAuthorization(response, "ingredient-review-authorization-denied");
+      rejectStaffAuthorization(
+        response,
+        "ingredient-review-authorization-denied",
+      );
       return;
     }
     countRoute("ingredient-review-detail");
@@ -1089,9 +1512,15 @@ async function handleApi(request, response, url) {
     return;
   }
 
-  if (method === "POST" && ingredientReviewMatch?.[1] === IDS.ingredientRequest) {
+  if (
+    method === "POST" &&
+    ingredientReviewMatch?.[1] === IDS.ingredientRequest
+  ) {
     if (!hasStaffCapability("review_ingredient_requests")) {
-      rejectStaffAuthorization(response, "ingredient-review-authorization-denied");
+      rejectStaffAuthorization(
+        response,
+        "ingredient-review-authorization-denied",
+      );
       return;
     }
     countRoute("ingredient-review-decision");
@@ -1147,7 +1576,9 @@ async function handleApi(request, response, url) {
     return;
   }
 
-  const moderationMatch = path.match(/^\/api\/moderation\/recipe-reports\/([0-9a-f-]+)$/i);
+  const moderationMatch = path.match(
+    /^\/api\/moderation\/recipe-reports\/([0-9a-f-]+)$/i,
+  );
   if (method === "GET" && moderationMatch?.[1] === IDS.recipeRoot) {
     if (!hasStaffCapability("moderate_recipe_reports")) {
       rejectStaffAuthorization(response, "moderation-authorization-denied");
@@ -1168,19 +1599,34 @@ async function handleApi(request, response, url) {
   }
 
   audit.unknown_api_requests += 1;
-  sendError(response, 404, "baseline_route_not_reviewed", "The fixture route is not available.");
+  sendError(
+    response,
+    404,
+    "baseline_route_not_reviewed",
+    "The fixture route is not available.",
+  );
 }
 
 const server = createServer((request, response) => {
   void (async () => {
     if (!request.socket.remoteAddress?.includes("127.0.0.1")) {
       audit.privacy_rejections += 1;
-      sendError(response, 403, "baseline_loopback_required", "The fixture is loopback-only.");
+      sendError(
+        response,
+        403,
+        "baseline_loopback_required",
+        "The fixture is loopback-only.",
+      );
       return;
     }
     if (request.headers.host !== `127.0.0.1:${port}`) {
       audit.privacy_rejections += 1;
-      sendError(response, 421, "baseline_host_rejected", "The fixture host is not available.");
+      sendError(
+        response,
+        421,
+        "baseline_host_rejected",
+        "The fixture host is not available.",
+      );
       return;
     }
 
@@ -1189,14 +1635,22 @@ const server = createServer((request, response) => {
       sendJson(response, 200, { status: "ready" });
       return;
     }
-    if (request.method === "POST" && url.pathname === "/__baseline__/scenario") {
+    if (
+      request.method === "POST" &&
+      url.pathname === "/__baseline__/scenario"
+    ) {
       let body = "";
       for await (const chunk of request) {
         body += chunk;
         if (body.length > 100) break;
       }
       if (!allowedScenarios.has(body)) {
-        sendError(response, 400, "baseline_scenario_rejected", "The fixture scenario is not available.");
+        sendError(
+          response,
+          400,
+          "baseline_scenario_rejected",
+          "The fixture scenario is not available.",
+        );
         return;
       }
       scenario = body;
@@ -1209,7 +1663,9 @@ const server = createServer((request, response) => {
         accepted_api_requests: audit.accepted_api_requests,
         unknown_api_requests: audit.unknown_api_requests,
         privacy_rejections: audit.privacy_rejections,
-        route_counts: Object.fromEntries(Object.entries(audit.route_counts).sort()),
+        route_counts: Object.fromEntries(
+          Object.entries(audit.route_counts).sort(),
+        ),
       });
       return;
     }
@@ -1224,10 +1680,20 @@ const server = createServer((request, response) => {
       await handleApi(request, response, url);
       return;
     }
-    sendError(response, 404, "baseline_control_not_found", "The fixture endpoint is not available.");
+    sendError(
+      response,
+      404,
+      "baseline_control_not_found",
+      "The fixture endpoint is not available.",
+    );
   })().catch(() => {
     if (!response.headersSent) {
-      sendError(response, 500, "baseline_fixture_failure", "The fixture could not complete the request.");
+      sendError(
+        response,
+        500,
+        "baseline_fixture_failure",
+        "The fixture could not complete the request.",
+      );
     } else {
       response.destroy();
     }

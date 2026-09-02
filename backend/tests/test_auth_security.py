@@ -59,12 +59,37 @@ def test_origin_normalization_is_exact_and_rejects_credentials_or_paths() -> Non
 
 
 def test_onboarding_normalizes_handle_and_rejects_control_characters() -> None:
-    payload = AccountProfileUpdateRequest(handle="  Test_Cook  ", display_name=" Test Cook ")
+    payload = AccountProfileUpdateRequest(
+        handle="  Test_Cook  ",
+        display_name=" Test Cook ",
+        description="  Weeknight recipes.\r\nBread on weekends.  ",
+    )
     assert payload.handle == "test_cook"
     assert payload.display_name == "Test Cook"
+    assert payload.description == "Weeknight recipes.\nBread on weekends."
+    assert (
+        AccountProfileUpdateRequest(
+            handle="test-cook",
+            display_name="Test Cook",
+            description="   ",
+        ).description
+        is None
+    )
 
     with pytest.raises(ValidationError):
         AccountProfileUpdateRequest(handle="test-cook", display_name="Cook\u200bName")
+    with pytest.raises(ValidationError):
+        AccountProfileUpdateRequest(
+            handle="test-cook",
+            display_name="Test Cook",
+            description="Hidden\u200bseparator",
+        )
+    with pytest.raises(ValidationError):
+        AccountProfileUpdateRequest(
+            handle="test-cook",
+            display_name="Test Cook",
+            description="x" * 501,
+        )
 
 
 @pytest.mark.parametrize(

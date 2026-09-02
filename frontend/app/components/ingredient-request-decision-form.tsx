@@ -13,6 +13,7 @@ import {
   type ReviewDetailProps,
   STATUS_LABELS,
 } from "./ingredient-request-review-model";
+import { LoadingButton } from "./loading-ui";
 
 interface ReviewFieldErrors {
   aliases?: string;
@@ -23,6 +24,18 @@ interface ReviewFieldErrors {
 }
 
 type ReviewDecision = IngredientCatalogReviewInput["decision"];
+
+const DECISION_ACTION_LABELS: Record<ReviewDecision, string> = {
+  approve: "Approve request",
+  duplicate: "Mark as duplicate",
+  reject: "Reject request",
+};
+
+const DECISION_PENDING_LABELS: Record<ReviewDecision, string> = {
+  approve: "Approving request…",
+  duplicate: "Marking as duplicate…",
+  reject: "Rejecting request…",
+};
 
 function validateReview({
   aliases,
@@ -239,7 +252,7 @@ export function IngredientRequestDecisionForm({
       aria-labelledby={fieldId("heading")}
     >
       <h3 id={fieldId("heading")}>
-        {detail.status === "pending" ? "Record a decision" : "Your unsubmitted review"}
+        {detail.status === "pending" ? "Decision" : "Your unsubmitted review"}
       </h3>
       {detail.status !== "pending" ? <RecordedDecision detail={detail} compact /> : null}
       {formError ? (
@@ -249,22 +262,26 @@ export function IngredientRequestDecisionForm({
         >
           <p>{formError}</p>
           {staleConflict ? (
-            <button
+            <LoadingButton
               className="button button--secondary"
               type="button"
-              disabled={refreshing}
+              pending={refreshing}
+              pendingLabel="Loading current request…"
               onClick={() => void refreshAfterConflict()}
             >
-              {refreshing ? "Loading current request…" : "Load current request"}
-            </button>
+              Load current request
+            </LoadingButton>
           ) : null}
         </div>
       ) : null}
 
       <form className="curation-form" noValidate aria-busy={pending} onSubmit={handleSubmit}>
-        <fieldset className="curation-decision-options" disabled={formDisabled}>
-          <legend>Decision</legend>
-          <label>
+        <fieldset
+          className="curation-decision-options curation-decision-tabs"
+          disabled={formDisabled}
+        >
+          <legend className="visually-hidden">Choose a decision</legend>
+          <label className="curation-decision-tab">
             <input
               type="radio"
               name={`decision-${detail.id}`}
@@ -272,25 +289,9 @@ export function IngredientRequestDecisionForm({
               checked={decision === "approve"}
               onChange={() => setDecision("approve")}
             />
-            <span>
-              <strong>Approve</strong>
-              <small>Create one reviewed catalog identity.</small>
-            </span>
+            <span>Approve</span>
           </label>
-          <label>
-            <input
-              type="radio"
-              name={`decision-${detail.id}`}
-              value="reject"
-              checked={decision === "reject"}
-              onChange={() => setDecision("reject")}
-            />
-            <span>
-              <strong>Reject</strong>
-              <small>Keep this proposed text out of the catalog.</small>
-            </span>
-          </label>
-          <label>
+          <label className="curation-decision-tab">
             <input
               type="radio"
               name={`decision-${detail.id}`}
@@ -298,17 +299,24 @@ export function IngredientRequestDecisionForm({
               checked={decision === "duplicate"}
               onChange={() => setDecision("duplicate")}
             />
-            <span>
-              <strong>Duplicate</strong>
-              <small>Resolve it to an existing reviewed identity.</small>
-            </span>
+            <span>Duplicate</span>
+          </label>
+          <label className="curation-decision-tab">
+            <input
+              type="radio"
+              name={`decision-${detail.id}`}
+              value="reject"
+              checked={decision === "reject"}
+              onChange={() => setDecision("reject")}
+            />
+            <span>Reject</span>
           </label>
         </fieldset>
 
         {decision === "approve" ? (
           <>
             <div className="curation-field">
-              <label htmlFor={fieldId("canonicalName")}>Reviewed canonical name</label>
+              <label htmlFor={fieldId("canonicalName")}>Canonical ingredient name</label>
               <input
                 id={fieldId("canonicalName")}
                 type="text"
@@ -332,7 +340,7 @@ export function IngredientRequestDecisionForm({
             </div>
 
             <fieldset className="curation-aliases" disabled={formDisabled}>
-              <legend>Reviewed aliases (optional)</legend>
+              <legend>Aliases (optional)</legend>
               <p>Aliases become searchable labels for the same canonical identity.</p>
               <span id={fieldId("aliases")} tabIndex={-1} />
               {aliases.map((alias, index) => (
@@ -515,9 +523,15 @@ export function IngredientRequestDecisionForm({
           </div>
         ) : null}
 
-        <button className="button button--primary" type="submit" disabled={formDisabled}>
-          {pending ? "Saving decision…" : `Save ${decision} decision`}
-        </button>
+        <LoadingButton
+          className="button button--primary curation-decision-submit"
+          type="submit"
+          disabled={detail.status !== "pending"}
+          pending={pending}
+          pendingLabel={DECISION_PENDING_LABELS[decision]}
+        >
+          {DECISION_ACTION_LABELS[decision]}
+        </LoadingButton>
       </form>
     </section>
   );

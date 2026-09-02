@@ -8,6 +8,7 @@ import {
   searchCatalogIngredients,
 } from "../../lib/ingredient-catalog-api";
 import { isAbortError } from "./ingredient-request-review-model";
+import { LoadingButton } from "./loading-ui";
 
 interface DuplicateTargetSearchProps {
   detail: IngredientCatalogReviewDetail;
@@ -16,6 +17,13 @@ interface DuplicateTargetSearchProps {
   onSelect: (value: string) => void;
   value: string;
 }
+
+type SearchAction =
+  | "catalog-next"
+  | "catalog-previous"
+  | "request-next"
+  | "request-previous"
+  | "search";
 
 export function DuplicateTargetSearch({
   detail,
@@ -32,6 +40,7 @@ export function DuplicateTargetSearch({
   const [catalogPage, setCatalogPage] = useState<CatalogIngredientPage | null>(null);
   const [requestPage, setRequestPage] = useState<IngredientCatalogReviewPage | null>(null);
   const [searching, setSearching] = useState(false);
+  const [searchAction, setSearchAction] = useState<SearchAction | null>(null);
   const [searchError, setSearchError] = useState("");
   const [searchStatus, setSearchStatus] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
@@ -43,7 +52,11 @@ export function DuplicateTargetSearch({
     [],
   );
 
-  async function runSearch(nextCatalogPage = 1, nextRequestPage = 1) {
+  async function runSearch(
+    nextCatalogPage = 1,
+    nextRequestPage = 1,
+    action: SearchAction = "search",
+  ) {
     if (disabled || searching) {
       return;
     }
@@ -61,8 +74,9 @@ export function DuplicateTargetSearch({
     const controller = new AbortController();
     controllerRef.current = controller;
     setSearching(true);
+    setSearchAction(action);
     setSearchError("");
-    setSearchStatus("Searching existing ingredients and approved requests…");
+    setSearchStatus("");
     setSearchedQuery(normalizedQuery);
     setHasSearched(true);
     try {
@@ -101,6 +115,7 @@ export function DuplicateTargetSearch({
     } finally {
       if (sequence === sequenceRef.current) {
         setSearching(false);
+        setSearchAction(null);
       }
     }
   }
@@ -155,19 +170,22 @@ export function DuplicateTargetSearch({
               setRequestPage(null);
               setHasSearched(false);
               setSearching(false);
+              setSearchAction(null);
               setSearchError("");
               setSearchStatus("");
             }}
             onKeyDown={handleSearchKeyDown}
           />
-          <button
+          <LoadingButton
             className="button button--secondary"
             type="button"
-            disabled={disabled || searching}
+            disabled={disabled || (searching && searchAction !== "search")}
+            pending={searching && searchAction === "search"}
+            pendingLabel="Searching…"
             onClick={() => void runSearch()}
           >
-            {searching ? "Searching…" : "Search"}
-          </button>
+            Search
+          </LoadingButton>
         </div>
         <small id={`${idPrefix}-help`}>Maximum 100 characters.</small>
       </div>
@@ -219,25 +237,47 @@ export function DuplicateTargetSearch({
           )}
           {catalogPage.total_pages > 1 ? (
             <nav aria-label="Catalog duplicate target pages">
-              <button
+              <LoadingButton
                 className="button button--quiet"
                 type="button"
-                disabled={searching || catalogPage.page <= 1}
-                onClick={() => void runSearch(catalogPage.page - 1, requestPage?.page ?? 1)}
+                disabled={
+                  catalogPage.page <= 1 ||
+                  (searching && searchAction !== "catalog-previous")
+                }
+                pending={searching && searchAction === "catalog-previous"}
+                pendingLabel="Loading previous catalog page…"
+                onClick={() =>
+                  void runSearch(
+                    catalogPage.page - 1,
+                    requestPage?.page ?? 1,
+                    "catalog-previous",
+                  )
+                }
               >
                 ← Previous catalog page
-              </button>
+              </LoadingButton>
               <span aria-current="page">
                 Catalog page {catalogPage.page} of {catalogPage.total_pages}
               </span>
-              <button
+              <LoadingButton
                 className="button button--quiet"
                 type="button"
-                disabled={searching || catalogPage.page >= catalogPage.total_pages}
-                onClick={() => void runSearch(catalogPage.page + 1, requestPage?.page ?? 1)}
+                disabled={
+                  catalogPage.page >= catalogPage.total_pages ||
+                  (searching && searchAction !== "catalog-next")
+                }
+                pending={searching && searchAction === "catalog-next"}
+                pendingLabel="Loading next catalog page…"
+                onClick={() =>
+                  void runSearch(
+                    catalogPage.page + 1,
+                    requestPage?.page ?? 1,
+                    "catalog-next",
+                  )
+                }
               >
                 Next catalog page →
-              </button>
+              </LoadingButton>
             </nav>
           ) : null}
         </section>
@@ -273,25 +313,47 @@ export function DuplicateTargetSearch({
           )}
           {requestPage.total_pages > 1 ? (
             <nav aria-label="Approved request duplicate target pages">
-              <button
+              <LoadingButton
                 className="button button--quiet"
                 type="button"
-                disabled={searching || requestPage.page <= 1}
-                onClick={() => void runSearch(catalogPage?.page ?? 1, requestPage.page - 1)}
+                disabled={
+                  requestPage.page <= 1 ||
+                  (searching && searchAction !== "request-previous")
+                }
+                pending={searching && searchAction === "request-previous"}
+                pendingLabel="Loading previous approved-request page…"
+                onClick={() =>
+                  void runSearch(
+                    catalogPage?.page ?? 1,
+                    requestPage.page - 1,
+                    "request-previous",
+                  )
+                }
               >
                 ← Previous approved-request page
-              </button>
+              </LoadingButton>
               <span aria-current="page">
                 Approved-request page {requestPage.page} of {requestPage.total_pages}
               </span>
-              <button
+              <LoadingButton
                 className="button button--quiet"
                 type="button"
-                disabled={searching || requestPage.page >= requestPage.total_pages}
-                onClick={() => void runSearch(catalogPage?.page ?? 1, requestPage.page + 1)}
+                disabled={
+                  requestPage.page >= requestPage.total_pages ||
+                  (searching && searchAction !== "request-next")
+                }
+                pending={searching && searchAction === "request-next"}
+                pendingLabel="Loading next approved-request page…"
+                onClick={() =>
+                  void runSearch(
+                    catalogPage?.page ?? 1,
+                    requestPage.page + 1,
+                    "request-next",
+                  )
+                }
               >
                 Next approved-request page →
-              </button>
+              </LoadingButton>
             </nav>
           ) : null}
         </section>

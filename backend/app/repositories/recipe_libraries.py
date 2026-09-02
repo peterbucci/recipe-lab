@@ -137,8 +137,22 @@ def browse_my_recipes(
         .correlate(RecipeDraft)
         .scalar_subquery()
     )
+    source_recipe_title = (
+        select(RecipeVersion.title)
+        .where(
+            RecipeVersion.id == RecipeDraft.source_version_id,
+            publicly_readable_recipe_version_filter(),
+        )
+        .correlate(RecipeDraft)
+        .scalar_subquery()
+    )
     rows = session.execute(
-        select(RecipeDraft, ingredient_count, instruction_count).where(
+        select(
+            RecipeDraft,
+            ingredient_count,
+            instruction_count,
+            source_recipe_title,
+        ).where(
             RecipeDraft.id.in_(draft_ids),
             RecipeDraft.author_user_id == actor_user_id,
             RecipeDraft.status == "active",
@@ -149,8 +163,14 @@ def browse_my_recipes(
             draft=draft,
             ingredient_count=stored_ingredient_count,
             instruction_count=stored_instruction_count,
+            source_recipe_title=stored_source_recipe_title,
         )
-        for draft, stored_ingredient_count, stored_instruction_count in rows
+        for (
+            draft,
+            stored_ingredient_count,
+            stored_instruction_count,
+            stored_source_recipe_title,
+        ) in rows
     }
 
     statement = (

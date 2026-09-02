@@ -44,6 +44,15 @@ RECIPE_PUBLICATION_STATES = (
     RECIPE_PUBLICATION_STATE_MODERATION_HIDDEN,
 )
 
+RECIPE_DIFFICULTY_EASY = "easy"
+RECIPE_DIFFICULTY_MEDIUM = "medium"
+RECIPE_DIFFICULTY_HARD = "hard"
+RECIPE_DIFFICULTIES = (
+    RECIPE_DIFFICULTY_EASY,
+    RECIPE_DIFFICULTY_MEDIUM,
+    RECIPE_DIFFICULTY_HARD,
+)
+
 
 class RecipeLineage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     __tablename__ = "recipe_lineages"
@@ -74,6 +83,28 @@ class RecipeVersion(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
         CheckConstraint("version_number >= 1", name="version_number_positive"),
         CheckConstraint("btrim(title) <> ''", name="title_not_blank"),
         CheckConstraint("servings > 0", name="servings_positive"),
+        CheckConstraint(
+            "total_time_minutes IS NULL OR total_time_minutes > 0",
+            name="total_time_minutes_positive",
+        ),
+        CheckConstraint(
+            "active_time_minutes IS NULL OR active_time_minutes > 0",
+            name="active_time_minutes_positive",
+        ),
+        CheckConstraint(
+            "total_time_minutes IS NULL OR active_time_minutes IS NULL "
+            "OR active_time_minutes <= total_time_minutes",
+            name="active_time_not_greater_than_total",
+        ),
+        CheckConstraint(
+            f"difficulty IS NULL OR difficulty IN {RECIPE_DIFFICULTIES!r}",
+            name="difficulty_supported",
+        ),
+        CheckConstraint(
+            "notes IS NULL OR (NULLIF(btrim(notes), '') IS NOT NULL "
+            "AND char_length(notes) <= 5000)",
+            name="notes_valid",
+        ),
         CheckConstraint(
             "parent_version_id IS NULL OR parent_version_id <> id",
             name="parent_not_self",
@@ -110,6 +141,10 @@ class RecipeVersion(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     servings: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
+    total_time_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    active_time_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    difficulty: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     lineage: Mapped[RecipeLineage] = relationship(back_populates="versions")
     author: Mapped["User"] = relationship(foreign_keys=[created_by_user_id])
@@ -476,6 +511,10 @@ class RecipeInstruction(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "recipe_version_instructions"
     __table_args__ = (
         CheckConstraint("btrim(instruction) <> ''", name="instruction_not_blank"),
+        CheckConstraint(
+            "title IS NULL OR (NULLIF(btrim(title), '') IS NOT NULL AND char_length(title) <= 200)",
+            name="title_valid",
+        ),
         CheckConstraint("display_order >= 0", name="display_order_nonnegative"),
         UniqueConstraint(
             "recipe_version_id",
@@ -494,6 +533,7 @@ class RecipeInstruction(UUIDPrimaryKeyMixin, Base):
         ForeignKey("recipe_versions.id", ondelete="RESTRICT"),
         nullable=False,
     )
+    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     instruction: Mapped[str] = mapped_column(Text, nullable=False)
     display_order: Mapped[int] = mapped_column(Integer, nullable=False)
 

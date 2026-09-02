@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_session
 from app.homepage_content import FEATURED_RECIPE_VERSION_IDS
 from app.main import create_app
-from app.models import CookingActionType, RecipeCategory, RecipeRating, User
+from app.models import CookingActionType, RecipeCategory, RecipeRating, RecipeSave, User
 from app.seeds.identifiers import action_uuid, seed_uuid
 from app.services.recipe_visibility import set_authored_recipe_visibility
 
@@ -20,6 +20,11 @@ CARROT_ROOT_ID = seed_uuid(
     DATASET_ID,
     "recipe-version",
     "carrot-walnut-snack-cake-v1",
+)
+BANANA_ROOT_ID = seed_uuid(
+    DATASET_ID,
+    "recipe-version",
+    "banana-oat-pancakes-v1",
 )
 CARROT_PECAN_ID = seed_uuid(
     DATASET_ID,
@@ -125,8 +130,14 @@ def test_browse_defaults_list_every_version_in_stable_order(api_client: TestClie
         "author",
         "parent",
         "categories",
+        "average_rating",
+        "rating_count",
+        "save_count",
     }
     assert set(items[0]["author"]) == {"id", "handle", "display_name"}
+    assert all(item["average_rating"] is None for item in items)
+    assert all(item["rating_count"] == 0 for item in items)
+    assert all(item["save_count"] == 0 for item in items)
 
     all_items = cast(list[dict[str, Any]], _page(api_client, page_size=100)["items"])
     order_keys = [
@@ -154,6 +165,74 @@ def test_newest_browse_uses_recipe_id_as_the_stable_publication_tie_break(
     assert {item["published_at"] for item in items} == {"2026-08-20T00:00:00Z"}
 
 
+def test_browse_recipes_include_anonymous_rating_and_save_totals(
+    api_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    recipe_version_id = CARROT_ROOT_ID
+    user_ids = [uuid4(), uuid4()]
+    with Session(bind=seeded_api_engine) as session, session.begin():
+        session.add_all(
+            [
+                User(
+                    id=user_id,
+                    email=f"{user_id}@example.com",
+                    display_name=f"Catalog recipe member {index}",
+                )
+                for index, user_id in enumerate(user_ids, start=1)
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                RecipeRating(
+                    user_id=user_ids[0],
+                    recipe_version_id=recipe_version_id,
+                    rating=4,
+                ),
+                RecipeRating(
+                    user_id=user_ids[1],
+                    recipe_version_id=recipe_version_id,
+                    rating=5,
+                ),
+                RecipeSave(user_id=user_ids[0], recipe_version_id=recipe_version_id),
+                RecipeSave(user_id=user_ids[1], recipe_version_id=recipe_version_id),
+            ]
+        )
+
+    try:
+        items = cast(
+            list[dict[str, Any]],
+            _page(api_client, q="Carrot Walnut", page_size=100)["items"],
+        )
+
+        recipe = next(item for item in items if item["id"] == str(recipe_version_id))
+        assert recipe["average_rating"] == 4.5
+        assert recipe["rating_count"] == 2
+        assert recipe["save_count"] == 2
+        assert "ratings" not in recipe
+        assert "saves" not in recipe
+        assert "users" not in recipe
+    finally:
+        with Session(bind=seeded_api_engine) as session, session.begin():
+            session.execute(delete(RecipeRating).where(RecipeRating.user_id.in_(user_ids)))
+            session.execute(delete(RecipeSave).where(RecipeSave.user_id.in_(user_ids)))
+            session.execute(delete(User).where(User.id.in_(user_ids)))
+
+
+def test_browse_card_engagement_queries_are_bounded(
+    api_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    with _read_statement_counter(seeded_api_engine) as statements:
+        response = api_client.get("/api/recipes", params={"page_size": 100})
+
+    assert response.status_code == 200
+    assert len(statements) <= 6
+    assert sum("from recipe_ratings" in statement for statement in statements) == 1
+    assert sum("from recipe_saves" in statement for statement in statements) == 1
+
+
 def test_featured_recipes_are_global_editorial_public_summaries(
     api_client: TestClient,
 ) -> None:
@@ -174,6 +253,63 @@ def test_featured_recipes_are_global_editorial_public_summaries(
     assert set(body) == {"items"}
     assert all("score" not in item and "reason" not in item for item in items)
     assert all(item["published_at"] == "2026-08-20T00:00:00Z" for item in items)
+    assert all(item["average_rating"] is None for item in items)
+    assert all(item["rating_count"] == 0 for item in items)
+    assert all(item["save_count"] == 0 for item in items)
+
+
+def test_featured_recipes_include_anonymous_rating_and_save_totals(
+    api_client: TestClient,
+    seeded_api_engine: Engine,
+) -> None:
+    recipe_version_id = FEATURED_RECIPE_VERSION_IDS[0]
+    user_ids = [uuid4(), uuid4()]
+    with Session(bind=seeded_api_engine) as session, session.begin():
+        session.add_all(
+            [
+                User(
+                    id=user_id,
+                    email=f"{user_id}@example.com",
+                    display_name=f"Featured recipe member {index}",
+                )
+                for index, user_id in enumerate(user_ids, start=1)
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                RecipeRating(
+                    user_id=user_ids[0],
+                    recipe_version_id=recipe_version_id,
+                    rating=4,
+                ),
+                RecipeRating(
+                    user_id=user_ids[1],
+                    recipe_version_id=recipe_version_id,
+                    rating=5,
+                ),
+                RecipeSave(user_id=user_ids[0], recipe_version_id=recipe_version_id),
+                RecipeSave(user_id=user_ids[1], recipe_version_id=recipe_version_id),
+            ]
+        )
+
+    try:
+        response = api_client.get("/api/recipes/featured")
+
+        assert response.status_code == 200
+        items = cast(list[dict[str, Any]], _json_object(response.json())["items"])
+        featured = next(item for item in items if item["id"] == str(recipe_version_id))
+        assert featured["average_rating"] == 4.5
+        assert featured["rating_count"] == 2
+        assert featured["save_count"] == 2
+        assert "ratings" not in featured
+        assert "saves" not in featured
+        assert "users" not in featured
+    finally:
+        with Session(bind=seeded_api_engine) as session, session.begin():
+            session.execute(delete(RecipeRating).where(RecipeRating.user_id.in_(user_ids)))
+            session.execute(delete(RecipeSave).where(RecipeSave.user_id.in_(user_ids)))
+            session.execute(delete(User).where(User.id.in_(user_ids)))
 
 
 def test_featured_recipes_omit_a_selection_that_is_no_longer_public(
@@ -357,8 +493,13 @@ def test_recipe_detail_returns_ordered_snapshot_and_direct_children(
     assert detail["lineage_id"] == str(CARROT_LINEAGE_ID)
     assert detail["parent"] is None
     assert detail["servings"] == "8.00"
+    assert detail["total_time_minutes"] is None
+    assert detail["active_time_minutes"] is None
+    assert detail["difficulty"] is None
+    assert detail["notes"] is None
     assert detail["average_rating"] is None
     assert detail["rating_count"] == 0
+    assert detail["save_count"] == 0
     assert detail["author"] == {
         "id": str(CATALOG_AUTHOR_ID),
         "handle": "recipe-lab-catalog",
@@ -397,6 +538,29 @@ def test_recipe_detail_returns_ordered_snapshot_and_direct_children(
         item["id"] for item in ingredients if item["display_name"] == "Vegetable oil"
     )
     assert first_actions[1]["ingredient_occurrence_ids"] == [oil_occurrence]
+
+
+def test_recipe_detail_exposes_reviewed_titles_and_nullable_historical_fallback(
+    api_client: TestClient,
+) -> None:
+    titled_response = api_client.get(f"/api/recipes/{BANANA_ROOT_ID}")
+    untitled_response = api_client.get(f"/api/recipes/{CARROT_ROOT_ID}")
+
+    assert titled_response.status_code == untitled_response.status_code == 200
+    titled_instructions = cast(
+        list[dict[str, Any]],
+        _json_object(titled_response.json())["instructions"],
+    )
+    untitled_instructions = cast(
+        list[dict[str, Any]],
+        _json_object(untitled_response.json())["instructions"],
+    )
+    assert [item["title"] for item in titled_instructions] == [
+        "Make the batter",
+        "Rest the batter and heat the skillet",
+        "Cook the pancakes",
+    ]
+    assert all(item["title"] is None for item in untitled_instructions)
 
 
 def test_seeded_recipe_detail_select_count_has_a_deterministic_ceiling(
@@ -504,6 +668,10 @@ def test_recipe_detail_summarizes_ratings_without_exposing_users(
                     recipe_version_id=CARROT_ROOT_ID,
                     rating=5,
                 ),
+                RecipeSave(
+                    user_id=user_ids[0],
+                    recipe_version_id=CARROT_ROOT_ID,
+                ),
             ]
         )
 
@@ -513,10 +681,12 @@ def test_recipe_detail_summarizes_ratings_without_exposing_users(
         detail = _json_object(response.json())
         assert detail["average_rating"] == 4.5
         assert detail["rating_count"] == 2
+        assert detail["save_count"] == 1
         assert "ratings" not in detail
         assert "users" not in detail
     finally:
         with Session(bind=seeded_api_engine) as session, session.begin():
+            session.execute(delete(RecipeSave).where(RecipeSave.user_id.in_(user_ids)))
             session.execute(delete(RecipeRating).where(RecipeRating.user_id.in_(user_ids)))
             session.execute(delete(User).where(User.id.in_(user_ids)))
 
@@ -613,6 +783,8 @@ def test_openapi_documents_recipe_and_error_schemas(api_client: TestClient) -> N
         "RecipeCategoryListResponse",
         "RecipeCategorySummary",
         "FeaturedRecipeListResponse",
+        "FeaturedRecipeSummary",
+        "RecipeCardSummary",
         "RecipeDetailResponse",
         "RecipeIngredientResponse",
         "ExactMeasureResponse",
@@ -626,7 +798,10 @@ def test_openapi_documents_recipe_and_error_schemas(api_client: TestClient) -> N
     assert detail_properties["average_rating"]["anyOf"][0]["minimum"] == 1
     assert detail_properties["average_rating"]["anyOf"][0]["maximum"] == 5
     assert detail_properties["rating_count"]["minimum"] == 0
-    assert {"average_rating", "rating_count"} <= set(schemas["RecipeDetailResponse"]["required"])
+    assert detail_properties["save_count"]["minimum"] == 0
+    assert {"average_rating", "rating_count", "save_count"} <= set(
+        schemas["RecipeDetailResponse"]["required"]
+    )
 
     browse_responses = paths["/api/recipes"]["get"]["responses"]
     category_responses = paths["/api/recipe-categories"]["get"]["responses"]
@@ -634,6 +809,16 @@ def test_openapi_documents_recipe_and_error_schemas(api_client: TestClient) -> N
     detail_responses = paths["/api/recipes/{recipe_version_id}"]["get"]["responses"]
     assert browse_responses["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/RecipePageResponse"
+    )
+    browse_item_schema = schemas["RecipePageResponse"]["properties"]["items"]["items"]
+    assert browse_item_schema["$ref"].endswith("/RecipeCardSummary")
+    card_properties = schemas["RecipeCardSummary"]["properties"]
+    assert card_properties["average_rating"]["anyOf"][0]["minimum"] == 1
+    assert card_properties["average_rating"]["anyOf"][0]["maximum"] == 5
+    assert card_properties["rating_count"]["minimum"] == 0
+    assert card_properties["save_count"]["minimum"] == 0
+    assert {"average_rating", "rating_count", "save_count"} <= set(
+        schemas["RecipeCardSummary"]["required"]
     )
     assert browse_responses["422"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/ErrorResponse"
@@ -655,6 +840,11 @@ def test_openapi_documents_recipe_and_error_schemas(api_client: TestClient) -> N
     assert featured_responses["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/FeaturedRecipeListResponse"
     )
+    featured_properties = schemas["FeaturedRecipeSummary"]["properties"]
+    assert featured_properties["average_rating"]["anyOf"][0]["minimum"] == 1
+    assert featured_properties["average_rating"]["anyOf"][0]["maximum"] == 5
+    assert featured_properties["rating_count"]["minimum"] == 0
+    assert featured_properties["save_count"]["minimum"] == 0
     assert category_responses["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/RecipeCategoryListResponse"
     )

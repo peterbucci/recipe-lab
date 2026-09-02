@@ -6,6 +6,7 @@ import { useEffect } from "react";
 
 import { safeReturnTo } from "../../../lib/auth-api";
 import { useAuthSession } from "../../components/auth-session-provider";
+import { AuthGateLoading } from "../../components/loading-ui";
 
 interface CallbackStatusProps {
   errorCode?: string;
@@ -94,13 +95,10 @@ export function CallbackStatus({ errorCode, returnTo }: CallbackStatusProps) {
   }
 
   return (
-    <div
+    <AuthGateLoading
       className="auth-state account-access-state account-access-state--loading"
-      role="status"
-    >
-      <span className="loading-state__pulse" aria-hidden="true" />
-      <strong>Finishing sign-in…</strong>
-      <p>You’ll return to Recipe Lab in a moment.</p>
-    </div>
+      exitHref="/sign-in"
+      label="Finishing sign-in…"
+    />
   );
 }

@@ -158,6 +158,14 @@ def my_private_recipe_drafts(
     response: Response,
     session: SessionDependency,
     authenticated: RequiredAuthenticatedSessionDependency,
+    source_version_id: Annotated[
+        UUID | None,
+        Query(
+            description=(
+                "Return only active drafts copied from this exact immutable recipe version."
+            )
+        ),
+    ] = None,
     page: Annotated[int, Query(ge=1, le=1_000_000)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> RecipeDraftPageResponse:
@@ -165,6 +173,7 @@ def my_private_recipe_drafts(
     stored = browse_owned_recipe_drafts(
         session,
         author_user_id=actor_id,
+        source_version_id=source_version_id,
         offset=(page - 1) * page_size,
         limit=page_size,
     )

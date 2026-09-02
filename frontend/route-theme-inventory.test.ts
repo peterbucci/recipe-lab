@@ -28,9 +28,9 @@ describe("RCP-46 route and theme-family source inventory", () => {
       .sort();
     const inventoriedPages = RCP46_PAGE_THEME_INVENTORY.map(({ file }) => file).sort();
 
-    expect(discoveredPages).toHaveLength(20);
+    expect(discoveredPages).toHaveLength(25);
     expect(inventoriedPages).toEqual(discoveredPages);
-    expect(new Set(RCP46_PAGE_THEME_INVENTORY.map(({ route }) => route)).size).toBe(20);
+    expect(new Set(RCP46_PAGE_THEME_INVENTORY.map(({ route }) => route)).size).toBe(25);
     expect(
       new Set(RCP46_PAGE_THEME_INVENTORY.map(({ family }) => family)),
     ).toEqual(
@@ -46,9 +46,9 @@ describe("RCP-46 route and theme-family source inventory", () => {
       ({ file }) => file,
     ).sort();
 
-    expect(discoveredStates).toHaveLength(26);
+    expect(discoveredStates).toHaveLength(29);
     expect(inventoriedStates).toEqual(discoveredStates);
-    expect(new Set(inventoriedStates).size).toBe(26);
+    expect(new Set(inventoriedStates).size).toBe(29);
     for (const item of RCP46_ROUTE_STATE_THEME_INVENTORY) {
       expect(basename(item.file)).toBe(`${item.kind}.tsx`);
     }

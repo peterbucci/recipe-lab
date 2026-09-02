@@ -13,6 +13,7 @@ import { RecipeDraftStarter } from "./recipe-draft-starter";
 
 const mocks = vi.hoisted(() => ({
   createRecipeDraft: vi.fn(),
+  findActiveRecipeDraftForSource: vi.fn(),
   replace: vi.fn(),
 }));
 
@@ -22,7 +23,11 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("../../lib/recipe-draft-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/recipe-draft-api")>();
-  return { ...actual, createRecipeDraft: mocks.createRecipeDraft };
+  return {
+    ...actual,
+    createRecipeDraft: mocks.createRecipeDraft,
+    findActiveRecipeDraftForSource: mocks.findActiveRecipeDraftForSource,
+  };
 });
 
 const SOURCE_ID = "11111111-1111-4111-8111-111111111111";
@@ -112,6 +117,8 @@ describe("RecipeDraftStarter", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     mocks.createRecipeDraft.mockReset();
+    mocks.findActiveRecipeDraftForSource.mockReset();
+    mocks.findActiveRecipeDraftForSource.mockResolvedValue(null);
     mocks.replace.mockReset();
     window.sessionStorage.clear();
   });
@@ -121,23 +128,32 @@ describe("RecipeDraftStarter", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "Sign in to work on private recipes",
+        name: "Page Unavailable",
       }),
     ).toBeVisible();
-    expect(screen.getByRole("link", { name: "Sign in to continue" })).toHaveAttribute(
+    expect(screen.getByText("Please sign in to continue")).toBeVisible();
+    expect(screen.queryByText("Private recipe workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Private drafts")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sign In" })).toHaveAttribute(
       "href",
       `/sign-in?return_to=%2Frecipes%2F${SOURCE_ID}%2Ffork`,
+    );
+    expect(screen.getByRole("link", { name: "Browse Recipes" })).toHaveAttribute(
+      "href",
+      "/recipes",
     );
     expect(mocks.createRecipeDraft).not.toHaveBeenCalled();
     expect(window.sessionStorage.length).toBe(0);
     expect(container.querySelector("main.recipe-authoring-entry--fork")).not.toBeNull();
-    expect(container.querySelector("section.recipe-authoring-entry__card")).not.toBeNull();
+    expect(container.querySelector("section.recipe-authoring-entry__card")).toHaveClass(
+      "member-route-gate--shared-anonymous",
+    );
   });
 
   it("preserves the blank-draft auth return without creating early", () => {
     const { container } = renderStarter({ sourceVersionId: null, status: "anonymous" });
 
-    expect(screen.getByRole("link", { name: "Sign in to continue" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Sign In" })).toHaveAttribute(
       "href",
       "/sign-in?return_to=%2Frecipes%2Fnew",
     );
@@ -163,9 +179,36 @@ describe("RecipeDraftStarter", () => {
       ),
     );
     expect(mocks.replace).toHaveBeenCalledWith(
-      `/account/recipe-drafts/${DRAFT_ID}`,
+      `/recipes/drafts/${DRAFT_ID}`,
     );
     expect(window.sessionStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it("resumes an existing exact-source private draft without creating another", async () => {
+    mocks.findActiveRecipeDraftForSource.mockResolvedValue({
+      id: DRAFT_ID,
+      source_version_id: SOURCE_ID,
+      status: "active",
+      revision: 2,
+      title: "My version",
+      ingredient_count: 3,
+      instruction_count: 2,
+      created_at: "2026-08-30T12:00:00Z",
+      updated_at: "2026-08-30T13:00:00Z",
+    });
+
+    renderStarter();
+
+    await waitFor(() =>
+      expect(mocks.findActiveRecipeDraftForSource).toHaveBeenCalledWith(
+        SOURCE_ID,
+      ),
+    );
+    expect(mocks.replace).toHaveBeenCalledWith(
+      `/recipes/drafts/${DRAFT_ID}`,
+    );
+    expect(mocks.createRecipeDraft).not.toHaveBeenCalled();
+    expect(window.sessionStorage.length).toBe(0);
   });
 
   it("immediately creates a distinct blank draft intent", async () => {
@@ -184,8 +227,9 @@ describe("RecipeDraftStarter", () => {
       ),
     );
     expect(mocks.replace).toHaveBeenCalledWith(
-      `/account/recipe-drafts/${DRAFT_ID}`,
+      `/recipes/drafts/${DRAFT_ID}`,
     );
+    expect(mocks.findActiveRecipeDraftForSource).not.toHaveBeenCalled();
   });
 
   it("does not dispatch twice during a Strict Mode effect replay", async () => {
@@ -223,7 +267,7 @@ describe("RecipeDraftStarter", () => {
     ]);
     expect(window.sessionStorage.getItem(storageKey)).toBeNull();
     expect(mocks.replace).toHaveBeenCalledWith(
-      `/account/recipe-drafts/${DRAFT_ID}`,
+      `/recipes/drafts/${DRAFT_ID}`,
     );
   });
 
@@ -243,7 +287,7 @@ describe("RecipeDraftStarter", () => {
     ]);
     expect(window.sessionStorage.getItem(storageKey)).toBeNull();
     expect(mocks.replace).toHaveBeenCalledWith(
-      `/account/recipe-drafts/${DRAFT_ID}`,
+      `/recipes/drafts/${DRAFT_ID}`,
     );
   });
 
@@ -292,7 +336,7 @@ describe("RecipeDraftStarter", () => {
     interrupted.unmount();
 
     const signedOut = renderStarter({ status: "anonymous" });
-    expect(screen.getByRole("link", { name: "Sign in to continue" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Sign In" })).toBeVisible();
     expect(mocks.createRecipeDraft).toHaveBeenCalledTimes(1);
     expect(window.sessionStorage.getItem(storageKey)).not.toBeNull();
     signedOut.unmount();

@@ -860,6 +860,10 @@ def _recipe_version_values_match(
         and existing.title == seed.title
         and existing.description == seed.description
         and existing.servings == seed.servings
+        and existing.total_time_minutes == seed.total_time_minutes
+        and existing.active_time_minutes == seed.active_time_minutes
+        and existing.difficulty == seed.difficulty
+        and existing.notes == seed.notes
         and existing.created_at == catalog.published_at
     )
 
@@ -895,6 +899,7 @@ def _recipe_instruction_values_match(
 ) -> bool:
     return (
         existing.id == expected_id
+        and existing.title == seed.title
         and existing.instruction == seed.text
         and existing.display_order == display_order
     )
@@ -1246,6 +1251,7 @@ def _insert_recipe_snapshot(
             RecipeInstruction(
                 id=instruction_id,
                 recipe_version_id=version.id,
+                title=instruction.title,
                 instruction=instruction.text,
                 display_order=display_order,
             )
@@ -1333,6 +1339,10 @@ def _load_recipe(
         title=seed.title,
         description=seed.description,
         servings=seed.servings,
+        total_time_minutes=seed.total_time_minutes,
+        active_time_minutes=seed.active_time_minutes,
+        difficulty=seed.difficulty,
+        notes=seed.notes,
         created_at=catalog.published_at,
     )
     session.add(created)

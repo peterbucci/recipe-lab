@@ -46,7 +46,6 @@ class PreferenceEvent(Base):
             OR (
                 event_type = 'rating'
                 AND saved_value IS NULL
-                AND rating_value IS NOT NULL
                 AND related_recipe_version_id IS NULL
                 AND request_fingerprint IS NULL
             )

@@ -17,6 +17,7 @@ export interface MemberIngredientRequestHistoryState {
   statusFilter: IngredientCatalogRequestStatus | "";
   changePage: (page: number) => void;
   changeStatusFilter: (status: IngredientCatalogRequestStatus | "") => void;
+  clearSearch: () => void;
   expireAuthentication: () => void;
   refresh: () => void;
   restoreAuthentication: () => void;
@@ -111,6 +112,13 @@ export function useMemberIngredientRequestHistory({
     setPageNumber(1);
   }
 
+  function clearSearch() {
+    setLoadError("");
+    setQueryInput("");
+    setQuery("");
+    setPageNumber(1);
+  }
+
   function changePage(nextPage: number) {
     setLoadError("");
     setPageNumber(nextPage);
@@ -125,6 +133,7 @@ export function useMemberIngredientRequestHistory({
     authenticationExpired,
     changePage,
     changeStatusFilter,
+    clearSearch,
     expireAuthentication: () => setAuthenticationExpired(true),
     loadError,
     loading,

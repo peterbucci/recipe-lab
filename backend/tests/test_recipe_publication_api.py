@@ -130,6 +130,10 @@ def _complete_original_payload(*, revision: int = 1) -> dict[str, object]:
         "title": "Publication test chickpeas",
         "description": "A complete private draft becoming one immutable root.",
         "servings": "2.00",
+        "total_time_minutes": 35,
+        "active_time_minutes": 15,
+        "difficulty": "easy",
+        "notes": "Rest briefly before serving.",
         "category_ids": [str(QUICK_EASY_CATEGORY_ID), str(BREAKFAST_CATEGORY_ID)],
         "ingredients": [
             {
@@ -150,6 +154,7 @@ def _complete_original_payload(*, revision: int = 1) -> dict[str, object]:
         "instructions": [
             {
                 "ref": "mix-step",
+                "title": "Mix the chickpeas",
                 "text": "Mix the chickpeas.",
                 "actions": [
                     {
@@ -401,6 +406,10 @@ def test_original_draft_preflight_publish_and_exact_retry(
     detail_body = _json_object(detail.json())
     assert detail_body["parent_version_id"] is None
     assert detail_body["version_number"] == 1
+    assert detail_body["total_time_minutes"] == 35
+    assert detail_body["active_time_minutes"] == 15
+    assert detail_body["difficulty"] == "easy"
+    assert detail_body["notes"] == "Rest briefly before serving."
     assert detail_body["categories"] == [
         {
             "id": str(BREAKFAST_CATEGORY_ID),
@@ -466,6 +475,10 @@ def test_original_draft_preflight_publish_and_exact_retry(
         assert version.parent_version_id is None
         assert version.version_number == 1
         assert version.created_by_user_id == MEMBER_ID
+        assert version.total_time_minutes == 35
+        assert version.active_time_minutes == 15
+        assert version.difficulty == "easy"
+        assert version.notes == "Rest briefly before serving."
         lineage = session.get(RecipeLineage, version.lineage_id)
         assert lineage is not None and lineage.created_by_user_id == MEMBER_ID
         assert receipt is not None
@@ -579,6 +592,7 @@ def test_original_draft_preflight_publish_and_exact_retry(
         assert draft_actions[0].id != version_actions[0].id
         assert draft_inputs[0].id != version_inputs[0].id
         assert version_ingredients[0].ingredient_id == draft_ingredients[0].ingredient_id
+        assert version_instructions[0].title == draft_instructions[0].title == ("Mix the chickpeas")
         assert version_instructions[0].instruction == draft_instructions[0].instruction
         assert version_actions[0].action_type_id == draft_actions[0].action_type_id
         assert version_inputs[0].recipe_ingredient_id == version_ingredients[0].id

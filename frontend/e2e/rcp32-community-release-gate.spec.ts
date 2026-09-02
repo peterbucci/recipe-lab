@@ -39,14 +39,18 @@ const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const rootTitle = "RCP32 Atlas Leaf Knot";
-const rootDescription = "A deterministic community-gate recipe built around one reviewed leaf.";
-const rootDirection = "Knead the atlas leaf into one compact knot for ten minutes.";
+const rootDescription =
+  "A deterministic community-gate recipe built around one reviewed leaf.";
+const rootDirection =
+  "Knead the atlas leaf into one compact knot for ten minutes.";
 const exactTitle = "RCP32 Atlas Leaf Knot Exact Fork";
 const childTitle = "RCP32 Double Atlas Leaf Knot";
-const childDirection = "Knead the doubled atlas leaf into one compact knot for twenty minutes.";
+const childDirection =
+  "Knead the doubled atlas leaf into one compact knot for twenty minutes.";
 const requestedIngredient = "RCP32 Atlas leaf";
 const requestContextCanary = "RCP32_PRIVATE_REQUEST_CONTEXT_CANARY";
-const curatorDecisionReasonCanary = "RCP32_PRIVATE_CURATOR_DECISION_REASON_CANARY";
+const curatorDecisionReasonCanary =
+  "RCP32_PRIVATE_CURATOR_DECISION_REASON_CANARY";
 const curatorProvenanceCanary = "RCP32_PRIVATE_CURATOR_PROVENANCE_CANARY";
 const reportCanary = "RCP32_PRIVATE_REPORT_CANARY";
 const moderatorNoteCanary = "RCP32_PRIVATE_MODERATOR_NOTE_CANARY";
@@ -109,10 +113,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-async function jsonRecord(response: APIResponse | Response): Promise<Record<string, unknown>> {
+async function jsonRecord(
+  response: APIResponse | Response,
+): Promise<Record<string, unknown>> {
   const value: unknown = await response.json();
   if (!isRecord(value)) {
-    throw new Error("An RCP-32 API response did not satisfy its object contract.");
+    throw new Error(
+      "An RCP-32 API response did not satisfy its object contract.",
+    );
   }
   return value;
 }
@@ -141,7 +149,9 @@ async function expectNoAccessibilityViolations(page: Page): Promise<void> {
 async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   expect(
     await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
     ),
   ).toBe(false);
 }
@@ -198,13 +208,21 @@ async function expectFreshAnonymousRecipeSafe(
     const sessionResponse = await publicPage.request.get("/api/auth/session");
     expect(sessionResponse.status()).toBe(200);
     expect(await sessionResponse.json()).toEqual({ status: "anonymous" });
-    const recipeResponse = await publicPage.request.get(`/api/recipes/${recipeVersionId}`);
+    const recipeResponse = await publicPage.request.get(
+      `/api/recipes/${recipeVersionId}`,
+    );
     expect(recipeResponse.status()).toBe(200);
     expectPublicPayloadSafe(await jsonRecord(recipeResponse));
     await publicPage.goto(`/recipes/${recipeVersionId}`);
-    await expect(publicPage.getByRole("heading", { name: title, level: 1 })).toBeVisible();
-    await expect(publicPage.getByText(reportCanary, { exact: true })).toHaveCount(0);
-    await expect(publicPage.getByText(moderatorNoteCanary, { exact: true })).toHaveCount(0);
+    await expect(
+      publicPage.getByRole("heading", { name: title, level: 1 }),
+    ).toBeVisible();
+    await expect(
+      publicPage.getByText(reportCanary, { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      publicPage.getByText(moderatorNoteCanary, { exact: true }),
+    ).toHaveCount(0);
   } finally {
     await publicContext.close();
   }
@@ -222,17 +240,23 @@ async function expectAnonymousDiscoveryExcludes(
   const payload = await jsonRecord(response);
   expectPublicPayloadSafe(payload);
   if (!Array.isArray(payload.items)) {
-    throw new Error("The RCP-32 discovery response did not contain an item list.");
+    throw new Error(
+      "The RCP-32 discovery response did not contain an item list.",
+    );
   }
   expect(
     payload.items.some((item) => isRecord(item) && item.id === recipeVersionId),
   ).toBe(false);
 
   await page.goto(`/recipes?q=${encodeURIComponent(title)}`);
-  await expect(page.getByRole("article", { name: title, exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("article", { name: title, exact: true }),
+  ).toHaveCount(0);
 }
 
-async function authenticatedMutationHeaders(page: Page): Promise<Record<string, string>> {
+async function authenticatedMutationHeaders(
+  page: Page,
+): Promise<Record<string, string>> {
   return {
     Accept: "application/json",
     Origin: baseUrl,
@@ -241,27 +265,45 @@ async function authenticatedMutationHeaders(page: Page): Promise<Record<string, 
 }
 
 async function confirmPublicationRequirements(page: Page): Promise<void> {
-  await page.getByRole("checkbox", { name: /agree to the community rules/i }).check();
-  await page.getByRole("checkbox", { name: /right to share it/i }).check();
+  await page
+    .getByRole("button", { name: /^(?:Finish recipe|Publish draft)$/ })
+    .click();
+  await page
+    .getByRole("checkbox", {
+      name: /right to share this recipe.*community rules/i,
+    })
+    .check();
 }
 
-async function publicationPayload(response: Response): Promise<PublicationPayload> {
+async function publicationPayload(
+  response: Response,
+): Promise<PublicationPayload> {
   expect(response.status()).toBe(201);
   const body = await jsonRecord(response);
-  const recipeVersionId = requireUuid(body.recipe_version_id, "published recipe version ID");
+  const recipeVersionId = requireUuid(
+    body.recipe_version_id,
+    "published recipe version ID",
+  );
   const location = body.location;
   if (location !== `/recipes/${recipeVersionId}`) {
-    throw new Error("The RCP-32 publication Location contract was not satisfied.");
+    throw new Error(
+      "The RCP-32 publication Location contract was not satisfied.",
+    );
   }
   expect(response.headers().location).toBe(location);
   return { location, recipe_version_id: recipeVersionId };
 }
 
-async function publishDistinctOriginal(page: Page, draftId: string): Promise<string> {
+async function publishDistinctOriginal(
+  page: Page,
+  draftId: string,
+): Promise<string> {
   const preflightResponse = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
-      response.url().endsWith(`/api/recipe-drafts/${draftId}/duplicate-preflights`),
+      response
+        .url()
+        .endsWith(`/api/recipe-drafts/${draftId}/duplicate-preflights`),
   );
   const publishResponse = page.waitForResponse(
     (response) =>
@@ -269,7 +311,9 @@ async function publishDistinctOriginal(page: Page, draftId: string): Promise<str
       response.url().endsWith(`/api/recipe-drafts/${draftId}/publish`),
   );
   await confirmPublicationRequirements(page);
-  await page.getByRole("button", { name: "Review and publish", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Review and publish", exact: true })
+    .click();
   const preflight = await preflightResponse;
   expect(preflight.status()).toBe(201);
   const preflightBody = (await preflight.json()) as PreflightPayload;
@@ -290,16 +334,22 @@ async function publishReviewedFork(
   const preflightResponse = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
-      response.url().endsWith(`/api/recipe-drafts/${draftId}/duplicate-preflights`),
+      response
+        .url()
+        .endsWith(`/api/recipe-drafts/${draftId}/duplicate-preflights`),
   );
   await confirmPublicationRequirements(page);
-  await page.getByRole("button", { name: "Review and publish version", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Review and publish version", exact: true })
+    .click();
   const preflight = await preflightResponse;
   expect(preflight.status()).toBe(201);
   const preflightBody = (await preflight.json()) as PreflightPayload;
   expectPublicPayloadSafe(preflightBody);
   expect(preflightBody.classification).toBe(classification);
-  expect(preflightBody.same_lineage_no_change).toBe(classification === "exact_duplicate");
+  expect(preflightBody.same_lineage_no_change).toBe(
+    classification === "exact_duplicate",
+  );
   const preflightId = requireUuid(
     preflightBody.acknowledgement?.preflight_id,
     `${classification} preflight ID`,
@@ -308,19 +358,22 @@ async function publishReviewedFork(
   const review = page.getByRole("region", {
     name:
       classification === "exact_duplicate"
-        ? "Your version matches the recipe it is based on"
-        : "Review similar recipes",
+        ? "This version is very close to its source"
+        : "This version is similar to another public recipe",
   });
   await expect(review).toBeVisible();
   const acknowledgement = review.getByRole("checkbox", {
     name:
       classification === "exact_duplicate"
-        ? /matches the recipe it is based on.*publish it anyway/i
+        ? /closely matches its source.*publish it separately/i
         : /reviewed these similar recipes/i,
   });
   await activateWithKeyboard(page, acknowledgement, "Space");
   await expect(acknowledgement).toBeChecked();
-  const continueButton = review.getByRole("button", { name: "Publish version anyway" });
+  const continueButton = review.getByRole("button", {
+    name: "Publish version",
+    exact: true,
+  });
   await expect(continueButton).toBeEnabled();
   const publishResponse = page.waitForResponse(
     (response) =>
@@ -334,7 +387,10 @@ async function publishReviewedFork(
   return { preflightId, recipeVersionId: published.recipe_version_id };
 }
 
-function viewerStateFromRecipe(value: Record<string, unknown>, recipeVersionId: string): ViewerState {
+function viewerStateFromRecipe(
+  value: Record<string, unknown>,
+  recipeVersionId: string,
+): ViewerState {
   const state = value.viewer_state;
   if (
     !isRecord(state) ||
@@ -354,7 +410,9 @@ function viewerStateFromRecipe(value: Record<string, unknown>, recipeVersionId: 
 async function writeManifest(manifest: Rcp32Manifest): Promise<void> {
   const configuredPath = process.env.RCP32_MANIFEST_PATH?.trim();
   if (!configuredPath) {
-    throw new Error("RCP32_MANIFEST_PATH is required for the guarded release gate.");
+    throw new Error(
+      "RCP32_MANIFEST_PATH is required for the guarded release gate.",
+    );
   }
   const expectedKeys = [
     "version",
@@ -387,14 +445,18 @@ async function writeManifest(manifest: Rcp32Manifest): Promise<void> {
   await mkdir(dirname(manifestPath), { recursive: true });
   const temporaryPath = `${manifestPath}.rcp32-${process.pid}.tmp`;
   const stable = Object.fromEntries(
-    Object.entries(manifest).sort(([left], [right]) => left.localeCompare(right)),
+    Object.entries(manifest).sort(([left], [right]) =>
+      left.localeCompare(right),
+    ),
   );
   let temporaryCreated = false;
   try {
     const handle = await open(temporaryPath, "wx", 0o600);
     temporaryCreated = true;
     try {
-      await handle.writeFile(`${JSON.stringify(stable)}\n`, { encoding: "utf8" });
+      await handle.writeFile(`${JSON.stringify(stable)}\n`, {
+        encoding: "utf8",
+      });
       await handle.chmod(0o600);
       await handle.sync();
     } finally {
@@ -427,7 +489,8 @@ function requirePrivateCheckpointPath(value: string, label: string): string {
 }
 
 async function waitForPreDeletionBackup(): Promise<void> {
-  const configuredReadyPath = process.env.RCP33G_BACKUP_READY_PATH?.trim() ?? "";
+  const configuredReadyPath =
+    process.env.RCP33G_BACKUP_READY_PATH?.trim() ?? "";
   const configuredContinuePath =
     process.env.RCP33G_BACKUP_CONTINUE_PATH?.trim() ?? "";
   if (!configuredReadyPath && !configuredContinuePath) {
@@ -485,10 +548,14 @@ test.describe("RCP-32 two-user community release gate", () => {
     "RCP-32 requires the explicitly guarded disposable acceptance database.",
   );
 
-  test("proves the complete real-provider community lifecycle", async ({ browser }) => {
+  test("proves the complete real-provider community lifecycle", async ({
+    browser,
+  }) => {
     assertRcp32AcceptanceDatabase();
     if (!process.env.RCP32_MANIFEST_PATH?.trim()) {
-      throw new Error("RCP32_MANIFEST_PATH is required before starting the RCP-32 journey.");
+      throw new Error(
+        "RCP32_MANIFEST_PATH is required before starting the RCP-32 journey.",
+      );
     }
 
     const aliceContext = await createRcp32Context(browser, "alice");
@@ -516,16 +583,33 @@ test.describe("RCP-32 two-user community release gate", () => {
 
     try {
       await test.step("onboard four independent members through the real OIDC UI", async () => {
-        const aliceSession = await createAndOnboardRcp32Identity(alice, "alice");
+        const aliceSession = await createAndOnboardRcp32Identity(
+          alice,
+          "alice",
+        );
         const bobSession = await createAndOnboardRcp32Identity(bob, "bob");
-        const curatorSession = await createAndOnboardRcp32Identity(curator, "curator");
-        const moderatorSession = await createAndOnboardRcp32Identity(moderator, "moderator");
+        const curatorSession = await createAndOnboardRcp32Identity(
+          curator,
+          "curator",
+        );
+        const moderatorSession = await createAndOnboardRcp32Identity(
+          moderator,
+          "moderator",
+        );
         aliceUserId = aliceSession.user.id;
         bobUserId = bobSession.user.id;
         curatorUserId = curatorSession.user.id;
         moderatorUserId = moderatorSession.user.id;
-        expect(new Set([aliceUserId, bobUserId, curatorUserId, moderatorUserId]).size).toBe(4);
-        for (const session of [aliceSession, bobSession, curatorSession, moderatorSession]) {
+        expect(
+          new Set([aliceUserId, bobUserId, curatorUserId, moderatorUserId])
+            .size,
+        ).toBe(4);
+        for (const session of [
+          aliceSession,
+          bobSession,
+          curatorSession,
+          moderatorSession,
+        ]) {
           expect(session.capabilities.review_ingredient_requests).toBe(false);
           expect(session.capabilities.moderate_recipe_reports).toBe(false);
         }
@@ -537,7 +621,10 @@ test.describe("RCP-32 two-user community release gate", () => {
           expect(forbiddenQueue.status()).toBe(403);
           await page.goto("/catalog/ingredient-requests");
           await expect(
-            page.getByRole("heading", { name: "We couldn’t find that page.", level: 1 }),
+            page.getByRole("heading", {
+              name: "We couldn’t find that page.",
+              level: 1,
+            }),
           ).toBeVisible();
         }
       });
@@ -545,72 +632,139 @@ test.describe("RCP-32 two-user community release gate", () => {
       let aliceDraftId = "";
       await test.step("preserve Alice's draft while she requests a missing ingredient", async () => {
         await alice.goto("/recipes/new");
-        await expect(alice).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
-        aliceDraftId = requireUuid(new URL(alice.url()).pathname.split("/").at(-1), "Alice draft ID");
+        await expect(alice).toHaveURL(/\/recipes\/drafts\/[0-9a-f-]+$/i);
+        aliceDraftId = requireUuid(
+          new URL(alice.url()).pathname.split("/").at(-1),
+          "Alice draft ID",
+        );
         await alice.getByLabel("Title", { exact: true }).fill(rootTitle);
-        await alice.getByLabel("Description", { exact: true }).fill(rootDescription);
+        await alice
+          .getByLabel("Description", { exact: true })
+          .fill(rootDescription);
         await alice.getByLabel("Servings", { exact: true }).fill("4");
-        await alice.getByRole("button", { name: "Add ingredient", exact: true }).click();
-        const ingredient = alice.getByRole("group", { name: "Ingredient 1", exact: true });
-        await ingredient.getByRole("textbox", { name: "Amount", exact: true }).fill("100");
-        const unit = ingredient.getByRole("combobox", { name: "Unit", exact: true });
+        await alice
+          .getByRole("button", { name: "Add ingredient", exact: true })
+          .click();
+        const ingredient = alice.getByRole("group", {
+          name: "Ingredient 1",
+          exact: true,
+        });
+        await ingredient
+          .getByRole("button", {
+            name: "Edit amount for ingredient 1",
+            exact: true,
+          })
+          .click();
+        const amountEditor = ingredient.getByRole("dialog", {
+          name: "Amount for ingredient 1",
+          exact: true,
+        });
+        await amountEditor
+          .getByRole("textbox", { name: "Amount", exact: true })
+          .fill("100");
+        const unit = amountEditor.getByRole("combobox", {
+          name: "Unit",
+          exact: true,
+        });
         await unit.selectOption({ label: "gram (g)" });
         gramUnitId = await unit.inputValue();
+        await amountEditor
+          .getByRole("button", { name: "Done", exact: true })
+          .click();
         const search = ingredient.getByRole("combobox", {
           name: "Ingredient",
           exact: true,
         });
+        await search.focus();
         await search.fill(requestedIngredient);
         const requestButton = ingredient.getByRole("button", {
-          name: "Request a missing ingredient",
+          name: "Request missing ingredient",
           exact: true,
         });
         await activateWithKeyboard(alice, requestButton);
-        await expect(ingredient.getByLabel("Proposed ingredient name")).toBeFocused();
-        await ingredient.getByLabel("Short context (optional)").fill(requestContextCanary);
+        await expect(
+          ingredient.getByLabel("Proposed ingredient name"),
+        ).toBeFocused();
+        await ingredient
+          .getByLabel("Short context (optional)")
+          .fill(requestContextCanary);
         const submitted = alice.waitForResponse(
           (response) =>
             response.request().method() === "POST" &&
             new URL(response.url()).pathname === "/api/ingredient-requests",
         );
-        await ingredient.getByRole("button", { name: "Submit catalog request" }).click();
+        await ingredient
+          .getByRole("button", { name: "Submit catalog request" })
+          .click();
         const submission = await submitted;
         expect(submission.status()).toBe(201);
         ingredientRequestId = requireUuid(
           (await jsonRecord(submission)).id,
           "ingredient request ID",
         );
+        await expect(search).toHaveValue(requestedIngredient);
+        await expect(ingredient.getByRole("status")).toContainText(
+          "Awaiting approval",
+        );
+        await expect(alice.getByLabel("Title", { exact: true })).toHaveValue(
+          rootTitle,
+        );
         await expect(
-          ingredient.getByRole("complementary", { name: "Unresolved selection for Ingredient 1" }),
-        ).toContainText("Awaiting curator review");
-        await expect(alice.getByLabel("Title", { exact: true })).toHaveValue(rootTitle);
-        await expect(alice.getByLabel("Description", { exact: true })).toHaveValue(
-          rootDescription,
+          alice.getByLabel("Description", { exact: true }),
+        ).toHaveValue(rootDescription);
+        await expect(alice.getByLabel("Servings", { exact: true })).toHaveValue(
+          "4",
         );
-        await expect(alice.getByLabel("Servings", { exact: true })).toHaveValue("4");
-        await alice.getByRole("button", { name: "Save draft", exact: true }).click();
-        await expect(alice.getByText("Draft saved privately.", { exact: true })).toBeVisible();
+        await alice
+          .getByRole("button", { name: "Save draft", exact: true })
+          .click();
+        await expect(
+          alice.getByRole("button", { name: "Draft saved", exact: true }),
+        ).toBeDisabled();
         await alice.reload();
-        await expect(alice.getByLabel("Title", { exact: true })).toHaveValue(rootTitle);
-        await expect(alice.getByLabel("Description", { exact: true })).toHaveValue(
-          rootDescription,
+        await expect(alice.getByLabel("Title", { exact: true })).toHaveValue(
+          rootTitle,
         );
-        await expect(alice.getByLabel("Servings", { exact: true })).toHaveValue("4.00");
+        await expect(
+          alice.getByLabel("Description", { exact: true }),
+        ).toHaveValue(rootDescription);
+        await expect(alice.getByLabel("Servings", { exact: true })).toHaveValue(
+          "4.00",
+        );
         const persistedPendingIngredient = alice.getByRole("group", {
           name: "Ingredient 1",
           exact: true,
         });
+        const persistedSearch = persistedPendingIngredient.getByRole(
+          "combobox",
+          {
+            name: "Ingredient",
+            exact: true,
+          },
+        );
+        await expect(persistedSearch).toHaveValue(requestedIngredient);
         await expect(
-          persistedPendingIngredient.getByRole("complementary", {
-            name: "Unresolved selection for Ingredient 1",
+          persistedPendingIngredient.getByRole("status"),
+        ).toContainText("Awaiting approval");
+        await persistedSearch.focus();
+        await expect(
+          persistedPendingIngredient.getByRole("region", {
+            name: "Pending ingredient requests",
           }),
-        ).toContainText("Awaiting curator review");
+        ).toContainText(
+          `${requestedIngredient}Awaiting approval · not available yet`,
+        );
         await expect(
-          persistedPendingIngredient.getByText(requestedIngredient, { exact: true }),
+          persistedPendingIngredient.getByRole("button", {
+            name: "Request missing ingredient",
+            exact: true,
+          }),
         ).toBeVisible();
         await expectNoAccessibilityViolations(alice);
 
-        const bobCannotReadDraft = await bob.request.get(`/api/recipe-drafts/${aliceDraftId}`);
+        const bobCannotReadDraft = await bob.request.get(
+          `/api/recipe-drafts/${aliceDraftId}`,
+        );
         expect(bobCannotReadDraft.status()).toBe(404);
         for (const page of [alice, bob]) {
           const forbiddenQueue = await page.request.get(
@@ -627,9 +781,15 @@ test.describe("RCP-32 two-user community release gate", () => {
         expect(granted.capabilities.moderate_recipe_reports).toBe(false);
         await curator.goto("/");
         await curator.getByLabel("Account menu for Casey Curator").click();
-        await curator.getByRole("link", { name: "Review ingredient requests" }).click();
+        await curator.getByRole("link", { name: "Staff tools" }).click();
+        await curator
+          .getByRole("link", { name: "Open ingredient catalog" })
+          .click();
         await expect(
-          curator.getByRole("heading", { name: "Review ingredient requests.", level: 1 }),
+          curator.getByRole("heading", {
+            name: "Ingredient requests",
+            level: 1,
+          }),
         ).toBeVisible();
         const requestItem = curator.getByRole("button").filter({
           has: curator.getByText(requestedIngredient, { exact: true }),
@@ -641,7 +801,9 @@ test.describe("RCP-32 two-user community release gate", () => {
         });
         await expect(requestItem).toHaveAttribute("aria-pressed", "true");
         await expect(requestHeading).toBeVisible();
-        await curator.getByLabel("Reviewed canonical name").fill(requestedIngredient);
+        await curator
+          .getByLabel("Canonical ingredient name")
+          .fill(requestedIngredient);
         await curator
           .getByLabel("Decision reason")
           .fill(curatorDecisionReasonCanary);
@@ -651,9 +813,15 @@ test.describe("RCP-32 two-user community release gate", () => {
         const reviewed = curator.waitForResponse(
           (response) =>
             response.request().method() === "POST" &&
-            response.url().endsWith(`/api/ingredient-requests/${ingredientRequestId}/review`),
+            response
+              .url()
+              .endsWith(
+                `/api/ingredient-requests/${ingredientRequestId}/review`,
+              ),
         );
-        await curator.getByRole("button", { name: "Save approve decision" }).click();
+        await curator
+          .getByRole("button", { name: "Approve request" })
+          .click();
         const reviewResponse = await reviewed;
         expect(reviewResponse.status()).toBe(200);
         approvedIngredientId = requireUuid(
@@ -661,7 +829,9 @@ test.describe("RCP-32 two-user community release gate", () => {
           "approved ingredient ID",
         );
         await expect(
-          curator.getByText(`${requestedIngredient} is now approved.`, { exact: true }),
+          curator.getByText(`${requestedIngredient} is now approved.`, {
+            exact: true,
+          }),
         ).toBeVisible();
         await expectNoAccessibilityViolations(curator);
 
@@ -679,104 +849,180 @@ test.describe("RCP-32 two-user community release gate", () => {
       });
 
       await test.step("resolve, structure, save, reload, and publish Alice's immutable root", async () => {
-        const ingredient = alice.getByRole("group", { name: "Ingredient 1", exact: true });
-        const historyTrigger = ingredient.getByRole("button", {
-          name: "Choose from my ingredient requests for Ingredient 1",
+        await alice.reload();
+        const ingredient = alice.getByRole("group", {
+          name: "Ingredient 1",
+          exact: true,
         });
-        await activateWithKeyboard(alice, historyTrigger);
-        const history = ingredient.getByRole("region", {
-          name: "Choose from my ingredient requests for Ingredient 1",
+        const search = ingredient.getByRole("combobox", {
+          name: "Ingredient",
+          exact: true,
         });
-        const requestCard = history.getByRole("article", {
-          name: `Ingredient request: ${requestedIngredient}`,
-        });
-        const useResolution = requestCard.getByRole("button", {
-          name: `Use ${requestedIngredient} for Ingredient 1`,
-        });
+        await expect(search).toHaveValue(requestedIngredient);
+        await search.focus();
+        const useResolution = ingredient
+          .getByRole("listbox", { name: "Ingredient suggestions" })
+          .getByRole("option", {
+            name: `${requestedIngredient} Approved from your ingredient request`,
+            exact: true,
+          });
+        await expect(useResolution).toBeVisible();
         await activateWithKeyboard(alice, useResolution);
-        await expect(historyTrigger).toBeFocused();
+        await expect(search).toBeFocused();
+        await expect(search).toHaveValue(requestedIngredient);
         await expect(
           ingredient.getByText("Selected ingredient", { exact: true }),
-        ).toBeVisible();
-        await expect(alice.getByLabel("Title", { exact: true })).toHaveValue(rootTitle);
-        await expect(alice.getByLabel("Description", { exact: true })).toHaveValue(
-          rootDescription,
+        ).toHaveCount(0);
+        await expect(
+          ingredient.getByRole("button", {
+            name: "Request missing ingredient",
+            exact: true,
+          }),
+        ).toHaveCount(0);
+        await expect(alice.getByLabel("Title", { exact: true })).toHaveValue(
+          rootTitle,
         );
-        await expect(alice.getByLabel("Servings", { exact: true })).toHaveValue("4.00");
+        await expect(
+          alice.getByLabel("Description", { exact: true }),
+        ).toHaveValue(rootDescription);
+        await expect(alice.getByLabel("Servings", { exact: true })).toHaveValue(
+          "4.00",
+        );
 
-        const amount = ingredient.getByRole("group", { name: "Amount for Ingredient 1" });
-        await expect(amount.getByRole("textbox", { name: "Amount", exact: true })).toHaveValue(
-          "100",
-        );
-        await expect(amount.getByRole("combobox", { name: "Unit", exact: true })).toHaveValue(
-          gramUnitId,
-        );
+        await ingredient
+          .getByRole("button", {
+            name: "Edit amount for ingredient 1",
+            exact: true,
+          })
+          .click();
+        const amount = ingredient.getByRole("dialog", {
+          name: "Amount for ingredient 1",
+          exact: true,
+        });
+        await expect(
+          amount.getByRole("textbox", { name: "Amount", exact: true }),
+        ).toHaveValue("100");
+        await expect(
+          amount.getByRole("combobox", { name: "Unit", exact: true }),
+        ).toHaveValue(gramUnitId);
+        await amount.getByRole("button", { name: "Done", exact: true }).click();
 
-        await alice.getByRole("button", { name: "Add instruction", exact: true }).click();
+        await alice
+          .getByRole("button", { name: "Add instruction", exact: true })
+          .click();
         const step = alice.getByRole("group", { name: "Step 1", exact: true });
-        await step.getByLabel("Instruction", { exact: true }).fill(rootDirection);
-        await step.getByRole("button", { name: "Add cooking details for Step 1" }).click();
-        await step.getByRole("button", { name: "Add cooking action", exact: true }).click();
-        const action = step.getByRole("group", { name: "Action 1", exact: true });
-        await action.getByRole("combobox", { name: "Cooking action" }).selectOption({
-          label: "knead",
+        await step
+          .getByLabel("Instruction", { exact: true })
+          .fill(rootDirection);
+        await alice
+          .getByRole("tab", { name: "Cooking breakdown", exact: true })
+          .click();
+        await alice
+          .getByRole("button", {
+            name: "Add cooking detail to Step 1",
+            exact: true,
+          })
+          .click();
+        const action = alice.getByRole("dialog", {
+          name: "Cooking detail 1 for Step 1",
+          exact: true,
         });
         await action
+          .getByRole("combobox", { name: "Cooking action" })
+          .selectOption({
+            label: "knead",
+          });
+        await action
           .getByRole("group", { name: "Ingredient inputs", exact: true })
-          .getByRole("checkbox", { name: `Ingredient 1: ${requestedIngredient}` })
+          .getByRole("checkbox", {
+            name: `Ingredient 1: ${requestedIngredient}`,
+          })
           .check();
-        await action.getByRole("checkbox", { name: "Include duration" }).check();
-        const duration = action.getByRole("group", { name: "Duration for Action 1: knead" });
-        await duration.getByRole("radio", { name: "Exact", exact: true }).check();
+        await action
+          .getByRole("checkbox", { name: "Include duration" })
+          .check();
+        const duration = action.getByRole("group", {
+          name: /Duration for Cooking detail 1: knead/i,
+        });
+        await duration
+          .getByRole("radio", { name: "Exact", exact: true })
+          .check();
         await duration.getByRole("textbox", { name: "Duration" }).fill("10");
         await duration.getByRole("combobox", { name: "Unit" }).selectOption({
           label: "minute (min)",
         });
+        await action.getByRole("button", { name: "Done", exact: true }).click();
 
-        await alice.getByRole("button", { name: "Save draft", exact: true }).click();
-        await expect(alice.getByText("Draft saved privately.", { exact: true })).toBeVisible();
-        await alice.reload();
-        await expect(alice.getByLabel("Title", { exact: true })).toHaveValue(rootTitle);
-        await expect(alice.getByLabel("Description", { exact: true })).toHaveValue(
-          rootDescription,
-        );
-        await expect(alice.getByLabel("Servings", { exact: true })).toHaveValue("4.00");
+        await alice
+          .getByRole("button", { name: "Save draft", exact: true })
+          .click();
         await expect(
-          alice.getByRole("group", { name: "Ingredient 1", exact: true }).getByText(
-            requestedIngredient,
-            { exact: true },
-          ),
+          alice.getByRole("button", { name: "Draft saved", exact: true }),
+        ).toBeDisabled();
+        await alice.reload();
+        await expect(alice.getByLabel("Title", { exact: true })).toHaveValue(
+          rootTitle,
+        );
+        await expect(
+          alice.getByLabel("Description", { exact: true }),
+        ).toHaveValue(rootDescription);
+        await expect(alice.getByLabel("Servings", { exact: true })).toHaveValue(
+          "4.00",
+        );
+        await expect(
+          alice
+            .getByRole("group", { name: "Ingredient 1", exact: true })
+            .getByText(requestedIngredient, { exact: true }),
         ).toBeVisible();
         await expect(
-          alice.getByRole("group", { name: "Step 1", exact: true }).getByLabel(
-            "Instruction",
-          ),
+          alice
+            .getByRole("group", { name: "Step 1", exact: true })
+            .getByLabel("Instruction"),
         ).toHaveValue(rootDirection);
         await expectNoAccessibilityViolations(alice);
 
-        rootRecipeVersionId = await publishDistinctOriginal(alice, aliceDraftId);
-        await expect(alice.getByRole("heading", { name: rootTitle, level: 1 })).toBeVisible();
-        await expect(alice.getByText("Version 1", { exact: true })).toHaveCount(0);
-        await expect(alice.getByText("Based on", { exact: true })).toHaveCount(0);
-        await expect(alice.getByRole("link", { name: "Alice Cook", exact: true }).first()).toHaveAttribute(
-          "href",
-          "/cooks/rcp32_alice",
+        rootRecipeVersionId = await publishDistinctOriginal(
+          alice,
+          aliceDraftId,
         );
-        expect((await alice.request.get(`/api/recipe-drafts/${aliceDraftId}`)).status()).toBe(404);
+        await expect(
+          alice.getByRole("heading", { name: rootTitle, level: 1 }),
+        ).toBeVisible();
+        await expect(alice.getByText("Version 1", { exact: true })).toHaveCount(
+          0,
+        );
+        await expect(alice.getByText("Based on", { exact: true })).toHaveCount(
+          0,
+        );
+        await expect(
+          alice.getByRole("link", { name: "Alice Cook", exact: true }).first(),
+        ).toHaveAttribute("href", "/cooks/rcp32_alice");
+        expect(
+          (
+            await alice.request.get(`/api/recipe-drafts/${aliceDraftId}`)
+          ).status(),
+        ).toBe(404);
       });
 
       let bobRootState: ViewerState;
       await test.step("let Bob discover, view, save, rate, and idempotently re-save the root", async () => {
         await bob.goto(`/recipes?q=${encodeURIComponent(rootTitle)}`);
-        const rootCard = bob.getByRole("article", { name: rootTitle, exact: true });
+        const rootCard = bob.getByRole("article", {
+          name: rootTitle,
+          exact: true,
+        });
         await expect(rootCard).toBeVisible();
         const viewResponse = bob.waitForResponse(
           (response) =>
             response.request().method() === "POST" &&
             response.url().endsWith(`/api/recipes/${rootRecipeVersionId}/view`),
         );
-        await rootCard.getByRole("link", { name: rootTitle, exact: true }).click();
-        await expect(bob.getByRole("heading", { name: rootTitle, level: 1 })).toBeVisible();
+        await rootCard
+          .getByRole("link", { name: rootTitle, exact: true })
+          .click();
+        await expect(
+          bob.getByRole("heading", { name: rootTitle, level: 1 }),
+        ).toBeVisible();
         expect((await viewResponse).status()).toBe(204);
 
         const saveResponse = bob.waitForResponse(
@@ -784,20 +1030,30 @@ test.describe("RCP-32 two-user community release gate", () => {
             response.request().method() === "PUT" &&
             response.url().endsWith(`/api/recipes/${rootRecipeVersionId}/save`),
         );
-        await bob.getByRole("button", { name: "Save recipe", exact: true }).click();
+        await bob
+          .getByRole("button", { name: "Save recipe", exact: true })
+          .click();
         expect((await saveResponse).status()).toBe(200);
-        await expect(bob.getByText("Saved to your account.", { exact: true })).toBeVisible();
+        await expect(
+          bob.getByText("Saved to your account.", { exact: true }),
+        ).toBeVisible();
 
-        await bob.getByRole("radio", { name: "4 stars", exact: true }).check();
         const ratingResponse = bob.waitForResponse(
           (response) =>
             response.request().method() === "PUT" &&
-            response.url().endsWith(`/api/recipes/${rootRecipeVersionId}/rating`),
+            response
+              .url()
+              .endsWith(`/api/recipes/${rootRecipeVersionId}/rating`),
         );
-        await bob.getByRole("button", { name: "Rate recipe", exact: true }).click();
+        await bob
+          .getByRole("button", { name: "Rate recipe", exact: true })
+          .click();
+        await bob
+          .getByRole("button", { name: "4 stars — Really good", exact: true })
+          .click();
         expect((await ratingResponse).status()).toBe(200);
         await expect(
-          bob.getByText("Your rating is now 4 out of 5.", { exact: true }),
+          bob.getByText("✓ Rated 4 stars", { exact: true }),
         ).toBeVisible();
 
         const idempotentHeaders = {
@@ -814,20 +1070,34 @@ test.describe("RCP-32 two-user community release gate", () => {
           { headers: idempotentHeaders },
         );
         expect(secondReplayableSave.status()).toBe(200);
-        expect(await firstReplayableSave.json()).toEqual(await secondReplayableSave.json());
+        expect(await firstReplayableSave.json()).toEqual(
+          await secondReplayableSave.json(),
+        );
 
-        const bobRoot = await bob.request.get(`/api/recipes/${rootRecipeVersionId}`);
+        const bobRoot = await bob.request.get(
+          `/api/recipes/${rootRecipeVersionId}`,
+        );
         expect(bobRoot.status()).toBe(200);
         const bobRootPayload = await jsonRecord(bobRoot);
-        bobRootState = viewerStateFromRecipe(bobRootPayload, rootRecipeVersionId);
+        bobRootState = viewerStateFromRecipe(
+          bobRootPayload,
+          rootRecipeVersionId,
+        );
         expect(bobRootState).toEqual({
           rating: 4,
           recipe_version_id: rootRecipeVersionId,
           saved: true,
         });
-        const aliceRoot = await alice.request.get(`/api/recipes/${rootRecipeVersionId}`);
+        const aliceRoot = await alice.request.get(
+          `/api/recipes/${rootRecipeVersionId}`,
+        );
         expect(aliceRoot.status()).toBe(200);
-        expect(viewerStateFromRecipe(await jsonRecord(aliceRoot), rootRecipeVersionId)).toEqual({
+        expect(
+          viewerStateFromRecipe(
+            await jsonRecord(aliceRoot),
+            rootRecipeVersionId,
+          ),
+        ).toEqual({
           rating: null,
           recipe_version_id: rootRecipeVersionId,
           saved: false,
@@ -837,15 +1107,23 @@ test.describe("RCP-32 two-user community release gate", () => {
 
       await test.step("record Bob's explicit exact unchanged-fork continue decision", async () => {
         await bob.goto(`/recipes/${rootRecipeVersionId}/fork`);
-        await expect(bob).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
+        await expect(bob).toHaveURL(/\/recipes\/drafts\/[0-9a-f-]+$/i);
         const exactDraftId = requireUuid(
           new URL(bob.url()).pathname.split("/").at(-1),
           "exact fork draft ID",
         );
         await bob.getByLabel("Title", { exact: true }).fill(exactTitle);
-        await bob.getByRole("button", { name: "Save draft", exact: true }).click();
-        await expect(bob.getByText("Draft saved privately.", { exact: true })).toBeVisible();
-        expect((await alice.request.get(`/api/recipe-drafts/${exactDraftId}`)).status()).toBe(404);
+        await bob
+          .getByRole("button", { name: "Save draft", exact: true })
+          .click();
+        await expect(
+          bob.getByRole("button", { name: "Draft saved", exact: true }),
+        ).toBeDisabled();
+        expect(
+          (
+            await alice.request.get(`/api/recipe-drafts/${exactDraftId}`)
+          ).status(),
+        ).toBe(404);
         const exactPublication = await publishReviewedFork(
           bob,
           exactDraftId,
@@ -853,7 +1131,9 @@ test.describe("RCP-32 two-user community release gate", () => {
         );
         exactPreflightId = exactPublication.preflightId;
         exactRecipeVersionId = exactPublication.recipeVersionId;
-        await expect(bob.getByRole("heading", { name: exactTitle, level: 1 })).toBeVisible();
+        await expect(
+          bob.getByRole("heading", { name: exactTitle, level: 1 }),
+        ).toBeVisible();
         await expect(
           bob.getByRole("link", { name: /Based on.*RCP32 Atlas Leaf Knot/i }),
         ).toHaveAttribute("href", `/recipes/${rootRecipeVersionId}`);
@@ -862,50 +1142,127 @@ test.describe("RCP-32 two-user community release gate", () => {
       let bobChildDraftId = "";
       await test.step("publish Bob's real probable duplicate with controlled amount and action changes", async () => {
         await bob.goto(`/recipes/${rootRecipeVersionId}/fork`);
-        await expect(bob).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
+        await expect(bob).toHaveURL(/\/recipes\/drafts\/[0-9a-f-]+$/i);
         bobChildDraftId = requireUuid(
           new URL(bob.url()).pathname.split("/").at(-1),
           "Bob child draft ID",
         );
         await bob.getByLabel("Title", { exact: true }).fill(childTitle);
-        const ingredient = bob.getByRole("group", { name: "Ingredient 1", exact: true });
-        await ingredient.getByRole("textbox", { name: "Amount", exact: true }).fill("200");
-        const step = bob.getByRole("group", { name: "Step 1", exact: true });
-        await step.getByLabel("Instruction", { exact: true }).fill(childDirection);
-        await step
-          .getByRole("button", { name: "Edit cooking details for Step 1" })
+        const ingredient = bob.getByRole("group", {
+          name: "Ingredient 1",
+          exact: true,
+        });
+        await ingredient
+          .getByRole("button", {
+            name: "Edit amount for ingredient 1",
+            exact: true,
+          })
           .click();
-        const action = step.getByRole("group", { name: "Action 1", exact: true });
-        const duration = action.getByRole("group", { name: "Duration for Action 1: knead" });
-        await duration.getByRole("textbox", { name: "Duration", exact: true }).fill("20");
+        const amountEditor = ingredient.getByRole("dialog", {
+          name: "Amount for ingredient 1",
+          exact: true,
+        });
+        await amountEditor
+          .getByRole("textbox", { name: "Amount", exact: true })
+          .fill("200");
+        await amountEditor
+          .getByRole("button", { name: "Done", exact: true })
+          .click();
+        const step = bob.getByRole("group", { name: "Step 1", exact: true });
+        await step
+          .getByLabel("Instruction", { exact: true })
+          .fill(childDirection);
+        await bob
+          .getByRole("tab", { name: "Cooking breakdown", exact: true })
+          .click();
+        await bob
+          .getByRole("button", {
+            name: "Edit cooking detail 1 for Step 1",
+            exact: true,
+          })
+          .click();
+        const action = bob.getByRole("dialog", {
+          name: "Cooking detail 1 for Step 1",
+          exact: true,
+        });
+        const duration = action.getByRole("group", {
+          name: /Duration for Cooking detail 1: knead/i,
+        });
+        await duration
+          .getByRole("textbox", { name: "Duration", exact: true })
+          .fill("20");
+        await action.getByRole("button", { name: "Done", exact: true }).click();
         const saveRequest = bob.waitForRequest(
           (request) =>
             request.method() === "PUT" &&
-            new URL(request.url()).pathname === `/api/recipe-drafts/${bobChildDraftId}`,
+            new URL(request.url()).pathname ===
+              `/api/recipe-drafts/${bobChildDraftId}`,
         );
-        await bob.getByRole("button", { name: "Save draft", exact: true }).click();
-        const savedDocument = (await saveRequest).postDataJSON() as Record<string, unknown>;
-        await expect(bob.getByText("Draft saved privately.", { exact: true })).toBeVisible();
-        await bob.reload();
-        await expect(bob.getByLabel("Title", { exact: true })).toHaveValue(childTitle);
-        await expect(
-          bob
-            .getByRole("group", { name: "Ingredient 1", exact: true })
-            .getByRole("textbox", { name: "Amount", exact: true }),
-        ).toHaveValue("200");
-        const resumedStep = bob.getByRole("group", { name: "Step 1", exact: true });
-        await resumedStep
-          .getByRole("button", { name: "Edit cooking details for Step 1" })
+        await bob
+          .getByRole("button", { name: "Save draft", exact: true })
           .click();
+        const savedDocument = (await saveRequest).postDataJSON() as Record<
+          string,
+          unknown
+        >;
         await expect(
-          resumedStep
-            .getByRole("group", { name: "Action 1", exact: true })
-            .getByRole("textbox", { name: "Duration", exact: true }),
-        ).toHaveValue("20.000000");
-
-        expect((await alice.request.get(`/api/recipe-drafts/${bobChildDraftId}`)).status()).toBe(
-          404,
+          bob.getByRole("button", { name: "Draft saved", exact: true }),
+        ).toBeDisabled();
+        await bob.reload();
+        await expect(bob.getByLabel("Title", { exact: true })).toHaveValue(
+          childTitle,
         );
+        const resumedIngredient = bob.getByRole("group", {
+          name: "Ingredient 1",
+          exact: true,
+        });
+        await resumedIngredient
+          .getByRole("button", {
+            name: "Edit amount for ingredient 1",
+            exact: true,
+          })
+          .click();
+        const resumedAmountEditor = resumedIngredient.getByRole("dialog", {
+          name: "Amount for ingredient 1",
+          exact: true,
+        });
+        await expect(
+          resumedAmountEditor.getByRole("textbox", {
+            name: "Amount",
+            exact: true,
+          }),
+        ).toHaveValue("200");
+        await resumedAmountEditor
+          .getByRole("button", { name: "Done", exact: true })
+          .click();
+        await bob
+          .getByRole("tab", { name: "Cooking breakdown", exact: true })
+          .click();
+        await bob
+          .getByRole("button", {
+            name: "Edit cooking detail 1 for Step 1",
+            exact: true,
+          })
+          .click();
+        const resumedAction = bob.getByRole("dialog", {
+          name: "Cooking detail 1 for Step 1",
+          exact: true,
+        });
+        await expect(
+          resumedAction.getByRole("textbox", {
+            name: "Duration",
+            exact: true,
+          }),
+        ).toHaveValue("20.000000");
+        await resumedAction
+          .getByRole("button", { name: "Done", exact: true })
+          .click();
+
+        expect(
+          (
+            await alice.request.get(`/api/recipe-drafts/${bobChildDraftId}`)
+          ).status(),
+        ).toBe(404);
         const bobDraftBeforeEdit = await bob.request.get(
           `/api/recipe-drafts/${bobChildDraftId}`,
         );
@@ -913,7 +1270,9 @@ test.describe("RCP-32 two-user community release gate", () => {
         const bobDraftBeforeEditPayload = await jsonRecord(bobDraftBeforeEdit);
         const bobDraftRevision = bobDraftBeforeEditPayload.revision;
         if (typeof bobDraftRevision !== "number") {
-          throw new Error("Bob's active draft did not expose its numeric revision.");
+          throw new Error(
+            "Bob's active draft did not expose its numeric revision.",
+          );
         }
         const forbiddenEdit = await alice.request.put(
           `/api/recipe-drafts/${bobChildDraftId}`,
@@ -931,7 +1290,9 @@ test.describe("RCP-32 two-user community release gate", () => {
           },
         );
         expect(forbiddenEdit.status()).toBe(404);
-        const bobDraftAfterEdit = await bob.request.get(`/api/recipe-drafts/${bobChildDraftId}`);
+        const bobDraftAfterEdit = await bob.request.get(
+          `/api/recipe-drafts/${bobChildDraftId}`,
+        );
         expect(bobDraftAfterEdit.status()).toBe(200);
         const bobDraftAfterEditPayload = await jsonRecord(bobDraftAfterEdit);
         expect(bobDraftAfterEditPayload.title).toBe(childTitle);
@@ -943,16 +1304,20 @@ test.describe("RCP-32 two-user community release gate", () => {
         );
         probablePreflightId = childPublication.preflightId;
         childRecipeVersionId = childPublication.recipeVersionId;
-        await expect(bob.getByRole("heading", { name: childTitle, level: 1 })).toBeVisible();
+        await expect(
+          bob.getByRole("heading", { name: childTitle, level: 1 }),
+        ).toBeVisible();
         await expect(
           bob.getByRole("link", { name: "Bob Cook", exact: true }).first(),
         ).toHaveAttribute("href", "/cooks/rcp32_bob");
         await expect(
           bob.getByRole("link", { name: /Based on.*RCP32 Atlas Leaf Knot/i }),
         ).toHaveAttribute("href", `/recipes/${rootRecipeVersionId}`);
-        expect((await alice.request.get(`/api/recipe-drafts/${bobChildDraftId}`)).status()).toBe(
-          404,
-        );
+        expect(
+          (
+            await alice.request.get(`/api/recipe-drafts/${bobChildDraftId}`)
+          ).status(),
+        ).toBe(404);
       });
 
       await test.step("prove immutable authorship, full direct-parent diff, and safe public payloads", async () => {
@@ -990,38 +1355,52 @@ test.describe("RCP-32 two-user community release gate", () => {
 
           await publicPage.goto(`/recipes/${rootRecipeVersionId}`);
           await expect(
-            publicPage.getByRole("link", { name: "Alice Cook", exact: true }).first(),
+            publicPage
+              .getByRole("link", { name: "Alice Cook", exact: true })
+              .first(),
           ).toHaveAttribute("href", "/cooks/rcp32_alice");
           await publicPage.goto(`/recipes/${childRecipeVersionId}`);
           await expect(
-            publicPage.getByRole("link", { name: "Bob Cook", exact: true }).first(),
+            publicPage
+              .getByRole("link", { name: "Bob Cook", exact: true })
+              .first(),
           ).toHaveAttribute("href", "/cooks/rcp32_bob");
-          await publicPage.getByRole("link", { name: "See what changed", exact: true }).click();
+          await publicPage
+            .getByRole("link", { name: "See what changed", exact: true })
+            .click();
           await expect(
             publicPage.getByRole("heading", {
               name: `How ${childTitle} changed`,
               level: 1,
             }),
           ).toBeVisible();
-          const summary = publicPage.getByRole("list", { name: "Changes at a glance" });
+          const summary = publicPage.getByRole("list", {
+            name: "Changes at a glance",
+          });
           await expect(summary).toContainText(
             `Change ${requestedIngredient} from 100 g to 200 g.`,
           );
-          await expect(summary).toContainText(`Update step 1: ${childDirection}`);
+          await expect(summary).toContainText(
+            `Update step 1: ${childDirection}`,
+          );
           const ingredientChange = publicPage.getByRole("article", {
             name: `Change ${requestedIngredient} from 100 g to 200 g`,
           });
           await expect(ingredientChange).toContainText("Amount changed");
           await expect(ingredientChange).toContainText("100 g");
           await expect(ingredientChange).toContainText("200 g");
-          const instructionChange = publicPage.getByRole("article", { name: "Update step 1" });
+          const instructionChange = publicPage.getByRole("article", {
+            name: "Update step 1",
+          });
           await expect(instructionChange).toContainText("Wording changed");
           await expect(instructionChange).toContainText("Timing changed");
           await expect(instructionChange).toContainText(rootDirection);
           await expect(instructionChange).toContainText(childDirection);
           await expect(instructionChange).toContainText("10 min");
           await expect(instructionChange).toContainText("20 min");
-          const titleChange = publicPage.getByRole("article", { name: "Title" });
+          const titleChange = publicPage.getByRole("article", {
+            name: "Title",
+          });
           await expect(titleChange).toContainText(rootTitle);
           await expect(titleChange).toContainText(childTitle);
           await expectNoAccessibilityViolations(publicPage);
@@ -1031,9 +1410,11 @@ test.describe("RCP-32 two-user community release gate", () => {
       });
 
       await test.step("deny Alice cross-user draft, withdrawal, author, and moderation powers", async () => {
-        expect((await alice.request.get(`/api/recipe-drafts/${bobChildDraftId}`)).status()).toBe(
-          404,
-        );
+        expect(
+          (
+            await alice.request.get(`/api/recipe-drafts/${bobChildDraftId}`)
+          ).status(),
+        ).toBe(404);
         const unauthorizedWithdrawal = await alice.request.put(
           `/api/recipes/${childRecipeVersionId}/visibility`,
           {
@@ -1045,29 +1426,48 @@ test.describe("RCP-32 two-user community release gate", () => {
           },
         );
         expect(unauthorizedWithdrawal.status()).toBe(404);
-        expect((await alice.request.get("/api/moderation/recipe-reports")).status()).toBe(403);
+        expect(
+          (await alice.request.get("/api/moderation/recipe-reports")).status(),
+        ).toBe(403);
         await alice.goto("/account/recipes?view=published");
-        await expect(alice.getByRole("article", { name: childTitle, exact: true })).toHaveCount(0);
+        await expect(
+          alice.getByRole("article", { name: childTitle, exact: true }),
+        ).toHaveCount(0);
 
-        const aliceRecommendations = await alice.request.get("/api/recommendations?limit=50");
-        const bobRecommendations = await bob.request.get("/api/recommendations?limit=50");
+        const aliceRecommendations = await alice.request.get(
+          "/api/recommendations?limit=50",
+        );
+        const bobRecommendations = await bob.request.get(
+          "/api/recommendations?limit=50",
+        );
         expect(aliceRecommendations.status()).toBe(200);
         expect(bobRecommendations.status()).toBe(200);
-        const aliceRecommendationPayload = await jsonRecord(aliceRecommendations);
+        const aliceRecommendationPayload =
+          await jsonRecord(aliceRecommendations);
         const bobRecommendationPayload = await jsonRecord(bobRecommendations);
-        const recommendationIds = (payload: Record<string, unknown>): string[] =>
+        const recommendationIds = (
+          payload: Record<string, unknown>,
+        ): string[] =>
           Array.isArray(payload.items)
             ? payload.items.flatMap((item) =>
-                isRecord(item) && isRecord(item.recipe) && typeof item.recipe.id === "string"
+                isRecord(item) &&
+                isRecord(item.recipe) &&
+                typeof item.recipe.id === "string"
                   ? [item.recipe.id]
                   : [],
               )
             : [];
         expect(aliceRecommendationPayload.personalized).toBe(true);
         expect(bobRecommendationPayload.personalized).toBe(true);
-        expect(recommendationIds(aliceRecommendationPayload)).toContain(childRecipeVersionId);
-        expect(recommendationIds(bobRecommendationPayload)).not.toContain(childRecipeVersionId);
-        expect(recommendationIds(bobRecommendationPayload)).not.toContain(rootRecipeVersionId);
+        expect(recommendationIds(aliceRecommendationPayload)).toContain(
+          childRecipeVersionId,
+        );
+        expect(recommendationIds(bobRecommendationPayload)).not.toContain(
+          childRecipeVersionId,
+        );
+        expect(recommendationIds(bobRecommendationPayload)).not.toContain(
+          rootRecipeVersionId,
+        );
         expectPublicPayloadSafe(aliceRecommendationPayload);
         expectPublicPayloadSafe(bobRecommendationPayload);
       });
@@ -1109,29 +1509,39 @@ test.describe("RCP-32 two-user community release gate", () => {
             response.request().method() === "POST" &&
             new URL(response.url()).pathname === "/api/auth/logout",
         );
-        await bob.getByRole("button", { name: "Sign out", exact: true }).click();
+        await bob
+          .getByRole("button", { name: "Sign out", exact: true })
+          .click();
         expect((await signOutResponse).status()).toBe(204);
-        await expect(bob).toHaveURL("/");
+        await expect(bob).toHaveURL("/recipes");
         await expect(
-          bob.getByRole("banner").getByRole("link", { name: "Sign in", exact: true }),
+          bob
+            .getByRole("banner")
+            .getByRole("link", { name: "Sign in", exact: true }),
         ).toBeVisible();
-        await expect(bob.getByLabel("Account menu for Bob Cook")).toHaveCount(0);
+        await expect(bob.getByLabel("Account menu for Bob Cook")).toHaveCount(
+          0,
+        );
         const anonymousSession = await bob.request.get("/api/auth/session");
         expect(anonymousSession.status()).toBe(200);
         expect(await anonymousSession.json()).toEqual({ status: "anonymous" });
 
         await bob.goto(`/recipes/${childRecipeVersionId}`);
         await expect(
-          bob.getByRole("link", { name: "Sign in to make your own version", exact: true }),
+          bob.getByRole("link", { name: "Make your own version", exact: true }),
         ).toBeVisible();
-        await expect(bob.getByRole("region", { name: "Member recipe actions" })).toContainText(
-          "Sign in to save or rate this recipe and make your own version.",
-        );
-        await expect(bob.getByRole("button", { name: "Save recipe", exact: true })).toHaveCount(0);
-        await expect(bob.getByRole("radio", { name: /stars?$/i })).toHaveCount(0);
-        await expect(bob.getByRole("button", { name: "Report recipe", exact: true })).toHaveCount(
-          0,
-        );
+        await expect(
+          bob.getByRole("button", { name: "Save recipe", exact: true }),
+        ).toBeVisible();
+        await bob
+          .getByRole("button", { name: "Rate recipe", exact: true })
+          .click();
+        await expect(
+          bob.getByRole("dialog", { name: "Sign in to rate recipes" }),
+        ).toBeVisible();
+        await expect(
+          bob.getByRole("button", { name: "Report recipe", exact: true }),
+        ).toHaveCount(0);
 
         const signedOutWrite = await bob.request.put(
           `/api/recipes/${rootRecipeVersionId}/rating`,
@@ -1150,43 +1560,80 @@ test.describe("RCP-32 two-user community release gate", () => {
 
         const reauthenticated = await signInExistingRcp32Identity(bob, "bob");
         expect(reauthenticated.user.id).toBe(bobUserId);
-        const unchanged = await bob.request.get(`/api/recipes/${rootRecipeVersionId}`);
-        expect(unchanged.status()).toBe(200);
-        expect(viewerStateFromRecipe(await jsonRecord(unchanged), rootRecipeVersionId)).toEqual(
-          bobRootState,
+        const unchanged = await bob.request.get(
+          `/api/recipes/${rootRecipeVersionId}`,
         );
+        expect(unchanged.status()).toBe(200);
+        expect(
+          viewerStateFromRecipe(
+            await jsonRecord(unchanged),
+            rootRecipeVersionId,
+          ),
+        ).toEqual(bobRootState);
       });
 
       await test.step("submit one private report and keep ordinary members and curators out", async () => {
         await bob.goto(`/recipes/${rootRecipeVersionId}`);
-        await bob.getByRole("button", { name: "Report recipe", exact: true }).click();
         await bob
-          .getByRole("radio", { name: "Spam or misleading content", exact: true })
+          .getByRole("button", { name: "Report recipe", exact: true })
+          .click();
+        await bob
+          .getByRole("radio", {
+            name: "Spam or misleading content",
+            exact: true,
+          })
           .check();
-        await bob.getByLabel("Additional details (optional)").fill(reportCanary);
+        await bob
+          .getByLabel("Additional details (optional)")
+          .fill(reportCanary);
         const reportResponse = bob.waitForResponse(
           (response) =>
             response.request().method() === "POST" &&
-            response.url().endsWith(`/api/recipes/${rootRecipeVersionId}/reports`),
+            response
+              .url()
+              .endsWith(`/api/recipes/${rootRecipeVersionId}/reports`),
         );
-        await bob.getByRole("button", { name: "Submit private report", exact: true }).click();
+        await bob
+          .getByRole("button", { name: "Submit private report", exact: true })
+          .click();
         const reportReceipt = await reportResponse;
         expect(reportReceipt.status()).toBe(201);
-        reportId = requireUuid((await jsonRecord(reportReceipt)).id, "private report ID");
+        reportId = requireUuid(
+          (await jsonRecord(reportReceipt)).id,
+          "private report ID",
+        );
         await expect(
-          bob.getByText("Report received. Thank you for helping keep Recipe Lab safe.", {
-            exact: true,
-          }),
+          bob.getByText(
+            "Report received. Thank you for helping keep Recipe Lab safe.",
+            {
+              exact: true,
+            },
+          ),
         ).toBeVisible();
 
-        expect((await bob.request.get("/api/moderation/recipe-reports")).status()).toBe(403);
-        expect((await alice.request.get("/api/moderation/recipe-reports")).status()).toBe(403);
-        expect((await curator.request.get("/api/moderation/recipe-reports")).status()).toBe(403);
+        expect(
+          (await bob.request.get("/api/moderation/recipe-reports")).status(),
+        ).toBe(403);
+        expect(
+          (await alice.request.get("/api/moderation/recipe-reports")).status(),
+        ).toBe(403);
+        expect(
+          (
+            await curator.request.get("/api/moderation/recipe-reports")
+          ).status(),
+        ).toBe(403);
         await curator.goto("/moderation/recipes");
         await expect(
-          curator.getByRole("heading", { name: "We couldn’t find that page.", level: 1 }),
+          curator.getByRole("heading", {
+            name: "We couldn’t find that page.",
+            level: 1,
+          }),
         ).toBeVisible();
-        await expectFreshAnonymousRecipeSafe(browser, rootRecipeVersionId, rootTitle);
+        await expectFreshAnonymousRecipeSafe(
+          browser,
+          rootRecipeVersionId,
+          rootTitle,
+        );
       });
 
       await test.step("grant the separate moderator role, hide safely, restore, resolve, and revoke", async () => {
@@ -1196,36 +1643,59 @@ test.describe("RCP-32 two-user community release gate", () => {
         expect(granted.capabilities.review_ingredient_requests).toBe(false);
         await moderator.goto("/");
         await moderator.getByLabel("Account menu for Morgan Moderator").click();
-        await moderator.getByRole("link", { name: "Review recipe reports" }).click();
+        await moderator.getByRole("link", { name: "Staff tools" }).click();
+        await moderator
+          .getByRole("link", { name: "Open recipe reports" })
+          .click();
         await expect(moderator).toHaveURL("/moderation/recipes");
         await expect(
           moderator.getByRole("heading", { name: "Recipe reports", level: 1 }),
         ).toBeVisible();
-        await expect(moderator.getByRole("heading", { name: rootTitle, level: 2 })).toBeVisible();
-        await expect(moderator.getByText(reportCanary, { exact: true })).toBeVisible();
+        await expect(
+          moderator.getByRole("heading", { name: rootTitle, level: 2 }),
+        ).toBeVisible();
+        await expect(
+          moderator.getByText(reportCanary, { exact: true }),
+        ).toBeVisible();
         await expectNoAccessibilityViolations(moderator);
 
-        await moderator.getByLabel("Private note (optional)").fill(moderatorNoteCanary);
+        await moderator
+          .getByLabel("Private note (optional)")
+          .fill(moderatorNoteCanary);
         const hideResponse = moderator.waitForResponse(
           (response) =>
             response.request().method() === "POST" &&
-            response.url().endsWith(
-              `/api/moderation/recipe-reports/${rootRecipeVersionId}/actions`,
-            ),
+            response
+              .url()
+              .endsWith(
+                `/api/moderation/recipe-reports/${rootRecipeVersionId}/actions`,
+              ),
         );
-        await moderator.getByRole("button", { name: "Hide recipe", exact: true }).click();
+        await moderator
+          .getByRole("button", { name: "Hide recipe", exact: true })
+          .click();
         expect((await hideResponse).status()).toBe(200);
         await expect(
-          moderator.getByText(/Recipe hidden\. The moderation record was updated\./),
+          moderator.getByText(
+            /Recipe hidden\. The moderation record was updated\./,
+          ),
         ).toBeVisible();
 
         const publicContext = await browser.newContext({ baseURL: baseUrl });
         const publicPage = await publicContext.newPage();
         try {
-          expect((await publicPage.request.get(`/api/recipes/${rootRecipeVersionId}`)).status()).toBe(
-            404,
+          expect(
+            (
+              await publicPage.request.get(
+                `/api/recipes/${rootRecipeVersionId}`,
+              )
+            ).status(),
+          ).toBe(404);
+          await expectAnonymousDiscoveryExcludes(
+            publicPage,
+            rootRecipeVersionId,
+            rootTitle,
           );
-          await expectAnonymousDiscoveryExcludes(publicPage, rootRecipeVersionId, rootTitle);
           const survivingChild = await publicPage.request.get(
             `/api/recipes/${childRecipeVersionId}`,
           );
@@ -1235,13 +1705,21 @@ test.describe("RCP-32 two-user community release gate", () => {
           expect(survivingPayload.parent).toBeNull();
           expectPublicPayloadSafe(survivingPayload);
           await publicPage.goto(`/recipes/${childRecipeVersionId}`);
-          await expect(publicPage.getByRole("heading", { name: childTitle, level: 1 })).toBeVisible();
-          await expect(publicPage.locator(".recipe-detail__parent-context").first()).toHaveText(
-            "Source unavailable",
-          );
-          await expect(publicPage.getByText(rootTitle, { exact: true })).toHaveCount(0);
-          await expect(publicPage.getByText(reportCanary, { exact: true })).toHaveCount(0);
-          await expect(publicPage.getByText(moderatorNoteCanary, { exact: true })).toHaveCount(0);
+          await expect(
+            publicPage.getByRole("heading", { name: childTitle, level: 1 }),
+          ).toBeVisible();
+          await expect(
+            publicPage.locator(".recipe-detail__parent-context").first(),
+          ).toHaveText("Source unavailable");
+          await expect(
+            publicPage.getByText(rootTitle, { exact: true }),
+          ).toHaveCount(0);
+          await expect(
+            publicPage.getByText(reportCanary, { exact: true }),
+          ).toHaveCount(0);
+          await expect(
+            publicPage.getByText(moderatorNoteCanary, { exact: true }),
+          ).toHaveCount(0);
         } finally {
           await publicContext.close();
         }
@@ -1251,7 +1729,9 @@ test.describe("RCP-32 two-user community release gate", () => {
           name: rootTitle,
           exact: true,
         });
-        await expect(hiddenAuthorCard.getByText("Hidden by moderation", { exact: true })).toBeVisible();
+        await expect(
+          hiddenAuthorCard.getByText("Original", { exact: true }),
+        ).toBeVisible();
         await expect(
           hiddenAuthorCard.getByText(
             "This recipe is hidden by moderation. Its visibility cannot be changed here.",
@@ -1265,29 +1745,49 @@ test.describe("RCP-32 two-user community release gate", () => {
         const restoreResponse = moderator.waitForResponse(
           (response) =>
             response.request().method() === "POST" &&
-            response.url().endsWith(
-              `/api/moderation/recipe-reports/${rootRecipeVersionId}/actions`,
-            ),
+            response
+              .url()
+              .endsWith(
+                `/api/moderation/recipe-reports/${rootRecipeVersionId}/actions`,
+              ),
         );
-        await moderator.getByRole("button", { name: "Restore recipe", exact: true }).click();
+        await moderator
+          .getByRole("button", { name: "Restore recipe", exact: true })
+          .click();
         expect((await restoreResponse).status()).toBe(200);
         await expect(
-          moderator.getByText(/Recipe restored\. The moderation record was updated\./),
+          moderator.getByText(
+            /Recipe restored\. The moderation record was updated\./,
+          ),
         ).toBeVisible();
-        await expectFreshAnonymousRecipeSafe(browser, rootRecipeVersionId, rootTitle);
+        await expectFreshAnonymousRecipeSafe(
+          browser,
+          rootRecipeVersionId,
+          rootTitle,
+        );
 
         const resolveResponse = moderator.waitForResponse(
           (response) =>
             response.request().method() === "POST" &&
-            response.url().endsWith(
-              `/api/moderation/recipe-reports/${rootRecipeVersionId}/actions`,
-            ),
+            response
+              .url()
+              .endsWith(
+                `/api/moderation/recipe-reports/${rootRecipeVersionId}/actions`,
+              ),
         );
-        await moderator.getByRole("button", { name: "Resolve case", exact: true }).click();
+        await moderator
+          .getByRole("button", { name: "Resolve case", exact: true })
+          .click();
         expect((await resolveResponse).status()).toBe(200);
-        await moderator.getByRole("button", { name: "Resolved", exact: true }).click();
-        await expect(moderator.getByRole("heading", { name: rootTitle, level: 2 })).toBeVisible();
-        await expect(moderator.getByText("Resolved case", { exact: true })).toBeVisible();
+        await moderator
+          .getByRole("button", { name: "Resolved", exact: true })
+          .click();
+        await expect(
+          moderator.getByRole("heading", { name: rootTitle, level: 2 }),
+        ).toBeVisible();
+        await expect(
+          moderator.getByText("Resolved case", { exact: true }),
+        ).toBeVisible();
 
         await moderator.setViewportSize({ width: 390, height: 844 });
         await expectNoHorizontalOverflow(moderator);
@@ -1296,39 +1796,69 @@ test.describe("RCP-32 two-user community release gate", () => {
         const revoked = await readRcp32Session(moderator);
         expect(revoked.capabilities.moderate_recipe_reports).toBe(false);
         expect(revoked.capabilities.review_ingredient_requests).toBe(false);
-        expect((await moderator.request.get("/api/moderation/recipe-reports")).status()).toBe(403);
+        expect(
+          (
+            await moderator.request.get("/api/moderation/recipe-reports")
+          ).status(),
+        ).toBe(403);
       });
 
       await test.step("withdraw only Alice's parent while every public child survives", async () => {
         await alice.goto("/account/recipes?view=published");
-        let rootCard = alice.getByRole("article", { name: rootTitle, exact: true });
-        await rootCard.getByRole("button", { name: `Withdraw ${rootTitle}` }).click();
+        let rootCard = alice.getByRole("article", {
+          name: rootTitle,
+          exact: true,
+        });
+        await rootCard
+          .getByRole("button", { name: `Withdraw ${rootTitle}` })
+          .click();
         const withdrawalResponse = alice.waitForResponse(
           (response) =>
             response.request().method() === "PUT" &&
-            response.url().endsWith(`/api/recipes/${rootRecipeVersionId}/visibility`),
+            response
+              .url()
+              .endsWith(`/api/recipes/${rootRecipeVersionId}/visibility`),
         );
         await rootCard
           .getByRole("button", { name: `Confirm withdrawal of ${rootTitle}` })
           .click();
         expect((await withdrawalResponse).status()).toBe(200);
-        await expect(alice.getByRole("status")).toHaveText(`${rootTitle} moved to Withdrawn.`);
+        await expect(alice.getByRole("status")).toHaveText(
+          `${rootTitle} moved to Withdrawn.`,
+        );
         await expect(rootCard).toHaveCount(0);
 
         await alice.goto("/account/recipes?view=withdrawn");
         rootCard = alice.getByRole("article", { name: rootTitle, exact: true });
-        await expect(rootCard.getByText("Withdrawn", { exact: true })).toBeVisible();
-        await expect(rootCard.getByRole("link", { name: rootTitle, exact: true })).toHaveCount(0);
+        await expect(
+          rootCard.getByText("Original", { exact: true }),
+        ).toBeVisible();
+        await expect(
+          rootCard.getByRole("link", { name: rootTitle, exact: true }),
+        ).toHaveCount(0);
 
         const publicContext = await browser.newContext({ baseURL: baseUrl });
         const publicPage = await publicContext.newPage();
         try {
-          expect((await publicPage.request.get(`/api/recipes/${rootRecipeVersionId}`)).status()).toBe(
-            404,
+          expect(
+            (
+              await publicPage.request.get(
+                `/api/recipes/${rootRecipeVersionId}`,
+              )
+            ).status(),
+          ).toBe(404);
+          await expectAnonymousDiscoveryExcludes(
+            publicPage,
+            rootRecipeVersionId,
+            rootTitle,
           );
-          await expectAnonymousDiscoveryExcludes(publicPage, rootRecipeVersionId, rootTitle);
-          for (const retainedVersionId of [exactRecipeVersionId, childRecipeVersionId]) {
-            const retained = await publicPage.request.get(`/api/recipes/${retainedVersionId}`);
+          for (const retainedVersionId of [
+            exactRecipeVersionId,
+            childRecipeVersionId,
+          ]) {
+            const retained = await publicPage.request.get(
+              `/api/recipes/${retainedVersionId}`,
+            );
             expect(retained.status()).toBe(200);
             const retainedPayload = await jsonRecord(retained);
             expect(retainedPayload.parent_version_id).toBe(rootRecipeVersionId);
@@ -1336,11 +1866,15 @@ test.describe("RCP-32 two-user community release gate", () => {
             expectPublicPayloadSafe(retainedPayload);
           }
           await publicPage.goto(`/recipes/${childRecipeVersionId}`);
-          await expect(publicPage.getByRole("heading", { name: childTitle, level: 1 })).toBeVisible();
-          await expect(publicPage.locator(".recipe-detail__parent-context").first()).toHaveText(
-            "Source unavailable",
-          );
-          await expect(publicPage.getByText(rootTitle, { exact: true })).toHaveCount(0);
+          await expect(
+            publicPage.getByRole("heading", { name: childTitle, level: 1 }),
+          ).toBeVisible();
+          await expect(
+            publicPage.locator(".recipe-detail__parent-context").first(),
+          ).toHaveText("Source unavailable");
+          await expect(
+            publicPage.getByText(rootTitle, { exact: true }),
+          ).toHaveCount(0);
         } finally {
           await publicContext.close();
         }
@@ -1354,10 +1888,12 @@ test.describe("RCP-32 two-user community release gate", () => {
         const phone = await phoneContext.newPage();
         try {
           await phone.goto(`/recipes/${childRecipeVersionId}`);
-          await expect(phone.getByRole("heading", { name: childTitle, level: 1 })).toBeVisible();
-          await expect(phone.locator(".recipe-detail__parent-context").first()).toHaveText(
-            "Source unavailable",
-          );
+          await expect(
+            phone.getByRole("heading", { name: childTitle, level: 1 }),
+          ).toBeVisible();
+          await expect(
+            phone.locator(".recipe-detail__parent-context").first(),
+          ).toHaveText("Source unavailable");
           await expectNoHorizontalOverflow(phone);
           await expectNoAccessibilityViolations(phone);
         } finally {
@@ -1385,8 +1921,9 @@ test.describe("RCP-32 two-user community release gate", () => {
       await test.step("delete Bob last and retain tombstoned public lineage", async () => {
         await bob.goto("/account/settings");
         await expect(
-          bob.getByRole("heading", { name: "Account settings", level: 1 }),
+          bob.getByRole("heading", { name: "Settings", level: 1 }),
         ).toBeVisible();
+        await bob.getByRole("tab", { name: "Danger zone" }).click();
         await bob
           .getByRole("checkbox", { name: /account deletion is permanent/i })
           .check();
@@ -1396,11 +1933,16 @@ test.describe("RCP-32 two-user community release gate", () => {
             response.request().method() === "DELETE" &&
             response.url().endsWith("/api/auth/account"),
         );
-        await bob.getByRole("button", { name: "Permanently delete account" }).click();
+        await bob
+          .getByRole("button", { name: "Permanently delete account" })
+          .click();
         expect((await deletionResponse).status()).toBe(204);
         await expect(bob).toHaveURL("/account/deleted");
         await expect(
-          bob.getByRole("heading", { name: "Your account has been deleted.", level: 1 }),
+          bob.getByRole("heading", {
+            name: "Your account has been deleted.",
+            level: 1,
+          }),
         ).toBeVisible();
         const deletedSession = await bob.request.get("/api/auth/session");
         expect(deletedSession.status()).toBe(200);
@@ -1416,7 +1958,9 @@ test.describe("RCP-32 two-user community release gate", () => {
           const childPayload = await jsonRecord(childResponse);
           const author = childPayload.author;
           if (!isRecord(author)) {
-            throw new Error("The retained child lost its public author contract.");
+            throw new Error(
+              "The retained child lost its public author contract.",
+            );
           }
           expect(author.display_name).toBe("Deleted cook");
           expect(author.handle).toBeNull();
@@ -1424,20 +1968,34 @@ test.describe("RCP-32 two-user community release gate", () => {
           expect(childPayload.parent).toBeNull();
           expectPublicPayloadSafe(childPayload);
           await publicPage.goto(`/recipes/${childRecipeVersionId}`);
-          await expect(publicPage.getByRole("heading", { name: childTitle, level: 1 })).toBeVisible();
           await expect(
-            publicPage.getByRole("main").getByText("By Deleted cook", { exact: true }).first(),
+            publicPage.getByRole("heading", { name: childTitle, level: 1 }),
           ).toBeVisible();
-          await expect(publicPage.getByRole("link", { name: "Deleted cook" })).toHaveCount(0);
+          await expect(
+            publicPage
+              .getByRole("main")
+              .getByText("By Deleted cook", { exact: true })
+              .first(),
+          ).toBeVisible();
+          await expect(
+            publicPage.getByRole("link", { name: "Deleted cook" }),
+          ).toHaveCount(0);
           await expect(
             publicPage.getByRole("main").getByText("Based on", { exact: true }),
           ).toBeVisible();
-          await expect(publicPage.getByText("Source unavailable", { exact: true }).first()).toBeVisible();
+          await expect(
+            publicPage.getByText("Source unavailable", { exact: true }).first(),
+          ).toBeVisible();
           await publicPage.goto("/cooks/rcp32_bob");
           await expect(
-            publicPage.getByRole("heading", { name: "We couldn’t find that cook.", level: 1 }),
+            publicPage.getByRole("heading", {
+              name: "We couldn’t find that cook.",
+              level: 1,
+            }),
           ).toBeVisible();
-          expect((await publicPage.request.get("/api/cooks/rcp32_bob")).status()).toBe(404);
+          expect(
+            (await publicPage.request.get("/api/cooks/rcp32_bob")).status(),
+          ).toBe(404);
         } finally {
           await publicContext.close();
         }

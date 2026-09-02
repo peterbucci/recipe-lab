@@ -1,12 +1,20 @@
 "use client";
 
-import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { createPortal } from "react-dom";
 
 import {
   IngredientCatalogApiError,
   type MissingIngredientRequest,
   submitMissingIngredientRequest,
 } from "../../lib/ingredient-catalog-api";
+import { LoadingButton } from "./loading-ui";
 
 interface MissingIngredientRequestPanelProps {
   disabled?: boolean;
@@ -20,6 +28,10 @@ interface RequestFieldErrors {
   context?: string;
   proposedName?: string;
 }
+
+const subscribeToClient = () => () => undefined;
+const clientSnapshot = () => true;
+const serverSnapshot = () => false;
 
 function validateRequest(proposedName: string, context: string): RequestFieldErrors {
   const errors: RequestFieldErrors = {};
@@ -42,6 +54,7 @@ export function MissingIngredientRequestPanel({
   onClose,
   onSubmitted,
 }: MissingIngredientRequestPanelProps) {
+  const dialogRef = useRef<HTMLElement>(null);
   const proposedNameRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
   const [proposedName, setProposedName] = useState(initialName);
@@ -51,10 +64,21 @@ export function MissingIngredientRequestPanel({
   const [statusMessage, setStatusMessage] = useState("");
   const [pending, setPending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const portalReady = useSyncExternalStore(
+    subscribeToClient,
+    clientSnapshot,
+    serverSnapshot,
+  );
 
   useEffect(() => {
+    if (!portalReady) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     proposedNameRef.current?.focus();
-  }, []);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [portalReady]);
 
   function clearFieldError(field: keyof RequestFieldErrors) {
     setFormError("");
@@ -116,34 +140,83 @@ export function MissingIngredientRequestPanel({
     }
   }
 
+  function handleDialogKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape") {
+      if (!pending && !disabled) {
+        event.preventDefault();
+        onClose();
+      }
+      return;
+    }
+    if (event.key !== "Tab") return;
+
+    const focusable = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    );
+    if (focusable.length === 0) {
+      event.preventDefault();
+      event.currentTarget.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   const nameHelpId = `${idPrefix}-request-name-help`;
   const nameErrorId = `${idPrefix}-request-name-error`;
   const contextHelpId = `${idPrefix}-request-context-help`;
   const contextErrorId = `${idPrefix}-request-context-error`;
+  const summaryId = `${idPrefix}-request-summary`;
 
-  return (
-    <section
-      className="ingredient-request-panel"
-      aria-busy={pending}
-      aria-labelledby={`${idPrefix}-request-heading`}
+  if (!portalReady || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="ingredient-request-modal__backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !pending && !disabled) {
+          onClose();
+        }
+      }}
     >
-      <div className="ingredient-request-panel__header">
-        <div>
+      <section
+        ref={dialogRef}
+        id={`${idPrefix}-request-dialog`}
+        className="ingredient-request-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-busy={pending}
+        aria-labelledby={`${idPrefix}-request-heading`}
+        aria-describedby={summaryId}
+        tabIndex={-1}
+        onKeyDown={handleDialogKeyDown}
+      >
+        <div className="ingredient-request-panel__header">
           <h3 id={`${idPrefix}-request-heading`}>Request a missing ingredient</h3>
-          <p>
-            This sends a separate catalog request. It will not add the proposed name to your
-            recipe or make it selectable before review.
-          </p>
+          <button
+            className="ingredient-request-panel__close"
+            type="button"
+            aria-label="Close ingredient request dialog"
+            disabled={pending || disabled}
+            onClick={onClose}
+          >
+            <span aria-hidden="true">×</span>
+          </button>
         </div>
-        <button
-          className="button button--quiet"
-          type="button"
-          disabled={pending || disabled}
-          onClick={onClose}
-        >
-          {submitted ? "Close request" : "Cancel request"}
-        </button>
-      </div>
+
+        <p id={summaryId} className="ingredient-request-panel__summary">
+          This sends a separate catalog request. It will not add the proposed name to your
+          recipe or make it selectable before review.
+        </p>
 
       <div className="recipe-form-field">
         <label htmlFor={`${idPrefix}-request-name`}>Proposed ingredient name</label>
@@ -208,18 +281,28 @@ export function MissingIngredientRequestPanel({
         {statusMessage}
       </p>
 
-      <button
-        className="button button--secondary"
-        type="button"
-        disabled={pending || disabled || submitted}
-        onClick={() => void submitRequest()}
-      >
-        {submitted
-          ? "Request submitted"
-          : pending
-            ? "Submitting request…"
-            : "Submit catalog request"}
-      </button>
-    </section>
+        <div className="ingredient-request-panel__actions">
+          <LoadingButton
+            className="button button--primary"
+            type="button"
+            disabled={disabled || submitted}
+            pending={pending}
+            pendingLabel="Submitting request…"
+            onClick={() => void submitRequest()}
+          >
+            {submitted ? "Request submitted" : "Submit catalog request"}
+          </LoadingButton>
+          <button
+            className="button button--secondary"
+            type="button"
+            disabled={pending || disabled}
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+        </div>
+      </section>
+    </div>,
+    document.body,
   );
 }

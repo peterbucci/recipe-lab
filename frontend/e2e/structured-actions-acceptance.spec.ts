@@ -4,17 +4,32 @@ import { expect, test, type Page } from "@playwright/test";
 import { useAcceptanceMember } from "./acceptance-session";
 
 async function confirmPublicationRequirements(page: Page): Promise<void> {
-  await page.getByRole("checkbox", { name: /agree to the community rules/i }).check();
-  await page.getByRole("checkbox", { name: /right to share it/i }).check();
+  await page
+    .getByRole("button", { name: /^(?:Finish recipe|Publish draft)$/ })
+    .click();
+  await page
+    .getByRole("checkbox", {
+      name: /right to share this recipe.*community rules/i,
+    })
+    .check();
 }
 
-async function expectNoAccessibilityViolations(page: import("@playwright/test").Page) {
+async function expectNoAccessibilityViolations(
+  page: import("@playwright/test").Page,
+) {
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .analyze();
   expect(
     results.violations,
-    JSON.stringify(results.violations.map((item) => ({ id: item.id, targets: item.nodes.map((node) => node.target) })), null, 2),
+    JSON.stringify(
+      results.violations.map((item) => ({
+        id: item.id,
+        targets: item.nodes.map((node) => node.target),
+      })),
+      null,
+      2,
+    ),
   ).toEqual([]);
 }
 
@@ -26,8 +41,11 @@ test.describe("structured cooking action acceptance", () => {
     "Structured action acceptance requires the isolated, freshly seeded database.",
   );
 
-  test("edits, validates, orders, saves, and resumes structured actions in a fork draft", async ({ page }) => {
+  test("edits, validates, orders, saves, and resumes structured actions in a fork draft", async ({
+    page,
+  }) => {
     const draftTitle = "Structured Action Carrot Draft";
+    const stepTitle = "Prepare the cake pan";
     const revisedProse =
       "Grease the pan, preheat the oven to 175°C, then line the pan after a short pause.";
 
@@ -43,86 +61,214 @@ test.describe("structured cooking action acceptance", () => {
     await rootRecipeCard
       .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
       .click();
-    await page.getByRole("link", { name: "Make your own version", exact: true }).click();
-    await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
+    const sourceRecipeUrl = page.url();
+    await page
+      .getByRole("button", { name: "Make your own version", exact: true })
+      .click();
+    await expect(page).toHaveURL(sourceRecipeUrl);
+    await expect(page.getByLabel("Title", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Opening your recipe…", { exact: true }),
+    ).toHaveCount(0);
 
     await page.getByLabel("Title", { exact: true }).fill(draftTitle);
     const firstStep = page.getByRole("group", { name: "Step 1", exact: true });
-    await firstStep.getByLabel("Instruction", { exact: true }).fill(revisedProse);
-    const cookingDetails = firstStep.getByRole("button", {
-      name: "Edit cooking details for Step 1",
+    await firstStep.getByLabel("Step title", { exact: true }).fill(stepTitle);
+    await firstStep
+      .getByLabel("Instruction", { exact: true })
+      .fill(revisedProse);
+    await page
+      .getByRole("tab", { name: "Cooking breakdown", exact: true })
+      .click();
+    const cookingDetails = page.getByRole("list", {
+      name: "Cooking details for Step 1",
+      exact: true,
     });
-    await expect(cookingDetails).toHaveAttribute("aria-expanded", "false");
-    await expect(cookingDetails).toContainText(/preheat/i);
-    await expect(firstStep.getByRole("group", { name: /^Action \d+$/ })).toHaveCount(0);
+    const preheatDetail = cookingDetails.getByRole("button", {
+      name: "Edit cooking detail 1 for Step 1",
+      exact: true,
+    });
+    const greaseDetail = cookingDetails.getByRole("button", {
+      name: "Edit cooking detail 2 for Step 1",
+      exact: true,
+    });
+    const lineDetail = cookingDetails.getByRole("button", {
+      name: "Edit cooking detail 3 for Step 1",
+      exact: true,
+    });
+    await expect(preheatDetail).toHaveAttribute("aria-expanded", "false");
+    await expect(preheatDetail).toContainText(/preheat/i);
+    await expect(
+      page.getByRole("dialog", { name: /Cooking detail \d+ for Step 1/ }),
+    ).toHaveCount(0);
     await expectNoAccessibilityViolations(page);
-    await cookingDetails.focus();
+    await preheatDetail.focus();
     await page.keyboard.press("Enter");
-    await expect(cookingDetails).toHaveAttribute("aria-expanded", "true");
+    await expect(preheatDetail).toHaveAttribute("aria-expanded", "true");
 
-    const actionGroups = firstStep.getByRole("group", { name: /^Action \d+$/ });
-    await expect(actionGroups).toHaveCount(3);
-    const preheatAction = actionGroups.nth(0);
-    const greaseAction = actionGroups.nth(1);
-    const lineAction = actionGroups.nth(2);
-    const preheatSelect = preheatAction.getByRole("combobox", { name: "Cooking action" });
-    const greaseSelect = greaseAction.getByRole("combobox", { name: "Cooking action" });
-    const lineSelect = lineAction.getByRole("combobox", { name: "Cooking action" });
+    const preheatAction = page.getByRole("dialog", {
+      name: "Cooking detail 1 for Step 1",
+      exact: true,
+    });
+    const preheatSelect = preheatAction.getByRole("combobox", {
+      name: "Cooking action",
+      exact: true,
+    });
     const preheatTypeId = await preheatSelect.inputValue();
+    await preheatAction
+      .getByRole("group", {
+        name: /temperature for cooking detail 1: preheat/i,
+      })
+      .getByRole("textbox", { name: "Temperature", exact: true })
+      .fill("175.0");
+    await preheatAction
+      .getByRole("button", { name: "Done", exact: true })
+      .click();
+
+    await greaseDetail.click();
+    const greaseAction = page.getByRole("dialog", {
+      name: "Cooking detail 2 for Step 1",
+      exact: true,
+    });
+    const greaseSelect = greaseAction.getByRole("combobox", {
+      name: "Cooking action",
+      exact: true,
+    });
     const greaseTypeId = await greaseSelect.inputValue();
+    await greaseAction
+      .getByRole("checkbox", { name: "Include duration", exact: true })
+      .check();
+    const duration = greaseAction.getByRole("group", {
+      name: /duration for cooking detail 2: grease/i,
+    });
+    await duration
+      .getByRole("textbox", { name: "Duration", exact: true })
+      .fill("2.500");
+    const durationUnit = duration.getByRole("combobox", {
+      name: "Unit",
+      exact: true,
+    });
+    await durationUnit.selectOption({ label: "minute (min)" });
+    const minuteUnitId = await durationUnit.inputValue();
+    await greaseAction
+      .getByRole("button", { name: "Done", exact: true })
+      .click();
+
+    await lineDetail.click();
+    const lineAction = page.getByRole("dialog", {
+      name: "Cooking detail 3 for Step 1",
+      exact: true,
+    });
+    const lineSelect = lineAction.getByRole("combobox", {
+      name: "Cooking action",
+      exact: true,
+    });
     const lineTypeId = await lineSelect.inputValue();
     const stableLineSelectId = await lineSelect.getAttribute("id");
     expect(stableLineSelectId).not.toBeNull();
-
-    await preheatAction
-      .getByRole("group", { name: /temperature for action 1: preheat/i })
-      .getByRole("textbox", { name: "Temperature", exact: true })
-      .fill("175.0");
-    await greaseAction.getByRole("checkbox", { name: "Include duration", exact: true }).check();
-    const duration = greaseAction.getByRole("group", { name: /duration for action 2: grease/i });
-    await duration.getByRole("textbox", { name: "Duration", exact: true }).fill("2.500");
-    const durationUnit = duration.getByRole("combobox", { name: "Unit", exact: true });
-    await durationUnit.selectOption({ label: "minute (min)" });
-    const minuteUnitId = await durationUnit.inputValue();
-
     const whiteSugarInput = lineAction
       .getByRole("group", { name: "Ingredient inputs", exact: true })
       .getByRole("checkbox", { name: /Ingredient 3: White sugar/i });
     await whiteSugarInput.check();
     await lineSelect.selectOption("");
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
-    await expect(lineAction.getByText("Choose a cooking action.", { exact: true })).toBeVisible();
-    await expect(firstStep.getByLabel("Instruction", { exact: true })).toHaveValue(revisedProse);
-    await expect(duration.getByRole("textbox", { name: "Duration", exact: true })).toHaveValue("2.500");
+    await expect(
+      lineAction.getByText("Choose a cooking action.", { exact: true }),
+    ).toBeVisible();
     await expect(whiteSugarInput).toBeChecked();
 
-    await greaseSelect.selectOption({ label: "line" });
     await lineSelect.selectOption({ label: "grease" });
-    expect(await greaseSelect.inputValue()).toBe(lineTypeId);
     expect(await lineSelect.inputValue()).toBe(greaseTypeId);
-    const stableLineSelect = page.locator(`[id="${stableLineSelectId!}"]`);
-    await firstStep.getByRole("button", { name: "Move up action 3", exact: true }).click();
-    await expect(stableLineSelect).toBeFocused();
-    await firstStep.getByRole("button", { name: "Move up action 2", exact: true }).click();
-    await expect(stableLineSelect).toBeFocused();
+    await lineAction.getByRole("button", { name: "Done", exact: true }).click();
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Draft saved", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole("dialog", { name: /Cooking detail \d+ for Step 1/ }),
+    ).toHaveCount(0);
+
+    await greaseDetail.click();
+    const reopenedGreaseAction = page.getByRole("dialog", {
+      name: "Cooking detail 2 for Step 1",
+      exact: true,
+    });
+    await reopenedGreaseAction
+      .getByRole("combobox", { name: "Cooking action", exact: true })
+      .selectOption({ label: "line" });
+    await expect(
+      reopenedGreaseAction.getByRole("textbox", {
+        name: "Duration",
+        exact: true,
+      }),
+    ).toHaveValue("2.500");
+    await reopenedGreaseAction
+      .getByRole("button", { name: "Done", exact: true })
+      .click();
+
+    await cookingDetails
+      .getByRole("button", { name: "Move cooking detail 3 up", exact: true })
+      .click();
+    await cookingDetails
+      .getByRole("button", { name: "Move cooking detail 2 up", exact: true })
+      .click();
+    const reorderedDetails = cookingDetails.getByRole("button", {
+      name: /Edit cooking detail \d+ for Step 1/,
+    });
+    await expect(reorderedDetails.nth(0)).toContainText(/grease/i);
+    await expect(reorderedDetails.nth(1)).toContainText(/preheat/i);
+    await expect(reorderedDetails.nth(2)).toContainText(/line/i);
+    await reorderedDetails.nth(0).click();
+    const movedLineAction = page.getByRole("dialog", {
+      name: "Cooking detail 1 for Step 1",
+      exact: true,
+    });
+    await expect(
+      movedLineAction.getByRole("combobox", {
+        name: "Cooking action",
+        exact: true,
+      }),
+    ).toHaveValue(greaseTypeId);
+    await expect(
+      movedLineAction.getByRole("checkbox", {
+        name: /Ingredient 3: White sugar/i,
+      }),
+    ).toBeChecked();
     expect(
-      await firstStep.getByRole("combobox", { name: "Cooking action" }).evaluateAll((items) =>
-        items.map((item) => (item as HTMLSelectElement).value),
-      ),
-    ).toEqual([greaseTypeId, preheatTypeId, lineTypeId]);
+      await movedLineAction
+        .getByRole("combobox", { name: "Cooking action", exact: true })
+        .getAttribute("id"),
+    ).toBe(stableLineSelectId);
+    await movedLineAction
+      .getByRole("button", { name: "Done", exact: true })
+      .click();
+
     await expectNoAccessibilityViolations(page);
 
     const saveRequest = page.waitForRequest(
-      (request) => request.method() === "PUT" && /\/api\/recipe-drafts\/[0-9a-f-]+$/i.test(new URL(request.url()).pathname),
+      (request) =>
+        request.method() === "PUT" &&
+        /\/api\/recipe-drafts\/[0-9a-f-]+$/i.test(
+          new URL(request.url()).pathname,
+        ),
     );
     const saveResponse = page.waitForResponse(
-      (response) => response.request().method() === "PUT" && /\/api\/recipe-drafts\/[0-9a-f-]+$/i.test(new URL(response.url()).pathname),
+      (response) =>
+        response.request().method() === "PUT" &&
+        /\/api\/recipe-drafts\/[0-9a-f-]+$/i.test(
+          new URL(response.url()).pathname,
+        ),
     );
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
     const submitted = (await saveRequest).postDataJSON() as {
-      instructions: Array<{ text: string; actions: Array<Record<string, unknown>> }>;
+      instructions: Array<{
+        title: string | null;
+        text: string;
+        actions: Array<Record<string, unknown>>;
+      }>;
     };
     const savedActions = submitted.instructions[0]?.actions;
+    expect(submitted.instructions[0]?.title).toBe(stepTitle);
     expect(submitted.instructions[0]?.text).toBe(revisedProse);
     expect(savedActions?.map((action) => action.action_type_id)).toEqual([
       greaseTypeId,
@@ -139,31 +285,72 @@ test.describe("structured cooking action acceptance", () => {
       duration: { kind: "exact", value: "2.500", unit_id: minuteUnitId },
     });
     expect((await saveResponse).status()).toBe(200);
-    await expect(page.getByText("Draft saved privately.", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Draft saved", exact: true }),
+    ).toBeDisabled();
+    await page.getByRole("tab", { name: "Steps", exact: true }).click();
+    await expect(
+      firstStep.getByLabel("Instruction", { exact: true }),
+    ).toHaveValue(revisedProse);
 
     await page.reload();
-    await expect(page.getByLabel("Title", { exact: true })).toHaveValue(draftTitle);
-    const resumedStep = page.getByRole("group", { name: "Step 1", exact: true });
-    await expect(resumedStep.getByLabel("Instruction", { exact: true })).toHaveValue(revisedProse);
-    const resumedDetails = resumedStep.getByRole("button", {
-      name: "Edit cooking details for Step 1",
+    await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
+      draftTitle,
+    );
+    const resumedStep = page.getByRole("group", {
+      name: "Step 1",
+      exact: true,
     });
-    await expect(resumedDetails).toContainText(/grease/i);
-    await expect(resumedDetails).toContainText(/175/);
-    await resumedDetails.focus();
-    await page.keyboard.press("Enter");
-    const resumedActions = resumedStep.getByRole("group", { name: /^Action \d+$/ });
-    await expect(resumedActions).toHaveCount(3);
-    await expect(resumedActions.nth(0).getByRole("combobox", { name: "Cooking action" })).toHaveValue(greaseTypeId);
-    await expect(resumedActions.nth(1).getByRole("combobox", { name: "Cooking action" })).toHaveValue(preheatTypeId);
-    await expect(resumedActions.nth(2).getByRole("combobox", { name: "Cooking action" })).toHaveValue(lineTypeId);
+    await expect(
+      resumedStep.getByLabel("Step title", { exact: true }),
+    ).toHaveValue(stepTitle);
+    await expect(
+      resumedStep.getByLabel("Instruction", { exact: true }),
+    ).toHaveValue(revisedProse);
+    await page
+      .getByRole("tab", { name: "Cooking breakdown", exact: true })
+      .click();
+    const resumedDetails = page.getByRole("list", {
+      name: "Cooking details for Step 1",
+      exact: true,
+    });
+    const resumedTriggers = resumedDetails.getByRole("button", {
+      name: /Edit cooking detail \d+ for Step 1/,
+    });
+    await expect(resumedTriggers).toHaveCount(3);
+    await expect(resumedTriggers.nth(0)).toContainText(/grease/i);
+    await expect(resumedTriggers.nth(1)).toContainText(/preheat/i);
+    await expect(resumedTriggers.nth(1)).toContainText(/175/);
+    await expect(resumedTriggers.nth(2)).toContainText(/line/i);
+    const expectedActionTypeIds = [greaseTypeId, preheatTypeId, lineTypeId];
+    for (const [
+      index,
+      expectedActionTypeId,
+    ] of expectedActionTypeIds.entries()) {
+      await resumedTriggers.nth(index).click();
+      const resumedAction = page.getByRole("dialog", {
+        name: `Cooking detail ${index + 1} for Step 1`,
+        exact: true,
+      });
+      await expect(
+        resumedAction.getByRole("combobox", {
+          name: "Cooking action",
+          exact: true,
+        }),
+      ).toHaveValue(expectedActionTypeId);
+      await resumedAction
+        .getByRole("button", { name: "Done", exact: true })
+        .click();
+    }
     await expectNoAccessibilityViolations(page);
 
     const draftId = new URL(page.url()).pathname.split("/").at(-1)!;
     const preflightResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
-        response.url().endsWith(`/api/recipe-drafts/${draftId}/duplicate-preflights`),
+        response
+          .url()
+          .endsWith(`/api/recipe-drafts/${draftId}/duplicate-preflights`),
     );
     const publishResponse = page.waitForResponse(
       (response) =>
@@ -171,18 +358,29 @@ test.describe("structured cooking action acceptance", () => {
         response.url().endsWith(`/api/recipe-drafts/${draftId}/publish`),
     );
     await confirmPublicationRequirements(page);
-    await page.getByRole("button", { name: "Review and publish version", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Review and publish version", exact: true })
+      .click();
     const preflight = await preflightResponse;
     expect(preflight.status()).toBe(201);
-    const preflightBody = (await preflight.json()) as { classification?: unknown };
+    const preflightBody = (await preflight.json()) as {
+      classification?: unknown;
+    };
     if (preflightBody.classification !== "distinct") {
-      const review = page.locator(".duplicate-preflight-review");
+      const review = page.getByRole("region", {
+        name:
+          preflightBody.classification === "exact_duplicate"
+            ? "This version is very close to another public recipe"
+            : "This version is similar to another public recipe",
+      });
       await review
         .getByRole("checkbox", {
-          name: /publish my version anyway|matches the recipe it is based on.*publish it anyway/i,
+          name: /reviewed these similar recipes.*publish my version anyway/i,
         })
         .check();
-      await review.getByRole("button", { name: "Publish version anyway" }).click();
+      await review
+        .getByRole("button", { name: "Publish version", exact: true })
+        .click();
     }
     const publication = await publishResponse;
     expect(publication.status()).toBe(201);
@@ -194,27 +392,54 @@ test.describe("structured cooking action acceptance", () => {
     expect(published.location).toBe(`/recipes/${published.recipe_version_id}`);
     expect(publication.headers().location).toBe(published.location);
     await expect(page).toHaveURL("/account/recipes?view=published");
-    await expect(page.getByRole("article", { name: draftTitle, exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("article", { name: draftTitle, exact: true }),
+    ).toBeVisible();
     await page.goto(published.location as string);
 
-    const publishedDetails = page.getByRole("list", { name: "Cooking details for step 1" });
+    const stepsPanel = page.getByRole("tabpanel", { name: "Steps" });
     await expect(
-      publishedDetails.locator("..").getByText(revisedProse, { exact: true }),
+      stepsPanel.getByRole("heading", { name: stepTitle, exact: true }),
     ).toBeVisible();
+    await expect(
+      stepsPanel.getByText(revisedProse, { exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("tab", { name: "Cooking breakdown", exact: true })
+      .click();
+    const breakdownPanel = page.getByRole("tabpanel", {
+      name: "Cooking breakdown",
+    });
+    await expect(
+      breakdownPanel.getByRole("heading", { name: stepTitle, exact: true }),
+    ).toBeVisible();
+    const publishedDetails = breakdownPanel.getByRole("list", {
+      name: "Cooking breakdown for step 1",
+    });
     const publishedActions = publishedDetails.getByRole("listitem");
     await expect(publishedActions).toHaveCount(3);
-    await expect(publishedActions.nth(0)).toContainText("grease");
-    await expect(publishedActions.nth(1)).toContainText("preheat");
-    await expect(publishedActions.nth(1)).toContainText(/At 175/);
-    await expect(publishedActions.nth(2)).toContainText("line");
-    await expect(publishedActions.nth(2)).toContainText(/For 2\.5 minutes/);
-    await expect(publishedDetails).not.toContainText(/Inputs:|Duration:|Temperature:|Historical action/);
+    await expect(publishedActions.nth(0)).toContainText("Grease");
+    await expect(publishedActions.nth(1)).toContainText("Preheat");
+    await expect(publishedActions.nth(1)).toContainText(/175/);
+    await expect(publishedActions.nth(2)).toContainText("Line pan");
+    await expect(publishedActions.nth(2)).toContainText(/2\.5 min/);
+    await expect(publishedDetails).not.toContainText(
+      /Inputs:|Duration:|Temperature:|Historical action/,
+    );
     await expectNoAccessibilityViolations(page);
 
-    await page.getByRole("link", { name: "See what changed", exact: true }).click();
-    const changedInstruction = page.getByRole("article", { name: "Update step 1", exact: true });
+    await page
+      .getByRole("link", { name: "See what changed", exact: true })
+      .click();
+    const changedInstruction = page.getByRole("article", {
+      name: "Update step 1",
+      exact: true,
+    });
+    await expect(changedInstruction).toContainText("Step title changed");
     await expect(changedInstruction).toContainText("Wording changed");
-    await expect(changedInstruction).toContainText("Order within the step changed");
+    await expect(changedInstruction).toContainText(
+      "Order within the step changed",
+    );
     await expect(changedInstruction).toContainText("Timing changed");
     await expect(changedInstruction).toContainText("Temperature changed");
     await expectNoAccessibilityViolations(page);

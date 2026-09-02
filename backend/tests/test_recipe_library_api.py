@@ -19,6 +19,7 @@ from app.models import (
     ACCOUNT_KIND_MEMBER,
     RecipeDraft,
     RecipeLineage,
+    RecipeRating,
     RecipeSave,
     RecipeVersion,
     RecipeVersionPublication,
@@ -160,6 +161,9 @@ def recipe_library_api(empty_postgres_engine: Engine) -> Iterator[RecipeLibraryA
     )
     start = datetime(2026, 8, 26, tzinfo=UTC)
     with Session(bind=empty_postgres_engine) as session, session.begin():
+        member_alpha = session.get(User, MEMBER_A_ID)
+        assert member_alpha is not None
+        member_alpha.profile_description = "Reliable recipes for busy weeknights."
         session.add(
             User(
                 id=EMPTY_COOK_ID,
@@ -256,7 +260,9 @@ def recipe_library_api(empty_postgres_engine: Engine) -> Iterator[RecipeLibraryA
                 RecipeDraft(
                     id=DRAFT_A_ID,
                     author_user_id=MEMBER_A_ID,
+                    source_version_id=ROOT_ID,
                     title="Alpha private draft",
+                    description="A private draft description for its owner.",
                     status="active",
                     revision=2,
                     created_at=start + timedelta(minutes=6),
@@ -279,6 +285,16 @@ def recipe_library_api(empty_postgres_engine: Engine) -> Iterator[RecipeLibraryA
                     revision=1,
                     created_at=start + timedelta(minutes=7),
                     updated_at=start + timedelta(minutes=8),
+                ),
+                RecipeRating(
+                    user_id=MEMBER_A_ID,
+                    recipe_version_id=GRANDCHILD_ID,
+                    rating=5,
+                ),
+                RecipeRating(
+                    user_id=MEMBER_B_ID,
+                    recipe_version_id=GRANDCHILD_ID,
+                    rating=4,
                 ),
                 RecipeSave(
                     user_id=MEMBER_A_ID,
@@ -389,16 +405,26 @@ def test_public_authorship_profiles_and_chain_are_truthful_and_public_safe(
     assert profile.status_code == 200
     profile_body = _json_object(profile.json())
     assert profile_body["cook"] == alpha
+    assert profile_body["follower_count"] == 0
+    assert profile_body["description"] == "Reliable recipes for busy weeknights."
     assert profile_body["total"] == 3
     assert profile_body["total_pages"] == 2
     assert len(profile_body["items"]) == 2
     assert {item["author"]["id"] for item in profile_body["items"]} == {str(MEMBER_A_ID)}
     assert str(HIDDEN_PARENT_ID) not in {item["id"] for item in profile_body["items"]}
+    profile_cards = {item["id"]: item for item in profile_body["items"]}
+    assert profile_cards[str(GRANDCHILD_ID)]["average_rating"] == 4.5
+    assert profile_cards[str(GRANDCHILD_ID)]["rating_count"] == 2
+    assert profile_cards[str(GRANDCHILD_ID)]["save_count"] == 1
+    assert profile_cards[str(PUBLIC_CHILD_ID)]["average_rating"] is None
+    assert profile_cards[str(PUBLIC_CHILD_ID)]["rating_count"] == 0
+    assert profile_cards[str(PUBLIC_CHILD_ID)]["save_count"] == 0
 
     empty = recipe_library_api.anonymous.get("/api/cooks/empty_cook")
     assert empty.status_code == 200
     assert _json_object(empty.json())["items"] == []
     assert _json_object(empty.json())["total"] == 0
+    assert _json_object(empty.json())["description"] is None
     assert recipe_library_api.anonymous.get("/api/cooks/missing_cook").status_code == 404
 
 
@@ -506,6 +532,10 @@ def test_private_libraries_are_actor_scoped_paginated_and_do_not_leak_account_da
     assert drafts_page_one_body["total_pages"] == 2
     assert [item["draft"]["id"] for item in drafts_page_one_body["items"]] == [str(DRAFT_A_ID)]
     assert all(item["kind"] == "draft" for item in drafts_page_one_body["items"])
+    assert drafts_page_one_body["items"][0]["source_recipe_title"] == "Alpha original"
+    assert drafts_page_one_body["items"][0]["description"] == (
+        "A private draft description for its owner."
+    )
 
     drafts_page_two_body = _json_object(
         recipe_library_api.member_a.get(
@@ -517,6 +547,8 @@ def test_private_libraries_are_actor_scoped_paginated_and_do_not_leak_account_da
     assert [item["draft"]["id"] for item in drafts_page_two_body["items"]] == [
         str(DRAFT_A_SECOND_ID)
     ]
+    assert drafts_page_two_body["items"][0]["source_recipe_title"] is None
+    assert drafts_page_two_body["items"][0]["description"] is None
 
     published_page_one_body = _json_object(
         recipe_library_api.member_a.get(
@@ -956,7 +988,7 @@ def _select_counter(engine: Engine) -> Iterator[list[str]]:
     ("client_name", "path", "view", "maximum_selects"),
     [
         ("anonymous", "/api/recipes", None, 4),
-        ("anonymous", "/api/cooks/member_alpha", None, 5),
+        ("anonymous", "/api/cooks/member_alpha", None, 8),
         ("member_a", "/api/my/recipes", "drafts", 8),
         ("member_a", "/api/my/recipes", "published", 8),
         ("member_a", "/api/my/recipes", "withdrawn", 8),
@@ -982,6 +1014,9 @@ def test_card_queries_are_bounded_independently_of_page_size(
         counts.append(len(statements))
         assert len(statements) <= maximum_selects
     assert max(counts) - min(counts) <= 1
+    if path == "/api/cooks/member_alpha":
+        # Ratings and saves add exactly two aggregate queries, regardless of card count.
+        assert counts == [8, 8]
 
 
 def test_seeded_public_catalog_select_count_matches_performance_baseline(
@@ -1011,12 +1046,16 @@ def test_openapi_documents_public_identity_and_private_library_contracts(
 
     assert {
         "/api/cooks/{handle}",
+        "/api/cooks/{handle}/follow",
+        "/api/my/follow-stats",
         "/api/my/recipes",
         "/api/my/saved-recipes",
     } <= set(paths)
     assert {
         "PublicUserReference",
         "PublicCookProfileResponse",
+        "CookFollowStateResponse",
+        "MyFollowStatsResponse",
         "MyRecipeLibraryView",
         "MyRecipeLibraryResponse",
         "SavedRecipeLibraryResponse",
@@ -1026,6 +1065,10 @@ def test_openapi_documents_public_identity_and_private_library_contracts(
         "handle",
         "display_name",
     }
+    assert "description" in schemas["PublicCookProfileResponse"]["properties"]
+    assert "description" in schemas["PublicCookProfileResponse"]["required"]
+    profile_item_schema = schemas["PublicCookProfileResponse"]["properties"]["items"]["items"]
+    assert profile_item_schema["$ref"].endswith("/RecipeCardSummary")
     my_recipes_parameters = paths["/api/my/recipes"]["get"]["parameters"]
     view_parameter = next(
         parameter for parameter in my_recipes_parameters if parameter["name"] == "view"

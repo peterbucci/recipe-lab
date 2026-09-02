@@ -12,6 +12,7 @@ from app.models import (
     RecipeInstructionAction,
     RecipeInstructionActionMeasure,
     RecipeRating,
+    RecipeSave,
     RecipeStructuralFingerprint,
     RecipeVersion,
     RecipeVersionCategory,
@@ -30,6 +31,13 @@ class RecipeBrowseResult:
 class RecipeRatingAggregate:
     average: Decimal | None
     count: int
+
+
+@dataclass(frozen=True, slots=True)
+class RecipeCardEngagementAggregate:
+    average_rating: Decimal | None
+    rating_count: int
+    save_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -341,3 +349,47 @@ def get_recipe_rating_aggregate(
     ).where(RecipeRating.recipe_version_id == recipe_version_id)
     average, count = session.execute(statement).one()
     return RecipeRatingAggregate(average=average, count=count)
+
+
+def get_recipe_card_engagement_aggregates(
+    session: Session,
+    recipe_version_ids: list[UUID],
+) -> dict[UUID, RecipeCardEngagementAggregate]:
+    """Return anonymous card totals in two bounded aggregate queries."""
+
+    if not recipe_version_ids:
+        return {}
+
+    unique_ids = tuple(dict.fromkeys(recipe_version_ids))
+    rating_rows = {
+        recipe_version_id: (average, int(count))
+        for recipe_version_id, average, count in session.execute(
+            select(
+                RecipeRating.recipe_version_id,
+                cast(func.avg(RecipeRating.rating), Numeric(3, 2)),
+                func.count(RecipeRating.user_id),
+            )
+            .where(RecipeRating.recipe_version_id.in_(unique_ids))
+            .group_by(RecipeRating.recipe_version_id)
+        )
+    }
+    save_rows = {
+        recipe_version_id: int(count)
+        for recipe_version_id, count in session.execute(
+            select(
+                RecipeSave.recipe_version_id,
+                func.count(RecipeSave.user_id),
+            )
+            .where(RecipeSave.recipe_version_id.in_(unique_ids))
+            .group_by(RecipeSave.recipe_version_id)
+        )
+    }
+
+    return {
+        recipe_version_id: RecipeCardEngagementAggregate(
+            average_rating=rating_rows.get(recipe_version_id, (None, 0))[0],
+            rating_count=rating_rows.get(recipe_version_id, (None, 0))[1],
+            save_count=save_rows.get(recipe_version_id, 0),
+        )
+        for recipe_version_id in unique_ids
+    }

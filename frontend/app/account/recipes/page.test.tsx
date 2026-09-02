@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { SavedRecipeLibrary } from "../../components/saved-recipe-library";
 import MyRecipesPage from "./page";
 
 describe("MyRecipesPage", () => {
@@ -23,5 +24,13 @@ describe("MyRecipesPage", () => {
 
     expect(malformed).toMatchObject({ props: { view: "drafts", pageNumber: 1 } });
     expect(repeated).toMatchObject({ props: { view: "published", pageNumber: 2 } });
+  });
+
+  it("routes Saved through the unified My recipes workspace", async () => {
+    const element = await MyRecipesPage({
+      searchParams: Promise.resolve({ view: "saved" }),
+    });
+
+    expect(element.type).toBe(SavedRecipeLibrary);
   });
 });

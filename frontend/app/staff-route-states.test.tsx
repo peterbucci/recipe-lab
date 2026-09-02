@@ -5,28 +5,34 @@ import IngredientRequestReviewLoading from "./catalog/ingredient-requests/loadin
 import RecipeModerationLoading from "./moderation/recipes/loading";
 
 describe("staff route states", () => {
-  it("scopes catalog-curator loading without changing its role-specific copy", () => {
+  it("uses the shared staff skeleton for catalog curation", () => {
     render(<IngredientRequestReviewLoading />);
 
     expect(screen.getByRole("main")).toHaveClass(
-      "staff-state-page",
-      "staff-state-page--curation",
-      "staff-state-page--loading",
+      "page-loading--staff",
+      "staff-workspace--curation",
+      "curation-page",
     );
-    expect(screen.getByRole("status")).toHaveClass("staff-state-panel");
-    expect(screen.getByText("Checking catalog-curator access.")).toBeVisible();
+    expect(screen.getByText("Ingredient requests")).toBeVisible();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading ingredient request review…",
+    );
   });
 
-  it("scopes recipe-moderator loading without merging the roles", () => {
+  it("uses the shared staff skeleton for recipe moderation", () => {
     render(<RecipeModerationLoading />);
 
     expect(screen.getByRole("main")).toHaveClass(
-      "staff-state-page",
-      "staff-state-page--moderation",
-      "staff-state-page--loading",
+      "page-loading--staff",
+      "staff-workspace--moderation",
+      "moderation-workspace",
     );
-    expect(screen.getByRole("status")).toHaveClass("staff-state-panel");
-    expect(screen.getByText("Checking recipe-moderator access.")).toBeVisible();
-    expect(screen.queryByText("Checking catalog-curator access.")).not.toBeInTheDocument();
+    expect(screen.getByText("Recipe reports")).toBeVisible();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading recipe moderation…",
+    );
+    expect(document.querySelector(".loading-state__pulse")).toBeNull();
   });
 });

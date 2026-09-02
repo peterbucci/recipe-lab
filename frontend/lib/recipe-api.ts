@@ -1,4 +1,4 @@
-import type { operations } from "./api-contracts/generated";
+import type { components, operations } from "./api-contracts/generated";
 import {
   ApiTransportError,
   type PublicApiErrorContract,
@@ -13,7 +13,8 @@ export type { RecipeIngredientMeasure } from "./structured-measure";
 type BrowseRecipesOperation = operations["browse_recipes_api_recipes_get"];
 export type RecipePage =
   BrowseRecipesOperation["responses"][200]["content"]["application/json"];
-export type RecipeSummary = RecipePage["items"][number];
+export type RecipeCardSummary = RecipePage["items"][number];
+export type RecipeSummary = components["schemas"]["RecipeSummary"];
 type RecipeCategoriesOperation =
   operations["recipe_categories_api_recipe_categories_get"];
 export type RecipeCategoryList =
@@ -23,10 +24,7 @@ type FeaturedRecipesOperation =
   operations["featured_recipes_api_recipes_featured_get"];
 export type FeaturedRecipeList =
   FeaturedRecipesOperation["responses"][200]["content"]["application/json"];
-export type PublicUserReference = Omit<
-  RecipeSummary["author"],
-  "handle"
-> & {
+export type PublicUserReference = Omit<RecipeSummary["author"], "handle"> & {
   readonly handle: string | null;
 };
 export type RecipeVersionReference = NonNullable<RecipeSummary["parent"]>;
@@ -47,32 +45,55 @@ export interface RecipeIngredient {
 
 export interface RecipeInstruction {
   id: string;
+  title: string | null;
   text: string;
   display_order: number;
   actions: RecipeInstructionAction[];
 }
 
+export type RecipeDifficulty = "easy" | "medium" | "hard";
+
 export interface RecipeDetail extends RecipeSummary {
   average_rating: number | null;
   rating_count: number;
+  save_count: number;
+  total_time_minutes: number | null;
+  active_time_minutes: number | null;
+  difficulty: RecipeDifficulty | null;
+  notes: string | null;
   viewer_state: RecipeViewerState | null;
   children: RecipeVersionReference[];
   ingredients: RecipeIngredient[];
   instructions: RecipeInstruction[];
 }
 
-export type RecipeFieldName = "title" | "description" | "servings";
+export type RecipeFieldName =
+  | "title"
+  | "description"
+  | "servings"
+  | "total_time_minutes"
+  | "active_time_minutes"
+  | "difficulty"
+  | "notes";
+
+export type RecipeFieldValue = string | number | null;
 
 export type RecipeIngredientChangedField =
   "ingredient" | "display_name" | "measure" | "preparation_notes";
 
 export type RecipeInstructionChangedField =
-  "text" | "actions" | "inputs" | "action_order" | "duration" | "temperature";
+  | "title"
+  | "text"
+  | "actions"
+  | "inputs"
+  | "action_order"
+  | "duration"
+  | "temperature";
 
 export interface RecipeFieldChange {
   field: RecipeFieldName;
-  before: string | null;
-  after: string | null;
+  before: RecipeFieldValue;
+  after: RecipeFieldValue;
 }
 
 export interface RecipeIngredientPairChange {
@@ -117,6 +138,7 @@ export interface RecipeDiff {
 interface RecipePageQuery {
   category?: string;
   isVariant?: boolean;
+  lineageId?: string;
   page?: number;
   pageSize?: number;
   query?: string;
@@ -229,6 +251,7 @@ async function apiFetch(url: URL): Promise<Response> {
 export async function fetchRecipePage({
   category,
   isVariant,
+  lineageId,
   page = 1,
   pageSize = 12,
   query,
@@ -243,6 +266,9 @@ export async function fetchRecipePage({
   }
   if (isVariant !== undefined) {
     searchParams.set("is_variant", String(isVariant));
+  }
+  if (lineageId) {
+    searchParams.set("lineage_id", lineageId);
   }
   if (category) {
     searchParams.set("category", category);
@@ -321,10 +347,13 @@ export async function fetchRecipe(
 
 export async function fetchRecipeDiff(
   recipeVersionId: string,
+  baseVersionId?: string,
 ): Promise<RecipeDiff | null> {
-  const response = await apiFetch(
-    apiUrl(`/api/recipes/${encodeURIComponent(recipeVersionId)}/diff`),
+  const url = apiUrl(
+    `/api/recipes/${encodeURIComponent(recipeVersionId)}/diff`,
   );
+  if (baseVersionId) url.searchParams.set("base_version_id", baseVersionId);
+  const response = await apiFetch(url);
   if (response.status === 404) {
     return null;
   }

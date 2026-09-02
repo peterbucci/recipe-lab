@@ -32,6 +32,7 @@ class RecipeDraftBrowseItem:
     draft: RecipeDraft
     ingredient_count: int
     instruction_count: int
+    source_recipe_title: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +136,10 @@ def insert_recipe_draft_shell(
     title: str,
     description: str | None,
     servings: Decimal | None,
+    total_time_minutes: int | None,
+    active_time_minutes: int | None,
+    difficulty: str | None,
+    notes: str | None,
 ) -> UUID | None:
     """Win one actor/action binding before any source aggregate rows are copied."""
 
@@ -152,6 +157,10 @@ def insert_recipe_draft_shell(
             title=title,
             description=description,
             servings=servings,
+            total_time_minutes=total_time_minutes,
+            active_time_minutes=active_time_minutes,
+            difficulty=difficulty,
+            notes=notes,
         )
         .on_conflict_do_nothing(
             index_elements=[
@@ -167,13 +176,16 @@ def browse_owned_recipe_drafts(
     session: Session,
     *,
     author_user_id: UUID,
+    source_version_id: UUID | None = None,
     offset: int,
     limit: int,
 ) -> RecipeDraftBrowseResult:
-    filters = (
+    filters: tuple[Any, ...] = (
         RecipeDraft.author_user_id == author_user_id,
         RecipeDraft.status == "active",
     )
+    if source_version_id is not None:
+        filters += (RecipeDraft.source_version_id == source_version_id,)
     total = session.scalar(select(func.count()).select_from(RecipeDraft).where(*filters)) or 0
     ingredient_count = (
         select(func.count())

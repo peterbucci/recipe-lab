@@ -217,8 +217,12 @@ def test_onboarding_sets_normalized_profile_without_changing_session(db_session:
         authenticated=authenticated,
         handle="test-cook",
         display_name="Test Cook",
+        profile_description="Weeknight recipes for busy cooks.",
+        update_profile_description=True,
     )
 
     assert updated.session_id == authenticated.session_id
     assert updated.handle == "test-cook"
     assert updated.display_name == "Test Cook"
+    assert updated.profile_description == "Weeknight recipes for busy cooks."
+    assert issued.user.profile_description == "Weeknight recipes for busy cooks."

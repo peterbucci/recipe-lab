@@ -100,6 +100,21 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
         "active_consumer",
         "frontend/lib/recipe-library-api.ts",
     ),
+    ("DELETE", "/api/cooks/{handle}/follow"): _operation(
+        "unfollow_cook_api_cooks__handle__follow_delete",
+        "active_consumer",
+        "frontend/lib/member-follow-api.ts",
+    ),
+    ("GET", "/api/cooks/{handle}/follow"): _operation(
+        "cook_follow_state_api_cooks__handle__follow_get",
+        "active_consumer",
+        "frontend/lib/member-follow-api.ts",
+    ),
+    ("PUT", "/api/cooks/{handle}/follow"): _operation(
+        "follow_cook_api_cooks__handle__follow_put",
+        "active_consumer",
+        "frontend/lib/member-follow-api.ts",
+    ),
     ("GET", "/api/health"): _operation(
         "health_check_api_health_get",
         "staff_internal",
@@ -176,6 +191,21 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
         "active_consumer",
         "frontend/lib/recipe-library-api.ts",
     ),
+    ("GET", "/api/my/follow-stats"): _operation(
+        "my_follow_stats_api_my_follow_stats_get",
+        "active_consumer",
+        "frontend/lib/member-follow-api.ts",
+    ),
+    ("GET", "/api/my/followers"): _operation(
+        "my_followers_api_my_followers_get",
+        "active_consumer",
+        "frontend/lib/member-follow-api.ts",
+    ),
+    ("GET", "/api/my/community-activity"): _operation(
+        "my_community_activity_api_my_community_activity_get",
+        "active_consumer",
+        "frontend/lib/member-follow-api.ts",
+    ),
     ("GET", "/api/my/saved-recipes"): _operation(
         "my_saved_recipe_library_api_my_saved_recipes_get",
         "active_consumer",
@@ -236,6 +266,11 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
         "active_consumer",
         "frontend/lib/recipe-api.ts",
     ),
+    ("GET", "/api/recipes/viewer-states"): _operation(
+        "recipe_viewer_states_for_current_user_api_recipes_viewer_states_get",
+        "active_consumer",
+        "frontend/lib/interaction-api.ts",
+    ),
     ("GET", "/api/recipes/{recipe_version_id}"): _operation(
         "recipe_detail_api_recipes__recipe_version_id__get",
         "active_consumer",
@@ -248,6 +283,11 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ),
     ("PUT", "/api/recipes/{recipe_version_id}/rating"): _operation(
         "rate_recipe_for_current_user_api_recipes__recipe_version_id__rating_put",
+        "active_consumer",
+        "frontend/lib/interaction-api.ts",
+    ),
+    ("DELETE", "/api/recipes/{recipe_version_id}/rating"): _operation(
+        "unrate_recipe_for_current_user_api_recipes__recipe_version_id__rating_delete",
         "active_consumer",
         "frontend/lib/interaction-api.ts",
     ),

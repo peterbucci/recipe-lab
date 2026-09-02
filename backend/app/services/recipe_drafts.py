@@ -111,6 +111,7 @@ class _ValidatedAction:
 
 @dataclass(frozen=True, slots=True)
 class _ValidatedInstruction:
+    title: str | None
     text: str
     actions: tuple[_ValidatedAction, ...]
 
@@ -282,6 +283,7 @@ def _validate_document(
             actions.append(_validate_action(session, item=action))
         instructions.append(
             _ValidatedInstruction(
+                title=item.title,
                 text=item.text,
                 actions=tuple(actions),
             )
@@ -335,6 +337,7 @@ def _insert_validated_document(
     instruction_rows = [
         RecipeDraftInstruction(
             recipe_draft_id=draft.id,
+            title=item.title,
             instruction=item.text,
             display_order=display_order,
         )
@@ -420,6 +423,10 @@ def create_recipe_draft(
         title=source.title if source is not None else "",
         description=source.description if source is not None else None,
         servings=source.servings if source is not None else None,
+        total_time_minutes=source.total_time_minutes if source is not None else None,
+        active_time_minutes=source.active_time_minutes if source is not None else None,
+        difficulty=source.difficulty if source is not None else None,
+        notes=source.notes if source is not None else None,
     )
     if inserted_id is None:
         concurrent = get_owned_recipe_draft_by_creation_action(
@@ -483,6 +490,7 @@ def create_recipe_draft(
     instruction_rows = [
         RecipeDraftInstruction(
             recipe_draft_id=draft.id,
+            title=item.title,
             instruction=item.instruction,
             display_order=item.display_order,
         )
@@ -607,6 +615,10 @@ def replace_recipe_draft(
     draft.title = payload.title
     draft.description = payload.description
     draft.servings = payload.servings
+    draft.total_time_minutes = payload.total_time_minutes
+    draft.active_time_minutes = payload.active_time_minutes
+    draft.difficulty = payload.difficulty
+    draft.notes = payload.notes
     draft.revision += 1
     _insert_validated_document(
         session,
@@ -645,6 +657,10 @@ def discard_recipe_draft(
     draft.title = ""
     draft.description = None
     draft.servings = None
+    draft.total_time_minutes = None
+    draft.active_time_minutes = None
+    draft.difficulty = None
+    draft.notes = None
     draft.status = RECIPE_DRAFT_STATUS_DISCARDED
     session.flush()
     return True
@@ -750,6 +766,10 @@ def recipe_draft_detail_response(draft: RecipeDraft) -> RecipeDraftDetailRespons
         title=draft.title,
         description=draft.description,
         servings=draft.servings,
+        total_time_minutes=draft.total_time_minutes,
+        active_time_minutes=draft.active_time_minutes,
+        difficulty=cast(Literal["easy", "medium", "hard"] | None, draft.difficulty),
+        notes=draft.notes,
         categories=[
             RecipeCategorySummary(
                 id=item.category.id,
@@ -762,6 +782,7 @@ def recipe_draft_detail_response(draft: RecipeDraft) -> RecipeDraftDetailRespons
         instructions=[
             RecipeDraftInstructionResponse(
                 id=item.id,
+                title=item.title,
                 text=item.instruction,
                 actions=[_action_response(action) for action in item.actions],
                 display_order=item.display_order,

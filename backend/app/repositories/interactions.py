@@ -63,6 +63,50 @@ def get_recipe_viewer_state(
     return RecipeViewerState(saved=saved, rating=rating)
 
 
+def get_recipe_viewer_states(
+    session: Session,
+    *,
+    user_id: UUID,
+    recipe_version_ids: list[UUID],
+) -> dict[UUID, RecipeViewerState]:
+    """Load one member's private state for a bounded set of public recipe cards."""
+
+    if not recipe_version_ids:
+        return {}
+
+    unique_ids = tuple(dict.fromkeys(recipe_version_ids))
+    saved_ids = set(
+        session.scalars(
+            select(RecipeSave.recipe_version_id)
+            .join(RecipeVersion, RecipeVersion.id == RecipeSave.recipe_version_id)
+            .where(
+                RecipeSave.user_id == user_id,
+                RecipeSave.recipe_version_id.in_(unique_ids),
+                publicly_readable_recipe_version_filter(),
+            )
+        )
+    )
+    ratings = {
+        recipe_version_id: rating
+        for recipe_version_id, rating in session.execute(
+            select(RecipeRating.recipe_version_id, RecipeRating.rating)
+            .join(RecipeVersion, RecipeVersion.id == RecipeRating.recipe_version_id)
+            .where(
+                RecipeRating.user_id == user_id,
+                RecipeRating.recipe_version_id.in_(unique_ids),
+                publicly_readable_recipe_version_filter(),
+            )
+        )
+    }
+    return {
+        recipe_version_id: RecipeViewerState(
+            saved=recipe_version_id in saved_ids,
+            rating=ratings.get(recipe_version_id),
+        )
+        for recipe_version_id in unique_ids
+    }
+
+
 def save_recipe(
     session: Session,
     *,
@@ -111,3 +155,17 @@ def rate_recipe(
         )
     )
     session.execute(statement)
+
+
+def unrate_recipe(
+    session: Session,
+    *,
+    user_id: UUID,
+    recipe_version_id: UUID,
+) -> None:
+    session.execute(
+        delete(RecipeRating).where(
+            RecipeRating.user_id == user_id,
+            RecipeRating.recipe_version_id == recipe_version_id,
+        )
+    )

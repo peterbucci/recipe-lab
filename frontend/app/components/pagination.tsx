@@ -1,11 +1,15 @@
 import Link from "next/link";
 
-import { recipeBrowseHref } from "../../lib/recipe-browse-query";
+import {
+  recipeBrowseHref,
+  type RecipeBrowseType,
+} from "../../lib/recipe-browse-query";
 
 interface PaginationProps {
   category?: string;
   currentPage: number;
   query: string;
+  recipeType?: RecipeBrowseType;
   sort?: "newest" | "title";
   totalPages: number;
 }
@@ -18,6 +22,7 @@ export function Pagination({
   category,
   currentPage,
   query,
+  recipeType,
   sort,
   totalPages,
 }: PaginationProps) {
@@ -30,7 +35,11 @@ export function Pagination({
       {currentPage > 1 ? (
         <Link
           className="button button--secondary pagination__link"
-          href={recipeBrowseHref(currentPage - 1, query, { category, sort })}
+          href={recipeBrowseHref(currentPage - 1, query, {
+            category,
+            recipeType,
+            sort,
+          })}
         >
           ← Previous
         </Link>
@@ -48,7 +57,11 @@ export function Pagination({
       {currentPage < totalPages ? (
         <Link
           className="button button--secondary pagination__link"
-          href={recipeBrowseHref(currentPage + 1, query, { category, sort })}
+          href={recipeBrowseHref(currentPage + 1, query, {
+            category,
+            recipeType,
+            sort,
+          })}
         >
           Next →
         </Link>

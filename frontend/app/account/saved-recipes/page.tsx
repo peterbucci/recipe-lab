@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-
-import { SavedRecipeLibrary } from "../../components/saved-recipe-library";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
-  title: "Saved recipes",
-  description: "Return to the public recipe versions you saved for later.",
+  title: "My recipes",
+  description: "Manage recipes you are drafting, sharing, saving, or have withdrawn.",
 };
 
 export default function SavedRecipesPage() {
-  return <SavedRecipeLibrary />;
+  redirect("/account/recipes?view=saved");
 }

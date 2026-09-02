@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AUTH_SESSION_EXPIRED_EVENT } from "./auth-api";
 import {
+  clearRecipeRating,
   fetchRecipeViewerState,
+  fetchRecipeViewerStates,
   InteractionApiError,
   recordRecipeView,
   type RecipeViewerState,
@@ -86,6 +88,35 @@ describe("interaction API client", () => {
           "X-CSRF-Token": "test-csrf-token",
         },
         body: JSON.stringify({ rating: 4 }),
+        credentials: "same-origin",
+      },
+    );
+  });
+
+  it("removes a rating with the same protected interaction contract", async () => {
+    const clearedState = { ...viewerState, rating: null };
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(clearedState), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      clearRecipeRating(viewerState.recipe_version_id, IDEMPOTENCY_KEY),
+    ).resolves.toEqual(clearedState);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/recipes/${viewerState.recipe_version_id}/rating`,
+      {
+        method: "DELETE",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "Idempotency-Key": IDEMPOTENCY_KEY,
+          "X-CSRF-Token": "test-csrf-token",
+        },
         credentials: "same-origin",
       },
     );
@@ -203,6 +234,65 @@ describe("interaction API client", () => {
         method: "GET",
       }),
     );
+  });
+
+  it("loads ordered private state for multiple recipe cards in one request", async () => {
+    const secondState: RecipeViewerState = {
+      recipe_version_id: "39454eba-3a4e-5380-b48c-c49dc3697b17",
+      saved: false,
+      rating: null,
+    };
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ items: [viewerState, secondState] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      fetchRecipeViewerStates([
+        viewerState.recipe_version_id,
+        secondState.recipe_version_id,
+        viewerState.recipe_version_id,
+      ]),
+    ).resolves.toEqual([viewerState, secondState]);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/recipes/viewer-states?recipe_version_id=${viewerState.recipe_version_id}&recipe_version_id=${secondState.recipe_version_id}`,
+      expect.objectContaining({
+        cache: "no-store",
+        credentials: "same-origin",
+        method: "GET",
+      }),
+    );
+  });
+
+  it("rejects a card-state batch that does not match the requested order", async () => {
+    const secondState: RecipeViewerState = {
+      recipe_version_id: "39454eba-3a4e-5380-b48c-c49dc3697b17",
+      saved: false,
+      rating: null,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify({ items: [secondState, viewerState] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    await expect(
+      fetchRecipeViewerStates([
+        viewerState.recipe_version_id,
+        secondState.recipe_version_id,
+      ]),
+    ).rejects.toMatchObject({
+      code: "invalid_interaction_response",
+      status: 502,
+    });
   });
 
   it("rejects member state with an owner field instead of trusting it", async () => {

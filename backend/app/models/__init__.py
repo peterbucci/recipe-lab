@@ -119,6 +119,7 @@ from app.models.recipe_duplicate import (
     RecipeDuplicatePreflight,
 )
 from app.models.recipe_fingerprint import RecipeStructuralFingerprint
+from app.models.social import UserFollow
 from app.models.user import (
     ACCOUNT_KIND_DEMO,
     ACCOUNT_KIND_MEMBER,
@@ -247,5 +248,6 @@ __all__ = [
     "USER_STATUS_SUSPENDED",
     "USER_STATUSES",
     "User",
+    "UserFollow",
     "UserSession",
 ]

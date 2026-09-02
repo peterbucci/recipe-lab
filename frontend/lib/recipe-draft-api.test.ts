@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AUTH_SESSION_EXPIRED_EVENT } from "./auth-api";
 import {
+  browseRecipeDrafts,
   createRecipeDraft,
   discardRecipeDraft,
+  findActiveRecipeDraftForSource,
   parseRecipeDraftDetail,
   parseRecipeDraftPage,
   recipeDraftCreationRequestFingerprint,
@@ -24,6 +26,10 @@ const blankDetail = {
   title: "",
   description: null,
   servings: null,
+  total_time_minutes: null,
+  active_time_minutes: null,
+  difficulty: null,
+  notes: null,
   categories: [
     { id: CATEGORY_ID, name: "Quick & easy", slug: "quick-easy" },
   ],
@@ -31,6 +37,18 @@ const blankDetail = {
   instructions: [],
   created_at: "2026-08-25T12:00:00Z",
   updated_at: "2026-08-25T12:00:00Z",
+};
+
+const sourcedSummary = {
+  id: DRAFT_ID,
+  source_version_id: SOURCE_ID,
+  status: "active",
+  revision: 3,
+  title: "Private version",
+  ingredient_count: 4,
+  instruction_count: 2,
+  created_at: "2026-08-25T12:00:00Z",
+  updated_at: "2026-08-25T13:00:00Z",
 };
 
 afterEach(() => {
@@ -51,6 +69,23 @@ describe("private recipe draft API", () => {
     });
   });
 
+  it("accepts validated cooking metadata and notes", () => {
+    expect(
+      parseRecipeDraftDetail({
+        ...blankDetail,
+        total_time_minutes: 75,
+        active_time_minutes: 30,
+        difficulty: "medium",
+        notes: "Let the dough rest before shaping.",
+      }),
+    ).toMatchObject({
+      total_time_minutes: 75,
+      active_time_minutes: 30,
+      difficulty: "medium",
+      notes: "Let the dough rest before shaping.",
+    });
+  });
+
   it("rejects unordered or malformed private responses", () => {
     expect(() => parseRecipeDraftDetail({ ...blankDetail, revision: 0 })).toThrow(RecipeDraftApiError);
     expect(() =>
@@ -58,6 +93,19 @@ describe("private recipe draft API", () => {
         ...blankDetail,
         categories: [blankDetail.categories[0], blankDetail.categories[0]],
       }),
+    ).toThrow(RecipeDraftApiError);
+    expect(() =>
+      parseRecipeDraftDetail({
+        ...blankDetail,
+        total_time_minutes: 30,
+        active_time_minutes: 45,
+      }),
+    ).toThrow(RecipeDraftApiError);
+    expect(() =>
+      parseRecipeDraftDetail({ ...blankDetail, difficulty: "expert" }),
+    ).toThrow(RecipeDraftApiError);
+    expect(() =>
+      parseRecipeDraftDetail({ ...blankDetail, notes: "" }),
     ).toThrow(RecipeDraftApiError);
     expect(() => parseRecipeDraftPage({
       items: [{
@@ -76,6 +124,104 @@ describe("private recipe draft API", () => {
       total: 1,
       total_pages: 1,
     })).toThrow(RecipeDraftApiError);
+  });
+
+  it("looks up the most recent active draft for one exact source", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        items: [sourcedSummary],
+        page: 1,
+        page_size: 1,
+        total: 1,
+        total_pages: 1,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      findActiveRecipeDraftForSource(SOURCE_ID.toUpperCase()),
+    ).resolves.toEqual(sourcedSummary);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/recipe-drafts?page=1&page_size=1&source_version_id=${SOURCE_ID}`,
+      expect.objectContaining({
+        cache: "no-store",
+        credentials: "same-origin",
+      }),
+    );
+  });
+
+  it("returns null when a source has no active draft", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          items: [],
+          page: 1,
+          page_size: 1,
+          total: 0,
+          total_pages: 0,
+        }),
+      ),
+    );
+
+    await expect(
+      findActiveRecipeDraftForSource(SOURCE_ID),
+    ).resolves.toBeNull();
+  });
+
+  it("rejects an invalid source identifier without dispatching", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      findActiveRecipeDraftForSource("not-a-recipe-id"),
+    ).rejects.toMatchObject({
+      code: "invalid_identifier",
+      status: 0,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not resume a draft returned for a different source", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          items: [{ ...sourcedSummary, source_version_id: CATEGORY_ID }],
+          page: 1,
+          page_size: 1,
+          total: 1,
+          total_pages: 1,
+        }),
+      ),
+    );
+
+    await expect(
+      findActiveRecipeDraftForSource(SOURCE_ID),
+    ).rejects.toMatchObject({
+      code: "invalid_recipe_draft_response",
+      status: 502,
+    });
+  });
+
+  it("preserves the unfiltered draft browse request", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        items: [],
+        page: 2,
+        page_size: 10,
+        total: 0,
+        total_pages: 0,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await browseRecipeDrafts({ page: 2, pageSize: 10 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/recipe-drafts?page=2&page_size=10",
+      expect.any(Object),
+    );
   });
 
   it("creates an original draft through the shared mutation transport", async () => {
@@ -231,6 +377,10 @@ describe("private recipe draft API", () => {
           title: "Unsaved title",
           description: null,
           servings: null,
+          total_time_minutes: null,
+          active_time_minutes: null,
+          difficulty: null,
+          notes: null,
           category_ids: [],
           ingredients: [],
           instructions: [],
@@ -302,6 +452,10 @@ describe("private recipe draft API", () => {
         title: "Unsaved title",
         description: null,
         servings: null,
+        total_time_minutes: null,
+        active_time_minutes: null,
+        difficulty: null,
+        notes: null,
         category_ids: [],
         ingredients: [],
         instructions: [],

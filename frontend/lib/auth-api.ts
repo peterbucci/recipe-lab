@@ -2,6 +2,7 @@ export interface AccountUser {
   id: string;
   handle: string | null;
   display_name: string;
+  description?: string | null;
 }
 
 export interface AccountCapabilities {
@@ -31,6 +32,7 @@ export type AuthSession =
 export interface AccountProfileInput {
   handle: string;
   display_name: string;
+  description?: string | null;
 }
 
 export interface ApiValidationIssue {
@@ -83,16 +85,23 @@ function parseUser(value: unknown): AccountUser | null {
   if (
     typeof value.id !== "string" ||
     typeof value.display_name !== "string" ||
-    (value.handle !== null && typeof value.handle !== "string")
+    (value.handle !== null && typeof value.handle !== "string") ||
+    (value.description !== undefined &&
+      value.description !== null &&
+      (typeof value.description !== "string" || value.description.length > 500))
   ) {
     return null;
   }
 
-  return {
+  const user: AccountUser = {
     id: value.id,
     display_name: value.display_name,
     handle: value.handle,
   };
+  if (value.description !== undefined) {
+    user.description = value.description as string | null;
+  }
+  return user;
 }
 
 function parseCapabilities(
@@ -174,7 +183,7 @@ const KNOWN_AUTH_ERROR_CODES = new Set([
   "validation_error",
 ]);
 
-type ProfileValidationField = "display_name" | "handle";
+type ProfileValidationField = "description" | "display_name" | "handle";
 
 function safeAuthErrorCode(value: unknown): string {
   return typeof value === "string" && KNOWN_AUTH_ERROR_CODES.has(value)
@@ -189,7 +198,9 @@ function safeProfileIssueLocation(
     !Array.isArray(value) ||
     value.length !== 2 ||
     value[0] !== "body" ||
-    (value[1] !== "handle" && value[1] !== "display_name")
+    (value[1] !== "handle" &&
+      value[1] !== "display_name" &&
+      value[1] !== "description")
   ) {
     return null;
   }
@@ -197,8 +208,11 @@ function safeProfileIssueLocation(
 }
 
 function safeProfileIssueMessage(field: ProfileValidationField): string {
-  return field === "handle"
-    ? "Use a handle with 3–30 lowercase letters, numbers, underscores, or hyphens."
+  if (field === "handle") {
+    return "Use a handle with 3–30 lowercase letters, numbers, underscores, or hyphens.";
+  }
+  return field === "description"
+    ? "Keep your profile description to 500 visible characters or fewer."
     : "Enter a display name with 1–120 visible characters.";
 }
 

@@ -1,5 +1,12 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   MemberIngredientRequest,
@@ -9,6 +16,11 @@ import {
   browseMyIngredientRequests,
   IngredientCatalogApiError,
 } from "../../lib/ingredient-catalog-api";
+import type { MyFollowStats } from "../../lib/member-follow-api";
+import {
+  fetchMyFollowStats,
+  MemberFollowApiError,
+} from "../../lib/member-follow-api";
 import type { RecipeDraftListItem } from "../../lib/recipe-draft-api";
 import type { RecipeSummary } from "../../lib/recipe-api";
 import type {
@@ -20,13 +32,24 @@ import {
   fetchSavedRecipeLibrary,
   RecipeLibraryApiError,
 } from "../../lib/recipe-library-api";
+import { HomeLoadNotice, HomeLoadStateProvider } from "./home-load-state";
 import { MemberHomeSummary } from "./member-home-summary";
 
 const mocks = vi.hoisted(() => ({
   browseMyIngredientRequests: vi.fn(),
+  fetchMyFollowStats: vi.fn(),
   fetchMyRecipeLibrary: vi.fn(),
   fetchSavedRecipeLibrary: vi.fn(),
 }));
+
+vi.mock("../../lib/member-follow-api", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../lib/member-follow-api")>();
+  return {
+    ...actual,
+    fetchMyFollowStats: mocks.fetchMyFollowStats,
+  };
+});
 
 vi.mock("../../lib/ingredient-catalog-api", async (importOriginal) => {
   const actual =
@@ -136,7 +159,12 @@ function draftPage(
   total = items.length,
 ): MyRecipeLibraryPage {
   return libraryPage(
-    items.map((item) => ({ kind: "draft" as const, draft: item })),
+    items.map((item) => ({
+      kind: "draft" as const,
+      draft: item,
+      source_recipe_title: null,
+      description: null,
+    })),
     total,
   );
 }
@@ -207,23 +235,47 @@ function metric(label: string): HTMLElement {
   return container;
 }
 
+function SummaryHarness({ userId }: { userId: string }) {
+  return (
+    <HomeLoadStateProvider>
+      <HomeLoadNotice />
+      <MemberHomeSummary userId={userId} />
+    </HomeLoadStateProvider>
+  );
+}
+
+function renderSummary(userId = "member-one") {
+  return render(<SummaryHarness userId={userId} />);
+}
+
 function useSuccessfulResources() {
   mocks.fetchMyRecipeLibrary.mockImplementation(
     ({ view }: { view: "drafts" | "published" | "withdrawn" }) => {
       if (view === "drafts") return Promise.resolve(draftPage());
-      if (view === "published") return Promise.resolve(publishedPage("published", 4));
+      if (view === "published")
+        return Promise.resolve(publishedPage("published", 4));
       return Promise.resolve(publishedPage("author_withdrawn", 2));
     },
   );
   mocks.fetchSavedRecipeLibrary.mockResolvedValue(savedPage());
+  mocks.fetchMyFollowStats.mockResolvedValue({
+    follower_count: 9,
+    following_count: 3,
+  });
   mocks.browseMyIngredientRequests.mockResolvedValue(requestPage());
 }
 
 beforeEach(() => {
+  vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-08-30T16:00:00Z"));
   mocks.browseMyIngredientRequests.mockReset();
+  mocks.fetchMyFollowStats.mockReset();
   mocks.fetchMyRecipeLibrary.mockReset();
   mocks.fetchSavedRecipeLibrary.mockReset();
   useSuccessfulResources();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("MemberHomeSummary", () => {
@@ -233,25 +285,30 @@ describe("MemberHomeSummary", () => {
     const withdrawn = deferred<MyRecipeLibraryPage>();
     const saved = deferred<SavedRecipeLibraryPage>();
     const ingredientRequests = deferred<MemberIngredientRequestPage>();
+    const followStats = deferred<MyFollowStats>();
 
     mocks.fetchMyRecipeLibrary.mockImplementation(
       ({ view }: { view: "drafts" | "published" | "withdrawn" }) =>
         ({ drafts, published, withdrawn })[view].promise,
     );
     mocks.fetchSavedRecipeLibrary.mockReturnValue(saved.promise);
-    mocks.browseMyIngredientRequests.mockReturnValue(ingredientRequests.promise);
+    mocks.browseMyIngredientRequests.mockReturnValue(
+      ingredientRequests.promise,
+    );
+    mocks.fetchMyFollowStats.mockReturnValue(followStats.promise);
 
-    render(<MemberHomeSummary userId="member-one" />);
+    renderSummary();
 
     await waitFor(() => {
       expect(fetchMyRecipeLibrary).toHaveBeenCalledTimes(3);
       expect(fetchSavedRecipeLibrary).toHaveBeenCalledTimes(1);
-      expect(browseMyIngredientRequests).toHaveBeenCalledTimes(2);
+      expect(browseMyIngredientRequests).toHaveBeenCalledTimes(1);
+      expect(fetchMyFollowStats).toHaveBeenCalledTimes(1);
     });
     expect(
       mocks.fetchMyRecipeLibrary.mock.calls.map(([options]) => options.view),
     ).toEqual(["drafts", "published", "withdrawn"]);
-    expect(screen.getAllByRole("status").length).toBeGreaterThanOrEqual(5);
+    expect(screen.getAllByRole("status").length).toBeGreaterThanOrEqual(2);
 
     await act(async () => {
       drafts.resolve(draftPage());
@@ -259,29 +316,61 @@ describe("MemberHomeSummary", () => {
       withdrawn.resolve(publishedPage("author_withdrawn", 2));
       saved.resolve(savedPage());
       ingredientRequests.resolve(requestPage());
+      followStats.resolve({ follower_count: 9, following_count: 3 });
     });
   });
 
   it("shows the latest draft, exact totals, and the three newest real activities", async () => {
-    const { container } = render(<MemberHomeSummary userId="member-one" />);
+    const { container } = renderSummary();
 
     const continueLink = await screen.findByRole("link", {
-      name: "Continue draft",
+      name: "Open draft",
     });
-    expect(screen.getByRole("heading", { level: 3, name: "Garden stew" })).toBeVisible();
-    expect(screen.getByText("Version draft")).toBeVisible();
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Garden stew" }),
+    ).toBeVisible();
+    expect(screen.getByText("Forked recipe")).toBeVisible();
+    expect(screen.getByText("6 ingredients · 4 steps")).toBeVisible();
+    expect(screen.getAllByText("4 hours ago")).toHaveLength(2);
+    expect(
+      container.querySelector(".member-home-summary__draft-thumbnail"),
+    ).toHaveAttribute("data-artwork-variant");
     expect(continueLink).toHaveAttribute(
       "href",
-      `/account/recipe-drafts/${DRAFT_ID}`,
+      `/recipes/drafts/${DRAFT_ID}`,
     );
     expect(container.textContent).not.toMatch(/\b\d+%/);
 
-    expect(within(metric("Versions published")).getByText("6")).toBeVisible();
+    expect(within(metric("Versions published")).getByText("4")).toBeVisible();
     expect(within(metric("Active drafts")).getByText("2")).toBeVisible();
     expect(within(metric("Saved recipes")).getByText("5")).toBeVisible();
-    expect(within(metric("Ingredient requests")).getByText("7")).toBeVisible();
-    expect(screen.getByRole("heading", { level: 2, name: "Your stats" })).toBeVisible();
-    expect(screen.getByRole("heading", { level: 2, name: "Your activity" })).toBeVisible();
+    expect(within(metric("Followers")).getByText("9")).toBeVisible();
+    expect(
+      within(metric("Versions published")).getByRole("link", {
+        name: "View published versions",
+      }),
+    ).toHaveAttribute("href", "/account/recipes?view=published");
+    expect(
+      within(metric("Active drafts")).getByRole("link", {
+        name: "View active drafts",
+      }),
+    ).toHaveAttribute("href", "/account/recipes?view=drafts");
+    expect(
+      within(metric("Saved recipes")).getByRole("link", {
+        name: "View saved recipes",
+      }),
+    ).toHaveAttribute("href", "/account/recipes?view=saved");
+    expect(
+      within(metric("Followers")).getByRole("link", {
+        name: "View followers",
+      }),
+    ).toHaveAttribute("href", "/account/followers");
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Your stats" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Your activity" }),
+    ).toBeVisible();
 
     const activity = screen.getByRole("list", {
       name: "Recent account activity",
@@ -290,112 +379,136 @@ describe("MemberHomeSummary", () => {
     expect(items).toHaveLength(3);
     expect(items[0]).toHaveTextContent("Ingredient request approved");
     expect(items[0]).toHaveTextContent("Mountain pepper");
+    expect(items[0]).toHaveTextContent("2 hours ago");
     expect(items[0].querySelector("time")).toHaveAttribute(
       "datetime",
       "2026-08-30T14:00:00Z",
     );
     expect(items[1]).toHaveTextContent("Saved recipe");
     expect(items[1]).toHaveTextContent("Saved summer salad");
+    expect(items[1]).toHaveTextContent("3 hours ago");
     expect(items[1].querySelector("time")).toHaveAttribute(
       "datetime",
       "2026-08-30T13:00:00Z",
     );
     expect(items[2]).toHaveTextContent("Updated draft");
     expect(items[2]).toHaveTextContent("Garden stew");
+    expect(items[2]).toHaveTextContent("4 hours ago");
     expect(items[2].querySelector("time")).toHaveAttribute(
       "datetime",
       "2026-08-30T12:00:00Z",
     );
+    expect(
+      activity.querySelectorAll(".member-home-summary__activity-icon svg"),
+    ).toHaveLength(3);
+    expect(
+      screen.getByRole("link", { name: "View all activity" }),
+    ).toHaveAttribute("href", "/account/activity");
   });
 
-  it("loads reviewed activity separately so pending requests cannot hide it", async () => {
-    mocks.browseMyIngredientRequests.mockImplementation(
-      ({ reviewedOnly }: { reviewedOnly?: boolean }) =>
-        Promise.resolve({
-          items: reviewedOnly
-            ? [
-                request({
-                  created_at: "2026-08-01T08:00:00Z",
-                  proposed_name: "Recently reviewed herb",
-                  reviewed_at: "2026-08-30T15:00:00Z",
-                }),
-              ]
-            : [
-                request({
-                  proposed_name: "New pending one",
-                  reviewed_at: null,
-                  status: "pending",
-                }),
-                request({
-                  id: "88888888-8888-4888-8888-888888888888",
-                  proposed_name: "New pending two",
-                  reviewed_at: null,
-                  status: "pending",
-                }),
-                request({
-                  id: "99999999-9999-4999-8999-999999999999",
-                  proposed_name: "New pending three",
-                  reviewed_at: null,
-                  status: "pending",
-                }),
-              ],
-          page: 1,
-          page_size: reviewedOnly ? 3 : 1,
-          total: reviewedOnly ? 1 : 4,
-          total_pages: reviewedOnly ? 1 : 4,
-        }),
+  it("hides the continue panel when there are no active drafts", async () => {
+    mocks.fetchMyRecipeLibrary.mockImplementation(
+      ({ view }: { view: "drafts" | "published" | "withdrawn" }) => {
+        if (view === "drafts") return Promise.resolve(draftPage([], 0));
+        if (view === "published") {
+          return Promise.resolve(publishedPage("published", 4));
+        }
+        return Promise.resolve(publishedPage("author_withdrawn", 2));
+      },
     );
 
-    render(<MemberHomeSummary userId="member-one" />);
+    renderSummary();
+
+    expect(
+      await within(metric("Active drafts")).findByRole("link", {
+        name: "View active drafts",
+      }),
+    ).toHaveTextContent("0");
+    expect(
+      screen.queryByRole("heading", { name: "Continue where you left off" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("You have no active drafts right now."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Start a recipe" })).not.toBeInTheDocument();
+  });
+
+  it("loads only reviewed ingredient requests for activity", async () => {
+    mocks.browseMyIngredientRequests.mockResolvedValue({
+      items: [
+        request({
+          created_at: "2026-08-01T08:00:00Z",
+          proposed_name: "Recently reviewed herb",
+          reviewed_at: "2026-08-30T15:00:00Z",
+        }),
+      ],
+      page: 1,
+      page_size: 3,
+      total: 1,
+      total_pages: 1,
+    });
+
+    renderSummary();
 
     const activity = await screen.findByRole("list", {
       name: "Recent account activity",
     });
     expect(activity).toHaveTextContent("Recently reviewed herb");
-    expect(activity).not.toHaveTextContent("New pending one");
-    expect(within(metric("Ingredient requests")).getByText("4")).toBeVisible();
+    expect(within(metric("Followers")).getByText("9")).toBeVisible();
+    expect(
+      screen.queryByText("Ingredient requests", { selector: "dt" }),
+    ).not.toBeInTheDocument();
+    expect(browseMyIngredientRequests).toHaveBeenCalledTimes(1);
     expect(browseMyIngredientRequests).toHaveBeenCalledWith(
-      expect.objectContaining({ pageSize: 3, reviewedOnly: true }),
+      expect.objectContaining({
+        page: 1,
+        pageSize: 3,
+        reviewedOnly: true,
+        signal: expect.any(AbortSignal),
+      }),
     );
   });
 
   it("keeps successful panels visible and retries only the failed resource", async () => {
+    const failure = new RecipeLibraryApiError(
+      "Saved recipes are temporarily unavailable.",
+      503,
+    );
     mocks.fetchSavedRecipeLibrary
-      .mockRejectedValueOnce(
-        new RecipeLibraryApiError(
-          "Saved recipes are temporarily unavailable.",
-          503,
-        ),
-      )
+      .mockRejectedValueOnce(failure)
       .mockResolvedValueOnce(savedPage(8, "Recovered favorite"));
 
-    render(<MemberHomeSummary userId="member-one" />);
+    renderSummary();
 
     expect(
       await screen.findByRole("heading", { level: 3, name: "Garden stew" }),
     ).toBeVisible();
     expect(within(metric("Active drafts")).getByText("2")).toBeVisible();
-    expect(within(metric("Ingredient requests")).getByText("7")).toBeVisible();
-    expect(within(metric("Saved recipes")).getByRole("alert")).toHaveTextContent(
-      "Unavailable",
-    );
+    expect(within(metric("Followers")).getByText("9")).toBeVisible();
+    expect(
+      await within(metric("Saved recipes")).findByLabelText(
+        "Saved recipes unavailable",
+      ),
+    ).toHaveTextContent("—");
     const activityPanel = screen.getByRole("region", { name: "Your activity" });
-    expect(within(activityPanel).getByText(/saved recipes/i, { selector: "p" })).toHaveTextContent(
-      /some recent activity is unavailable/i,
-    );
+    expect(
+      within(activityPanel).getByRole("list", { name: "Recent account activity" }),
+    ).toBeVisible();
+    expect(within(activityPanel).queryByRole("alert")).toBeNull();
+    const notice = await screen.findByRole("status", {
+      name: "Some homepage information couldn’t be updated.",
+    });
+    expect(notice).toBeVisible();
 
-    fireEvent.click(
-      within(activityPanel).getByRole("button", {
-        name: "Retry saved recipes for activity",
-      }),
-    );
+    fireEvent.click(within(notice).getByRole("button", { name: "Try again" }));
 
     await waitFor(() => {
       expect(within(metric("Saved recipes")).getByText("8")).toBeVisible();
     });
     expect(fetchSavedRecipeLibrary).toHaveBeenCalledTimes(2);
     expect(fetchMyRecipeLibrary).toHaveBeenCalledTimes(3);
-    expect(browseMyIngredientRequests).toHaveBeenCalledTimes(2);
+    expect(browseMyIngredientRequests).toHaveBeenCalledTimes(1);
+    expect(fetchMyFollowStats).toHaveBeenCalledTimes(1);
     expect(
       screen.getByRole("list", {
         name: "Recent account activity",
@@ -403,7 +516,39 @@ describe("MemberHomeSummary", () => {
     ).toHaveTextContent("Recovered favorite");
   });
 
-  it("surfaces one failed version total while its companion is still loading", async () => {
+  it("leaves session recovery separate from the homepage outage notice", async () => {
+    mocks.fetchMyFollowStats.mockRejectedValueOnce(
+      new MemberFollowApiError("Your session expired.", 401),
+    );
+
+    renderSummary();
+
+    expect(
+      await within(metric("Followers")).findByLabelText(
+        "Followers unavailable",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("list", { name: "Recent account activity" }),
+    ).toBeVisible();
+    expect(
+      within(screen.getByRole("region", { name: "Your activity" })).queryByText(
+        /followers/i,
+      ),
+    ).not.toBeInTheDocument();
+
+    expect(
+      screen.queryByRole("status", {
+        name: "Some homepage information couldn’t be updated.",
+      }),
+    ).toBeNull();
+    expect(fetchMyFollowStats).toHaveBeenCalledTimes(1);
+    expect(browseMyIngredientRequests).toHaveBeenCalledTimes(1);
+    expect(fetchSavedRecipeLibrary).toHaveBeenCalledTimes(1);
+    expect(fetchMyRecipeLibrary).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps the published total independent from withdrawn activity loading", async () => {
     const withdrawn = deferred<MyRecipeLibraryPage>();
     mocks.fetchMyRecipeLibrary.mockImplementation(
       ({ view }: { view: "drafts" | "published" | "withdrawn" }) => {
@@ -418,17 +563,19 @@ describe("MemberHomeSummary", () => {
       },
     );
 
-    render(<MemberHomeSummary userId="member-one" />);
+    renderSummary();
 
     const versionMetric = metric("Versions published");
     expect(
-      await within(versionMetric).findByRole("button", {
-        name: "Retry published recipes",
-      }),
+      await within(versionMetric).findByLabelText(
+        "Versions published unavailable",
+      ),
     ).toBeVisible();
-    expect(within(versionMetric).getByRole("alert")).toHaveTextContent(
-      "Other version totals are still loading.",
-    );
+    const notice = await screen.findByRole("status", {
+      name: "Some homepage information couldn’t be updated.",
+    });
+    expect(within(notice).getAllByRole("button", { name: "Try again" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: /Retry published/i })).toBeNull();
     expect(within(metric("Saved recipes")).getByText("5")).toBeVisible();
 
     await act(async () => {
@@ -443,6 +590,7 @@ describe("MemberHomeSummary", () => {
       withdrawn: deferred<MyRecipeLibraryPage>(),
       saved: deferred<SavedRecipeLibraryPage>(),
       ingredientRequests: deferred<MemberIngredientRequestPage>(),
+      followStats: deferred<MyFollowStats>(),
     };
     const accountB = {
       drafts: deferred<MyRecipeLibraryPage>(),
@@ -450,6 +598,7 @@ describe("MemberHomeSummary", () => {
       withdrawn: deferred<MyRecipeLibraryPage>(),
       saved: deferred<SavedRecipeLibraryPage>(),
       ingredientRequests: deferred<MemberIngredientRequestPage>(),
+      followStats: deferred<MyFollowStats>(),
     };
     const libraryQueues = {
       drafts: [accountA.drafts, accountB.drafts],
@@ -459,10 +608,9 @@ describe("MemberHomeSummary", () => {
     const savedQueue = [accountA.saved, accountB.saved];
     const requestQueue = [
       accountA.ingredientRequests,
-      accountA.ingredientRequests,
-      accountB.ingredientRequests,
       accountB.ingredientRequests,
     ];
+    const followStatsQueue = [accountA.followStats, accountB.followStats];
 
     mocks.fetchMyRecipeLibrary.mockImplementation(
       ({ view }: { view: "drafts" | "published" | "withdrawn" }) => {
@@ -481,28 +629,41 @@ describe("MemberHomeSummary", () => {
       if (!next) throw new Error("Missing ingredient-request response.");
       return next.promise;
     });
+    mocks.fetchMyFollowStats.mockImplementation(() => {
+      const next = followStatsQueue.shift();
+      if (!next) throw new Error("Missing follow-stats response.");
+      return next.promise;
+    });
 
-    const { rerender } = render(<MemberHomeSummary userId="member-a" />);
-    await waitFor(() => expect(fetchMyRecipeLibrary).toHaveBeenCalledTimes(3));
+    const { rerender } = renderSummary("member-a");
+    await waitFor(() => {
+      expect(fetchMyRecipeLibrary).toHaveBeenCalledTimes(3);
+      expect(fetchSavedRecipeLibrary).toHaveBeenCalledTimes(1);
+      expect(browseMyIngredientRequests).toHaveBeenCalledTimes(1);
+      expect(fetchMyFollowStats).toHaveBeenCalledTimes(1);
+    });
     const accountALibrarySignals = mocks.fetchMyRecipeLibrary.mock.calls.map(
       ([options]) => options.signal as AbortSignal,
     );
     const accountASavedSignal = mocks.fetchSavedRecipeLibrary.mock.calls[0][0]
       .signal as AbortSignal;
-    const accountARequestSignals = mocks.browseMyIngredientRequests.mock.calls
-      .slice(0, 2)
-      .map(([options]) => options.signal as AbortSignal);
+    const accountARequestSignal = mocks.browseMyIngredientRequests.mock
+      .calls[0][0].signal as AbortSignal;
+    const accountAFollowStatsSignal = mocks.fetchMyFollowStats.mock
+      .calls[0][0] as AbortSignal | undefined;
 
-    rerender(<MemberHomeSummary userId="member-b" />);
+    rerender(<SummaryHarness userId="member-b" />);
 
     await waitFor(() => {
       expect(fetchMyRecipeLibrary).toHaveBeenCalledTimes(6);
       expect(fetchSavedRecipeLibrary).toHaveBeenCalledTimes(2);
-      expect(browseMyIngredientRequests).toHaveBeenCalledTimes(4);
+      expect(browseMyIngredientRequests).toHaveBeenCalledTimes(2);
+      expect(fetchMyFollowStats).toHaveBeenCalledTimes(2);
     });
     expect(accountALibrarySignals.every((signal) => signal.aborted)).toBe(true);
     expect(accountASavedSignal.aborted).toBe(true);
-    expect(accountARequestSignals.every((signal) => signal.aborted)).toBe(true);
+    expect(accountARequestSignal.aborted).toBe(true);
+    expect(accountAFollowStatsSignal?.aborted).toBe(true);
 
     await act(async () => {
       accountA.drafts.resolve(
@@ -511,7 +672,10 @@ describe("MemberHomeSummary", () => {
       accountA.published.resolve(publishedPage("published", 10));
       accountA.withdrawn.resolve(publishedPage("author_withdrawn", 11));
       accountA.saved.resolve(savedPage(12, "Alice private favorite"));
-      accountA.ingredientRequests.resolve(requestPage(13, "Alice private request"));
+      accountA.ingredientRequests.resolve(
+        requestPage(13, "Alice private request"),
+      );
+      accountA.followStats.resolve({ follower_count: 13, following_count: 6 });
 
       accountB.drafts.resolve(
         draftPage(
@@ -522,33 +686,55 @@ describe("MemberHomeSummary", () => {
       accountB.published.resolve(publishedPage("published", 2));
       accountB.withdrawn.resolve(publishedPage("author_withdrawn", 3));
       accountB.saved.resolve(savedPage(4, "Bob current favorite"));
-      accountB.ingredientRequests.resolve(requestPage(5, "Bob current request"));
+      accountB.ingredientRequests.resolve(
+        requestPage(5, "Bob current request"),
+      );
+      accountB.followStats.resolve({ follower_count: 5, following_count: 2 });
     });
 
     expect(
-      await screen.findByRole("heading", { level: 3, name: "Bob current draft" }),
+      await screen.findByRole("heading", {
+        level: 3,
+        name: "Bob current draft",
+      }),
     ).toBeVisible();
-    expect(screen.getByText("Original draft")).toBeVisible();
+    expect(screen.getByText("Original recipe")).toBeVisible();
     expect(screen.queryByText(/Alice private/)).not.toBeInTheDocument();
-    expect(within(metric("Versions published")).getByText("5")).toBeVisible();
+    expect(within(metric("Versions published")).getByText("2")).toBeVisible();
     expect(within(metric("Saved recipes")).getByText("4")).toBeVisible();
-    expect(within(metric("Ingredient requests")).getByText("5")).toBeVisible();
+    expect(within(metric("Followers")).getByText("5")).toBeVisible();
   });
 
-  it("uses ordinary public errors but preserves safe API messages", async () => {
-    mocks.browseMyIngredientRequests.mockRejectedValueOnce(
-      new IngredientCatalogApiError(
-        "Your ingredient requests are resting. Please retry.",
-        503,
-      ),
+  it("reports and retries an ingredient-activity failure without restoring the old stat", async () => {
+    const failure = new IngredientCatalogApiError(
+      "Your ingredient requests are resting. Please retry.",
+      503,
     );
+    mocks.browseMyIngredientRequests
+      .mockRejectedValueOnce(failure)
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(requestPage(1, "Recovered request"));
 
-    render(<MemberHomeSummary userId="member-one" />);
+    renderSummary();
 
+    const activity = screen.getByRole("region", { name: "Your activity" });
+    const notice = await screen.findByRole("status", {
+      name: "Some homepage information couldn’t be updated.",
+    });
+    expect(within(activity).queryByRole("alert")).toBeNull();
     expect(
-      await screen.findByText(
-        /Your ingredient requests are resting\. Please retry\./,
-      ),
-    ).toBeVisible();
+      screen.queryByText("Ingredient requests", { selector: "dt" }),
+    ).not.toBeInTheDocument();
+    expect(within(metric("Followers")).getByText("9")).toBeVisible();
+
+    fireEvent.click(within(notice).getByRole("button", { name: "Try again" }));
+
+    await waitFor(() => {
+      expect(
+        within(activity).getByRole("list", { name: "Recent account activity" }),
+      ).toHaveTextContent("Recovered request");
+    });
+    expect(browseMyIngredientRequests).toHaveBeenCalledTimes(3);
+    expect(fetchMyFollowStats).toHaveBeenCalledTimes(1);
   });
 });

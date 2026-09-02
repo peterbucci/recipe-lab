@@ -108,11 +108,13 @@ def _instruction(
     version_id: UUID,
     display_order: int,
     text: str,
+    title: str | None = None,
     actions: list[RecipeInstructionAction] | None = None,
 ) -> RecipeInstruction:
     instruction = RecipeInstruction(
         id=_id(row_id),
         recipe_version_id=version_id,
+        title=title,
         instruction=text,
         display_order=display_order,
     )
@@ -202,6 +204,10 @@ def _version(
     title: str = "Test recipe",
     description: str | None = "A structured test recipe.",
     servings: Decimal = Decimal("4.00"),
+    total_time_minutes: int | None = None,
+    active_time_minutes: int | None = None,
+    difficulty: str | None = None,
+    notes: str | None = None,
     parent_version_id: UUID | None = None,
 ) -> RecipeVersion:
     version = RecipeVersion(
@@ -213,6 +219,10 @@ def _version(
         title=title,
         description=description,
         servings=servings,
+        total_time_minutes=total_time_minutes,
+        active_time_minutes=active_time_minutes,
+        difficulty=difficulty,
+        notes=notes,
     )
     version.ingredients = ingredients
     version.instructions = instructions
@@ -998,6 +1008,10 @@ def test_metadata_changes_use_a_fixed_order_and_contribute_to_has_changes() -> N
         title="Original title",
         description=None,
         servings=Decimal("4.00"),
+        total_time_minutes=45,
+        active_time_minutes=20,
+        difficulty="easy",
+        notes=None,
         ingredients=[],
         instructions=[],
     )
@@ -1008,6 +1022,10 @@ def test_metadata_changes_use_a_fixed_order_and_contribute_to_has_changes() -> N
         title="Updated title",
         description="A new description.",
         servings=Decimal("6.00"),
+        total_time_minutes=60,
+        active_time_minutes=25,
+        difficulty="medium",
+        notes="Rest before serving.",
         ingredients=[],
         instructions=[],
     )
@@ -1018,11 +1036,19 @@ def test_metadata_changes_use_a_fixed_order_and_contribute_to_has_changes() -> N
         "title",
         "description",
         "servings",
+        "total_time_minutes",
+        "active_time_minutes",
+        "difficulty",
+        "notes",
     ]
     assert [change.model_dump(mode="json") for change in diff.metadata_changes] == [
         {"field": "title", "before": "Original title", "after": "Updated title"},
         {"field": "description", "before": None, "after": "A new description."},
         {"field": "servings", "before": "4.00", "after": "6.00"},
+        {"field": "total_time_minutes", "before": 45, "after": 60},
+        {"field": "active_time_minutes", "before": 20, "after": 25},
+        {"field": "difficulty", "before": "easy", "after": "medium"},
+        {"field": "notes", "before": None, "after": "Rest before serving."},
     ]
     _assert_no_content_changes(diff)
     assert diff.has_changes is True
@@ -1080,6 +1106,59 @@ def test_instruction_additions_and_removals_remain_separate_from_ingredient_chan
     assert [item.text for item in reverse.instructions.removed] == ["Serve."]
     assert reverse.instructions.added == []
     assert reverse.instructions.modified == []
+
+
+def test_instruction_title_only_change_is_reported_without_changing_other_content() -> None:
+    base_id = _id(850)
+    target_id = _id(851)
+    base = _version(
+        version_id=base_id.int,
+        version_number=1,
+        ingredients=[],
+        instructions=[
+            _instruction(
+                row_id=8_500,
+                version_id=base_id,
+                display_order=0,
+                title="Prepare the batter",
+                text="Mix until smooth.",
+            )
+        ],
+    )
+    target = _version(
+        version_id=target_id.int,
+        version_number=2,
+        parent_version_id=base_id,
+        ingredients=[],
+        instructions=[
+            _instruction(
+                row_id=8_510,
+                version_id=target_id,
+                display_order=0,
+                title="Make the batter",
+                text="Mix until smooth.",
+            )
+        ],
+    )
+
+    diff = build_recipe_diff(base, target, set())
+
+    assert diff.metadata_changes == []
+    assert diff.ingredients.model_dump() == {
+        "added": [],
+        "removed": [],
+        "replaced": [],
+        "modified": [],
+    }
+    assert len(diff.instructions.modified) == 1
+    change = diff.instructions.modified[0]
+    assert change.changed_fields == ["title"]
+    assert change.before.title == "Prepare the batter"
+    assert change.after.title == "Make the batter"
+    assert change.before.text == change.after.text == "Mix until smooth."
+    assert diff.instructions.added == []
+    assert diff.instructions.removed == []
+    assert diff.has_changes is True
 
 
 def test_structured_action_changes_use_granular_fixed_field_order() -> None:
