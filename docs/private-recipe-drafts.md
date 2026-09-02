@@ -243,7 +243,7 @@ the review envelope:
   "revision": 4,
   "duplicate_review": {
     "preflight_id": "00000000-0000-4000-8000-000000000000",
-    "policy_version": "recipe-duplicate-preflight-policy-v1",
+    "policy_version": "recipe-duplicate-preflight-policy-v2",
     "result_digest": "<lowercase sha256>",
     "decision": null
   }

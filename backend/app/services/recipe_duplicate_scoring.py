@@ -538,6 +538,15 @@ def get_recipe_duplicate_scoring_shape(
     )
 
 
+def get_recipe_duplicate_canonical_ingredient_identities(
+    fingerprint: DuplicateCandidateFingerprint | StructuralFingerprint,
+) -> tuple[str, ...]:
+    """Return the stable, distinct ingredient identities used for shortlisting."""
+
+    parsed = _parse_structure(_coerce_fingerprint(fingerprint))
+    return tuple(sorted({item.ingredient_identity for item in parsed.ingredients}))
+
+
 def estimate_recipe_duplicate_pair_work(
     left: RecipeDuplicateScoringShape,
     right: RecipeDuplicateScoringShape,

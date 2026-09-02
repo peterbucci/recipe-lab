@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Literal
@@ -267,15 +268,30 @@ def list_public_recipe_duplicate_candidates(
     session: Session,
     *,
     algorithm_version: str,
+    subject_digest: str,
+    subject_canonical_payload: str,
+    subject_ingredient_identities: Sequence[str],
     comparison_limit: int,
+    exact_candidate_limit: int,
     exclude_recipe_version_id: UUID | None = None,
 ) -> list[PublicRecipeDuplicateCandidate]:
-    """Load only public, fingerprinted snapshots for deterministic preflight scoring."""
+    """Load a bounded, deterministic public shortlist for preflight scoring.
+
+    Exact structural matches are selected first through the fingerprint index. If
+    they do not fill the response bound, probable candidates are shortlisted by
+    descending distinct canonical-ingredient overlap and stable UUID tie-break.
+    The caller still applies the complete versioned scorer to every returned row.
+    """
 
     if comparison_limit <= 0:
         raise ValueError("Duplicate candidate comparison limit must be positive.")
+    if exact_candidate_limit <= 0 or exact_candidate_limit > comparison_limit:
+        raise ValueError(
+            "Exact duplicate candidate limit must be positive and no greater "
+            "than the comparison limit."
+        )
 
-    statement = (
+    exact_statement = (
         select(
             RecipeVersion.id,
             RecipeVersion.title,
@@ -290,14 +306,16 @@ def list_public_recipe_duplicate_candidates(
         .where(
             _publicly_readable_recipe_version_filter(),
             RecipeStructuralFingerprint.algorithm_version == algorithm_version,
+            RecipeStructuralFingerprint.digest == subject_digest,
+            RecipeStructuralFingerprint.canonical_payload == subject_canonical_payload,
         )
         .order_by(RecipeVersion.id)
-        .limit(comparison_limit)
+        .limit(exact_candidate_limit)
     )
     if exclude_recipe_version_id is not None:
-        statement = statement.where(RecipeVersion.id != exclude_recipe_version_id)
+        exact_statement = exact_statement.where(RecipeVersion.id != exclude_recipe_version_id)
 
-    return [
+    exact_candidates = [
         PublicRecipeDuplicateCandidate(
             recipe_version_id=recipe_version_id,
             title=title,
@@ -311,8 +329,89 @@ def list_public_recipe_duplicate_candidates(
             stored_algorithm_version,
             digest,
             canonical_payload,
-        ) in session.execute(statement)
+        ) in session.execute(exact_statement)
     ]
+    if len(exact_candidates) >= exact_candidate_limit:
+        return exact_candidates
+
+    try:
+        subject_ingredient_ids = tuple(
+            sorted({UUID(identity) for identity in subject_ingredient_identities}, key=str)
+        )
+    except (AttributeError, TypeError, ValueError) as error:
+        raise ValueError("Canonical ingredient identities must be UUIDs.") from error
+    if not subject_ingredient_ids:
+        return exact_candidates
+
+    probable_limit = comparison_limit - len(exact_candidates)
+    overlap_count = func.count(func.distinct(RecipeIngredient.ingredient_id)).label(
+        "canonical_ingredient_overlap"
+    )
+    shortlist_statement = (
+        select(
+            RecipeIngredient.recipe_version_id.label("recipe_version_id"),
+            overlap_count,
+        )
+        .select_from(RecipeIngredient)
+        .join(
+            RecipeVersion,
+            RecipeVersion.id == RecipeIngredient.recipe_version_id,
+        )
+        .join(
+            RecipeStructuralFingerprint,
+            RecipeStructuralFingerprint.recipe_version_id == RecipeVersion.id,
+        )
+        .where(
+            RecipeIngredient.ingredient_id.in_(subject_ingredient_ids),
+            _publicly_readable_recipe_version_filter(),
+            RecipeStructuralFingerprint.algorithm_version == algorithm_version,
+        )
+        .group_by(RecipeIngredient.recipe_version_id)
+        .order_by(overlap_count.desc(), RecipeIngredient.recipe_version_id)
+        .limit(probable_limit)
+    )
+    excluded_ids = [candidate.recipe_version_id for candidate in exact_candidates]
+    if exclude_recipe_version_id is not None:
+        shortlist_statement = shortlist_statement.where(
+            RecipeVersion.id != exclude_recipe_version_id
+        )
+    if excluded_ids:
+        shortlist_statement = shortlist_statement.where(RecipeVersion.id.not_in(excluded_ids))
+    shortlist = shortlist_statement.subquery()
+
+    probable_statement = (
+        select(
+            RecipeVersion.id,
+            RecipeVersion.title,
+            RecipeStructuralFingerprint.algorithm_version,
+            RecipeStructuralFingerprint.digest,
+            RecipeStructuralFingerprint.canonical_payload,
+        )
+        .join(shortlist, shortlist.c.recipe_version_id == RecipeVersion.id)
+        .join(
+            RecipeStructuralFingerprint,
+            RecipeStructuralFingerprint.recipe_version_id == RecipeVersion.id,
+        )
+        .where(RecipeStructuralFingerprint.algorithm_version == algorithm_version)
+        .order_by(shortlist.c.canonical_ingredient_overlap.desc(), RecipeVersion.id)
+    )
+    probable_candidates = [
+        PublicRecipeDuplicateCandidate(
+            recipe_version_id=recipe_version_id,
+            title=title,
+            algorithm_version=stored_algorithm_version,
+            digest=digest,
+            canonical_payload=canonical_payload,
+        )
+        for (
+            recipe_version_id,
+            title,
+            stored_algorithm_version,
+            digest,
+            canonical_payload,
+        ) in session.execute(probable_statement)
+    ]
+    return [*exact_candidates, *probable_candidates]
 
 
 def get_public_recipe_version_titles(
