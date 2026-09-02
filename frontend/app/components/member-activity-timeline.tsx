@@ -2,24 +2,14 @@
 
 import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { retryTransientRead } from "../../lib/api-transport/transient-read-retry";
 import {
-  browseMyIngredientRequests,
-  type MemberIngredientRequest,
-} from "../../lib/ingredient-catalog-api";
-import {
-  buildMemberActivities,
-  type MemberActivity,
-} from "../../lib/member-activity";
-import {
-  fetchMyRecipeLibrary,
-  fetchSavedRecipeLibrary,
-  type MyRecipeLibraryPage,
-  type MyRecipeLibraryView,
-  type SavedRecipeLibraryPage,
-} from "../../lib/recipe-library-api";
+  fetchMemberActivity,
+  type MemberActivityCounts,
+  type MemberActivityFilter,
+} from "../../lib/member-activity-api";
+import type { MemberActivity } from "../../lib/member-activity";
 import { relativeTimeLabel } from "../../lib/relative-time";
 import { useAuthSession } from "./auth-session-provider";
 import { LoadingButton, SectionLoading } from "./loading-ui";
@@ -28,12 +18,15 @@ import { MemberRouteGate } from "./member-route-gate";
 import { WorkspaceEmptyState } from "./workspace-empty-state";
 import { WorkspacePanelHeader } from "./workspace-panel-header";
 
-const ACTIVITY_PAGE_SIZE = 100;
-const INITIAL_VISIBLE_ACTIVITY_COUNT = 12;
-const ACTIVITY_PAGE_INCREMENT = 12;
+const ACTIVITY_PAGE_SIZE = 24;
 const EMPTY_ACTIVITIES: MemberActivity[] = [];
+const EMPTY_COUNTS: MemberActivityCounts = {
+  all: 0,
+  recipes: 0,
+  requests: 0,
+  saved: 0,
+};
 
-type ActivityFilter = "all" | "recipes" | "requests" | "saved";
 type ActivityDayGroup = "Earlier" | "Today" | "Yesterday";
 
 const ACTIVITY_FILTERS: Array<{
@@ -42,7 +35,7 @@ const ACTIVITY_FILTERS: Array<{
   emptyActionLabel: string;
   emptyDescription: string;
   emptyTitle: string;
-  id: ActivityFilter;
+  id: MemberActivityFilter;
   label: string;
   title: string;
 }> = [
@@ -92,32 +85,20 @@ type ActivityState =
   | { phase: "loading" }
   | {
       activities: MemberActivity[];
-      hasFailures: boolean;
+      counts: MemberActivityCounts;
+      loadMoreFailed: boolean;
+      loadingMore: boolean;
+      nextCursor: string | null;
       phase: "ready";
-      retrying: boolean;
-    };
-
-interface ActivityLoadResult {
-  activities: MemberActivity[];
-  hasFailures: boolean;
-}
-
-function activityFilterForKind(kind: MemberActivity["kind"]): ActivityFilter {
-  if (kind === "saved") return "saved";
-  if (kind === "ingredient-request") return "requests";
-  return "recipes";
-}
+    }
+  | { phase: "error"; retrying: boolean };
 
 function activityDetail(activity: MemberActivity): string {
   if (activity.detail) return activity.detail;
   if (activity.kind === "draft") return "Your draft was saved.";
-  if (activity.kind === "published") {
-    return "Your version became publicly available.";
-  }
+  if (activity.kind === "published") return "Your version became publicly available.";
   if (activity.kind === "saved") return "Added to your saved recipes.";
-  if (activity.kind === "withdrawn") {
-    return "This recipe is no longer publicly available.";
-  }
+  if (activity.kind === "withdrawn") return "This recipe is no longer publicly available.";
   return "Your ingredient request was reviewed.";
 }
 
@@ -174,189 +155,103 @@ function activityTimeDisplay(
   }).format(date);
 }
 
-async function collectLibraryItems(
-  view: MyRecipeLibraryView,
-  signal: AbortSignal,
-): Promise<MyRecipeLibraryPage["items"]> {
-  const first = await fetchMyRecipeLibrary({
-    page: 1,
-    pageSize: ACTIVITY_PAGE_SIZE,
-    signal,
-    view,
-  });
-  if (first.total_pages <= 1) return first.items;
-
-  const items = [...first.items];
-  for (let page = 2; page <= first.total_pages; page += 1) {
-    const next = await fetchMyRecipeLibrary({
-      page,
-      pageSize: ACTIVITY_PAGE_SIZE,
-      signal,
-      view,
-    });
-    items.push(...next.items);
-  }
-  return items;
-}
-
-async function collectSavedItems(
-  signal: AbortSignal,
-): Promise<SavedRecipeLibraryPage["items"]> {
-  const first = await fetchSavedRecipeLibrary({
-    page: 1,
-    pageSize: ACTIVITY_PAGE_SIZE,
-    signal,
-  });
-  if (first.total_pages <= 1) return first.items;
-
-  const items = [...first.items];
-  for (let page = 2; page <= first.total_pages; page += 1) {
-    const next = await fetchSavedRecipeLibrary({
-      page,
-      pageSize: ACTIVITY_PAGE_SIZE,
-      signal,
-    });
-    items.push(...next.items);
-  }
-  return items;
-}
-
-async function collectReviewedRequests(
-  signal: AbortSignal,
-): Promise<MemberIngredientRequest[]> {
-  const first = await retryTransientRead(
-    (readSignal) =>
-      browseMyIngredientRequests({
-        page: 1,
-        pageSize: ACTIVITY_PAGE_SIZE,
-        reviewedOnly: true,
-        signal: readSignal,
-      }),
-    { signal },
-  );
-  if (first.total_pages <= 1) return [...first.items];
-
-  const items = [...first.items];
-  for (let page = 2; page <= first.total_pages; page += 1) {
-    const next = await retryTransientRead(
-      (readSignal) =>
-        browseMyIngredientRequests({
-          page,
-          pageSize: ACTIVITY_PAGE_SIZE,
-          reviewedOnly: true,
-          signal: readSignal,
-        }),
-      { signal },
-    );
-    items.push(...next.items);
-  }
-  return items;
-}
-
-async function loadActivities(signal: AbortSignal): Promise<ActivityLoadResult> {
-  const results = await Promise.allSettled([
-    collectLibraryItems("drafts", signal),
-    collectLibraryItems("published", signal),
-    collectLibraryItems("withdrawn", signal),
-    collectSavedItems(signal),
-    collectReviewedRequests(signal),
-  ]);
-  const [drafts, published, withdrawn, saved, ingredientRequests] = results;
-
-  return {
-    activities: buildMemberActivities({
-      drafts: drafts.status === "fulfilled" ? { items: drafts.value } : undefined,
-      ingredientRequests:
-        ingredientRequests.status === "fulfilled"
-          ? { items: ingredientRequests.value }
-          : undefined,
-      published:
-        published.status === "fulfilled" ? { items: published.value } : undefined,
-      saved: saved.status === "fulfilled" ? { items: saved.value } : undefined,
-      withdrawn:
-        withdrawn.status === "fulfilled" ? { items: withdrawn.value } : undefined,
-    }),
-    hasFailures: results.some((result) => result.status === "rejected"),
-  };
+function useDebouncedValue(value: string, delayMs: number): string {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timeout = globalThis.setTimeout(() => setDebounced(value), delayMs);
+    return () => globalThis.clearTimeout(timeout);
+  }, [delayMs, value]);
+  return debounced;
 }
 
 function MemberActivityTimelineInner({ userId }: { userId: string }) {
+  const requestSequenceRef = useRef(0);
   const [reload, setReload] = useState(0);
-  const [filter, setFilter] = useState<ActivityFilter>("all");
+  const [filter, setFilter] = useState<MemberActivityFilter>("all");
   const [query, setQuery] = useState("");
-  const [visibleCount, setVisibleCount] = useState(
-    INITIAL_VISIBLE_ACTIVITY_COUNT,
-  );
+  const debouncedQuery = useDebouncedValue(query, 250);
   const [state, setState] = useState<ActivityState>({ phase: "loading" });
+
+  useEffect(() => {
+    const sequence = requestSequenceRef.current + 1;
+    requestSequenceRef.current = sequence;
+    const controller = new AbortController();
+    void fetchMemberActivity({
+      filter,
+      pageSize: ACTIVITY_PAGE_SIZE,
+      q: debouncedQuery,
+      signal: controller.signal,
+    })
+      .then((page) => {
+        if (controller.signal.aborted || sequence !== requestSequenceRef.current) return;
+        setState({
+          activities: page.items,
+          counts: page.counts,
+          loadMoreFailed: false,
+          loadingMore: false,
+          nextCursor: page.nextCursor,
+          phase: "ready",
+        });
+      })
+      .catch(() => {
+        if (controller.signal.aborted || sequence !== requestSequenceRef.current) return;
+        setState({ phase: "error", retrying: false });
+      });
+    return () => controller.abort();
+  }, [debouncedQuery, filter, reload, userId]);
+
   const retry = useCallback(() => {
     setState((current) =>
-      current.phase === "ready" ? { ...current, retrying: true } : current,
+      current.phase === "error" ? { phase: "error", retrying: true } : current,
     );
     setReload((value) => value + 1);
   }, []);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    void loadActivities(controller.signal)
-      .then(({ activities, hasFailures }) => {
-        if (!controller.signal.aborted) {
-          setState({ activities, hasFailures, phase: "ready", retrying: false });
-        }
+  const loadOlder = useCallback(() => {
+    if (state.phase !== "ready" || state.loadingMore || !state.nextCursor) return;
+    const sequence = requestSequenceRef.current;
+    const cursor = state.nextCursor;
+    setState({ ...state, loadMoreFailed: false, loadingMore: true });
+    void fetchMemberActivity({
+      cursor,
+      filter,
+      pageSize: ACTIVITY_PAGE_SIZE,
+      q: debouncedQuery,
+    })
+      .then((page) => {
+        if (sequence !== requestSequenceRef.current) return;
+        setState((current) => {
+          if (current.phase !== "ready") return current;
+          const existing = new Set(current.activities.map((item) => item.id));
+          return {
+            activities: [
+              ...current.activities,
+              ...page.items.filter((item) => !existing.has(item.id)),
+            ],
+            counts: page.counts,
+            loadMoreFailed: false,
+            loadingMore: false,
+            nextCursor: page.nextCursor,
+            phase: "ready",
+          };
+        });
       })
       .catch(() => {
-        if (!controller.signal.aborted) {
-          setState({
-            activities: [],
-            hasFailures: true,
-            phase: "ready",
-            retrying: false,
-          });
-        }
+        if (sequence !== requestSequenceRef.current) return;
+        setState((current) =>
+          current.phase === "ready"
+            ? { ...current, loadMoreFailed: true, loadingMore: false }
+            : current,
+        );
       });
-    return () => controller.abort();
-  }, [reload, userId]);
+  }, [debouncedQuery, filter, state]);
 
   const activities =
     state.phase === "ready" ? state.activities : EMPTY_ACTIVITIES;
-  const filterCounts = useMemo(() => {
-    const counts: Record<ActivityFilter, number> = {
-      all: activities.length,
-      recipes: 0,
-      requests: 0,
-      saved: 0,
-    };
-    for (const activity of activities) {
-      counts[activityFilterForKind(activity.kind)] += 1;
-    }
-    return counts;
-  }, [activities]);
-  const matchingActivities = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase();
-    return activities.filter((activity) => {
-      const categoryMatches =
-        filter === "all" || activityFilterForKind(activity.kind) === filter;
-      if (!categoryMatches) return false;
-      if (!normalizedQuery) return true;
-      return [activity.label, activity.title, activityDetail(activity)]
-        .join(" ")
-        .toLocaleLowerCase()
-        .includes(normalizedQuery);
-    });
-  }, [activities, filter, query]);
-  const visibleActivities = matchingActivities.slice(0, visibleCount);
-  const activityGroups = groupActivities(visibleActivities);
+  const counts = state.phase === "ready" ? state.counts : EMPTY_COUNTS;
+  const activityGroups = useMemo(() => groupActivities(activities), [activities]);
   const activeFilter =
     ACTIVITY_FILTERS.find((item) => item.id === filter) ?? ACTIVITY_FILTERS[0]!;
-
-  const chooseFilter = (nextFilter: ActivityFilter) => {
-    setFilter(nextFilter);
-    setVisibleCount(INITIAL_VISIBLE_ACTIVITY_COUNT);
-  };
-
-  const updateQuery = (value: string) => {
-    setQuery(value);
-    setVisibleCount(INITIAL_VISIBLE_ACTIVITY_COUNT);
-  };
 
   return (
     <main id="main-content" className="member-activity-page member-activity-page--timeline">
@@ -374,201 +269,183 @@ function MemberActivityTimelineInner({ userId }: { userId: string }) {
           </div>
         </header>
 
-        {state.phase === "loading" ? (
-          <div className="member-activity-page__shell">
-            <div className="member-activity-page__toolbar-placeholder" />
-            <WorkspacePanelHeader
-              description={activeFilter.description}
-              title={activeFilter.title}
-            />
+        <section className="member-activity-page__shell" aria-label="Account activity">
+          <div className="member-activity-page__toolbar workspace-tab-menu">
+            <div
+              className="member-activity-page__filters workspace-tab-menu__items"
+              aria-label="Activity filters"
+              role="group"
+            >
+              {ACTIVITY_FILTERS.map((item) => (
+                <button
+                  aria-pressed={filter === item.id}
+                  className="member-activity-page__filter workspace-tab-menu__item"
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    if (item.id !== filter) {
+                      setState({ phase: "loading" });
+                      setFilter(item.id);
+                    }
+                  }}
+                >
+                  {item.label}
+                  <span className="workspace-tab-menu__count" aria-hidden="true">
+                    {counts[item.id]}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <label className="member-activity-page__search workspace-tab-menu__search">
+              <span className="visually-hidden">Search activity</span>
+              <Search aria-hidden="true" />
+              <input
+                type="search"
+                placeholder="Search activity…"
+                value={query}
+                onChange={(event) => {
+                  setState({ phase: "loading" });
+                  setQuery(event.target.value);
+                }}
+              />
+            </label>
+          </div>
+          <WorkspacePanelHeader
+            description={activeFilter.description}
+            meta={
+              <span aria-live="polite">
+                {counts[filter]} activity item{counts[filter] === 1 ? "" : "s"}
+              </span>
+            }
+            title={activeFilter.title}
+          />
+
+          {state.phase === "loading" ? (
             <SectionLoading
               className="member-activity-page__state"
               count={5}
               label="Loading your activity…"
               layout="rows"
             />
-          </div>
-        ) : (
-          <>
-            {state.hasFailures ? (
-              <div className="form-alert" role="alert">
-                <p>
-                  Some activity is unavailable right now. Try again to refresh
-                  this page.
-                </p>
-                <LoadingButton
-                  className="button button--primary"
-                  pending={state.retrying}
-                  pendingLabel="Trying again…"
-                  type="button"
-                  onClick={retry}
-                >
-                  Try again
-                </LoadingButton>
-              </div>
-            ) : null}
-
-            <section
-              className="member-activity-page__shell"
-              aria-label="Account activity"
-            >
-              <div className="member-activity-page__toolbar workspace-tab-menu">
-                <div
-                  className="member-activity-page__filters workspace-tab-menu__items"
-                  aria-label="Activity filters"
-                  role="group"
-                >
-                  {ACTIVITY_FILTERS.map((item) => (
-                    <button
-                      aria-pressed={filter === item.id}
-                      className="member-activity-page__filter workspace-tab-menu__item"
-                      key={item.id}
-                      type="button"
-                      onClick={() => chooseFilter(item.id)}
-                    >
-                      {item.label}
-                      <span className="workspace-tab-menu__count" aria-hidden="true">
-                        {filterCounts[item.id]}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <label className="member-activity-page__search workspace-tab-menu__search">
-                  <span className="visually-hidden">Search activity</span>
-                  <Search aria-hidden="true" />
-                  <input
-                    type="search"
-                    placeholder="Search activity…"
-                    value={query}
-                    onChange={(event) => updateQuery(event.target.value)}
-                  />
-                </label>
-              </div>
-              <WorkspacePanelHeader
-                description={activeFilter.description}
-                meta={
-                  <span aria-live="polite">
-                    {filterCounts[filter]} activity item
-                    {filterCounts[filter] === 1 ? "" : "s"}
-                  </span>
-                }
-                title={activeFilter.title}
-              />
-
-              {matchingActivities.length === 0 ? (
-                state.hasFailures && activities.length === 0 ? (
-                  <div className="member-activity-page__state">
-                    <h2>Activity is temporarily unavailable</h2>
-                    <p>Try again using the button above.</p>
-                  </div>
+          ) : state.phase === "error" ? (
+            <div className="member-activity-page__state form-alert" role="alert">
+              <h2>Activity is temporarily unavailable</h2>
+              <p>Try again to refresh this page.</p>
+              <LoadingButton
+                className="button button--primary"
+                pending={state.retrying}
+                pendingLabel="Trying again…"
+                type="button"
+                onClick={retry}
+              >
+                Try again
+              </LoadingButton>
+            </div>
+          ) : activities.length === 0 ? (
+            <WorkspaceEmptyState
+              action={
+                query.trim() ? (
+                  <button
+                    className="button button--primary"
+                    type="button"
+                    onClick={() => {
+                      setState({ phase: "loading" });
+                      setQuery("");
+                    }}
+                  >
+                    Clear search
+                  </button>
                 ) : (
-                  <WorkspaceEmptyState
-                    action={
-                      query.trim() ? (
-                        <button
-                          className="button button--primary"
-                          type="button"
-                          onClick={() => setQuery("")}
-                        >
-                          Clear search
-                        </button>
-                      ) : (
-                        <Link
-                          className="button button--primary"
-                          href={activeFilter.emptyActionHref}
-                        >
-                          {activeFilter.emptyActionLabel}
-                        </Link>
-                      )
-                    }
-                    description={
-                      query.trim()
-                        ? "Try a different search term or clear the search."
-                        : activeFilter.emptyDescription
-                    }
-                    eyebrow={query.trim() ? "No matches" : undefined}
-                    headingId={`empty-activity-${filter}`}
-                    headingLevel={3}
-                    title={
-                      query.trim()
-                        ? "No activity matches your search."
-                        : activeFilter.emptyTitle
-                    }
-                  />
+                  <Link className="button button--primary" href={activeFilter.emptyActionHref}>
+                    {activeFilter.emptyActionLabel}
+                  </Link>
                 )
-              ) : (
-                <div className="member-activity-page__content">
-                  {activityGroups.map((group) => (
-                    <section
-                      className="member-activity-page__group"
-                      key={group.label}
-                      aria-labelledby={`activity-group-${group.label.toLowerCase()}`}
-                    >
-                      <h2
-                        className="member-activity-page__group-heading"
-                        id={`activity-group-${group.label.toLowerCase()}`}
-                      >
-                        <span>{group.label}</span>
-                      </h2>
-                      <ol className="member-activity-page__list">
-                        {group.activities.map((activity) => {
-                          const occurred = relativeTimeLabel(activity.timestamp);
-                          return (
-                            <li key={activity.id}>
-                              <Link
-                                className="member-activity-page__event"
-                                href={activity.href}
+              }
+              description={
+                query.trim()
+                  ? "Try a different search term or clear the search."
+                  : activeFilter.emptyDescription
+              }
+              eyebrow={query.trim() ? "No matches" : undefined}
+              headingId={`empty-activity-${filter}`}
+              headingLevel={3}
+              title={
+                query.trim()
+                  ? "No activity matches your search."
+                  : activeFilter.emptyTitle
+              }
+            />
+          ) : (
+            <div className="member-activity-page__content">
+              {activityGroups.map((group) => (
+                <section
+                  className="member-activity-page__group"
+                  key={group.label}
+                  aria-labelledby={`activity-group-${group.label.toLowerCase()}`}
+                >
+                  <h2
+                    className="member-activity-page__group-heading"
+                    id={`activity-group-${group.label.toLowerCase()}`}
+                  >
+                    <span>{group.label}</span>
+                  </h2>
+                  <ol className="member-activity-page__list">
+                    {group.activities.map((activity) => {
+                      const occurred = relativeTimeLabel(activity.timestamp);
+                      return (
+                        <li key={activity.id}>
+                          <Link className="member-activity-page__event" href={activity.href}>
+                            <span
+                              className={`member-activity-page__icon member-activity-page__icon--${activity.kind}`}
+                            >
+                              <MemberActivityIcon kind={activity.kind} />
+                            </span>
+                            <span className="member-activity-page__copy">
+                              <small>{activity.label}</small>
+                              <strong>{activity.title}</strong>
+                              <span>{activityDetail(activity)}</span>
+                            </span>
+                            <span className="member-activity-page__when">
+                              <time
+                                dateTime={activity.timestamp}
+                                title={occurred?.absoluteLabel}
                               >
-                                <span
-                                  className={`member-activity-page__icon member-activity-page__icon--${activity.kind}`}
-                                >
-                                  <MemberActivityIcon kind={activity.kind} />
-                                </span>
-                                <span className="member-activity-page__copy">
-                                  <small>{activity.label}</small>
-                                  <strong>{activity.title}</strong>
-                                  <span>{activityDetail(activity)}</span>
-                                </span>
-                                <span className="member-activity-page__when">
-                                  <time
-                                    dateTime={activity.timestamp}
-                                    title={occurred?.absoluteLabel}
-                                  >
-                                    {activityTimeDisplay(
-                                      activity.timestamp,
-                                      group.label,
-                                      occurred?.relativeLabel ?? "Recently",
-                                    )}
-                                  </time>
-                                  <ChevronRight aria-hidden="true" />
-                                </span>
-                              </Link>
-                            </li>
-                          );
-                        })}
-                      </ol>
-                    </section>
-                  ))}
-                  {matchingActivities.length > visibleCount ? (
-                    <div className="member-activity-page__load-more">
-                      <button
-                        className="button button--secondary"
-                        type="button"
-                        onClick={() =>
-                          setVisibleCount(
-                            (current) => current + ACTIVITY_PAGE_INCREMENT,
-                          )
-                        }
-                      >
-                        Load older activity
-                      </button>
-                    </div>
-                  ) : null}
+                                {activityTimeDisplay(
+                                  activity.timestamp,
+                                  group.label,
+                                  occurred?.relativeLabel ?? "Recently",
+                                )}
+                              </time>
+                              <ChevronRight aria-hidden="true" />
+                            </span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </section>
+              ))}
+              {state.loadMoreFailed ? (
+                <p className="form-alert" role="alert">
+                  Older activity could not be loaded. Try again.
+                </p>
+              ) : null}
+              {state.nextCursor ? (
+                <div className="member-activity-page__load-more">
+                  <LoadingButton
+                    className="button button--secondary"
+                    pending={state.loadingMore}
+                    pendingLabel="Loading older activity…"
+                    type="button"
+                    onClick={loadOlder}
+                  >
+                    Load older activity
+                  </LoadingButton>
                 </div>
-              )}
-            </section>
-          </>
-        )}
+              ) : null}
+            </div>
+          )}
+        </section>
       </section>
     </main>
   );
@@ -582,14 +459,8 @@ export function MemberActivityTimeline() {
       : null;
 
   return (
-    <MemberRouteGate
-      eyebrow="Your Recipe Lab"
-      returnTo="/account/activity"
-      title="Activity"
-    >
-      {userId ? (
-        <MemberActivityTimelineInner key={userId} userId={userId} />
-      ) : null}
+    <MemberRouteGate eyebrow="Your Recipe Lab" returnTo="/account/activity" title="Activity">
+      {userId ? <MemberActivityTimelineInner key={userId} userId={userId} /> : null}
     </MemberRouteGate>
   );
 }
