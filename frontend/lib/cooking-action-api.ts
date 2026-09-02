@@ -1,22 +1,26 @@
-export interface CatalogActionType {
-  id: string;
-  key: string;
-  canonical_verb: string;
-  active: boolean;
-  provenance: string;
-}
+import type { operations } from "./api-contracts/generated";
+import {
+  ApiTransportError,
+  type PublicApiErrorContract,
+} from "./api-transport/core";
+import { serverApiRequest } from "./api-transport/server";
+
+type CookingActionTypeOperation =
+  operations["cooking_action_type_catalog_api_cooking_action_types_get"];
+type CookingActionTypeResponseContract =
+  CookingActionTypeOperation["responses"][200]["content"]["application/json"];
+type CookingActionTypeQuery = NonNullable<
+  CookingActionTypeOperation["parameters"]["query"]
+>;
+type Mutable<T> = { -readonly [Key in keyof T]: T[Key] };
+
+export type CatalogActionType =
+  Mutable<CookingActionTypeResponseContract["items"][number]>;
 
 export type CatalogActionTypeSummary = Omit<CatalogActionType, "provenance">;
 
 interface CookingActionTypeResponse {
   items: CatalogActionType[];
-}
-
-interface ApiErrorPayload {
-  error?: {
-    code?: unknown;
-    message?: unknown;
-  };
 }
 
 const KNOWN_COOKING_ACTION_ERROR_CODES = new Set([
@@ -27,12 +31,10 @@ const KNOWN_COOKING_ACTION_ERROR_CODES = new Set([
   "validation_error",
 ]);
 
-function knownCookingActionErrorCode(value: unknown): string {
-  return typeof value === "string" &&
-    KNOWN_COOKING_ACTION_ERROR_CODES.has(value)
-    ? value
-    : "cooking_action_api_error";
-}
+const COOKING_ACTION_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "cooking_action_api_error",
+  knownCodes: KNOWN_COOKING_ACTION_ERROR_CODES,
+};
 
 function cookingActionErrorMessage(status: number): string {
   if (status === 422) return "Review the cooking action request and try again.";
@@ -138,50 +140,38 @@ export function parseCookingActionTypeResponse(
   return { items: typedItems };
 }
 
-function apiBaseUrl(): string {
-  const configured =
-    process.env.RECIPE_API_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:8000";
-  return configured.trim().replace(/\/+$/, "");
-}
-
-function isErrorPayload(value: unknown): value is ApiErrorPayload {
-  return isRecord(value) && "error" in value;
-}
-
-async function apiError(response: Response): Promise<CookingActionApiError> {
-  let code = "cooking_action_api_error";
-
-  try {
-    const payload: unknown = await response.json();
-    if (isErrorPayload(payload) && isRecord(payload.error)) {
-      code = knownCookingActionErrorCode(payload.error.code);
-    }
-  } catch {
-    // Keep the stable fallback when the upstream body is not JSON.
+function fromTransportError(error: ApiTransportError): CookingActionApiError {
+  if (error.reason === "invalid_response") {
+    return new CookingActionApiError(
+      "Recipe Lab received an invalid cooking action response.",
+      502,
+      "invalid_cooking_action_response",
+    );
   }
-
   return new CookingActionApiError(
-    cookingActionErrorMessage(response.status),
-    response.status,
-    code,
+    cookingActionErrorMessage(error.status),
+    error.status,
+    error.code,
   );
 }
 
 export async function fetchCookingActionTypes(): Promise<CatalogActionType[]> {
-  const url = new URL("/api/cooking-action-types", `${apiBaseUrl()}/`);
-  url.searchParams.set("limit", "100");
-  const response = await fetch(url, {
-    cache: "no-store",
-    headers: { Accept: "application/json" },
-  });
-
-  if (!response.ok) {
-    throw await apiError(response);
+  const query = { limit: 100 } satisfies CookingActionTypeQuery;
+  const search = new URLSearchParams({ limit: String(query.limit) });
+  try {
+    const response = await serverApiRequest(
+      `/api/cooking-action-types?${search.toString()}`,
+      {
+        errorContract: COOKING_ACTION_ERROR_CONTRACT,
+        kind: "query",
+      },
+    );
+    return parseCookingActionTypeResponse(response.data).items;
+  } catch (error) {
+    if (error instanceof CookingActionApiError) throw error;
+    if (error instanceof ApiTransportError) throw fromTransportError(error);
+    throw error;
   }
-
-  return parseCookingActionTypeResponse(await response.json()).items;
 }
 
 export function catalogActionTypeSummary(

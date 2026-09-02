@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -40,12 +42,18 @@ describe("measurement unit API", () => {
     await expect(fetchMeasurementUnits("ingredient_amount")).resolves.toEqual([
       gram,
     ]);
-    expect(fetchMock).toHaveBeenCalledWith(
-      new URL(
-        "http://api.example.test/api/measurement-units?semantic=ingredient_amount",
-      ),
-      { cache: "no-store", headers: { Accept: "application/json" } },
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [target, init] = fetchMock.mock.calls[0];
+    expect(String(target)).toBe(
+      "http://api.example.test/api/measurement-units?semantic=ingredient_amount",
     );
+    expect(init).toMatchObject({
+      cache: "no-store",
+      method: "GET",
+      redirect: "error",
+    });
+    expect(init).not.toHaveProperty("credentials");
+    expect(new Headers(init?.headers).get("Accept")).toBe("application/json");
   });
 
   it("rejects malformed or duplicate catalog identities", () => {
@@ -98,12 +106,13 @@ describe("measurement unit API", () => {
 
   it("preserves a documented error and hides a non-JSON upstream body", async () => {
     vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
+    let requestCount = 0;
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn<typeof fetch>()
-        .mockResolvedValueOnce(
-          new Response(
+      vi.fn<typeof fetch>().mockImplementation(async () => {
+        requestCount += 1;
+        if (requestCount === 1) {
+          return new Response(
             JSON.stringify({
               error: {
                 code: "invalid_semantic",
@@ -111,23 +120,22 @@ describe("measurement unit API", () => {
               },
             }),
             { status: 422, headers: { "Content-Type": "application/json" } },
-          ),
-        )
-        .mockResolvedValueOnce(
-          new Response("private gateway details", { status: 503 }),
-        )
-        .mockResolvedValueOnce(
-          Response.json(
-            {
-              error: {
-                code: "internal_operator_policy_failure",
-                message:
-                  "Canonical unit UUID 99999999-9999-4999-8999-999999999999 failed an operator policy.",
-              },
+          );
+        }
+        if (requestCount <= 3) {
+          return new Response("private gateway details", { status: 503 });
+        }
+        return Response.json(
+          {
+            error: {
+              code: "internal_operator_policy_failure",
+              message:
+                "Canonical unit UUID 99999999-9999-4999-8999-999999999999 failed an operator policy.",
             },
-            { status: 503 },
-          ),
-        ),
+          },
+          { status: 503 },
+        );
+      }),
     );
 
     await expect(
@@ -159,5 +167,24 @@ describe("measurement unit API", () => {
     expect(
       `${String(hostileError)} ${JSON.stringify(hostileError)}`,
     ).not.toMatch(/99999999|canonical|uuid|operator|policy|internal_/i);
+    expect(requestCount).toBe(5);
+  });
+
+  it("maps an unreadable successful body to the validated response error", async () => {
+    vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response("not-json", {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    await expect(fetchMeasurementUnits("temperature")).rejects.toMatchObject({
+      code: "invalid_measurement_unit_response",
+      status: 502,
+    });
   });
 });

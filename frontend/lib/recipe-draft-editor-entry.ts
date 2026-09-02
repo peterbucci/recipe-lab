@@ -1,5 +1,7 @@
 "use client";
 
+import { browserApiRequest } from "./api-transport/browser";
+import type { PublicApiErrorContract } from "./api-transport/core";
 import {
   parseCookingActionTypeResponse,
   type CatalogActionType,
@@ -30,14 +32,17 @@ export class RecipeDraftEditorEntryError extends Error {
   }
 }
 
+const EDITOR_CATALOG_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "recipe_draft_editor_catalog_error",
+  knownCodes: new Set(),
+};
+
 async function catalogJson(path: string): Promise<unknown> {
-  const response = await fetch(path, {
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
+  const response = await browserApiRequest(path, {
+    errorContract: EDITOR_CATALOG_ERROR_CONTRACT,
+    kind: "query",
   });
-  if (!response.ok) throw new RecipeDraftEditorEntryError();
-  return response.json();
+  return response.data;
 }
 
 async function measurementUnits(

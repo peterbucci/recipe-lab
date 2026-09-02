@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -33,10 +35,18 @@ describe("cooking action API", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(fetchCookingActionTypes()).resolves.toEqual([mix]);
-    expect(fetchMock).toHaveBeenCalledWith(
-      new URL("http://api.example.test/api/cooking-action-types?limit=100"),
-      { cache: "no-store", headers: { Accept: "application/json" } },
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [target, init] = fetchMock.mock.calls[0];
+    expect(String(target)).toBe(
+      "http://api.example.test/api/cooking-action-types?limit=100",
     );
+    expect(init).toMatchObject({
+      cache: "no-store",
+      method: "GET",
+      redirect: "error",
+    });
+    expect(init).not.toHaveProperty("credentials");
+    expect(new Headers(init?.headers).get("Accept")).toBe("application/json");
   });
 
   it("rejects malformed and duplicate catalog identities", () => {
@@ -66,12 +76,13 @@ describe("cooking action API", () => {
 
   it("preserves documented errors and hides non-JSON upstream bodies", async () => {
     vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
+    let requestCount = 0;
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn<typeof fetch>()
-        .mockResolvedValueOnce(
-          new Response(
+      vi.fn<typeof fetch>().mockImplementation(async () => {
+        requestCount += 1;
+        if (requestCount <= 2) {
+          return new Response(
             JSON.stringify({
               error: {
                 code: "catalog_unavailable",
@@ -79,23 +90,22 @@ describe("cooking action API", () => {
               },
             }),
             { status: 503, headers: { "Content-Type": "application/json" } },
-          ),
-        )
-        .mockResolvedValueOnce(
-          new Response("private gateway details", { status: 502 }),
-        )
-        .mockResolvedValueOnce(
-          Response.json(
-            {
-              error: {
-                code: "internal_operator_policy_failure",
-                message:
-                  "Canonical action UUID 99999999-9999-4999-8999-999999999999 failed an operator policy.",
-              },
+          );
+        }
+        if (requestCount <= 4) {
+          return new Response("private gateway details", { status: 502 });
+        }
+        return Response.json(
+          {
+            error: {
+              code: "internal_operator_policy_failure",
+              message:
+                "Canonical action UUID 99999999-9999-4999-8999-999999999999 failed an operator policy.",
             },
-            { status: 503 },
-          ),
-        ),
+          },
+          { status: 503 },
+        );
+      }),
     );
 
     await expect(fetchCookingActionTypes()).rejects.toMatchObject({
@@ -125,5 +135,24 @@ describe("cooking action API", () => {
     expect(
       `${String(hostileError)} ${JSON.stringify(hostileError)}`,
     ).not.toMatch(/99999999|canonical|uuid|operator|policy|internal_/i);
+    expect(requestCount).toBe(6);
+  });
+
+  it("maps an unreadable successful body to the validated response error", async () => {
+    vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response("not-json", {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    await expect(fetchCookingActionTypes()).rejects.toMatchObject({
+      code: "invalid_cooking_action_response",
+      status: 502,
+    });
   });
 });
