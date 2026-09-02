@@ -14,14 +14,18 @@ from app.core.config import Settings
 from app.main import create_app
 from app.middleware.request_body_limit import RequestBodyLimitMiddleware
 from app.models import AbuseRateLimitBucket, User
+from app.policies.abuse import (
+    RATE_LIMIT_ROUTE_POLICIES,
+    RateLimitPolicy,
+    classify_rate_limited_request,
+    match_rate_limit_route,
+)
 from app.repositories.abuse_limits import (
     EXPIRED_BUCKET_PRUNE_BATCH_SIZE,
     record_rate_limit_attempt,
 )
 from app.services.abuse_limits import (
-    RateLimitPolicy,
     canonical_network_subject,
-    classify_rate_limited_request,
     client_network_subject,
     enforce_oidc_identity_rate_limit,
     enforce_request_rate_limit,
@@ -119,6 +123,51 @@ def test_unrelated_reads_and_removed_variant_route_are_not_counted() -> None:
         )
         is None
     )
+
+
+def test_route_policy_declarations_are_named_unique_and_resolve_configured_limits() -> None:
+    assert [policy.name for policy in RATE_LIMIT_ROUTE_POLICIES] == [
+        "account_auth_entry",
+        "draft_creation",
+        "draft_mutation",
+        "draft_preflight",
+        "publication",
+        "reporting",
+        "interaction",
+    ]
+    assert len({policy.name for policy in RATE_LIMIT_ROUTE_POLICIES}) == len(
+        RATE_LIMIT_ROUTE_POLICIES
+    )
+
+    settings = _settings(
+        abuse_rate_limit_auth_network=101,
+        abuse_rate_limit_draft_account=102,
+        abuse_rate_limit_draft_network=103,
+        abuse_rate_limit_fork_account=104,
+        abuse_rate_limit_fork_network=105,
+        abuse_rate_limit_publication_account=106,
+        abuse_rate_limit_publication_network=107,
+        abuse_rate_limit_report_account=108,
+        abuse_rate_limit_report_network=109,
+        abuse_rate_limit_interaction_account=110,
+        abuse_rate_limit_interaction_network=111,
+    )
+    publication = classify_rate_limited_request(
+        method="post",
+        path=f"/api/recipe-drafts/{uuid4()}/publish/",
+        settings=settings,
+    )
+    assert publication == RateLimitPolicy(
+        operation="publication",
+        account_limit=106,
+        network_limit=107,
+    )
+    declaration = match_rate_limit_route(
+        method="POST",
+        path=f"/api/recipe-drafts/{uuid4()}/publish",
+    )
+    assert declaration is not None
+    assert declaration.name == "publication"
 
 
 def test_production_rejects_the_documented_local_secret() -> None:

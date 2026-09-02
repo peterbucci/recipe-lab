@@ -18,6 +18,10 @@ from app.models import (
     RecipeModerationCase,
     RecipeReport,
 )
+from app.policies.recipe_visibility import (
+    RecipeVisibilityState,
+    effective_recipe_visibility_state,
+)
 from app.repositories.moderation import (
     get_moderation_action_by_action,
     get_moderation_case,
@@ -28,10 +32,6 @@ from app.repositories.moderation import (
 )
 from app.repositories.recipe_publications import lock_recipe_publication_guard
 from app.schemas.moderation import RecipeModerationActionRequest, RecipeReportCreate
-from app.services.recipe_visibility import (
-    RecipeVisibilityState,
-    effective_recipe_visibility_state,
-)
 
 
 class RecipeReportNotFoundError(LookupError):

@@ -19,6 +19,12 @@ from app.models import (
     RecipeVersionCategory,
     RecipeVersionPublication,
 )
+from app.policies.recipe_visibility import (
+    publicly_readable_recipe_publication_filter as publicly_readable_recipe_publication_filter,
+)
+from app.policies.recipe_visibility import (
+    publicly_readable_recipe_version_filter as publicly_readable_recipe_version_filter,
+)
 from app.repositories.ingredients import resolve_ingredient_name
 
 
@@ -50,19 +56,6 @@ class PublicRecipeDuplicateCandidate:
     algorithm_version: str
     digest: str
     canonical_payload: str
-
-
-def publicly_readable_recipe_version_filter() -> ColumnElement[bool]:
-    """Return the shared visibility predicate for public recipe reads.
-
-    Visibility is explicit so an inserted-but-not-published snapshot and a failed
-    publication transaction can never leak through a public adapter.
-    """
-
-    return exists().where(
-        RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
-        RecipeVersionPublication.state == "published",
-    )
 
 
 def browse_recipe_versions(
@@ -132,7 +125,7 @@ def browse_recipe_versions(
             select(RecipeVersionPublication.published_at)
             .where(
                 RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
-                RecipeVersionPublication.state == "published",
+                publicly_readable_recipe_publication_filter(),
             )
             .correlate(RecipeVersion)
             .scalar_subquery()
