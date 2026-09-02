@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 
 from app.api.cache import private_no_store_headers
 from app.api.dependencies import CsrfProtectedSessionDependency, SessionDependency
-from app.api.errors import ApiError
 from app.api.member_context import (
     ensure_recipe_exists,
     lock_active_member_actor,
@@ -25,7 +24,6 @@ from app.schemas.interactions import (
     RecipeViewerStateResponse,
 )
 from app.services.preference_events import (
-    IdempotencyKeyConflictError,
     PreferenceEventIntent,
     find_preference_event_replay,
     record_preference_event,
@@ -71,14 +69,7 @@ def _is_replay_or_error(
     session: Session,
     intent: PreferenceEventIntent,
 ) -> bool:
-    try:
-        return find_preference_event_replay(session, intent) is not None
-    except IdempotencyKeyConflictError as error:
-        raise ApiError(
-            status_code=409,
-            code="idempotency_key_conflict",
-            message="The Idempotency-Key conflicts with an earlier action in this operation.",
-        ) from error
+    return find_preference_event_replay(session, intent) is not None
 
 
 @router.post(

@@ -4,14 +4,18 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.domain_errors import DomainConflictError
 from app.models import PreferenceEvent
 from app.repositories.preference_events import add_preference_event, get_preference_event
 
 type PreferenceEventType = Literal["view", "save", "rating", "fork"]
 
 
-class IdempotencyKeyConflictError(ValueError):
+class IdempotencyKeyConflictError(DomainConflictError):
     """Raised when an action ID has already been used for different semantics."""
+
+    code = "idempotency_key_conflict"
+    public_message = "The Idempotency-Key conflicts with an earlier action in this operation."
 
 
 @dataclass(frozen=True, slots=True)

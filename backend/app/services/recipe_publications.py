@@ -13,6 +13,11 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.domain_errors import (
+    DomainConflictError,
+    DomainNotFoundError,
+    DomainValidationError,
+)
 from app.models import (
     RECIPE_DRAFT_SELECTION_CATALOG,
     RECIPE_DRAFT_STATUS_ACTIVE,
@@ -129,20 +134,38 @@ def _finish_publication_write_phase(
     _test_publication_write_checkpoint(phase)
 
 
-class RecipePublicationNotFoundError(LookupError):
+class RecipePublicationNotFoundError(DomainNotFoundError):
     """Raised without revealing whether another member owns a draft."""
 
+    code = "recipe_draft_not_found"
 
-class RecipePublicationRevisionConflictError(ValueError):
+    def __init__(self, draft_id: UUID) -> None:
+        super().__init__(
+            "Private recipe draft not found.",
+            public_message=f"Recipe draft {draft_id} was not found.",
+        )
+
+
+class RecipePublicationRevisionConflictError(DomainConflictError):
     """Raised when publication references an obsolete draft revision."""
 
+    code = "recipe_draft_revision_conflict"
+    public_message = "This draft has a newer saved revision. Reload it before trying again."
 
-class InvalidRecipeDraftPublicationError(ValueError):
+
+class InvalidRecipeDraftPublicationError(DomainValidationError):
     """Raised when a draft cannot become one complete public recipe snapshot."""
+
+    code = "invalid_recipe_draft"
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail, public_message=detail)
 
 
 class InvalidOriginalRecipePublicationError(InvalidRecipeDraftPublicationError):
     """Preserve the RCP-27 error contract for invalid source-less drafts."""
+
+    code = "invalid_original_recipe_draft"
 
 
 class RecipePublicationIdempotencyConflictError(RuntimeError):
@@ -565,7 +588,7 @@ def run_recipe_draft_duplicate_preflight(
         draft_id=draft_id,
     )
     if draft is None:
-        raise RecipePublicationNotFoundError("Private recipe draft not found.")
+        raise RecipePublicationNotFoundError(draft_id)
     prepared = _prepare_locked_recipe_draft(
         session,
         draft=draft,
@@ -849,7 +872,7 @@ def publish_recipe_draft(
         draft_id=draft_id,
     )
     if draft is None:
-        raise RecipePublicationNotFoundError("Private recipe draft not found.")
+        raise RecipePublicationNotFoundError(draft_id)
     request_fingerprint = recipe_draft_publication_request_fingerprint(
         draft_id,
         payload,

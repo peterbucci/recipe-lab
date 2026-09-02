@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.domain_errors import DomainConflictError
 from app.models import (
     RecipeDraft,
     RecipeIngredient,
@@ -19,8 +20,13 @@ from app.models import (
 from app.policies.recipe_visibility import publicly_readable_recipe_version_filter
 
 
-class RecipeForkSourceUnavailableError(RuntimeError):
+class RecipeForkSourceUnavailableError(DomainConflictError):
     """Raised when a source-backed draft's immutable public parent is unavailable."""
+
+    code = "recipe_fork_source_unavailable"
+    public_message = (
+        "The public source recipe is no longer available. Your private draft is unchanged."
+    )
 
 
 def create_recipe_version_identity(

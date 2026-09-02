@@ -5,7 +5,6 @@ from pydantic import StringConstraints
 
 from app.api.cache import apply_private_no_store
 from app.api.dependencies import RequiredAuthenticatedSessionDependency, SessionDependency
-from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor
 from app.repositories.member_activity import (
     MemberActivityPage,
@@ -22,7 +21,6 @@ from app.schemas.member_activity import (
     MyMemberDashboardResponse,
 )
 from app.services.member_activity import (
-    InvalidMemberActivityCursorError,
     MemberActivityFilter,
     decode_member_activity_cursor,
     encode_member_activity_cursor,
@@ -101,14 +99,7 @@ def my_member_activity(
 ) -> MyMemberActivityResponse:
     apply_private_no_store(response)
     actor_id = lock_active_member_actor(session, authenticated)
-    try:
-        decoded_cursor = decode_member_activity_cursor(cursor) if cursor is not None else None
-    except InvalidMemberActivityCursorError as error:
-        raise ApiError(
-            status_code=422,
-            code="invalid_activity_cursor",
-            message="The activity cursor is invalid or expired.",
-        ) from error
+    decoded_cursor = decode_member_activity_cursor(cursor) if cursor is not None else None
     stored = browse_member_activity(
         session,
         actor_user_id=actor_id,

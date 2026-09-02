@@ -7,10 +7,8 @@ from app.api.cache import apply_private_no_store
 from app.api.dependencies import CsrfProtectedSessionDependency, SessionDependency
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor
-from app.repositories.recipe_duplicates import (
-    RecipeDuplicatePreflightNotFoundError,
-    RecipeDuplicateStorageConflictError,
-)
+from app.core.domain_errors import DomainError
+from app.repositories.recipe_duplicates import RecipeDuplicateStorageConflictError
 from app.schemas.errors import ErrorResponse
 from app.schemas.recipe_duplicates import RecipeDuplicatePreflightResponse
 from app.schemas.recipe_publications import (
@@ -20,27 +18,12 @@ from app.schemas.recipe_publications import (
     RecipeVisibilityResponse,
     RecipeVisibilityUpdateRequest,
 )
-from app.services.recipe_duplicate_preflights import (
-    RecipeDuplicateDecisionNotRequiredError,
-    RecipeDuplicateDecisionRequiredError,
-    RecipeDuplicatePreflightCapacityError,
-    RecipeDuplicatePreflightStaleError,
-)
 from app.services.recipe_publications import (
-    InvalidOriginalRecipePublicationError,
-    InvalidRecipeDraftPublicationError,
-    RecipeForkSourceUnavailableError,
     RecipePublicationIdempotencyConflictError,
-    RecipePublicationNotFoundError,
-    RecipePublicationRevisionConflictError,
     publish_recipe_draft,
     run_recipe_draft_duplicate_preflight,
 )
-from app.services.recipe_visibility import (
-    RecipeVisibilityModerationConflictError,
-    RecipeVisibilityNotFoundError,
-    set_authored_recipe_visibility,
-)
+from app.services.recipe_visibility import set_authored_recipe_visibility
 
 router = APIRouter()
 
@@ -122,22 +105,6 @@ VISIBILITY_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
 }
 
 
-def _draft_not_found(draft_id: UUID) -> ApiError:
-    return ApiError(
-        status_code=404,
-        code="recipe_draft_not_found",
-        message=f"Recipe draft {draft_id} was not found.",
-    )
-
-
-def _revision_conflict() -> ApiError:
-    return ApiError(
-        status_code=409,
-        code="recipe_draft_revision_conflict",
-        message="This draft has a newer saved revision. Reload it before trying again.",
-    )
-
-
 @router.put(
     "/recipes/{recipe_version_id}/visibility",
     response_model=RecipeVisibilityResponse,
@@ -163,20 +130,9 @@ def update_authored_recipe_visibility(
             recipe_version_id=recipe_version_id,
             desired_state=payload.state,
         )
-    except RecipeVisibilityNotFoundError as error:
+    except DomainError:
         session.rollback()
-        raise ApiError(
-            status_code=404,
-            code="recipe_not_found",
-            message="The recipe was not found or is not available in your authored recipes.",
-        ) from error
-    except RecipeVisibilityModerationConflictError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="recipe_visibility_managed_by_moderation",
-            message="This recipe cannot be restored by its author.",
-        ) from error
+        raise
 
     apply_private_no_store(response)
     session.commit()
@@ -216,42 +172,9 @@ def create_original_draft_duplicate_preflight(
             expected_revision=payload.revision,
             action_id=action_id,
         )
-    except RecipePublicationNotFoundError as error:
+    except DomainError:
         session.rollback()
-        raise _draft_not_found(draft_id) from error
-    except RecipePublicationRevisionConflictError as error:
-        session.rollback()
-        raise _revision_conflict() from error
-    except InvalidOriginalRecipePublicationError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=422,
-            code="invalid_original_recipe_draft",
-            message=str(error),
-        ) from error
-    except InvalidRecipeDraftPublicationError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=422,
-            code="invalid_recipe_draft",
-            message=str(error),
-        ) from error
-    except RecipeForkSourceUnavailableError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="recipe_fork_source_unavailable",
-            message=(
-                "The public source recipe is no longer available. Your private draft is unchanged."
-            ),
-        ) from error
-    except RecipeDuplicatePreflightStaleError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="duplicate_preflight_stale",
-            message="The duplicate preflight is no longer current. Run it again.",
-        ) from error
+        raise
     except RecipePublicationIdempotencyConflictError as error:
         session.rollback()
         raise ApiError(
@@ -265,13 +188,6 @@ def create_original_draft_duplicate_preflight(
             status_code=409,
             code="idempotency_key_conflict",
             message="The Idempotency-Key conflicts with an earlier duplicate preflight.",
-        ) from error
-    except RecipeDuplicatePreflightCapacityError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=503,
-            code="duplicate_preflight_unavailable",
-            message="Duplicate preflight is temporarily unavailable. Please try again later.",
         ) from error
 
     apply_private_no_store(response)
@@ -308,63 +224,9 @@ def publish_original_draft(
             payload=payload,
             action_id=action_id,
         )
-    except RecipePublicationNotFoundError as error:
+    except DomainError:
         session.rollback()
-        raise _draft_not_found(draft_id) from error
-    except RecipePublicationRevisionConflictError as error:
-        session.rollback()
-        raise _revision_conflict() from error
-    except InvalidOriginalRecipePublicationError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=422,
-            code="invalid_original_recipe_draft",
-            message=str(error),
-        ) from error
-    except InvalidRecipeDraftPublicationError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=422,
-            code="invalid_recipe_draft",
-            message=str(error),
-        ) from error
-    except RecipeForkSourceUnavailableError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="recipe_fork_source_unavailable",
-            message=(
-                "The public source recipe is no longer available. Your private draft is unchanged."
-            ),
-        ) from error
-    except RecipeDuplicatePreflightNotFoundError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=404,
-            code="duplicate_preflight_not_found",
-            message="The duplicate preflight was not found.",
-        ) from error
-    except RecipeDuplicatePreflightStaleError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="duplicate_preflight_stale",
-            message="The duplicate preflight is no longer current. Run it again.",
-        ) from error
-    except RecipeDuplicateDecisionRequiredError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="duplicate_decision_required",
-            message="Duplicate candidates require an explicit continue decision.",
-        ) from error
-    except RecipeDuplicateDecisionNotRequiredError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="duplicate_decision_not_required",
-            message="A distinct result does not accept a duplicate decision.",
-        ) from error
+        raise
     except (
         RecipeDuplicateStorageConflictError,
         RecipePublicationIdempotencyConflictError,
@@ -374,13 +236,6 @@ def publish_original_draft(
             status_code=409,
             code="idempotency_key_conflict",
             message="The Idempotency-Key or completed draft conflicts with another request.",
-        ) from error
-    except RecipeDuplicatePreflightCapacityError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=503,
-            code="duplicate_preflight_unavailable",
-            message="Duplicate preflight is temporarily unavailable. Please try again later.",
         ) from error
 
     response.headers["Location"] = result.location
