@@ -349,3 +349,24 @@ def test_restricted_dataset_id_and_fixed_assumptions_are_preserved() -> None:
 
     assert simulated.dataset_id == "recipe-lab:cohort_2026.08-v1"
     assert set(SIMULATION_ASSUMPTIONS).issubset(simulated.limitations)
+
+
+def test_generated_event_memory_boundary_is_explicit_and_inclusive() -> None:
+    boundary = CohortSimulationConfig(
+        seed=1,
+        profile_count=50,
+        training_items_per_profile=9_999,
+        holdout_items_per_profile=1,
+    )
+
+    assert boundary.generated_event_count == 1_000_000
+    with pytest.raises(
+        CohortSimulationError,
+        match="configuration would generate 1000100 events; the safety limit is 1000000",
+    ):
+        CohortSimulationConfig(
+            seed=1,
+            profile_count=50,
+            training_items_per_profile=10_000,
+            holdout_items_per_profile=1,
+        )
