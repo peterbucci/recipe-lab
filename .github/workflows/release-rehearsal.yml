@@ -53,7 +53,7 @@ concurrency:
 jobs:
   rehearsal:
     name: RCP-33G automated rehearsal
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       PGHOST: 127.0.0.1
@@ -84,7 +84,7 @@ jobs:
       RCP33G_ROLLBACK_FRONTEND_IMAGE: recipe-lab-frontend:rcp33g-rollback-${{ github.run_id }}-${{ github.run_attempt }}
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17.11-alpine@sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee
         env:
           POSTGRES_DB: recipe_lab_rcp32_acceptance
           POSTGRES_USER: recipe_lab
@@ -120,15 +120,15 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Check out exact candidate with ancestor history
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.13"
+          python-version: "3.13.15"
 
       - name: Set up locked Python resolver
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
@@ -138,9 +138,9 @@ jobs:
           cache-dependency-glob: uv.lock
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: "22"
+          node-version: "22.23.2"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -204,7 +204,7 @@ jobs:
 
       - name: Upload bounded success evidence
         if: ${{ success() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: rcp33g-release-rehearsal-evidence
           path: |
@@ -217,7 +217,7 @@ jobs:
 
       - name: Upload bounded failure phase
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: rcp33g-release-rehearsal-failure
           path: ${{ runner.temp }}/recipe-lab-rcp33g-safe/failure-summary.json
