@@ -7,7 +7,10 @@ from app.models import RecipeIngredient
 from app.repositories.recommendations import recommendation_ingredient_measure
 from app.services.recommendation_scoring import (
     BaselineCandidate,
+    BaselineNormalization,
+    BaselineScoringInput,
     RecommendationIngredientMeasure,
+    score_baseline_recommendations,
 )
 
 
@@ -139,3 +142,31 @@ def test_measure_signal_rejects_incomplete_or_mixed_shapes() -> None:
             unit_id=uuid4(),
             qualitative_value="as_needed",
         )
+
+
+def test_database_shortlist_retains_catalog_wide_support_normalization() -> None:
+    candidate = BaselineCandidate(
+        recipe_version_id=uuid4(),
+        title="Bounded candidate",
+        version_number=1,
+        ingredient_measures=(),
+        rating_sum=0,
+        rating_count=0,
+        save_count=2,
+        fork_count=0,
+        view_count=0,
+    )
+
+    result = score_baseline_recommendations(
+        BaselineScoringInput(
+            candidates=(candidate,),
+            saved_recipe_version_ids=frozenset(),
+            ratings=(),
+            events=(),
+            normalization=BaselineNormalization(maximum_save_count=8),
+        ),
+        1,
+    )
+
+    assert result.items[0].save_popularity == Decimal("0.250000")
+    assert result.items[0].global_score == Decimal("0.325000")

@@ -259,9 +259,11 @@ support, applies the documented Bayesian and candidate-wide normalization rules,
 and optionally adds a bounded canonical-ingredient Jaccard match against positive
 history belonging only to the signed-in member. Both request types use aggregate
 activity for publicly readable recipes; signed-out requests load no
-account-specific history and use the deterministic global ranking. It excludes
-the current member's exact interacted
-versions, rounds scores to six decimal places, and
+account-specific history and use the deterministic global ranking. The
+`baseline-v1-shortlist-v1` retrieval policy bounds detailed in-memory scoring
+with database-ranked global and member-ingredient-overlap lanes while retaining
+catalog-wide normalization maxima. It excludes the current member's exact
+interacted versions in the database, rounds scores to six decimal places, and
 uses fixed component/title/version/ID tie-breaks. The response exposes a recipe
 summary, score, components, and short reason, never raw events or user
 identifiers. The full formula is recorded in

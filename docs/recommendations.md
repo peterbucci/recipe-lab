@@ -27,15 +27,35 @@ additional personal data.
 returns the standard HTTP 422 error envelope. Public cold-start requests do not
 depend on the seeded Demo Cook identity.
 
-The adapter reads the complete eligible catalog and the complete active
-member profile so it never silently changes `baseline-v1` by ranking a partial
-input. Both reads have validated operational ceilings. A catalog above
-`RECOMMENDATION_MAX_CANDIDATES`, or a signed-in profile whose combined saves,
-ratings, and distinct preference events exceed
-`RECOMMENDATION_MAX_PROFILE_RECORDS`, fails closed with the generic
-`recommendation_unavailable` 503 response. Queries fetch at most one row beyond
-their ceiling to detect overflow before scoring; raising either ceiling is an
-explicit capacity decision, not a model change.
+The adapter applies the explicit `baseline-v1-shortlist-v1` retrieval policy
+before constructing the in-memory scoring input. The database first computes
+the unchanged Bayesian/global-support score across every eligible public
+version. Signed-out requests take the best
+`RECOMMENDATION_MAX_CANDIDATES` versions by that score and the published
+title/version/UUID tie-breaks. A catalog larger than the configured bound
+therefore still returns a deterministic result instead of failing at an
+arbitrary capacity cliff.
+
+Signed-in retrieval reserves enough capacity for the API's maximum 50 results
+and uses the remaining candidate budget for positive history anchors. Candidate
+selection combines two bounded lanes: canonical-ingredient overlap with those
+anchors and the catalog-wide global ranking. The overlap lane may occupy at most
+half of the result-candidate budget; the global lane deterministically fills
+every remaining slot. The pure scorer then applies the same `baseline-v1`
+formula and final tie-breaks to that shortlist. Catalog-wide save, fork, and
+view maxima travel with the shortlist, so support normalization does not change
+merely because candidate details were bounded.
+
+Profile reads are also deterministic and bounded. Current active saves come
+first in newest-first order, followed by positive current ratings ordered by
+strength and recency, then distinct fork and view sources ordered by signal
+strength and recency. UUIDs break exact timestamp ties. Only the active member
+is queried. When positive history exceeds
+`RECOMMENDATION_MAX_PROFILE_RECORDS` or the available anchor capacity, older or
+weaker sources stop contributing to similarity; every exact save, rating, view,
+or fork interaction is still excluded with indexed database predicates. This
+is an explicit, privacy-safe degradation policy rather than an arbitrary
+first-row truncation, and it never exposes another member's history.
 
 Because the same URL may vary by the private member session, the API marks every
 recommendation response `private, no-store` and varies it by cookie. No
@@ -97,9 +117,10 @@ The support inputs are:
 - distinct users with at least one view event for the candidate.
 
 Each support input is normalized independently by the largest value for that
-input across the eligible candidate set after exact interacted versions are
-excluded. A candidate's normalized value is its count divided by that maximum;
-when every eligible candidate has a zero count, the normalized value is zero.
+input across the complete eligible public pool after exact interacted versions
+are excluded. A shortlisted candidate's normalized value is its count divided
+by that maximum; when every eligible candidate has a zero count, the normalized
+value is zero.
 Repeated views or forks by one user therefore do not increase that signal beyond
 one user of support.
 
@@ -168,9 +189,10 @@ P(c) = max over history anchors h of strength(h) * J(c, h)
 
 If there is no positive history, `P` is unavailable and the request uses the
 cold-start rule. Exact recipe versions already interacted with by the current
-member are excluded from the returned candidates; their ingredients may still
-act as history anchors. This favors novel versions without treating one
-version's activity as activity on its lineage relatives.
+member are excluded from the returned candidates by database predicates even
+when the bounded profile omits an older signal; selected public positive-history
+versions may still act as ingredient anchors. This favors novel versions
+without treating one version's activity as activity on its lineage relatives.
 
 ## Final score and ordering
 
@@ -191,7 +213,8 @@ decimal places with `ROUND_HALF_UP`, and ranking uses that rounded value. Ties
 are resolved by descending rounded ingredient similarity, descending rounded
 global score, ascending trimmed case-insensitive title, ascending trimmed title,
 ascending version number, and ascending recipe-version UUID, in that order. The
-same database snapshot and limit therefore produce the same order and scores.
+same database snapshot, shortlist configuration, and limit therefore produce
+the same order and scores.
 There is no random shuffle, time window, or time-decay term.
 
 Reasons are short deterministic summaries of the ranking signal. A

@@ -12322,7 +12322,7 @@
                 }
               }
             },
-            "description": "The complete research ranking exceeds its configured safe capacity."
+            "description": "A recommendation dependency is temporarily unavailable."
           }
         },
         "summary": "Research preview: get deterministic baseline rankings",

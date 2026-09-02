@@ -140,6 +140,16 @@ class BaselineScoringInput:
     saved_recipe_version_ids: frozenset[UUID]
     ratings: tuple[BaselineProfileRating, ...]
     events: tuple[BaselineProfileEvent, ...]
+    normalization: "BaselineNormalization | None" = None
+
+
+@dataclass(frozen=True, slots=True)
+class BaselineNormalization:
+    """Catalog-wide maxima retained when a database shortlist is scored."""
+
+    maximum_save_count: int = 0
+    maximum_fork_count: int = 0
+    maximum_view_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -366,9 +376,21 @@ def score_baseline_recommendations(
     )
     personalized = bool(usable_sources)
 
-    maximum_save_count = max((candidate.save_count for candidate in eligible), default=0)
-    maximum_fork_count = max((candidate.fork_count for candidate in eligible), default=0)
-    maximum_view_count = max((candidate.view_count for candidate in eligible), default=0)
+    maximum_save_count = (
+        data.normalization.maximum_save_count
+        if data.normalization is not None
+        else max((candidate.save_count for candidate in eligible), default=0)
+    )
+    maximum_fork_count = (
+        data.normalization.maximum_fork_count
+        if data.normalization is not None
+        else max((candidate.fork_count for candidate in eligible), default=0)
+    )
+    maximum_view_count = (
+        data.normalization.maximum_view_count
+        if data.normalization is not None
+        else max((candidate.view_count for candidate in eligible), default=0)
+    )
 
     items: list[tuple[BaselineCandidate, BaselineScoredItem]] = []
     for candidate in eligible:
