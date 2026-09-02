@@ -31,7 +31,8 @@ adapter calls the same source-optional structural core. The service:
 2. validates and prepares the complete proposed structure without inserting a
    recipe version;
 3. builds its `recipe-structure-v1` fingerprint;
-4. compares it only with publicly readable, fingerprinted recipe versions;
+4. finds exact public fingerprints first, then builds a bounded public shortlist
+   by canonical ingredient overlap;
 5. ranks at most five exact or probable candidates;
 6. stores immutable, bounded audit evidence; and
 7. returns `exact_duplicate`, `probable_duplicate`, or `distinct`.
@@ -86,16 +87,35 @@ threshold, weights, subweights, reason ordering, maximum of three reasons, and a
 SHA-256 of the complete parameter document travel with the versioned evaluator.
 No learned or opaque classifier participates.
 
-The enclosing `recipe-duplicate-preflight-policy-v1` is versioned separately.
+The enclosing `recipe-duplicate-preflight-policy-v2` is versioned separately.
 Its canonical parameter document pins the scorer version and hash, public-only
 selection, exact-first ranking and UUID tie-break, source exclusion,
 direct-parent warning semantics, response bounds, and fixed scoring work
-budgets. One preflight considers at most 500 public fingerprints. Each structure
-is capped at 200 ingredient occurrences, 500 actions, and 2,000 flattened action
-inputs; a conservative quantity-scan and LCS estimate caps all non-exact pair
-work at 10,000,000 units before any pair is scored. Overflow returns one generic
-`503` temporary-unavailable response. It never returns a silently truncated or
-partially scored result.
+budgets.
+
+Candidate discovery no longer scans or rejects the whole public library. It
+first uses the versioned fingerprint digest lookup and confirms byte-identical
+canonical JSON. That exact lookup returns at most the five UUID-first candidates
+that can fit in the response. If exact candidates leave response capacity, the
+remaining public-comparison budget is filled deterministically from candidates
+that share at least one curated ingredient ID, ordered by descending count of
+distinct shared IDs and then ascending recipe-version UUID. The complete scorer
+still classifies and orders every shortlisted pair; overlap is only retrieval,
+not a replacement score.
+
+A zero-overlap pair cannot reach the `4/5` probable threshold under scorer v1:
+its ingredient, quantity, and ordered-input components are zero, leaving a
+maximum total score of `21/100` from the other action components. Excluding it is
+therefore complete for probable classification. When more than the bounded 500
+public-comparison slots have positive overlap, the overlap shortlist is an
+explicit recall limit; exact lookup remains independent of public-library size.
+
+Each structure is capped at 200 ingredient occurrences, 500 actions, and 2,000
+flattened action inputs; a conservative quantity-scan and LCS estimate caps all
+non-exact pair work at 10,000,000 units before any pair is scored. Work overflow
+or invalid stored structure returns one generic failure without partial
+evidence. The policy version and canonical policy-parameter hash are bound into
+the result digest and persisted candidate/publication evidence.
 
 ## Public and privacy boundary
 
@@ -122,7 +142,7 @@ Every response carries this stable acknowledgement envelope:
 ```json
 {
   "preflight_id": "00000000-0000-4000-8000-000000000000",
-  "policy_version": "recipe-duplicate-preflight-policy-v1",
+  "policy_version": "recipe-duplicate-preflight-policy-v2",
   "result_digest": "<lowercase sha256>",
   "required": true,
   "allowed_decisions": ["continue", "revise"]
@@ -157,7 +177,7 @@ Draft publication sends the revision and exact review envelope to
   "revision": 4,
   "duplicate_review": {
     "preflight_id": "00000000-0000-4000-8000-000000000000",
-    "policy_version": "recipe-duplicate-preflight-policy-v1",
+    "policy_version": "recipe-duplicate-preflight-policy-v2",
     "result_digest": "<lowercase sha256>",
     "decision": null
   }

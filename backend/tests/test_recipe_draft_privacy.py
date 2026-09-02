@@ -106,7 +106,11 @@ def test_private_draft_is_absent_from_every_public_and_signal_query(
         list_public_recipe_duplicate_candidates(
             db_session,
             algorithm_version=STRUCTURAL_FINGERPRINT_ALGORITHM_VERSION,
+            subject_digest="0" * 64,
+            subject_canonical_payload="{}",
+            subject_ingredient_identities=(),
             comparison_limit=10,
+            exact_candidate_limit=5,
         )
         == []
     )

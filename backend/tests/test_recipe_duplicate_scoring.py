@@ -33,6 +33,7 @@ from app.services.recipe_duplicate_scoring import (
     InvalidRecipeStructurePayloadError,
     RecipeDuplicateScoringCapacityError,
     UnsupportedRecipeStructureVersionError,
+    get_recipe_duplicate_canonical_ingredient_identities,
     score_recipe_duplicate_candidates,
     validate_recipe_duplicate_scoring_capacity,
 )
@@ -52,6 +53,7 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 FLOUR = "10000000-0000-4000-8000-000000000001"
 SALT = "10000000-0000-4000-8000-000000000002"
 WATER = "10000000-0000-4000-8000-000000000003"
+SUGAR = "10000000-0000-4000-8000-000000000004"
 
 
 def _unit(
@@ -156,6 +158,20 @@ def _input(
         algorithm_version=algorithm_version or fingerprint.algorithm_version,
         digest=digest or fingerprint.digest,
         canonical_json=fingerprint.canonical_json,
+    )
+
+
+def test_shortlist_identity_extraction_is_distinct_and_deterministic() -> None:
+    fingerprint = _fingerprint(
+        _structure(
+            amounts=(_exact(1), _exact(2), _exact(3)),
+            identities=(SALT, FLOUR, SALT),
+        )
+    )
+
+    assert get_recipe_duplicate_canonical_ingredient_identities(fingerprint) == (
+        FLOUR,
+        SALT,
     )
 
 
@@ -352,6 +368,20 @@ def test_ingredient_similarity_is_a_multiplicity_preserving_order_independent_di
     assert forward.components.ingredient_multiset == Fraction(2, 3)
     assert forward.components == reverse.components
     assert forward.score == reverse.score
+
+
+def test_zero_ingredient_overlap_cannot_reach_the_probable_threshold() -> None:
+    left = _fingerprint(_structure(identities=(FLOUR, SALT)))
+    right = _fingerprint(_structure(identities=(WATER, SUGAR)))
+
+    result = score_recipe_duplicate_candidates(left, right)
+
+    assert result.components.ingredient_multiset == 0
+    assert result.components.normalized_quantities == 0
+    assert result.components.ordered_inputs == 0
+    assert result.components.structured_actions == Fraction(7, 10)
+    assert result.score == Fraction(21, 100)
+    assert result.classification == "distinct"
 
 
 def test_quantity_matching_uses_one_global_scale_and_exact_range_endpoints() -> None:

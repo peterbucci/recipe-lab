@@ -172,13 +172,30 @@ def test_preflight_policy_contract_versions_selection_and_work_limits() -> None:
     payload = json.loads(preflight_service.RECIPE_DUPLICATE_POLICY_PARAMETER_DOCUMENT)
 
     assert preflight_service.RECIPE_DUPLICATE_POLICY_VERSION == (
-        "recipe-duplicate-preflight-policy-v1"
+        "recipe-duplicate-preflight-policy-v2"
     )
     assert payload["scorer"] == {
         "algorithm_version": "duplicate-candidate-similarity-v1",
         "parameter_hash": DUPLICATE_CANDIDATE_PARAMETER_HASH,
     }
     assert payload["candidate_selection"] == {
+        "discovery": {
+            "exact_lookup": {
+                "confirmation": "same_algorithm_digest_and_canonical_payload",
+                "maximum_candidates": 5,
+                "ranking": ["ascending_public_recipe_version_uuid"],
+            },
+            "probable_shortlist": {
+                "eligibility": "at_least_one_shared_canonical_ingredient_identity",
+                "maximum_total_public_comparisons_including_exact": 500,
+                "overlap_metric": ("count_distinct_shared_canonical_ingredient_identities"),
+                "ranking": [
+                    "descending_canonical_ingredient_overlap",
+                    "ascending_public_recipe_version_uuid",
+                ],
+                "remaining_budget": "comparison_limit_minus_exact_candidates",
+            },
+        },
         "maximum_candidates": 5,
         "ranking": [
             "exact_classification_first",
@@ -266,13 +283,22 @@ def test_exact_preflight_is_bounded_explainable_and_warns_on_parent_no_change(
     assert all(len(candidate.reasons) <= 3 for candidate in result.response.candidates)
     assert result.response.acknowledgement.required is True
     assert result.response.acknowledgement.allowed_decisions == ["continue", "revise"]
+    assert result.response.acknowledgement.policy_version == (
+        preflight_service.RECIPE_DUPLICATE_POLICY_VERSION
+    )
+    assert capture[0].policy_version == preflight_service.RECIPE_DUPLICATE_POLICY_VERSION
+    assert all(
+        candidate.policy_version == preflight_service.RECIPE_DUPLICATE_POLICY_VERSION
+        for candidate in capture[0].candidates
+    )
+    assert result.response.acknowledgement.result_digest == capture[0].result_digest
     assert capture[0].source_version_id == source_id
     assert source_id not in {
         candidate.public_recipe_version_id for candidate in capture[0].candidates
     }
 
 
-def test_preflight_fails_closed_before_scoring_an_over_capacity_public_catalog(
+def test_preflight_fails_closed_if_repository_violates_the_bounded_shortlist_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source_id = uuid4()
@@ -485,7 +511,7 @@ def test_source_optional_core_classifies_without_excluding_a_candidate(
         title="Public source-less candidate",
         fingerprint=candidate_fingerprint,
     )
-    captured_exclusions: list[UUID | None] = []
+    captured_queries: list[dict[str, Any]] = []
 
     monkeypatch.setattr(
         preflight_service,
@@ -501,7 +527,7 @@ def test_source_optional_core_classifies_without_excluding_a_candidate(
     )
 
     def fake_candidates(_session: Session, **kwargs: Any) -> list[PublicRecipeDuplicateCandidate]:
-        captured_exclusions.append(cast(UUID | None, kwargs["exclude_recipe_version_id"]))
+        captured_queries.append(kwargs)
         return [candidate]
 
     monkeypatch.setattr(
@@ -527,7 +553,13 @@ def test_source_optional_core_classifies_without_excluding_a_candidate(
 
     assert result.response.classification == expected
     assert result.response.same_lineage_no_change is False
-    assert captured_exclusions == [None]
+    assert len(captured_queries) == 1
+    assert captured_queries[0]["exclude_recipe_version_id"] is None
+    assert captured_queries[0]["subject_digest"] == subject.digest
+    assert captured_queries[0]["subject_canonical_payload"] == subject.canonical_json
+    assert captured_queries[0]["subject_ingredient_identities"] == ("ingredient-flour",)
+    assert captured_queries[0]["comparison_limit"] == 500
+    assert captured_queries[0]["exact_candidate_limit"] == 5
     assert capture[0].source_version_id is None
     assert [candidate.public_recipe_version_id for candidate in result.response.candidates] == (
         [candidate_id] if expected != "distinct" else []

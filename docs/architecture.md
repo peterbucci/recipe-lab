@@ -388,10 +388,12 @@ the maintained publication adapter loads one saved original or source-backed
 draft revision. No temporary recipe row is inserted. Fork publication takes the
 lineage lock only inside the final transaction and
 verifies that the stored fingerprint is byte-identical to the prepared draft
-fingerprint before commit. `recipe-duplicate-preflight-policy-v1` pins candidate
+fingerprint before commit. `recipe-duplicate-preflight-policy-v2` pins candidate
 selection, public visibility, ordering, work limits, direct-parent semantics,
 and the exact `duplicate-candidate-similarity-v1` scorer parameters. Exact
-digest candidates are confirmed against canonical JSON, while non-exact public
+digest candidates are retrieved first and confirmed against canonical JSON.
+Remaining fixed comparison capacity comes from a deterministic public shortlist
+ordered by distinct shared canonical ingredient IDs and recipe UUID; those
 candidates are scored from curated ingredient multisets, one-scale normalized
 quantities, and ordered structured actions. The response is capped at five
 candidates and three fixed reasons per candidate. Current browse, detail,

@@ -474,19 +474,23 @@ It returns `exact_duplicate`, `probable_duplicate`, or `distinct`, at most five
 public candidates, at most three fixed explanation reasons per candidate, and
 a stable acknowledgement.
 
-Exact candidates require both the digest and canonical payload to match.
-Probable candidates use the versioned deterministic ingredient, normalized
-quantity, and structured-action scorer. A proposed child that is structurally
-identical to its direct source also receives `same_lineage_no_change`. Titles,
-descriptions, instruction prose, display aliases, authors, and lineage metadata
-do not affect either classification.
+Exact candidates require both the digest and canonical payload to match and are
+looked up independently of public-library size. The remaining fixed comparison
+budget is filled by a deterministic shortlist ordered by distinct shared
+canonical ingredient IDs and recipe UUID. Probable candidates then use the
+unchanged versioned ingredient, normalized quantity, and structured-action
+scorer. A proposed child that is structurally identical to its direct source
+also receives `same_lineage_no_change`. Titles, descriptions, instruction prose,
+display aliases, authors, and lineage metadata do not affect either
+classification.
 
 The separately versioned preflight policy pins the scorer parameters,
 public-only candidate selection and ordering, direct-parent warning semantics,
-and fixed work budgets: 500 public comparisons, 200 ingredient occurrences,
+and fixed work budgets: a 500-candidate shortlist, 200 ingredient occurrences,
 500 actions, 2,000 flattened inputs, and 10,000,000 conservative aggregate
 non-exact work units. Budget overflow fails closed with one generic `503`
-response; the service never returns partial candidate evidence.
+response; the service never returns partial candidate evidence. A public library
+larger than the shortlist is not itself an overflow condition.
 
 Draft publication binds the revision, optional source, policy, result digest,
 and optional `continue` directly inside its atomic transaction. Revising means

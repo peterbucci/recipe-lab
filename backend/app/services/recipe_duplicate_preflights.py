@@ -66,6 +66,7 @@ from app.services.recipe_duplicate_scoring import (
     RecipeDuplicateScoringCapacityError,
     UnsupportedRecipeStructureVersionError,
     estimate_recipe_duplicate_pair_work,
+    get_recipe_duplicate_canonical_ingredient_identities,
     get_recipe_duplicate_scoring_shape,
     recipe_duplicate_fingerprints_are_exact,
     score_recipe_duplicate_candidates,
@@ -75,7 +76,7 @@ from app.services.recipe_fingerprints import (
     StructuralFingerprint,
 )
 
-RECIPE_DUPLICATE_POLICY_VERSION = "recipe-duplicate-preflight-policy-v1"
+RECIPE_DUPLICATE_POLICY_VERSION = "recipe-duplicate-preflight-policy-v2"
 RECIPE_DUPLICATE_RESULT_SCHEMA = "recipe-lab.recipe-duplicate-preflight-result"
 RECIPE_DUPLICATE_RESULT_VERSION = 1
 MAX_PUBLIC_DUPLICATE_CANDIDATES = 5
@@ -87,6 +88,25 @@ SAME_LINEAGE_NO_CHANGE_MESSAGE = (
 
 _POLICY_PARAMETER_PAYLOAD: dict[str, object] = {
     "candidate_selection": {
+        "discovery": {
+            "exact_lookup": {
+                "confirmation": "same_algorithm_digest_and_canonical_payload",
+                "maximum_candidates": MAX_PUBLIC_DUPLICATE_CANDIDATES,
+                "ranking": ["ascending_public_recipe_version_uuid"],
+            },
+            "probable_shortlist": {
+                "eligibility": "at_least_one_shared_canonical_ingredient_identity",
+                "maximum_total_public_comparisons_including_exact": (
+                    MAX_PUBLIC_DUPLICATE_COMPARISONS
+                ),
+                "overlap_metric": "count_distinct_shared_canonical_ingredient_identities",
+                "ranking": [
+                    "descending_canonical_ingredient_overlap",
+                    "ascending_public_recipe_version_uuid",
+                ],
+                "remaining_budget": "comparison_limit_minus_exact_candidates",
+            },
+        },
         "maximum_candidates": MAX_PUBLIC_DUPLICATE_CANDIDATES,
         "ranking": [
             "exact_classification_first",
@@ -259,7 +279,13 @@ def _rank_candidates(
         public_candidates = list_public_recipe_duplicate_candidates(
             session,
             algorithm_version=subject.algorithm_version,
-            comparison_limit=MAX_PUBLIC_DUPLICATE_COMPARISONS + 1,
+            subject_digest=subject.digest,
+            subject_canonical_payload=subject.canonical_json,
+            subject_ingredient_identities=(
+                get_recipe_duplicate_canonical_ingredient_identities(subject_input)
+            ),
+            comparison_limit=MAX_PUBLIC_DUPLICATE_COMPARISONS,
+            exact_candidate_limit=MAX_PUBLIC_DUPLICATE_CANDIDATES,
             exclude_recipe_version_id=source_version_id,
         )
         if len(public_candidates) > MAX_PUBLIC_DUPLICATE_COMPARISONS:
