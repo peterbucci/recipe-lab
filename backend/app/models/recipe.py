@@ -474,6 +474,11 @@ class RecipeIngredient(UUIDPrimaryKeyMixin, Base):
             "id",
             name="uq_recipe_version_ingredients_version_id",
         ),
+        Index(
+            "ix_recipe_version_ingredients_ingredient_version",
+            "ingredient_id",
+            "recipe_version_id",
+        ),
     )
 
     recipe_version_id: Mapped[UUID] = mapped_column(
@@ -485,7 +490,6 @@ class RecipeIngredient(UUIDPrimaryKeyMixin, Base):
         Uuid(as_uuid=True),
         ForeignKey("ingredients.id", ondelete="RESTRICT"),
         nullable=False,
-        index=True,
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     measure_mode: Mapped[str] = mapped_column(String(16), nullable=False)

@@ -110,6 +110,12 @@ therefore complete for probable classification. When more than the bounded 500
 public-comparison slots have positive overlap, the overlap shortlist is an
 explicit recall limit; exact lookup remains independent of public-library size.
 
+The overlap query is supported by the non-unique covering index on
+`recipe_version_ingredients (ingredient_id, recipe_version_id)`. Migration
+`20260902_0029` replaces the former ingredient-only index with that exact
+column order; the existing fingerprint `(algorithm_version, digest)` index
+continues to serve exact lookup.
+
 Each structure is capped at 200 ingredient occurrences, 500 actions, and 2,000
 flattened action inputs; a conservative quantity-scan and LCS estimate caps all
 non-exact pair work at 10,000,000 units before any pair is scored. Work overflow
