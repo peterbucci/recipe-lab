@@ -10,8 +10,8 @@ from uuid import UUID
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.api.errors import ApiError
 from app.core.config import Settings
+from app.core.domain_errors import DomainRateLimitedError, DomainUnavailableError
 from app.models.abuse import (
     RATE_LIMIT_DIMENSION_ACCOUNT,
     RATE_LIMIT_DIMENSION_IDENTITY,
@@ -33,8 +33,17 @@ NETWORK_TIMESTAMP_HEADER = "x-recipe-lab-network-timestamp"
 NETWORK_SIGNATURE_HEADER = "x-recipe-lab-network-signature"
 
 
-class RateLimitUnavailableError(RuntimeError):
-    pass
+class RateLimitUnavailableError(DomainUnavailableError):
+    code = "abuse_protection_unavailable"
+    public_message = "This request cannot be completed safely right now. Please try again."
+
+
+class RateLimitExceededError(DomainRateLimitedError):
+    code = "rate_limit_exceeded"
+    public_message = "Too many requests. Please try again later."
+
+    def __init__(self, *, retry_after_seconds: int) -> None:
+        super().__init__(headers={"Retry-After": str(retry_after_seconds)})
 
 
 def canonical_network_subject(client_host: str | None) -> str:
@@ -154,15 +163,6 @@ def _retry_after_seconds(*, now: datetime, expires_at: datetime) -> int:
     return max(1, math.ceil((expires_at - now).total_seconds()))
 
 
-def _rate_limit_error(*, retry_after_seconds: int) -> ApiError:
-    return ApiError(
-        status_code=429,
-        code="rate_limit_exceeded",
-        message="Too many requests. Please try again later.",
-        headers={"Retry-After": str(retry_after_seconds)},
-    )
-
-
 def _record_dimensions(
     session: Session,
     *,
@@ -203,7 +203,7 @@ def _record_dimensions(
         session.rollback()
         raise RateLimitUnavailableError("Durable abuse protection is unavailable.") from error
     if exceeded_retry_after is not None:
-        raise _rate_limit_error(retry_after_seconds=exceeded_retry_after)
+        raise RateLimitExceededError(retry_after_seconds=exceeded_retry_after)
 
 
 def enforce_request_rate_limit(
@@ -262,12 +262,4 @@ def enforce_oidc_identity_rate_limit(
                 settings.abuse.rate_limit_auth_identity,
             )
         ],
-    )
-
-
-def abuse_protection_unavailable_error() -> ApiError:
-    return ApiError(
-        status_code=503,
-        code="abuse_protection_unavailable",
-        message="This request cannot be completed safely right now. Please try again.",
     )

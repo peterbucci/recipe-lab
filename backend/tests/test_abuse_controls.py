@@ -25,6 +25,7 @@ from app.repositories.abuse_limits import (
     record_rate_limit_attempt,
 )
 from app.services.abuse_limits import (
+    RateLimitExceededError,
     canonical_network_subject,
     client_network_subject,
     enforce_oidc_identity_rate_limit,
@@ -293,7 +294,7 @@ def test_account_and_network_limits_are_durable_before_endpoint_rollback(
         first.rollback()
 
     with Session(bind=migrated_engine) as second:
-        with pytest.raises(ApiError) as caught:
+        with pytest.raises(RateLimitExceededError) as caught:
             enforce_request_rate_limit(
                 second,
                 settings=settings,
@@ -303,7 +304,6 @@ def test_account_and_network_limits_are_durable_before_endpoint_rollback(
                 now=now + timedelta(seconds=1),
             )
 
-    assert caught.value.status_code == 429
     assert caught.value.code == "rate_limit_exceeded"
     assert 1 <= int(caught.value.headers["Retry-After"]) <= 60
 
@@ -345,7 +345,7 @@ def test_oidc_identity_limit_covers_first_account_attempts(migrated_engine: Engi
             subject=subject,
             now=now,
         )
-        with pytest.raises(ApiError) as caught:
+        with pytest.raises(RateLimitExceededError) as caught:
             enforce_oidc_identity_rate_limit(
                 session,
                 settings=settings,
@@ -353,7 +353,7 @@ def test_oidc_identity_limit_covers_first_account_attempts(migrated_engine: Engi
                 subject=subject,
                 now=now + timedelta(seconds=1),
             )
-    assert caught.value.status_code == 429
+    assert caught.value.code == "rate_limit_exceeded"
     with Session(bind=migrated_engine) as cleanup, cleanup.begin():
         cleanup.execute(delete(AbuseRateLimitBucket))
 
@@ -585,7 +585,7 @@ def test_separate_signed_networks_receive_separate_durable_limits(
             )
 
     with Session(bind=migrated_engine) as limited_session:
-        with pytest.raises(ApiError) as caught:
+        with pytest.raises(RateLimitExceededError) as caught:
             enforce_request_rate_limit(
                 limited_session,
                 settings=settings,
@@ -594,6 +594,6 @@ def test_separate_signed_networks_receive_separate_durable_limits(
                 account_user_id=None,
                 now=now + timedelta(seconds=1),
             )
-    assert caught.value.status_code == 429
+    assert caught.value.code == "rate_limit_exceeded"
     with Session(bind=migrated_engine) as cleanup, cleanup.begin():
         cleanup.execute(delete(AbuseRateLimitBucket))

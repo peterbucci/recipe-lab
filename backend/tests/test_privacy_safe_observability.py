@@ -59,6 +59,11 @@ class _LimitedDomainAction(DomainRateLimitedError):
     public_message = "The domain action limit was exceeded."
 
 
+class _LimitedDomainActionWithRetry(_LimitedDomainAction):
+    def __init__(self) -> None:
+        super().__init__(headers={"Retry-After": "17"})
+
+
 class _UnavailableDomainCapability(DomainUnavailableError):
     code = "unavailable_domain_capability"
     public_message = "The domain capability is temporarily unavailable."
@@ -151,6 +156,20 @@ def test_domain_errors_map_to_one_stable_http_contract(
         }
     }
     assert "private" not in response.text
+
+
+def test_domain_error_headers_are_preserved() -> None:
+    application = create_app()
+
+    @application.get("/test/limited-domain-error")
+    def fail_with_limited_domain_error() -> None:
+        raise _LimitedDomainActionWithRetry()
+
+    with TestClient(application) as client:
+        response = client.get("/test/limited-domain-error")
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "17"
 
 
 def test_correlation_ids_are_cryptographically_random_per_request_and_ignore_input() -> None:
