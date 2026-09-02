@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  type KeyboardEvent,
   useEffect,
   useId,
   useMemo,
@@ -14,6 +13,7 @@ import { fetchActiveRecipeCategories } from "../../lib/recipe-category-client-ap
 import { MAX_RECIPE_CATEGORIES } from "../../lib/recipe-category";
 import { EditorRowIcon } from "./editor-row-icon";
 import { InlineLoading, SectionLoading } from "./loading-ui";
+import { Popover, PopoverContent, PopoverTrigger } from "./overlay-primitives";
 import { RecipeDraftFieldError } from "./recipe-draft-field-error";
 import { useFloatingPanelPlacement } from "./use-floating-panel-placement";
 
@@ -44,7 +44,6 @@ export function RecipeCategorySelector({
   const errorId = `${descriptionId}-error`;
   const popoverId = `${descriptionId}-popover`;
   const statusId = `${descriptionId}-status`;
-  const selectorRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [activeCategories, setActiveCategories] = useState<RecipeCategory[]>(
@@ -106,28 +105,9 @@ export function RecipeCategorySelector({
     triggerRef,
   });
 
-  useEffect(() => {
-    if (!showCategoryPopover) return;
-
-    const closeWhenOutside = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && !selectorRef.current?.contains(target)) {
-        setEditingCategories(false);
-      }
-    };
-    document.addEventListener("pointerdown", closeWhenOutside);
-    return () => document.removeEventListener("pointerdown", closeWhenOutside);
-  }, [showCategoryPopover]);
-
   function closeCategoryPopover() {
     setEditingCategories(false);
     window.setTimeout(() => triggerRef.current?.focus(), 0);
-  }
-
-  function handlePopoverKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    closeCategoryPopover();
   }
 
   function toggle(category: RecipeCategory, checked: boolean) {
@@ -195,7 +175,6 @@ export function RecipeCategorySelector({
   if (presentation === "recipe") {
     return (
       <div
-        ref={selectorRef}
         className="recipe-workspace__category-selector"
         role="group"
         aria-label="Recipe categories"
@@ -218,30 +197,29 @@ export function RecipeCategorySelector({
               No categories yet
             </span>
           )}
-          <button
-            ref={triggerRef}
-            className="button button--quiet recipe-workspace__category-toggle"
-            type="button"
-            disabled={disabled}
-            aria-label="Edit categories"
-            aria-controls={popoverId}
-            aria-expanded={editingCategories}
-            aria-haspopup="dialog"
-            onClick={() => setEditingCategories((open) => !open)}
-            title="Edit categories"
+          <Popover
+            open={showCategoryPopover}
+            onOpenChange={setEditingCategories}
           >
-            <EditorRowIcon kind="menu" />
-          </button>
-          {editingCategories ? (
-            <div
+            <PopoverTrigger
+              ref={triggerRef}
+              contentId={popoverId}
+              className="button button--quiet recipe-workspace__category-toggle"
+              disabled={disabled}
+              aria-label="Edit categories"
+              aria-haspopup="dialog"
+              title="Edit categories"
+            >
+              <EditorRowIcon kind="menu" />
+            </PopoverTrigger>
+            <PopoverContent
               ref={popoverRef}
               id={popoverId}
               className="recipe-workspace__category-choices"
-              role="dialog"
               aria-label="Edit recipe categories"
               data-placement={popoverPlacement.placement}
               style={popoverPlacement.style}
-              onKeyDown={handlePopoverKeyDown}
+              initialFocus="first"
             >
               {loadState === "loading" ? (
                 <InlineLoading label="Loading curated categories…" />
@@ -275,8 +253,8 @@ export function RecipeCategorySelector({
                   Done
                 </button>
               </div>
-            </div>
-          ) : null}
+            </PopoverContent>
+          </Popover>
         </div>
         <p
           className="visually-hidden"

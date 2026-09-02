@@ -2,12 +2,9 @@
 
 import {
   type KeyboardEvent,
-  useEffect,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
-import { createPortal } from "react-dom";
 
 import {
   IngredientCatalogApiError,
@@ -15,6 +12,7 @@ import {
   submitMissingIngredientRequest,
 } from "../../lib/ingredient-catalog-api";
 import { LoadingButton } from "./loading-ui";
+import { Dialog } from "./overlay-primitives";
 
 interface MissingIngredientRequestPanelProps {
   disabled?: boolean;
@@ -28,10 +26,6 @@ interface RequestFieldErrors {
   context?: string;
   proposedName?: string;
 }
-
-const subscribeToClient = () => () => undefined;
-const clientSnapshot = () => true;
-const serverSnapshot = () => false;
 
 function validateRequest(proposedName: string, context: string): RequestFieldErrors {
   const errors: RequestFieldErrors = {};
@@ -54,7 +48,6 @@ export function MissingIngredientRequestPanel({
   onClose,
   onSubmitted,
 }: MissingIngredientRequestPanelProps) {
-  const dialogRef = useRef<HTMLElement>(null);
   const proposedNameRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
   const [proposedName, setProposedName] = useState(initialName);
@@ -64,22 +57,6 @@ export function MissingIngredientRequestPanel({
   const [statusMessage, setStatusMessage] = useState("");
   const [pending, setPending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const portalReady = useSyncExternalStore(
-    subscribeToClient,
-    clientSnapshot,
-    serverSnapshot,
-  );
-
-  useEffect(() => {
-    if (!portalReady) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    proposedNameRef.current?.focus();
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [portalReady]);
-
   function clearFieldError(field: keyof RequestFieldErrors) {
     setFormError("");
     setStatusMessage("");
@@ -140,65 +117,26 @@ export function MissingIngredientRequestPanel({
     }
   }
 
-  function handleDialogKeyDown(event: KeyboardEvent<HTMLElement>) {
-    if (event.key === "Escape") {
-      if (!pending && !disabled) {
-        event.preventDefault();
-        onClose();
-      }
-      return;
-    }
-    if (event.key !== "Tab") return;
-
-    const focusable = Array.from(
-      event.currentTarget.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      ),
-    );
-    if (focusable.length === 0) {
-      event.preventDefault();
-      event.currentTarget.focus();
-      return;
-    }
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  }
-
   const nameHelpId = `${idPrefix}-request-name-help`;
   const nameErrorId = `${idPrefix}-request-name-error`;
   const contextHelpId = `${idPrefix}-request-context-help`;
   const contextErrorId = `${idPrefix}-request-context-error`;
   const summaryId = `${idPrefix}-request-summary`;
 
-  if (!portalReady || typeof document === "undefined") return null;
-
-  return createPortal(
-    <div
-      className="ingredient-request-modal__backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !pending && !disabled) {
-          onClose();
-        }
-      }}
-    >
-      <section
-        ref={dialogRef}
+  return (
+      <Dialog
+        backdropClassName="ingredient-request-modal__backdrop"
         id={`${idPrefix}-request-dialog`}
         className="ingredient-request-panel"
-        role="dialog"
-        aria-modal="true"
         aria-busy={pending}
         aria-labelledby={`${idPrefix}-request-heading`}
         aria-describedby={summaryId}
-        tabIndex={-1}
-        onKeyDown={handleDialogKeyDown}
+        dismissible={!pending && !disabled}
+        initialFocusRef={proposedNameRef}
+        open
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
       >
         <div className="ingredient-request-panel__header">
           <h3 id={`${idPrefix}-request-heading`}>Request a missing ingredient</h3>
@@ -301,8 +239,6 @@ export function MissingIngredientRequestPanel({
             Cancel
           </button>
         </div>
-      </section>
-    </div>,
-    document.body,
+      </Dialog>
   );
 }

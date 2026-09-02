@@ -16,6 +16,7 @@ import {
 } from "../../lib/structured-action";
 import type { StructuredMeasureField } from "../../lib/structured-measure";
 import { EditorRowIcon } from "./editor-row-icon";
+import { Popover, PopoverContent, PopoverTrigger } from "./overlay-primitives";
 import {
   draftActionMeasureLabel,
   recipeActionLabel,
@@ -153,39 +154,6 @@ export function StructuredActionEditor({
     pendingFocusId.current = null;
   }, [value, visibleActionKey]);
 
-  useEffect(() => {
-    if (!visibleActionKey) {
-      return;
-    }
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) {
-        return;
-      }
-      const popover = activePopoverRef.current;
-      const trigger = activeTriggerRef.current;
-      if (!popover?.contains(target) && !trigger?.contains(target)) {
-        setOpenActionKey(null);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") {
-        return;
-      }
-      event.preventDefault();
-      setOpenActionKey(null);
-      document
-        .getElementById(`${idPrefix}-${visibleActionKey}-trigger`)
-        ?.focus();
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [idPrefix, visibleActionKey]);
-
   function replaceAction(key: string, action: StructuredActionDraft) {
     onChange(value.map((item) => (item.key === key ? action : item)));
   }
@@ -262,28 +230,27 @@ export function StructuredActionEditor({
 
           return (
             <li key={action.key} className="cooking-details__row">
-              <button
-                ref={isOpen ? activeTriggerRef : undefined}
-                id={`${actionId}-trigger`}
-                className="cooking-details__trigger"
-                type="button"
-                disabled={disabled}
-                aria-expanded={isOpen}
-                aria-controls={popoverId}
-                aria-describedby={hasActionErrors ? statusId : undefined}
-                aria-label={`Edit cooking detail ${index + 1} for ${stepLabel}`}
-                data-invalid={hasActionErrors || undefined}
-                onClick={() => {
-                  const nextKey = isOpen ? null : action.key;
-                  setOpenActionKey(nextKey);
-                  if (nextKey) {
-                    pendingFocusId.current = `${actionId}-type`;
-                  }
+              <Popover
+                open={isOpen}
+                onOpenChange={(nextOpen) => {
+                  setOpenActionKey(nextOpen ? action.key : null);
+                  if (nextOpen) pendingFocusId.current = `${actionId}-type`;
                 }}
               >
-                <strong>{detailTitle(action)}</strong>
-                <small>{detailSummary(action, ingredientOccurrences)}</small>
-              </button>
+                <PopoverTrigger
+                  ref={isOpen ? activeTriggerRef : undefined}
+                  contentId={popoverId}
+                  id={`${actionId}-trigger`}
+                  className="cooking-details__trigger"
+                  disabled={disabled}
+                  aria-haspopup="dialog"
+                  aria-describedby={hasActionErrors ? statusId : undefined}
+                  aria-label={`Edit cooking detail ${index + 1} for ${stepLabel}`}
+                  data-invalid={hasActionErrors || undefined}
+                >
+                  <strong>{detailTitle(action)}</strong>
+                  <small>{detailSummary(action, ingredientOccurrences)}</small>
+                </PopoverTrigger>
               <span id={statusId} className="visually-hidden">
                 {hasActionErrors ? "This cooking detail needs attention." : ""}
               </span>
@@ -320,12 +287,10 @@ export function StructuredActionEditor({
                 </button>
               </div>
 
-              {isOpen ? (
-                <div
+                <PopoverContent
                   ref={activePopoverRef}
                   id={popoverId}
                   className="cooking-details__popover"
-                  role="dialog"
                   data-placement={popoverPlacement.placement}
                   style={popoverPlacement.style}
                   aria-label={`Cooking detail ${index + 1} for ${stepLabel}`}
@@ -545,8 +510,8 @@ export function StructuredActionEditor({
                       Done
                     </button>
                   </div>
-                </div>
-              ) : null}
+                </PopoverContent>
+              </Popover>
             </li>
           );
         })}
