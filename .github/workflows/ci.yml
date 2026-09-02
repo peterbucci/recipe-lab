@@ -52,6 +52,9 @@ jobs:
       - name: Enforce backend architecture boundaries
         run: python scripts/verify_architecture.py
 
+      - name: Check documentation links
+        run: python scripts/verify_doc_links.py
+
       - name: Validate GitHub workflows
         run: >-
           docker run --rm
@@ -114,13 +117,17 @@ jobs:
         run: |
           python -m ruff format --check \
             scripts/verify_architecture.py \
+            scripts/verify_doc_links.py \
             scripts/verify_repository_policy.py \
             scripts/tests/test_verify_architecture.py \
+            scripts/tests/test_verify_doc_links.py \
             scripts/tests/test_verify_repository_policy.py
           python -m ruff check --output-format=github \
             scripts/verify_architecture.py \
+            scripts/verify_doc_links.py \
             scripts/verify_repository_policy.py \
             scripts/tests/test_verify_architecture.py \
+            scripts/tests/test_verify_doc_links.py \
             scripts/tests/test_verify_repository_policy.py
 
       - name: Lint frontend
