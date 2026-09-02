@@ -113,22 +113,10 @@ jobs:
           python -m ruff format --check src tests
           python -m ruff check --output-format=github src tests
 
-      - name: Check repository policy formatting and lint
+      - name: Check repository tooling formatting and lint
         run: |
-          python -m ruff format --check \
-            scripts/verify_architecture.py \
-            scripts/verify_doc_links.py \
-            scripts/verify_repository_policy.py \
-            scripts/tests/test_verify_architecture.py \
-            scripts/tests/test_verify_doc_links.py \
-            scripts/tests/test_verify_repository_policy.py
-          python -m ruff check --output-format=github \
-            scripts/verify_architecture.py \
-            scripts/verify_doc_links.py \
-            scripts/verify_repository_policy.py \
-            scripts/tests/test_verify_architecture.py \
-            scripts/tests/test_verify_doc_links.py \
-            scripts/tests/test_verify_repository_policy.py
+          python -m ruff format --check scripts
+          python -m ruff check --output-format=github scripts
 
       - name: Lint frontend
         working-directory: frontend
@@ -1039,21 +1027,10 @@ jobs:
           echo $! > "$RUNNER_TEMP/recipe-lab-backend.pid"
 
       - name: Wait for backend readiness
-        shell: bash
-        run: |
-          backend_pid="$(cat "$RUNNER_TEMP/recipe-lab-backend.pid")"
-          for _ in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:8000/api/health > /dev/null; then
-              exit 0
-            fi
-            if ! kill -0 "$backend_pid" 2>/dev/null; then
-              cat "$RUNNER_TEMP/recipe-lab-backend.log"
-              exit 1
-            fi
-            sleep 1
-          done
-          cat "$RUNNER_TEMP/recipe-lab-backend.log"
-          exit 1
+        run: >-
+          python scripts/wait_for_services.py
+          --timeout 30
+          --service "backend=http://127.0.0.1:8000/api/health,$RUNNER_TEMP/recipe-lab-backend.pid"
 
       - name: Check public performance baseline
         working-directory: frontend
@@ -1235,26 +1212,11 @@ jobs:
           echo $! > "$RUNNER_TEMP/recipe-lab-rcp32-backend.pid"
 
       - name: Wait for isolated services
-        shell: bash
-        run: |
-          oidc_pid="$(cat "$RUNNER_TEMP/recipe-lab-rcp32-oidc.pid")"
-          backend_pid="$(cat "$RUNNER_TEMP/recipe-lab-rcp32-backend.pid")"
-          for _ in {1..45}; do
-            oidc_ready=0
-            backend_ready=0
-            curl --fail --silent http://127.0.0.1:8200/health > /dev/null && oidc_ready=1
-            curl --fail --silent http://127.0.0.1:8100/api/health > /dev/null && backend_ready=1
-            if [[ "$oidc_ready" == "1" && "$backend_ready" == "1" ]]; then
-              exit 0
-            fi
-            if ! kill -0 "$oidc_pid" 2>/dev/null || ! kill -0 "$backend_pid" 2>/dev/null; then
-              echo "An isolated RCP-32 service stopped before becoming ready."
-              exit 1
-            fi
-            sleep 1
-          done
-          echo "The isolated RCP-32 services did not become ready in time."
-          exit 1
+        run: >-
+          python scripts/wait_for_services.py
+          --timeout 45
+          --service "identity-provider=http://127.0.0.1:8200/health,$RUNNER_TEMP/recipe-lab-rcp32-oidc.pid"
+          --service "backend=http://127.0.0.1:8100/api/health,$RUNNER_TEMP/recipe-lab-rcp32-backend.pid"
 
       - name: Run only the community release-gate browser journey
         working-directory: frontend

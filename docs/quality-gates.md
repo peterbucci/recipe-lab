@@ -35,6 +35,11 @@ bases, time-dependent Alpine upgrades, and missing build-context exclusions.
 It never updates a pin or allowlist. Dependency and base-image updates remain
 manual review decisions; Dependabot only opens grouped proposals.
 
+Acceptance jobs use `scripts/wait_for_services.py` as their shared readiness
+latch. The check observes every health endpoint, fails immediately when a
+managed process exits, applies one explicit deadline, and never relies on a
+fixed startup sleep or copies service logs into ordinary output.
+
 Run the contract checks locally from PowerShell:
 
 ```powershell
