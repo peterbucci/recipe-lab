@@ -14,6 +14,7 @@ from app.models import (
     IngredientCategory,
     IngredientSubstitution,
 )
+from tests.builders.catalog import persist_catalog_ingredient
 
 
 def assert_constraint_name(error: IntegrityError, expected_constraint: str) -> None:
@@ -33,13 +34,6 @@ def assert_flush_violates(
             session.flush()
 
     assert_constraint_name(error.value, expected_constraint)
-
-
-def create_ingredient(session: Session, canonical_name: str) -> Ingredient:
-    ingredient = Ingredient(canonical_name=canonical_name)
-    session.add(ingredient)
-    session.flush()
-    return ingredient
 
 
 def test_ingredient_metadata_round_trip(db_session: Session) -> None:
@@ -109,8 +103,8 @@ def test_normalized_canonical_and_alias_names_are_unique(db_session: Session) ->
 
 
 def test_substitution_pairs_are_directed_and_unique(db_session: Session) -> None:
-    source = create_ingredient(db_session, "Source")
-    replacement = create_ingredient(db_session, "Replacement")
+    source = persist_catalog_ingredient(db_session, "Source")
+    replacement = persist_catalog_ingredient(db_session, "Replacement")
     db_session.add_all(
         [
             IngredientSubstitution(
@@ -144,8 +138,8 @@ def test_substitution_pairs_are_directed_and_unique(db_session: Session) -> None
 def test_substitution_ingredients_are_protected_from_deletion(
     db_session: Session,
 ) -> None:
-    source = create_ingredient(db_session, "Protected substitution source")
-    replacement = create_ingredient(db_session, "Protected substitution replacement")
+    source = persist_catalog_ingredient(db_session, "Protected substitution source")
+    replacement = persist_catalog_ingredient(db_session, "Protected substitution replacement")
     db_session.add(
         IngredientSubstitution(
             source_ingredient_id=source.id,
@@ -177,8 +171,8 @@ def test_substitution_ingredients_are_protected_from_deletion(
 def test_substitution_constraints_reject_unexplainable_edges(
     db_session: Session,
 ) -> None:
-    source = create_ingredient(db_session, "Constraint source")
-    replacement = create_ingredient(db_session, "Constraint replacement")
+    source = persist_catalog_ingredient(db_session, "Constraint source")
+    replacement = persist_catalog_ingredient(db_session, "Constraint replacement")
 
     assert_flush_violates(
         db_session,
