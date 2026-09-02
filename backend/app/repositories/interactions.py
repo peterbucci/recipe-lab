@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.models import RecipeRating, RecipeSave, RecipeVersion, User
-from app.repositories.recipes import publicly_readable_recipe_version_filter
+from app.policies.recipe_visibility import publicly_readable_recipe_version_filter
 
 
 @dataclass(frozen=True, slots=True)

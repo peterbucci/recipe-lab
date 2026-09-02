@@ -16,6 +16,12 @@ details, parent and child projections, interactions, fork-draft creation,
 publication source checks, duplicate candidates, and diffs all use that seam.
 Filtering after loading or scoring is not an acceptable substitute.
 
+The canonical SQL predicates and effective-state precedence live together in
+`app/policies/recipe_visibility.py`. Repositories and publication/moderation
+services consume that policy boundary instead of defining local `published`
+checks, so a future visibility state has one application-level read contract to
+update.
+
 Publication rows support three effective states:
 
 - `published`: anonymously readable and eligible for all public consumers;

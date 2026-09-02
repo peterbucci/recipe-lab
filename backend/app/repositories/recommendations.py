@@ -12,7 +12,7 @@ from app.models import (
     RecipeSave,
     RecipeVersion,
 )
-from app.repositories.recipes import publicly_readable_recipe_version_filter
+from app.policies.recipe_visibility import publicly_readable_recipe_version_filter
 from app.services.recommendation_scoring import (
     QualitativeIngredientMeasure,
     RecommendationIngredientMeasure,

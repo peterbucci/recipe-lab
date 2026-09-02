@@ -14,6 +14,7 @@ from app.models import (
     RecipeVersionPublication,
     User,
 )
+from app.policies.recipe_visibility import publicly_readable_recipe_publication_filter
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,7 +87,7 @@ def get_public_recipe_publication_for_update(
         select(RecipeVersionPublication)
         .where(
             RecipeVersionPublication.recipe_version_id == recipe_version_id,
-            RecipeVersionPublication.state == "published",
+            publicly_readable_recipe_publication_filter(),
         )
         .with_for_update()
     )

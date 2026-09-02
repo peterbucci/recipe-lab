@@ -33,6 +33,7 @@ from app.models import (
     RecipeVersionCategory,
     RecipeVersionPublication,
 )
+from app.policies.recipe_visibility import publicly_readable_recipe_version_filter
 from app.repositories.ingredients import curated_display_label, get_ingredient
 from app.repositories.preference_events import get_preference_event
 from app.repositories.recipe_drafts import get_owned_recipe_draft_for_publication
@@ -41,7 +42,6 @@ from app.repositories.recipe_publications import (
     get_recipe_publication_by_draft,
     lock_recipe_publication_guard,
 )
-from app.repositories.recipes import publicly_readable_recipe_version_filter
 from app.schemas.actions import AddedIngredientOccurrenceReference, StructuredActionInput
 from app.schemas.measurements import (
     ExactMeasureInput,

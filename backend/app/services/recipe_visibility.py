@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Literal, cast
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -10,17 +10,19 @@ from app.models import (
     RECIPE_PUBLICATION_STATE_PUBLISHED,
     RecipeVersionPublication,
 )
+from app.policies.recipe_visibility import (
+    AuthorRecipeVisibilityState as AuthorRecipeVisibilityState,
+)
+from app.policies.recipe_visibility import (
+    RecipeVisibilityState as RecipeVisibilityState,
+)
+from app.policies.recipe_visibility import (
+    effective_recipe_visibility_state as effective_recipe_visibility_state,
+)
 from app.repositories.recipe_publications import (
     get_owned_recipe_publication_for_update,
     lock_recipe_publication_guard,
 )
-
-type AuthorRecipeVisibilityState = Literal["published", "author_withdrawn"]
-type RecipeVisibilityState = Literal[
-    "published",
-    "author_withdrawn",
-    "moderation_hidden",
-]
 
 
 class RecipeVisibilityNotFoundError(LookupError):
@@ -37,16 +39,6 @@ class RecipeVisibilityResult:
     state: RecipeVisibilityState
     state_changed_at: datetime
     changed: bool
-
-
-def effective_recipe_visibility_state(
-    publication: RecipeVersionPublication,
-) -> RecipeVisibilityState:
-    if publication.moderation_hidden_at is not None:
-        return "moderation_hidden"
-    if publication.author_withdrawn_at is not None:
-        return "author_withdrawn"
-    return "published"
 
 
 def _next_change_time(publication: RecipeVersionPublication) -> datetime:
