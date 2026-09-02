@@ -1,0 +1,245 @@
+.account-access-page--sign-in {
+  width: min(76.25rem, 100% - 3rem);
+  min-height: calc(100dvh - var(--header-height) - 4rem);
+  padding-block: 3.25rem 4.25rem;
+}
+
+.account-access-page--sign-in .account-access-card--sign-in {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--surface);
+  grid-template-columns: minmax(0, 0.9fr) minmax(22.5rem, 1.1fr);
+  width: min(100%, 51.25rem);
+  max-width: none;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 1.2rem 3.4rem #261b4614;
+  display: grid;
+}
+
+.account-access-page--sign-in .sign-in-visual {
+  isolation: isolate;
+  background: linear-gradient(145deg, #eee7ff, #d9ccfb);
+  min-width: 0;
+  min-height: 27rem;
+  align-content: end;
+  padding: 1.75rem;
+  position: relative;
+  overflow: hidden;
+  display: grid;
+}
+
+.account-access-page--sign-in .sign-in-visual__artwork.recipe-artwork {
+  border-radius: 0;
+  background: transparent;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  box-shadow: none;
+  position: absolute;
+  inset: 0;
+}
+
+.account-access-page--sign-in .sign-in-visual__artwork .recipe-artwork__plate {
+  width: 62%;
+  top: 42%;
+}
+
+.account-access-page--sign-in .sign-in-visual__copy {
+  z-index: 1;
+  max-width: 18rem;
+  position: relative;
+}
+
+.account-access-page--sign-in .sign-in-visual__copy > strong {
+  overflow-wrap: anywhere;
+  margin: 0 0 0.45rem;
+  font-size: 1.25rem;
+  line-height: 1.1;
+  display: block;
+}
+
+.account-access-page--sign-in .sign-in-visual__copy p {
+  color: #565166;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.account-access-page--sign-in .sign-in-card__content {
+  align-self: center;
+  min-width: 0;
+  padding: clamp(1.75rem, 4vw, 2.5rem);
+}
+
+.account-access-page--sign-in .sign-in-card__content > .eyebrow {
+  margin-bottom: 0.45rem;
+  font-size: 0.68rem;
+}
+
+.account-access-page--sign-in .sign-in-card__content h1 {
+  margin: 0 0 0.55rem;
+  font-size: clamp(2rem, 4vw, 2.45rem);
+  line-height: 1.02;
+}
+
+.account-access-page--sign-in .sign-in-card__content > .lede {
+  color: var(--muted);
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.account-access-page--sign-in .sign-in-benefits {
+  gap: 0.7rem;
+  margin: 1.15rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+}
+
+.account-access-page--sign-in .sign-in-benefits li {
+  grid-template-columns: 1.65rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.65rem;
+  display: grid;
+}
+
+.account-access-page--sign-in .sign-in-benefits__icon {
+  border-radius: 0.45rem;
+  background: var(--leaf-soft);
+  color: var(--leaf-dark);
+  place-items: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  display: grid;
+}
+
+.account-access-page--sign-in .sign-in-benefits__icon svg {
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.account-access-page--sign-in .sign-in-benefits strong,
+.account-access-page--sign-in .sign-in-benefits small {
+  overflow-wrap: anywhere;
+  display: block;
+}
+
+.account-access-page--sign-in .sign-in-benefits strong {
+  margin-top: 0.05rem;
+  font-size: 0.76rem;
+  line-height: 1.3;
+}
+
+.account-access-page--sign-in .sign-in-benefits small {
+  color: var(--muted);
+  margin-top: 0.12rem;
+  font-size: 0.66rem;
+  line-height: 1.4;
+}
+
+.account-access-page--sign-in .sign-in-card__actions {
+  gap: 0.55rem;
+  margin-top: 1.25rem;
+  display: grid;
+}
+
+.account-access-page--sign-in .sign-in-card__actions .button {
+  width: 100%;
+  min-height: 2.7rem;
+  gap: 0.4rem;
+  padding-inline: 0.9rem;
+  font-size: 0.76rem;
+}
+
+.account-access-page--sign-in .sign-in-security-note.auth-card__fine-print {
+  border-top: 1px solid var(--line);
+  grid-template-columns: 1.45rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.55rem;
+  margin: 1rem 0 0;
+  padding-top: 0.85rem;
+  display: grid;
+}
+
+.account-access-page--sign-in .sign-in-security-note__icon {
+  border-radius: 50%;
+  background: #e9f7ed;
+  color: #237443;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  font-size: 0.72rem;
+  font-weight: 850;
+  display: grid;
+}
+
+.account-access-page--sign-in .sign-in-security-note p {
+  color: var(--muted);
+  margin: 0;
+  font-size: 0.66rem;
+  line-height: 1.5;
+}
+
+.account-access-page--sign-in .sign-in-security-note strong {
+  color: var(--ink);
+}
+
+@media (max-width: 47.5rem) {
+  .account-access-page--sign-in {
+    width: 100%;
+    padding: 1.9rem 0.75rem 2.75rem;
+  }
+
+  .account-access-page--sign-in .account-access-card--sign-in {
+    grid-template-columns: 1fr;
+  }
+
+  .account-access-page--sign-in .sign-in-visual {
+    min-height: 12.8rem;
+    padding: 1.25rem;
+  }
+
+  .account-access-page--sign-in .sign-in-visual__artwork .recipe-artwork__plate {
+    width: 45%;
+    top: 42%;
+    left: 72%;
+  }
+
+  .account-access-page--sign-in .sign-in-visual__copy {
+    max-width: 50%;
+  }
+
+  .account-access-page--sign-in .sign-in-visual__copy > strong {
+    font-size: 1rem;
+  }
+
+  .account-access-page--sign-in .sign-in-visual__copy p {
+    font-size: 0.7rem;
+  }
+
+  .account-access-page--sign-in .sign-in-card__content {
+    padding: 1.75rem 1.35rem;
+  }
+
+  .account-access-page--sign-in .sign-in-card__content h1 {
+    font-size: clamp(1.85rem, 9vw, 2.2rem);
+  }
+}
+
+@media (forced-colors: active) {
+  .account-access-page--sign-in .account-access-card--sign-in,
+  .account-access-page--sign-in .sign-in-visual,
+  .account-access-page--sign-in .sign-in-benefits__icon,
+  .account-access-page--sign-in .sign-in-security-note__icon {
+    border-color: canvastext;
+    background: canvas;
+    color: canvastext;
+  }
+}
+
