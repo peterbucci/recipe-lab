@@ -178,6 +178,13 @@ class RecipeDuplicatePreflightStaleError(DomainConflictError):
     public_message = "The duplicate preflight is no longer current. Run it again."
 
 
+class RecipeDuplicatePreflightIdempotencyConflictError(DomainConflictError):
+    """Raised when one preflight action identifier represents different evidence."""
+
+    code = "idempotency_key_conflict"
+    public_message = "The Idempotency-Key conflicts with an earlier duplicate preflight."
+
+
 class RecipeDuplicateDecisionNotRequiredError(DomainConflictError):
     """Raised when a distinct result has no advisory acknowledgement to record."""
 
@@ -503,7 +510,7 @@ def _replay_recipe_duplicate_preflight(
                 or replay.subject_fingerprint_digest != subject_fingerprint.digest
             )
         ):
-            raise RecipeDuplicateStorageConflictError(
+            raise RecipeDuplicatePreflightIdempotencyConflictError(
                 "The preflight action identifier is already bound to another request."
             )
         return RecipeDuplicatePreflightServiceResult(
@@ -565,32 +572,35 @@ def run_structural_recipe_duplicate_preflight(
             candidates=candidate_document,
         )
     )
-    stored: RecipeDuplicatePreflightStoreResult = store_recipe_duplicate_preflight(
-        session,
-        actor_user_id=actor_user_id,
-        action_id=action_id,
-        request_fingerprint=request_fingerprint,
-        source_version_id=source_version_id,
-        subject_fingerprint_algorithm=subject_fingerprint.algorithm_version,
-        subject_fingerprint_digest=subject_fingerprint.digest,
-        policy_version=RECIPE_DUPLICATE_POLICY_VERSION,
-        classification=classification,
-        same_parent_no_change=same_parent_no_change,
-        result_digest=result_digest,
-        candidates=[
-            RecipeDuplicateCandidateWrite(
-                public_recipe_version_id=candidate.recipe_version_id,
-                rank=rank,
-                classification=candidate.classification,
-                score_basis_points=candidate.score_basis_points,
-                reason_codes=tuple(reason.code for reason in candidate.reasons),
-                fingerprint_algorithm_version=subject_fingerprint.algorithm_version,
-                policy_version=RECIPE_DUPLICATE_POLICY_VERSION,
-                exact_payload_confirmed=candidate.exact_payload_confirmed,
-            )
-            for rank, candidate in enumerate(candidates, start=1)
-        ],
-    )
+    try:
+        stored: RecipeDuplicatePreflightStoreResult = store_recipe_duplicate_preflight(
+            session,
+            actor_user_id=actor_user_id,
+            action_id=action_id,
+            request_fingerprint=request_fingerprint,
+            source_version_id=source_version_id,
+            subject_fingerprint_algorithm=subject_fingerprint.algorithm_version,
+            subject_fingerprint_digest=subject_fingerprint.digest,
+            policy_version=RECIPE_DUPLICATE_POLICY_VERSION,
+            classification=classification,
+            same_parent_no_change=same_parent_no_change,
+            result_digest=result_digest,
+            candidates=[
+                RecipeDuplicateCandidateWrite(
+                    public_recipe_version_id=candidate.recipe_version_id,
+                    rank=rank,
+                    classification=candidate.classification,
+                    score_basis_points=candidate.score_basis_points,
+                    reason_codes=tuple(reason.code for reason in candidate.reasons),
+                    fingerprint_algorithm_version=subject_fingerprint.algorithm_version,
+                    policy_version=RECIPE_DUPLICATE_POLICY_VERSION,
+                    exact_payload_confirmed=candidate.exact_payload_confirmed,
+                )
+                for rank, candidate in enumerate(candidates, start=1)
+            ],
+        )
+    except RecipeDuplicateStorageConflictError as error:
+        raise RecipeDuplicatePreflightIdempotencyConflictError(str(error)) from error
     return RecipeDuplicatePreflightServiceResult(
         response=_response_from_stored(session, stored.preflight),
         state=stored.state,

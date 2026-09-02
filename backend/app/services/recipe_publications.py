@@ -168,8 +168,18 @@ class InvalidOriginalRecipePublicationError(InvalidRecipeDraftPublicationError):
     code = "invalid_original_recipe_draft"
 
 
-class RecipePublicationIdempotencyConflictError(RuntimeError):
+class RecipeDraftAlreadyPublishedError(DomainConflictError):
+    """Raised when duplicate evidence is requested for a completed draft."""
+
+    code = "recipe_draft_already_published"
+    public_message = "This private draft has already completed publication."
+
+
+class RecipePublicationIdempotencyConflictError(DomainConflictError):
     """Raised when an action or completed draft is bound to another request."""
+
+    code = "idempotency_key_conflict"
+    public_message = "The Idempotency-Key or completed draft conflicts with another request."
 
 
 class PublishedRecipeFingerprintMismatchError(RuntimeError):
@@ -513,7 +523,7 @@ def _prepare_locked_recipe_draft_content(
     expected_revision: int,
 ) -> PreparedRecipeDraft:
     if draft.status != RECIPE_DRAFT_STATUS_ACTIVE:
-        raise RecipePublicationIdempotencyConflictError(
+        raise RecipeDraftAlreadyPublishedError(
             "This private draft has already completed publication."
         )
     if draft.revision != expected_revision:

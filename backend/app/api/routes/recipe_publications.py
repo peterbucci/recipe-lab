@@ -5,10 +5,8 @@ from fastapi import APIRouter, Body, Header, Response, status
 
 from app.api.cache import apply_private_no_store
 from app.api.dependencies import CsrfProtectedSessionDependency, SessionDependency
-from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor
 from app.core.domain_errors import DomainError
-from app.repositories.recipe_duplicates import RecipeDuplicateStorageConflictError
 from app.schemas.errors import ErrorResponse
 from app.schemas.recipe_duplicates import RecipeDuplicatePreflightResponse
 from app.schemas.recipe_publications import (
@@ -19,7 +17,6 @@ from app.schemas.recipe_publications import (
     RecipeVisibilityUpdateRequest,
 )
 from app.services.recipe_publications import (
-    RecipePublicationIdempotencyConflictError,
     publish_recipe_draft,
     run_recipe_draft_duplicate_preflight,
 )
@@ -175,20 +172,6 @@ def create_original_draft_duplicate_preflight(
     except DomainError:
         session.rollback()
         raise
-    except RecipePublicationIdempotencyConflictError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="recipe_draft_already_published",
-            message=str(error),
-        ) from error
-    except RecipeDuplicateStorageConflictError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="idempotency_key_conflict",
-            message="The Idempotency-Key conflicts with an earlier duplicate preflight.",
-        ) from error
 
     apply_private_no_store(response)
     session.commit()
@@ -227,16 +210,6 @@ def publish_original_draft(
     except DomainError:
         session.rollback()
         raise
-    except (
-        RecipeDuplicateStorageConflictError,
-        RecipePublicationIdempotencyConflictError,
-    ) as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="idempotency_key_conflict",
-            message="The Idempotency-Key or completed draft conflicts with another request.",
-        ) from error
 
     response.headers["Location"] = result.location
     apply_private_no_store(response)
