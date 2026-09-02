@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { RecipeDraftDetail } from "./recipe-draft-api";
 import {
   initialRecipeDraftEditorDomainState,
-  prepareDraftDiscardAttempt,
   prepareDraftSaveAttempt,
   recipeDraftEditorIsDirty,
   recipeDraftEditorReducer,
@@ -11,6 +10,8 @@ import {
   type RecipeDraftEditorDomainState,
 } from "./recipe-draft-editor-state";
 import {
+  createDraftIngredientState,
+  createDraftInstructionState,
   recipeDraftFingerprint,
   type RecipeDraftEditorState,
 } from "./recipe-draft";
@@ -18,8 +19,6 @@ import {
 const DRAFT_ID = "11111111-1111-4111-8111-111111111111";
 const SAVE_KEY = "22222222-2222-4222-8222-222222222222";
 const NEXT_SAVE_KEY = "33333333-3333-4333-8333-333333333333";
-const DISCARD_KEY = "44444444-4444-4444-8444-444444444444";
-const NEXT_DISCARD_KEY = "55555555-5555-4555-8555-555555555555";
 const CATEGORY = {
   id: "66666666-6666-4666-8666-666666666666",
   name: "Dinner",
@@ -75,8 +74,9 @@ function change(
   title: string,
 ): RecipeDraftEditorDomainState {
   return recipeDraftEditorReducer(state, {
-    draft: { ...savedDraft, title },
-    type: "draft-changed",
+    field: "title",
+    type: "text-field-changed",
+    value: title,
   });
 }
 
@@ -89,8 +89,9 @@ describe("recipe draft editor domain state", () => {
 
     const editedDraft = { ...savedDraft, title: "Edited soup" };
     const dirty = recipeDraftEditorReducer(clean, {
-      draft: editedDraft,
-      type: "draft-changed",
+      field: "title",
+      type: "text-field-changed",
+      value: editedDraft.title,
     });
     expect(dirty.work.status).toBe("dirty");
     expect(recipeDraftEditorIsDirty(dirty)).toBe(true);
@@ -130,8 +131,9 @@ describe("recipe draft editor domain state", () => {
   it("ignores a stale save completion and never replaces newer local work", () => {
     const submittedDraft = { ...savedDraft, title: "Submitted soup" };
     const dirty = recipeDraftEditorReducer(load(), {
-      draft: submittedDraft,
-      type: "draft-changed",
+      field: "title",
+      type: "text-field-changed",
+      value: submittedDraft.title,
     });
     const attempt = prepareDraftSaveAttempt(dirty, {
       fingerprint: recipeDraftFingerprint(submittedDraft),
@@ -147,9 +149,14 @@ describe("recipe draft editor domain state", () => {
       title: "Newer local soup",
       categories: [CATEGORY],
     };
-    const savingWithNewerWork = recipeDraftEditorReducer(saving, {
-      draft: newerDraft,
-      type: "draft-changed",
+    const savingWithNewTitle = recipeDraftEditorReducer(saving, {
+      field: "title",
+      type: "text-field-changed",
+      value: newerDraft.title,
+    });
+    const savingWithNewerWork = recipeDraftEditorReducer(savingWithNewTitle, {
+      categories: newerDraft.categories,
+      type: "categories-changed",
     });
 
     const staleCompletion = recipeDraftEditorReducer(savingWithNewerWork, {
@@ -296,79 +303,87 @@ describe("recipe draft editor domain state", () => {
     ).toBe(attempt);
   });
 
-  it("keeps discard confirmation explicit and scopes retries to one revision", () => {
-    const dirty = change(load(), "Keep or discard");
-    const requested = recipeDraftEditorReducer(dirty, {
-      type: "discard-requested",
-    });
-    expect(requested.discard.confirmation).toBe("visible");
+  it("owns semantic content transitions and validation as one draft state", () => {
+    const firstIngredient = createDraftIngredientState("ingredient-1");
+    const secondIngredient = createDraftIngredientState("ingredient-2");
+    const instruction = createDraftInstructionState("instruction-1");
+    let state = load();
 
-    const canceled = recipeDraftEditorReducer(requested, {
-      type: "discard-canceled",
+    state = recipeDraftEditorReducer(state, {
+      field: "description",
+      type: "text-field-changed",
+      value: "A semantic edit",
     });
-    expect(canceled.discard.confirmation).toBe("hidden");
-    expect(canceled.work).toBe(dirty.work);
+    state = recipeDraftEditorReducer(state, {
+      categories: [CATEGORY],
+      type: "categories-changed",
+    });
+    state = recipeDraftEditorReducer(state, {
+      type: "difficulty-changed",
+      value: "easy",
+    });
+    state = recipeDraftEditorReducer(state, {
+      ingredient: firstIngredient,
+      type: "ingredient-added",
+    });
+    state = recipeDraftEditorReducer(state, {
+      ingredient: secondIngredient,
+      type: "ingredient-added",
+    });
+    state = recipeDraftEditorReducer(state, {
+      direction: -1,
+      index: 1,
+      type: "ingredient-moved",
+    });
+    state = recipeDraftEditorReducer(state, {
+      key: secondIngredient.key,
+      notes: "diced",
+      type: "ingredient-notes-changed",
+    });
+    state = recipeDraftEditorReducer(state, {
+      instruction,
+      type: "instruction-added",
+    });
+    state = recipeDraftEditorReducer(state, {
+      key: instruction.key,
+      text: "Simmer.",
+      type: "instruction-text-changed",
+    });
+    state = recipeDraftEditorReducer(state, {
+      fieldErrors: { title: "Required" },
+      formError: "Review the draft.",
+      type: "validation-applied",
+    });
 
-    const attempt = prepareDraftDiscardAttempt(canceled, {
-      newIdempotencyKey: DISCARD_KEY,
-      revision: 3,
+    expect(state.work).toMatchObject({
+      draft: {
+        categories: [CATEGORY],
+        description: "A semantic edit",
+        difficulty: "easy",
+        ingredients: [
+          { key: "ingredient-2", preparationNotes: "diced" },
+          { key: "ingredient-1" },
+        ],
+        instructions: [{ key: "instruction-1", text: "Simmer." }],
+      },
+      status: "dirty",
     });
-    const discarding = recipeDraftEditorReducer(
-      recipeDraftEditorReducer(canceled, { type: "discard-requested" }),
-      { attempt, type: "discard-started" },
-    );
-    expect(discarding.discard).toEqual({
-      confirmation: "visible",
-      operation: { attempt, status: "discarding" },
+    expect(state.validation).toEqual({
+      fieldErrors: { title: "Required" },
+      formError: "Review the draft.",
     });
 
-    const staleFailure = recipeDraftEditorReducer(discarding, {
-      attemptId: NEXT_DISCARD_KEY,
-      kind: "revision-conflict",
-      type: "discard-failed",
+    state = recipeDraftEditorReducer(state, {
+      field: "title",
+      type: "text-field-changed",
+      value: "Edited soup",
     });
-    expect(staleFailure).toBe(discarding);
-
-    const failed = recipeDraftEditorReducer(discarding, {
-      attemptId: DISCARD_KEY,
-      kind: "revision-conflict",
-      type: "discard-failed",
+    expect(state.validation).toEqual({
+      fieldErrors: { title: "Required" },
+      formError: "",
     });
-    expect(failed.discard.operation).toEqual({
-      attempt,
-      status: "revision-conflict",
-    });
-    expect(
-      prepareDraftDiscardAttempt(failed, {
-        newIdempotencyKey: NEXT_DISCARD_KEY,
-        revision: 3,
-      }),
-    ).toBe(attempt);
-    expect(
-      prepareDraftDiscardAttempt(failed, {
-        newIdempotencyKey: NEXT_DISCARD_KEY,
-        revision: 4,
-      }),
-    ).toEqual({ idempotencyKey: NEXT_DISCARD_KEY, revision: 4 });
-
-    const saveAttempt = prepareDraftSaveAttempt(failed, {
-      fingerprint: recipeDraftFingerprint(savedDraft),
-      newIdempotencyKey: SAVE_KEY,
-      revision: 3,
-    });
-    const saving = recipeDraftEditorReducer(failed, {
-      attempt: saveAttempt,
-      type: "save-started",
-    });
-    expect(saving.discard.operation).toEqual({ attempt, status: "idle" });
-    const discardingAgain = recipeDraftEditorReducer(saving, {
-      attempt,
-      type: "discard-started",
-    });
-    expect(discardingAgain.save).toEqual({
-      attempt: saveAttempt,
-      status: "idle",
-    });
+    state = recipeDraftEditorReducer(state, { type: "validation-cleared" });
+    expect(state.validation).toEqual({ fieldErrors: {}, formError: "" });
   });
 
   it("distinguishes replacing local work from keeping newer local work", () => {
@@ -398,9 +413,6 @@ describe("recipe draft editor domain state", () => {
       status: "clean",
     });
     expect(replacement.save.status).toBe("idle");
-    expect(replacement.discard).toEqual({
-      confirmation: "hidden",
-      operation: { attempt: null, status: "idle" },
-    });
+    expect(replacement.validation).toEqual({ fieldErrors: {}, formError: "" });
   });
 });

@@ -361,6 +361,7 @@ describe("RecipeDraftEditor", () => {
         DRAFT_ID,
         expect.objectContaining({ category_ids: [CATEGORY_ID] }),
         "draft-save-key",
+        expect.anything(),
       ),
     );
     expect(
@@ -418,6 +419,7 @@ describe("RecipeDraftEditor", () => {
           notes: "Cool for ten minutes.",
         }),
         "draft-save-key",
+        expect.anything(),
       ),
     );
   });
@@ -481,6 +483,7 @@ describe("RecipeDraftEditor", () => {
         DRAFT_ID,
         expect.objectContaining({ revision: 3, title: "My unsaved soup" }),
         "draft-save-key",
+        expect.anything(),
       ),
     );
     expect(screen.getByLabelText("Title")).toHaveValue("My unsaved soup");
@@ -823,6 +826,7 @@ describe("RecipeDraftEditor", () => {
       DRAFT_ID,
       expect.objectContaining({ revision: 4, title: "Newer local title" }),
       "draft-save-key",
+      expect.anything(),
     );
     expect(await screen.findByText("Draft saved privately.")).toHaveClass(
       "visually-hidden",
@@ -1524,5 +1528,20 @@ describe("RecipeDraftEditor", () => {
     expect(
       screen.queryByText(/will join that recipe family after you publish it/i),
     ).toBeNull();
+  });
+
+  it("aborts an in-flight save when the private editor unmounts", async () => {
+    mocks.updateRecipeDraft.mockReturnValue(new Promise(() => undefined));
+    const view = renderEditor();
+    fireEvent.change(await screen.findByLabelText("Title"), {
+      target: { value: "Pending save" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(mocks.updateRecipeDraft).toHaveBeenCalledOnce());
+
+    const signal = mocks.updateRecipeDraft.mock.calls[0]?.[3] as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    view.unmount();
+    expect(signal.aborted).toBe(true);
   });
 });

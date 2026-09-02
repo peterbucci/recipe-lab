@@ -28,9 +28,17 @@ interface RecipeDraftIngredientsSectionProps {
   ingredients: readonly RecipeDraftIngredientState[];
   measurementUnits: readonly CatalogUnit[];
   onAdd: () => void;
+  onMeasureChange: (
+    key: string,
+    measure: RecipeDraftIngredientState["measure"],
+  ) => void;
   onMove: (index: number, direction: -1 | 1) => void;
+  onNotesChange: (key: string, notes: string) => void;
   onRemove: (index: number) => void;
-  onReplace: (key: string, ingredient: RecipeDraftIngredientState) => void;
+  onSelectionChange: (
+    key: string,
+    selection: RecipeDraftIngredientState["selection"],
+  ) => void;
 }
 
 function ingredientMeasureErrors(
@@ -58,9 +66,11 @@ export function RecipeDraftIngredientsSection({
   ingredients,
   measurementUnits,
   onAdd,
+  onMeasureChange,
   onMove,
+  onNotesChange,
   onRemove,
-  onReplace,
+  onSelectionChange,
 }: RecipeDraftIngredientsSectionProps) {
   const [openSettingsKey, setOpenSettingsKey] = useState<string | null>(null);
   const [enabledNoteKeys, setEnabledNoteKeys] = useState<ReadonlySet<string>>(
@@ -152,7 +162,7 @@ export function RecipeDraftIngredientsSection({
                     disabled={disabled}
                     errors={ingredientMeasureErrors(errors, ingredient.key)}
                     onChange={(measure) =>
-                      onReplace(ingredient.key, { ...ingredient, measure })
+                      onMeasureChange(ingredient.key, measure)
                     }
                   />
                   <div className="recipe-workspace__ingredient-name">
@@ -173,18 +183,18 @@ export function RecipeDraftIngredientsSection({
                       onChange={(
                         selection: CatalogIngredientSelection | null,
                       ) =>
-                        onReplace(ingredient.key, {
-                          ...ingredient,
-                          selection: selection
+                        onSelectionChange(
+                          ingredient.key,
+                          selection
                             ? { kind: "catalog", ingredient: selection }
                             : null,
-                        })
+                        )
                       }
                       onRequestSubmitted={(request) =>
-                        onReplace(ingredient.key, {
-                          ...ingredient,
-                          selection: requestSelectionFromSubmission(request),
-                        })
+                        onSelectionChange(
+                          ingredient.key,
+                          requestSelectionFromSubmission(request),
+                        )
                       }
                     />
                     <RecipeDraftFieldError
@@ -270,10 +280,7 @@ export function RecipeDraftIngredientsSection({
                                 !nextVisible &&
                                 ingredient.preparationNotes.length > 0
                               ) {
-                                onReplace(ingredient.key, {
-                                  ...ingredient,
-                                  preparationNotes: "",
-                                });
+                                onNotesChange(ingredient.key, "");
                               }
                               window.setTimeout(() => {
                                 if (nextVisible) {
@@ -341,10 +348,7 @@ export function RecipeDraftIngredientsSection({
                             ? current
                             : new Set(current).add(ingredient.key),
                         );
-                        onReplace(ingredient.key, {
-                          ...ingredient,
-                          preparationNotes: event.target.value,
-                        });
+                        onNotesChange(ingredient.key, event.target.value);
                       }}
                     />
                     <RecipeDraftFieldError

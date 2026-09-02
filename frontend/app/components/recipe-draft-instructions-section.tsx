@@ -32,10 +32,15 @@ interface RecipeDraftInstructionsSectionProps {
   ingredientOptions: readonly IngredientOccurrenceOption[];
   instructions: readonly RecipeDraftInstructionState[];
   measurementUnits: readonly CatalogUnit[];
+  onActionsChange: (
+    key: string,
+    actions: RecipeDraftInstructionState["actions"],
+  ) => void;
   onAdd: () => void;
   onMove: (index: number, direction: -1 | 1) => void;
   onRemove: (index: number) => void;
-  onReplace: (key: string, instruction: RecipeDraftInstructionState) => void;
+  onTextChange: (key: string, text: string) => void;
+  onTitleChange: (key: string, title: string) => void;
 }
 
 type InstructionView = "steps" | "breakdown";
@@ -125,10 +130,12 @@ export function RecipeDraftInstructionsSection({
   ingredientOptions,
   instructions,
   measurementUnits,
+  onActionsChange,
   onAdd,
   onMove,
   onRemove,
-  onReplace,
+  onTextChange,
+  onTitleChange,
 }: RecipeDraftInstructionsSectionProps) {
   const [view, setView] = useState<InstructionView>("steps");
   const hasActionErrors = instructions.some(
@@ -242,10 +249,7 @@ export function RecipeDraftInstructionsSection({
                             : undefined
                         }
                         onChange={(event) =>
-                          onReplace(instruction.key, {
-                            ...instruction,
-                            title: event.target.value,
-                          })
+                          onTitleChange(instruction.key, event.target.value)
                         }
                       />
                       <RecipeDraftFieldError
@@ -303,10 +307,7 @@ export function RecipeDraftInstructionsSection({
                           : undefined
                       }
                       onChange={(event) =>
-                        onReplace(instruction.key, {
-                          ...instruction,
-                          text: event.target.value,
-                        })
+                        onTextChange(instruction.key, event.target.value)
                       }
                     />
                     <RecipeDraftFieldError
@@ -365,7 +366,7 @@ export function RecipeDraftInstructionsSection({
                     measurementUnits={measurementUnits}
                     errors={instructionActionErrors(errors, instruction.key)}
                     onChange={(actions) =>
-                      onReplace(instruction.key, { ...instruction, actions })
+                      onActionsChange(instruction.key, actions)
                     }
                   />
                 </div>

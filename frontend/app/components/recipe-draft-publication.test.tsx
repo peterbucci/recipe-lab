@@ -6,6 +6,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { useEffect, useReducer } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthApiError } from "../../lib/auth-api";
@@ -19,6 +20,11 @@ import {
 } from "../../lib/recipe-draft";
 import { RecipeDuplicateApiError } from "../../lib/recipe-duplicate-api";
 import { RecipePublicationApiError } from "../../lib/recipe-publication-api";
+import {
+  initialRecipeDraftPublicationState,
+  publicationBlocksDismissal,
+  recipeDraftPublicationReducer,
+} from "../../lib/recipe-draft-publication-state";
 import { createUnspecifiedMeasureDraft } from "../../lib/structured-measure";
 import { NavigationBlockerProvider } from "./navigation-blocker-provider";
 import { RecipeDraftPublication } from "./recipe-draft-publication";
@@ -167,20 +173,40 @@ function renderPublication({
   sourceRecipeTitle?: string;
   sourceVersionId?: string | null;
 } = {}) {
-  return render(
-    <NavigationBlockerProvider>
+  function PublicationHarness({
+    observeBusy,
+  }: {
+    observeBusy: (busy: boolean) => void;
+  }) {
+    const [publicationState, publicationDispatch] = useReducer(
+      recipeDraftPublicationReducer,
+      initialRecipeDraftPublicationState,
+    );
+    const dismissalBlocked = publicationBlocksDismissal(publicationState);
+    useEffect(() => {
+      observeBusy(dismissalBlocked);
+    }, [dismissalBlocked, observeBusy]);
+
+    return (
       <RecipeDraftPublication
         actionTypes={[actionType]}
         draft={draft}
         draftId={DRAFT_ID}
         dirty={dirty}
         measurementUnits={[]}
-        onBusyChange={onBusyChange}
         onValidation={onValidation}
+        publicationDispatch={publicationDispatch}
+        publicationState={publicationState}
         revision={4}
         sourceRecipeTitle={sourceRecipeTitle}
         sourceVersionId={sourceVersionId}
       />
+    );
+  }
+
+  return render(
+    <NavigationBlockerProvider>
+      <PublicationHarness observeBusy={onBusyChange} />
     </NavigationBlockerProvider>,
   );
 }
@@ -308,6 +334,7 @@ describe("RecipeDraftPublication", () => {
         DRAFT_ID,
         4,
         "preflight-key",
+        expect.anything(),
       ),
     );
     const continueButton = await screen.findByRole("button", {
@@ -350,6 +377,7 @@ describe("RecipeDraftPublication", () => {
           },
         },
         "publish-key",
+        expect.anything(),
       ),
     );
     expect(mocks.replace).toHaveBeenCalledWith(`/recipes/${RECIPE_ID}`);
@@ -381,6 +409,7 @@ describe("RecipeDraftPublication", () => {
         duplicate_review: expect.objectContaining({ decision: null }),
       }),
       "publish-key",
+      expect.anything(),
     );
     expect(mocks.replace).toHaveBeenCalledWith(`/recipes/${RECIPE_ID}`);
   });
@@ -843,6 +872,7 @@ describe("RecipeDraftPublication", () => {
           },
         },
         "publish-key",
+        expect.anything(),
       ),
     );
     expect(mocks.replace).toHaveBeenCalledWith(`/recipes/${RECIPE_ID}`);
@@ -888,5 +918,20 @@ describe("RecipeDraftPublication", () => {
     expect(
       screen.getByRole("region", { name: "Publication details" }),
     ).toBeVisible();
+  });
+
+  it("aborts an in-flight similarity review when its publication surface unmounts", async () => {
+    mocks.preflight.mockReturnValue(new Promise(() => undefined));
+    const view = renderPublication();
+
+    confirmPublication();
+    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
+    await waitFor(() => expect(mocks.preflight).toHaveBeenCalledOnce());
+
+    const signal = mocks.preflight.mock.calls[0]?.[3] as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    view.unmount();
+    expect(signal.aborted).toBe(true);
+    expect(mocks.publish).not.toHaveBeenCalled();
   });
 });

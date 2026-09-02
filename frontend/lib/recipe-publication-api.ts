@@ -290,6 +290,7 @@ export async function publishRecipeDraft(
   draftId: string,
   payload: RecipeDraftPublishRequest,
   idempotencyKey: string,
+  signal?: AbortSignal,
 ): Promise<RecipeDraftPublication> {
   const response = await fetch(
     `/api/recipe-drafts/${encodeURIComponent(draftId)}/publish`,
@@ -304,6 +305,7 @@ export async function publishRecipeDraft(
         ...memberMutationHeaders(),
       },
       body: JSON.stringify(payload),
+      signal,
     },
   );
   if (!response.ok) {

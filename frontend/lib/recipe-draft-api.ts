@@ -970,6 +970,7 @@ export async function updateRecipeDraft(
   draftId: string,
   payload: RecipeDraftUpdateRequest,
   idempotencyKey: string,
+  signal?: AbortSignal,
 ): Promise<RecipeDraftDetail> {
   const response = await draftFetch(
     `/api/recipe-drafts/${encodeURIComponent(draftId)}`,
@@ -977,6 +978,7 @@ export async function updateRecipeDraft(
       method: "PUT",
       headers: mutationHeaders(idempotencyKey),
       body: JSON.stringify(payload),
+      signal,
     },
   );
   return parseRecipeDraftDetail(await response.json());
