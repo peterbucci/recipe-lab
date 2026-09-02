@@ -344,14 +344,14 @@ describe("IngredientCatalogPicker", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The ingredient catalog couldn’t be searched.",
     );
-    expect(searchCatalogIngredients).toHaveBeenCalledTimes(2);
+    expect(searchCatalogIngredients).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
     expect(screen.queryByText(/99999999|canonical|uuid|operator|policy/i)).toBeNull();
     expect(input).toHaveValue("almond");
     expect(screen.getByRole("button", { name: "Request missing ingredient" })).toBeVisible();
   });
 
-  it("retries a transient read once before showing any search error", async () => {
+  it("leaves transient catalog retry ownership with the API client", async () => {
     vi.mocked(searchCatalogIngredients)
       .mockRejectedValueOnce(
         new IngredientCatalogApiError("temporary outage", 503),
@@ -363,11 +363,10 @@ describe("IngredientCatalogPicker", () => {
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "sugar" } });
 
-    expect(
-      await screen.findByRole("option", { name: /granulated sugar/i }),
-    ).toBeVisible();
-    expect(searchCatalogIngredients).toHaveBeenCalledTimes(2);
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The ingredient catalog couldn’t be searched.",
+    );
+    expect(searchCatalogIngredients).toHaveBeenCalledOnce();
   });
 
   it("keeps catalog matches when pending requests fail and recovers with one retry", async () => {
@@ -426,7 +425,7 @@ describe("IngredientCatalogPicker", () => {
     expect(within(alert).getAllByRole("button", { name: "Try again" })).toHaveLength(1);
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(screen.queryByText(/catalog detail|request detail/i)).toBeNull();
-    expect(searchCatalogIngredients).toHaveBeenCalledTimes(2);
+    expect(searchCatalogIngredients).toHaveBeenCalledOnce();
     expect(mocks.browseMyIngredientRequests).toHaveBeenCalledTimes(2);
   });
 

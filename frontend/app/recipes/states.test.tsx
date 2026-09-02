@@ -43,8 +43,8 @@ describe("recipe route states", () => {
   });
 
   it("offers a retry for service errors", () => {
-    const reset = vi.fn();
-    render(<RecipeError error={new Error("upstream detail")} reset={reset} />);
+    const retry = vi.fn();
+    render(<RecipeError error={new Error("upstream detail")} retry={retry} />);
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       /couldn’t load the recipes/i,
@@ -56,7 +56,7 @@ describe("recipe route states", () => {
       }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
-    expect(reset).toHaveBeenCalledOnce();
+    expect(retry).toHaveBeenCalledOnce();
     expect(screen.queryByText(/upstream detail/i)).not.toBeInTheDocument();
   });
 

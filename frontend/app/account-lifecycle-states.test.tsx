@@ -37,7 +37,7 @@ describe("account lifecycle route states", () => {
   });
 
   it("keeps onboarding loading and retry states visually scoped", () => {
-    const reset = vi.fn();
+    const retry = vi.fn();
     const { unmount } = render(<OnboardingLoading />);
 
     expect(screen.getByRole("main")).toHaveClass(
@@ -51,11 +51,11 @@ describe("account lifecycle route states", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Opening account setup…");
 
     unmount();
-    render(<OnboardingError reset={reset} />);
+    render(<OnboardingError retry={retry} />);
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
     expect(screen.getByRole("alert")).toHaveClass("account-access-state--error");
-    expect(reset).toHaveBeenCalledOnce();
+    expect(retry).toHaveBeenCalledOnce();
   });
 
   it("separates account settings loading from the signed-out deletion confirmation", () => {

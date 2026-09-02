@@ -3,20 +3,32 @@ import {
   memberMutationHeaders,
   notifySessionExpired,
 } from "./auth-api";
+import type { operations } from "./api-contracts/generated";
+import { browserApiRequest } from "./api-transport/browser";
+import {
+  ApiTransportError,
+  type PublicApiErrorContract,
+} from "./api-transport/core";
 
-export interface CatalogIngredient {
-  id: string;
-  canonical_name: string;
-  aliases: string[];
-}
+type IngredientCatalogOperation =
+  operations["ingredient_catalog_api_ingredients_get"];
+type IngredientCatalogResponse =
+  IngredientCatalogOperation["responses"][200]["content"]["application/json"];
+type IngredientCatalogContract = IngredientCatalogResponse["items"][number];
+type IngredientCatalogQuery = NonNullable<
+  IngredientCatalogOperation["parameters"]["query"]
+>;
+type Mutable<T> = { -readonly [Key in keyof T]: T[Key] };
 
-export interface CatalogIngredientPage {
-  items: CatalogIngredient[];
-  page: number;
-  page_size: number;
-  total: number;
-  total_pages: number;
-}
+export type CatalogIngredient = Omit<
+  Mutable<IngredientCatalogContract>,
+  "aliases"
+> & { aliases: string[] };
+
+export type CatalogIngredientPage = Omit<
+  Mutable<IngredientCatalogResponse>,
+  "items"
+> & { items: CatalogIngredient[] };
 
 export interface CatalogIngredientSelection {
   ingredientId: string;
@@ -521,6 +533,11 @@ const KNOWN_CATALOG_SEARCH_ERROR_CODES = new Set([
   "validation_error",
 ]);
 
+const CATALOG_SEARCH_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "ingredient_catalog_api_error",
+  knownCodes: KNOWN_CATALOG_SEARCH_ERROR_CODES,
+};
+
 const KNOWN_MEMBER_INGREDIENT_ERROR_CODES = new Set([
   "abuse_protection_unavailable",
   "account_setup_required",
@@ -589,26 +606,19 @@ async function apiError(
   return new IngredientCatalogApiError(message, response.status, code, issues);
 }
 
-async function catalogSearchError(
-  response: Response,
-): Promise<IngredientCatalogApiError> {
-  let code = "ingredient_catalog_api_error";
-  try {
-    const payload: unknown = await response.json();
-    if (isErrorPayload(payload) && isRecord(payload.error)) {
-      code = knownIngredientErrorCode(
-        payload.error.code,
-        KNOWN_CATALOG_SEARCH_ERROR_CODES,
-      );
-    }
-  } catch {
-    // Keep the stable cook-facing fallback and never expose the response body.
+function catalogSearchError(error: ApiTransportError): IngredientCatalogApiError {
+  if (error.reason === "invalid_response") {
+    return new IngredientCatalogApiError(
+      "Recipe Lab received an invalid ingredient catalog response.",
+      502,
+      "invalid_ingredient_catalog_response",
+    );
   }
   const message =
-    response.status === 429
+    error.status === 429
       ? "The ingredient catalog is receiving too many searches. Please wait and try again."
       : "The ingredient catalog could not be searched. Please try again.";
-  return new IngredientCatalogApiError(message, response.status, code);
+  return new IngredientCatalogApiError(message, error.status, error.code);
 }
 
 async function memberIngredientError(
@@ -693,21 +703,30 @@ export async function searchCatalogIngredients({
     page_size: String(pageSize),
   });
   const normalizedQuery = query.trim();
-  if (normalizedQuery) {
-    search.set("q", normalizedQuery);
+  const queryContract = {
+    page,
+    page_size: pageSize,
+    ...(normalizedQuery ? { q: normalizedQuery } : {}),
+  } satisfies IngredientCatalogQuery;
+  if (queryContract.q) {
+    search.set("q", queryContract.q);
   }
 
-  const response = await fetch(`/api/ingredients?${search.toString()}`, {
-    method: "GET",
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-    signal,
-  });
-  if (!response.ok) {
-    throw await catalogSearchError(response);
+  try {
+    const response = await browserApiRequest(
+      `/api/ingredients?${search.toString()}`,
+      {
+        errorContract: CATALOG_SEARCH_ERROR_CONTRACT,
+        kind: "query",
+        signal,
+      },
+    );
+    return parseCatalogPage(response.data);
+  } catch (error) {
+    if (error instanceof IngredientCatalogApiError) throw error;
+    if (error instanceof ApiTransportError) throw catalogSearchError(error);
+    throw error;
   }
-  return parseCatalogPage(await response.json());
 }
 
 export async function submitMissingIngredientRequest(

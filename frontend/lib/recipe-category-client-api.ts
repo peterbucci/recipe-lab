@@ -1,12 +1,17 @@
 "use client";
 
+import type { operations } from "./api-contracts/generated";
 import { browserApiRequest } from "./api-transport/browser";
 import {
   ApiTransportError,
   type PublicApiErrorContract,
 } from "./api-transport/core";
-import type { RecipeCategoryList } from "./recipe-api";
 import { parseRecipeCategories } from "./recipe-category";
+
+type RecipeCategoryOperation =
+  operations["recipe_categories_api_recipe_categories_get"];
+type RecipeCategoryList =
+  RecipeCategoryOperation["responses"][200]["content"]["application/json"];
 
 const CATEGORY_ERROR_CONTRACT: PublicApiErrorContract = {
   fallbackCode: "recipe_category_api_error",

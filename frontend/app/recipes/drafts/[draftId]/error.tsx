@@ -4,11 +4,11 @@ import Link from "next/link";
 
 interface RecipeDraftWorkspaceErrorProps {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }
 
 export default function RecipeDraftWorkspaceError({
-  reset,
+  retry,
 }: RecipeDraftWorkspaceErrorProps) {
   return (
     <main
@@ -26,7 +26,7 @@ export default function RecipeDraftWorkspaceError({
           <button
             className="button button--primary"
             type="button"
-            onClick={reset}
+            onClick={retry}
           >
             Try again
           </button>

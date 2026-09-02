@@ -170,48 +170,22 @@ describe("recipe draft editor entry", () => {
       "member-one",
       SOURCE_ID,
     );
-    expect(fetchMock.mock.calls).toEqual([
-      [
-        "/api/measurement-units?semantic=ingredient_amount",
-        {
-          cache: "no-store",
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-        },
-      ],
-      [
-        "/api/measurement-units?semantic=action_duration",
-        {
-          cache: "no-store",
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-        },
-      ],
-      [
-        "/api/measurement-units?semantic=temperature",
-        {
-          cache: "no-store",
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-        },
-      ],
-      [
-        "/api/cooking-action-types?limit=100",
-        {
-          cache: "no-store",
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-        },
-      ],
-      [
-        "/api/recipe-categories",
-        {
-          cache: "no-store",
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-        },
-      ],
+    expect(fetchMock.mock.calls.map(([target]) => String(target))).toEqual([
+      "/api/measurement-units?semantic=ingredient_amount",
+      "/api/measurement-units?semantic=action_duration",
+      "/api/measurement-units?semantic=temperature",
+      "/api/cooking-action-types?limit=100",
+      "/api/recipe-categories",
     ]);
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(init).toMatchObject({
+        cache: "no-store",
+        credentials: "same-origin",
+        method: "GET",
+        redirect: "error",
+      });
+      expect(new Headers(init?.headers).get("Accept")).toBe("application/json");
+    }
 
     ingredientUnits.resolve({ items: [gram] });
     durationUnits.resolve({ items: [second, gram] });
@@ -277,8 +251,9 @@ describe("recipe draft editor entry", () => {
 
   it("replaces private upstream failure details with stable editor-entry copy", async () => {
     mocks.startOrResumeRecipeDraftDetail.mockResolvedValue(detail);
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response("private catalog gateway detail", { status: 503 }),
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(
+      async () =>
+        new Response("private catalog gateway detail", { status: 503 }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -296,5 +271,6 @@ describe("recipe draft editor entry", () => {
     expect(`${String(error)} ${JSON.stringify(error)}`).not.toContain(
       "private catalog gateway detail",
     );
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(5);
   });
 });

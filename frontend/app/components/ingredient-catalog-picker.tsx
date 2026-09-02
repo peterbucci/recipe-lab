@@ -289,16 +289,12 @@ export function IngredientCatalogPicker({
       setHasSearched(false);
       setActiveIndex(-1);
 
-      const catalogLookup = retryTransientRead(
-        (signal) =>
-          searchCatalogIngredients({
-            query: normalizedQuery,
-            page: 1,
-            pageSize: 8,
-            signal,
-          }),
-        { signal: controller.signal },
-      );
+      const catalogLookup = searchCatalogIngredients({
+        query: normalizedQuery,
+        page: 1,
+        pageSize: 8,
+        signal: controller.signal,
+      });
       const requestLookup = retryTransientRead(
         (signal) =>
           browseMyIngredientRequests({

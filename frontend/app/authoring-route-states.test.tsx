@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import LegacyRecipeDraftEditorError from "./account/recipe-drafts/[draftId]/error";
 import LegacyRecipeDraftEditorLoading from "./account/recipe-drafts/[draftId]/loading";
 import RecipeDraftEditorError from "./recipes/drafts/[draftId]/error";
 import RecipeDraftEditorLoading from "./recipes/drafts/[draftId]/loading";
@@ -25,23 +26,26 @@ describe("recipe authoring route states", () => {
     },
   );
 
-  it("scopes the route failure without changing retry behavior", () => {
-    const reset = vi.fn();
-    render(<RecipeDraftEditorError error={new Error("safe failure")} reset={reset} />);
+  it.each([RecipeDraftEditorError, LegacyRecipeDraftEditorError])(
+    "scopes the route failure and uses Next's refetching retry for %s",
+    (ErrorState) => {
+      const retry = vi.fn();
+      render(<ErrorState error={new Error("safe failure")} retry={retry} />);
 
-    expect(screen.getByRole("main")).toHaveClass("recipe-authoring-state--error");
-    expect(screen.getByRole("alert")).toHaveClass(
-      "recipe-authoring-state__panel",
-      "blocking-error-state",
-    );
-    expect(screen.getByText("Something went wrong")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    expect(reset).toHaveBeenCalledOnce();
-    expect(screen.getByRole("link", { name: "My recipes" })).toHaveAttribute(
-      "href",
-      "/account/recipes?view=drafts",
-    );
-  });
+      expect(screen.getByRole("main")).toHaveClass("recipe-authoring-state--error");
+      expect(screen.getByRole("alert")).toHaveClass(
+        "recipe-authoring-state__panel",
+        "blocking-error-state",
+      );
+      expect(screen.getByText("Something went wrong")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      expect(retry).toHaveBeenCalledOnce();
+      expect(screen.getByRole("link", { name: "My recipes" })).toHaveAttribute(
+        "href",
+        "/account/recipes?view=drafts",
+      );
+    },
+  );
 
   it("scopes an unavailable private draft without changing privacy copy", () => {
     render(<RecipeDraftNotFound />);

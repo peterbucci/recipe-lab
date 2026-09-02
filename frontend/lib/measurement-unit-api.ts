@@ -1,35 +1,39 @@
-export type UnitDimension =
-  "mass" | "volume" | "count" | "time" | "temperature" | "package";
+import type { components, operations } from "./api-contracts/generated";
+import {
+  ApiTransportError,
+  type PublicApiErrorContract,
+} from "./api-transport/core";
+import { serverApiRequest } from "./api-transport/server";
 
-export type MeasurementDisplayStyle = "symbol" | "word" | "hidden";
+type MeasurementUnitOperation =
+  operations["measurement_unit_catalog_api_measurement_units_get"];
+type MeasurementUnitResponseContract =
+  MeasurementUnitOperation["responses"][200]["content"]["application/json"];
+type MeasurementUnitContract =
+  MeasurementUnitResponseContract["items"][number];
+type MeasurementUnitQuery = MeasurementUnitOperation["parameters"]["query"];
 
-export type MeasurementSemantic =
-  "ingredient_amount" | "action_duration" | "temperature";
+type Mutable<T> = { -readonly [Key in keyof T]: T[Key] };
 
-export interface CatalogUnit {
-  id: string;
-  key: string;
-  dimension: UnitDimension;
-  canonical_label: string;
-  plural_label: string;
-  symbol: string | null;
-  display_style: MeasurementDisplayStyle;
+export type UnitDimension = components["schemas"]["MeasurementDimension"];
+
+export type MeasurementDisplayStyle =
+  components["schemas"]["MeasurementDisplayStyle"];
+
+export type MeasurementSemantic = components["schemas"]["MeasurementSemantic"];
+
+export type CatalogUnit = Omit<
+  Mutable<MeasurementUnitContract>,
+  "aliases" | "symbol"
+> & {
   aliases: string[];
-  active: boolean;
-  provenance: string;
-}
+  symbol: string | null;
+};
 
 export type CatalogUnitSummary = Omit<CatalogUnit, "aliases" | "provenance">;
 
 interface MeasurementUnitResponse {
   items: CatalogUnit[];
-}
-
-interface ApiErrorPayload {
-  error?: {
-    code?: unknown;
-    message?: unknown;
-  };
 }
 
 const KNOWN_MEASUREMENT_UNIT_ERROR_CODES = new Set([
@@ -52,12 +56,10 @@ const KNOWN_MEASUREMENT_UNIT_ERROR_CODES = new Set([
   "validation_error",
 ]);
 
-function knownMeasurementUnitErrorCode(value: unknown): string {
-  return typeof value === "string" &&
-    KNOWN_MEASUREMENT_UNIT_ERROR_CODES.has(value)
-    ? value
-    : "measurement_unit_api_error";
-}
+const MEASUREMENT_UNIT_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "measurement_unit_api_error",
+  knownCodes: KNOWN_MEASUREMENT_UNIT_ERROR_CODES,
+};
 
 function measurementUnitErrorMessage(status: number): string {
   if (status === 404) return "That measurement option is no longer available.";
@@ -190,52 +192,40 @@ export function parseMeasurementUnitResponse(
   return { items: typedItems };
 }
 
-function apiBaseUrl(): string {
-  const configured =
-    process.env.RECIPE_API_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:8000";
-  return configured.trim().replace(/\/+$/, "");
-}
-
-function isErrorPayload(value: unknown): value is ApiErrorPayload {
-  return isRecord(value) && "error" in value;
-}
-
-async function apiError(response: Response): Promise<MeasurementUnitApiError> {
-  let code = "measurement_unit_api_error";
-
-  try {
-    const payload: unknown = await response.json();
-    if (isErrorPayload(payload) && isRecord(payload.error)) {
-      code = knownMeasurementUnitErrorCode(payload.error.code);
-    }
-  } catch {
-    // Keep the stable fallback when the upstream body is not JSON.
+function fromTransportError(error: ApiTransportError): MeasurementUnitApiError {
+  if (error.reason === "invalid_response") {
+    return new MeasurementUnitApiError(
+      "Recipe Lab received an invalid measurement unit response.",
+      502,
+      "invalid_measurement_unit_response",
+    );
   }
-
   return new MeasurementUnitApiError(
-    measurementUnitErrorMessage(response.status),
-    response.status,
-    code,
+    measurementUnitErrorMessage(error.status),
+    error.status,
+    error.code,
   );
 }
 
 export async function fetchMeasurementUnits(
   semantic: MeasurementSemantic,
 ): Promise<CatalogUnit[]> {
-  const url = new URL("/api/measurement-units", `${apiBaseUrl()}/`);
-  url.searchParams.set("semantic", semantic);
-  const response = await fetch(url, {
-    cache: "no-store",
-    headers: { Accept: "application/json" },
-  });
-
-  if (!response.ok) {
-    throw await apiError(response);
+  const query = { semantic } satisfies MeasurementUnitQuery;
+  const search = new URLSearchParams({ semantic: query.semantic });
+  try {
+    const response = await serverApiRequest(
+      `/api/measurement-units?${search.toString()}`,
+      {
+        errorContract: MEASUREMENT_UNIT_ERROR_CONTRACT,
+        kind: "query",
+      },
+    );
+    return parseMeasurementUnitResponse(response.data).items;
+  } catch (error) {
+    if (error instanceof MeasurementUnitApiError) throw error;
+    if (error instanceof ApiTransportError) throw fromTransportError(error);
+    throw error;
   }
-
-  return parseMeasurementUnitResponse(await response.json()).items;
 }
 
 export function catalogUnitSummary(unit: CatalogUnit): CatalogUnitSummary {
