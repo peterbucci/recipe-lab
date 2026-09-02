@@ -3,6 +3,8 @@ import logging
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from decimal import Decimal
+from hashlib import sha256
 from threading import Barrier
 from typing import Any, NoReturn, cast
 from uuid import UUID, uuid4
@@ -382,6 +384,151 @@ def test_real_publication_unavailability_emits_only_a_correlated_fixed_event(
     assert "private recipe text" not in rendered
     assert "cook@example.test" not in rendered
     assert "/private/draft/42" not in rendered
+
+
+def test_publication_succeeds_with_more_than_five_hundred_public_fingerprints(
+    publication_api: PublicationApi,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    exact_base_version_id = _publish_complete_original(publication_api)
+    filler_count = duplicate_preflight_service.MAX_PUBLIC_DUPLICATE_COMPARISONS + 1
+    with Session(bind=publication_api.engine) as session, session.begin():
+        exact_fingerprint = session.scalar(
+            select(RecipeStructuralFingerprint).where(
+                RecipeStructuralFingerprint.recipe_version_id == exact_base_version_id
+            )
+        )
+        assert exact_fingerprint is not None
+        filler_payload = _json_object(json.loads(exact_fingerprint.canonical_payload))
+        instructions = cast(list[dict[str, object]], filler_payload["instructions"])
+        actions = cast(list[dict[str, object]], instructions[0]["actions"])
+        actions[0]["action"] = str(KNEAD_ID)
+        filler_canonical_payload = json.dumps(
+            filler_payload,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        filler_digest = sha256(filler_canonical_payload.encode("utf-8")).hexdigest()
+
+        filler_ids = [(uuid4(), uuid4()) for _index in range(filler_count)]
+        session.add_all(
+            [
+                RecipeLineage(
+                    id=lineage_id,
+                    created_by_user_id=OTHER_MEMBER_ID,
+                )
+                for lineage_id, _version_id in filler_ids
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                RecipeVersion(
+                    id=version_id,
+                    lineage_id=lineage_id,
+                    parent_version_id=None,
+                    created_by_user_id=OTHER_MEMBER_ID,
+                    version_number=1,
+                    title=f"Overlap shortlist scale fixture {index}",
+                    description=None,
+                    servings=Decimal("1.00"),
+                )
+                for index, (lineage_id, version_id) in enumerate(filler_ids)
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                RecipeIngredient(
+                    recipe_version_id=version_id,
+                    ingredient_id=CHICKPEA_ID,
+                    name="Chickpea",
+                    measure_mode="unspecified",
+                    quantity_min=None,
+                    quantity_max=None,
+                    measurement_unit_id=None,
+                    unit_display=None,
+                    package_size_id=None,
+                    preparation_notes=None,
+                    display_order=0,
+                )
+                for _lineage_id, version_id in filler_ids
+            ]
+        )
+        session.add_all(
+            [
+                RecipeStructuralFingerprint(
+                    recipe_version_id=version_id,
+                    algorithm_version=exact_fingerprint.algorithm_version,
+                    digest=filler_digest,
+                    canonical_payload=filler_canonical_payload,
+                )
+                for _lineage_id, version_id in filler_ids
+            ]
+        )
+        session.add_all(
+            [
+                RecipeVersionPublication(
+                    recipe_version_id=version_id,
+                    state="published",
+                    state_changed_by_user_id=OTHER_MEMBER_ID,
+                    actor_user_id=OTHER_MEMBER_ID,
+                )
+                for _lineage_id, version_id in filler_ids
+            ]
+        )
+
+    actual_shortlist = duplicate_preflight_service.list_public_recipe_duplicate_candidates
+    shortlist_sizes: list[int] = []
+
+    def capture_shortlist(session: Session, **kwargs: Any) -> list[Any]:
+        candidates = actual_shortlist(session, **kwargs)
+        shortlist_sizes.append(len(candidates))
+        return candidates
+
+    monkeypatch.setattr(
+        duplicate_preflight_service,
+        "list_public_recipe_duplicate_candidates",
+        capture_shortlist,
+    )
+    draft_id = _create_complete_draft(publication_api)
+    evidence = _run_draft_preflight(publication_api.member, draft_id, revision=2)
+    assert shortlist_sizes == [duplicate_preflight_service.MAX_PUBLIC_DUPLICATE_COMPARISONS]
+    assert evidence["classification"] == "exact_duplicate"
+    assert exact_base_version_id in {
+        UUID(cast(str, candidate["public_recipe_version_id"]))
+        for candidate in cast(list[dict[str, object]], evidence["candidates"])
+    }
+    published = publication_api.member.post(
+        f"/api/recipe-drafts/{draft_id}/publish",
+        headers={"Idempotency-Key": str(uuid4())},
+        json=_publication_payload(evidence, revision=2, decision="continue"),
+    )
+    assert published.status_code == 201, published.text
+    assert shortlist_sizes == [
+        duplicate_preflight_service.MAX_PUBLIC_DUPLICATE_COMPARISONS,
+        duplicate_preflight_service.MAX_PUBLIC_DUPLICATE_COMPARISONS,
+    ]
+    published_version_id = UUID(cast(str, _json_object(published.json())["recipe_version_id"]))
+
+    with Session(bind=publication_api.engine) as session:
+        public_fingerprint_count = session.scalar(
+            select(func.count())
+            .select_from(RecipeStructuralFingerprint)
+            .join(
+                RecipeVersionPublication,
+                RecipeVersionPublication.recipe_version_id
+                == RecipeStructuralFingerprint.recipe_version_id,
+            )
+            .where(RecipeVersionPublication.state == "published")
+        )
+        receipt = session.get(RecipeVersionPublication, published_version_id)
+
+    assert public_fingerprint_count is not None
+    assert public_fingerprint_count > duplicate_preflight_service.MAX_PUBLIC_DUPLICATE_COMPARISONS
+    assert receipt is not None
 
 
 def test_original_draft_preflight_publish_and_exact_retry(
