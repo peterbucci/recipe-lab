@@ -480,7 +480,7 @@ def test_publication_succeeds_with_more_than_five_hundred_public_fingerprints(
             ]
         )
 
-    actual_shortlist = duplicate_preflight_service.list_public_recipe_duplicate_candidates
+    actual_shortlist = duplicate_preflight_service.load_public_duplicate_candidates
     shortlist_sizes: list[int] = []
 
     def capture_shortlist(session: Session, **kwargs: Any) -> list[Any]:
@@ -490,7 +490,7 @@ def test_publication_succeeds_with_more_than_five_hundred_public_fingerprints(
 
     monkeypatch.setattr(
         duplicate_preflight_service,
-        "list_public_recipe_duplicate_candidates",
+        "load_public_duplicate_candidates",
         capture_shortlist,
     )
     draft_id = _create_complete_draft(publication_api)
