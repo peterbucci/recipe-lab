@@ -264,6 +264,29 @@ def _score_text(score_basis_points: int) -> str:
     return f"{integer}.{fractional * 100:06d}"
 
 
+def load_public_duplicate_candidates(
+    session: Session,
+    *,
+    subject: StructuralFingerprint,
+    subject_input: DuplicateCandidateFingerprint,
+    source_version_id: UUID | None,
+) -> list[PublicRecipeDuplicateCandidate]:
+    """Apply the service's fixed shortlist policy at the repository boundary."""
+
+    return list_public_recipe_duplicate_candidates(
+        session,
+        algorithm_version=subject.algorithm_version,
+        subject_digest=subject.digest,
+        subject_canonical_payload=subject.canonical_json,
+        subject_ingredient_identities=(
+            get_recipe_duplicate_canonical_ingredient_identities(subject_input)
+        ),
+        comparison_limit=MAX_PUBLIC_DUPLICATE_COMPARISONS,
+        exact_candidate_limit=MAX_PUBLIC_DUPLICATE_CANDIDATES,
+        exclude_recipe_version_id=source_version_id,
+    )
+
+
 def _rank_candidates(
     session: Session,
     *,
@@ -283,17 +306,11 @@ def _rank_candidates(
     try:
         subject_input = DuplicateCandidateFingerprint.from_structural_fingerprint(subject)
         subject_shape = get_recipe_duplicate_scoring_shape(subject_input)
-        public_candidates = list_public_recipe_duplicate_candidates(
+        public_candidates = load_public_duplicate_candidates(
             session,
-            algorithm_version=subject.algorithm_version,
-            subject_digest=subject.digest,
-            subject_canonical_payload=subject.canonical_json,
-            subject_ingredient_identities=(
-                get_recipe_duplicate_canonical_ingredient_identities(subject_input)
-            ),
-            comparison_limit=MAX_PUBLIC_DUPLICATE_COMPARISONS,
-            exact_candidate_limit=MAX_PUBLIC_DUPLICATE_CANDIDATES,
-            exclude_recipe_version_id=source_version_id,
+            subject=subject,
+            subject_input=subject_input,
+            source_version_id=source_version_id,
         )
         if len(public_candidates) > MAX_PUBLIC_DUPLICATE_COMPARISONS:
             raise RecipeDuplicatePreflightCapacityError(
