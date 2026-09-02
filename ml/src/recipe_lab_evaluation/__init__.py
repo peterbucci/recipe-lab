@@ -20,6 +20,11 @@ from .dataset import (
     snapshot_to_json,
     validate_snapshot,
 )
+from .duplicate_benchmark_codec import (
+    duplicate_benchmark_to_json,
+    load_duplicate_benchmark,
+    parse_duplicate_benchmark_json,
+)
 from .duplicate_dataset import (
     DUPLICATE_BENCHMARK_SCHEMA_VERSION,
     REQUIRED_DUPLICATE_BENCHMARK_CATEGORIES,
@@ -30,9 +35,6 @@ from .duplicate_dataset import (
     DuplicateBenchmarkRecipe,
     DuplicateComponentExpectations,
     DuplicateComponentExpectationValue,
-    duplicate_benchmark_to_json,
-    load_duplicate_benchmark,
-    parse_duplicate_benchmark_json,
     validate_duplicate_benchmark,
 )
 from .duplicate_evaluation import (
@@ -71,14 +73,16 @@ from .simulator import (
     simulate_preference_cohort,
 )
 from .split import EvaluationSplit, UserEvaluationCase, split_snapshot
+from .substitution_benchmark_codec import (
+    load_substitution_benchmark,
+    parse_substitution_benchmark_json,
+    substitution_benchmark_to_json,
+)
 from .substitution_dataset import (
     SUBSTITUTION_BENCHMARK_SCHEMA_VERSION,
     SubstitutionBenchmark,
     SubstitutionBenchmarkCase,
     SubstitutionBenchmarkError,
-    load_substitution_benchmark,
-    parse_substitution_benchmark_json,
-    substitution_benchmark_to_json,
     validate_substitution_benchmark,
 )
 from .substitution_evaluation import (

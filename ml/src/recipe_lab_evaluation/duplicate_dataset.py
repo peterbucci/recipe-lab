@@ -32,19 +32,8 @@ from app.services.recipe_fingerprints import (
 )
 
 from .dataset import canonical_json
-from .json_codec import (
-    JsonCodecError,
-    JsonDocumentLimits,
-    decode_json_document,
-    load_json_document,
-)
 
 DUPLICATE_BENCHMARK_SCHEMA_VERSION = "recipe-lab-duplicate-evaluation-fixture-v1"
-_DUPLICATE_JSON_LIMITS = JsonDocumentLimits(
-    maximum_utf8_bytes=32 * 1024 * 1024,
-    maximum_depth=32,
-    maximum_nodes=1_000_000,
-)
 
 type DuplicateBenchmarkCategory = Literal[
     "action_change",
@@ -1040,34 +1029,16 @@ def _parse_duplicate_benchmark_document(raw: object) -> DuplicateBenchmark:
     )
 
 
-def _duplicate_codec_error(error: JsonCodecError) -> DuplicateBenchmarkError:
-    if str(error).startswith("duplicate JSON key:"):
-        return DuplicateBenchmarkError("duplicate benchmark contains a duplicate JSON key")
-    return DuplicateBenchmarkError(str(error))
-
-
 def parse_duplicate_benchmark_json(text: str) -> DuplicateBenchmark:
-    try:
-        raw = decode_json_document(
-            text,
-            limits=_DUPLICATE_JSON_LIMITS,
-            document_name="duplicate benchmark",
-        )
-    except JsonCodecError as error:
-        raise _duplicate_codec_error(error) from error
-    return _parse_duplicate_benchmark_document(raw)
+    from .duplicate_benchmark_codec import parse_duplicate_benchmark_json as parse
+
+    return parse(text)
 
 
 def load_duplicate_benchmark(path: str | Path) -> DuplicateBenchmark:
-    try:
-        raw = load_json_document(
-            path,
-            limits=_DUPLICATE_JSON_LIMITS,
-            document_name="duplicate benchmark",
-        )
-    except JsonCodecError as error:
-        raise _duplicate_codec_error(error) from error
-    return _parse_duplicate_benchmark_document(raw)
+    from .duplicate_benchmark_codec import load_duplicate_benchmark as load
+
+    return load(path)
 
 
 def validate_duplicate_benchmark(benchmark: DuplicateBenchmark) -> DuplicateBenchmark:
@@ -1077,7 +1048,9 @@ def validate_duplicate_benchmark(benchmark: DuplicateBenchmark) -> DuplicateBenc
 
 
 def duplicate_benchmark_to_json(benchmark: DuplicateBenchmark) -> str:
-    return canonical_json(_normalized_document(benchmark)) + "\n"
+    from .duplicate_benchmark_codec import duplicate_benchmark_to_json as serialize
+
+    return serialize(benchmark)
 
 
 __all__ = [

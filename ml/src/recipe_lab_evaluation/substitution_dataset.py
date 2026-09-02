@@ -9,12 +9,6 @@ from typing import cast
 from uuid import UUID
 
 from .dataset import canonical_json
-from .json_codec import (
-    JsonCodecError,
-    JsonDocumentLimits,
-    decode_json_document,
-    load_json_document,
-)
 from .substitution_rules import (
     CuratedSubstitution,
     SubstitutionCatalog,
@@ -27,11 +21,6 @@ from .substitution_rules import (
 
 SUBSTITUTION_BENCHMARK_SCHEMA_VERSION = "recipe-lab-substitution-benchmark-v1"
 _CASE_ID_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
-_SUBSTITUTION_JSON_LIMITS = JsonDocumentLimits(
-    maximum_utf8_bytes=32 * 1024 * 1024,
-    maximum_depth=32,
-    maximum_nodes=1_000_000,
-)
 
 
 class SubstitutionBenchmarkError(ValueError):
@@ -545,34 +534,16 @@ def _parse_substitution_benchmark_document(raw: object) -> SubstitutionBenchmark
     return benchmark
 
 
-def _substitution_codec_error(error: JsonCodecError) -> SubstitutionBenchmarkError:
-    if str(error).startswith("duplicate JSON key:"):
-        return SubstitutionBenchmarkError("substitution benchmark contains a duplicate JSON key")
-    return SubstitutionBenchmarkError(str(error))
-
-
 def parse_substitution_benchmark_json(text: str) -> SubstitutionBenchmark:
-    try:
-        raw = decode_json_document(
-            text,
-            limits=_SUBSTITUTION_JSON_LIMITS,
-            document_name="substitution benchmark",
-        )
-    except JsonCodecError as error:
-        raise _substitution_codec_error(error) from error
-    return _parse_substitution_benchmark_document(raw)
+    from .substitution_benchmark_codec import parse_substitution_benchmark_json as parse
+
+    return parse(text)
 
 
 def load_substitution_benchmark(path: str | Path) -> SubstitutionBenchmark:
-    try:
-        raw = load_json_document(
-            path,
-            limits=_SUBSTITUTION_JSON_LIMITS,
-            document_name="substitution benchmark",
-        )
-    except JsonCodecError as error:
-        raise _substitution_codec_error(error) from error
-    return _parse_substitution_benchmark_document(raw)
+    from .substitution_benchmark_codec import load_substitution_benchmark as load
+
+    return load(path)
 
 
 def validate_substitution_benchmark(
@@ -591,14 +562,9 @@ def validate_substitution_benchmark(
 
 
 def substitution_benchmark_to_json(benchmark: SubstitutionBenchmark) -> str:
-    document = _normalized_document(
-        schema_version=benchmark.schema_version,
-        benchmark_id=benchmark.benchmark_id,
-        limitations=benchmark.limitations,
-        catalog=benchmark.catalog,
-        cases=benchmark.cases,
-    )
-    return canonical_json(document) + "\n"
+    from .substitution_benchmark_codec import substitution_benchmark_to_json as serialize
+
+    return serialize(benchmark)
 
 
 __all__ = [
