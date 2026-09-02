@@ -4,10 +4,10 @@ import Link from "next/link";
 
 interface RecipeDraftEditorErrorProps {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }
 
-export default function RecipeDraftEditorError({ reset }: RecipeDraftEditorErrorProps) {
+export default function RecipeDraftEditorError({ retry }: RecipeDraftEditorErrorProps) {
   return (
     <main
       id="main-content"
@@ -21,7 +21,7 @@ export default function RecipeDraftEditorError({ reset }: RecipeDraftEditorError
         <h1>We couldn’t prepare the draft editor.</h1>
         <p>The ingredient or cooking-action catalog may be temporarily unavailable.</p>
         <div className="button-row">
-          <button className="button button--primary" type="button" onClick={reset}>
+          <button className="button button--primary" type="button" onClick={retry}>
             Try again
           </button>
           <Link className="button button--secondary" href="/account/recipes?view=drafts">
