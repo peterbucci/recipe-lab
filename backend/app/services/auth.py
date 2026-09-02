@@ -241,6 +241,7 @@ def resolve_authenticated_session(
     raw_session_token: str,
     now: datetime,
     touch: bool = True,
+    touch_interval_seconds: int = 0,
 ) -> AuthenticatedSession | None:
     if not raw_session_token or len(raw_session_token) > 512:
         return None
@@ -255,7 +256,10 @@ def resolve_authenticated_session(
         or user.status != USER_STATUS_ACTIVE
     ):
         return None
-    if touch:
+    should_touch = touch and user_session.last_seen_at <= now - timedelta(
+        seconds=max(0, touch_interval_seconds)
+    )
+    if should_touch:
         touch_user_session(session, user_session, last_seen_at=now)
     return AuthenticatedSession(
         session_id=user_session.id,

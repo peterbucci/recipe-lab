@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     auth_allowed_origins: str = ""
     auth_session_ttl_seconds: int = Field(default=14 * 24 * 60 * 60, ge=60)
+    auth_session_touch_interval_seconds: int = Field(default=5 * 60, ge=0, le=24 * 60 * 60)
     auth_recent_ttl_seconds: int = Field(default=10 * 60, ge=60, le=60 * 60)
 
     max_request_body_bytes: int = Field(default=2 * 1024 * 1024, ge=1024, le=16 * 1024 * 1024)

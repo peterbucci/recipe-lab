@@ -61,7 +61,10 @@ system/demo identities and cannot acquire OIDC identities.
 After a valid callback, the backend creates a high-entropy opaque application
 session token. Only its SHA-256 digest is stored. Each session also records an
 immutable `authenticated_at` assurance timestamp; ordinary activity may update
-`last_seen_at` but never makes authentication newer. The token cookie is
+`last_seen_at` but never makes authentication newer. To avoid a database write
+and row lock on every authenticated request, Recipe Lab persists that activity
+only when `AUTH_SESSION_TOUCH_INTERVAL_SECONDS` has elapsed since the previous
+touch (five minutes by default). The token cookie is
 `HttpOnly`, `SameSite=Lax`, restricted to the application path, and `Secure`
 outside explicit local development.
 
@@ -93,6 +96,7 @@ Copy `.env.example` and set the hosted provider values:
 ```dotenv
 APP_ENVIRONMENT=local
 AUTH_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+AUTH_SESSION_TOUCH_INTERVAL_SECONDS=300
 OIDC_ISSUER=https://provider.example.com
 OIDC_CLIENT_ID=recipe-lab-local
 OIDC_CLIENT_SECRET=replace-if-the-provider-requires-one
