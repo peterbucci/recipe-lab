@@ -1,5 +1,5 @@
 import json
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import Any, Literal, cast
@@ -11,6 +11,7 @@ from recipe_lab_evaluation.dataset import EvaluationSnapshot, create_snapshot
 from recipe_lab_evaluation.protocol import (
     EvaluationModel,
     FittedEvaluationModel,
+    FittedRankingModel,
     JsonScalar,
     ModelMetadata,
     ModelTrainingData,
@@ -41,7 +42,7 @@ class _PreferredFittedModel:
         user_id: UUID,
         candidate_ids: tuple[UUID, ...],
         limit: int,
-    ) -> Sequence[UUID]:
+    ) -> tuple[UUID, ...]:
         preferred = self.preferred_by_user.get(user_id, ())
         preferred_set = frozenset(preferred)
         ordered = tuple(item for item in preferred if item in candidate_ids) + tuple(
@@ -71,7 +72,7 @@ class _InvalidFittedModel:
         user_id: UUID,
         candidate_ids: tuple[UUID, ...],
         limit: int,
-    ) -> Sequence[UUID]:
+    ) -> tuple[UUID, ...]:
         del user_id
         if self.mode == "short":
             return candidate_ids[: max(limit - 1, 0)]
@@ -90,6 +91,15 @@ class InvalidRankingModel:
     def fit(self, training: ModelTrainingData, *, seed: int) -> FittedEvaluationModel:
         del training, seed
         return _InvalidFittedModel(self.metadata, self.mode)
+
+
+@dataclass(frozen=True, slots=True)
+class _MissingRankingContractModel:
+    metadata: ModelMetadata
+
+    def fit(self, training: ModelTrainingData, *, seed: int) -> object:
+        del training, seed
+        return object()
 
 
 class SeedRecordingModel:
@@ -117,7 +127,7 @@ class _UnreadableArtifactFitted:
         user_id: UUID,
         candidate_ids: tuple[UUID, ...],
         limit: int,
-    ) -> Sequence[UUID]:
+    ) -> tuple[UUID, ...]:
         del user_id
         return candidate_ids[:limit]
 
@@ -132,7 +142,7 @@ class _MalformedRankingFitted:
         user_id: UUID,
         candidate_ids: tuple[UUID, ...],
         limit: int,
-    ) -> Sequence[UUID]:
+    ) -> tuple[UUID, ...]:
         del user_id, candidate_ids, limit
         return None  # type: ignore[return-value]
 
@@ -181,7 +191,7 @@ class _HostileUuidRankingFitted:
         user_id: UUID,
         candidate_ids: tuple[UUID, ...],
         limit: int,
-    ) -> Sequence[UUID]:
+    ) -> tuple[UUID, ...]:
         del user_id
         hostile = _HostileUUID(str(candidate_ids[0]))
         return (hostile, *candidate_ids[1:limit])
@@ -278,6 +288,32 @@ def test_runner_rejects_invalid_model_rankings(
             models=(model,),
             config=EvaluationConfig(ks=(2,)),
         )
+
+
+def test_runner_requires_the_explicit_fitted_ranking_contract(
+    synthetic_snapshot: EvaluationSnapshot,
+) -> None:
+    split = split_snapshot(synthetic_snapshot)
+    training = ModelTrainingData(
+        cutoff=split.cutoff,
+        recipes=split.recipes,
+        events=split.training_events,
+    )
+    fitted = PreferredModel(ModelMetadata("contract-model", "1"), {}).fit(
+        training,
+        seed=1,
+    )
+    assert isinstance(fitted, FittedRankingModel)
+
+    invalid_model = cast(
+        EvaluationModel,
+        _MissingRankingContractModel(ModelMetadata("missing-contract", "1")),
+    )
+    with pytest.raises(
+        EvaluationError,
+        match="^model 'missing-contract' did not return a fitted ranking model$",
+    ):
+        evaluate(synthetic_snapshot, models=(invalid_model,), config=EvaluationConfig(ks=(2,)))
 
 
 @pytest.mark.parametrize("failure", ["artifact", "ranking"])

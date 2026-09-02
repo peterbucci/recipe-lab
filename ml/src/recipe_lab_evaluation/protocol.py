@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol, runtime_checkable
@@ -32,7 +32,10 @@ class ModelTrainingData:
     events: tuple[SnapshotEvent, ...]
 
 
-class FittedEvaluationModel(Protocol):
+@runtime_checkable
+class FittedRankingModel(Protocol):
+    """The complete fitted-model contract accepted by the evaluation runner."""
+
     @property
     def metadata(self) -> ModelMetadata: ...
 
@@ -42,7 +45,10 @@ class FittedEvaluationModel(Protocol):
         user_id: UUID,
         candidate_ids: tuple[UUID, ...],
         limit: int,
-    ) -> Sequence[UUID]: ...
+    ) -> tuple[UUID, ...]: ...
+
+
+type FittedEvaluationModel = FittedRankingModel
 
 
 @runtime_checkable
@@ -63,7 +69,7 @@ class EvaluationModel(Protocol):
     @property
     def metadata(self) -> ModelMetadata: ...
 
-    def fit(self, training: ModelTrainingData, *, seed: int) -> FittedEvaluationModel: ...
+    def fit(self, training: ModelTrainingData, *, seed: int) -> FittedRankingModel: ...
 
 
 def derive_model_seed(root_seed: int, model_id: str) -> int:

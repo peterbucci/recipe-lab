@@ -33,7 +33,7 @@ from .models.hybrid_v1 import HYBRID_MODEL_ID, HybridV1Model
 from .protocol import (
     EvaluationModel,
     FittedCollaborativeArtifactProvider,
-    FittedEvaluationModel,
+    FittedRankingModel,
     JsonScalar,
     ModelMetadata,
     ModelTrainingData,
@@ -95,7 +95,7 @@ class _ValidatedEvaluationModel:
     metadata: ModelMetadata
     delegate: EvaluationModel
 
-    def fit(self, training: ModelTrainingData, *, seed: int) -> FittedEvaluationModel:
+    def fit(self, training: ModelTrainingData, *, seed: int) -> FittedRankingModel:
         return self.delegate.fit(training, seed=seed)
 
 
@@ -269,6 +269,10 @@ def _rank_model(
         )
     except Exception as error:
         raise EvaluationError(f"model {model.metadata.model_id!r} failed during fit") from error
+    if not isinstance(fitted, FittedRankingModel):
+        raise EvaluationError(
+            f"model {model.metadata.model_id!r} did not return a fitted ranking model"
+        )
     try:
         raw_fitted_metadata = fitted.metadata
         if not isinstance(raw_fitted_metadata, ModelMetadata):

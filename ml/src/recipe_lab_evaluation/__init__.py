@@ -45,6 +45,7 @@ from .duplicate_evaluation import (
 from .protocol import (
     EvaluationModel,
     FittedEvaluationModel,
+    FittedRankingModel,
     ModelMetadata,
     ModelTrainingData,
     derive_model_seed,
@@ -135,6 +136,7 @@ __all__ = [
     "EvaluationSnapshot",
     "EvaluationSplit",
     "FittedEvaluationModel",
+    "FittedRankingModel",
     "HybridAdoptionComparisonAtK",
     "HybridAdoptionDecision",
     "HybridAdoptionPolicy",
