@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.domain_errors import DomainUnavailableError
 from app.models import RecipeVersion
 from app.repositories.recommendations import (
     RecommendationDataCapacityError,
@@ -49,8 +50,11 @@ __all__ = [
 ]
 
 
-class RecommendationCapacityError(RuntimeError):
+class RecommendationCapacityError(DomainUnavailableError):
     """Raised when the preview cannot rank the complete input within its safe bounds."""
+
+    code = "recommendation_unavailable"
+    public_message = "Recommendations are temporarily unavailable. Please try again later."
 
 
 @dataclass(frozen=True, slots=True)
