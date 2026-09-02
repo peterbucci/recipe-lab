@@ -35,7 +35,7 @@ RECOMMENDATION_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     },
     503: {
         "model": ErrorResponse,
-        "description": "The complete research ranking exceeds its configured safe capacity.",
+        "description": "A recommendation dependency is temporarily unavailable.",
     },
 }
 

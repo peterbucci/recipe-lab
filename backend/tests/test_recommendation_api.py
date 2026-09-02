@@ -601,22 +601,21 @@ def test_missing_session_member_falls_back_to_public_cold_start(
     assert _json_object(response.json())["personalized"] is False
 
 
-def test_complete_catalog_over_capacity_fails_closed_without_partial_ranking(
+def test_catalog_over_in_memory_bound_uses_a_deterministic_database_shortlist(
     recommendation_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(recommendation_repository, "MAX_RECOMMENDATION_CANDIDATES", 1)
 
-    response = recommendation_client.get("/api/recommendations")
+    first = recommendation_client.get("/api/recommendations")
+    repeated = recommendation_client.get("/api/recommendations")
 
-    assert response.status_code == 503
-    assert response.headers["cache-control"] == "private, no-store"
-    assert _json_object(response.json())["error"] == {
-        "code": "recommendation_unavailable",
-        "message": "Recommendations are temporarily unavailable. Please try again later.",
-        "issues": [],
-        "correlation_id": response.headers["x-correlation-id"],
-    }
+    assert first.status_code == 200
+    assert first.headers["cache-control"] == "private, no-store"
+    assert first.content == repeated.content
+    body = _json_object(first.json())
+    assert body["strategy"] == "baseline-v1"
+    assert len(_items(body)) == 1
 
 
 def test_openapi_documents_the_bounded_read_only_recommendation_contract(
