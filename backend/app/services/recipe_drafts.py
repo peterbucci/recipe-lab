@@ -5,8 +5,12 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.core.canonical_documents import canonical_document_sha256
 from app.core.domain_errors import DomainConflictError, DomainValidationError
+from app.core.idempotency import (
+    IdempotencyConflictError,
+    canonical_request_fingerprint,
+    require_same_request,
+)
 from app.models import (
     RECIPE_DRAFT_STATUS_DISCARDED,
     MeasurementUnit,
@@ -86,10 +90,9 @@ class RecipeDraftRevisionConflictError(DomainConflictError):
     public_message = "This draft has a newer saved revision. Reload it before trying again."
 
 
-class RecipeDraftCreationIdempotencyConflictError(DomainConflictError):
+class RecipeDraftCreationIdempotencyConflictError(IdempotencyConflictError):
     """Raised when one creation action cannot safely resolve to an active draft."""
 
-    code = "idempotency_key_conflict"
     public_message = "The Idempotency-Key conflicts with an earlier draft creation intent."
 
 
@@ -565,13 +568,15 @@ def create_recipe_draft(
 def recipe_draft_creation_request_fingerprint(source_version_id: UUID | None) -> str:
     """Hash one versioned canonical blank-or-source creation intent."""
 
-    document = {
+    fields = {
         "intent": "blank" if source_version_id is None else "source",
-        "schema": RECIPE_DRAFT_CREATION_FINGERPRINT_SCHEMA,
         "source_version_id": str(source_version_id) if source_version_id is not None else None,
-        "version": RECIPE_DRAFT_CREATION_FINGERPRINT_VERSION,
     }
-    return canonical_document_sha256(document)
+    return canonical_request_fingerprint(
+        schema=RECIPE_DRAFT_CREATION_FINGERPRINT_SCHEMA,
+        version=RECIPE_DRAFT_CREATION_FINGERPRINT_VERSION,
+        fields=fields,
+    )
 
 
 def _resolve_recipe_draft_creation_replay(
@@ -579,10 +584,12 @@ def _resolve_recipe_draft_creation_replay(
     *,
     request_fingerprint: str,
 ) -> RecipeDraft:
-    if draft.creation_request_fingerprint != request_fingerprint:
-        raise RecipeDraftCreationIdempotencyConflictError(
-            "The draft creation action is already bound to another request."
-        )
+    require_same_request(
+        draft.creation_request_fingerprint,
+        request_fingerprint,
+        conflict_error=RecipeDraftCreationIdempotencyConflictError,
+        detail="The draft creation action is already bound to another request.",
+    )
     if draft.status != "active":
         raise RecipeDraftCreationIdempotencyConflictError(
             "The draft creation action is already bound to a completed draft."
