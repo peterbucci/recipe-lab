@@ -16,6 +16,38 @@ RUNNER_REFERENCE = re.compile(r"^\s*runs-on:\s*([^\s#]+)")
 TOOLCHAIN_REFERENCE = re.compile(r'^\s*(?:node|python)-version:\s*["\']?([^\s"\'#]+)')
 EXACT_TOOLCHAIN_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 WORKFLOW_IMAGE = re.compile(r"^\s*image:\s*([^\s#]+)")
+COMPOSE_VARIABLE = re.compile(r"\$\{([A-Z][A-Z0-9_]*)")
+ENVIRONMENT_ASSIGNMENT = re.compile(r"^([A-Z][A-Z0-9_]*)=")
+DOCKERFILE_IMAGE_ARGUMENT = re.compile(r"^ARG\s+[A-Z][A-Z0-9_]*_IMAGE=(\S+)")
+
+REQUIRED_DOCKER_EXCLUSIONS = {
+    ".dockerignore": frozenset(
+        {
+            ".env",
+            ".env.*",
+            ".git",
+            "**/.venv",
+            "artifacts",
+            "ml/reports",
+            "ml/snapshots",
+        }
+    ),
+    "frontend/.dockerignore": frozenset(
+        {
+            ".env",
+            ".env.*",
+            ".git",
+            ".next",
+            "baselines",
+            "e2e",
+            "node_modules",
+            "performance",
+            "playwright-report",
+            "scripts",
+            "test-results",
+        }
+    ),
+}
 
 
 @dataclass(frozen=True, order=True)
@@ -105,20 +137,104 @@ def audit_workflow(path: Path, repository: Path) -> list[Violation]:
     return violations
 
 
+def audit_docker_policy(repository: Path) -> list[Violation]:
+    """Verify deterministic build-context and base-image policy."""
+
+    violations: list[Violation] = []
+    for relative, required in REQUIRED_DOCKER_EXCLUSIONS.items():
+        path = repository / relative
+        entries = frozenset(
+            line.strip()
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        )
+        for missing in sorted(required - entries):
+            violations.append(
+                Violation(
+                    relative, 1, f"Docker build context does not exclude {missing}"
+                )
+            )
+
+    for relative in ("backend/Dockerfile", "frontend/Dockerfile"):
+        path = repository / relative
+        for line_number, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), 1
+        ):
+            image = DOCKERFILE_IMAGE_ARGUMENT.match(line)
+            if image and "@sha256:" not in image.group(1):
+                violations.append(
+                    Violation(relative, line_number, "Docker base is not digest-pinned")
+                )
+            if line.strip().startswith("RUN apk upgrade"):
+                violations.append(
+                    Violation(
+                        relative,
+                        line_number,
+                        "Docker build performs a time-dependent apk upgrade",
+                    )
+                )
+    return violations
+
+
+def audit_compose_environment(repository: Path) -> list[Violation]:
+    """Require Compose inputs to be documented and runtime state to be isolated."""
+
+    compose_path = repository / "compose.yaml"
+    compose = compose_path.read_text(encoding="utf-8")
+    example_lines = (
+        (repository / ".env.example").read_text(encoding="utf-8").splitlines()
+    )
+    documented = {
+        match.group(1)
+        for line in example_lines
+        if (match := ENVIRONMENT_ASSIGNMENT.match(line))
+    }
+    violations = [
+        Violation(".env.example", 1, f"Compose variable {name} is not documented")
+        for name in sorted(set(COMPOSE_VARIABLE.findall(compose)) - documented)
+    ]
+    for line_number, line in enumerate(compose.splitlines(), 1):
+        image = WORKFLOW_IMAGE.match(line)
+        if image and "@sha256:" not in image.group(1):
+            violations.append(
+                Violation(
+                    "compose.yaml",
+                    line_number,
+                    "Compose service image is not digest-pinned",
+                )
+            )
+    for required, message in (
+        (
+            "frontend_next_data:/app/.next",
+            "frontend build output is not isolated from the host bind mount",
+        ),
+        ("http://127.0.0.1:3000/healthz", "frontend Compose health check is missing"),
+    ):
+        if required not in compose:
+            violations.append(Violation("compose.yaml", 1, message))
+    return violations
+
+
 def audit_repository(repository: Path) -> tuple[Violation, ...]:
     """Audit every checked-in workflow without modifying policy or lock files."""
 
-    workflow_directory = repository / ".github" / "workflows"
+    github_directory = repository / ".github"
     workflows: Iterable[Path] = (
         path
-        for pattern in ("*.yml", "*.yaml")
-        for path in workflow_directory.glob(pattern)
+        for pattern in ("workflows/*.yml", "workflows/*.yaml", "actions/**/action.yml")
+        for path in github_directory.glob(pattern)
     )
     return tuple(
         sorted(
-            violation
-            for workflow in workflows
-            for violation in audit_workflow(workflow, repository)
+            [
+                *(
+                    violation
+                    for workflow in workflows
+                    for violation in audit_workflow(workflow, repository)
+                ),
+                *audit_docker_policy(repository),
+                *audit_compose_environment(repository),
+            ]
         )
     )
 

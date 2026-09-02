@@ -26,7 +26,10 @@ PRODUCTION_TARGET = "production"
 BACKEND_CONTAINER_PORT = 8000
 FRONTEND_CONTAINER_PORT = 3000
 DATABASE_CONTAINER_PORT = 5432
-DATABASE_IMAGE = "postgres:17-alpine"
+DATABASE_IMAGE = (
+    "postgres:17.11-alpine@sha256:"
+    "7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee"
+)
 DATABASE_NAME = "recipe_lab_image_check"
 DATABASE_USER = "recipe_lab_image_check"
 DATABASE_PASSWORD = "recipe-lab-image-check-database-password"

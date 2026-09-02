@@ -1,0 +1,49 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "13:00"
+      timezone: America/New_York
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "13:10"
+      timezone: America/New_York
+    groups:
+      frontend:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directories:
+      - /backend
+      - /ml
+    schedule:
+      interval: weekly
+      day: monday
+      time: "13:20"
+      timezone: America/New_York
+    groups:
+      python-workspace:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directories:
+      - /backend
+      - /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "13:30"
+      timezone: America/New_York
+    groups:
+      container-bases:
+        patterns: ["*"]

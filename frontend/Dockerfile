@@ -33,8 +33,7 @@ ENV APP_ENVIRONMENT=production \
     NODE_ENV=production \
     PORT=3000
 
-RUN apk upgrade --no-cache \
-    && addgroup --system --gid 10001 nodejs \
+RUN addgroup --system --gid 10001 nodejs \
     && adduser --system --uid 10001 --ingroup nodejs --home /nonexistent nextjs \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
       /opt/yarn-v1.22.22 \

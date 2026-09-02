@@ -47,8 +47,7 @@ ENV APP_ENVIRONMENT=production \
     PATH=/opt/venv/bin:$PATH \
     PORT=8000
 
-RUN apk upgrade --no-cache \
-    && addgroup -S -g 10001 recipe-lab \
+RUN addgroup -S -g 10001 recipe-lab \
     && adduser -S -D -H -u 10001 -G recipe-lab \
       -h /nonexistent -s /sbin/nologin recipe-lab \
     && python -m pip uninstall --yes pip setuptools wheel \
