@@ -5,6 +5,7 @@ import { formatServings } from "../../lib/format";
 import type { RecipeSummary } from "../../lib/recipe-api";
 import { PublicCookAttribution } from "./public-cook-attribution";
 import { RecipeArtwork } from "./recipe-artwork";
+import { RecipeCardShell } from "./recipe-card-shell";
 import { RecipeCardEngagement } from "./recipe-card-engagement";
 import { RecipeCategoryList } from "./recipe-category-list";
 
@@ -78,58 +79,58 @@ export function RecipeCard({
   );
 
   return (
-    <li className="recipe-grid__item">
-      <article
-        className={`recipe-card${engagement ? " recipe-card--engagement" : ""}`}
-        aria-labelledby={titleId}
-      >
+    <RecipeCardShell
+      aria-labelledby={titleId}
+      artwork={
         <RecipeArtwork className="recipe-card__artwork" recipeKey={recipe.id} />
-        <div className="recipe-card__body">
-          {engagement ? (
-            <RecipeCardEngagement
-              averageRating={engagement.averageRating}
-              lineageLabel={engagementLineage}
-              ratingCount={engagement.ratingCount}
-              recipeVersionId={recipe.id}
-              saveCount={engagement.saveCount}
-              servings={formatServings(recipe.servings)}
-              title={recipe.title}
-            >
-              <header className="recipe-card__header">
-                <h3 id={titleId}>{recipeTitle}</h3>
-                <p className="recipe-card__attribution">
-                  <PublicCookAttribution author={recipe.author} />
-                </p>
-                {showEngagementDescription && recipe.description ? (
-                  <p className="recipe-card__description recipe-card__description--engagement">
-                    {recipe.description}
-                  </p>
-                ) : null}
-              </header>
-            </RecipeCardEngagement>
-          ) : (
-            <>
-              {cardContent}
-              <footer className="recipe-card__footer">
-                <div className="recipe-card__metadata">
-                  <p className="recipe-card__servings">
-                    {formatServings(recipe.servings)}
-                  </p>
-                  {visibilityLabel ? (
-                    <p className="recipe-card__status">{visibilityLabel}</p>
-                  ) : null}
-                </div>
-                {actions ? (
-                  <div className="recipe-card__actions">{actions}</div>
-                ) : null}
-              </footer>
-            </>
-          )}
-          {engagement && actions ? (
-            <div className="recipe-card__actions">{actions}</div>
-          ) : null}
-        </div>
-      </article>
-    </li>
+      }
+      bodyClassName="recipe-card__body"
+      className={`recipe-card${engagement ? " recipe-card--engagement" : ""}`}
+      itemClassName="recipe-grid__item"
+    >
+      {engagement ? (
+        <RecipeCardEngagement
+          averageRating={engagement.averageRating}
+          lineageLabel={engagementLineage}
+          ratingCount={engagement.ratingCount}
+          recipeVersionId={recipe.id}
+          saveCount={engagement.saveCount}
+          servings={formatServings(recipe.servings)}
+          title={recipe.title}
+        >
+          <header className="recipe-card__header">
+            <h3 id={titleId}>{recipeTitle}</h3>
+            <p className="recipe-card__attribution">
+              <PublicCookAttribution author={recipe.author} />
+            </p>
+            {showEngagementDescription && recipe.description ? (
+              <p className="recipe-card__description recipe-card__description--engagement">
+                {recipe.description}
+              </p>
+            ) : null}
+          </header>
+        </RecipeCardEngagement>
+      ) : (
+        <>
+          {cardContent}
+          <footer className="recipe-card__footer">
+            <div className="recipe-card__metadata">
+              <p className="recipe-card__servings">
+                {formatServings(recipe.servings)}
+              </p>
+              {visibilityLabel ? (
+                <p className="recipe-card__status">{visibilityLabel}</p>
+              ) : null}
+            </div>
+            {actions ? (
+              <div className="recipe-card__actions">{actions}</div>
+            ) : null}
+          </footer>
+        </>
+      )}
+      {engagement && actions ? (
+        <div className="recipe-card__actions">{actions}</div>
+      ) : null}
+    </RecipeCardShell>
   );
 }
