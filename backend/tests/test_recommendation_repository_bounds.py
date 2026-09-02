@@ -1,17 +1,20 @@
+from collections.abc import Callable
 from typing import Any, cast
 from uuid import UUID
 
 import pytest
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import Session
 
 from app.repositories import recommendations as repository
 
 
 def _literal_sql(statement: Any) -> str:
+    dialect_factory = cast(Callable[[], Dialect], postgresql.dialect)
     return str(
         statement.compile(
-            dialect=postgresql.dialect(),
+            dialect=dialect_factory(),
             compile_kwargs={"literal_binds": True},
         )
     )

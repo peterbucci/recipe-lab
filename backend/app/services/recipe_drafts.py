@@ -1,5 +1,3 @@
-import hashlib
-import json
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Literal, cast
@@ -7,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.canonical_documents import canonical_document_sha256
 from app.core.domain_errors import DomainConflictError, DomainValidationError
 from app.models import (
     RECIPE_DRAFT_STATUS_DISCARDED,
@@ -63,7 +62,12 @@ from app.services.actions import (
     cooking_action_type_summary,
     validate_structured_actions,
 )
-from app.services.measurements import MeasurementError, serialize_measure, validate_measure_input
+from app.services.measurements import (
+    MeasurementError,
+    measurement_unit_snapshot_label,
+    serialize_measure,
+    validate_measure_input,
+)
 
 
 class InvalidRecipeDraftError(DomainValidationError):
@@ -132,16 +136,12 @@ def _invalid(message: str) -> InvalidRecipeDraftError:
     return InvalidRecipeDraftError(message)
 
 
-def _unit_display(symbol: str | None, canonical_label: str) -> str:
-    return symbol or canonical_label
-
-
 def _current_unit_display(unit: MeasurementUnit | None) -> str | None:
     """Use current curated labels when an immutable source becomes an editable draft."""
 
     if unit is None:
         return None
-    return _unit_display(unit.symbol, unit.canonical_label)
+    return measurement_unit_snapshot_label(unit.symbol, unit.canonical_label)
 
 
 def _measure_fields(
@@ -168,7 +168,7 @@ def _measure_fields(
             quantity_min=measure.value,
             quantity_max=None,
             measurement_unit_id=unit.id,
-            unit_display=_unit_display(unit.symbol, unit.canonical_label),
+            unit_display=measurement_unit_snapshot_label(unit.symbol, unit.canonical_label),
             package_size_id=measure.package_size_id,
         )
     if isinstance(measure, RangeMeasureInput):
@@ -179,7 +179,7 @@ def _measure_fields(
             quantity_min=measure.minimum,
             quantity_max=measure.maximum,
             measurement_unit_id=unit.id,
-            unit_display=_unit_display(unit.symbol, unit.canonical_label),
+            unit_display=measurement_unit_snapshot_label(unit.symbol, unit.canonical_label),
             package_size_id=measure.package_size_id,
         )
     if isinstance(measure, QualitativeMeasureInput):
@@ -571,8 +571,7 @@ def recipe_draft_creation_request_fingerprint(source_version_id: UUID | None) ->
         "source_version_id": str(source_version_id) if source_version_id is not None else None,
         "version": RECIPE_DRAFT_CREATION_FINGERPRINT_VERSION,
     }
-    canonical = json.dumps(document, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return canonical_document_sha256(document)
 
 
 def _resolve_recipe_draft_creation_replay(

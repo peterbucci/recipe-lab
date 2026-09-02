@@ -101,6 +101,12 @@ class MeasurementValueOutOfRangeError(MeasurementError):
     code = "measurement_value_out_of_range"
 
 
+def measurement_unit_snapshot_label(symbol: str | None, canonical_label: str) -> str:
+    """Choose the immutable unit label stored with authored recipe measurements."""
+
+    return symbol or canonical_label
+
+
 def measurement_unit_summary(unit: MeasurementUnit) -> MeasurementUnitSummary:
     """Serialize a unit without hiding its historical inactive state."""
 

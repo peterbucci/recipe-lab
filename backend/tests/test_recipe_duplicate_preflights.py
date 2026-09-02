@@ -17,7 +17,6 @@ from app.models import (
 from app.repositories.recipe_duplicates import (
     RecipeDuplicateCandidateWrite,
     RecipeDuplicatePreflightStoreResult,
-    RecipeDuplicateStorageConflictError,
 )
 from app.repositories.recipes import PublicRecipeDuplicateCandidate
 from app.services.recipe_duplicate_scoring import DUPLICATE_CANDIDATE_PARAMETER_HASH
@@ -599,7 +598,10 @@ def test_source_optional_core_replays_idempotently_and_rejects_key_reuse(
     assert replay.response == first.response
 
     changed_subject = _required(build_structural_fingerprint(_structure(amount="200")))
-    with pytest.raises(RecipeDuplicateStorageConflictError, match="another request"):
+    with pytest.raises(
+        preflight_service.RecipeDuplicatePreflightIdempotencyConflictError,
+        match="another request",
+    ):
         preflight_service.run_structural_recipe_duplicate_preflight(
             cast(Session, object()),
             subject_fingerprint=changed_subject,
@@ -609,7 +611,10 @@ def test_source_optional_core_replays_idempotently_and_rejects_key_reuse(
             request_fingerprint="2" * 64,
         )
 
-    with pytest.raises(RecipeDuplicateStorageConflictError, match="another request"):
+    with pytest.raises(
+        preflight_service.RecipeDuplicatePreflightIdempotencyConflictError,
+        match="another request",
+    ):
         preflight_service.run_structural_recipe_duplicate_preflight(
             cast(Session, object()),
             subject_fingerprint=fingerprint,
@@ -619,7 +624,10 @@ def test_source_optional_core_replays_idempotently_and_rejects_key_reuse(
             request_fingerprint="2" * 64,
         )
 
-    with pytest.raises(RecipeDuplicateStorageConflictError, match="another request"):
+    with pytest.raises(
+        preflight_service.RecipeDuplicatePreflightIdempotencyConflictError,
+        match="another request",
+    ):
         preflight_service.run_structural_recipe_duplicate_preflight(
             cast(Session, object()),
             subject_fingerprint=fingerprint,
