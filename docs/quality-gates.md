@@ -5,7 +5,7 @@ branch boundary. It fails closed unless every independently named gate succeeds:
 
 | Gate | Evidence owner |
 | --- | --- |
-| `Contracts` | Python/npm locks, CI pin policy, workflow lint, OpenAPI, seed catalog, generated TypeScript API contracts |
+| `Contracts` | Python/npm locks, CI pin policy, architecture boundaries, workflow lint, OpenAPI, seed catalog, generated TypeScript API contracts |
 | `Lint` | Backend and ML Ruff formatting/lint, repository-policy Ruff checks, frontend ESLint |
 | `Types` | Strict backend and ML Mypy plus generated Next.js types and TypeScript |
 | `Unit` | Backend, frontend, and ML package test jobs |
@@ -39,6 +39,7 @@ Run the contract checks locally from PowerShell:
 
 ```powershell
 python scripts/verify_repository_policy.py
+python scripts/verify_architecture.py
 docker compose config --quiet
 docker run --rm `
   --volume "${PWD}:/repo:ro" `

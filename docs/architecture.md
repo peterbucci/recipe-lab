@@ -109,6 +109,10 @@ outside the feature being edited.
 
 FastAPI owns validation, application rules, persistence boundaries, and the
 public HTTP contract. Pydantic schemas should not double as SQLAlchemy models.
+Core, model, policy, repository, and service modules are transport-independent:
+they must not import FastAPI or `app.api`. The read-only
+`scripts/verify_architecture.py` check enforces that dependency direction in CI
+so expected domain outcomes reach the API only through the shared error mapper.
 
 Environment variables retain their stable flat names, while application code
 consumes immutable settings views grouped by database, HTTP, session, OIDC, and

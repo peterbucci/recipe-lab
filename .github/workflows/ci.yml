@@ -49,6 +49,9 @@ jobs:
       - name: Audit immutable repository inputs
         run: python scripts/verify_repository_policy.py
 
+      - name: Enforce backend architecture boundaries
+        run: python scripts/verify_architecture.py
+
       - name: Validate GitHub workflows
         run: >-
           docker run --rm
@@ -110,10 +113,14 @@ jobs:
       - name: Check repository policy formatting and lint
         run: |
           python -m ruff format --check \
+            scripts/verify_architecture.py \
             scripts/verify_repository_policy.py \
+            scripts/tests/test_verify_architecture.py \
             scripts/tests/test_verify_repository_policy.py
           python -m ruff check --output-format=github \
+            scripts/verify_architecture.py \
             scripts/verify_repository_policy.py \
+            scripts/tests/test_verify_architecture.py \
             scripts/tests/test_verify_repository_policy.py
 
       - name: Lint frontend

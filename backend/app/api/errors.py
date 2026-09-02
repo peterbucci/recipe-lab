@@ -116,6 +116,7 @@ async def domain_error_handler(request: Request, exception: Exception) -> JSONRe
         status_code=status_code,
         code=exception.code,
         message=exception.response_message,
+        headers=exception.headers,
         correlation_id=correlation_id,
     )
 

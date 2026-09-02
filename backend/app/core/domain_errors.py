@@ -1,5 +1,6 @@
 """Small, transport-neutral error hierarchy for expected domain outcomes."""
 
+from collections.abc import Mapping
 from typing import ClassVar
 
 
@@ -13,9 +14,11 @@ class DomainError(Exception):
         self,
         detail: str | None = None,
         *,
+        headers: Mapping[str, str] | None = None,
         public_message: str | None = None,
     ) -> None:
         super().__init__(detail or type(self).public_message)
+        self.headers = dict(headers or {})
         self.response_message = public_message or type(self).public_message
 
 

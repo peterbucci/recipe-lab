@@ -42,8 +42,6 @@ from app.schemas.auth import (
 )
 from app.schemas.errors import ErrorResponse
 from app.services.abuse_limits import (
-    RateLimitUnavailableError,
-    abuse_protection_unavailable_error,
     enforce_oidc_identity_rate_limit,
 )
 from app.services.account_lifecycle import (
@@ -403,16 +401,13 @@ def complete_login(
                 else None
             ),
         )
-        try:
-            enforce_oidc_identity_rate_limit(
-                session,
-                settings=settings,
-                issuer=identity.issuer,
-                subject=identity.subject,
-                now=utc_now(),
-            )
-        except RateLimitUnavailableError as error:
-            raise abuse_protection_unavailable_error() from error
+        enforce_oidc_identity_rate_limit(
+            session,
+            settings=settings,
+            issuer=identity.issuer,
+            subject=identity.subject,
+            now=utc_now(),
+        )
         with session.begin():
             if login_purpose == OIDC_LOGIN_PURPOSE_REAUTHENTICATE:
                 if bound_session_id is None:
