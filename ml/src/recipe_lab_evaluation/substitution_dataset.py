@@ -575,6 +575,21 @@ def load_substitution_benchmark(path: str | Path) -> SubstitutionBenchmark:
     return _parse_substitution_benchmark_document(raw)
 
 
+def validate_substitution_benchmark(
+    benchmark: SubstitutionBenchmark,
+) -> SubstitutionBenchmark:
+    """Validate and normalize a typed benchmark without reparsing serialized JSON."""
+
+    document = _normalized_document(
+        schema_version=benchmark.schema_version,
+        benchmark_id=benchmark.benchmark_id,
+        limitations=benchmark.limitations,
+        catalog=benchmark.catalog,
+        cases=benchmark.cases,
+    )
+    return _parse_substitution_benchmark_document(document)
+
+
 def substitution_benchmark_to_json(benchmark: SubstitutionBenchmark) -> str:
     document = _normalized_document(
         schema_version=benchmark.schema_version,
@@ -595,4 +610,5 @@ __all__ = [
     "load_substitution_benchmark",
     "parse_substitution_benchmark_json",
     "substitution_benchmark_to_json",
+    "validate_substitution_benchmark",
 ]

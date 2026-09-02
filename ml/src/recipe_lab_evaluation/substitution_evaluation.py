@@ -10,8 +10,7 @@ from .dataset import canonical_json
 from .reporting import decimal_text, report_envelope, serialize_report_document
 from .substitution_dataset import (
     SubstitutionBenchmark,
-    parse_substitution_benchmark_json,
-    substitution_benchmark_to_json,
+    validate_substitution_benchmark,
 )
 from .substitution_rules import (
     SUBSTITUTION_CAUTION,
@@ -113,7 +112,7 @@ def _constraints_hold(
 def evaluate_substitution_rules(
     benchmark: SubstitutionBenchmark,
 ) -> SubstitutionEvaluationReport:
-    benchmark = parse_substitution_benchmark_json(substitution_benchmark_to_json(benchmark))
+    benchmark = validate_substitution_benchmark(benchmark)
     recipes = {recipe.id: recipe for recipe in benchmark.catalog.recipe_contexts}
     direct_pairs = {
         (relationship.source_ingredient_id, relationship.replacement_ingredient_id)

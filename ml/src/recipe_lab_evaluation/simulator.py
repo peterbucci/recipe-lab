@@ -15,8 +15,7 @@ from .dataset import (
     SnapshotValidationError,
     canonical_json,
     create_snapshot,
-    parse_snapshot_json,
-    snapshot_to_json,
+    validate_snapshot,
 )
 
 SIMULATION_ASSUMPTIONS = (
@@ -371,7 +370,7 @@ def simulate_preference_cohort(
     """
 
     try:
-        normalized_catalog = parse_snapshot_json(snapshot_to_json(catalog))
+        normalized_catalog = validate_snapshot(catalog)
     except SnapshotValidationError as error:
         raise CohortSimulationError("catalog snapshot violates the evaluation contract") from error
     if normalized_catalog.events:

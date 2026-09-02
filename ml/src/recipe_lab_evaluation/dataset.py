@@ -582,6 +582,20 @@ def load_snapshot(path: str | Path) -> EvaluationSnapshot:
     return _parse_snapshot_document(raw)
 
 
+def validate_snapshot(snapshot: EvaluationSnapshot) -> EvaluationSnapshot:
+    """Validate and normalize an in-memory snapshot without a JSON encode/decode cycle."""
+
+    document = _normalized_document(
+        schema_version=snapshot.schema_version,
+        dataset_id=snapshot.dataset_id,
+        cutoff=snapshot.cutoff,
+        limitations=tuple(sorted(snapshot.limitations)),
+        recipes=tuple(sorted(snapshot.recipes, key=lambda recipe: recipe.id.int)),
+        events=tuple(sorted(snapshot.events, key=lambda event: (event.occurred_at, event.id.int))),
+    )
+    return _parse_snapshot_document(document)
+
+
 def create_snapshot(
     *,
     dataset_id: str,
@@ -605,7 +619,7 @@ def create_snapshot(
         recipes=tuple(sorted(recipes, key=lambda recipe: recipe.id.int)),
         events=tuple(sorted(events, key=lambda event: (event.occurred_at, event.id.int))),
     )
-    return parse_snapshot_json(canonical_json(document))
+    return _parse_snapshot_document(document)
 
 
 def snapshot_to_json(snapshot: EvaluationSnapshot) -> str:

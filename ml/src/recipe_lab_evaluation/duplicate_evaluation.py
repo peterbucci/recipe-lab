@@ -37,8 +37,7 @@ from .duplicate_dataset import (
     DuplicateBenchmark,
     DuplicateBenchmarkCategory,
     DuplicateComponentExpectations,
-    duplicate_benchmark_to_json,
-    parse_duplicate_benchmark_json,
+    validate_duplicate_benchmark,
 )
 from .reporting import decimal_text, report_envelope, serialize_report_document
 
@@ -204,7 +203,7 @@ def _components_match(
 def evaluate_duplicate_candidates(benchmark: DuplicateBenchmark) -> DuplicateEvaluationReport:
     """Evaluate the production duplicate scorer against labeled structural pairs."""
 
-    benchmark = parse_duplicate_benchmark_json(duplicate_benchmark_to_json(benchmark))
+    benchmark = validate_duplicate_benchmark(benchmark)
     recipes = {item.id: item for item in benchmark.recipes}
     expected_counts: Counter[str] = Counter()
     predicted_counts: Counter[str] = Counter()

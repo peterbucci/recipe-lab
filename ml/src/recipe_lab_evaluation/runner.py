@@ -17,8 +17,7 @@ from .adoption import (
 from .dataset import (
     EvaluationSnapshot,
     canonical_json,
-    parse_snapshot_json,
-    snapshot_to_json,
+    validate_snapshot,
 )
 from .metrics import MetricsAtK, calculate_metrics, quantize_metric
 from .models.baseline_v1 import BaselineV1Model
@@ -39,7 +38,7 @@ from .protocol import (
     ModelTrainingData,
     derive_model_seed,
 )
-from .readiness import assess_readiness
+from .readiness import DEFAULT_READINESS_THRESHOLDS, assess_validated_readiness
 from .report import (
     PROTOCOL_VERSION,
     REPORT_SCHEMA_VERSION,
@@ -471,12 +470,15 @@ def evaluate(
     """Evaluate every supplied approach and the mandatory production baseline."""
 
     resolved_config = config or EvaluationConfig()
-    normalized_snapshot = parse_snapshot_json(snapshot_to_json(snapshot))
+    normalized_snapshot = validate_snapshot(snapshot)
     split = split_snapshot(normalized_snapshot)
     evaluation_models = _models_with_baseline(models)
     evaluation_model_ids = {model.metadata.model_id for model in evaluation_models}
     if evaluation_model_ids & {COLLABORATIVE_MODEL_ID, HYBRID_CANDIDATE_MODEL_ID}:
-        readiness = assess_readiness(normalized_snapshot)
+        readiness = assess_validated_readiness(
+            normalized_snapshot,
+            DEFAULT_READINESS_THRESHOLDS,
+        )
         if readiness.status != "ready":
             reasons = ", ".join(readiness.reason_codes)
             raise EvaluationError(f"collaborative readiness failed: {reasons}")

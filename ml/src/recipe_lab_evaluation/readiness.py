@@ -28,8 +28,7 @@ from uuid import UUID
 
 from .dataset import (
     EvaluationSnapshot,
-    parse_snapshot_json,
-    snapshot_to_json,
+    validate_snapshot,
 )
 from .models.collaborative_v1 import (
     MIN_ITEM_SIGNAL_PROFILES,
@@ -265,14 +264,14 @@ def _checks(
     )
 
 
-def assess_readiness(
+def assess_validated_readiness(
     snapshot: EvaluationSnapshot,
-    thresholds: ReadinessThresholds | None = None,
+    thresholds: ReadinessThresholds,
 ) -> ReadinessReport:
-    """Return a deterministic, aggregate-only collaborative-data readiness report."""
+    """Assess a snapshot already normalized by the package boundary."""
 
-    resolved_thresholds = thresholds or DEFAULT_READINESS_THRESHOLDS
-    normalized_snapshot = parse_snapshot_json(snapshot_to_json(snapshot))
+    resolved_thresholds = thresholds
+    normalized_snapshot = snapshot
     split = split_snapshot(normalized_snapshot)
 
     training_profiles = frozenset(event.user_id for event in split.training_events)
@@ -429,6 +428,18 @@ def assess_readiness(
         counts=counts,
         checks=checks,
         limitations=READINESS_LIMITATIONS,
+    )
+
+
+def assess_readiness(
+    snapshot: EvaluationSnapshot,
+    thresholds: ReadinessThresholds | None = None,
+) -> ReadinessReport:
+    """Return a deterministic, aggregate-only collaborative-data readiness report."""
+
+    return assess_validated_readiness(
+        validate_snapshot(snapshot),
+        thresholds or DEFAULT_READINESS_THRESHOLDS,
     )
 
 
@@ -589,6 +600,7 @@ __all__ = [
     "SupportCounts",
     "TemporalEvaluationCounts",
     "assess_readiness",
+    "assess_validated_readiness",
     "readiness_report_to_document",
     "readiness_report_to_json",
 ]

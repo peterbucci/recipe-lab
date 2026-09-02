@@ -18,6 +18,7 @@ from .dataset import (
     load_snapshot,
     parse_snapshot_json,
     snapshot_to_json,
+    validate_snapshot,
 )
 from .duplicate_dataset import (
     DUPLICATE_BENCHMARK_SCHEMA_VERSION,
@@ -32,6 +33,7 @@ from .duplicate_dataset import (
     duplicate_benchmark_to_json,
     load_duplicate_benchmark,
     parse_duplicate_benchmark_json,
+    validate_duplicate_benchmark,
 )
 from .duplicate_evaluation import (
     DUPLICATE_EVALUATION_PROTOCOL_VERSION,
@@ -77,6 +79,7 @@ from .substitution_dataset import (
     load_substitution_benchmark,
     parse_substitution_benchmark_json,
     substitution_benchmark_to_json,
+    validate_substitution_benchmark,
 )
 from .substitution_evaluation import (
     SUBSTITUTION_EVALUATION_PROTOCOL_VERSION,
@@ -186,4 +189,7 @@ __all__ = [
     "substitution_evaluation_report_to_json",
     "substitution_evaluation_report_to_document",
     "substitution_benchmark_to_json",
+    "validate_duplicate_benchmark",
+    "validate_snapshot",
+    "validate_substitution_benchmark",
 ]

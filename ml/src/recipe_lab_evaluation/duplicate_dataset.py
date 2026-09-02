@@ -1070,6 +1070,12 @@ def load_duplicate_benchmark(path: str | Path) -> DuplicateBenchmark:
     return _parse_duplicate_benchmark_document(raw)
 
 
+def validate_duplicate_benchmark(benchmark: DuplicateBenchmark) -> DuplicateBenchmark:
+    """Validate and normalize a typed benchmark without reparsing serialized JSON."""
+
+    return _parse_duplicate_benchmark_document(_normalized_document(benchmark))
+
+
 def duplicate_benchmark_to_json(benchmark: DuplicateBenchmark) -> str:
     return canonical_json(_normalized_document(benchmark)) + "\n"
 
@@ -1087,4 +1093,5 @@ __all__ = [
     "duplicate_benchmark_to_json",
     "load_duplicate_benchmark",
     "parse_duplicate_benchmark_json",
+    "validate_duplicate_benchmark",
 ]
