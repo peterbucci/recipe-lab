@@ -2,6 +2,7 @@ from dataclasses import replace
 from datetime import timedelta
 from uuid import UUID
 
+import pytest
 from app.services.recommendation_scoring import (
     BaselineScoringInput,
     score_baseline_recommendations,
@@ -173,7 +174,11 @@ def test_offline_adapter_ranks_with_the_shared_production_scorer(
     )
     shared_result = score_baseline_recommendations(
         BaselineScoringInput(
-            candidates=fitted.candidates,
+            candidates=tuple(
+                candidate
+                for candidate in fitted.candidates
+                if candidate.recipe_version_id in frozenset(cold_case.candidate_ids)
+            ),
             saved_recipe_version_ids=fitted.saved_by_user.get(COLD_USER_ID, frozenset()),
             ratings=fitted.ratings_by_user.get(COLD_USER_ID, ()),
             events=fitted.events_by_user.get(COLD_USER_ID, ()),
@@ -182,6 +187,104 @@ def test_offline_adapter_ranks_with_the_shared_production_scorer(
     )
 
     assert offline_ranking == tuple(item.recipe_version_id for item in shared_result.items)
+
+
+def test_offline_adapter_scores_a_non_prefix_candidate_subset_before_limiting(
+    synthetic_snapshot: EvaluationSnapshot,
+) -> None:
+    fitted = _fit_fixture_baseline(synthetic_snapshot)
+    catalog_ids = tuple(candidate.recipe_version_id for candidate in fitted.candidates)
+    full_ranking = fitted.rank(
+        user_id=COLD_USER_ID,
+        candidate_ids=catalog_ids,
+        limit=len(catalog_ids),
+    )
+    requested_ids = (full_ranking[-1], full_ranking[-3], full_ranking[-2])
+    requested_set = frozenset(requested_ids)
+    expected = score_baseline_recommendations(
+        BaselineScoringInput(
+            candidates=tuple(
+                candidate
+                for candidate in fitted.candidates
+                if candidate.recipe_version_id in requested_set
+            ),
+            saved_recipe_version_ids=fitted.saved_by_user.get(COLD_USER_ID, frozenset()),
+            ratings=fitted.ratings_by_user.get(COLD_USER_ID, ()),
+            events=fitted.events_by_user.get(COLD_USER_ID, ()),
+        ),
+        2,
+    )
+
+    ranking = fitted.rank(
+        user_id=COLD_USER_ID,
+        candidate_ids=requested_ids,
+        limit=2,
+    )
+
+    assert len(ranking) == 2
+    assert ranking == tuple(item.recipe_version_id for item in expected.items)
+    assert not frozenset(full_ranking[:2]) & frozenset(ranking)
+
+
+def test_offline_adapter_handles_a_subset_beyond_a_fifty_item_catalog_window(
+    synthetic_snapshot: EvaluationSnapshot,
+) -> None:
+    fitted = _fit_fixture_baseline(synthetic_snapshot)
+    template = fitted.candidates[0]
+    large_catalog = tuple(
+        replace(
+            template,
+            recipe_version_id=UUID(int=10_000 + index),
+            title=f"Recipe {index:03}",
+            ingredient_measures=(),
+            rating_sum=0,
+            rating_count=0,
+            save_count=0,
+            fork_count=0,
+            view_count=0,
+            legacy_ingredient_ids=frozenset(),
+        )
+        for index in range(60)
+    )
+    fitted = replace(fitted, candidates=large_catalog)
+    requested_ids = tuple(candidate.recipe_version_id for candidate in reversed(large_catalog[-3:]))
+
+    ranking = fitted.rank(
+        user_id=UUID(int=999_999),
+        candidate_ids=requested_ids,
+        limit=3,
+    )
+
+    assert ranking == tuple(candidate.recipe_version_id for candidate in large_catalog[-3:])
+
+
+def test_offline_adapter_validates_duplicate_unknown_zero_and_invalid_requests(
+    synthetic_snapshot: EvaluationSnapshot,
+) -> None:
+    fitted = _fit_fixture_baseline(synthetic_snapshot)
+    recipe_id = fitted.candidates[0].recipe_version_id
+
+    assert fitted.rank(user_id=COLD_USER_ID, candidate_ids=(), limit=0) == ()
+    assert fitted.rank(user_id=COLD_USER_ID, candidate_ids=(recipe_id,), limit=0) == ()
+    with pytest.raises(ValueError, match="duplicates"):
+        fitted.rank(
+            user_id=COLD_USER_ID,
+            candidate_ids=(recipe_id, recipe_id),
+            limit=1,
+        )
+    with pytest.raises(ValueError, match="outside the fitted catalog"):
+        fitted.rank(
+            user_id=COLD_USER_ID,
+            candidate_ids=(UUID(int=999_999),),
+            limit=1,
+        )
+    for invalid_limit in (-1, 2, True):
+        with pytest.raises(ValueError, match="candidate count"):
+            fitted.rank(
+                user_id=COLD_USER_ID,
+                candidate_ids=(recipe_id,),
+                limit=invalid_limit,
+            )
 
 
 def test_post_cutoff_activity_cannot_change_the_offline_baseline_ranking(

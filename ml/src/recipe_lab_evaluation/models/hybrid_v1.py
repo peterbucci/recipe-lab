@@ -191,11 +191,7 @@ class _FittedHybridV1:
             self.fallback.rank(
                 user_id=user_id,
                 candidate_ids=candidate_ids,
-                # baseline-v1 ranks its full fitted catalog before applying the
-                # candidate filter. Request its complete supported window so a
-                # smaller direct candidate subset is compacted whenever the
-                # fitted catalog itself fits within the 50-item product bound.
-                limit=min(len(self.recipes_by_id), HYBRID_FUSION_WINDOW),
+                limit=window,
             )
         )
         content_positions = _positions(content_ranking)

@@ -385,7 +385,7 @@ def test_zero_signal_profile_uses_only_the_baseline_with_a_truthful_reason() -> 
         assert tuple(detail.recipe_version_id for detail in details) == baseline.rank(
             user_id=user_id,
             candidate_ids=candidates,
-            limit=len(cancelled_training.recipes),
+            limit=len(candidates),
         )
         for detail in details:
             assert detail.route == "fallback"
