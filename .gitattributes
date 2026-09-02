@@ -1,0 +1,10 @@
+* text=auto
+
+# CI and release helpers execute in Linux even when authored on Windows.
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Opaque review baselines must never be line-ending normalized.
+*.png binary
+*.zip binary

@@ -49,7 +49,7 @@ def _source_manifest() -> dict[str, object]:
             },
             "reviewed_opaque_entries": 0,
             "sha256": "2" * 64,
-            "version": 3,
+            "version": 5,
         },
         "scanner": {
             "findings": 0,
@@ -242,7 +242,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         stale_policy = _source_manifest()
         stale_policy_value = stale_policy["policy"]
         assert isinstance(stale_policy_value, dict)
-        stale_policy_value["version"] = 2
+        stale_policy_value["version"] = 4
 
         file_with_extra = _source_manifest()
         files = file_with_extra["files"]

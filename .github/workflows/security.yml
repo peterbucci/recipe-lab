@@ -1,0 +1,120 @@
+name: Security rescan
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 13 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Locked dependencies and committed-source secrets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Configure private scanner paths
+        shell: bash
+        run: |
+          {
+            echo "TRIVY_CACHE_DIR=$RUNNER_TEMP/recipe-lab-security-trivy-cache"
+            echo "SECURITY_PRIVATE_DIR=$RUNNER_TEMP/recipe-lab-security-private"
+          } >> "$GITHUB_ENV"
+
+      - name: Set up locked Python
+        uses: ./.github/actions/setup-python
+
+      - name: Set up pinned Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: v0.74.0
+          cache: false
+
+      - name: Prepare reviewed scan inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(trivy --version | awk '/^Version:/ {print $2; exit}')" = "0.74.0"
+          uv lock --check
+          install -d -m 0700 -- \
+            "$SECURITY_PRIVATE_DIR/source-tree" \
+            "$SECURITY_PRIVATE_DIR/dependencies"
+          python scripts/package_source.py \
+            --ref "$GITHUB_SHA" \
+            --output "$SECURITY_PRIVATE_DIR/source.zip" \
+            > "$SECURITY_PRIVATE_DIR/source-package-report.json"
+          python -m zipfile -e \
+            "$SECURITY_PRIVATE_DIR/source.zip" \
+            "$SECURITY_PRIVATE_DIR/source-tree"
+          uv export \
+            --frozen \
+            --package recipe-lab-api \
+            --no-dev \
+            --no-emit-project \
+            --format requirements-txt \
+            --output-file "$SECURITY_PRIVATE_DIR/dependencies/requirements-api.txt"
+          uv export \
+            --frozen \
+            --package recipe-lab-evaluation \
+            --no-dev \
+            --no-emit-project \
+            --format requirements-txt \
+            --output-file "$SECURITY_PRIVATE_DIR/dependencies/requirements-evaluation.txt"
+          cp -- frontend/package-lock.json \
+            "$SECURITY_PRIVATE_DIR/dependencies/package-lock.json"
+          trivy image --download-db-only --no-progress
+
+      - name: Scan locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          trivy fs \
+            --skip-db-update \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --no-progress \
+            "$SECURITY_PRIVATE_DIR/dependencies"
+
+      - name: Scan reviewed committed source for vulnerabilities and secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_root="$(find "$SECURITY_PRIVATE_DIR/source-tree" \
+            -mindepth 1 -maxdepth 1 -type d)"
+          if [[ -z "$source_root" \
+            || "$(printf '%s\n' "$source_root" | wc -l)" != "1" ]]; then
+            echo "The reviewed source tree is invalid."
+            exit 1
+          fi
+          if ! trivy fs \
+            --skip-db-update \
+            --scanners vuln,secret \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --no-progress \
+            --format json \
+            --output "$SECURITY_PRIVATE_DIR/source-scan.json" \
+            "$source_root"; then
+            echo "The committed-source security scan failed; raw findings were withheld."
+            exit 1
+          fi
+
+      - name: Remove private scanner material
+        if: ${{ always() }}
+        shell: bash
+        run: rm -rf -- "$SECURITY_PRIVATE_DIR" "$TRIVY_CACHE_DIR"

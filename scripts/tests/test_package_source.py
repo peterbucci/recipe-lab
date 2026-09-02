@@ -93,6 +93,10 @@ class SourcePackageTestCase(unittest.TestCase):
 class SuccessfulPackageTests(SourcePackageTestCase):
     def test_includes_only_the_reviewed_root_dependency_contract_files(self) -> None:
         self._write(
+            ".gitattributes",
+            "*.sh text eol=lf\n",
+        )
+        self._write(
             ".dockerignore",
             ".env*\n.git\n.venv\n",
         )
@@ -113,6 +117,7 @@ class SuccessfulPackageTests(SourcePackageTestCase):
             [file_report["path"] for file_report in files],
             [
                 ".dockerignore",
+                ".gitattributes",
                 ".gitignore",
                 "README.md",
                 "backend/app.py",
@@ -125,6 +130,10 @@ class SuccessfulPackageTests(SourcePackageTestCase):
             self.assertEqual(
                 archive.read(f"{archive_root}/.dockerignore"),
                 b".env*\n.git\n.venv\n",
+            )
+            self.assertEqual(
+                archive.read(f"{archive_root}/.gitattributes"),
+                b"*.sh text eol=lf\n",
             )
             self.assertEqual(
                 archive.read(f"{archive_root}/pyproject.toml"),
@@ -151,7 +160,7 @@ class SuccessfulPackageTests(SourcePackageTestCase):
         self.assertEqual(scanner["result"], "passed")
         self.assertRegex(scanner["sha256"], r"^[0-9a-f]{64}$")
         policy_report = cast(dict[str, Any], report["policy"])
-        self.assertEqual(policy_report["version"], 4)
+        self.assertEqual(policy_report["version"], 5)
         self.assertRegex(policy_report["sha256"], r"^[0-9a-f]{64}$")
         archive_report = cast(dict[str, Any], report["archive"])
         self.assertEqual(

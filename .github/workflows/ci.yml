@@ -14,16 +14,160 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  security:
+    name: Security
+    permissions:
+      contents: read
+    uses: ./.github/workflows/security.yml
+
+  contracts:
+    name: Contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up locked Python
+        uses: ./.github/actions/setup-python
+
+      - name: Set up locked Node.js
+        uses: ./.github/actions/setup-node
+
+      - name: Reproduce contract dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --package recipe-lab-api
+          uv pip check
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+          npm ci --prefix frontend
+
+      - name: Audit immutable repository inputs
+        run: python scripts/verify_repository_policy.py
+
+      - name: Validate GitHub workflows
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo
+          docker.io/rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9
+          -color
+
+      - name: Check backend API contract drift
+        working-directory: backend
+        run: python -m app.openapi_contract check
+
+      - name: Validate bundled seed catalog
+        working-directory: backend
+        run: python -m app.seeds validate
+
+      - name: Check generated frontend API contract drift
+        working-directory: frontend
+        run: npm run api:contracts:check
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up locked Python
+        uses: ./.github/actions/setup-python
+
+      - name: Set up locked Node.js
+        uses: ./.github/actions/setup-node
+
+      - name: Reproduce quality dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --all-packages --all-extras
+          uv pip check
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+          npm ci --prefix frontend
+
+      - name: Check backend formatting and lint
+        working-directory: backend
+        run: |
+          python -m ruff format --check .
+          python -m ruff check --output-format=github .
+
+      - name: Check ML formatting and lint
+        working-directory: ml
+        run: |
+          python -m ruff format --check src tests
+          python -m ruff check --output-format=github src tests
+
+      - name: Check repository policy formatting and lint
+        run: |
+          python -m ruff format --check \
+            scripts/verify_repository_policy.py \
+            scripts/tests/test_verify_repository_policy.py
+          python -m ruff check --output-format=github \
+            scripts/verify_repository_policy.py \
+            scripts/tests/test_verify_repository_policy.py
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+  typecheck:
+    name: Types
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up locked Python
+        uses: ./.github/actions/setup-python
+
+      - name: Set up locked Node.js
+        uses: ./.github/actions/setup-node
+
+      - name: Reproduce type-check dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --all-packages --all-extras
+          uv pip check
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+          npm ci --prefix frontend
+
+      - name: Type-check backend
+        working-directory: backend
+        run: python -m mypy app migrations tests
+
+      - name: Type-check ML
+        working-directory: ml
+        run: python -m mypy src tests
+
+      - name: Type-check frontend
+        working-directory: frontend
+        run: npm run typecheck
+
   backend:
-    name: Backend quality
-    runs-on: ubuntu-latest
+    name: Backend unit and integration
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       DATABASE_URL: postgresql+psycopg://recipe_lab:recipe_lab@localhost:5432/recipe_lab_test
       TEST_DATABASE_URL: postgresql+psycopg://recipe_lab:recipe_lab@localhost:5432/recipe_lab_test
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17.11-alpine@sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee
         env:
           POSTGRES_DB: recipe_lab_test
           POSTGRES_USER: recipe_lab
@@ -41,19 +185,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          python-version: "3.13"
+          persist-credentials: false
 
-      - name: Set up locked Python resolver
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          version: "0.12.6"
-          enable-cache: true
-          cache-dependency-glob: uv.lock
+      - name: Set up locked Python
+        uses: ./.github/actions/setup-python
 
       - name: Install backend dependencies
         run: |
@@ -61,21 +198,6 @@ jobs:
           uv sync --frozen --package recipe-lab-api --extra dev
           uv pip check
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
-
-      - name: Check backend formatting
-        run: python -m ruff format --check .
-
-      - name: Lint backend
-        run: python -m ruff check --output-format=github .
-
-      - name: Type-check backend
-        run: python -m mypy app migrations tests
-
-      - name: Check backend API contract drift
-        run: python -m app.openapi_contract check
-
-      - name: Validate bundled seed catalog
-        run: python -m app.seeds validate
 
       - name: Apply database migrations
         run: python -m alembic upgrade head
@@ -87,8 +209,8 @@ jobs:
         run: python -m pytest
 
   frontend:
-    name: Frontend quality
-    runs-on: ubuntu-latest
+    name: Frontend unit and build
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:
@@ -98,26 +220,15 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          persist-credentials: false
+
+      - name: Set up locked Node.js
+        uses: ./.github/actions/setup-node
 
       - name: Install frontend dependencies
         run: npm ci
-
-      - name: Check generated frontend API contract drift
-        run: npm run api:contracts:check
-
-      - name: Lint frontend
-        run: npm run lint
-
-      - name: Type-check frontend
-        run: npm run typecheck
 
       - name: Test frontend
         run: npm test
@@ -126,7 +237,7 @@ jobs:
         run: npm run build
 
       - name: Validate Playwright configuration
-        run: npx playwright test --list
+        run: npx --no-install playwright test --list
 
   rcp34b-baselines:
     name: RCP-34B deterministic baselines
@@ -145,14 +256,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up pinned Node.js
-        uses: actions/setup-node@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          node-version: "22.23.2"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          persist-credentials: false
+
+      - name: Set up locked Node.js
+        uses: ./.github/actions/setup-node
 
       - name: Install exact frontend dependencies
         run: npm ci
@@ -161,7 +270,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(npx playwright --version)" = "Version 1.62.1"
+          test "$(npx --no-install playwright --version)" = "Version 1.62.1"
           browser_version="$(node - <<'NODE'
           const { chromium } = require("@playwright/test");
 
@@ -182,7 +291,7 @@ jobs:
 
       - name: Upload public baseline aggregate
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: rcp34b-public-baseline-aggregate
           path: frontend/test-results/baseline/results.json
@@ -191,7 +300,7 @@ jobs:
 
       - name: Upload sanitized visual differences
         if: ${{ failure() && !cancelled() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: rcp34b-sanitized-visual-differences
           path: |
@@ -202,7 +311,7 @@ jobs:
 
   production-images:
     name: Production images
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       BACKEND_IMAGE: recipe-lab-backend:rcp33d-${{ github.sha }}
@@ -210,19 +319,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          python-version: "3.13"
+          persist-credentials: false
 
-      - name: Set up locked Python resolver
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          version: "0.12.6"
-          enable-cache: true
-          cache-dependency-glob: uv.lock
+      - name: Set up locked Python
+        uses: ./.github/actions/setup-python
 
       - name: Reproduce locked Python environment
         run: |
@@ -250,26 +352,19 @@ jobs:
 
   source-package:
     name: Safe source package
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       PYTHONDONTWRITEBYTECODE: "1"
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          python-version: "3.13"
+          persist-credentials: false
 
-      - name: Set up locked Python resolver
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          version: "0.12.6"
-          enable-cache: true
-          cache-dependency-glob: uv.lock
+      - name: Set up locked Python
+        uses: ./.github/actions/setup-python
 
       - name: Reproduce locked Python environment
         run: |
@@ -320,14 +415,14 @@ jobs:
 
   offline-evaluation:
     name: Offline evaluation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       DATABASE_URL: postgresql+psycopg://recipe_lab:recipe_lab@localhost:5432/recipe_lab_evaluation_test
       TEST_DATABASE_URL: postgresql+psycopg://recipe_lab:recipe_lab@localhost:5432/recipe_lab_evaluation_test
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17.11-alpine@sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee
         env:
           POSTGRES_DB: recipe_lab_evaluation_test
           POSTGRES_USER: recipe_lab
@@ -345,19 +440,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          python-version: "3.13"
+          persist-credentials: false
 
-      - name: Set up locked Python resolver
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          version: "0.12.6"
-          enable-cache: true
-          cache-dependency-glob: uv.lock
+      - name: Set up locked Python
+        uses: ./.github/actions/setup-python
 
       - name: Install evaluation dependencies
         run: |
@@ -369,15 +457,6 @@ jobs:
       - name: Apply evaluation database migrations
         working-directory: backend
         run: python -m alembic upgrade head
-
-      - name: Check evaluation formatting
-        run: python -m ruff format --check src tests
-
-      - name: Lint evaluation package
-        run: python -m ruff check --output-format=github src tests
-
-      - name: Type-check evaluation package
-        run: python -m mypy src tests
 
       - name: Test evaluation package
         run: python -m pytest
@@ -807,7 +886,7 @@ jobs:
 
       - name: Upload reproducibility report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: offline-evaluation-report
           path: |
@@ -875,26 +954,15 @@ jobs:
           fi
 
       - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          python-version: "3.13.15"
+          persist-credentials: false
 
-      - name: Set up locked Python resolver
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          version: "0.12.6"
-          enable-cache: true
-          cache-dependency-glob: uv.lock
+      - name: Set up locked Python
+        uses: ./.github/actions/setup-python
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: "22.23.2"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+      - name: Set up locked Node.js
+        uses: ./.github/actions/setup-node
 
       - name: Install backend dependencies
         working-directory: backend
@@ -932,7 +1000,7 @@ jobs:
 
       - name: Install Chromium
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: npx --no-install playwright install --with-deps chromium
 
       - name: Migrate and seed acceptance database
         working-directory: backend
@@ -960,7 +1028,7 @@ jobs:
         shell: bash
         run: |
           backend_pid="$(cat "$RUNNER_TEMP/recipe-lab-backend.pid")"
-          for attempt in {1..30}; do
+          for _ in {1..30}; do
             if curl --fail --silent http://127.0.0.1:8000/api/health > /dev/null; then
               exit 0
             fi
@@ -978,7 +1046,7 @@ jobs:
         env:
           RCP34B_PERFORMANCE: "1"
           RCP34B_PERFORMANCE_MODE: check
-        run: npx playwright test e2e/public-performance-baseline.spec.ts --project=chromium
+        run: npx --no-install playwright test e2e/public-performance-baseline.spec.ts --project=chromium
 
       - name: Run MVP browser acceptance suite
         working-directory: frontend
@@ -991,7 +1059,7 @@ jobs:
 
       - name: Upload acceptance diagnostics
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: mvp-acceptance-diagnostics
           path: |
@@ -1015,7 +1083,7 @@ jobs:
     needs:
       - backend
       - frontend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       DATABASE_URL: postgresql+psycopg://recipe_lab:recipe_lab@127.0.0.1:5432/recipe_lab_rcp32_acceptance
@@ -1035,11 +1103,12 @@ jobs:
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3100
       PLAYWRIGHT_WEB_SERVER_COMMAND: APP_ENVIRONMENT=production npm run start -- --hostname 127.0.0.1 --port 3100
       RCP32_PYTHON_EXECUTABLE: python
+      RCP32_DATABASE_IMAGE: postgres:17.11-alpine@sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee
       ABUSE_RATE_LIMIT_SECRET: recipe-lab-rcp32-ci-rate-limit-secret-2026
       INTERNAL_NETWORK_SIGNAL_SECRET: recipe-lab-rcp32-ci-network-signal-secret-2026
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17.11-alpine@sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee
         env:
           POSTGRES_DB: recipe_lab_rcp32_acceptance
           POSTGRES_USER: recipe_lab
@@ -1078,26 +1147,15 @@ jobs:
 
       - name: Check out repository
         id: checkout
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          python-version: "3.13"
+          persist-credentials: false
 
-      - name: Set up locked Python resolver
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          version: "0.12.6"
-          enable-cache: true
-          cache-dependency-glob: uv.lock
+      - name: Set up locked Python
+        uses: ./.github/actions/setup-python
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+      - name: Set up locked Node.js
+        uses: ./.github/actions/setup-node
 
       - name: Install backend release-gate harness
         id: install-backend
@@ -1114,7 +1172,7 @@ jobs:
 
       - name: Install Chromium
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: npx --no-install playwright install --with-deps chromium
 
       - name: Prepare private runner paths
         shell: bash
@@ -1167,7 +1225,7 @@ jobs:
         run: |
           oidc_pid="$(cat "$RUNNER_TEMP/recipe-lab-rcp32-oidc.pid")"
           backend_pid="$(cat "$RUNNER_TEMP/recipe-lab-rcp32-backend.pid")"
-          for attempt in {1..45}; do
+          for _ in {1..45}; do
             oidc_ready=0
             backend_ready=0
             curl --fail --silent http://127.0.0.1:8200/health > /dev/null && oidc_ready=1
@@ -1213,7 +1271,7 @@ jobs:
           umask 077
           docker run --rm --network host \
             -e PGPASSWORD=recipe_lab \
-            postgres:17-alpine \
+            "$RCP32_DATABASE_IMAGE" \
             pg_dump \
               --host 127.0.0.1 \
               --username recipe_lab \
@@ -1224,7 +1282,7 @@ jobs:
             > "$RCP32_BACKUP_PATH"
           docker run --rm --network host \
             -e PGPASSWORD=recipe_lab \
-            postgres:17-alpine \
+            "$RCP32_DATABASE_IMAGE" \
             dropdb \
               --host 127.0.0.1 \
               --username recipe_lab \
@@ -1232,14 +1290,14 @@ jobs:
               recipe_lab_rcp32_acceptance_restore
           docker run --rm --network host \
             -e PGPASSWORD=recipe_lab \
-            postgres:17-alpine \
+            "$RCP32_DATABASE_IMAGE" \
             createdb \
               --host 127.0.0.1 \
               --username recipe_lab \
               recipe_lab_rcp32_acceptance_restore
           docker run --rm --interactive --network host \
             -e PGPASSWORD=recipe_lab \
-            postgres:17-alpine \
+            "$RCP32_DATABASE_IMAGE" \
             pg_restore \
               --host 127.0.0.1 \
               --username recipe_lab \
@@ -1311,7 +1369,7 @@ jobs:
           done
           docker run --rm --network host \
             -e PGPASSWORD=recipe_lab \
-            postgres:17-alpine \
+            "$RCP32_DATABASE_IMAGE" \
             dropdb \
               --host 127.0.0.1 \
               --username recipe_lab \
@@ -1340,7 +1398,7 @@ jobs:
 
       - name: Upload privacy-safe community release summaries
         if: ${{ success() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: rcp32-community-release-gate-summaries
           path: |
@@ -1357,38 +1415,185 @@ jobs:
     # Offline evaluation is intentionally independent of the deployable community gate.
     needs:
       - backend
+      - contracts
       - frontend
+      - lint
       - mvp-acceptance
       - production-images
       - rcp34b-baselines
       - rcp32-acceptance
+      - security
       - source-package
-    runs-on: ubuntu-latest
+      - typecheck
+    runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
       - name: Require every deployable application gate
         env:
           BACKEND_RESULT: ${{ needs.backend.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
           MVP_ACCEPTANCE_RESULT: ${{ needs.mvp-acceptance.result }}
           PRODUCTION_IMAGES_RESULT: ${{ needs.production-images.result }}
           RCP34B_BASELINES_RESULT: ${{ needs.rcp34b-baselines.result }}
           RCP32_ACCEPTANCE_RESULT: ${{ needs.rcp32-acceptance.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
           SOURCE_PACKAGE_RESULT: ${{ needs.source-package.result }}
+          TYPECHECK_RESULT: ${{ needs.typecheck.result }}
         run: |
           if [[ "$BACKEND_RESULT" != "success" \
+            || "$CONTRACTS_RESULT" != "success" \
             || "$FRONTEND_RESULT" != "success" \
+            || "$LINT_RESULT" != "success" \
             || "$MVP_ACCEPTANCE_RESULT" != "success" \
             || "$PRODUCTION_IMAGES_RESULT" != "success" \
             || "$RCP34B_BASELINES_RESULT" != "success" \
             || "$RCP32_ACCEPTANCE_RESULT" != "success" \
-            || "$SOURCE_PACKAGE_RESULT" != "success" ]]; then
+            || "$SECURITY_RESULT" != "success" \
+            || "$SOURCE_PACKAGE_RESULT" != "success" \
+            || "$TYPECHECK_RESULT" != "success" ]]; then
             echo "Backend quality: $BACKEND_RESULT"
+            echo "Contracts: $CONTRACTS_RESULT"
             echo "Frontend quality: $FRONTEND_RESULT"
+            echo "Lint: $LINT_RESULT"
             echo "MVP acceptance: $MVP_ACCEPTANCE_RESULT"
             echo "Production images: $PRODUCTION_IMAGES_RESULT"
             echo "RCP-34B deterministic baselines: $RCP34B_BASELINES_RESULT"
             echo "RCP-32 acceptance: $RCP32_ACCEPTANCE_RESULT"
+            echo "Security: $SECURITY_RESULT"
             echo "Safe source package: $SOURCE_PACKAGE_RESULT"
+            echo "Types: $TYPECHECK_RESULT"
             exit 1
           fi
+
+  unit:
+    name: Unit
+    if: ${{ always() }}
+    needs:
+      - backend
+      - frontend
+      - offline-evaluation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require every package test suite
+        env:
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          ML_RESULT: ${{ needs.offline-evaluation.result }}
+        run: |
+          for result in "$BACKEND_RESULT" "$FRONTEND_RESULT" "$ML_RESULT"; do
+            if [[ "$result" != "success" ]]; then
+              echo "A package test suite did not pass."
+              exit 1
+            fi
+          done
+
+  integration:
+    name: Integration
+    if: ${{ always() }}
+    needs:
+      - backend
+      - offline-evaluation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require database and deterministic evaluation checks
+        env:
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          ML_RESULT: ${{ needs.offline-evaluation.result }}
+        run: |
+          if [[ "$BACKEND_RESULT" != "success" || "$ML_RESULT" != "success" ]]; then
+            echo "A database-backed integration suite did not pass."
+            exit 1
+          fi
+
+  build:
+    name: Build
+    if: ${{ always() }}
+    needs:
+      - frontend
+      - production-images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require frontend and production image builds
+        env:
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          IMAGES_RESULT: ${{ needs.production-images.result }}
+        run: |
+          if [[ "$FRONTEND_RESULT" != "success" || "$IMAGES_RESULT" != "success" ]]; then
+            echo "A production build did not pass."
+            exit 1
+          fi
+
+  e2e:
+    name: E2E
+    if: ${{ always() }}
+    needs:
+      - mvp-acceptance
+      - rcp32-acceptance
+      - rcp34b-baselines
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require browser and visual acceptance suites
+        env:
+          MVP_RESULT: ${{ needs.mvp-acceptance.result }}
+          RCP32_RESULT: ${{ needs.rcp32-acceptance.result }}
+          VISUAL_RESULT: ${{ needs.rcp34b-baselines.result }}
+        run: |
+          for result in "$MVP_RESULT" "$RCP32_RESULT" "$VISUAL_RESULT"; do
+            if [[ "$result" != "success" ]]; then
+              echo "A browser or visual acceptance suite did not pass."
+              exit 1
+            fi
+          done
+
+  repository-quality:
+    name: Repository quality
+    if: ${{ always() }}
+    needs:
+      - build
+      - contracts
+      - e2e
+      - integration
+      - lint
+      - rcp32-release-gate
+      - security
+      - source-package
+      - typecheck
+      - unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require every stable quality gate
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          RELEASE_RESULT: ${{ needs.rcp32-release-gate.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+          SOURCE_RESULT: ${{ needs.source-package.result }}
+          TYPES_RESULT: ${{ needs.typecheck.result }}
+          UNIT_RESULT: ${{ needs.unit.result }}
+        run: |
+          for result in \
+            "$BUILD_RESULT" \
+            "$CONTRACTS_RESULT" \
+            "$E2E_RESULT" \
+            "$INTEGRATION_RESULT" \
+            "$LINT_RESULT" \
+            "$RELEASE_RESULT" \
+            "$SECURITY_RESULT" \
+            "$SOURCE_RESULT" \
+            "$TYPES_RESULT" \
+            "$UNIT_RESULT"; do
+            if [[ "$result" != "success" ]]; then
+              echo "A required repository quality gate did not pass."
+              exit 1
+            fi
+          done

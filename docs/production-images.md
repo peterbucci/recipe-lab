@@ -84,6 +84,9 @@ base tag and digest together in a dedicated review, rebuild both targets from a
 clean cache, and rerun the verifier. A successful lock check and clean build
 mean the selected dependency graph is reproducible; RCP-33D does not claim that
 ordinary Docker builds are byte-identical OCI archives across different hosts.
+The production stages do not run `apk upgrade`: that would resolve mutable
+repository state after selecting an immutable base. Receive operating-system
+fixes by reviewing a new base digest, then run the security and image gates.
 
 ## Runtime boundary
 
@@ -100,7 +103,9 @@ package-manager caches, and build-only tools. In particular:
   because the production Next.js server loads it at runtime.
 
 The build contexts also deny environment files and generated artifacts before
-Docker receives them. Runtime secrets must be injected by the eventual
+Docker receives them. The frontend context excludes committed visual baselines
+and test/performance harnesses, which are CI evidence rather than runtime build
+inputs. Runtime secrets must be injected by the eventual
 deployment environment; they must never be Docker build arguments, Dockerfile
 defaults, image labels, or committed files.
 
@@ -113,6 +118,15 @@ secrets. The frontend production server validates an origin-only
 `RECIPE_API_URL` and a private `INTERNAL_NETWORK_SIGNAL_SECRET` before it binds
 its port. Configuration failures identify the invalid field without printing
 the supplied value.
+
+The root `.env.example` is the single local template and documents every value
+interpolated by Compose. `POSTGRES_*` and `POSTGRES_IMAGE` configure only the
+local database container. Host-run `DATABASE_URL`, `TEST_DATABASE_URL`, and
+`RECIPE_API_URL` remain documented there but are intentionally replaced by
+service-network URLs inside Compose. A deployment must supply production
+database, origin, OIDC, and secret-store values through its runtime platform;
+do not copy the local passwords or secret placeholders into production and do
+not create a committed production environment file.
 
 The backend container health check calls the dependency-independent
 `GET /api/health` endpoint on port 8000 and expects the Recipe Lab API status
@@ -152,10 +166,14 @@ probe racing the database timeout. A timeout or unexpected payload fails the
 gate. All containers and the temporary network are removed even when
 verification fails. The command never pushes or uploads an image.
 
-`--database-image` defaults to the same `postgres:17-alpine` family used by
-local Compose and CI and may select a pre-reviewed local tag. This database is
-disposable verification infrastructure; no dump, volume, log, or database
-artifact is retained.
+`--database-image` defaults to the exact PostgreSQL 17.11 multi-platform digest
+used by local Compose and CI and may select a separately reviewed local tag.
+Compose also checks frontend `/healthz`, documents every interpolated input in
+`.env.example`, and keeps `.next` plus `node_modules` in named volumes rather
+than writing generated build output into the host source bind mount. The
+backend Compose check remains liveness; database readiness is the separate
+`GET /api/readiness` contract. This database is disposable verification
+infrastructure; no dump, volume, log, or database artifact is retained.
 
 ## CI and no-deploy boundary
 
@@ -167,8 +185,11 @@ cloud deployment API. Its local image tags are removed at the end of the
 disposable runner job.
 
 `RCP-32 community release gate` now requires this check alongside backend,
-frontend, MVP, community-journey, and safe-source checks. Passing it authorizes
-only the later RCP-33 release rehearsal; it is not itself a deployment.
+frontend, MVP, community-journey, safe-source, and ordinary security checks.
+Passing it authorizes only the later RCP-33 release rehearsal; it is not itself
+a deployment. The ordinary `Security` gate scans frozen Python/npm dependencies
+and reviewed committed source on each pull request and weekly. See
+[repository quality gates](quality-gates.md).
 Within the separate RCP-33G rehearsal, each local candidate image is built
 once, its immutable local image ID is recorded, and that same image is scanned
 and smoked. The verifier is repeated for local images built from a reviewed

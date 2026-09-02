@@ -302,6 +302,7 @@ python -m ruff format --check .
 python -m ruff check .
 python -m mypy app migrations tests
 python -m app.openapi_contract check
+python -m app.seeds validate
 python -m alembic upgrade head
 python -m alembic check
 python -m pytest
@@ -333,11 +334,12 @@ Run the same frontend checks enforced by CI:
 
 ```powershell
 cd frontend
+npm ci
 npm run lint
 npm run typecheck
 npm test
 npm run build
-npx playwright test --list
+npx --no-install playwright test --list
 npm run test:e2e:baseline -- --list
 ```
 
@@ -485,15 +487,26 @@ boundary.
 ## Continuous integration
 
 The `CI` GitHub Actions workflow runs on every pull request and every push to
-`main`. Separate backend and frontend jobs make failures easy to locate. The
-backend job starts PostgreSQL 17, applies the migration history, checks for
-uncommitted model changes, runs a separately attributed committed-OpenAPI drift
-check, and runs the schema tests. Every Python job installs
+`main`. Independently named `Contracts`, `Lint`, `Types`, `Unit`, `Integration`,
+`Build`, `E2E`, and `Security` gates feed one fail-closed `Repository quality`
+check. Backend, frontend, offline-evaluation, visual, and community jobs remain
+the detailed evidence owners, while the stable gate names are suitable for
+branch protection. The backend integration job starts digest-pinned PostgreSQL
+17.11, applies the migration history, checks for uncommitted model changes, and
+runs the schema tests. Every Python job installs
 immutable `uv 0.12.6`, requires the single root `uv.lock` to match both
 workspace members, and uses a frozen package-specific sync followed by
 `uv pip check`. The frontend uses `npm ci` with the committed
 `package-lock.json`. Download caches are keyed from those lockfiles and never
 replace their resolution checks.
+
+All external Actions use full commit SHAs, checkouts discard persisted Git
+credentials, runners and language toolchains use reviewed exact versions, and
+the read-only repository policy rejects drift. The reusable security workflow
+scans frozen Python/npm runtime dependencies and the reviewed committed-source
+tree in ordinary CI and weekly. Raw secret findings are withheld and deleted.
+See [repository quality gates](docs/quality-gates.md) for the evidence map,
+local Windows commands, security boundary, and cleanup procedure.
 
 The required `RCP-34B deterministic baselines` job runs the synthetic
 visual/accessibility suite in an immutable linux/amd64 Playwright 1.62.1 Noble
@@ -521,7 +534,8 @@ operator signals, retention, redaction, and rollback procedure are in
 [privacy-safe operations and observability](docs/operations-observability.md).
 
 An independent `Offline evaluation` job installs the backend scoring core and
-the `ml` package, runs its static checks and tests, then generates the synthetic
+the `ml` package, follows the shared `Lint` and `Types` gates, runs its tests,
+then generates the synthetic
 `content-v1` versus `baseline-v1` report twice and compares the bytes. It also
 verifies same-seed simulator and readiness-report reproducibility, a distinct
 changed-seed cohort, and a strict ready result for the engineering fixture. It

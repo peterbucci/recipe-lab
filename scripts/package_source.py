@@ -28,7 +28,7 @@ TOOL_VERSION = "1.2.0"
 SCANNER_NAME = "recipe-lab-source-secret-scan"
 SCANNER_VERSION = "2"
 MANIFEST_SCHEMA_VERSION = 1
-POLICY_VERSION = 4
+POLICY_VERSION = 5
 FIXED_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 MAX_REPORTED_FINDINGS = 20
 
@@ -66,6 +66,7 @@ EXPORT_POLICY = PackagingPolicy(
         {
             ".dockerignore",
             ".env.example",
+            ".gitattributes",
             ".gitignore",
             "README.md",
             "compose.yaml",
@@ -94,7 +95,7 @@ EXPORT_POLICY = PackagingPolicy(
         }
     ),
     allowed_special_basenames=frozenset(
-        {".dockerignore", ".env.example", ".gitignore", "Dockerfile"}
+        {".dockerignore", ".env.example", ".gitattributes", ".gitignore", "Dockerfile"}
     ),
     # Opaque files cannot receive a meaningful text secret scan. Keep their Git
     # object IDs explicit so any content change requires a policy review.

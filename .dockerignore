@@ -10,6 +10,7 @@
 **/.venv
 **/__pycache__
 **/*.egg-info
+**/*.log
 **/*.py[cod]
 **/build
 **/htmlcov
@@ -18,6 +19,13 @@ backend/tests
 backend/app/testing
 docs
 frontend
+artifacts
+ml/reports
+ml/snapshots
 ml/src
 ml/tests
 scripts
+.idea
+.vscode
+.DS_Store
+Thumbs.db
