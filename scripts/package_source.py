@@ -24,11 +24,11 @@ import zipfile
 
 
 TOOL_NAME = "recipe-lab-safe-source-export"
-TOOL_VERSION = "1.1.0"
+TOOL_VERSION = "1.2.0"
 SCANNER_NAME = "recipe-lab-source-secret-scan"
 SCANNER_VERSION = "2"
 MANIFEST_SCHEMA_VERSION = 1
-POLICY_VERSION = 3
+POLICY_VERSION = 4
 FIXED_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 MAX_REPORTED_FINDINGS = 20
 
@@ -128,12 +128,44 @@ EXPORT_POLICY = PackagingPolicy(
             "9c85b67a3eeb55d03299a81105d46d0122214656",
         ),
         (
-            "frontend/baselines/baseline-desktop-chromium/authoring-entry-desktop-normal.png",
-            "0ad6eae0cdba4635d379c2d23566d7e6a2ed7629",
+            "frontend/baselines/baseline-desktop-chromium/account-activity-no-matches.png",
+            "b39f25c753ebb721dadb633958e89e63050f99a7",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/account-activity-normal-intermediate.png",
+            "b3be6f87372878a94dc8f085d2a38ffebc24dd8c",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/account-activity-normal.png",
+            "aaaaccf3b97afbd8ed674d0d554475bbede919e4",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/account-activity-saved-filtered.png",
+            "5993852908daf292bad9a16057bfb3bf16221f34",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/account-settings-danger-intermediate-normal.png",
+            "e1d4e71499fb994fec66a88c7c338503f56bf166",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/account-settings-danger-normal.png",
+            "cafe776be2b4a1a31a5755e78375bb1aa3931384",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/account-settings-profile-intermediate-normal.png",
+            "83216e143f03cb5f27806c3147b2552252391c95",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/account-settings-profile-normal.png",
+            "7c05e5d2c294b0c646d0d4da53069e4c7641a564",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/auth-callback-error-intermediate.png",
             "853683bac0ec4b76388b4a99aff017f14e77048b",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/authoring-entry-desktop-normal.png",
+            "0ad6eae0cdba4635d379c2d23566d7e6a2ed7629",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/catalog-empty.png",
@@ -153,7 +185,11 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/cook-profile-normal.png",
-            "46526819f6e99447fbc4750973fba170e6214935",
+            "d02d2358e3d5d81cee3ab1ef579c44aeb4bb9a94",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/cook-profile-sparse-owner.png",
+            "2162c6de7829844f8b2a605421df5554ec0476db",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-discard-confirmation.png",
@@ -168,6 +204,10 @@ EXPORT_POLICY = PackagingPolicy(
             "e30ab43f5a473f4923075c5882efc0487a395872",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/draft-fork-header-normal.png",
+            "a72e39fc9024ff6407d6ae634bf338e7853f3160",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/draft-ingredient-editor-normal.png",
             "3947dd0040d460aa4f7d852f3bcc3e0be6404d2b",
         ),
@@ -180,40 +220,52 @@ EXPORT_POLICY = PackagingPolicy(
             "22fd01f6dbc589f7a9da1c86de3c9b855ec2aa2c",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/draft-publish-dialog.png",
+            "e207d76c18dd0ff1794936fcc88443dac33e0bb8",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/draft-similarity-publication-review.png",
             "24e8bfb1d7fc68602f5938fdc28aa9e25f4c9fb9",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-account-navigation.png",
-            "501a1f6f8a600df34c6fb8edf86e6a432d0aa1b4",
+            "e10fab68f7c12ea5c6b1e83f8421d46bd2622074",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-intermediate-normal.png",
-            "30c25f06e359bb48672b2e584059f4ac56b1efd4",
+            "c7ef34df8c1d08f3bd145f5275b0413c8e585982",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-normal.png",
-            "e30b30191b0bc52e2de9cc6a1eaab2eb62407031",
+            "e027002d84772a5226bd5eb44e62af27240ecfd1",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/ingredient-request-staff-review-intermediate.png",
-            "45b83d25dbe38809fca85f9124e4f10e49df7853",
+            "0abf1dca8f7457db6705695165ba3f4452701b7c",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/ingredient-request-staff-review.png",
-            "8896567067ee403c5f558f87515352ff926b1829",
+            "25e85ccb9f54ffbd7e2bf06c35111f8cd4dba58d",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/my-ingredient-requests-intermediate.png",
+            "85243514cb5c366313c69e8bd21bb3b8977fb382",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/my-ingredient-requests.png",
+            "ba75f560fe4c850d935598cb6becd40d7b1884f8",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/my-recipes-intermediate-normal.png",
-            "ebfa85242a24fd4518d66c9f18a0951377bc9e0d",
+            "18b570ea987a3035c069c32d35530e30d720e58e",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/my-recipes-normal.png",
-            "5c007c7a0665a07a117df640ceb2c1792bd8a801",
+            "6a1fd01dfb042f4aa10ed9d2692d5b87b40a26d5",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/onboarding-form-normal.png",
-            "1754807e6e45e64cd8e957a4daba61a41d688e1b",
+            "7ca9524abeab0f82e0bec110acf73e27bd5aa088",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-expired-session.png",
@@ -268,8 +320,40 @@ EXPORT_POLICY = PackagingPolicy(
             "68919f6539fd98d2a9ec2fbec54289076da7b4d3",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/staff-tools-moderator-selected-intermediate.png",
+            "22f69375f7783116a7792caf560dabb0ad3e60fc",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/staff-tools-moderator-selected.png",
+            "3ccfd0c6b70119b38be417f4cc2a89782a678371",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/staff-tools-normal-intermediate.png",
+            "8f9b2a331ebba9fbcf812c79f406e9578fbc425a",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/staff-tools-normal.png",
+            "7864611f97f8115ab5d1d85a64610fcbab2f6af0",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/stale-curation-decision.png",
             "c200612cf3ca0ea7b14d4433ad6b46d60fc1e47e",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/account-activity-normal.png",
+            "a8c9e9a432289605f28d42648469ff495de963d4",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/account-activity-requests-filtered.png",
+            "3a765406909c6040634c7fe62a391691290cfa01",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/account-settings-danger-normal.png",
+            "2fd2e18997033858843e02524af137da6614f33d",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/account-settings-profile-normal.png",
+            "e057e981673650d264a6931e8e922120326f5354",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/catalog-normal.png",
@@ -281,11 +365,19 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/cook-profile-normal.png",
-            "4f99775566ba775fbd3ed4c66fbea21d7a872656",
+            "ef3bd1b5f0d12f5d31f17c5637d2f487768e2f5a",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/cook-profile-sparse-owner.png",
+            "822bd4193eb7dd3dd32a63c8406a5543bbd77a9f",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-editor-validation.png",
             "19719c2c398f0cc97b297e7b86bbac46fa666a14",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/draft-fork-header-normal.png",
+            "24d965f801e45b4cf55a17802e65d24755a8a15a",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-ingredient-editor-normal.png",
@@ -309,23 +401,27 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/global-not-found.png",
-            "43f02a1e9e5da1803597a7a8ff1b46ad633b5e48",
+            "744847c4772a74aed3dd48a7becd466aa7517edc",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-account-navigation.png",
-            "84f935932c50e76f06b0e7ee816c5158e47f150d",
+            "f4e96bbabb774c8924763eb96256a6920644f87d",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-normal.png",
-            "049eaa2fe10dbafe9a159c177915be99e0854bcf",
+            "7462a73a45c7ee1a5f9e59295d28df67917bf804",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/ingredient-request-staff-review.png",
-            "b2ad02af0316a57e799a248f220c6e4432826c72",
+            "d325e5097b31bcd27896723a8398c7226295cd6d",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/my-ingredient-requests.png",
+            "1ab85eddcda15604a01bf17afad07a4e150d5905",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/my-recipes-normal.png",
-            "ef25b8c3e413c0fae0de860645366c098085ca38",
+            "d2ade7d4832f1470efb18d84139fbd53260e7194",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-comparison-normal.png",
@@ -346,6 +442,14 @@ EXPORT_POLICY = PackagingPolicy(
         (
             "frontend/baselines/baseline-phone-chromium/recipe-moderation-staff-review.png",
             "af1c56a128dfb5356eefd8aaba59a40706da1c8c",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/staff-tools-moderator-selected.png",
+            "3ba0eaa2da42f3ae24bc5ac0d9c056cc5b234ac4",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/staff-tools-normal.png",
+            "b5b2f9c5da837a33f9dad64e18933e15adb09a9d",
         ),
     ),
 )
@@ -852,6 +956,60 @@ def _reviewed_opaque_objects(policy: PackagingPolicy) -> dict[str, str]:
             raise PackagingError(f"Invalid opaque-file Git object ID: {path!r}.")
         opaque_objects[path] = object_id
     return opaque_objects
+
+
+def audit_opaque_policy(
+    repository: Path,
+    revision: str,
+    *,
+    policy: PackagingPolicy = EXPORT_POLICY,
+) -> dict[str, object]:
+    """Compare tracked PNG objects at one commit with the reviewed policy."""
+
+    root = _repository_root(repository.resolve(strict=True))
+    commit_sha = _resolve_commit(root, revision)
+    tree_entries = _list_tree(root, commit_sha, policy)
+    tracked_objects = {
+        entry.path: entry.object_id
+        for entry in tree_entries
+        if entry.path.endswith(".png")
+    }
+    reviewed_objects = _reviewed_opaque_objects(policy)
+
+    missing = [
+        {"path": path, "actual_object_id": tracked_objects[path]}
+        for path in sorted(tracked_objects.keys() - reviewed_objects.keys())
+    ]
+    mismatched = [
+        {
+            "path": path,
+            "reviewed_object_id": reviewed_objects[path],
+            "actual_object_id": tracked_objects[path],
+        }
+        for path in sorted(tracked_objects.keys() & reviewed_objects.keys())
+        if tracked_objects[path] != reviewed_objects[path]
+    ]
+    stale = [
+        {"path": path, "reviewed_object_id": reviewed_objects[path]}
+        for path in sorted(reviewed_objects.keys() - tracked_objects.keys())
+    ]
+    in_sync = not missing and not mismatched and not stale
+
+    return {
+        "commit_sha": commit_sha,
+        "counts": {
+            "tracked_pngs": len(tracked_objects),
+            "reviewed_entries": len(reviewed_objects),
+            "missing": len(missing),
+            "mismatched": len(mismatched),
+            "stale": len(stale),
+        },
+        "mismatched": mismatched,
+        "missing": missing,
+        "policy_version": POLICY_VERSION,
+        "result": "passed" if in_sync else "drift",
+        "stale": stale,
+    }
 
 
 def _read_sources(
@@ -1450,27 +1608,50 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output",
-        required=True,
         type=Path,
-        help="New .zip path outside the repository; no existing file is overwritten.",
+        help=(
+            "New .zip path outside the repository; required for packaging and "
+            "not accepted for an opaque-policy audit."
+        ),
+    )
+    parser.add_argument(
+        "--audit-opaque-policy",
+        action="store_true",
+        help=(
+            "Read the selected commit and report missing, mismatched, and stale "
+            "reviewed PNG entries without changing the policy."
+        ),
     )
     return parser
 
 
 def main(arguments: list[str] | None = None) -> int:
-    options = _parser().parse_args(arguments)
+    parser = _parser()
+    options = parser.parse_args(arguments)
+    if options.audit_opaque_policy and options.output is not None:
+        parser.error("--output cannot be used with --audit-opaque-policy")
+    if not options.audit_opaque_policy and options.output is None:
+        parser.error("--output is required unless --audit-opaque-policy is used")
+    operation = (
+        "Opaque policy audit" if options.audit_opaque_policy else "Safe source export"
+    )
     try:
-        report = package_source(Path.cwd(), options.revision, options.output)
+        if options.audit_opaque_policy:
+            report = audit_opaque_policy(Path.cwd(), options.revision)
+        else:
+            report = package_source(Path.cwd(), options.revision, options.output)
     except PackagingError as error:
-        print(f"Safe source export failed: {error}", file=sys.stderr)
+        print(f"{operation} failed: {error}", file=sys.stderr)
         return 1
     except Exception:
         print(
-            "Safe source export failed because an internal check could not be completed.",
+            f"{operation} failed because an internal check could not be completed.",
             file=sys.stderr,
         )
         return 1
     print(json.dumps(report, indent=2, sort_keys=True))
+    if options.audit_opaque_policy and report["result"] != "passed":
+        return 1
     return 0
 
 

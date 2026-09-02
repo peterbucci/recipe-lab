@@ -28,6 +28,9 @@ frontend/next-env.d.ts
 ml/snapshots/
 ml/reports/
 
+# Disposable local review screenshots and other generated evidence
+/artifacts/
+
 # Editors and operating systems
 .idea/
 .vscode/
