@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -23,14 +23,7 @@ from app.models import (
     RecipeDraftIngredient,
     RecipeDraftInstructionAction,
     RecipeDraftInstructionActionMeasure,
-    RecipeIngredient,
-    RecipeInstruction,
-    RecipeInstructionAction,
-    RecipeInstructionActionInput,
-    RecipeInstructionActionMeasure,
-    RecipeLineage,
     RecipeVersion,
-    RecipeVersionCategory,
     RecipeVersionPublication,
 )
 from app.policies.recipe_visibility import publicly_readable_recipe_version_filter
@@ -74,6 +67,18 @@ from app.services.recipe_fingerprints import (
     StructuralMeasure,
     build_structural_fingerprint,
 )
+from app.services.recipe_publication_snapshots import (
+    RecipeForkSourceUnavailableError as RecipeForkSourceUnavailableError,
+)
+from app.services.recipe_publication_snapshots import (
+    copy_recipe_version_action_inputs,
+    copy_recipe_version_action_measures,
+    copy_recipe_version_actions,
+    copy_recipe_version_categories,
+    copy_recipe_version_ingredients,
+    copy_recipe_version_instructions,
+    create_recipe_version_identity,
+)
 
 CURRENT_COMMUNITY_RULES_VERSION = "community-rules-v1"
 
@@ -92,10 +97,6 @@ class InvalidRecipeDraftPublicationError(ValueError):
 
 class InvalidOriginalRecipePublicationError(InvalidRecipeDraftPublicationError):
     """Preserve the RCP-27 error contract for invalid source-less drafts."""
-
-
-class RecipeForkSourceUnavailableError(RuntimeError):
-    """Raised when a source-backed draft's immutable public parent is unavailable."""
 
 
 class RecipePublicationIdempotencyConflictError(RuntimeError):
@@ -542,162 +543,44 @@ def _copy_draft_snapshot(
     draft: RecipeDraft,
     author_user_id: UUID,
 ) -> RecipeVersion:
-    source_version_id = draft.source_version_id
-    parent_version_id: UUID | None = None
-    if source_version_id is None:
-        lineage = RecipeLineage(created_by_user_id=author_user_id)
-        session.add(lineage)
-        session.flush()
-        lineage_id = lineage.id
-        version_number = 1
-    else:
-        source_lineage_id = session.scalar(
-            select(RecipeVersion.lineage_id).where(
-                RecipeVersion.id == source_version_id,
-                publicly_readable_recipe_version_filter(),
-            )
-        )
-        if source_lineage_id is None:
-            raise RecipeForkSourceUnavailableError(
-                "The public source recipe is no longer available."
-            )
-        locked_lineage_id = session.scalar(
-            select(RecipeLineage.id).where(RecipeLineage.id == source_lineage_id).with_for_update()
-        )
-        if locked_lineage_id is None:
-            raise RecipeForkSourceUnavailableError(
-                "The public source recipe is no longer available."
-            )
-        confirmed_lineage_id = session.scalar(
-            select(RecipeVersion.lineage_id).where(
-                RecipeVersion.id == source_version_id,
-                RecipeVersion.lineage_id == locked_lineage_id,
-                publicly_readable_recipe_version_filter(),
-            )
-        )
-        if confirmed_lineage_id != locked_lineage_id:
-            raise RecipeForkSourceUnavailableError(
-                "The public source recipe is no longer available."
-            )
-        highest_version = session.scalar(
-            select(func.max(RecipeVersion.version_number)).where(
-                RecipeVersion.lineage_id == locked_lineage_id
-            )
-        )
-        lineage_id = locked_lineage_id
-        parent_version_id = source_version_id
-        version_number = (highest_version or 0) + 1
-
-    version = RecipeVersion(
-        lineage_id=lineage_id,
-        parent_version_id=parent_version_id,
-        created_by_user_id=author_user_id,
-        version_number=version_number,
-        title=draft.title,
-        description=draft.description,
-        servings=draft.servings,
-        total_time_minutes=draft.total_time_minutes,
-        active_time_minutes=draft.active_time_minutes,
-        difficulty=draft.difficulty,
-        notes=draft.notes,
+    version = create_recipe_version_identity(
+        session,
+        draft=draft,
+        author_user_id=author_user_id,
     )
-    session.add(version)
-    session.flush()
-
-    session.add_all(
-        [
-            RecipeVersionCategory(
-                recipe_version_id=version.id,
-                recipe_category_id=item.recipe_category_id,
-                category_name=item.category.name,
-                category_slug=item.category.slug,
-                display_order=item.display_order,
-            )
-            for item in draft.categories
-        ]
+    copy_recipe_version_categories(
+        session,
+        draft=draft,
+        recipe_version_id=version.id,
     )
-
-    ingredient_rows = [
-        RecipeIngredient(
-            recipe_version_id=version.id,
-            ingredient_id=item.ingredient_id,
-            name=item.name,
-            measure_mode=item.measure_mode,
-            quantity_min=item.quantity_min,
-            quantity_max=item.quantity_max,
-            measurement_unit_id=item.measurement_unit_id,
-            unit_display=item.unit_display,
-            package_size_id=item.package_size_id,
-            preparation_notes=item.preparation_notes,
-            display_order=item.display_order,
-        )
-        for item in draft.ingredients
-    ]
-    session.add_all(ingredient_rows)
-    session.flush()
-    ingredient_ids = {
-        draft_item.id: version_item.id
-        for draft_item, version_item in zip(draft.ingredients, ingredient_rows, strict=True)
-    }
-
-    instruction_rows = [
-        RecipeInstruction(
-            recipe_version_id=version.id,
-            title=item.title,
-            instruction=item.instruction,
-            display_order=item.display_order,
-        )
-        for item in draft.instructions
-    ]
-    session.add_all(instruction_rows)
-    session.flush()
-    for draft_instruction, version_instruction in zip(
-        draft.instructions,
-        instruction_rows,
-        strict=True,
-    ):
-        action_rows = [
-            RecipeInstructionAction(
-                recipe_version_id=version.id,
-                recipe_instruction_id=version_instruction.id,
-                action_type_id=action.action_type_id,
-                display_order=action.display_order,
-            )
-            for action in draft_instruction.actions
-        ]
-        session.add_all(action_rows)
-        session.flush()
-        for draft_action, version_action in zip(
-            draft_instruction.actions,
-            action_rows,
-            strict=True,
-        ):
-            session.add_all(
-                [
-                    RecipeInstructionActionInput(
-                        recipe_version_id=version.id,
-                        recipe_instruction_action_id=version_action.id,
-                        recipe_ingredient_id=ingredient_ids[draft_input.recipe_draft_ingredient_id],
-                        display_order=draft_input.display_order,
-                    )
-                    for draft_input in draft_action.inputs
-                ]
-            )
-            session.add_all(
-                [
-                    RecipeInstructionActionMeasure(
-                        recipe_instruction_action_id=version_action.id,
-                        semantic=measure.semantic,
-                        measure_mode=measure.measure_mode,
-                        quantity_min=measure.quantity_min,
-                        quantity_max=measure.quantity_max,
-                        measurement_unit_id=measure.measurement_unit_id,
-                        unit_display=measure.unit_display,
-                    )
-                    for measure in draft_action.measures
-                ]
-            )
-    session.flush()
+    ingredient_ids = copy_recipe_version_ingredients(
+        session,
+        draft=draft,
+        recipe_version_id=version.id,
+    )
+    instruction_ids = copy_recipe_version_instructions(
+        session,
+        draft=draft,
+        recipe_version_id=version.id,
+    )
+    action_ids = copy_recipe_version_actions(
+        session,
+        draft=draft,
+        recipe_version_id=version.id,
+        instruction_ids=instruction_ids,
+    )
+    copy_recipe_version_action_inputs(
+        session,
+        draft=draft,
+        recipe_version_id=version.id,
+        action_ids=action_ids,
+        ingredient_ids=ingredient_ids,
+    )
+    copy_recipe_version_action_measures(
+        session,
+        draft=draft,
+        action_ids=action_ids,
+    )
     return version
 
 
