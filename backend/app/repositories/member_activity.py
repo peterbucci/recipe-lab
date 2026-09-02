@@ -119,7 +119,7 @@ def _member_activity_source(actor_user_id: UUID) -> Any:
             RecipeVersionPublication,
             RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
         )
-        .where(RecipeVersion.created_by_user_id == actor_user_id)
+        .where(RecipeVersionPublication.actor_user_id == actor_user_id)
     )
     saved_activity = (
         select(

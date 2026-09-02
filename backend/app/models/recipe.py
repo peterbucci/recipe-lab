@@ -293,7 +293,12 @@ class RecipeVersionPublication(Base):
             name="uq_recipe_version_publications_actor_action",
         ),
         Index("ix_recipe_version_publications_state_version", "state", "recipe_version_id"),
-        Index("ix_recipe_version_publications_actor_published", "actor_user_id", "published_at"),
+        Index(
+            "ix_recipe_version_publications_actor_published",
+            "actor_user_id",
+            "published_at",
+            "recipe_version_id",
+        ),
     )
 
     recipe_version_id: Mapped[UUID] = mapped_column(

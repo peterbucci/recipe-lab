@@ -175,6 +175,13 @@ class IngredientCatalogRequest(
             "status",
             "created_at",
         ),
+        Index(
+            "ix_ingredient_catalog_requests_requester_reviewed_id",
+            "requester_user_id",
+            "reviewed_at",
+            "id",
+            postgresql_where=text("reviewed_at IS NOT NULL"),
+        ),
     )
 
     requester: Mapped["User"] = relationship(foreign_keys=[requester_user_id])
