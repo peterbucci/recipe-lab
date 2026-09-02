@@ -10,9 +10,8 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.orm import Session
 
-from app.services.recipe_fingerprint_persistence import (
+from migrations.frozen.recipe_fingerprint_backfill_0011 import (
     backfill_all_recipe_structural_fingerprints,
 )
 
@@ -64,15 +63,8 @@ def _create_fingerprint_table() -> None:
 def upgrade() -> None:
     _create_fingerprint_table()
     connection = op.get_bind()
-    with (
-        Session(
-            bind=connection,
-            expire_on_commit=False,
-            join_transaction_mode="create_savepoint",
-        ) as session,
-        session.begin(),
-    ):
-        backfill_all_recipe_structural_fingerprints(session)
+    with connection.begin_nested():
+        backfill_all_recipe_structural_fingerprints(connection)
 
 
 def downgrade() -> None:

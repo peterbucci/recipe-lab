@@ -13,13 +13,15 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import Connection
 
-from app.measurement_audit import (
+from migrations.frozen.catalog_20260824 import (
+    load_frozen_measurement_catalog,
+    measurement_uuid,
+)
+from migrations.frozen.measurement_audit_0009 import (
     INGREDIENT_MEASUREMENT_DIMENSIONS,
     bounded_migration_failure,
     build_legacy_measurement_audit,
 )
-from app.seeds.catalog import load_bundled_catalog
-from app.seeds.identifiers import measurement_uuid
 
 revision: str = "20260824_0009"
 down_revision: str | None = "20260824_0008"
@@ -330,7 +332,7 @@ def _create_measurement_tables() -> None:
 
 
 def _seed_measurement_catalog() -> None:
-    catalog = load_bundled_catalog().measurement_catalog
+    catalog = load_frozen_measurement_catalog()
     created_at = catalog.metadata.published_at
     units = sa.table(
         "measurement_units",
@@ -455,7 +457,7 @@ def _migrate_recipe_ingredients() -> None:
     )
 
     connection = op.get_bind()
-    catalog = load_bundled_catalog().measurement_catalog
+    catalog = load_frozen_measurement_catalog()
     for unit in catalog.units:
         if unit.dimension not in INGREDIENT_MEASUREMENT_DIMENSIONS:
             continue
@@ -561,7 +563,7 @@ def upgrade() -> None:
 def _require_reconstructable_measurement_catalog(connection: Connection) -> None:
     """Refuse a downgrade that would discard reviewed post-migration metadata."""
 
-    catalog = load_bundled_catalog().measurement_catalog
+    catalog = load_frozen_measurement_catalog()
     expected_units = {
         (
             measurement_uuid("unit", unit.key),
@@ -654,7 +656,7 @@ def _require_lossless_legacy_unit_snapshots(connection: Connection) -> None:
     """Verify every exact row's retained text preserves its curated identity."""
 
     token_owners: dict[str, set[UUID]] = {}
-    for unit in load_bundled_catalog().measurement_catalog.units:
+    for unit in load_frozen_measurement_catalog().units:
         unit_id = measurement_uuid("unit", unit.key)
         tokens = {
             unit.key,
