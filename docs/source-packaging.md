@@ -38,7 +38,7 @@ of truth for both allowlists and resource bounds. Its SHA-256 fingerprint and
 the active limits are recorded in every manifest. Changing the policy requires
 code review and its tests run in CI.
 
-The version 3 bounds are:
+The version 4 bounds are:
 
 | Bound | Limit |
 | --- | ---: |
@@ -62,6 +62,22 @@ and the corresponding `reviewed_opaque_git_objects` entry are reviewed. This is
 intentional: accepting a screenshot change and authorizing that binary for a
 source package are one review decision, not an automatic side effect of running
 Playwright.
+
+### Auditing the opaque-file policy
+
+Use the read-only audit before packaging or after a reviewed baseline update:
+
+```powershell
+python scripts/package_source.py --ref HEAD --audit-opaque-policy
+```
+
+The JSON report compares the tracked PNG objects in the selected commit with
+the manual policy and lists every missing path, mismatched object ID, and stale
+policy entry. It exits nonzero when any drift exists. The audit reads Git
+objects rather than working-tree files, does not require a clean checkout, and
+never updates the policy. After visually reviewing an intentional PNG change,
+copy the reported object ID into `reviewed_opaque_git_objects` by hand and have
+that policy edit reviewed with the image.
 
 The command rejects rather than silently omits:
 
@@ -133,3 +149,8 @@ baseline in `docs/baselines/` is UTF-8 JSON and therefore receives both normal
 secret-scan passes rather than opaque treatment. See
 [deterministic regression baselines](regression-baselines.md) for the visual and
 performance review workflow.
+
+Disposable screenshots produced during local review belong under the root
+`artifacts/` directory. That directory is ignored by Git and rejected by the
+source exporter; do not move its files into the reviewed opaque policy. Delete
+local artifacts when the review is complete.

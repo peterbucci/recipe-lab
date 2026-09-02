@@ -281,6 +281,9 @@ jobs:
       - name: Test fail-closed source packaging
         run: python -m unittest discover -s scripts/tests -p "test_*.py"
 
+      - name: Audit reviewed opaque source objects
+        run: python scripts/package_source.py --ref "$GITHUB_SHA" --audit-opaque-policy
+
       - name: Verify deterministic committed-source output
         shell: bash
         run: |

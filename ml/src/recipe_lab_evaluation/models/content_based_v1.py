@@ -9,6 +9,7 @@ from uuid import UUID
 
 from ..dataset import SnapshotEvent, SnapshotRecipe
 from ..protocol import ModelMetadata, ModelTrainingData
+from ._ranking import validate_ranking_request
 
 CONTENT_MODEL_ID = "content-v1"
 
@@ -184,17 +185,11 @@ class _FittedContentBasedV1:
         candidate_ids: tuple[UUID, ...],
         limit: int,
     ) -> tuple[UUID, ...]:
-        if (
-            isinstance(limit, bool)
-            or not isinstance(limit, int)
-            or not 0 <= limit <= len(candidate_ids)
-        ):
-            raise ValueError("limit must be between zero and the candidate count")
-        if len(candidate_ids) != len(set(candidate_ids)):
-            raise ValueError("candidate_ids must not contain duplicates")
-        unknown = frozenset(candidate_ids) - self.features_by_recipe.keys()
-        if unknown:
-            raise ValueError("candidate_ids contains a recipe outside the fitted catalog")
+        validate_ranking_request(
+            candidate_ids=candidate_ids,
+            limit=limit,
+            fitted_recipe_ids=self.features_by_recipe.keys(),
+        )
 
         profile = self.signals_by_user.get(user_id, ())
         scored = [

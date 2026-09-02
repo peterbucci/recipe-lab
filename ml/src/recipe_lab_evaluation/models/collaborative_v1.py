@@ -10,6 +10,7 @@ from uuid import UUID
 
 from ..dataset import SnapshotEvent, SnapshotRecipe, canonical_json
 from ..protocol import FittedEvaluationModel, JsonScalar, ModelMetadata, ModelTrainingData
+from ._ranking import validate_ranking_request
 from .content_based_v1 import (
     CONTENT_MODEL_ID,
     FORK_SIGNAL_WEIGHT,
@@ -208,6 +209,7 @@ class _FittedCollaborativeV1:
     artifact_metadata: CollaborativeArtifactMetadata
     signals_by_user: Mapping[UUID, Mapping[UUID, int]]
     profiles_by_recipe: Mapping[UUID, tuple[UUID, ...]]
+    fitted_recipe_ids: frozenset[UUID]
     fallback: FittedEvaluationModel
 
     @property
@@ -239,14 +241,12 @@ class _FittedCollaborativeV1:
         candidate_ids: tuple[UUID, ...],
         limit: int,
     ) -> tuple[UUID, ...]:
-        if (
-            isinstance(limit, bool)
-            or not isinstance(limit, int)
-            or not 0 <= limit <= len(candidate_ids)
-        ):
-            raise ValueError("limit must be between zero and the candidate count")
-        # The content model owns the common candidate/limit validation and gives
-        # every candidate a deterministic fallback position.
+        validate_ranking_request(
+            candidate_ids=candidate_ids,
+            limit=limit,
+            fitted_recipe_ids=self.fitted_recipe_ids,
+        )
+        # The content model gives every candidate a deterministic fallback position.
         fallback_ranking = tuple(
             self.fallback.rank(
                 user_id=user_id,
@@ -389,6 +389,7 @@ class CollaborativeV1Model:
             artifact_metadata=artifact_metadata,
             signals_by_user=signals_by_user,
             profiles_by_recipe=profiles_by_recipe,
+            fitted_recipe_ids=frozenset(recipe.id for recipe in training.recipes),
             fallback=fallback,
         )
 

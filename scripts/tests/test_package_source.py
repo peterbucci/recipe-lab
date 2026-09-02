@@ -11,7 +11,7 @@ import sys
 import tempfile
 from typing import Any, cast
 import unittest
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 import zipfile
 
@@ -151,7 +151,7 @@ class SuccessfulPackageTests(SourcePackageTestCase):
         self.assertEqual(scanner["result"], "passed")
         self.assertRegex(scanner["sha256"], r"^[0-9a-f]{64}$")
         policy_report = cast(dict[str, Any], report["policy"])
-        self.assertEqual(policy_report["version"], 3)
+        self.assertEqual(policy_report["version"], 4)
         self.assertRegex(policy_report["sha256"], r"^[0-9a-f]{64}$")
         archive_report = cast(dict[str, Any], report["archive"])
         self.assertEqual(
@@ -674,48 +674,119 @@ class OpaquePngPolicyTests(SourcePackageTestCase):
             ),
         )
 
-    def test_every_workspace_png_matches_one_literal_policy_object(self) -> None:
+    def test_every_tracked_png_at_head_matches_one_literal_policy_object(self) -> None:
         repository = SCRIPT_PATH.parents[1]
-        listed = subprocess.run(
-            [
-                "git",
-                "ls-files",
-                "-z",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-                "--",
-                "*.png",
-            ],
-            cwd=repository,
-            check=True,
-            capture_output=True,
-        ).stdout
-        paths = sorted(
-            value.decode("utf-8") for value in listed.rstrip(b"\0").split(b"\0")
-        )
-        actual_objects = {
-            path: subprocess.run(
-                ["git", "hash-object", "--", path],
-                cwd=repository,
-                check=True,
-                capture_output=True,
-            )
-            .stdout.decode("ascii")
-            .strip()
-            for path in paths
-        }
         reviewed_entries = package_module.EXPORT_POLICY.reviewed_opaque_git_objects
         reviewed_objects = dict(reviewed_entries)
+        report = package_module.audit_opaque_policy(repository, "HEAD")
+        counts = cast(dict[str, int], report["counts"])
 
         self.assertEqual(len(reviewed_entries), len(reviewed_objects))
+        self.assertEqual(list(reviewed_objects), sorted(reviewed_objects))
         self.assertTrue(
             all(
                 not any(character in path for character in "*?[]{}")
                 for path in reviewed_objects
             )
         )
-        self.assertEqual(reviewed_objects, actual_objects)
+        self.assertEqual(report["result"], "passed")
+        self.assertEqual(report["missing"], [])
+        self.assertEqual(report["mismatched"], [])
+        self.assertEqual(report["stale"], [])
+        self.assertGreater(counts["tracked_pngs"], 0)
+        self.assertEqual(counts["tracked_pngs"], counts["reviewed_entries"])
+
+    def test_audit_reports_missing_mismatched_and_stale_entries(self) -> None:
+        exact_path = "frontend/baselines/exact.png"
+        mismatch_path = "frontend/baselines/mismatch.png"
+        missing_path = "frontend/baselines/missing.png"
+        for path in (exact_path, mismatch_path, missing_path):
+            self._write(path, b"\x89PNG\r\n\x1a\n" + path.encode("ascii"))
+        commit_sha = self._commit("add audit fixtures")
+        exact_object_id = (
+            self._git("rev-parse", f"{commit_sha}:{exact_path}")
+            .stdout.decode("ascii")
+            .strip()
+        )
+        mismatch_object_id = (
+            self._git("rev-parse", f"{commit_sha}:{mismatch_path}")
+            .stdout.decode("ascii")
+            .strip()
+        )
+        missing_object_id = (
+            self._git("rev-parse", f"{commit_sha}:{missing_path}")
+            .stdout.decode("ascii")
+            .strip()
+        )
+        stale_path = "frontend/baselines/stale.png"
+        policy = package_module.replace(
+            package_module.EXPORT_POLICY,
+            reviewed_opaque_git_objects=(
+                (exact_path, exact_object_id),
+                (mismatch_path, "a" * 40),
+                (stale_path, "b" * 40),
+            ),
+        )
+
+        report = package_module.audit_opaque_policy(
+            self.repository, commit_sha, policy=policy
+        )
+
+        self.assertEqual(report["result"], "drift")
+        self.assertEqual(
+            report["counts"],
+            {
+                "tracked_pngs": 3,
+                "reviewed_entries": 3,
+                "missing": 1,
+                "mismatched": 1,
+                "stale": 1,
+            },
+        )
+        self.assertEqual(
+            report["missing"],
+            [{"path": missing_path, "actual_object_id": missing_object_id}],
+        )
+        self.assertEqual(
+            report["mismatched"],
+            [
+                {
+                    "path": mismatch_path,
+                    "reviewed_object_id": "a" * 40,
+                    "actual_object_id": mismatch_object_id,
+                }
+            ],
+        )
+        self.assertEqual(
+            report["stale"],
+            [{"path": stale_path, "reviewed_object_id": "b" * 40}],
+        )
+
+    def test_audit_reads_only_the_selected_commit(self) -> None:
+        policy = package_module.replace(
+            package_module.EXPORT_POLICY, reviewed_opaque_git_objects=()
+        )
+        self._write("artifacts/local-screenshot.png", b"local disposable screenshot")
+        status_before = self._git("status", "--porcelain=v1").stdout
+
+        report = package_module.audit_opaque_policy(
+            self.repository, "HEAD", policy=policy
+        )
+
+        self.assertEqual(report["result"], "passed")
+        self.assertEqual(status_before, self._git("status", "--porcelain=v1").stdout)
+
+    def test_audit_cli_returns_nonzero_for_reported_drift(self) -> None:
+        report = {"result": "drift", "missing": [], "mismatched": [], "stale": []}
+        stdout = io.StringIO()
+        with mock.patch.object(
+            package_module, "audit_opaque_policy", return_value=report
+        ):
+            with redirect_stdout(stdout):
+                result = package_module.main(["--ref", "HEAD", "--audit-opaque-policy"])
+
+        self.assertEqual(result, 1)
+        self.assertEqual(json.loads(stdout.getvalue()), report)
 
     def test_unreviewed_png_is_rejected(self) -> None:
         self._write("frontend/baselines/unreviewed.png", b"\x89PNG\r\n\x1a\nnew")
