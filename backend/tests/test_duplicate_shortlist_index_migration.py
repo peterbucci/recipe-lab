@@ -33,14 +33,14 @@ def test_duplicate_shortlist_covering_index_matches_orm_metadata() -> None:
     assert indexes[_COVERING_INDEX].unique is False
 
 
-def test_duplicate_shortlist_index_migration_is_the_single_linear_head(
+def test_duplicate_shortlist_index_migration_remains_in_the_linear_history(
     alembic_config: Config,
 ) -> None:
     script = ScriptDirectory.from_config(alembic_config)
     revision = script.get_revision("20260902_0029")
 
-    assert script.get_heads() == ["20260902_0029"]
     assert revision.down_revision == "20260902_0028"
+    assert script.get_revision("20260902_0030").down_revision == "20260902_0029"
 
 
 def test_duplicate_shortlist_index_migration_upgrades_and_downgrades(

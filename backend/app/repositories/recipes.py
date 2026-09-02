@@ -79,7 +79,7 @@ def browse_recipe_versions(
         filters.append(
             or_(
                 RecipeVersion.title.ilike(pattern, escape=LIKE_ESCAPE),
-                func.coalesce(RecipeVersion.description, "").ilike(
+                RecipeVersion.description.ilike(
                     pattern,
                     escape=LIKE_ESCAPE,
                 ),

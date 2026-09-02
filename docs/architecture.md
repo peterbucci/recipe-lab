@@ -148,6 +148,16 @@ prevents records from moving between unchanged pages. Ingredient membership is
 tested with `EXISTS` so matching rows cannot duplicate recipes or inflate the
 count.
 
+Migration `20260902_0030` keeps those public browse semantics while indexing
+their growth paths. PostgreSQL's `pg_trgm` extension backs GIN indexes for the
+existing literal title and description substring search; the migration does
+not replace it with token search or fuzzy ranking. Stable publication-newest
+and moderation-queue indexes match their timestamp and UUID tie-breaks.
+Recommendation profile and interaction-exclusion reads use dedicated member
+and recipe composite indexes. Downgrade removes every Recipe Lab index but
+intentionally leaves the cluster-scoped `pg_trgm` extension installed because
+another schema may share it.
+
 Detail reads eager-load the scalar parent and select-load ordered ingredients,
 their curated measurement units, instructions, nested structured actions,
 action inputs and parameters, and direct children. This keeps the query count
