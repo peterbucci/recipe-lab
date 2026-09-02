@@ -2,15 +2,22 @@ import type { RecipeDraftDetail } from "./recipe-draft-api";
 import {
   recipeDraftFingerprint,
   type RecipeDraftEditorState,
+  type RecipeDraftIngredientState,
+  type RecipeDraftInstructionState,
 } from "./recipe-draft";
+import {
+  appendDraftIngredient,
+  appendDraftInstruction,
+  moveDraftIngredient,
+  moveDraftInstruction,
+  removeDraftIngredient,
+  removeDraftInstruction,
+  replaceDraftIngredient,
+  replaceDraftInstruction,
+} from "./recipe-draft-editor-transforms";
 
 export interface DraftSaveAttempt {
   fingerprint: string;
-  idempotencyKey: string;
-  revision: number;
-}
-
-export interface DraftDiscardAttempt {
   idempotencyKey: string;
   revision: number;
 }
@@ -36,24 +43,27 @@ export type DraftSaveSlice =
   | { newerLocalWork: boolean; status: "saved" }
   | { attempt: DraftSaveAttempt; status: DraftFailureKind };
 
-export type DraftDiscardOperation =
-  | { attempt: DraftDiscardAttempt | null; status: "idle" }
-  | { attempt: DraftDiscardAttempt; status: "discarding" }
-  | { attempt: DraftDiscardAttempt; status: DraftFailureKind };
-
-export interface DraftDiscardSlice {
-  confirmation: "hidden" | "visible";
-  operation: DraftDiscardOperation;
-}
-
 export type DraftEditorNotice = "loaded-latest" | "none";
 
+export interface DraftValidationSlice {
+  fieldErrors: Record<string, string>;
+  formError: string;
+}
+
 export interface RecipeDraftEditorDomainState {
-  discard: DraftDiscardSlice;
   notice: DraftEditorNotice;
   save: DraftSaveSlice;
+  validation: DraftValidationSlice;
   work: DraftWorkSlice;
 }
+
+type DraftTextField =
+  | "activeTimeMinutes"
+  | "description"
+  | "notes"
+  | "servings"
+  | "title"
+  | "totalTimeMinutes";
 
 export type RecipeDraftEditorEvent =
   | {
@@ -76,34 +86,48 @@ export type RecipeDraftEditorEvent =
       type: "save-failed";
     }
   | { type: "reload-skipped-newer-work" }
-  | { type: "discard-requested" }
-  | { type: "discard-canceled" }
-  | { attempt: DraftDiscardAttempt; type: "discard-started" }
+  | { field: DraftTextField; type: "text-field-changed"; value: string }
   | {
-      attemptId: string;
-      kind: DraftFailureKind;
-      type: "discard-failed";
-    };
+      type: "difficulty-changed";
+      value: RecipeDraftEditorState["difficulty"];
+    }
+  | {
+      categories: RecipeDraftEditorState["categories"];
+      type: "categories-changed";
+    }
+  | { ingredient: RecipeDraftIngredientState; type: "ingredient-added" }
+  | {
+      ingredient: RecipeDraftIngredientState;
+      key: string;
+      type: "ingredient-replaced";
+    }
+  | { index: number; type: "ingredient-removed" }
+  | { direction: -1 | 1; index: number; type: "ingredient-moved" }
+  | { instruction: RecipeDraftInstructionState; type: "instruction-added" }
+  | {
+      instruction: RecipeDraftInstructionState;
+      key: string;
+      type: "instruction-replaced";
+    }
+  | { index: number; type: "instruction-removed" }
+  | { direction: -1 | 1; index: number; type: "instruction-moved" }
+  | {
+      fieldErrors: Record<string, string>;
+      formError: string;
+      type: "validation-applied";
+    }
+  | { type: "validation-cleared" };
 
 export const initialRecipeDraftEditorDomainState: RecipeDraftEditorDomainState =
   {
-    discard: {
-      confirmation: "hidden",
-      operation: { attempt: null, status: "idle" },
-    },
     notice: "none",
     save: { attempt: null, status: "idle" },
+    validation: { fieldErrors: {}, formError: "" },
     work: { status: "unavailable" },
   };
 
 function saveAttempt(state: DraftSaveSlice): DraftSaveAttempt | null {
   return "attempt" in state ? state.attempt : null;
-}
-
-function discardAttempt(
-  state: DraftDiscardOperation,
-): DraftDiscardAttempt | null {
-  return state.attempt;
 }
 
 export function prepareDraftSaveAttempt(
@@ -128,24 +152,35 @@ export function prepareDraftSaveAttempt(
   };
 }
 
-export function prepareDraftDiscardAttempt(
-  state: RecipeDraftEditorDomainState,
-  input: { newIdempotencyKey: string; revision: number },
-): DraftDiscardAttempt {
-  const previous = discardAttempt(state.discard.operation);
-  if (previous?.revision === input.revision) {
-    return previous;
-  }
-  return {
-    idempotencyKey: input.newIdempotencyKey,
-    revision: input.revision,
-  };
-}
-
 export function recipeDraftEditorIsDirty(
   state: RecipeDraftEditorDomainState,
 ): boolean {
   return state.work.status === "dirty";
+}
+
+function changeDraft(
+  state: RecipeDraftEditorDomainState,
+  draft: RecipeDraftEditorState,
+): RecipeDraftEditorDomainState {
+  if (state.work.status === "unavailable" || state.work.draft === draft) {
+    return state;
+  }
+  const dirty =
+    recipeDraftFingerprint(draft) !== state.work.baselineFingerprint;
+  return {
+    ...state,
+    notice: "none",
+    save:
+      state.save.status === "saving"
+        ? state.save
+        : { attempt: saveAttempt(state.save), status: "idle" },
+    validation: { ...state.validation, formError: "" },
+    work: {
+      ...state.work,
+      draft,
+      status: dirty ? "dirty" : "clean",
+    },
+  };
 }
 
 export function recipeDraftEditorReducer(
@@ -155,12 +190,9 @@ export function recipeDraftEditorReducer(
   switch (event.type) {
     case "draft-loaded":
       return {
-        discard: {
-          confirmation: "hidden",
-          operation: { attempt: null, status: "idle" },
-        },
         notice: event.mode === "replacement" ? "loaded-latest" : "none",
         save: { attempt: saveAttempt(state.save), status: "idle" },
+        validation: { fieldErrors: {}, formError: "" },
         work: {
           baselineFingerprint: recipeDraftFingerprint(event.draft),
           detail: event.detail,
@@ -170,43 +202,117 @@ export function recipeDraftEditorReducer(
       };
 
     case "draft-changed": {
-      if (state.work.status === "unavailable") return state;
-      const dirty =
-        recipeDraftFingerprint(event.draft) !== state.work.baselineFingerprint;
-      const operation = state.discard.operation;
-      return {
-        ...state,
-        discard: {
-          ...state.discard,
-          operation:
-            operation.status === "idle" || operation.status === "discarding"
-              ? operation
-              : { attempt: operation.attempt, status: "idle" },
-        },
-        notice: "none",
-        save:
-          state.save.status === "saving"
-            ? state.save
-            : { attempt: saveAttempt(state.save), status: "idle" },
-        work: {
-          ...state.work,
-          draft: event.draft,
-          status: dirty ? "dirty" : "clean",
-        },
-      };
+      return changeDraft(state, event.draft);
     }
+
+    case "text-field-changed":
+      return state.work.status === "unavailable"
+        ? state
+        : changeDraft(state, {
+            ...state.work.draft,
+            [event.field]: event.value,
+          });
+
+    case "difficulty-changed":
+      return state.work.status === "unavailable"
+        ? state
+        : changeDraft(state, {
+            ...state.work.draft,
+            difficulty: event.value,
+          });
+
+    case "categories-changed":
+      return state.work.status === "unavailable"
+        ? state
+        : changeDraft(state, {
+            ...state.work.draft,
+            categories: event.categories,
+          });
+
+    case "ingredient-added":
+      return state.work.status === "unavailable"
+        ? state
+        : changeDraft(
+            state,
+            appendDraftIngredient(state.work.draft, event.ingredient),
+          );
+
+    case "ingredient-replaced":
+      return state.work.status === "unavailable"
+        ? state
+        : changeDraft(
+            state,
+            replaceDraftIngredient(
+              state.work.draft,
+              event.key,
+              event.ingredient,
+            ),
+          );
+
+    case "ingredient-removed":
+      return state.work.status === "unavailable"
+        ? state
+        : changeDraft(
+            state,
+            removeDraftIngredient(state.work.draft, event.index),
+          );
+
+    case "ingredient-moved":
+      return state.work.status === "unavailable"
+        ? state
+        : changeDraft(
+            state,
+            moveDraftIngredient(
+              state.work.draft,
+              event.index,
+              event.direction,
+            ),
+          );
+
+    case "instruction-added":
+      return state.work.status === "unavailable"
+        ? state
+        : changeDraft(
+            state,
+            appendDraftInstruction(state.work.draft, event.instruction),
+          );
+
+    case "instruction-replaced":
+      return state.work.status === "unavailable"
+        ? state
+        : changeDraft(
+            state,
+            replaceDraftInstruction(
+              state.work.draft,
+              event.key,
+              event.instruction,
+            ),
+          );
+
+    case "instruction-removed":
+      return state.work.status === "unavailable"
+        ? state
+        : changeDraft(
+            state,
+            removeDraftInstruction(state.work.draft, event.index),
+          );
+
+    case "instruction-moved":
+      return state.work.status === "unavailable"
+        ? state
+        : changeDraft(
+            state,
+            moveDraftInstruction(
+              state.work.draft,
+              event.index,
+              event.direction,
+            ),
+          );
 
     case "save-started":
       if (state.work.status === "unavailable") return state;
       return {
         ...state,
-        discard: {
-          ...state.discard,
-          operation: {
-            attempt: discardAttempt(state.discard.operation),
-            status: "idle",
-          },
-        },
         notice: "none",
         save: { attempt: event.attempt, status: "saving" },
       };
@@ -227,6 +333,7 @@ export function recipeDraftEditorReducer(
         ...state,
         notice: "none",
         save: { newerLocalWork: hasNewerLocalWork, status: "saved" },
+        validation: { fieldErrors: {}, formError: "" },
         work: {
           baselineFingerprint: savedFingerprint,
           detail: event.detail,
@@ -252,43 +359,19 @@ export function recipeDraftEditorReducer(
     case "reload-skipped-newer-work":
       return { ...state, notice: "none" };
 
-    case "discard-requested":
+    case "validation-applied":
       return {
         ...state,
-        discard: { ...state.discard, confirmation: "visible" },
-      };
-
-    case "discard-canceled":
-      return {
-        ...state,
-        discard: { ...state.discard, confirmation: "hidden" },
-      };
-
-    case "discard-started":
-      return {
-        ...state,
-        discard: {
-          confirmation: "visible",
-          operation: { attempt: event.attempt, status: "discarding" },
-        },
-        save: { attempt: saveAttempt(state.save), status: "idle" },
-      };
-
-    case "discard-failed": {
-      const operation = state.discard.operation;
-      if (
-        operation.status !== "discarding" ||
-        operation.attempt.idempotencyKey !== event.attemptId
-      ) {
-        return state;
-      }
-      return {
-        ...state,
-        discard: {
-          confirmation: "visible",
-          operation: { attempt: operation.attempt, status: event.kind },
+        validation: {
+          fieldErrors: event.fieldErrors,
+          formError: event.formError,
         },
       };
-    }
+
+    case "validation-cleared":
+      return {
+        ...state,
+        validation: { fieldErrors: {}, formError: "" },
+      };
   }
 }
