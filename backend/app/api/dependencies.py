@@ -49,6 +49,7 @@ def get_optional_authenticated_session(
         session,
         raw_session_token=raw_session_token,
         now=utc_now(),
+        touch_interval_seconds=settings.auth_session_touch_interval_seconds,
     )
 
 
