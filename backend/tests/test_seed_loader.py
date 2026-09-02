@@ -11,7 +11,7 @@ from sqlalchemy import Engine, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.catalog_names import normalize_catalog_name
+from app.catalog_names import catalog_name_digest, normalize_catalog_name
 from app.core.demo_identity import (
     DEMO_USER_DISPLAY_NAME,
     DEMO_USER_EMAIL,
@@ -28,6 +28,7 @@ from app.models import (
     Ingredient,
     IngredientAlias,
     IngredientCatalogAuditEvent,
+    IngredientCatalogName,
     IngredientCatalogRequest,
     IngredientSubstitution,
     MeasurementConversionRule,
@@ -65,6 +66,7 @@ SEEDED_TABLE_COUNTS = {
     "cooking_action_types": 54,
     "dietary_flags": 3,
     "ingredient_aliases": 15,
+    "ingredient_catalog_names": 114,
     "ingredient_allergens": 26,
     "ingredient_categories": 14,
     "ingredient_dietary_flags": 243,
@@ -105,19 +107,20 @@ def seed_engine(
     yield empty_postgres_engine
 
 
-def test_seed_loader_remains_compatible_with_the_pre_category_upgrade_schema(
+def test_seed_loader_remains_compatible_with_the_pre_namespace_schema(
     empty_postgres_engine: Engine,
     alembic_config: Config,
 ) -> None:
     catalog = load_bundled_catalog()
     with empty_postgres_engine.begin() as connection:
         alembic_config.attributes["connection"] = connection
-        command.upgrade(alembic_config, "20260827_0019")
+        command.upgrade(alembic_config, "20260902_0027")
 
     with Session(empty_postgres_engine) as session, session.begin():
         legacy_report = seed_catalog(session, catalog)
-    assert legacy_report.created["recipe_categories"] == 0
-    assert legacy_report.created["recipe_version_categories"] == 0
+    assert legacy_report.created["ingredients"] == 99
+    assert legacy_report.created["ingredient_aliases"] == 15
+    assert legacy_report.created["ingredient_catalog_names"] == 0
 
     with empty_postgres_engine.begin() as connection:
         alembic_config.attributes["connection"] = connection
@@ -125,8 +128,8 @@ def test_seed_loader_remains_compatible_with_the_pre_category_upgrade_schema(
 
     with Session(empty_postgres_engine) as session, session.begin():
         upgraded_report = seed_catalog(session, catalog)
-    assert upgraded_report.reused["recipe_categories"] == 7
-    assert upgraded_report.reused["recipe_version_categories"] == 82
+    assert upgraded_report.created_total == 0
+    assert upgraded_report.reused["ingredient_catalog_names"] == 114
 
 
 def database_snapshot(session: Session) -> DatabaseSnapshot:
@@ -187,6 +190,12 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
 
     with Session(seed_engine) as session:
         assert table_counts(session) == SEEDED_TABLE_COUNTS
+        catalog_names = list(session.scalars(select(IngredientCatalogName)))
+        assert len(catalog_names) == 114
+        assert all(
+            catalog_name.normalized_name_digest == catalog_name_digest(catalog_name.normalized_name)
+            for catalog_name in catalog_names
+        )
 
         gram = session.get(MeasurementUnit, measurement_uuid("unit", "g"))
         grams_alias = session.get(
@@ -734,6 +743,14 @@ def test_seed_and_runtime_review_serialize_the_normalized_name_namespace(
         assert len(chickpeas) == 1
         assert len(garbanzo_aliases) == 1
         assert garbanzo_aliases[0].ingredient_id == chickpeas[0].id
+        namespace_rows = list(
+            session.scalars(
+                select(IngredientCatalogName).where(
+                    IngredientCatalogName.normalized_name.in_(["chickpea", "garbanzo beans"])
+                )
+            )
+        )
+        assert len(namespace_rows) == 2
         assert stored_request is not None
         if "approved" in outcomes:
             assert stored_request.status == CATALOG_REQUEST_APPROVED
