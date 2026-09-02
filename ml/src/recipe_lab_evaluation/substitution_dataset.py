@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -10,6 +9,12 @@ from typing import cast
 from uuid import UUID
 
 from .dataset import canonical_json
+from .json_codec import (
+    JsonCodecError,
+    JsonDocumentLimits,
+    decode_json_document,
+    load_json_document,
+)
 from .substitution_rules import (
     CuratedSubstitution,
     SubstitutionCatalog,
@@ -22,6 +27,11 @@ from .substitution_rules import (
 
 SUBSTITUTION_BENCHMARK_SCHEMA_VERSION = "recipe-lab-substitution-benchmark-v1"
 _CASE_ID_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+_SUBSTITUTION_JSON_LIMITS = JsonDocumentLimits(
+    maximum_utf8_bytes=32 * 1024 * 1024,
+    maximum_depth=32,
+    maximum_nodes=1_000_000,
+)
 
 
 class SubstitutionBenchmarkError(ValueError):
@@ -53,15 +63,6 @@ class SubstitutionBenchmark:
     catalog: SubstitutionCatalog
     cases: tuple[SubstitutionBenchmarkCase, ...]
     sha256: str
-
-
-def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise SubstitutionBenchmarkError("substitution benchmark contains a duplicate JSON key")
-        result[key] = value
-    return result
 
 
 def _object(value: object, *, path: str) -> dict[str, object]:
@@ -507,11 +508,7 @@ def _validate_benchmark(benchmark: SubstitutionBenchmark) -> None:
                 )
 
 
-def parse_substitution_benchmark_json(text: str) -> SubstitutionBenchmark:
-    try:
-        raw = json.loads(text, object_pairs_hook=_reject_duplicate_keys)
-    except json.JSONDecodeError as error:
-        raise SubstitutionBenchmarkError(f"invalid JSON: {error.msg}") from error
+def _parse_substitution_benchmark_document(raw: object) -> SubstitutionBenchmark:
     document = _object(raw, path="benchmark")
     _exact_keys(document, expected=_TOP_LEVEL_KEYS, path="benchmark")
     schema_version = _string(document["schema_version"], path="schema_version")
@@ -548,12 +545,34 @@ def parse_substitution_benchmark_json(text: str) -> SubstitutionBenchmark:
     return benchmark
 
 
+def _substitution_codec_error(error: JsonCodecError) -> SubstitutionBenchmarkError:
+    if str(error).startswith("duplicate JSON key:"):
+        return SubstitutionBenchmarkError("substitution benchmark contains a duplicate JSON key")
+    return SubstitutionBenchmarkError(str(error))
+
+
+def parse_substitution_benchmark_json(text: str) -> SubstitutionBenchmark:
+    try:
+        raw = decode_json_document(
+            text,
+            limits=_SUBSTITUTION_JSON_LIMITS,
+            document_name="substitution benchmark",
+        )
+    except JsonCodecError as error:
+        raise _substitution_codec_error(error) from error
+    return _parse_substitution_benchmark_document(raw)
+
+
 def load_substitution_benchmark(path: str | Path) -> SubstitutionBenchmark:
     try:
-        text = Path(path).read_text(encoding="utf-8")
-    except UnicodeError as error:
-        raise SubstitutionBenchmarkError("substitution benchmark must be valid UTF-8") from error
-    return parse_substitution_benchmark_json(text)
+        raw = load_json_document(
+            path,
+            limits=_SUBSTITUTION_JSON_LIMITS,
+            document_name="substitution benchmark",
+        )
+    except JsonCodecError as error:
+        raise _substitution_codec_error(error) from error
+    return _parse_substitution_benchmark_document(raw)
 
 
 def substitution_benchmark_to_json(benchmark: SubstitutionBenchmark) -> str:

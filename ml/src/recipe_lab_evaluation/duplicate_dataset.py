@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -33,8 +32,19 @@ from app.services.recipe_fingerprints import (
 )
 
 from .dataset import canonical_json
+from .json_codec import (
+    JsonCodecError,
+    JsonDocumentLimits,
+    decode_json_document,
+    load_json_document,
+)
 
 DUPLICATE_BENCHMARK_SCHEMA_VERSION = "recipe-lab-duplicate-evaluation-fixture-v1"
+_DUPLICATE_JSON_LIMITS = JsonDocumentLimits(
+    maximum_utf8_bytes=32 * 1024 * 1024,
+    maximum_depth=32,
+    maximum_nodes=1_000_000,
+)
 
 type DuplicateBenchmarkCategory = Literal[
     "action_change",
@@ -219,15 +229,6 @@ _REASON_CODE_SET = frozenset(
     | QUANTITY_DUPLICATE_REASON_CODES
     | ACTION_DUPLICATE_REASON_CODES
 )
-
-
-def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise DuplicateBenchmarkError("duplicate benchmark contains a duplicate JSON key")
-        result[key] = value
-    return result
 
 
 def _object(value: object, *, path: str) -> dict[str, object]:
@@ -1012,11 +1013,7 @@ def _validate_benchmark(benchmark: DuplicateBenchmark) -> None:
         raise DuplicateBenchmarkError("benchmark must label exact, probable, and distinct cases")
 
 
-def parse_duplicate_benchmark_json(text: str) -> DuplicateBenchmark:
-    try:
-        raw = json.loads(text, object_pairs_hook=_reject_duplicate_keys)
-    except json.JSONDecodeError as error:
-        raise DuplicateBenchmarkError(f"invalid JSON: {error.msg}") from error
+def _parse_duplicate_benchmark_document(raw: object) -> DuplicateBenchmark:
     document = _object(raw, path="benchmark")
     _exact_keys(document, expected=_TOP_LEVEL_KEYS, path="benchmark")
     benchmark = DuplicateBenchmark(
@@ -1043,8 +1040,34 @@ def parse_duplicate_benchmark_json(text: str) -> DuplicateBenchmark:
     )
 
 
-def load_duplicate_benchmark(path: Path) -> DuplicateBenchmark:
-    return parse_duplicate_benchmark_json(path.read_text(encoding="utf-8"))
+def _duplicate_codec_error(error: JsonCodecError) -> DuplicateBenchmarkError:
+    if str(error).startswith("duplicate JSON key:"):
+        return DuplicateBenchmarkError("duplicate benchmark contains a duplicate JSON key")
+    return DuplicateBenchmarkError(str(error))
+
+
+def parse_duplicate_benchmark_json(text: str) -> DuplicateBenchmark:
+    try:
+        raw = decode_json_document(
+            text,
+            limits=_DUPLICATE_JSON_LIMITS,
+            document_name="duplicate benchmark",
+        )
+    except JsonCodecError as error:
+        raise _duplicate_codec_error(error) from error
+    return _parse_duplicate_benchmark_document(raw)
+
+
+def load_duplicate_benchmark(path: str | Path) -> DuplicateBenchmark:
+    try:
+        raw = load_json_document(
+            path,
+            limits=_DUPLICATE_JSON_LIMITS,
+            document_name="duplicate benchmark",
+        )
+    except JsonCodecError as error:
+        raise _duplicate_codec_error(error) from error
+    return _parse_duplicate_benchmark_document(raw)
 
 
 def duplicate_benchmark_to_json(benchmark: DuplicateBenchmark) -> str:
