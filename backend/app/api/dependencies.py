@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import Depends, Header, Request
 from sqlalchemy.orm import Session
@@ -32,7 +32,7 @@ SettingsDependency = Annotated[Settings, Depends(get_settings)]
 def get_oidc_client(request: Request) -> OIDCClient:
     """Return the application-owned client so provider caches persist."""
 
-    return request.app.state.resources.oidc_client
+    return cast(OIDCClient, request.app.state.resources.oidc_client)
 
 
 OIDCClientDependency = Annotated[OIDCClient, Depends(get_oidc_client)]

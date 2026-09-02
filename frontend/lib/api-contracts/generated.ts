@@ -395,6 +395,26 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/my/activity": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List my recent account activity
+         * @description Returns one bounded, cursor-paginated page across active drafts, current recipe publications, saved recipes, and reviewed ingredient requests.
+         */
+        readonly get: operations["my_member_activity_api_my_activity_get"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/my/community-activity": {
         readonly parameters: {
             readonly query?: never;
@@ -407,6 +427,26 @@ export type paths = {
          * @description Returns publicly readable original recipes and new versions authored by active cooks the signed-in member currently follows, ordered by publication time.
          */
         readonly get: operations["my_community_activity_api_my_community_activity_get"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/my/dashboard": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Read my dashboard summary
+         * @description Returns the latest active draft, three recent activity items, and account totals in one bounded private read model.
+         */
+        readonly get: operations["my_member_dashboard_api_my_dashboard_get"];
         readonly put?: never;
         readonly post?: never;
         readonly delete?: never;
@@ -1415,6 +1455,51 @@ export type components = {
             /** Symbol */
             readonly symbol?: string | null;
         };
+        /** MemberActivityCounts */
+        readonly MemberActivityCounts: {
+            /** All */
+            readonly all: number;
+            /** Recipes */
+            readonly recipes: number;
+            /** Requests */
+            readonly requests: number;
+            /** Saved */
+            readonly saved: number;
+        };
+        /** @enum {string} */
+        readonly MemberActivityFilter: "all" | "recipes" | "saved" | "requests";
+        /** MemberActivityItem */
+        readonly MemberActivityItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            readonly id: string;
+            readonly kind: components["schemas"]["MemberActivityKind"];
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            readonly occurred_at: string;
+            readonly state?: components["schemas"]["MemberActivityState"] | null;
+            /** Title */
+            readonly title: string;
+        };
+        /** @enum {string} */
+        readonly MemberActivityKind: "draft" | "published" | "withdrawn" | "saved" | "ingredient-request";
+        /** @enum {string} */
+        readonly MemberActivityState: "published" | "author_withdrawn" | "moderation_hidden" | "approved" | "rejected" | "duplicate";
+        /** MemberDashboardStats */
+        readonly MemberDashboardStats: {
+            /** Active Drafts */
+            readonly active_drafts: number;
+            /** Followers */
+            readonly followers: number;
+            /** Saved Recipes */
+            readonly saved_recipes: number;
+            /** Versions Published */
+            readonly versions_published: number;
+        };
         /** MemberIngredientCatalogRequestResponse */
         readonly MemberIngredientCatalogRequestResponse: {
             /** Context */
@@ -1496,6 +1581,22 @@ export type components = {
             readonly follower_count: number;
             /** Following Count */
             readonly following_count: number;
+        };
+        /** MyMemberActivityResponse */
+        readonly MyMemberActivityResponse: {
+            readonly counts: components["schemas"]["MemberActivityCounts"];
+            /** Items */
+            readonly items: readonly components["schemas"]["MemberActivityItem"][];
+            /** Next Cursor */
+            readonly next_cursor: string | null;
+            readonly selected_filter: components["schemas"]["MemberActivityFilter"];
+        };
+        /** MyMemberDashboardResponse */
+        readonly MyMemberDashboardResponse: {
+            readonly latest_draft: components["schemas"]["RecipeDraftSummaryResponse"] | null;
+            /** Recent Activity */
+            readonly recent_activity: readonly components["schemas"]["MemberActivityItem"][];
+            readonly stats: components["schemas"]["MemberDashboardStats"];
         };
         /** MyPublishedRecipeItem */
         readonly MyPublishedRecipeItem: {
@@ -4924,6 +5025,76 @@ export interface operations {
             };
         };
     };
+    readonly my_member_activity_api_my_activity_get: {
+        readonly parameters: {
+            readonly query?: {
+                readonly cursor?: string | null;
+                readonly filter?: components["schemas"]["MemberActivityFilter"];
+                readonly page_size?: number;
+                readonly q?: string | null;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["MyMemberActivityResponse"];
+                };
+            };
+            /** @description A valid member session is required. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Account setup is incomplete. */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description An activity query parameter is invalid. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     readonly my_community_activity_api_my_community_activity_get: {
         readonly parameters: {
             readonly query?: {
@@ -4973,6 +5144,71 @@ export interface operations {
                 };
             };
             /** @description A page parameter is invalid. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly my_member_dashboard_api_my_dashboard_get: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["MyMemberDashboardResponse"];
+                };
+            };
+            /** @description A valid member session is required. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Account setup is incomplete. */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description An activity query parameter is invalid. */
             readonly 422: {
                 headers: {
                     readonly [name: string]: unknown;

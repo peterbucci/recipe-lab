@@ -10,7 +10,6 @@ from app.models import RecipeVersion
 from app.pagination import PageParams
 from app.repositories.auth import get_user_by_handle
 from app.repositories.member_follows import count_followers
-from app.repositories.recipe_drafts import RecipeDraftBrowseItem
 from app.repositories.recipe_libraries import (
     MyRecipeLibraryView,
     browse_my_recipes,
@@ -22,7 +21,6 @@ from app.repositories.recipes import (
     get_recipe_card_engagement_aggregates,
 )
 from app.schemas.errors import ErrorResponse
-from app.schemas.recipe_drafts import RecipeDraftSummaryResponse
 from app.schemas.recipe_libraries import (
     MyPublishedRecipeItem,
     MyRecipeDraftItem,
@@ -32,7 +30,11 @@ from app.schemas.recipe_libraries import (
     SavedRecipeLibraryResponse,
 )
 from app.schemas.recipes import RecipeCardSummary
-from app.services.recipe_responses import public_user_reference, recipe_summary_response
+from app.services.recipe_responses import (
+    public_user_reference,
+    recipe_draft_summary_response,
+    recipe_summary_response,
+)
 
 router = APIRouter()
 
@@ -49,20 +51,6 @@ MY_RECIPE_LIBRARY_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     **PRIVATE_LIBRARY_ERROR_RESPONSES,
     422: {"model": ErrorResponse, "description": "A view or page parameter is invalid."},
 }
-
-
-def _draft_summary(item: RecipeDraftBrowseItem) -> RecipeDraftSummaryResponse:
-    return RecipeDraftSummaryResponse(
-        id=item.draft.id,
-        source_version_id=item.draft.source_version_id,
-        status="active",
-        revision=item.draft.revision,
-        title=item.draft.title,
-        ingredient_count=item.ingredient_count,
-        instruction_count=item.instruction_count,
-        created_at=item.draft.created_at,
-        updated_at=item.draft.updated_at,
-    )
 
 
 def _card_summary(
@@ -164,7 +152,7 @@ def my_recipe_library(
                 raise RuntimeError("Draft library entry is missing its draft.")
             items.append(
                 MyRecipeDraftItem(
-                    draft=_draft_summary(item.draft),
+                    draft=recipe_draft_summary_response(item.draft),
                     source_recipe_title=item.draft.source_recipe_title,
                     description=item.draft.draft.description,
                 )

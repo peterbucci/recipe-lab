@@ -191,6 +191,16 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
         "active_consumer",
         "frontend/lib/recipe-library-api.ts",
     ),
+    ("GET", "/api/my/activity"): _operation(
+        "my_member_activity_api_my_activity_get",
+        "active_consumer",
+        "frontend/lib/member-activity-api.ts",
+    ),
+    ("GET", "/api/my/dashboard"): _operation(
+        "my_member_dashboard_api_my_dashboard_get",
+        "active_consumer",
+        "frontend/lib/member-activity-api.ts",
+    ),
     ("GET", "/api/my/follow-stats"): _operation(
         "my_follow_stats_api_my_follow_stats_get",
         "active_consumer",

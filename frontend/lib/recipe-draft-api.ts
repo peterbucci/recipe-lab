@@ -567,7 +567,9 @@ export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
   };
 }
 
-function parseListItem(value: unknown): RecipeDraftListItem | null {
+export function parseRecipeDraftListItem(
+  value: unknown,
+): RecipeDraftListItem | null {
   if (
     !isRecord(value) ||
     !isUuid(value.id) ||
@@ -599,7 +601,7 @@ export function parseRecipeDraftPage(value: unknown): RecipeDraftPage {
   ) {
     throw invalidResponse();
   }
-  const items = value.items.map(parseListItem);
+  const items = value.items.map(parseRecipeDraftListItem);
   if (
     items.some((item) => item === null) ||
     (value.page as number) < 1 ||
