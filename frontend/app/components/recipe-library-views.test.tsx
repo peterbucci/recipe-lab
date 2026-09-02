@@ -1313,18 +1313,19 @@ describe("cook profile and private recipe libraries", () => {
       }),
     );
 
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(`/api/recipes/${ROOT_ID}/save`, {
-        method: "DELETE",
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "Idempotency-Key": expect.any(String),
-          "X-CSRF-Token": "csrf-value",
-        },
-        credentials: "same-origin",
-      }),
-    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const [target, init] = fetchMock.mock.calls[1];
+    expect(target).toBe(`/api/recipes/${ROOT_ID}/save`);
+    expect(init).toMatchObject({
+      cache: "no-store",
+      credentials: "same-origin",
+      method: "DELETE",
+      redirect: "error",
+    });
+    const headers = new Headers(init?.headers);
+    expect(headers.get("Accept")).toBe("application/json");
+    expect(headers.get("Idempotency-Key")).toEqual(expect.any(String));
+    expect(headers.get("X-CSRF-Token")).toBe("csrf-value");
     const completion = await screen.findByRole("status");
     expect(completion).toHaveTextContent(
       "Alice’s tomato soup removed from Saved.",

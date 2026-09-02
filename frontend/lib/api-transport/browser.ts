@@ -29,6 +29,7 @@ interface BrowserRequestBase {
 interface BrowserQueryRequest extends BrowserRequestBase {
   kind: "query";
   method?: "GET" | "HEAD";
+  retry?: "never" | "transient";
 }
 
 interface BrowserMutationRequest extends BrowserRequestBase {
@@ -90,6 +91,7 @@ export async function browserApiRequest(
         errorContract: options.errorContract,
         kind: options.kind,
         responseBody: options.responseBody,
+        retry: options.kind === "query" ? options.retry : undefined,
         signal: options.signal,
         timeoutMs: options.timeoutMs ?? BROWSER_API_TIMEOUT_MS,
       },
