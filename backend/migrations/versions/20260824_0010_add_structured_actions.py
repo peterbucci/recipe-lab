@@ -14,9 +14,14 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import Connection
 
-from app.seeds.catalog import load_bundled_catalog
-from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
-from app.seeds.schema import ExactActionMeasureSeed, RangeActionMeasureSeed
+from migrations.frozen.catalog_20260824 import (
+    FrozenExactActionMeasure,
+    FrozenRangeActionMeasure,
+    action_uuid,
+    load_frozen_action_backfill_catalog,
+    measurement_uuid,
+    seed_uuid,
+)
 
 revision: str = "20260824_0010"
 down_revision: str | None = "20260824_0009"
@@ -247,7 +252,7 @@ def _create_action_tables() -> None:
 
 
 def _seed_action_catalog() -> None:
-    catalog = load_bundled_catalog().action_catalog
+    catalog = load_frozen_action_backfill_catalog().action_catalog
     action_types = sa.table(
         "cooking_action_types",
         sa.column("id", sa.Uuid()),
@@ -276,10 +281,10 @@ def _seed_action_catalog() -> None:
 def _measure_values(
     action_id: UUID,
     semantic: str,
-    measure: ExactActionMeasureSeed | RangeActionMeasureSeed,
+    measure: FrozenExactActionMeasure | FrozenRangeActionMeasure,
     unit_displays: dict[str, str],
 ) -> dict[str, object]:
-    if isinstance(measure, ExactActionMeasureSeed):
+    if isinstance(measure, FrozenExactActionMeasure):
         mode = "exact"
         minimum: Decimal = measure.value
         maximum: Decimal | None = None
@@ -303,8 +308,8 @@ def _measure_values(
 def _seed_action_rows(
     connection: Connection,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]], list[dict[str, object]]]:
-    catalog = load_bundled_catalog()
-    dataset_id = catalog.metadata.dataset_id
+    catalog = load_frozen_action_backfill_catalog()
+    dataset_id = catalog.dataset_id
     existing_instructions = {
         row.id: (row.recipe_version_id, row.instruction)
         for row in connection.execute(
@@ -451,7 +456,7 @@ def _actual_rows(connection: Connection, query: str) -> set[tuple[object, ...]]:
 
 
 def _require_reconstructable_action_data(connection: Connection) -> None:
-    catalog = load_bundled_catalog()
+    catalog = load_frozen_action_backfill_catalog()
     expected_types = {
         (
             action_uuid("action-type", action_type.key),

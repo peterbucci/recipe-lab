@@ -1,0 +1,334 @@
+{
+  "metadata": {
+    "version": 1,
+    "namespace_url": "https://github.com/peterbucci/recipe-lab/measurement-catalog/v1",
+    "title": "Recipe Lab Measurement Catalog v1",
+    "provenance": "Recipe Lab curated measurement vocabulary v1. Conversion rules are limited to explicit metric, time, and Celsius/Fahrenheit relationships; ambiguous culinary and package units are intentionally nonconvertible.",
+    "published_at": "2026-08-24T00:00:00Z"
+  },
+  "units": [
+    {
+      "key": "mg",
+      "dimension": "mass",
+      "conversion_family": "metric-mass",
+      "canonical_label": "milligram",
+      "plural_label": "milligrams",
+      "symbol": "mg",
+      "display_style": "symbol",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; metric mass unit.",
+      "aliases": [{"key": "milligrams", "alias": "milligrams"}],
+      "conversion": {
+        "base_unit": "g",
+        "scale_numerator": 1,
+        "scale_denominator": 1000,
+        "offset_numerator": 0,
+        "offset_denominator": 1,
+        "provenance": "Exact SI metric conversion: 1000 milligrams equal 1 gram."
+      }
+    },
+    {
+      "key": "g",
+      "dimension": "mass",
+      "conversion_family": "metric-mass",
+      "canonical_label": "gram",
+      "plural_label": "grams",
+      "symbol": "g",
+      "display_style": "symbol",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; metric mass base unit.",
+      "aliases": [{"key": "grams", "alias": "grams"}],
+      "conversion": {
+        "base_unit": "g",
+        "scale_numerator": 1,
+        "scale_denominator": 1,
+        "offset_numerator": 0,
+        "offset_denominator": 1,
+        "provenance": "Identity conversion for the gram base unit."
+      }
+    },
+    {
+      "key": "kg",
+      "dimension": "mass",
+      "conversion_family": "metric-mass",
+      "canonical_label": "kilogram",
+      "plural_label": "kilograms",
+      "symbol": "kg",
+      "display_style": "symbol",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; metric mass unit.",
+      "aliases": [{"key": "kilograms", "alias": "kilograms"}],
+      "conversion": {
+        "base_unit": "g",
+        "scale_numerator": 1000,
+        "scale_denominator": 1,
+        "offset_numerator": 0,
+        "offset_denominator": 1,
+        "provenance": "Exact SI metric conversion: 1 kilogram equals 1000 grams."
+      }
+    },
+    {
+      "key": "ml",
+      "dimension": "volume",
+      "conversion_family": "metric-volume",
+      "canonical_label": "millilitre",
+      "plural_label": "millilitres",
+      "symbol": "ml",
+      "display_style": "symbol",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; metric volume base unit.",
+      "aliases": [
+        {"key": "milliliters", "alias": "milliliters"},
+        {"key": "millilitres", "alias": "millilitres"}
+      ],
+      "conversion": {
+        "base_unit": "ml",
+        "scale_numerator": 1,
+        "scale_denominator": 1,
+        "offset_numerator": 0,
+        "offset_denominator": 1,
+        "provenance": "Identity conversion for the millilitre base unit."
+      }
+    },
+    {
+      "key": "l",
+      "dimension": "volume",
+      "conversion_family": "metric-volume",
+      "canonical_label": "litre",
+      "plural_label": "litres",
+      "symbol": "l",
+      "display_style": "symbol",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; metric volume unit.",
+      "aliases": [
+        {"key": "liters", "alias": "liters"},
+        {"key": "litres", "alias": "litres"}
+      ],
+      "conversion": {
+        "base_unit": "ml",
+        "scale_numerator": 1000,
+        "scale_denominator": 1,
+        "offset_numerator": 0,
+        "offset_denominator": 1,
+        "provenance": "Exact metric conversion: 1 litre equals 1000 millilitres."
+      }
+    },
+    {
+      "key": "tsp",
+      "dimension": "volume",
+      "conversion_family": "culinary-teaspoon-unspecified",
+      "canonical_label": "teaspoon",
+      "plural_label": "teaspoons",
+      "symbol": "tsp",
+      "display_style": "symbol",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; legacy culinary teaspoon retained without an inferred regional conversion.",
+      "aliases": [{"key": "teaspoons", "alias": "teaspoons"}],
+      "conversion": null
+    },
+    {
+      "key": "tbsp",
+      "dimension": "volume",
+      "conversion_family": "culinary-tablespoon-unspecified",
+      "canonical_label": "tablespoon",
+      "plural_label": "tablespoons",
+      "symbol": "tbsp",
+      "display_style": "symbol",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; legacy culinary tablespoon retained without an inferred regional conversion.",
+      "aliases": [{"key": "tablespoons", "alias": "tablespoons"}],
+      "conversion": null
+    },
+    {
+      "key": "cup",
+      "dimension": "volume",
+      "conversion_family": "culinary-cup-unspecified",
+      "canonical_label": "cup",
+      "plural_label": "cups",
+      "symbol": "cup",
+      "display_style": "word",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; generic legacy cup retained without an inferred regional conversion.",
+      "aliases": [{"key": "cups", "alias": "cups"}],
+      "conversion": null
+    },
+    {
+      "key": "count",
+      "dimension": "count",
+      "conversion_family": "whole-item-count",
+      "canonical_label": "item",
+      "plural_label": "items",
+      "symbol": null,
+      "display_style": "hidden",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; whole-item count with a hidden display suffix.",
+      "aliases": [{"key": "items", "alias": "items"}],
+      "conversion": null
+    },
+    {
+      "key": "clove",
+      "dimension": "count",
+      "conversion_family": "garlic-clove-count",
+      "canonical_label": "clove",
+      "plural_label": "cloves",
+      "symbol": null,
+      "display_style": "word",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; culinary clove count, intentionally not convertible to generic item count.",
+      "aliases": [{"key": "cloves", "alias": "cloves"}],
+      "conversion": null
+    },
+    {
+      "key": "slice",
+      "dimension": "count",
+      "conversion_family": "slice-count",
+      "canonical_label": "slice",
+      "plural_label": "slices",
+      "symbol": null,
+      "display_style": "word",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; slice count, intentionally not convertible to generic item count.",
+      "aliases": [{"key": "slices", "alias": "slices"}],
+      "conversion": null
+    },
+    {
+      "key": "second",
+      "dimension": "time",
+      "conversion_family": "elapsed-time",
+      "canonical_label": "second",
+      "plural_label": "seconds",
+      "symbol": "s",
+      "display_style": "word",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; elapsed-time base unit.",
+      "aliases": [{"key": "seconds", "alias": "seconds"}],
+      "conversion": {
+        "base_unit": "second",
+        "scale_numerator": 1,
+        "scale_denominator": 1,
+        "offset_numerator": 0,
+        "offset_denominator": 1,
+        "provenance": "Identity conversion for the second base unit."
+      }
+    },
+    {
+      "key": "minute",
+      "dimension": "time",
+      "conversion_family": "elapsed-time",
+      "canonical_label": "minute",
+      "plural_label": "minutes",
+      "symbol": "min",
+      "display_style": "word",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; elapsed-time unit.",
+      "aliases": [{"key": "minutes", "alias": "minutes"}],
+      "conversion": {
+        "base_unit": "second",
+        "scale_numerator": 60,
+        "scale_denominator": 1,
+        "offset_numerator": 0,
+        "offset_denominator": 1,
+        "provenance": "Exact time conversion: 1 minute equals 60 seconds."
+      }
+    },
+    {
+      "key": "hour",
+      "dimension": "time",
+      "conversion_family": "elapsed-time",
+      "canonical_label": "hour",
+      "plural_label": "hours",
+      "symbol": "h",
+      "display_style": "word",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; elapsed-time unit.",
+      "aliases": [{"key": "hours", "alias": "hours"}],
+      "conversion": {
+        "base_unit": "second",
+        "scale_numerator": 3600,
+        "scale_denominator": 1,
+        "offset_numerator": 0,
+        "offset_denominator": 1,
+        "provenance": "Exact time conversion: 1 hour equals 3600 seconds."
+      }
+    },
+    {
+      "key": "celsius",
+      "dimension": "temperature",
+      "conversion_family": "celsius-fahrenheit-temperature",
+      "canonical_label": "degree Celsius",
+      "plural_label": "degrees Celsius",
+      "symbol": "°C",
+      "display_style": "symbol",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; Celsius temperature base unit.",
+      "aliases": [{"key": "degrees-celsius", "alias": "degrees Celsius"}],
+      "conversion": {
+        "base_unit": "celsius",
+        "scale_numerator": 1,
+        "scale_denominator": 1,
+        "offset_numerator": 0,
+        "offset_denominator": 1,
+        "provenance": "Identity conversion for the Celsius base unit."
+      }
+    },
+    {
+      "key": "fahrenheit",
+      "dimension": "temperature",
+      "conversion_family": "celsius-fahrenheit-temperature",
+      "canonical_label": "degree Fahrenheit",
+      "plural_label": "degrees Fahrenheit",
+      "symbol": "°F",
+      "display_style": "symbol",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; Fahrenheit temperature unit.",
+      "aliases": [{"key": "degrees-fahrenheit", "alias": "degrees Fahrenheit"}],
+      "conversion": {
+        "base_unit": "celsius",
+        "scale_numerator": 5,
+        "scale_denominator": 9,
+        "offset_numerator": -32,
+        "offset_denominator": 1,
+        "provenance": "Exact affine conversion to Celsius: subtract 32, then multiply by 5/9."
+      }
+    },
+    {
+      "key": "can",
+      "dimension": "package",
+      "conversion_family": "package-can-unspecified",
+      "canonical_label": "can",
+      "plural_label": "cans",
+      "symbol": null,
+      "display_style": "word",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; package unit with no inferred content size.",
+      "aliases": [{"key": "cans", "alias": "cans"}],
+      "conversion": null
+    },
+    {
+      "key": "bunch",
+      "dimension": "package",
+      "conversion_family": "package-bunch-unspecified",
+      "canonical_label": "bunch",
+      "plural_label": "bunches",
+      "symbol": null,
+      "display_style": "word",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; package unit with no inferred content size.",
+      "aliases": [{"key": "bunches", "alias": "bunches"}],
+      "conversion": null
+    },
+    {
+      "key": "package",
+      "dimension": "package",
+      "conversion_family": "package-generic-unspecified",
+      "canonical_label": "package",
+      "plural_label": "packages",
+      "symbol": null,
+      "display_style": "word",
+      "active": true,
+      "provenance": "Recipe Lab Measurement Catalog v1; generic package unit with no inferred content size.",
+      "aliases": [{"key": "packages", "alias": "packages"}],
+      "conversion": null
+    }
+  ]
+}

@@ -17,6 +17,18 @@ from app.repositories.recipes import browse_recipe_versions
 from app.seeds.catalog import load_bundled_catalog
 from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
 from app.services.recipe_responses import recipe_summary_response
+from migrations.frozen.catalog_20260824 import (
+    action_uuid as frozen_action_uuid,
+)
+from migrations.frozen.catalog_20260824 import (
+    load_frozen_action_backfill_catalog,
+)
+from migrations.frozen.catalog_20260824 import (
+    measurement_uuid as frozen_measurement_uuid,
+)
+from migrations.frozen.catalog_20260824 import (
+    seed_uuid as frozen_seed_uuid,
+)
 
 DOMAIN_TABLES = {
     "abuse_rate_limit_buckets",
@@ -985,14 +997,14 @@ def test_measurement_downgrade_refuses_non_seed_catalog_metadata(
 def _insert_seed_action_migration_fixture(
     connection: Connection,
 ) -> tuple[UUID, UUID]:
-    catalog = load_bundled_catalog()
+    catalog = load_frozen_action_backfill_catalog()
     recipe = next(item for item in catalog.recipes if item.key == "blueberry-oat-muffins-v1")
     instruction = next(item for item in recipe.instructions if item.key == "prepare")
-    dataset_id = catalog.metadata.dataset_id
+    dataset_id = catalog.dataset_id
     user_id = uuid4()
-    lineage_id = seed_uuid(dataset_id, "recipe-lineage", recipe.key)
-    version_id = seed_uuid(dataset_id, "recipe-version", recipe.key)
-    instruction_id = seed_uuid(
+    lineage_id = frozen_seed_uuid(dataset_id, "recipe-lineage", recipe.key)
+    version_id = frozen_seed_uuid(dataset_id, "recipe-version", recipe.key)
+    instruction_id = frozen_seed_uuid(
         dataset_id,
         "recipe-instruction",
         f"{recipe.key}:{instruction.key}",
@@ -1022,9 +1034,9 @@ def _insert_seed_action_migration_fixture(
             parent_version_id=None,
             created_by_user_id=user_id,
             version_number=1,
-            title=recipe.title,
-            description=recipe.description,
-            servings=recipe.servings,
+            title="Action migration fixture",
+            description=None,
+            servings=Decimal("1.00"),
         )
     )
     connection.execute(
@@ -1090,14 +1102,14 @@ def test_action_migration_uses_only_explicit_seed_mappings(
         ).one()
 
         assert len(mapped) == 2
-        assert mapped[0].action_type_id == action_uuid("action-type", "preheat")
-        assert mapped[1].action_type_id == action_uuid("action-type", "line")
+        assert mapped[0].action_type_id == frozen_action_uuid("action-type", "preheat")
+        assert mapped[1].action_type_id == frozen_action_uuid("action-type", "line")
         assert inferred == 0
         assert temperature == (
             "temperature",
             "exact",
             Decimal("190.000000"),
-            measurement_uuid("unit", "celsius"),
+            frozen_measurement_uuid("unit", "celsius"),
         )
 
         command.downgrade(alembic_config, "20260824_0009")
