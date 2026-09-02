@@ -14,7 +14,7 @@ from app.services.recipe_duplicate_scoring import (
 )
 from app.services.recipe_fingerprints import StructuralFingerprint, build_structural_fingerprint
 
-import recipe_lab_evaluation.duplicate_evaluation as duplicate_evaluation_module
+import recipe_lab_evaluation.duplicate_execution as duplicate_execution_module
 from recipe_lab_evaluation.dataset import canonical_json
 from recipe_lab_evaluation.duplicate_dataset import DuplicateBenchmark
 from recipe_lab_evaluation.duplicate_evaluation import (
@@ -157,7 +157,7 @@ def test_report_rejects_nonempty_but_incorrect_explanations(
         )
 
     monkeypatch.setattr(
-        duplicate_evaluation_module,
+        duplicate_execution_module,
         "score_recipe_duplicate_candidate",
         scorer_with_wrong_reason,
     )
@@ -190,7 +190,7 @@ def test_report_rejects_unexpected_component_relations(
         )
 
     monkeypatch.setattr(
-        duplicate_evaluation_module,
+        duplicate_execution_module,
         "score_recipe_duplicate_candidate",
         scorer_with_wrong_component,
     )
