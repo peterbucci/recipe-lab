@@ -38,11 +38,10 @@ def test_shared_visibility_functions_have_one_authoritative_definition() -> None
     assert _function_definitions() == {name: [path] for name, path in _POLICY_DEFINITIONS.items()}
 
 
-def test_legacy_import_surfaces_reexport_the_canonical_visibility_objects() -> None:
-    assert (
-        recipes.publicly_readable_recipe_version_filter is publicly_readable_recipe_version_filter
-    )
-    assert recipe_visibility.effective_recipe_visibility_state is effective_recipe_visibility_state
+def test_retired_visibility_compatibility_exports_do_not_return() -> None:
+    assert not hasattr(recipes, "publicly_readable_recipe_publication_filter")
+    assert not hasattr(recipes, "publicly_readable_recipe_version_filter")
+    assert not hasattr(recipe_visibility, "effective_recipe_visibility_state")
 
 
 def test_public_read_predicates_compile_to_the_same_publication_state_boundary() -> None:
