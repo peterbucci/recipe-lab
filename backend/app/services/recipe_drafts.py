@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.domain_errors import DomainConflictError, DomainValidationError
 from app.models import (
     RECIPE_DRAFT_STATUS_DISCARDED,
     MeasurementUnit,
@@ -65,16 +66,27 @@ from app.services.actions import (
 from app.services.measurements import MeasurementError, serialize_measure, validate_measure_input
 
 
-class InvalidRecipeDraftError(ValueError):
+class InvalidRecipeDraftError(DomainValidationError):
     """Raised when submitted private authoring state violates the curated contract."""
 
+    code = "invalid_recipe_draft"
 
-class RecipeDraftRevisionConflictError(ValueError):
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail, public_message=detail)
+
+
+class RecipeDraftRevisionConflictError(DomainConflictError):
     """Raised when a stale editor attempts to replace or discard a newer revision."""
 
+    code = "recipe_draft_revision_conflict"
+    public_message = "This draft has a newer saved revision. Reload it before trying again."
 
-class RecipeDraftCreationIdempotencyConflictError(RuntimeError):
+
+class RecipeDraftCreationIdempotencyConflictError(DomainConflictError):
     """Raised when one creation action cannot safely resolve to an active draft."""
+
+    code = "idempotency_key_conflict"
+    public_message = "The Idempotency-Key conflicts with an earlier draft creation intent."
 
 
 RECIPE_DRAFT_CREATION_FINGERPRINT_SCHEMA = "recipe-draft-creation"

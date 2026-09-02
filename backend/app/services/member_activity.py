@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from typing import Literal, cast
 from uuid import UUID
 
+from app.core.domain_errors import DomainValidationError
+
 type MemberActivityKind = Literal[
     "draft",
     "published",
@@ -31,8 +33,9 @@ MEMBER_ACTIVITY_KINDS = frozenset(
 MAX_ACTIVITY_CURSOR_LENGTH = 512
 
 
-class InvalidMemberActivityCursorError(ValueError):
-    pass
+class InvalidMemberActivityCursorError(DomainValidationError):
+    code = "invalid_activity_cursor"
+    public_message = "The activity cursor is invalid or expired."
 
 
 @dataclass(frozen=True, slots=True)

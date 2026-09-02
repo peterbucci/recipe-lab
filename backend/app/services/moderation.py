@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.domain_errors import DomainConflictError, DomainNotFoundError
 from app.models import (
     MODERATION_ACTION_HIDE,
     MODERATION_ACTION_RESOLVE,
@@ -34,24 +35,36 @@ from app.repositories.recipe_publications import lock_recipe_publication_guard
 from app.schemas.moderation import RecipeModerationActionRequest, RecipeReportCreate
 
 
-class RecipeReportNotFoundError(LookupError):
-    pass
+class RecipeReportNotFoundError(DomainNotFoundError):
+    code = "recipe_not_found"
+    public_message = "The recipe was not found or is not publicly available."
 
 
-class DuplicateRecipeReportError(ValueError):
-    pass
+class DuplicateRecipeReportError(DomainConflictError):
+    code = "recipe_already_reported"
+    public_message = "You already reported this recipe."
 
 
-class ModerationCaseNotFoundError(LookupError):
-    pass
+class ModerationCaseNotFoundError(DomainNotFoundError):
+    code = "moderation_case_not_found"
+    public_message = "The moderation case was not found."
 
 
-class ModerationActionConflictError(ValueError):
-    pass
+class ModerationActionConflictError(DomainConflictError):
+    code = "moderation_action_conflict"
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail, public_message=detail)
 
 
-class ModerationIdempotencyConflictError(RuntimeError):
-    pass
+class RecipeReportIdempotencyConflictError(DomainConflictError):
+    code = "idempotency_key_conflict"
+    public_message = "The Idempotency-Key conflicts with an earlier report."
+
+
+class ModerationActionIdempotencyConflictError(DomainConflictError):
+    code = "idempotency_key_conflict"
+    public_message = "The Idempotency-Key conflicts with an earlier moderation action."
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,7 +131,7 @@ def submit_recipe_report(
     )
     if replay is not None:
         if replay.request_fingerprint != request_fingerprint:
-            raise ModerationIdempotencyConflictError(
+            raise RecipeReportIdempotencyConflictError(
                 "The report action is already bound to a different request."
             )
         return RecipeReportSubmissionResult(report=replay, state="reused")
@@ -194,7 +207,7 @@ def moderate_recipe_case(
     )
     if replay is not None:
         if replay.request_fingerprint != request_fingerprint:
-            raise ModerationIdempotencyConflictError(
+            raise ModerationActionIdempotencyConflictError(
                 "The moderation action is already bound to a different request."
             )
         return ModerationActionResult(event=replay, state="reused")

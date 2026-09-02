@@ -16,6 +16,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.domain_errors import DomainConflictError, DomainUnavailableError
 from app.models import (
     RECIPE_DUPLICATE_DISTINCT,
     RECIPE_DUPLICATE_EXACT,
@@ -170,20 +171,32 @@ class RecipeDuplicatePreflightUnavailableError(LookupError):
     """Raised when a source recipe is not publicly readable."""
 
 
-class RecipeDuplicatePreflightStaleError(RuntimeError):
+class RecipeDuplicatePreflightStaleError(DomainConflictError):
     """Raised generically for stale acknowledgement or unavailable result evidence."""
 
+    code = "duplicate_preflight_stale"
+    public_message = "The duplicate preflight is no longer current. Run it again."
 
-class RecipeDuplicateDecisionNotRequiredError(RuntimeError):
+
+class RecipeDuplicateDecisionNotRequiredError(DomainConflictError):
     """Raised when a distinct result has no advisory acknowledgement to record."""
 
+    code = "duplicate_decision_not_required"
+    public_message = "A distinct result does not accept a duplicate decision."
 
-class RecipeDuplicateDecisionRequiredError(RuntimeError):
+
+class RecipeDuplicateDecisionRequiredError(DomainConflictError):
     """Raised when duplicate candidates were not explicitly accepted."""
 
+    code = "duplicate_decision_required"
+    public_message = "Duplicate candidates require an explicit continue decision."
 
-class RecipeDuplicatePreflightCapacityError(RuntimeError):
+
+class RecipeDuplicatePreflightCapacityError(DomainUnavailableError):
     """Raised generically when fixed duplicate-scoring work limits are exceeded."""
+
+    code = "duplicate_preflight_unavailable"
+    public_message = "Duplicate preflight is temporarily unavailable. Please try again later."
 
 
 @dataclass(frozen=True, slots=True)

@@ -12,6 +12,7 @@ from app.api.dependencies import (
 )
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor, lock_recipe_moderator_actor
+from app.core.domain_errors import DomainError
 from app.pagination import PageParams
 from app.repositories.moderation import (
     ModerationCaseQueueItem,
@@ -41,11 +42,6 @@ from app.schemas.moderation import (
 )
 from app.schemas.users import PublicUserReference
 from app.services.moderation import (
-    DuplicateRecipeReportError,
-    ModerationActionConflictError,
-    ModerationCaseNotFoundError,
-    ModerationIdempotencyConflictError,
-    RecipeReportNotFoundError,
     moderate_recipe_case,
     submit_recipe_report,
 )
@@ -133,27 +129,9 @@ def report_recipe(
             action_id=action_id,
         )
         session.commit()
-    except RecipeReportNotFoundError as error:
+    except DomainError:
         session.rollback()
-        raise ApiError(
-            status_code=404,
-            code="recipe_not_found",
-            message="The recipe was not found or is not publicly available.",
-        ) from error
-    except DuplicateRecipeReportError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="recipe_already_reported",
-            message="You already reported this recipe.",
-        ) from error
-    except ModerationIdempotencyConflictError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="idempotency_key_conflict",
-            message="The Idempotency-Key conflicts with an earlier report.",
-        ) from error
+        raise
     except IntegrityError as error:
         session.rollback()
         raise ApiError(
@@ -295,27 +273,9 @@ def moderate_recipe(
             action_id=action_id,
         )
         session.commit()
-    except ModerationCaseNotFoundError as error:
+    except DomainError:
         session.rollback()
-        raise ApiError(
-            status_code=404,
-            code="moderation_case_not_found",
-            message="The moderation case was not found.",
-        ) from error
-    except ModerationActionConflictError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="moderation_action_conflict",
-            message=str(error),
-        ) from error
-    except ModerationIdempotencyConflictError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="idempotency_key_conflict",
-            message="The Idempotency-Key conflicts with an earlier moderation action.",
-        ) from error
+        raise
     except IntegrityError as error:
         session.rollback()
         raise ApiError(

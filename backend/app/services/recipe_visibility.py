@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.domain_errors import DomainConflictError, DomainNotFoundError
 from app.models import (
     RECIPE_PUBLICATION_STATE_AUTHOR_WITHDRAWN,
     RECIPE_PUBLICATION_STATE_PUBLISHED,
@@ -25,12 +26,18 @@ from app.repositories.recipe_publications import (
 )
 
 
-class RecipeVisibilityNotFoundError(LookupError):
+class RecipeVisibilityNotFoundError(DomainNotFoundError):
     """The exact authored publication is absent from the actor's private scope."""
 
+    code = "recipe_not_found"
+    public_message = "The recipe was not found or is not available in your authored recipes."
 
-class RecipeVisibilityModerationConflictError(RuntimeError):
+
+class RecipeVisibilityModerationConflictError(DomainConflictError):
     """An author tried to make moderation-hidden content public."""
+
+    code = "recipe_visibility_managed_by_moderation"
+    public_message = "This recipe cannot be restored by its author."
 
 
 @dataclass(frozen=True, slots=True)

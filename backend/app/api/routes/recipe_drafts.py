@@ -11,6 +11,7 @@ from app.api.dependencies import (
 )
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor
+from app.core.domain_errors import DomainError
 from app.pagination import PageParams
 from app.repositories.recipe_drafts import browse_owned_recipe_drafts, get_owned_recipe_draft
 from app.schemas.errors import ErrorResponse
@@ -22,9 +23,6 @@ from app.schemas.recipe_drafts import (
     RecipeDraftUpdateRequest,
 )
 from app.services.recipe_drafts import (
-    InvalidRecipeDraftError,
-    RecipeDraftCreationIdempotencyConflictError,
-    RecipeDraftRevisionConflictError,
     create_recipe_draft,
     discard_recipe_draft,
     recipe_draft_detail_response,
@@ -78,14 +76,6 @@ def _draft_not_found(draft_id: UUID) -> ApiError:
     )
 
 
-def _revision_conflict() -> ApiError:
-    return ApiError(
-        status_code=409,
-        code="recipe_draft_revision_conflict",
-        message="This draft has a newer saved revision. Reload it before trying again.",
-    )
-
-
 @router.post(
     "/recipe-drafts",
     response_model=RecipeDraftDetailResponse,
@@ -113,13 +103,9 @@ def create_private_recipe_draft(
             creation_action_id=creation_action_id,
             source_version_id=payload.source_version_id,
         )
-    except RecipeDraftCreationIdempotencyConflictError as error:
+    except DomainError:
         session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="idempotency_key_conflict",
-            message="The Idempotency-Key conflicts with an earlier draft creation intent.",
-        ) from error
+        raise
     if draft is None:
         session.rollback()
         raise ApiError(
@@ -253,16 +239,9 @@ def save_private_recipe_draft(
             draft_id=draft_id,
             payload=payload,
         )
-    except RecipeDraftRevisionConflictError as error:
+    except DomainError:
         session.rollback()
-        raise _revision_conflict() from error
-    except InvalidRecipeDraftError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=422,
-            code="invalid_recipe_draft",
-            message=str(error),
-        ) from error
+        raise
 
     if draft is None:
         session.rollback()
@@ -308,9 +287,9 @@ def delete_private_recipe_draft(
             draft_id=draft_id,
             expected_revision=revision,
         )
-    except RecipeDraftRevisionConflictError as error:
+    except DomainError:
         session.rollback()
-        raise _revision_conflict() from error
+        raise
     if not discarded:
         session.rollback()
         raise _draft_not_found(draft_id)
