@@ -2,8 +2,6 @@
 
 import {
   type ChangeEvent,
-  type KeyboardEvent,
-  useEffect,
   useRef,
   useState,
 } from "react";
@@ -21,6 +19,7 @@ import {
   type StructuredMeasureField,
 } from "../../lib/structured-measure";
 import { useFloatingPanelPlacement } from "./use-floating-panel-placement";
+import { Popover, PopoverContent, PopoverTrigger } from "./overlay-primitives";
 
 export interface IngredientAmountControlProps {
   idPrefix: string;
@@ -80,7 +79,6 @@ export function IngredientAmountControl({
 }: IngredientAmountControlProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
-  const popoverRootRef = useRef<HTMLFieldSetElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const simpleValue = value.mode === "exact";
@@ -113,26 +111,6 @@ export function IngredientAmountControl({
   const amountTriggerText = formattedAmount.includes("needs attention")
     ? "Add amount"
     : formattedAmount;
-
-  useEffect(() => {
-    if (!showPopover) return;
-
-    const closeWhenOutside = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && !popoverRootRef.current?.contains(target)) {
-        setPopoverOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", closeWhenOutside);
-    return () => document.removeEventListener("pointerdown", closeWhenOutside);
-  }, [showPopover]);
-
-  useEffect(() => {
-    if (!showPopover) return;
-    popoverRef.current
-      ?.querySelector<HTMLElement>("input, select, button")
-      ?.focus();
-  }, [showPopover]);
 
   const update = (changes: Partial<StructuredMeasureDraft>) => {
     onChange({ ...value, ...changes });
@@ -193,12 +171,6 @@ export function IngredientAmountControl({
   function closePopover() {
     setPopoverOpen(false);
     window.setTimeout(() => triggerRef.current?.focus(), 0);
-  }
-
-  function handlePopoverKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    closePopover();
   }
 
   const controls = (
@@ -363,7 +335,6 @@ export function IngredientAmountControl({
 
   return (
     <fieldset
-      ref={popoverRootRef}
       className={`ingredient-amount${
         presentation === "popover" ? " ingredient-amount--popover" : ""
       }`}
@@ -376,31 +347,26 @@ export function IngredientAmountControl({
         {contextLabel ? ` for ${contextLabel}` : ""}
       </legend>
       {presentation === "popover" ? (
-        <>
-          <button
+        <Popover open={showPopover} onOpenChange={setPopoverOpen}>
+          <PopoverTrigger
             ref={triggerRef}
+            contentId={`${idPrefix}-popover`}
             className="ingredient-amount__trigger"
-            type="button"
             aria-label={`Edit amount${contextLabel ? ` for ${contextLabel.toLowerCase()}` : ""}`}
             aria-haspopup="dialog"
-            aria-expanded={showPopover}
             data-invalid={hasErrors || undefined}
-            aria-controls={`${idPrefix}-popover`}
-            onClick={() => setPopoverOpen((current) => !current)}
           >
             {amountTriggerText}
-          </button>
+          </PopoverTrigger>
           {!showPopover && firstError ? (
             <p className="ingredient-amount__trigger-error" role="alert">
               {firstError}
             </p>
           ) : null}
-          {showPopover ? (
-            <div
+          <PopoverContent
               ref={popoverRef}
               id={`${idPrefix}-popover`}
               className="ingredient-amount__popover"
-              role="dialog"
               data-placement={popoverPlacement.placement}
               style={popoverPlacement.style}
               aria-label={
@@ -408,7 +374,7 @@ export function IngredientAmountControl({
                   ? `${label} for ${contextLabel.toLowerCase()}`
                   : label
               }
-              onKeyDown={handlePopoverKeyDown}
+              initialFocus="first"
             >
               {controls}
               <div className="ingredient-amount__popover-actions">
@@ -420,9 +386,8 @@ export function IngredientAmountControl({
                   Done
                 </button>
               </div>
-            </div>
-          ) : null}
-        </>
+          </PopoverContent>
+        </Popover>
       ) : (
         controls
       )}

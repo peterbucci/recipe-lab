@@ -2,7 +2,6 @@
 
 import {
   type FormEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
   useEffect,
   useReducer,
@@ -57,6 +56,7 @@ import {
   recipeDraftEditorReducer,
 } from "../../lib/recipe-draft-editor-state";
 import { MemberRouteGate } from "./member-route-gate";
+import { Dialog } from "./overlay-primitives";
 import { useAuthSession } from "./auth-session-provider";
 import {
   LoadingButton,
@@ -244,7 +244,6 @@ function RecipeDraftEditorInner({
     string | null
   >(null);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
-  const finishDialogRef = useRef<HTMLElement>(null);
   const finishTriggerRef = useRef<HTMLButtonElement>(null);
   const pendingRef = useRef(false);
   const pendingFocusId = useRef<string | null>(null);
@@ -279,15 +278,6 @@ function RecipeDraftEditorInner({
     authState.phase === "ready" && authState.session.status === "authenticated"
       ? authState.session.user
       : null;
-
-  useEffect(() => {
-    if (!finishOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [finishOpen]);
 
   const load = useCallback(
     async (
@@ -636,35 +626,6 @@ function RecipeDraftEditorInner({
     window.setTimeout(() => finishTriggerRef.current?.focus(), 0);
   }
 
-  function handleFinishDialogKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
-    if (event.key === "Escape") {
-      if (!publicationBusy) {
-        event.preventDefault();
-        closeFinishDialog();
-      }
-      return;
-    }
-    if (event.key !== "Tab") return;
-    const focusable = Array.from(
-      event.currentTarget.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      ),
-    );
-    if (focusable.length === 0) {
-      event.preventDefault();
-      event.currentTarget.focus();
-      return;
-    }
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  }
   if (!draft || !detail) {
     return (
       <main
@@ -1037,23 +998,18 @@ function RecipeDraftEditorInner({
             }
           />
 
-          {finishOpen ? (
-            <div
-              className="recipe-workspace__finish-backdrop"
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) closeFinishDialog();
-              }}
-            >
-              <section
-                ref={finishDialogRef}
+          <Dialog
+                backdropClassName="recipe-workspace__finish-backdrop"
                 id="recipe-workspace-finish"
                 className="recipe-workspace__finish-panel"
-                role="dialog"
-                aria-modal="true"
                 aria-labelledby="recipe-workspace-finish-title"
                 aria-describedby="recipe-workspace-finish-summary"
-                tabIndex={-1}
-                onKeyDown={handleFinishDialogKeyDown}
+                dismissible={!publicationBusy}
+                open={finishOpen}
+                restoreFocusRef={finishTriggerRef}
+                onOpenChange={(open) => {
+                  if (!open) closeFinishDialog();
+                }}
               >
                 <div className="recipe-workspace__finish-heading">
                   <div>
@@ -1088,9 +1044,7 @@ function RecipeDraftEditorInner({
                   sourceRecipeTitle={sourceRecipeTitle}
                   sourceVersionId={detail.source_version_id}
                 />
-              </section>
-            </div>
-          ) : null}
+          </Dialog>
         </article>
       </form>
     </EditorPage>

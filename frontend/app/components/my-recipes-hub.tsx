@@ -4,6 +4,10 @@ import { Plus } from "lucide-react";
 
 import type { MyRecipeLibraryView } from "../../lib/recipe-library-api";
 import { GuardedLink } from "./navigation-blocker-provider";
+import {
+  WorkspaceTabCount,
+  WorkspaceTabMenu,
+} from "./workspace-tab-menu";
 
 export type MyRecipesHubView = MyRecipeLibraryView | "saved";
 
@@ -54,9 +58,11 @@ export function MyRecipesHubNavigation({
   activeView: MyRecipesHubView;
 }) {
   return (
-    <nav
-      className="member-library__views workspace-tab-menu workspace-tab-menu--items-only"
+    <WorkspaceTabMenu
+      as="nav"
+      className="member-library__views"
       aria-label="My recipe views"
+      itemsOnly
     >
       {MY_RECIPE_VIEWS.map((view) => (
         <GuardedLink
@@ -67,12 +73,10 @@ export function MyRecipesHubNavigation({
         >
           {viewLabel(view)}
           {view === activeView && activeCount !== null && activeCount !== undefined ? (
-            <span className="workspace-tab-menu__count" aria-hidden="true">
-              {activeCount}
-            </span>
+            <WorkspaceTabCount>{activeCount}</WorkspaceTabCount>
           ) : null}
         </GuardedLink>
       ))}
-    </nav>
+    </WorkspaceTabMenu>
   );
 }

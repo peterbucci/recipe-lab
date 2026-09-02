@@ -4,11 +4,11 @@ import type {
   RecipeModerationStatus,
 } from "../../lib/recipe-moderation-api";
 import { formatModerationTime } from "./use-recipe-moderation-workspace";
-import { SectionLoading } from "./loading-ui";
+import { WorkspacePagination } from "./workspace-pagination";
+import { WorkspaceLoadingState } from "./workspace-state";
 
 interface RecipeModerationQueueProps {
   caseStatus: RecipeModerationStatus;
-  page: number;
   queue: RecipeModerationCasePage | null;
   queueLoading: boolean;
   searchQuery: string;
@@ -22,7 +22,6 @@ interface RecipeModerationQueueProps {
 
 export function RecipeModerationQueue({
   caseStatus,
-  page,
   queue,
   queueLoading,
   searchQuery,
@@ -60,7 +59,7 @@ export function RecipeModerationQueue({
         />
       </label>
       {queueLoading ? (
-        <SectionLoading
+        <WorkspaceLoadingState
           count={5}
           label="Loading recipe-report cases…"
           layout="rows"
@@ -108,31 +107,27 @@ export function RecipeModerationQueue({
             : `No ${caseStatus} recipe-report cases.`}
         </p>
       ) : null}
-      {queue && queue.total_pages > 1 ? (
-        <nav
-          className="staff-workspace__pagination pagination"
-          aria-label="Moderation queue pages"
-        >
-          <button
-            className="button button--quiet"
-            type="button"
-            disabled={page <= 1 || queueLoading}
-            onClick={onPreviousPage}
-          >
-            Previous
-          </button>
-          <span>
-            Page {queue.page} of {queue.total_pages}
-          </span>
-          <button
-            className="button button--quiet"
-            type="button"
-            disabled={page >= queue.total_pages || queueLoading}
-            onClick={onNextPage}
-          >
-            Next
-          </button>
-        </nav>
+      {queue ? (
+        <WorkspacePagination
+          buttonClassName="button button--quiet"
+          className="staff-workspace__pagination"
+          currentPage={queue.page}
+          label="Moderation queue pages"
+          loading={queueLoading}
+          nextLabel="Next"
+          previousLabel="Previous"
+          totalPages={queue.total_pages}
+          renderControl={({ direction, ...control }) => (
+            <button
+              className={control.className}
+              type="button"
+              disabled={control.disabled}
+              onClick={direction === "previous" ? onPreviousPage : onNextPage}
+            >
+              {control.label}
+            </button>
+          )}
+        />
       ) : null}
     </section>
   );

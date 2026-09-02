@@ -19,9 +19,13 @@ import {
   IngredientRequestReviewQueue,
   IngredientRequestStatusFilters,
 } from "./ingredient-request-review-queue";
-import { AuthGateLoading, SectionLoading } from "./loading-ui";
+import { AuthGateLoading } from "./loading-ui";
 import { WorkspaceEmptyState } from "./workspace-empty-state";
 import { WorkspacePanelHeader } from "./workspace-panel-header";
+import {
+  WorkspaceErrorState,
+  WorkspaceLoadingState,
+} from "./workspace-state";
 
 const REQUEST_STATUS_PANEL_COPY: Record<
   IngredientCatalogRequestStatus,
@@ -382,7 +386,7 @@ function AuthorizedReviewWorkspace({
                   Request details
                 </h2>
               ) : null}
-              <SectionLoading
+              <WorkspaceLoadingState
                 className="curation-panel-state"
                 count={1}
                 label="Loading request details…"
@@ -392,20 +396,20 @@ function AuthorizedReviewWorkspace({
             </>
           ) : null}
           {detailError ? (
-            <div
-              className="staff-workspace__notice staff-workspace__notice--error curation-panel-state"
-              role="alert"
-            >
-              <h2 id="curation-detail-heading">Request unavailable</h2>
-              <p>{detailError}</p>
-              <button
+            <WorkspaceErrorState
+              action={<button
                 className="button button--secondary"
                 type="button"
                 onClick={() => void refreshDetail()}
               >
                 Try again
-              </button>
-            </div>
+              </button>}
+              className="staff-workspace__notice staff-workspace__notice--error curation-panel-state"
+              headingId="curation-detail-heading"
+              headingLevel={2}
+              message={detailError}
+              title="Request unavailable"
+            />
           ) : null}
           {detail ? (
             <IngredientRequestReviewDetail

@@ -2,7 +2,6 @@
 
 import {
   type KeyboardEvent as ReactKeyboardEvent,
-  useEffect,
   useRef,
   useState,
 } from "react";
@@ -19,6 +18,7 @@ import type { StructuredMeasureField } from "../../lib/structured-measure";
 import { EditorRowIcon } from "./editor-row-icon";
 import { IngredientAmountControl } from "./ingredient-amount-control";
 import { IngredientCatalogPicker } from "./ingredient-catalog-picker";
+import { Popover, PopoverContent, PopoverTrigger } from "./overlay-primitives";
 import { RecipeDraftFieldError } from "./recipe-draft-field-error";
 import { useFloatingPanelPlacement } from "./use-floating-panel-placement";
 
@@ -66,7 +66,6 @@ export function RecipeDraftIngredientsSection({
   const [enabledNoteKeys, setEnabledNoteKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  const settingsRootRef = useRef<HTMLDivElement>(null);
   const settingsTriggerRef = useRef<HTMLButtonElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const settingsPlacement = useFloatingPanelPlacement({
@@ -75,34 +74,6 @@ export function RecipeDraftIngredientsSection({
     panelRef: settingsMenuRef,
     triggerRef: settingsTriggerRef,
   });
-
-  useEffect(() => {
-    if (!openSettingsKey) return;
-
-    const closeWhenOutside = (event: PointerEvent) => {
-      const target = event.target;
-      if (
-        target instanceof Node &&
-        !settingsRootRef.current?.contains(target)
-      ) {
-        setOpenSettingsKey(null);
-      }
-    };
-    const closeFromKeyboard = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      const trigger = settingsTriggerRef.current;
-      setOpenSettingsKey(null);
-      window.setTimeout(() => trigger?.focus(), 0);
-    };
-
-    document.addEventListener("pointerdown", closeWhenOutside);
-    document.addEventListener("keydown", closeFromKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", closeWhenOutside);
-      document.removeEventListener("keydown", closeFromKeyboard);
-    };
-  }, [openSettingsKey]);
 
   function handleSettingsMenuKeyDown(
     event: ReactKeyboardEvent<HTMLDivElement>,
@@ -246,38 +217,26 @@ export function RecipeDraftIngredientsSection({
                       <EditorRowIcon kind="down" />
                     </button>
                     <div
-                      ref={settingsOpen ? settingsRootRef : undefined}
                       className="recipe-workspace__ingredient-settings"
-                      onBlur={(event) => {
-                        const nextTarget = event.relatedTarget;
-                        if (
-                          settingsOpen &&
-                          (!(nextTarget instanceof Node) ||
-                            !event.currentTarget.contains(nextTarget))
-                        ) {
-                          setOpenSettingsKey(null);
-                        }
-                      }}
                     >
-                      <button
-                        ref={settingsOpen ? settingsTriggerRef : undefined}
-                        id={settingsId}
-                        className="recipe-workspace__ingredient-icon"
-                        type="button"
-                        aria-label={`${rowLabel} options`}
-                        aria-haspopup="menu"
-                        aria-expanded={settingsOpen}
-                        aria-controls={settingsMenuId}
-                        onClick={() =>
-                          setOpenSettingsKey((current) =>
-                            current === ingredient.key ? null : ingredient.key,
-                          )
+                      <Popover
+                        closeOnFocusOutside
+                        open={settingsOpen}
+                        onOpenChange={(nextOpen) =>
+                          setOpenSettingsKey(nextOpen ? ingredient.key : null)
                         }
                       >
-                        <EditorRowIcon kind="menu" />
-                      </button>
-                      {settingsOpen ? (
-                        <div
+                        <PopoverTrigger
+                          ref={settingsOpen ? settingsTriggerRef : undefined}
+                          contentId={settingsMenuId}
+                          id={settingsId}
+                          className="recipe-workspace__ingredient-icon"
+                          aria-label={`${rowLabel} options`}
+                          aria-haspopup="menu"
+                        >
+                          <EditorRowIcon kind="menu" />
+                        </PopoverTrigger>
+                        <PopoverContent
                           ref={settingsMenuRef}
                           id={settingsMenuId}
                           className="recipe-workspace__ingredient-settings-menu"
@@ -285,10 +244,10 @@ export function RecipeDraftIngredientsSection({
                           aria-label={`${rowLabel} options`}
                           data-placement={settingsPlacement.placement}
                           style={settingsPlacement.style}
+                          initialFocus="first"
                           onKeyDown={handleSettingsMenuKeyDown}
                         >
                           <button
-                            autoFocus
                             className="recipe-workspace__ingredient-settings-item"
                             type="button"
                             role="menuitemcheckbox"
@@ -350,8 +309,8 @@ export function RecipeDraftIngredientsSection({
                           >
                             Delete ingredient
                           </button>
-                        </div>
-                      ) : null}
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
                 </div>

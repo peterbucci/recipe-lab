@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   type FormEvent,
-  type KeyboardEvent,
-  useRef,
   useState,
 } from "react";
 
@@ -20,6 +18,7 @@ import {
 import { useAuthSession } from "./auth-session-provider";
 import { AuthGateLoading, LoadingButton } from "./loading-ui";
 import { WorkspacePanelHeader } from "./workspace-panel-header";
+import { WorkspaceTabs } from "./workspace-tab-menu";
 
 const SETTINGS_PATH = "/account/settings";
 type SettingsSection = "profile" | "danger";
@@ -154,10 +153,6 @@ export function AccountSettings() {
   const [error, setError] = useState("");
   const [recentAuthenticationRequired, setRecentAuthenticationRequired] = useState(false);
   const [requestedSection, setRequestedSection] = useState<SettingsSection>("profile");
-  const tabRefs = useRef<Record<SettingsSection, HTMLButtonElement | null>>({
-    profile: null,
-    danger: null,
-  });
 
   if (state.phase === "loading") {
     return (
@@ -224,31 +219,6 @@ export function AccountSettings() {
     ? requestedSection
     : "danger";
 
-  function handleTabKeyDown(
-    event: KeyboardEvent<HTMLButtonElement>,
-    currentSection: SettingsSection,
-  ) {
-    const currentIndex = availableSections.indexOf(currentSection);
-    let nextIndex: number | null = null;
-
-    if (event.key === "ArrowRight") {
-      nextIndex = (currentIndex + 1) % availableSections.length;
-    } else if (event.key === "ArrowLeft") {
-      nextIndex = (currentIndex - 1 + availableSections.length) % availableSections.length;
-    } else if (event.key === "Home") {
-      nextIndex = 0;
-    } else if (event.key === "End") {
-      nextIndex = availableSections.length - 1;
-    }
-
-    if (nextIndex === null) return;
-
-    event.preventDefault();
-    const nextSection = availableSections[nextIndex];
-    setRequestedSection(nextSection);
-    tabRefs.current[nextSection]?.focus();
-  }
-
   async function completeDeletion() {
     replaceSession({ status: "anonymous" });
     router.replace("/account/deleted");
@@ -306,46 +276,23 @@ export function AccountSettings() {
       </header>
 
       <div className="account-settings__shell">
-        <div
-          className="account-settings__tabs workspace-tab-menu workspace-tab-menu--items-only"
-          role="tablist"
-          aria-label="Settings categories"
-        >
-          {expectedHandle ? (
-            <button
-              ref={(node) => {
-                tabRefs.current.profile = node;
-              }}
-              id="account-settings-profile-tab"
-              className="account-settings__tab workspace-tab-menu__item"
-              type="button"
-              role="tab"
-              aria-controls="account-settings-profile-panel"
-              aria-selected={activeSection === "profile"}
-              tabIndex={activeSection === "profile" ? 0 : -1}
-              onClick={() => setRequestedSection("profile")}
-              onKeyDown={(event) => handleTabKeyDown(event, "profile")}
-            >
-              Profile
-            </button>
-          ) : null}
-          <button
-            ref={(node) => {
-              tabRefs.current.danger = node;
-            }}
-            id="account-settings-danger-tab"
-            className="account-settings__tab account-settings__tab--danger workspace-tab-menu__item"
-            type="button"
-            role="tab"
-            aria-controls="account-settings-danger-panel"
-            aria-selected={activeSection === "danger"}
-            tabIndex={activeSection === "danger" ? 0 : -1}
-            onClick={() => setRequestedSection("danger")}
-            onKeyDown={(event) => handleTabKeyDown(event, "danger")}
-          >
-            Danger zone
-          </button>
-        </div>
+        <WorkspaceTabs
+          className="account-settings__tabs"
+          ariaLabel="Settings categories"
+          items={availableSections.map((section) => ({
+            className:
+              section === "danger"
+                ? "account-settings__tab account-settings__tab--danger"
+                : "account-settings__tab",
+            count: 1,
+            id: `account-settings-${section}-tab`,
+            label: section === "profile" ? "Profile" : "Danger zone",
+            panelId: `account-settings-${section}-panel`,
+            value: section,
+          }))}
+          value={activeSection}
+          onChange={setRequestedSection}
+        />
 
         {expectedHandle ? (
           <PublicProfileSettings

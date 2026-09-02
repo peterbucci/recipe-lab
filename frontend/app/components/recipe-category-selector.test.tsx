@@ -172,7 +172,9 @@ describe("RecipeCategorySelector", () => {
     expect(panel).toHaveClass("recipe-workspace__category-choices");
     expect(panel).toHaveAttribute("data-placement", "below");
     expect(trigger).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("checkbox", { name: "Breakfast" })).toBeChecked();
+    const breakfast = screen.getByRole("checkbox", { name: "Breakfast" });
+    expect(breakfast).toBeChecked();
+    await waitFor(() => expect(breakfast).toHaveFocus());
 
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
 

@@ -13,7 +13,15 @@ import {
   STATUS_FILTERS,
   STATUS_LABELS,
 } from "./ingredient-request-review-model";
-import { SectionLoading } from "./loading-ui";
+import { WorkspacePagination } from "./workspace-pagination";
+import {
+  WorkspaceErrorState,
+  WorkspaceLoadingState,
+} from "./workspace-state";
+import {
+  WorkspaceTabButton,
+  WorkspaceTabMenu,
+} from "./workspace-tab-menu";
 
 interface IngredientRequestStatusFiltersProps {
   count?: number | null;
@@ -27,27 +35,29 @@ export function IngredientRequestStatusFilters({
   onChangeStatus,
 }: IngredientRequestStatusFiltersProps) {
   return (
-    <nav
-      className="staff-filter-strip staff-workspace__filters curation-filters workspace-tab-menu workspace-tab-menu--items-only"
+    <WorkspaceTabMenu
+      as="nav"
+      className="staff-filter-strip staff-workspace__filters curation-filters"
       aria-label="Ingredient request status filters"
+      itemsOnly
     >
       {STATUS_FILTERS.map((filter) => (
-        <button
-          className="curation-filter workspace-tab-menu__item"
+        <WorkspaceTabButton
+          className="curation-filter"
           type="button"
           key={filter.value}
-          aria-pressed={requestStatus === filter.value}
+          active={requestStatus === filter.value}
+          count={
+            requestStatus === filter.value && count !== null && count !== undefined
+              ? count
+              : null
+          }
           onClick={() => onChangeStatus(filter.value)}
         >
           {filter.label}
-          {requestStatus === filter.value && count !== null && count !== undefined ? (
-            <span className="workspace-tab-menu__count" aria-hidden="true">
-              {count}
-            </span>
-          ) : null}
-        </button>
+        </WorkspaceTabButton>
       ))}
-    </nav>
+    </WorkspaceTabMenu>
   );
 }
 
@@ -134,7 +144,7 @@ export function IngredientRequestReviewQueue({
       </div>
 
       {queueLoading ? (
-        <SectionLoading
+        <WorkspaceLoadingState
           className="curation-panel-state"
           count={5}
           label={`Loading ${STATUS_LABELS[requestStatus].toLocaleLowerCase()} requests…`}
@@ -143,19 +153,17 @@ export function IngredientRequestReviewQueue({
         />
       ) : null}
       {queueError ? (
-        <div
-          className="staff-workspace__notice staff-workspace__notice--error curation-panel-state"
-          role="alert"
-        >
-          <p>{queueError}</p>
-          <button
+        <WorkspaceErrorState
+          action={<button
             className="button button--secondary"
             type="button"
             onClick={onReloadQueue}
           >
             Try again
-          </button>
-        </div>
+          </button>}
+          className="staff-workspace__notice staff-workspace__notice--error curation-panel-state"
+          message={queueError}
+        />
       ) : null}
       {!queueLoading && !queueError && queue?.items.length === 0 ? (
         <p className="curation-queue__empty">
@@ -203,31 +211,16 @@ export function IngredientRequestReviewQueue({
           ))}
         </ol>
       ) : null}
-      {queue && queue.total_pages > 1 ? (
-        <nav
+      {queue ? (
+        <WorkspacePagination
+          buttonClassName="button button--quiet"
           className="staff-workspace__pagination curation-pagination"
-          aria-label="Ingredient request pages"
-        >
-          <button
-            className="button button--quiet"
-            type="button"
-            disabled={queueLoading || queue.page <= 1}
-            onClick={() => onChangePage(queue.page - 1)}
-          >
-            ← Previous
-          </button>
-          <span aria-current="page">
-            Page {queue.page} of {queue.total_pages}
-          </span>
-          <button
-            className="button button--quiet"
-            type="button"
-            disabled={queueLoading || queue.page >= queue.total_pages}
-            onClick={() => onChangePage(queue.page + 1)}
-          >
-            Next →
-          </button>
-        </nav>
+          currentPage={queue.page}
+          label="Ingredient request pages"
+          loading={queueLoading}
+          onPageChange={onChangePage}
+          totalPages={queue.total_pages}
+        />
       ) : null}
     </section>
   );
