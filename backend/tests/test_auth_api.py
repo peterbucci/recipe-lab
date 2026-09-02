@@ -12,7 +12,7 @@ from httpx import Response
 from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
-import app.api.routes.auth as auth_routes
+import app.services.auth_workflows as auth_workflows
 from app.api.dependencies import get_oidc_client, get_session
 from app.core.config import Settings, get_settings
 from app.core.security import (
@@ -386,7 +386,7 @@ def test_real_auth_unavailability_emits_only_a_correlated_fixed_event(
             "provider-secret cook@example.test /oauth/token?code=private"
         )
 
-    monkeypatch.setattr(auth_routes, "begin_oidc_login", unavailable)
+    monkeypatch.setattr(auth_workflows, "begin_oidc_login", unavailable)
     with caplog.at_level(logging.ERROR, logger="recipe_lab.operations"):
         response = auth_api.client.get("/api/auth/login")
 
