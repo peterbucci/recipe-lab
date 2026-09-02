@@ -65,6 +65,9 @@ See [product language and recommendation boundary](docs/product-language.md)
 for the cook-facing terminology, research-preview rules, actual-member data
 boundary, and explicit staff/diagnostic exceptions.
 
+The complete documentation set is organized in the
+[documentation index](docs/README.md).
+
 ## Repository layout
 
 ```text
@@ -72,7 +75,7 @@ recipe-lab/
 |-- frontend/          Next.js and TypeScript web application
 |-- backend/           FastAPI, SQLAlchemy, and pytest
 |-- ml/                Offline recommenders, data readiness, and evaluation
-|-- docs/              Product scope and architecture notes
+|-- docs/              Indexed product, architecture, operations, and research notes
 |-- compose.yaml       Local frontend, API, and PostgreSQL services
 `-- .env.example       Documented development configuration
 ```
