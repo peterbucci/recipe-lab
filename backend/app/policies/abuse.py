@@ -26,17 +26,17 @@ type RateLimitRoutePolicyName = Literal[
     "interaction",
 ]
 type RateLimitSettingName = Literal[
-    "abuse_rate_limit_auth_network",
-    "abuse_rate_limit_draft_account",
-    "abuse_rate_limit_draft_network",
-    "abuse_rate_limit_fork_account",
-    "abuse_rate_limit_fork_network",
-    "abuse_rate_limit_publication_account",
-    "abuse_rate_limit_publication_network",
-    "abuse_rate_limit_report_account",
-    "abuse_rate_limit_report_network",
-    "abuse_rate_limit_interaction_account",
-    "abuse_rate_limit_interaction_network",
+    "rate_limit_auth_network",
+    "rate_limit_draft_account",
+    "rate_limit_draft_network",
+    "rate_limit_fork_account",
+    "rate_limit_fork_network",
+    "rate_limit_publication_account",
+    "rate_limit_publication_network",
+    "rate_limit_report_account",
+    "rate_limit_report_network",
+    "rate_limit_interaction_account",
+    "rate_limit_interaction_network",
 ]
 
 
@@ -66,15 +66,16 @@ class RateLimitRoutePolicy:
         )
 
     def resolve(self, settings: Settings) -> RateLimitPolicy:
+        abuse = settings.abuse
         account_limit = (
-            cast(int, getattr(settings, self.account_limit_setting))
+            cast(int, getattr(abuse, self.account_limit_setting))
             if self.account_limit_setting is not None
             else None
         )
         return RateLimitPolicy(
             operation=self.operation,
             account_limit=account_limit,
-            network_limit=cast(int, getattr(settings, self.network_limit_setting)),
+            network_limit=cast(int, getattr(abuse, self.network_limit_setting)),
         )
 
 
@@ -105,7 +106,7 @@ RATE_LIMIT_ROUTE_POLICIES: tuple[RateLimitRoutePolicy, ...] = (
         ),
         path_patterns=(),
         account_limit_setting=None,
-        network_limit_setting="abuse_rate_limit_auth_network",
+        network_limit_setting="rate_limit_auth_network",
     ),
     RateLimitRoutePolicy(
         name="draft_creation",
@@ -113,8 +114,8 @@ RATE_LIMIT_ROUTE_POLICIES: tuple[RateLimitRoutePolicy, ...] = (
         methods=frozenset({"POST"}),
         exact_paths=frozenset({"/api/recipe-drafts"}),
         path_patterns=(),
-        account_limit_setting="abuse_rate_limit_fork_account",
-        network_limit_setting="abuse_rate_limit_fork_network",
+        account_limit_setting="rate_limit_fork_account",
+        network_limit_setting="rate_limit_fork_network",
     ),
     RateLimitRoutePolicy(
         name="draft_mutation",
@@ -122,8 +123,8 @@ RATE_LIMIT_ROUTE_POLICIES: tuple[RateLimitRoutePolicy, ...] = (
         methods=frozenset({"DELETE", "PUT"}),
         exact_paths=frozenset(),
         path_patterns=(_DRAFT_PATH,),
-        account_limit_setting="abuse_rate_limit_draft_account",
-        network_limit_setting="abuse_rate_limit_draft_network",
+        account_limit_setting="rate_limit_draft_account",
+        network_limit_setting="rate_limit_draft_network",
     ),
     RateLimitRoutePolicy(
         name="draft_preflight",
@@ -131,8 +132,8 @@ RATE_LIMIT_ROUTE_POLICIES: tuple[RateLimitRoutePolicy, ...] = (
         methods=frozenset({"POST"}),
         exact_paths=frozenset(),
         path_patterns=(_DRAFT_PREFLIGHT_PATH,),
-        account_limit_setting="abuse_rate_limit_draft_account",
-        network_limit_setting="abuse_rate_limit_draft_network",
+        account_limit_setting="rate_limit_draft_account",
+        network_limit_setting="rate_limit_draft_network",
     ),
     RateLimitRoutePolicy(
         name="publication",
@@ -140,8 +141,8 @@ RATE_LIMIT_ROUTE_POLICIES: tuple[RateLimitRoutePolicy, ...] = (
         methods=frozenset({"POST"}),
         exact_paths=frozenset(),
         path_patterns=(_PUBLICATION_PATH,),
-        account_limit_setting="abuse_rate_limit_publication_account",
-        network_limit_setting="abuse_rate_limit_publication_network",
+        account_limit_setting="rate_limit_publication_account",
+        network_limit_setting="rate_limit_publication_network",
     ),
     RateLimitRoutePolicy(
         name="reporting",
@@ -149,8 +150,8 @@ RATE_LIMIT_ROUTE_POLICIES: tuple[RateLimitRoutePolicy, ...] = (
         methods=frozenset({"POST"}),
         exact_paths=frozenset(),
         path_patterns=(_REPORT_PATH, _MODERATION_ACTION_PATH),
-        account_limit_setting="abuse_rate_limit_report_account",
-        network_limit_setting="abuse_rate_limit_report_network",
+        account_limit_setting="rate_limit_report_account",
+        network_limit_setting="rate_limit_report_network",
     ),
     RateLimitRoutePolicy(
         name="interaction",
@@ -158,8 +159,8 @@ RATE_LIMIT_ROUTE_POLICIES: tuple[RateLimitRoutePolicy, ...] = (
         methods=frozenset({"DELETE", "POST", "PUT"}),
         exact_paths=frozenset(),
         path_patterns=(_INTERACTION_PATH, _FOLLOW_PATH),
-        account_limit_setting="abuse_rate_limit_interaction_account",
-        network_limit_setting="abuse_rate_limit_interaction_network",
+        account_limit_setting="rate_limit_interaction_account",
+        network_limit_setting="rate_limit_interaction_network",
     ),
 )
 

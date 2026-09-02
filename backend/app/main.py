@@ -22,14 +22,14 @@ def create_app() -> FastAPI:
     )
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origin_list,
+        allow_origins=list(settings.http.cors_origins),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
     application.add_middleware(
         RequestBodyLimitMiddleware,
-        max_body_bytes=settings.max_request_body_bytes,
+        max_body_bytes=settings.http.max_request_body_bytes,
     )
     application.add_middleware(PrivacySafeObservabilityMiddleware)
     register_error_handlers(application)
