@@ -21,17 +21,16 @@ def test_exact_canonical_and_alias_names_resolve_case_insensitively(
             IngredientAlias(alias="Spring onion"),
         ],
     )
-    canonical_scallion = Ingredient(canonical_name="Scallion")
-    db_session.add_all([green_onion, canonical_scallion])
+    db_session.add(green_onion)
     db_session.flush()
 
     canonical_match = resolve_ingredient_name(db_session, "  GREEN ONION ")
     alias_match = resolve_ingredient_name(db_session, "  SpRiNg OnIoN  ")
-    canonical_precedence = resolve_ingredient_name(db_session, "  sCaLlIoN  ")
+    second_alias_match = resolve_ingredient_name(db_session, "  sCaLlIoN  ")
 
     assert canonical_match is green_onion
     assert alias_match is green_onion
-    assert canonical_precedence is canonical_scallion
+    assert second_alias_match is green_onion
     assert resolve_ingredient_name(db_session, "shallot") is None
     with pytest.raises(ValueError, match="must not be blank"):
         resolve_ingredient_name(db_session, "   ")

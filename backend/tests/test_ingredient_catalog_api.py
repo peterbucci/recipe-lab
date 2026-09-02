@@ -22,6 +22,7 @@ from app.models import (
     Ingredient,
     IngredientAlias,
     IngredientCatalogAuditEvent,
+    IngredientCatalogName,
     IngredientCatalogRequest,
 )
 from app.schemas.ingredient_catalog import MemberIngredientCatalogRequestResponse
@@ -505,6 +506,17 @@ def test_concurrent_approvals_serialize_one_catalog_identity_and_one_conflict(
         assert len(aliases) == 1
         assert aliases[0].ingredient_id == ingredients[0].id
         assert approved[0].resolved_ingredient_id == ingredients[0].id
+        namespace_rows = list(
+            session.scalars(
+                select(IngredientCatalogName).where(
+                    IngredientCatalogName.normalized_name.in_(["parallel kale", "parallel greens"])
+                )
+            )
+        )
+        assert {row.name_kind for row in namespace_rows} == {"canonical", "alias"}
+        assert {
+            row.canonical_ingredient_id or row.ingredient_alias_id for row in namespace_rows
+        } == {ingredients[0].id, aliases[0].id}
 
         events = list(
             session.scalars(

@@ -26,8 +26,9 @@ an interaction-only user removes that user's saves, ratings, and event history.
 
 Canonical ingredients can have exact aliases, one broad category, and
 positive dietary-flag and allergen assignments. Missing assignments mean
-"unknown," not that an ingredient is safe for a diet or allergy. Exact lookup
-gives a canonical name precedence if another ingredient has a colliding alias.
+"unknown," not that an ingredient is safe for a diet or allergy. Canonical
+names and aliases share one compatibility-normalized database namespace, so
+the same lookup key cannot belong to two catalog records or name kinds.
 
 Substitutions are explicit directed edges. Each edge identifies its source and
 replacement and includes a positive quantity ratio or written guidance, plus

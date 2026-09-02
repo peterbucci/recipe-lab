@@ -1,8 +1,11 @@
 import unicodedata
 from hashlib import sha256
+from uuid import UUID, uuid5
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+CATALOG_NAME_ID_NAMESPACE = UUID("01ea902d-6925-43cc-868f-920c541b48cf")
 
 
 def normalize_catalog_name(value: str) -> str:
@@ -18,6 +21,12 @@ def normalize_catalog_name(value: str) -> str:
 
 def catalog_name_digest(normalized_name: str) -> str:
     return sha256(normalized_name.encode("utf-8")).hexdigest()
+
+
+def catalog_name_id(name_kind: str, source_id: UUID) -> UUID:
+    """Return the stable identity for a derived source-name namespace row."""
+
+    return uuid5(CATALOG_NAME_ID_NAMESPACE, f"{name_kind}:{source_id}")
 
 
 def lock_catalog_names(session: Session, normalized_names: set[str]) -> None:

@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, func, inspect, select, text
 from sqlalchemy.orm import InstrumentedAttribute, Session, selectinload
 
-from app.catalog_names import lock_catalog_names, normalize_catalog_name
+from app.catalog_names import catalog_name_digest, lock_catalog_names, normalize_catalog_name
 from app.core.demo_identity import (
     DEMO_USER_CREATED_AT,
     DEMO_USER_DISPLAY_NAME,
@@ -23,6 +23,7 @@ from app.models import (
     DietaryFlag,
     Ingredient,
     IngredientAlias,
+    IngredientCatalogName,
     IngredientCategory,
     IngredientSubstitution,
     MeasurementConversionRule,
@@ -40,6 +41,7 @@ from app.models import (
     RecipeVersionPublication,
     User,
 )
+from app.repositories.ingredients import find_catalog_name
 from app.repositories.recipe_fingerprints import (
     StructuralFingerprintStorageConflictError,
 )
@@ -66,6 +68,7 @@ CATALOG_USER_EMAIL = "demo-catalog@recipe-lab.invalid"
 CATALOG_USER_DISPLAY_NAME = "Recipe Lab Demo Catalog"
 CATALOG_USER_HANDLE = "recipe-lab-catalog"
 SEED_ADVISORY_LOCK_ID = 0x52435005
+_CATALOG_NAME_NAMESPACE_SESSION_KEY = "seed_catalog_name_namespace_present"
 
 
 class SeedConflictError(RuntimeError):
@@ -97,7 +100,32 @@ def _normalized_match(
     return func.lower(func.btrim(column)) == func.lower(value)
 
 
+def _supports_catalog_name_namespace(session: Session) -> bool:
+    cached = session.info.get(_CATALOG_NAME_NAMESPACE_SESSION_KEY)
+    if isinstance(cached, bool):
+        return cached
+    supported = inspect(session.connection()).has_table(IngredientCatalogName.__tablename__)
+    session.info[_CATALOG_NAME_NAMESPACE_SESSION_KEY] = supported
+    return supported
+
+
+def _catalog_name_candidate(session: Session, value: str) -> IngredientCatalogName | None:
+    normalized_name = normalize_catalog_name(value)
+    return find_catalog_name(
+        session,
+        normalized_name=normalized_name,
+        normalized_name_digest=catalog_name_digest(normalized_name),
+        include_owner=True,
+    )
+
+
 def _ingredients_in_catalog_namespace(session: Session, value: str) -> list[Ingredient]:
+    if _supports_catalog_name_namespace(session):
+        catalog_name = _catalog_name_candidate(session, value)
+        if catalog_name is None or catalog_name.canonical_ingredient is None:
+            return []
+        return [catalog_name.canonical_ingredient]
+
     normalized_name = normalize_catalog_name(value)
     return [
         ingredient
@@ -107,6 +135,12 @@ def _ingredients_in_catalog_namespace(session: Session, value: str) -> list[Ingr
 
 
 def _aliases_in_catalog_namespace(session: Session, value: str) -> list[IngredientAlias]:
+    if _supports_catalog_name_namespace(session):
+        catalog_name = _catalog_name_candidate(session, value)
+        if catalog_name is None or catalog_name.ingredient_alias is None:
+            return []
+        return [catalog_name.ingredient_alias]
+
     normalized_name = normalize_catalog_name(value)
     return [
         alias
@@ -649,6 +683,8 @@ def _get_or_create_ingredient(
         session.add(existing)
         session.flush()
         report.created["ingredients"] += 1
+        if _supports_catalog_name_namespace(session):
+            report.created["ingredient_catalog_names"] += 1
     else:
         id_owner = session.get(Ingredient, expected_id)
         if id_owner is not None and id_owner.id != existing.id:
@@ -660,6 +696,8 @@ def _get_or_create_ingredient(
             elif existing.category_id != category_id:
                 raise _conflict("ingredient", seed.key, "category differs from the catalog")
         report.reused["ingredients"] += 1
+        if _supports_catalog_name_namespace(session):
+            report.reused["ingredient_catalog_names"] += 1
 
     current_flag_ids = {flag.id for flag in existing.dietary_flags}
     for flag_key in seed.dietary_flags:
@@ -736,6 +774,8 @@ def _load_aliases(
                     "alias belongs to a different canonical ingredient",
                 )
             report.reused["ingredient_aliases"] += 1
+            if _supports_catalog_name_namespace(session):
+                report.reused["ingredient_catalog_names"] += 1
             continue
 
         if session.get(IngredientAlias, expected_id) is not None:
@@ -753,6 +793,8 @@ def _load_aliases(
             )
         )
         report.created["ingredient_aliases"] += 1
+        if _supports_catalog_name_namespace(session):
+            report.created["ingredient_catalog_names"] += 1
     session.flush()
 
 
