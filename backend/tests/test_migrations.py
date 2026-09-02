@@ -1,4 +1,5 @@
 from decimal import Decimal
+from hashlib import sha256
 from uuid import UUID, uuid4
 
 import pytest
@@ -39,6 +40,7 @@ DOMAIN_TABLES = {
     "dietary_flags",
     "ingredient_aliases",
     "ingredient_catalog_audit_events",
+    "ingredient_catalog_names",
     "ingredient_catalog_requests",
     "ingredient_allergens",
     "ingredient_categories",
@@ -89,6 +91,7 @@ INGREDIENT_TABLES = {
     "allergens",
     "dietary_flags",
     "ingredient_aliases",
+    "ingredient_catalog_names",
     "ingredient_allergens",
     "ingredient_categories",
     "ingredient_dietary_flags",
@@ -242,6 +245,111 @@ def test_migrations_round_trip_on_empty_postgres_schema(
 
     assert current_revision == script.get_current_head()
     assert DOMAIN_TABLES <= set(inspect(empty_postgres_engine).get_table_names())
+
+
+def test_catalog_name_namespace_migration_backfills_normalized_canonical_and_alias_rows(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    ingredient_id = uuid4()
+    alias_id = uuid4()
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260902_0027")
+        connection.execute(
+            sa.text(
+                "INSERT INTO ingredients (id, canonical_name) "
+                "VALUES (:ingredient_id, :canonical_name)"
+            ),
+            {
+                "ingredient_id": ingredient_id,
+                "canonical_name": "Ｃｈｉｃｋｐｅａ",
+            },
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO ingredient_aliases (id, ingredient_id, alias) "
+                "VALUES (:alias_id, :ingredient_id, :alias)"
+            ),
+            {
+                "alias_id": alias_id,
+                "ingredient_id": ingredient_id,
+                "alias": "Garbanzo\t beans",
+            },
+        )
+        command.upgrade(alembic_config, "head")
+        rows = connection.execute(
+            sa.text(
+                "SELECT name_kind, display_name, normalized_name, "
+                "normalized_name_digest, canonical_ingredient_id, ingredient_alias_id "
+                "FROM ingredient_catalog_names ORDER BY name_kind"
+            )
+        ).mappings()
+        namespace_rows = [dict(row) for row in rows]
+
+    expected = {
+        "alias": ("Garbanzo\t beans", "garbanzo beans", alias_id),
+        "canonical": ("Ｃｈｉｃｋｐｅａ", "chickpea", ingredient_id),
+    }
+    assert len(namespace_rows) == 2
+    for row in namespace_rows:
+        display_name, normalized_name, source_id = expected[row["name_kind"]]
+        assert row["display_name"] == display_name
+        assert row["normalized_name"] == normalized_name
+        assert row["normalized_name_digest"] == sha256(normalized_name.encode("utf-8")).hexdigest()
+        if row["name_kind"] == "canonical":
+            assert row["canonical_ingredient_id"] == source_id
+            assert row["ingredient_alias_id"] is None
+        else:
+            assert row["canonical_ingredient_id"] is None
+            assert row["ingredient_alias_id"] == source_id
+
+    indexes = {
+        index["name"]: index
+        for index in inspect(empty_postgres_engine).get_indexes("ingredient_catalog_names")
+    }
+    assert indexes["uq_ingredient_catalog_names_normalized_digest"]["unique"] is True
+    assert indexes["uq_ingredient_catalog_names_normalized_digest"]["column_names"] == [
+        "normalized_name_digest"
+    ]
+
+
+def test_catalog_name_namespace_migration_refuses_cross_kind_normalized_collisions(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    canonical_id = uuid4()
+    alias_owner_id = uuid4()
+    alias_id = uuid4()
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260902_0027")
+        connection.execute(
+            sa.text(
+                "INSERT INTO ingredients (id, canonical_name) VALUES "
+                "(:canonical_id, 'ＣＨＩＣＫＰＥＡ'), (:alias_owner_id, 'Other ingredient')"
+            ),
+            {
+                "canonical_id": canonical_id,
+                "alias_owner_id": alias_owner_id,
+            },
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO ingredient_aliases (id, ingredient_id, alias) "
+                "VALUES (:alias_id, :alias_owner_id, 'chickpea')"
+            ),
+            {"alias_id": alias_id, "alias_owner_id": alias_owner_id},
+        )
+
+    with pytest.raises(RuntimeError, match="normalized catalog name collision"):
+        with empty_postgres_engine.begin() as connection:
+            alembic_config.attributes["connection"] = connection
+            command.upgrade(alembic_config, "head")
+
+    with empty_postgres_engine.connect() as connection:
+        assert MigrationContext.configure(connection).get_current_revision() == "20260902_0027"
+    assert "ingredient_catalog_names" not in inspect(empty_postgres_engine).get_table_names()
 
 
 def test_recipe_category_migration_uses_only_explicit_demo_assignments(

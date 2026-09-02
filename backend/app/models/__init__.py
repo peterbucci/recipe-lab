@@ -27,10 +27,14 @@ from app.models.catalog import (
 )
 from app.models.engagement import MAX_RATING, MIN_RATING, RecipeRating, RecipeSave
 from app.models.ingredient import (
+    INGREDIENT_CATALOG_NAME_ALIAS,
+    INGREDIENT_CATALOG_NAME_CANONICAL,
+    INGREDIENT_CATALOG_NAME_KINDS,
     Allergen,
     DietaryFlag,
     Ingredient,
     IngredientAlias,
+    IngredientCatalogName,
     IngredientCategory,
     IngredientSubstitution,
 )
@@ -150,8 +154,12 @@ __all__ = [
     "CommunityModerator",
     "CookingActionType",
     "DietaryFlag",
+    "INGREDIENT_CATALOG_NAME_ALIAS",
+    "INGREDIENT_CATALOG_NAME_CANONICAL",
+    "INGREDIENT_CATALOG_NAME_KINDS",
     "Ingredient",
     "IngredientAlias",
+    "IngredientCatalogName",
     "IngredientCategory",
     "IngredientCatalogAuditEvent",
     "IngredientCatalogRequest",
