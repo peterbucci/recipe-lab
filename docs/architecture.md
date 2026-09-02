@@ -403,6 +403,10 @@ quantities, and ordered structured actions. The response is capped at five
 candidates and three fixed reasons per candidate. Current browse, detail,
 replay, publication, and candidate reads share an explicit public-read
 predicate so future draft visibility cannot be filtered only after scoring.
+The shortlist join is backed by the non-unique covering
+`recipe_version_ingredients (ingredient_id, recipe_version_id)` index, while
+the existing `(algorithm_version, digest)` fingerprint index remains the exact
+lookup path.
 
 `recipe_duplicate_preflights`, `recipe_duplicate_candidates`, and
 `recipe_duplicate_decisions` retain only bounded versioned evidence and the

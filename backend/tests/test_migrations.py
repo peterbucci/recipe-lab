@@ -181,6 +181,15 @@ def test_migrations_round_trip_on_empty_postgres_schema(
         column["name"]: column
         for column in upgraded_inspector.get_columns("recipe_version_ingredients")
     }
+    ingredient_indexes = {
+        index["name"]: index
+        for index in upgraded_inspector.get_indexes("recipe_version_ingredients")
+    }
+    assert "ix_recipe_version_ingredients_ingredient_id" not in ingredient_indexes
+    assert ingredient_indexes["ix_recipe_version_ingredients_ingredient_version"][
+        "column_names"
+    ] == ["ingredient_id", "recipe_version_id"]
+    assert ingredient_indexes["ix_recipe_version_ingredients_ingredient_version"]["unique"] is False
     assert ingredient_columns["ingredient_id"]["nullable"] is False
     assert ingredient_columns["measure_mode"]["nullable"] is False
     action_input_foreign_keys = {
