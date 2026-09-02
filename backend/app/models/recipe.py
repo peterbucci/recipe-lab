@@ -123,6 +123,18 @@ class RecipeVersion(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
             postgresql_where=text("parent_version_id IS NULL"),
         ),
         Index("ix_recipe_versions_parent_version_id", "parent_version_id"),
+        Index(
+            "ix_recipe_versions_title_trgm",
+            "title",
+            postgresql_using="gin",
+            postgresql_ops={"title": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_recipe_versions_description_trgm",
+            "description",
+            postgresql_using="gin",
+            postgresql_ops={"description": "gin_trgm_ops"},
+        ),
     )
 
     lineage_id: Mapped[UUID] = mapped_column(
@@ -293,6 +305,12 @@ class RecipeVersionPublication(Base):
             name="uq_recipe_version_publications_actor_action",
         ),
         Index("ix_recipe_version_publications_state_version", "state", "recipe_version_id"),
+        Index(
+            "ix_recipe_version_publications_state_newest",
+            "state",
+            text("published_at DESC"),
+            "recipe_version_id",
+        ),
         Index(
             "ix_recipe_version_publications_actor_published",
             "actor_user_id",
