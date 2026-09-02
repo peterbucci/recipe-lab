@@ -39,13 +39,9 @@ function SavedRecipeLibraryInner() {
     page && page.total > 0 && page.items.length === 0,
   );
 
-  const load = useCallback(
-    async (requestedPage: number) => {
-      loadControllerRef.current?.abort();
-      const controller = new AbortController();
-      loadControllerRef.current = controller;
-      setLoading(true);
-      setError("");
+  const runLoad = useCallback(
+    async (requestedPage: number, controller: AbortController) => {
+      if (controller.signal.aborted) return;
       try {
         const result = await fetchSavedRecipeLibrary({
           page: requestedPage,
@@ -73,9 +69,21 @@ function SavedRecipeLibraryInner() {
   );
 
   useEffect(() => {
-    void load(pageNumber);
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    void Promise.resolve().then(() => runLoad(pageNumber, controller));
     return () => loadControllerRef.current?.abort();
-  }, [load, pageNumber]);
+  }, [pageNumber, runLoad]);
+
+  function retryLoad() {
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+    setLoading(true);
+    setError("");
+    void runLoad(pageNumber, controller);
+  }
 
   function changePage(nextPage: number) {
     setLoading(true);
@@ -175,7 +183,7 @@ function SavedRecipeLibraryInner() {
               <button
                 className="button button--secondary"
                 type="button"
-                onClick={() => void load(pageNumber)}
+                onClick={retryLoad}
               >
                 Refresh saved recipes
               </button>
