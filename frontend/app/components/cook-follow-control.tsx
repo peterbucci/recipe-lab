@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
+import { isAbortError } from "../../lib/abort-error";
 import { createIdempotencyKey } from "../../lib/idempotency-key";
 import {
   fetchCookFollowState,
@@ -110,7 +111,7 @@ export function CookFollowControl({
       .catch((reason: unknown) => {
         if (
           active &&
-          !(reason instanceof DOMException && reason.name === "AbortError")
+          !isAbortError(reason)
         ) {
           setPrivateState({ ownerId: memberId, phase: "error" });
         }

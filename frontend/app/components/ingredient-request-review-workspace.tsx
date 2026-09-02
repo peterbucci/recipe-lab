@@ -12,9 +12,10 @@ import {
   type IngredientCatalogReviewItem,
   type IngredientCatalogReviewPage,
 } from "../../lib/ingredient-catalog-api";
+import { isAbortError } from "../../lib/abort-error";
 import { useAuthSession } from "./auth-session-provider";
 import { IngredientRequestReviewDetail } from "./ingredient-request-review-detail";
-import { isAbortError, STATUS_LABELS } from "./ingredient-request-review-model";
+import { STATUS_LABELS } from "./ingredient-request-review-model";
 import {
   IngredientRequestReviewQueue,
   IngredientRequestStatusFilters,

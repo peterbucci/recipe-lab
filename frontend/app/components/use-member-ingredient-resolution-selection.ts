@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { isAbortError } from "../../lib/abort-error";
 import {
   type CatalogIngredientSelection,
   fetchMyIngredientRequest,
@@ -12,10 +13,6 @@ export interface MemberIngredientResolutionSelectionState {
   selectionError: string;
   clearSelectionError: () => void;
   selectResolution: (request: MemberIngredientRequest) => Promise<void>;
-}
-
-function isAbortError(reason: unknown): boolean {
-  return reason instanceof DOMException && reason.name === "AbortError";
 }
 
 export function useMemberIngredientResolutionSelection({

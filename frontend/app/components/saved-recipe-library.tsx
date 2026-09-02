@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { isAbortError } from "../../lib/abort-error";
 import { createIdempotencyKey } from "../../lib/idempotency-key";
 import { setRecipeSaved } from "../../lib/interaction-api";
 import {
@@ -50,7 +51,7 @@ function SavedRecipeLibraryInner() {
         setPage(result);
         setPageNumber(result.page);
       } catch (reason) {
-        if (reason instanceof DOMException && reason.name === "AbortError")
+        if (isAbortError(reason))
           return;
         setError(
           reason instanceof RecipeLibraryApiError
@@ -76,7 +77,7 @@ function SavedRecipeLibraryInner() {
         setPageNumber(result.page);
       })
       .catch((reason: unknown) => {
-        if (reason instanceof DOMException && reason.name === "AbortError")
+        if (isAbortError(reason))
           return;
         setError(
           reason instanceof RecipeLibraryApiError

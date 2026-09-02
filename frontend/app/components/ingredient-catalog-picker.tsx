@@ -20,6 +20,7 @@ import {
   searchCatalogIngredients,
   selectionForCatalogIngredient,
 } from "../../lib/ingredient-catalog-api";
+import { isAbortError } from "../../lib/abort-error";
 import { retryTransientRead } from "../../lib/api-transport/transient-read-retry";
 import { InlineLoading, LoadingButton } from "./loading-ui";
 import { MissingIngredientRequestPanel } from "./missing-ingredient-request-panel";
@@ -61,15 +62,6 @@ type IngredientSearchResource = "catalog" | "requests";
 
 const SEARCH_DELAY_MS = 200;
 const MINIMUM_QUERY_LENGTH = 2;
-
-function isAbortError(reason: unknown): boolean {
-  return (
-    typeof reason === "object" &&
-    reason !== null &&
-    "name" in reason &&
-    reason.name === "AbortError"
-  );
-}
 
 function authenticationSearchMessage(
   reason: unknown,
