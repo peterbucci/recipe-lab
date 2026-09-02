@@ -141,20 +141,20 @@ def _set_session_cookies(
         AUTH_SESSION_COOKIE_NAME,
         session_token,
         httponly=True,
-        secure=settings.auth_cookie_secure,
+        secure=settings.session.cookie_secure,
         samesite="lax",
         path="/",
-        max_age=settings.auth_session_ttl_seconds,
+        max_age=settings.session.ttl_seconds,
         expires=expires_at,
     )
     response.set_cookie(
         AUTH_CSRF_COOKIE_NAME,
         csrf_token,
         httponly=False,
-        secure=settings.auth_cookie_secure,
+        secure=settings.session.cookie_secure,
         samesite="lax",
         path="/",
-        max_age=settings.auth_session_ttl_seconds,
+        max_age=settings.session.ttl_seconds,
         expires=expires_at,
     )
 
@@ -163,14 +163,14 @@ def _clear_auth_cookies(response: Response, settings: SettingsDependency) -> Non
     response.delete_cookie(
         AUTH_SESSION_COOKIE_NAME,
         path="/",
-        secure=settings.auth_cookie_secure,
+        secure=settings.session.cookie_secure,
         httponly=True,
         samesite="lax",
     )
     response.delete_cookie(
         AUTH_CSRF_COOKIE_NAME,
         path="/",
-        secure=settings.auth_cookie_secure,
+        secure=settings.session.cookie_secure,
         httponly=False,
         samesite="lax",
     )
@@ -183,8 +183,8 @@ def _require_fresh_login_after_sign_out(
     response.set_cookie(
         AUTH_FORCE_LOGIN_COOKIE_NAME,
         "1",
-        max_age=settings.auth_session_ttl_seconds,
-        secure=settings.auth_cookie_secure,
+        max_age=settings.session.ttl_seconds,
+        secure=settings.session.cookie_secure,
         httponly=True,
         samesite="lax",
         path="/api/auth/login",
@@ -198,7 +198,7 @@ def _clear_fresh_login_requirement(
     response.delete_cookie(
         AUTH_FORCE_LOGIN_COOKIE_NAME,
         path="/api/auth/login",
-        secure=settings.auth_cookie_secure,
+        secure=settings.session.cookie_secure,
         httponly=True,
         samesite="lax",
     )
@@ -222,7 +222,7 @@ def _reauthentication_failure_redirect(
     response.delete_cookie(
         AUTH_LOGIN_COOKIE_NAME,
         path="/api/auth/callback",
-        secure=settings.auth_cookie_secure,
+        secure=settings.session.cookie_secure,
         httponly=True,
         samesite="lax",
     )
@@ -274,8 +274,8 @@ def start_login(
     response.set_cookie(
         AUTH_LOGIN_COOKIE_NAME,
         login.state,
-        max_age=settings.oidc_login_ttl_seconds,
-        secure=settings.auth_cookie_secure,
+        max_age=settings.oidc.login_ttl_seconds,
+        secure=settings.session.cookie_secure,
         httponly=True,
         samesite="lax",
         path="/api/auth/callback",
@@ -337,8 +337,8 @@ def start_reauthentication(
     response.set_cookie(
         AUTH_LOGIN_COOKIE_NAME,
         login.state,
-        max_age=settings.oidc_login_ttl_seconds,
-        secure=settings.auth_cookie_secure,
+        max_age=settings.oidc.login_ttl_seconds,
+        secure=settings.session.cookie_secure,
         httponly=True,
         samesite="lax",
         path="/api/auth/callback",
@@ -469,7 +469,7 @@ def complete_login(
     response.delete_cookie(
         AUTH_LOGIN_COOKIE_NAME,
         path="/api/auth/callback",
-        secure=settings.auth_cookie_secure,
+        secure=settings.session.cookie_secure,
         httponly=True,
         samesite="lax",
     )
@@ -589,7 +589,7 @@ def delete_account(
             session,
             authenticated=authenticated,
             confirmation=payload.confirmation,
-            recent_auth_ttl_seconds=settings.auth_recent_ttl_seconds,
+            recent_auth_ttl_seconds=settings.session.recent_ttl_seconds,
             now=utc_now(),
         )
         session.commit()

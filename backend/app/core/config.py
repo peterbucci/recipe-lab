@@ -1,8 +1,64 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class ConcernSettings(BaseModel):
+    """Immutable, domain-focused view over environment-backed settings."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class DatabaseSettings(ConcernSettings):
+    url: str
+    operation_timeout_seconds: int
+
+
+class HttpSettings(ConcernSettings):
+    environment: Literal["local", "test", "production"]
+    cors_origins: tuple[str, ...]
+    max_request_body_bytes: int
+
+
+class SessionSettings(ConcernSettings):
+    allowed_origins: tuple[str, ...]
+    cookie_secure: bool
+    recent_ttl_seconds: int
+    touch_interval_seconds: int
+    ttl_seconds: int
+
+
+class OidcSettings(ConcernSettings):
+    allowed_signing_algorithms: tuple[str, ...]
+    client_id: str
+    client_secret: SecretStr | None
+    clock_skew_seconds: int
+    http_timeout_seconds: float
+    issuer: str
+    login_ttl_seconds: int
+    redirect_uri: str
+    scopes: tuple[str, ...]
+
+
+class AbuseSettings(ConcernSettings):
+    internal_network_signal_secret: SecretStr
+    internal_network_signal_ttl_seconds: int
+    rate_limit_auth_identity: int
+    rate_limit_auth_network: int
+    rate_limit_draft_account: int
+    rate_limit_draft_network: int
+    rate_limit_fork_account: int
+    rate_limit_fork_network: int
+    rate_limit_interaction_account: int
+    rate_limit_interaction_network: int
+    rate_limit_publication_account: int
+    rate_limit_publication_network: int
+    rate_limit_report_account: int
+    rate_limit_report_network: int
+    rate_limit_secret: SecretStr
+    rate_limit_window_seconds: int
 
 
 class Settings(BaseSettings):
@@ -113,6 +169,66 @@ class Settings(BaseSettings):
             for algorithm in self.oidc_allowed_signing_algorithms.split(",")
             if algorithm.strip()
         ]
+
+    @property
+    def database(self) -> DatabaseSettings:
+        return DatabaseSettings(
+            url=self.database_url,
+            operation_timeout_seconds=self.database_operation_timeout_seconds,
+        )
+
+    @property
+    def http(self) -> HttpSettings:
+        return HttpSettings(
+            environment=self.app_environment,
+            cors_origins=tuple(self.cors_origin_list),
+            max_request_body_bytes=self.max_request_body_bytes,
+        )
+
+    @property
+    def session(self) -> SessionSettings:
+        return SessionSettings(
+            allowed_origins=tuple(self.auth_allowed_origin_list),
+            cookie_secure=self.auth_cookie_secure,
+            recent_ttl_seconds=self.auth_recent_ttl_seconds,
+            touch_interval_seconds=self.auth_session_touch_interval_seconds,
+            ttl_seconds=self.auth_session_ttl_seconds,
+        )
+
+    @property
+    def oidc(self) -> OidcSettings:
+        return OidcSettings(
+            allowed_signing_algorithms=tuple(self.oidc_allowed_signing_algorithm_list),
+            client_id=self.oidc_client_id,
+            client_secret=self.oidc_client_secret,
+            clock_skew_seconds=self.oidc_clock_skew_seconds,
+            http_timeout_seconds=self.oidc_http_timeout_seconds,
+            issuer=self.oidc_issuer,
+            login_ttl_seconds=self.oidc_login_ttl_seconds,
+            redirect_uri=self.oidc_redirect_uri,
+            scopes=tuple(self.oidc_scope_list),
+        )
+
+    @property
+    def abuse(self) -> AbuseSettings:
+        return AbuseSettings(
+            internal_network_signal_secret=self.internal_network_signal_secret,
+            internal_network_signal_ttl_seconds=self.internal_network_signal_ttl_seconds,
+            rate_limit_auth_identity=self.abuse_rate_limit_auth_identity,
+            rate_limit_auth_network=self.abuse_rate_limit_auth_network,
+            rate_limit_draft_account=self.abuse_rate_limit_draft_account,
+            rate_limit_draft_network=self.abuse_rate_limit_draft_network,
+            rate_limit_fork_account=self.abuse_rate_limit_fork_account,
+            rate_limit_fork_network=self.abuse_rate_limit_fork_network,
+            rate_limit_interaction_account=self.abuse_rate_limit_interaction_account,
+            rate_limit_interaction_network=self.abuse_rate_limit_interaction_network,
+            rate_limit_publication_account=self.abuse_rate_limit_publication_account,
+            rate_limit_publication_network=self.abuse_rate_limit_publication_network,
+            rate_limit_report_account=self.abuse_rate_limit_report_account,
+            rate_limit_report_network=self.abuse_rate_limit_report_network,
+            rate_limit_secret=self.abuse_rate_limit_secret,
+            rate_limit_window_seconds=self.abuse_rate_limit_window_seconds,
+        )
 
 
 @lru_cache

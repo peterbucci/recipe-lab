@@ -99,7 +99,7 @@ def begin_oidc_login(
         nonce=nonce,
         pkce_verifier=verifier,
         return_path=safe_return_path,
-        expires_at=now + timedelta(seconds=settings.oidc_login_ttl_seconds),
+        expires_at=now + timedelta(seconds=settings.oidc.login_ttl_seconds),
     )
     return LoginStart(authorization_url=authorization_url, state=state)
 
@@ -147,7 +147,7 @@ def begin_oidc_reauthentication(
         nonce=nonce,
         pkce_verifier=verifier,
         return_path=safe_return_path,
-        expires_at=now + timedelta(seconds=settings.oidc_login_ttl_seconds),
+        expires_at=now + timedelta(seconds=settings.oidc.login_ttl_seconds),
         purpose=OIDC_LOGIN_PURPOSE_REAUTHENTICATE,
         bound_session_id=bound_session.id,
     )
@@ -216,7 +216,7 @@ def issue_member_session(
 
     raw_session_token = generate_opaque_token()
     raw_csrf_token = generate_opaque_token()
-    expires_at = now + timedelta(seconds=settings.auth_session_ttl_seconds)
+    expires_at = now + timedelta(seconds=settings.session.ttl_seconds)
     create_user_session(
         session,
         user=user,
@@ -320,7 +320,7 @@ def issue_reauthenticated_session(
 
     raw_session_token = generate_opaque_token()
     raw_csrf_token = generate_opaque_token()
-    expires_at = now + timedelta(seconds=settings.auth_session_ttl_seconds)
+    expires_at = now + timedelta(seconds=settings.session.ttl_seconds)
     create_user_session(
         session,
         user=user,

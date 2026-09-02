@@ -50,7 +50,7 @@ def get_optional_authenticated_session(
         session,
         raw_session_token=raw_session_token,
         now=utc_now(),
-        touch_interval_seconds=settings.auth_session_touch_interval_seconds,
+        touch_interval_seconds=settings.session.touch_interval_seconds,
     )
 
 
@@ -133,7 +133,7 @@ def _validate_csrf(
     allowed_origins: set[str] = set()
     try:
         normalized_origin = normalize_origin(origin) if origin is not None else None
-        allowed_origins = {normalize_origin(value) for value in settings.auth_allowed_origin_list}
+        allowed_origins = {normalize_origin(value) for value in settings.session.allowed_origins}
     except ValueError:
         normalized_origin = None
 

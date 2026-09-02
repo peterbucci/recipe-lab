@@ -108,6 +108,13 @@ outside the feature being edited.
 FastAPI owns validation, application rules, persistence boundaries, and the
 public HTTP contract. Pydantic schemas should not double as SQLAlchemy models.
 
+Environment variables retain their stable flat names, while application code
+consumes immutable settings views grouped by database, HTTP, session, OIDC, and
+abuse-control concerns. This keeps deployment compatibility at the environment
+boundary without passing an undifferentiated configuration object through each
+subsystem. Tests may still override the flat source fields; each grouped view is
+recreated from the current validated values.
+
 The deterministic OpenAPI rendering is committed at `backend/openapi.json` and
 checked in CI. Every operation retains a stable, unique operation ID, one of the
 four reviewed classifications (`active_consumer`, `staff_internal`,

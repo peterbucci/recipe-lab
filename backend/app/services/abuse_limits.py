@@ -83,6 +83,7 @@ def verified_trusted_network_signal(
     path: str,
     now: datetime,
 ) -> str | None:
+    abuse = settings.abuse
     network = headers.get(NETWORK_HEADER)
     raw_timestamp = headers.get(NETWORK_TIMESTAMP_HEADER)
     signature = headers.get(NETWORK_SIGNATURE_HEADER)
@@ -97,10 +98,10 @@ def verified_trusted_network_signal(
         return None
     timestamp = int(raw_timestamp)
     now_timestamp = math.floor(now.astimezone(UTC).timestamp())
-    if abs(now_timestamp - timestamp) > settings.internal_network_signal_ttl_seconds:
+    if abs(now_timestamp - timestamp) > abuse.internal_network_signal_ttl_seconds:
         return None
     expected = trusted_network_signal_signature(
-        secret=settings.internal_network_signal_secret.get_secret_value(),
+        secret=abuse.internal_network_signal_secret.get_secret_value(),
         network=network,
         timestamp=timestamp,
         method=method,
@@ -170,8 +171,9 @@ def _record_dimensions(
     now: datetime,
     dimensions: list[tuple[str, str, UUID | None, int]],
 ) -> None:
-    started_at, expires_at = _window(now, settings.abuse_rate_limit_window_seconds)
-    secret = settings.abuse_rate_limit_secret.get_secret_value()
+    abuse = settings.abuse
+    started_at, expires_at = _window(now, abuse.rate_limit_window_seconds)
+    secret = abuse.rate_limit_secret.get_secret_value()
     exceeded_retry_after: int | None = None
     try:
         for dimension, raw_subject, account_user_id, limit in dimensions:
@@ -257,7 +259,7 @@ def enforce_oidc_identity_rate_limit(
                 RATE_LIMIT_DIMENSION_IDENTITY,
                 f"{issuer}\x00{subject}",
                 None,
-                settings.abuse_rate_limit_auth_identity,
+                settings.abuse.rate_limit_auth_identity,
             )
         ],
     )
