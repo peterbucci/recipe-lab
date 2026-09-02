@@ -61,7 +61,7 @@ function SavedRecipeLibraryInner() {
       } finally {
         if (loadControllerRef.current === controller) {
           loadControllerRef.current = null;
-          setLoading(false);
+          if (!controller.signal.aborted) setLoading(false);
         }
       }
     },

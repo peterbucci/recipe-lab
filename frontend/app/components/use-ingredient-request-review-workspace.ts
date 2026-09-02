@@ -82,6 +82,7 @@ export function useIngredientRequestReviewWorkspace(
 
   const runDetailRequest = useCallback(
     async (requestId: string, controller: AbortController) => {
+      if (controller.signal.aborted) return;
       try {
         const result = await fetchIngredientCatalogReviewDetail(
           requestId,
@@ -107,7 +108,7 @@ export function useIngredientRequestReviewWorkspace(
       } finally {
         if (detailControllerRef.current === controller) {
           detailControllerRef.current = null;
-          setDetailLoading(false);
+          if (!controller.signal.aborted) setDetailLoading(false);
         }
       }
     },
