@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { RecipeModerationStatus } from "../../lib/recipe-moderation-api";
 import { RECIPE_MODERATION_STATUS_LABELS } from "../../lib/recipe-moderation-presentation";
-import { useAuthSession } from "./auth-session-provider";
-import { AuthGateLoading } from "./loading-ui";
 import { RecipeModerationCaseDetail } from "./recipe-moderation-case-detail";
 import { RecipeModerationQueue } from "./recipe-moderation-queue";
 import { useRecipeModerationWorkspace } from "./use-recipe-moderation-workspace";
@@ -20,6 +18,11 @@ import {
   WorkspaceTabButton,
   WorkspaceTabMenu,
 } from "./workspace-tab-menu";
+import {
+  StaffWorkspaceAccess,
+  StaffWorkspaceShell,
+  StaffWorkspaceSplitPanel,
+} from "./staff-workspace-shell";
 
 const STATUS_FILTERS: ReadonlyArray<{
   value: RecipeModerationStatus;
@@ -47,84 +50,19 @@ const STATUS_PANEL_COPY: Record<
   },
 };
 
-function unavailablePage() {
-  return (
-    <main
-      id="main-content"
-      className="state-page staff-state-page staff-state-page--moderation staff-state-page--authorization"
-    >
-      <div className="error-state staff-state-panel" role="alert">
-        <h1>We couldn’t find that page.</h1>
-        <p>Browse the recipe collection to find something to cook.</p>
-        <Link className="button button--primary" href="/recipes">
-          Browse recipes
-        </Link>
-      </div>
-    </main>
-  );
-}
-
 export function RecipeModerationWorkspace() {
-  const { state, refreshSession } = useAuthSession();
-  const [authorizationLost, setAuthorizationLost] = useState(false);
-
-  const handleAuthorizationLost = useCallback(() => {
-    setAuthorizationLost(true);
-    void refreshSession();
-  }, [refreshSession]);
-
-  if (state.phase === "loading") {
-    return (
-      <main
-        id="main-content"
-        className="state-page staff-state-page staff-state-page--moderation staff-state-page--loading"
-      >
-        <AuthGateLoading
-          className="staff-state-panel"
-          label="Checking moderation access…"
-        />
-      </main>
-    );
-  }
-  if (state.phase === "error") {
-    return (
-      <main
-        id="main-content"
-        className="state-page staff-state-page staff-state-page--moderation staff-state-page--error"
-      >
-        <div className="error-state staff-state-panel" role="alert">
-          <p className="eyebrow">Account unavailable</p>
-          <h1>We couldn’t check access.</h1>
-          <p>
-            Try checking your account again, or return to the recipe collection.
-          </p>
-          <div className="button-row">
-            <button
-              className="button button--primary"
-              type="button"
-              onClick={() => void refreshSession()}
-            >
-              Try again
-            </button>
-            <Link className="button button--secondary" href="/recipes">
-              Browse recipes
-            </Link>
-          </div>
-        </div>
-      </main>
-    );
-  }
-  if (
-    authorizationLost ||
-    state.session.status !== "authenticated" ||
-    !state.session.capabilities?.moderate_recipe_reports
-  ) {
-    return unavailablePage();
-  }
   return (
-    <AuthorizedModerationWorkspace
-      onAuthorizationLost={handleAuthorizationLost}
-    />
+    <StaffWorkspaceAccess
+      capability="moderate_recipe_reports"
+      loadingLabel="Checking moderation access…"
+      variant="moderation"
+    >
+      {(onAuthorizationLost) => (
+        <AuthorizedModerationWorkspace
+          onAuthorizationLost={onAuthorizationLost}
+        />
+      )}
+    </StaffWorkspaceAccess>
   );
 }
 
@@ -185,25 +123,21 @@ function AuthorizedModerationWorkspace({
   );
 
   return (
-    <main
-      id="main-content"
-      className="page-shell staff-workspace staff-workspace--moderation moderation-workspace"
-    >
-      <header className="staff-workspace__header moderation-workspace__header">
-        <div className="staff-workspace__header-copy">
-          <h1>Recipe reports</h1>
-          <p>
-            Review de-identified reports, manage recipe visibility, and close
-            cases when review is complete.
-          </p>
-        </div>
+    <StaffWorkspaceShell
+      className="moderation-workspace"
+      description="Review de-identified reports, manage recipe visibility, and close cases when review is complete."
+      headerAction={
         <Link
           className="staff-workspace__resource-link"
           href="/community-rules"
         >
           Community rules
         </Link>
-      </header>
+      }
+      headerClassName="moderation-workspace__header"
+      title="Recipe reports"
+      variant="moderation"
+    >
 
       <div className="staff-workspace__tab-shell">
         <WorkspaceTabMenu
@@ -279,23 +213,24 @@ function AuthorizedModerationWorkspace({
       ) : null}
 
       {!queueIsEmpty ? (
-        <div className="staff-workspace__layout moderation-workspace__layout">
-        <RecipeModerationQueue
-          caseStatus={caseStatus}
-          queue={queue}
-          queueLoading={queueLoading}
-          searchQuery={queueSearch}
-          selectedId={visibleSelectedId}
-          visibleItems={visibleQueueItems}
-          onNextPage={goToNextPage}
-          onPreviousPage={goToPreviousPage}
-          onSearchQueryChange={setQueueSearch}
-          onSelectCase={selectCase}
-        />
-
-        <section
-          className="staff-panel-surface staff-workspace__detail moderation-detail"
-          aria-labelledby="moderation-detail-title"
+        <StaffWorkspaceSplitPanel
+          className="moderation-workspace__layout"
+          detailClassName="moderation-detail"
+          detailHeadingId="moderation-detail-title"
+          queue={
+            <RecipeModerationQueue
+              caseStatus={caseStatus}
+              queue={queue}
+              queueLoading={queueLoading}
+              searchQuery={queueSearch}
+              selectedId={visibleSelectedId}
+              visibleItems={visibleQueueItems}
+              onNextPage={goToNextPage}
+              onPreviousPage={goToPreviousPage}
+              onSearchQueryChange={setQueueSearch}
+              onSelectCase={selectCase}
+            />
+          }
         >
           {!visibleSelectedId ? (
             <div className="moderation-detail__empty">
@@ -353,8 +288,7 @@ function AuthorizedModerationWorkspace({
               />
             </>
           ) : null}
-        </section>
-        </div>
+        </StaffWorkspaceSplitPanel>
       ) : null}
       {workspaceStatus ? (
         <p
@@ -367,6 +301,6 @@ function AuthorizedModerationWorkspace({
           {workspaceStatus}
         </p>
       ) : null}
-    </main>
+    </StaffWorkspaceShell>
   );
 }
