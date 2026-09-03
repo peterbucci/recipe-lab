@@ -25,17 +25,32 @@ _PREFERENCE_RELATED_INDEX = "ix_preference_events_user_related_recipe_version"
 _RATING_PROFILE_INDEX = "ix_recipe_ratings_user_positive_profile"
 
 
+def _qualified_pg_trgm_operator_class() -> str:
+    bind = op.get_bind()
+    extension_schema = bind.execute(
+        sa.text(
+            "SELECT namespace.nspname "
+            "FROM pg_extension AS extension "
+            "JOIN pg_namespace AS namespace ON namespace.oid = extension.extnamespace "
+            "WHERE extension.extname = 'pg_trgm'"
+        )
+    ).scalar_one()
+    quoted_schema = bind.dialect.identifier_preparer.quote(str(extension_schema))
+    return f"{quoted_schema}.gin_trgm_ops"
+
+
 def upgrade() -> None:
     # The browse contract promises literal case-insensitive substring matching.
     # Trigrams accelerate that exact contract without changing it to token search.
     op.execute(sa.text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+    trigram_operator_class = _qualified_pg_trgm_operator_class()
     op.create_index(
         _RECIPE_TITLE_SEARCH_INDEX,
         "recipe_versions",
         ["title"],
         unique=False,
         postgresql_using="gin",
-        postgresql_ops={"title": "gin_trgm_ops"},
+        postgresql_ops={"title": trigram_operator_class},
     )
     op.create_index(
         _RECIPE_DESCRIPTION_SEARCH_INDEX,
@@ -43,7 +58,7 @@ def upgrade() -> None:
         ["description"],
         unique=False,
         postgresql_using="gin",
-        postgresql_ops={"description": "gin_trgm_ops"},
+        postgresql_ops={"description": trigram_operator_class},
     )
     op.create_index(
         _PUBLICATION_NEWEST_INDEX,

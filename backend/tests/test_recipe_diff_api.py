@@ -526,6 +526,7 @@ def test_openapi_documents_recipe_diff_contract(diff_client: TestClient) -> None
     ]
     assert changed_field_items["$ref"].endswith("/RecipeInstructionChangedField")
     assert schemas["RecipeInstructionChangedField"]["enum"] == [
+        "title",
         "text",
         "actions",
         "inputs",

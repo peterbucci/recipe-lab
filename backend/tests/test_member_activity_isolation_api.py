@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
-from app.models import PreferenceEvent, RecipeRating, RecipeSave, RecipeVersion, User
+from app.models import PreferenceEvent, RecipeDraft, RecipeRating, RecipeSave, RecipeVersion, User
 from app.seeds.identifiers import seed_uuid
 from tests.application import application_with_database
 from tests.member_session import (
@@ -50,6 +50,7 @@ def _clear_members(engine: Engine) -> None:
         session.execute(delete(PreferenceEvent).where(PreferenceEvent.user_id.in_(MEMBER_IDS)))
         session.execute(delete(RecipeRating).where(RecipeRating.user_id.in_(MEMBER_IDS)))
         session.execute(delete(RecipeSave).where(RecipeSave.user_id.in_(MEMBER_IDS)))
+        session.execute(delete(RecipeDraft).where(RecipeDraft.author_user_id.in_(MEMBER_IDS)))
         session.execute(delete(User).where(User.id.in_(MEMBER_IDS)))
 
 
