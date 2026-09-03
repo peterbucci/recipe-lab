@@ -5,6 +5,12 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+env:
+  CI_TIER: ${{ github.event_name == 'pull_request' && 'fast' || 'full' }}
 
 permissions:
   contents: read
@@ -186,6 +192,7 @@ jobs:
 
   rcp34b-baselines:
     name: RCP-34B deterministic baselines
+    if: ${{ github.event_name != 'pull_request' }}
     # Playwright 1.62.1 on Ubuntu 24.04 (Noble), pinned to the linux/amd64
     # manifest published at mcr.microsoft.com/playwright:v1.62.1-noble.
     runs-on: ubuntu-24.04
@@ -256,6 +263,7 @@ jobs:
 
   production-images:
     name: Production images
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
@@ -297,6 +305,7 @@ jobs:
 
   source-package:
     name: Safe source package
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
@@ -360,6 +369,7 @@ jobs:
 
   offline-evaluation:
     name: Offline evaluation
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
@@ -846,7 +856,7 @@ jobs:
 
   mvp-acceptance:
     name: MVP acceptance
-    if: ${{ always() }}
+    if: ${{ always() && github.event_name != 'pull_request' }}
     needs:
       - backend
       - frontend
@@ -1013,7 +1023,7 @@ jobs:
 
   rcp32-acceptance:
     name: RCP-32 acceptance
-    if: ${{ always() }}
+    if: ${{ always() && github.event_name != 'pull_request' }}
     needs:
       - backend
       - frontend
@@ -1348,43 +1358,23 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Require every deployable application gate
-        env:
-          BACKEND_RESULT: ${{ needs.backend.result }}
-          CONTRACTS_RESULT: ${{ needs.contracts.result }}
-          FRONTEND_RESULT: ${{ needs.frontend.result }}
-          LINT_RESULT: ${{ needs.lint.result }}
-          MVP_ACCEPTANCE_RESULT: ${{ needs.mvp-acceptance.result }}
-          PRODUCTION_IMAGES_RESULT: ${{ needs.production-images.result }}
-          RCP34B_BASELINES_RESULT: ${{ needs.rcp34b-baselines.result }}
-          RCP32_ACCEPTANCE_RESULT: ${{ needs.rcp32-acceptance.result }}
-          SECURITY_RESULT: ${{ needs.security.result }}
-          SOURCE_PACKAGE_RESULT: ${{ needs.source-package.result }}
-          TYPECHECK_RESULT: ${{ needs.typecheck.result }}
-        run: |
-          if [[ "$BACKEND_RESULT" != "success" \
-            || "$CONTRACTS_RESULT" != "success" \
-            || "$FRONTEND_RESULT" != "success" \
-            || "$LINT_RESULT" != "success" \
-            || "$MVP_ACCEPTANCE_RESULT" != "success" \
-            || "$PRODUCTION_IMAGES_RESULT" != "success" \
-            || "$RCP34B_BASELINES_RESULT" != "success" \
-            || "$RCP32_ACCEPTANCE_RESULT" != "success" \
-            || "$SECURITY_RESULT" != "success" \
-            || "$SOURCE_PACKAGE_RESULT" != "success" \
-            || "$TYPECHECK_RESULT" != "success" ]]; then
-            echo "Backend quality: $BACKEND_RESULT"
-            echo "Contracts: $CONTRACTS_RESULT"
-            echo "Frontend quality: $FRONTEND_RESULT"
-            echo "Lint: $LINT_RESULT"
-            echo "MVP acceptance: $MVP_ACCEPTANCE_RESULT"
-            echo "Production images: $PRODUCTION_IMAGES_RESULT"
-            echo "RCP-34B deterministic baselines: $RCP34B_BASELINES_RESULT"
-            echo "RCP-32 acceptance: $RCP32_ACCEPTANCE_RESULT"
-            echo "Security: $SECURITY_RESULT"
-            echo "Safe source package: $SOURCE_PACKAGE_RESULT"
-            echo "Types: $TYPECHECK_RESULT"
-            exit 1
-          fi
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Evaluate deployable application prerequisites
+        run: >-
+          python scripts/require_ci_results.py --tier "$CI_TIER"
+          --required "Backend quality=${{ needs.backend.result }}"
+          --required "Contracts=${{ needs.contracts.result }}"
+          --required "Frontend quality=${{ needs.frontend.result }}"
+          --required "Lint=${{ needs.lint.result }}"
+          --required "Security=${{ needs.security.result }}"
+          --required "Types=${{ needs.typecheck.result }}"
+          --full-only "MVP acceptance=${{ needs.mvp-acceptance.result }}"
+          --full-only "Production images=${{ needs.production-images.result }}"
+          --full-only "RCP-34B deterministic baselines=${{ needs.rcp34b-baselines.result }}"
+          --full-only "RCP-32 acceptance=${{ needs.rcp32-acceptance.result }}"
+          --full-only "Safe source package=${{ needs.source-package.result }}"
 
   unit:
     name: Unit
@@ -1396,18 +1386,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Require every package test suite
-        env:
-          BACKEND_RESULT: ${{ needs.backend.result }}
-          FRONTEND_RESULT: ${{ needs.frontend.result }}
-          ML_RESULT: ${{ needs.offline-evaluation.result }}
-        run: |
-          for result in "$BACKEND_RESULT" "$FRONTEND_RESULT" "$ML_RESULT"; do
-            if [[ "$result" != "success" ]]; then
-              echo "A package test suite did not pass."
-              exit 1
-            fi
-          done
+        run: >-
+          python scripts/require_ci_results.py --tier "$CI_TIER"
+          --required "Backend=${{ needs.backend.result }}"
+          --required "Frontend=${{ needs.frontend.result }}"
+          --full-only "Offline evaluation=${{ needs.offline-evaluation.result }}"
 
   integration:
     name: Integration
@@ -1418,15 +1405,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Require database and deterministic evaluation checks
-        env:
-          BACKEND_RESULT: ${{ needs.backend.result }}
-          ML_RESULT: ${{ needs.offline-evaluation.result }}
-        run: |
-          if [[ "$BACKEND_RESULT" != "success" || "$ML_RESULT" != "success" ]]; then
-            echo "A database-backed integration suite did not pass."
-            exit 1
-          fi
+        run: >-
+          python scripts/require_ci_results.py --tier "$CI_TIER"
+          --required "Backend=${{ needs.backend.result }}"
+          --full-only "Offline evaluation=${{ needs.offline-evaluation.result }}"
 
   build:
     name: Build
@@ -1437,15 +1423,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Require frontend and production image builds
-        env:
-          FRONTEND_RESULT: ${{ needs.frontend.result }}
-          IMAGES_RESULT: ${{ needs.production-images.result }}
-        run: |
-          if [[ "$FRONTEND_RESULT" != "success" || "$IMAGES_RESULT" != "success" ]]; then
-            echo "A production build did not pass."
-            exit 1
-          fi
+        run: >-
+          python scripts/require_ci_results.py --tier "$CI_TIER"
+          --required "Frontend=${{ needs.frontend.result }}"
+          --full-only "Production images=${{ needs.production-images.result }}"
 
   e2e:
     name: E2E
@@ -1457,18 +1442,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Require browser and visual acceptance suites
-        env:
-          MVP_RESULT: ${{ needs.mvp-acceptance.result }}
-          RCP32_RESULT: ${{ needs.rcp32-acceptance.result }}
-          VISUAL_RESULT: ${{ needs.rcp34b-baselines.result }}
-        run: |
-          for result in "$MVP_RESULT" "$RCP32_RESULT" "$VISUAL_RESULT"; do
-            if [[ "$result" != "success" ]]; then
-              echo "A browser or visual acceptance suite did not pass."
-              exit 1
-            fi
-          done
+        run: >-
+          python scripts/require_ci_results.py --tier "$CI_TIER"
+          --full-only "MVP acceptance=${{ needs.mvp-acceptance.result }}"
+          --full-only "RCP-32 acceptance=${{ needs.rcp32-acceptance.result }}"
+          --full-only "RCP-34B baselines=${{ needs.rcp34b-baselines.result }}"
 
   repository-quality:
     name: Repository quality
@@ -1487,32 +1469,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Require every stable quality gate
-        env:
-          BUILD_RESULT: ${{ needs.build.result }}
-          CONTRACTS_RESULT: ${{ needs.contracts.result }}
-          E2E_RESULT: ${{ needs.e2e.result }}
-          INTEGRATION_RESULT: ${{ needs.integration.result }}
-          LINT_RESULT: ${{ needs.lint.result }}
-          RELEASE_RESULT: ${{ needs.rcp32-release-gate.result }}
-          SECURITY_RESULT: ${{ needs.security.result }}
-          SOURCE_RESULT: ${{ needs.source-package.result }}
-          TYPES_RESULT: ${{ needs.typecheck.result }}
-          UNIT_RESULT: ${{ needs.unit.result }}
-        run: |
-          for result in \
-            "$BUILD_RESULT" \
-            "$CONTRACTS_RESULT" \
-            "$E2E_RESULT" \
-            "$INTEGRATION_RESULT" \
-            "$LINT_RESULT" \
-            "$RELEASE_RESULT" \
-            "$SECURITY_RESULT" \
-            "$SOURCE_RESULT" \
-            "$TYPES_RESULT" \
-            "$UNIT_RESULT"; do
-            if [[ "$result" != "success" ]]; then
-              echo "A required repository quality gate did not pass."
-              exit 1
-            fi
-          done
+        run: >-
+          python scripts/require_ci_results.py --tier "$CI_TIER"
+          --required "Build=${{ needs.build.result }}"
+          --required "Contracts=${{ needs.contracts.result }}"
+          --required "E2E=${{ needs.e2e.result }}"
+          --required "Integration=${{ needs.integration.result }}"
+          --required "Lint=${{ needs.lint.result }}"
+          --required "RCP-32 release=${{ needs.rcp32-release-gate.result }}"
+          --required "Security=${{ needs.security.result }}"
+          --required "Types=${{ needs.typecheck.result }}"
+          --required "Unit=${{ needs.unit.result }}"
+          --full-only "Safe source package=${{ needs.source-package.result }}"

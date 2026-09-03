@@ -10,9 +10,7 @@ from app.models import (
     RECIPE_PUBLICATION_STATE_PUBLISHED,
     Ingredient,
     RecipeIngredient,
-    RecipeLineage,
     RecipeStructuralFingerprint,
-    RecipeVersion,
     RecipeVersionPublication,
     User,
 )
@@ -27,6 +25,7 @@ from app.services.recipe_fingerprints import (
     StructuralMeasure,
     build_structural_fingerprint,
 )
+from tests.recipe_builders import build_recipe_lineage, build_recipe_version
 
 
 def _fingerprint(
@@ -81,17 +80,14 @@ def _store_candidate(
     publication_state: str | None = RECIPE_PUBLICATION_STATE_PUBLISHED,
     algorithm_version: str | None = None,
 ) -> None:
-    lineage = RecipeLineage(created_by_user_id=actor.id)
+    lineage = build_recipe_lineage(created_by_user_id=actor.id)
     session.add(lineage)
     session.flush()
-    version = RecipeVersion(
-        id=recipe_version_id,
+    version = build_recipe_version(
+        recipe_version_id=recipe_version_id,
         lineage_id=lineage.id,
-        parent_version_id=None,
         created_by_user_id=actor.id,
-        version_number=1,
         title=f"Candidate {recipe_version_id}",
-        description=None,
         servings=Decimal("2.00"),
     )
     session.add(version)

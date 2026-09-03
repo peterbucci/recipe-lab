@@ -17,7 +17,6 @@ from app.models import (
     RecipeDuplicateCandidate,
     RecipeDuplicateDecision,
     RecipeDuplicatePreflight,
-    RecipeLineage,
     RecipeVersion,
     User,
 )
@@ -35,6 +34,7 @@ from app.repositories.recipe_duplicates import (
     store_recipe_duplicate_decision,
     store_recipe_duplicate_preflight,
 )
+from tests.recipe_builders import build_recipe_lineage, build_recipe_version
 
 FINGERPRINT_VERSION = "recipe-structure-v1"
 POLICY_VERSION = "recipe-duplicate-preflight-policy-v1"
@@ -74,16 +74,13 @@ def _create_recipe(
     actor: User,
     title: str,
 ) -> RecipeVersion:
-    lineage = RecipeLineage(created_by_user_id=actor.id)
+    lineage = build_recipe_lineage(created_by_user_id=actor.id)
     session.add(lineage)
     session.flush()
-    recipe = RecipeVersion(
+    recipe = build_recipe_version(
         lineage_id=lineage.id,
-        parent_version_id=None,
         created_by_user_id=actor.id,
-        version_number=1,
         title=title,
-        description=None,
         servings=Decimal("2.00"),
     )
     session.add(recipe)

@@ -22,6 +22,7 @@ from app.services.recipe_documents import (
     recipe_structure_from_document,
 )
 from app.services.recipe_fingerprints import CanonicalUnit
+from tests.recipe_builders import build_recipe_draft
 
 
 def _document() -> RecipeDocument:
@@ -129,15 +130,11 @@ def _document() -> RecipeDocument:
 
 
 def _draft() -> RecipeDraft:
-    return RecipeDraft(
-        id=uuid4(),
+    return build_recipe_draft(
+        draft_id=uuid4(),
         author_user_id=uuid4(),
-        source_version_id=None,
-        status="active",
-        revision=1,
         title="Old title",
         description="Old description",
-        servings=None,
     )
 
 
