@@ -18,6 +18,7 @@ Classification = Literal[
     "research_experimental",
     "retired",
 ]
+Reachability = Literal["active", "internal", "compatibility-only", "retired"]
 
 HTTP_METHODS = frozenset({"delete", "get", "head", "options", "patch", "post", "put", "trace"})
 EXTERNAL_CONSUMER_STATUS = "unknown_pending"
@@ -30,6 +31,16 @@ class OperationContract:
     classification: Classification
     consumer_evidence: tuple[str, ...]
     successor_operation_ids: tuple[str, ...] = ()
+
+    @property
+    def reachability(self) -> Reachability:
+        """Map the detailed consumer class onto the repository-wide lifecycle class."""
+
+        if self.classification == "active_consumer":
+            return "active"
+        if self.classification in {"staff_internal", "research_experimental"}:
+            return "internal"
+        return "retired"
 
 
 class FrameworkRouteContract(TypedDict):
@@ -443,6 +454,7 @@ def apply_contract_metadata(document: dict[str, Any]) -> dict[str, Any]:
         operation = cast(dict[str, Any], document["paths"][path][method.lower()])
         operation["operationId"] = contract.operation_id
         operation["x-recipe-lab-classification"] = contract.classification
+        operation["x-recipe-lab-reachability"] = contract.reachability
         operation["x-recipe-lab-consumer-evidence"] = list(contract.consumer_evidence)
         operation["x-recipe-lab-external-consumer-status"] = EXTERNAL_CONSUMER_STATUS
         if contract.successor_operation_ids:
@@ -455,6 +467,7 @@ def apply_contract_metadata(document: dict[str, Any]) -> dict[str, Any]:
         {
             **route,
             "classification": "staff_internal",
+            "reachability": "internal",
             "consumer_evidence": ["docs/api-contracts.md"],
             "external_consumer_status": EXTERNAL_CONSUMER_STATUS,
         }

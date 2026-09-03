@@ -235,6 +235,9 @@ jobs:
       - name: Test frontend
         run: npm test
 
+      - name: Check frontend source reachability
+        run: npm run reachability:check
+
       - name: Build frontend
         run: npm run build
 

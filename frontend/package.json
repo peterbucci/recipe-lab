@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "node server.mjs",
     "lint": "eslint .",
+    "reachability:check": "node scripts/source-reachability.mjs",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
