@@ -106,7 +106,7 @@
   border: 1px solid var(--control-line);
   border-radius: var(--radius-sm);
   background: var(--surface);
-  color: #858697;
+  color: var(--muted);
   flex: 0 0 14.5rem;
   align-items: center;
   gap: 0.45rem;

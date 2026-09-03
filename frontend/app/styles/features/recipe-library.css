@@ -67,7 +67,7 @@
   color: var(--leaf);
 }
 .member-recipe-card__context {
-  color: #7b7a8c;
+  color: var(--muted);
   min-height: 1.0625rem;
   margin: 0;
   font-size: 0.64rem;

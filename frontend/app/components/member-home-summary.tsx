@@ -110,7 +110,8 @@ function ResourceMetric({
       <dt>{label}</dt>
       <dd>
         {state.phase === "loading" ? (
-          <span aria-label={`${label} loading`}>
+          <span>
+            <span className="visually-hidden">{label} loading</span>
             <LoadingBlock className="loading-block--small" />
           </span>
         ) : state.phase === "error" ? (

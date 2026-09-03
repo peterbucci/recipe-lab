@@ -119,7 +119,7 @@
 }
 .recipe-workspace__intro .draft-editor__cooking-details-grid label,
 .recipe-workspace__intro .draft-editor__servings-field label {
-  color: #8b8c9c;
+  color: var(--muted);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   font-size: 0.5625rem;

@@ -94,6 +94,25 @@ afterEach(() => {
 });
 
 describe("MemberHomeSummary", () => {
+  it("names loading metrics without prohibited ARIA on generic wrappers", () => {
+    mocks.fetchMemberDashboard.mockReturnValue(deferred<MemberDashboard>().promise);
+    const { container } = render(<SummaryHarness userId="member-one" />);
+
+    expect(screen.getByText("Versions published loading")).toHaveClass(
+      "visually-hidden",
+    );
+    expect(screen.getByText("Active drafts loading")).toHaveClass(
+      "visually-hidden",
+    );
+    expect(screen.getByText("Saved recipes loading")).toHaveClass(
+      "visually-hidden",
+    );
+    expect(screen.getByText("Followers loading")).toHaveClass(
+      "visually-hidden",
+    );
+    expect(container.querySelectorAll("span[aria-label$=' loading']")).toHaveLength(0);
+  });
+
   it("loads the complete private summary with one bounded request", async () => {
     render(<SummaryHarness userId="member-one" />);
     expect(

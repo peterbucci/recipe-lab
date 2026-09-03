@@ -6,7 +6,7 @@
   padding-block: 1.5rem 3.75rem;
 }
 .recipe-detail-breadcrumb {
-  color: #858697;
+  color: var(--muted);
   align-items: center;
   gap: 0.4375rem;
   min-width: 0;
@@ -88,7 +88,7 @@
   display: inline-flex;
 }
 .recipe-detail__published {
-  color: #878899;
+  color: var(--muted);
   font-size: 0.625rem;
 }
 .recipe-detail__published a {
@@ -166,7 +166,7 @@
   display: grid;
 }
 .recipe-detail__attribution > span {
-  color: #8a8b9a;
+  color: var(--muted);
   font-size: 0.625rem;
   font-weight: 500;
 }
@@ -209,7 +209,7 @@
   padding-right: 0;
 }
 .recipe-detail__facts dt {
-  color: #8b8c9c;
+  color: var(--muted);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   margin: 0;
@@ -243,7 +243,7 @@
   font-size: 0.6875rem;
 }
 .recipe-detail__social-row .rating-summary__count {
-  color: #818292;
+  color: var(--muted);
   font-size: 0.5625rem;
 }
 .recipe-member-actions {
@@ -423,7 +423,7 @@
   font-weight: 500;
 }
 .recipe-detail .ingredient-list__name small {
-  color: #7b7c8d;
+  color: var(--muted);
   margin-top: 0.125rem;
   font-size: 0.625rem;
 }
@@ -747,7 +747,7 @@
   font-size: 0.5625rem;
 }
 .recipe-detail .lineage-section > .section-heading > p {
-  color: #777889;
+  color: var(--muted);
   text-align: right;
   max-width: 28rem;
   margin: 0;

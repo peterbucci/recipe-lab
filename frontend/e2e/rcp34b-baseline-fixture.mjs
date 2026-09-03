@@ -8,7 +8,7 @@ if (host !== "127.0.0.1" || port !== 4318) {
 
 const FIXED_TIME = "2026-08-27T12:00:00.000Z";
 const SAFE_CSRF = "rcp34b-public-csrf";
-const SAFE_COOKIE = `recipe_lab_csrf=${SAFE_CSRF}`;
+const SAFE_MEMBER_SESSION = "rcp34b-member-session";
 const SAFE_ORIGIN = "http://127.0.0.1:4317";
 const IDS = Object.freeze({
   user: "10000000-0000-4000-8000-000000000001",
@@ -825,6 +825,30 @@ const memberActivityCounts = Object.freeze({
   saved: memberActivityItems.filter((item) => item.kind === "saved").length,
 });
 
+const dashboardRecentActivity = Object.freeze([
+  Object.freeze({
+    id: IDS.draft,
+    kind: "draft",
+    occurred_at: draftListItem.updated_at,
+    state: null,
+    title: draftListItem.title,
+  }),
+  Object.freeze({
+    id: IDS.recipeVariant,
+    kind: "saved",
+    occurred_at: FIXED_TIME,
+    state: null,
+    title: variantSummary.title,
+  }),
+  Object.freeze({
+    id: IDS.recipeChild,
+    kind: "published",
+    occurred_at: childSummary.published_at,
+    state: "published",
+    title: childSummary.title,
+  }),
+]);
+
 function memberActivitySearchText(item) {
   if (item.kind === "draft") {
     return `${item.title} updated draft your draft was saved`;
@@ -994,10 +1018,38 @@ function requireActiveMember(response) {
   return null;
 }
 
+function reviewedCookies(cookieHeader) {
+  const cookies = new Map();
+  if (!cookieHeader) return cookies;
+  for (const part of cookieHeader.split(";")) {
+    const separator = part.indexOf("=");
+    if (separator <= 0) return null;
+    const name = part.slice(0, separator).trim();
+    const value = part.slice(separator + 1).trim();
+    if (
+      cookies.has(name) ||
+      (name !== "recipe_lab_csrf" && name !== "recipe_lab_session")
+    ) {
+      return null;
+    }
+    cookies.set(name, value);
+  }
+  if (
+    (cookies.has("recipe_lab_csrf") &&
+      cookies.get("recipe_lab_csrf") !== SAFE_CSRF) ||
+    (cookies.has("recipe_lab_session") &&
+      cookies.get("recipe_lab_session") !== SAFE_MEMBER_SESSION)
+  ) {
+    return null;
+  }
+  return cookies;
+}
+
 function hasValidMemberCsrf(request) {
   const fetchSite = request.headers["sec-fetch-site"];
+  const cookies = reviewedCookies(request.headers.cookie);
   return (
-    request.headers.cookie === SAFE_COOKIE &&
+    cookies?.get("recipe_lab_csrf") === SAFE_CSRF &&
     request.headers.origin === SAFE_ORIGIN &&
     request.headers["x-csrf-token"] === SAFE_CSRF &&
     (fetchSite === undefined || fetchSite.toLowerCase() !== "cross-site")
@@ -1026,6 +1078,7 @@ function freshAudit() {
   return {
     accepted_api_requests: 0,
     unknown_api_requests: 0,
+    unknown_api_routes: [],
     privacy_rejections: 0,
     route_counts: Object.create(null),
   };
@@ -1068,7 +1121,7 @@ function requestHasPrivateMaterial(request) {
     authorization ||
     proxyAuthorization ||
     apiKey ||
-    (cookie && cookie !== SAFE_COOKIE) ||
+    (cookie && reviewedCookies(cookie) === null) ||
     (csrf && csrf !== SAFE_CSRF),
   );
 }
@@ -1403,6 +1456,32 @@ async function handleApi(request, response, url) {
     return;
   }
 
+  if (method === "GET" && path === "/api/my/dashboard") {
+    countRoute("member-dashboard");
+    if (requireActiveMember(response) === null) return;
+    if (scenario === "homepage-partial-error") {
+      sendError(
+        response,
+        503,
+        "member_dashboard_unavailable",
+        "The synthetic member dashboard is temporarily unavailable.",
+      );
+      return;
+    }
+    const empty = scenario === "homepage-empty";
+    sendJson(response, 200, {
+      latest_draft: empty ? null : draftListItem,
+      recent_activity: empty ? [] : dashboardRecentActivity,
+      stats: {
+        active_drafts: empty ? 0 : 1,
+        followers: empty ? 0 : scenarioState.baselineCookFollowerCount,
+        saved_recipes: empty ? 0 : 1,
+        versions_published: empty ? 0 : 2,
+      },
+    });
+    return;
+  }
+
   if (method === "GET" && path === "/api/my/recipes") {
     countRoute("my-recipes");
     if (scenario === "library-failure") {
@@ -1592,8 +1671,23 @@ async function handleApi(request, response, url) {
     countRoute("auth-logout");
     scenario = "anonymous-session";
     scenarioState = freshScenarioState();
-    response.writeHead(204, { "Cache-Control": "no-store" });
+    response.writeHead(204, {
+      "Cache-Control": "no-store",
+      "Set-Cookie":
+        "recipe_lab_session=; Path=/; Max-Age=0; SameSite=Lax",
+    });
     response.end();
+    return;
+  }
+
+  if (method === "GET" && path === "/api/recipe-drafts") {
+    countRoute("recipe-drafts");
+    if (requireActiveMember(response) === null) return;
+    const pageSize = Number.parseInt(
+      url.searchParams.get("page_size") ?? "20",
+      10,
+    );
+    sendJson(response, 200, apiPage([], pageSize));
     return;
   }
 
@@ -1734,6 +1828,7 @@ async function handleApi(request, response, url) {
   }
 
   audit.unknown_api_requests += 1;
+  audit.unknown_api_routes.push(`${method} ${path}`);
   sendError(
     response,
     404,
@@ -1797,6 +1892,7 @@ const server = createServer((request, response) => {
       sendJson(response, 200, {
         accepted_api_requests: audit.accepted_api_requests,
         unknown_api_requests: audit.unknown_api_requests,
+        unknown_api_routes: audit.unknown_api_routes,
         privacy_rejections: audit.privacy_rejections,
         route_counts: Object.fromEntries(
           Object.entries(audit.route_counts).sort(),
