@@ -5,7 +5,9 @@ workflow. It does not add another product feature. It proves that the features
 from RCP-23 through RCP-31 work together through the production frontend,
 FastAPI, and a freshly migrated PostgreSQL database.
 
-The stable GitHub check is named `RCP-32 community release gate`. It succeeds
+The stable GitHub check is named `RCP-32 community release gate`. Pull requests
+run its fast prerequisite tier; that result is review confidence rather than a
+deployment approval. On `main`, nightly, and manual full-tier runs, it succeeds
 only when backend quality, frontend quality, the broad MVP browser regression,
 the dedicated RCP-32 journey, production-image verification, and safe source
 packaging all succeed. Offline recommendation and substitution evaluation

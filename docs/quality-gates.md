@@ -1,25 +1,41 @@
 # Repository quality gates
 
-The stable `Repository quality` check is the ordinary pull-request and `main`
-branch boundary. It fails closed unless every independently named gate succeeds:
+The stable `Repository quality` check remains the aggregate pull-request and
+`main` branch boundary. One workflow retains every established check name so
+branch-protection rules do not depend on event-specific aliases. It runs two
+explicit tiers:
+
+| Event | Tier | Required evidence |
+| --- | --- | --- |
+| Pull request | Fast | Contracts, lint, types, security, backend PostgreSQL tests, frontend tests/build |
+| Push to `main`, nightly schedule, manual dispatch | Full | Every fast check plus evaluation, images, safe source, browser journeys, and deterministic baselines |
+
+Full-only jobs are intentionally skipped on pull requests. The checked-in
+`scripts/require_ci_results.py` command accepts those skips only in the fast
+tier; failures and cancellations still fail closed. In the full tier, every
+listed prerequisite must succeed. This keeps `Repository quality` useful as
+the single required aggregate while avoiding repeated image and browser work
+on each pull-request update.
 
 | Gate | Evidence owner |
 | --- | --- |
 | `Contracts` | Python/npm locks, CI pin policy, architecture boundaries, documentation links, workflow lint, OpenAPI, seed catalog, generated TypeScript API contracts |
 | `Lint` | Backend and ML Ruff formatting/lint, repository-policy Ruff checks, frontend ESLint |
 | `Types` | Strict backend and ML Mypy plus generated Next.js types and TypeScript |
-| `Unit` | Backend, frontend, and ML package test jobs |
-| `Integration` | PostgreSQL-backed backend tests and deterministic offline-evaluation checks |
-| `Build` | Production frontend build and both verified production images |
-| `E2E` | MVP browser acceptance, community release journey, and deterministic visual/accessibility baselines |
+| `Unit` | Backend and frontend package tests; ML evaluation in the full tier |
+| `Integration` | PostgreSQL-backed backend tests; deterministic evaluation in the full tier |
+| `Build` | Production frontend build; both verified images in the full tier |
+| `E2E` | Full-tier MVP/community browser journeys and deterministic visual/accessibility baselines |
 | `Security` | Locked runtime dependency vulnerabilities and committed-source vulnerability/secret scans |
 
 Some established jobs produce more than one kind of evidence. The small Unit,
 Integration, Build, and E2E jobs expose stable branch-protection names without
 rerunning those expensive suites. The underlying failing step remains the
 diagnostic source. `RCP-32 community release gate` keeps its established name
-and deployable-product scope; `Repository quality` additionally requires the
-offline research evidence.
+and deployable-product scope. A successful fast-tier instance is prerequisite
+confidence, not release evidence. Release decisions require the successful
+full-tier instance for the same candidate revision; `Repository quality` then
+also requires the offline research evidence.
 
 ## Immutable automation inputs
 
@@ -91,10 +107,10 @@ CI logs.
 
 ## Release and cleanup
 
-All required checks must pass at the same candidate revision. Do not treat a
-scheduled scan, a local run, or the RCP-33G rehearsal as a substitute for the
-ordinary pull-request aggregate. No workflow in this boundary pushes images,
-deploys, runs against production, or approves its own dependency update.
+All full-tier checks must pass at the same candidate revision before release.
+Do not treat a fast pull-request run, a scheduled security scan, a local run,
+or the RCP-33G rehearsal as a substitute. No workflow in this boundary pushes
+images, deploys, runs against production, or approves its own dependency update.
 
 Docker Compose keeps `node_modules` and `.next` outside the frontend host bind
 mount. To remove all disposable local database/dependency/build volumes after
