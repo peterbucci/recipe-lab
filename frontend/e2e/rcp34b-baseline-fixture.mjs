@@ -748,6 +748,101 @@ const activityIngredientRequests = Object.freeze([
   }),
 ]);
 
+const memberActivityItems = Object.freeze([
+  Object.freeze({
+    id: IDS.draft,
+    kind: "draft",
+    occurred_at: activityDraftItems[0].draft.updated_at,
+    state: null,
+    title: activityDraftItems[0].draft.title,
+  }),
+  Object.freeze({
+    id: IDS.activityDraftCarrot,
+    kind: "draft",
+    occurred_at: activityDraftItems[1].draft.updated_at,
+    state: null,
+    title: activityDraftItems[1].draft.title,
+  }),
+  Object.freeze({
+    id: IDS.activityApprovedRequest,
+    kind: "ingredient-request",
+    occurred_at: activityIngredientRequests[0].reviewed_at,
+    state: "approved",
+    title: activityIngredientRequests[0].proposed_name,
+  }),
+  Object.freeze({
+    id: IDS.activityPublishedRecipe,
+    kind: "published",
+    occurred_at: activityPublishedRecipe.published_at,
+    state: "published",
+    title: activityPublishedRecipe.title,
+  }),
+  Object.freeze({
+    id: IDS.activitySavedShrimp,
+    kind: "saved",
+    occurred_at: activitySavedItems[0].saved_at,
+    state: null,
+    title: activitySavedItems[0].recipe.title,
+  }),
+  Object.freeze({
+    id: IDS.activityDraftCurry,
+    kind: "draft",
+    occurred_at: activityDraftItems[2].draft.updated_at,
+    state: null,
+    title: activityDraftItems[2].draft.title,
+  }),
+  Object.freeze({
+    id: IDS.activitySavedBread,
+    kind: "saved",
+    occurred_at: activitySavedItems[1].saved_at,
+    state: null,
+    title: activitySavedItems[1].recipe.title,
+  }),
+  Object.freeze({
+    id: IDS.activityRejectedRequest,
+    kind: "ingredient-request",
+    occurred_at: activityIngredientRequests[1].reviewed_at,
+    state: "rejected",
+    title: activityIngredientRequests[1].proposed_name,
+  }),
+  Object.freeze({
+    id: IDS.activityWithdrawnRecipe,
+    kind: "withdrawn",
+    occurred_at: activityWithdrawnRecipe.published_at,
+    state: "author_withdrawn",
+    title: activityWithdrawnRecipe.title,
+  }),
+]);
+
+const memberActivityCounts = Object.freeze({
+  all: memberActivityItems.length,
+  recipes: memberActivityItems.filter((item) =>
+    ["draft", "published", "withdrawn"].includes(item.kind),
+  ).length,
+  requests: memberActivityItems.filter(
+    (item) => item.kind === "ingredient-request",
+  ).length,
+  saved: memberActivityItems.filter((item) => item.kind === "saved").length,
+});
+
+function memberActivitySearchText(item) {
+  if (item.kind === "draft") {
+    return `${item.title} updated draft your draft was saved`;
+  }
+  if (item.kind === "published") {
+    return `${item.title} published recipe version publicly available`;
+  }
+  if (item.kind === "withdrawn") {
+    return `${item.title} published recipe version withdrawn no longer publicly available`;
+  }
+  if (item.kind === "saved") {
+    return `${item.title} saved recipe added to your saved recipes`;
+  }
+  return item.state === "approved"
+    ? `${item.title} ingredient request approved available in the catalog`
+    : `${item.title} ingredient request rejected curator reviewed this request`;
+}
+
 const moderationSummary = Object.freeze({
   recipe_version_id: IDS.recipeRoot,
   title: "Sunlit Tomato Soup",
@@ -1264,6 +1359,46 @@ async function handleApi(request, response, url) {
       total_pages: allItems.length
         ? Math.ceil(allItems.length / requestedPageSize)
         : 0,
+    });
+    return;
+  }
+
+  if (method === "GET" && path === "/api/my/activity") {
+    countRoute("member-activity");
+    if (requireActiveMember(response) === null) return;
+    const selectedFilter = url.searchParams.get("filter") ?? "all";
+    if (!["all", "recipes", "saved", "requests"].includes(selectedFilter)) {
+      sendError(
+        response,
+        422,
+        "validation_error",
+        "Choose all, recipes, saved, or requests.",
+      );
+      return;
+    }
+    const kindsByFilter = {
+      recipes: new Set(["draft", "published", "withdrawn"]),
+      requests: new Set(["ingredient-request"]),
+      saved: new Set(["saved"]),
+    };
+    const allowedKinds = kindsByFilter[selectedFilter];
+    const query = url.searchParams.get("q")?.trim().toLowerCase() ?? "";
+    const pageSize = Number.parseInt(
+      url.searchParams.get("page_size") ?? "24",
+      10,
+    );
+    const items = memberActivityItems
+      .filter((item) => !allowedKinds || allowedKinds.has(item.kind))
+      .filter(
+        (item) =>
+          !query || memberActivitySearchText(item).toLowerCase().includes(query),
+      )
+      .slice(0, pageSize);
+    sendJson(response, 200, {
+      counts: memberActivityCounts,
+      items,
+      next_cursor: null,
+      selected_filter: selectedFilter,
     });
     return;
   }

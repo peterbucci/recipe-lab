@@ -607,7 +607,7 @@ async function expectAccountActivityReady(page: Page): Promise<void> {
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Back to home", exact: true }),
-  ).toHaveAttribute("href", "/");
+  ).toHaveCount(0);
 
   const activity = page.getByRole("region", { name: "Account activity" });
   const filters = activity.getByRole("group", { name: "Activity filters" });
@@ -658,9 +658,10 @@ async function expectAccountActivityReady(page: Page): Promise<void> {
   ).toHaveAttribute("href", "/account/ingredient-requests");
 
   const audit = await readAudit();
-  expect(audit.route_counts["my-recipes"] ?? 0).toBe(3);
-  expect(audit.route_counts["saved-recipes"] ?? 0).toBe(1);
-  expect(audit.route_counts["member-ingredient-requests"] ?? 0).toBe(1);
+  expect(audit.route_counts["member-activity"] ?? 0).toBe(1);
+  expect(audit.route_counts["my-recipes"] ?? 0).toBe(0);
+  expect(audit.route_counts["saved-recipes"] ?? 0).toBe(0);
+  expect(audit.route_counts["member-ingredient-requests"] ?? 0).toBe(0);
 }
 
 async function selectActivityFilter(
