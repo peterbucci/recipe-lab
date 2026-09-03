@@ -24,6 +24,10 @@ type FeaturedRecipesOperation =
   operations["featured_recipes_api_recipes_featured_get"];
 export type FeaturedRecipeList =
   FeaturedRecipesOperation["responses"][200]["content"]["application/json"];
+type RecipeDetailWire =
+  operations["recipe_detail_api_recipes__recipe_version_id__get"]["responses"][200]["content"]["application/json"];
+type RecipeDiffWire =
+  operations["recipe_diff_api_recipes__recipe_version_id__diff_get"]["responses"][200]["content"]["application/json"];
 export type PublicUserReference = Omit<RecipeSummary["author"], "handle"> & {
   readonly handle: string | null;
 };
@@ -145,13 +149,6 @@ interface RecipePageQuery {
   sort?: "newest" | "title";
 }
 
-interface ApiErrorPayload {
-  error?: {
-    code?: unknown;
-    message?: unknown;
-  };
-}
-
 const KNOWN_RECIPE_ERROR_CODES = new Set([
   "invalid_identifier",
   "recipe_has_no_parent",
@@ -164,12 +161,6 @@ const RECIPE_ERROR_CONTRACT: PublicApiErrorContract = {
   fallbackCode: "recipe_api_error",
   knownCodes: KNOWN_RECIPE_ERROR_CODES,
 };
-
-function knownRecipeErrorCode(value: unknown): string {
-  return typeof value === "string" && KNOWN_RECIPE_ERROR_CODES.has(value)
-    ? value
-    : "recipe_api_error";
-}
 
 function recipeErrorMessage(status: number): string {
   if (status === 401) return "Your session expired. Sign in again to continue.";
@@ -200,52 +191,12 @@ export function isRecipeVersionId(value: string): boolean {
   );
 }
 
-function apiBaseUrl(): string {
-  const configured =
-    process.env.RECIPE_API_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:8000";
-  return configured.trim().replace(/\/+$/, "");
-}
-
-function apiUrl(path: string): URL {
-  return new URL(path, `${apiBaseUrl()}/`);
-}
-
-function isErrorPayload(value: unknown): value is ApiErrorPayload {
-  return typeof value === "object" && value !== null && "error" in value;
-}
-
-async function apiError(response: Response): Promise<RecipeApiError> {
-  let code = "recipe_api_error";
-
-  try {
-    const payload: unknown = await response.json();
-    if (
-      isErrorPayload(payload) &&
-      typeof payload.error === "object" &&
-      payload.error !== null
-    ) {
-      code = knownRecipeErrorCode(payload.error.code);
-    }
-  } catch {
-    // Keep the stable user-facing fallback when an upstream response is not JSON.
-  }
-
+function fromRecipeTransportError(error: ApiTransportError): RecipeApiError {
   return new RecipeApiError(
-    recipeErrorMessage(response.status),
-    response.status,
-    code,
+    recipeErrorMessage(error.status),
+    error.status,
+    error.code,
   );
-}
-
-async function apiFetch(url: URL): Promise<Response> {
-  return fetch(url, {
-    cache: "no-store",
-    headers: {
-      Accept: "application/json",
-    },
-  });
 }
 
 export async function fetchRecipePage({
@@ -332,33 +283,40 @@ export async function fetchRecipeCategories(): Promise<RecipeCategoryList> {
 export async function fetchRecipe(
   recipeVersionId: string,
 ): Promise<RecipeDetail | null> {
-  const response = await apiFetch(
-    apiUrl(`/api/recipes/${encodeURIComponent(recipeVersionId)}`),
-  );
-  if (response.status === 404) {
-    return null;
+  try {
+    const response = await serverApiRequest(
+      `/api/recipes/${encodeURIComponent(recipeVersionId)}`,
+      { errorContract: RECIPE_ERROR_CONTRACT, kind: "query", retry: "never" },
+    );
+    const payload = response.data as RecipeDetailWire;
+    return { ...payload, viewer_state: null } as RecipeDetail;
+  } catch (error) {
+    if (error instanceof ApiTransportError) {
+      if (error.status === 404) return null;
+      throw fromRecipeTransportError(error);
+    }
+    throw error;
   }
-  if (!response.ok) {
-    throw await apiError(response);
-  }
-  const payload = (await response.json()) as RecipeDetail;
-  return { ...payload, viewer_state: null };
 }
 
 export async function fetchRecipeDiff(
   recipeVersionId: string,
   baseVersionId?: string,
 ): Promise<RecipeDiff | null> {
-  const url = apiUrl(
-    `/api/recipes/${encodeURIComponent(recipeVersionId)}/diff`,
-  );
-  if (baseVersionId) url.searchParams.set("base_version_id", baseVersionId);
-  const response = await apiFetch(url);
-  if (response.status === 404) {
-    return null;
+  const query = new URLSearchParams();
+  if (baseVersionId) query.set("base_version_id", baseVersionId);
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  try {
+    const response = await serverApiRequest(
+      `/api/recipes/${encodeURIComponent(recipeVersionId)}/diff${suffix}`,
+      { errorContract: RECIPE_ERROR_CONTRACT, kind: "query", retry: "never" },
+    );
+    return response.data as RecipeDiffWire as RecipeDiff;
+  } catch (error) {
+    if (error instanceof ApiTransportError) {
+      if (error.status === 404) return null;
+      throw fromRecipeTransportError(error);
+    }
+    throw error;
   }
-  if (!response.ok) {
-    throw await apiError(response);
-  }
-  return (await response.json()) as RecipeDiff;
 }

@@ -27,6 +27,7 @@ interface ServerRequestBase {
 interface ServerQueryRequest extends ServerRequestBase {
   kind: "query";
   method?: "GET" | "HEAD";
+  retry?: "never" | "transient";
 }
 
 interface ServerMutationRequest extends ServerRequestBase {
@@ -123,6 +124,7 @@ export async function serverApiRequest(
       errorContract: options.errorContract,
       kind: options.kind,
       responseBody: options.responseBody,
+      retry: options.kind === "query" ? options.retry : undefined,
       signal: options.signal,
       timeoutMs: options.timeoutMs ?? SERVER_API_TIMEOUT_MS,
     },

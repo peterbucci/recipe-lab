@@ -595,15 +595,21 @@ describe("cook profile and private recipe libraries", () => {
       }),
     );
 
+    const visibilityPath = `/api/recipes/${ROOT_ID}/visibility`;
     await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        `/api/recipes/${ROOT_ID}/visibility`,
-        expect.objectContaining({
-          method: "PUT",
-          headers: expect.objectContaining({ "X-CSRF-Token": "csrf-value" }),
-          body: JSON.stringify({ state: "author_withdrawn" }),
-        }),
-      ),
+      expect(
+        fetchMock.mock.calls.some(([target]) => target === visibilityPath),
+      ).toBe(true),
+    );
+    const visibilityCall = fetchMock.mock.calls.find(
+      ([target]) => target === visibilityPath,
+    );
+    expect(visibilityCall?.[1]).toMatchObject({
+      method: "PUT",
+      body: JSON.stringify({ state: "author_withdrawn" }),
+    });
+    expect(new Headers(visibilityCall?.[1]?.headers).get("X-CSRF-Token")).toBe(
+      "csrf-value",
     );
     const completion = await screen.findByRole("status");
     expect(completion).toHaveTextContent(
@@ -878,14 +884,18 @@ describe("cook profile and private recipe libraries", () => {
       within(confirmation).getByRole("button", { name: "Discard permanently" }),
     );
 
+    const discardPath = `/api/recipe-drafts/${DRAFT_ID}?revision=2`;
     await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        `/api/recipe-drafts/${DRAFT_ID}?revision=2`,
-        expect.objectContaining({
-          method: "DELETE",
-          headers: expect.objectContaining({ "X-CSRF-Token": "csrf-value" }),
-        }),
-      ),
+      expect(
+        fetchMock.mock.calls.some(([target]) => target === discardPath),
+      ).toBe(true),
+    );
+    const discardCall = fetchMock.mock.calls.find(
+      ([target]) => target === discardPath,
+    );
+    expect(discardCall?.[1]).toMatchObject({ method: "DELETE" });
+    expect(new Headers(discardCall?.[1]?.headers).get("X-CSRF-Token")).toBe(
+      "csrf-value",
     );
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Soup in progress was permanently discarded.",

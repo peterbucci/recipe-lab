@@ -154,10 +154,10 @@ in the pull request or release note. Automated comparison between released API
 versions is deferred until Recipe Lab has an independently released API or an
 external client to protect.
 
-The recipe-report client is the first consumer. Its ordinary request and
-response types now come from OpenAPI, while its private receipt parser still
-rejects unexpected response fields. Other clients move when their own story
-changes them; they do not block this foundation.
+Production frontend feature clients import the generated operation types for
+represented request and response wires. Feature modules retain their domain and
+view models plus strict parsers where privacy or exact-shape validation requires
+them; generated compile-time types do not weaken those runtime boundaries.
 
 Generated types do not own requests. The shared Recipe Lab transport remains
 responsible for same-origin routing, sessions, CSRF, idempotency, request
@@ -165,10 +165,13 @@ fingerprints, cancellation, and recovery behavior.
 
 ## Shared browser mutation headers
 
-Browser callers give the shared transport a mutation identity containing an
-opaque idempotency key and a lowercase SHA-256 request fingerprint. The
-transport validates both, overwrites any caller-supplied `Idempotency-Key` with
-the identity value, and obtains `X-CSRF-Token` from the current member session.
+Browser callers for retry-safe operations give the shared transport a mutation
+identity containing an opaque idempotency key and a lowercase SHA-256 request
+fingerprint. The transport requires every caller to make the decision explicit:
+retry-safe operations pass a validated identity, while operations without an
+idempotency contract pass `null`. It writes the validated `Idempotency-Key` or
+strips any caller-supplied key for the explicit `null` case. Every protected
+mutation obtains `X-CSRF-Token` from the current member session.
 The browser supplies the same-origin session cookie through normal credential
 handling; callers never copy a cookie into request options. JSON consumers add
 `Content-Type: application/json`, while the transport supplies

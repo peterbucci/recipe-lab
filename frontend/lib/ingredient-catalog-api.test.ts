@@ -126,20 +126,22 @@ describe("ingredient catalog API client", () => {
         context: "Fresh pink fruit",
       }),
     ).resolves.toMatchObject({ id: REQUEST_ID, status: "pending" });
-    expect(fetchMock).toHaveBeenCalledWith("/api/ingredient-requests", {
-      method: "POST",
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "X-CSRF-Token": "test-csrf-token",
-      },
-      body: JSON.stringify({
-        proposed_name: "Dragon fruit",
-        context: "Fresh pink fruit",
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/ingredient-requests",
+      expect.objectContaining({
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        body: JSON.stringify({
+          proposed_name: "Dragon fruit",
+          context: "Fresh pink fruit",
+        }),
       }),
-    });
+    );
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.get("Accept")).toBe("application/json");
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(headers.get("X-CSRF-Token")).toBe("test-csrf-token");
   });
 
   it("maps a duplicate request to stable member-facing copy", async () => {
@@ -519,14 +521,13 @@ describe("ingredient catalog curator API client", () => {
       `/api/ingredient-requests/${REQUEST_ID}/review`,
       expect.objectContaining({
         method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "X-CSRF-Token": "test-csrf-token",
-        },
         body: JSON.stringify(input),
       }),
     ]);
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.get("Accept")).toBe("application/json");
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(headers.get("X-CSRF-Token")).toBe("test-csrf-token");
 
     await expect(
       reviewIngredientCatalogRequest(REQUEST_ID, {

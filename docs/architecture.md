@@ -35,13 +35,22 @@ as either definitely rejected or outcome unknown; timeout, abort after dispatch,
 network failure, upstream 5xx, and an unreadable success receipt are never
 blindly retried.
 
-Recipe reporting is the first bounded consumer. Its existing module remains the
-compatibility facade and retains the strict receipt validator that rejects any
-reporter identity or additive private field. A manual retry of an unknown result
-reuses the same idempotency key for the same normalized intent, while changed
-intent rotates the key. Other feature clients stay on their characterized paths
-until later migration stories. The hardened streaming `/api` route remains a
-separate security proxy; the shared JSON transport does not replace or wrap it.
+Production feature clients use this transport while retaining feature-owned
+domain models, strict response parsers, and public error copy. Generated OpenAPI
+operation types anchor represented request and response wires; they do not
+replace runtime validation or create a universal SDK. Queries that historically
+made one attempt opt out of transient retry, and screens that intentionally own
+authentication recovery can keep a scoped 401 local. Mutations carry CSRF and,
+where the operation has durable retry semantics, a validated idempotency
+identity. The hardened streaming `/api` route remains a separate security proxy;
+the shared JSON transport does not replace or wrap it.
+
+Raw `fetch` is limited by lint to two reviewed production boundaries. The shared
+transport core owns JSON dispatch, deadlines, cancellation, retry, and safe
+error parsing. `frontend/server/api-proxy.ts` owns the streaming upstream fetch,
+header filtering, body limits, and redirect controls required by the same-origin
+security proxy. Test fixtures, end-to-end browser setup, and the container health
+probe are infrastructure callers rather than application feature clients.
 
 Each event-producing browser action generates an opaque UUID and retains it
 while retrying the same desired save state, rating value, or validated fork
@@ -138,10 +147,10 @@ not exist. The baseline adds no runtime path, database query, or migration. See
 review.
 
 The frontend commits one generated TypeScript view of that OpenAPI snapshot.
-Generated request and response types remove duplicate handwritten shapes, but
-they do not make network requests or replace runtime validation. The recipe
-report client is the first migrated consumer. The shared transport continues to
-own routing, session and CSRF handling, idempotency, cancellation, and recovery.
+Generated request and response types anchor feature-owned wire boundaries, but
+they do not make network requests or replace runtime validation. The shared
+transport owns routing, session and CSRF handling, idempotency, cancellation,
+and recovery across production feature clients.
 
 Recipe reads expose immutable version snapshots. Browse uses bounded
 page-based pagination, literal title/description search, and filters supported
