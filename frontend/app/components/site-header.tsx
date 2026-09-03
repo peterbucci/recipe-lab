@@ -1,18 +1,12 @@
-"use client";
-
 import { FlaskConical, Search } from "lucide-react";
 
-import { AccountMenu } from "./account-menu";
-import { useAuthSession } from "./auth-session-provider";
 import { GuardedLink } from "./navigation-blocker-provider";
+import {
+  SiteHeaderMemberActions,
+  SiteMobileNavigation,
+} from "./site-header-member-navigation";
 
 export function SiteHeader() {
-  const { sessionExpired, state } = useAuthSession();
-  const canCreateRecipe =
-    !sessionExpired &&
-    state.phase === "ready" &&
-    state.session.status === "authenticated";
-
   return (
     <>
       <header className="site-header">
@@ -49,42 +43,11 @@ export function SiteHeader() {
             </button>
           </form>
 
-          <div className="site-header__actions">
-            {canCreateRecipe ? (
-              <nav className="site-nav" aria-label="Primary navigation">
-                <GuardedLink
-                  className="button button--primary site-header__create"
-                  href="/recipes/new"
-                >
-                  Create recipe
-                </GuardedLink>
-              </nav>
-            ) : null}
-
-            <div className="site-header__account">
-              <AccountMenu />
-            </div>
-          </div>
+          <SiteHeaderMemberActions />
         </div>
       </header>
 
-      <nav
-        className={`mobile-nav${canCreateRecipe ? " mobile-nav--with-create" : ""}`}
-        aria-label="Mobile navigation"
-      >
-        <GuardedLink href="/">Home</GuardedLink>
-        <GuardedLink href="/recipes" aria-label="Explore recipes">
-          Discover
-        </GuardedLink>
-        <GuardedLink href="/account/recipes?view=drafts" aria-label="My recipes">
-          My recipes
-        </GuardedLink>
-        {canCreateRecipe ? (
-          <GuardedLink href="/recipes/new" aria-label="Create recipe">
-            Create
-          </GuardedLink>
-        ) : null}
-      </nav>
+      <SiteMobileNavigation />
     </>
   );
 }
