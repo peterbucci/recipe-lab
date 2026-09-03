@@ -54,6 +54,25 @@ that environment because esbuild cannot enumerate the drive root. These are
 execution-environment accommodations; they do not change product behavior or
 weaken the checks.
 
+## Backend test architecture
+
+Database-backed API fixtures use `backend/tests/application.py` for the
+request-session override and application cleanup. Authentication, role grants,
+domain records, and specialized dependency overrides stay in the feature
+fixture so setup remains readable. Fixtures that require non-expiring ORM state
+request it explicitly instead of changing the shared default.
+
+`backend/tests/database.py` owns only the repeated connection transaction,
+session close, and outer rollback lifecycle. It is not used around tests that
+exercise or assert savepoints, so transaction behavior remains visible at the
+call site.
+
+The broad migration and recipe-publication conformance modules keep their
+established file paths and pytest node identities. Their cases share ordered
+migration state or one dense publication fixture, so moving tests solely to
+reduce line counts would duplicate setup and invalidate stable collection
+references. New independent concerns should continue to use focused modules.
+
 ## Evidence required from each work package
 
 Each topic branch records:

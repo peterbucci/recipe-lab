@@ -587,6 +587,12 @@ API tests use the small `tests.application` harness to create one isolated app,
 bind either a database-backed or fixed route-unit-test session dependency, and
 clear every dependency override even when a test fails. Feature fixtures still
 own authentication and domain data so the harness does not hide test intent.
+Tests that need a non-expiring request session pass that policy explicitly to
+the harness. `tests.database.session_with_outer_rollback` is narrower: it is
+used only when a test deliberately permits session flushes or commits inside a
+connection-owned transaction that must be rolled back during cleanup. Expected
+savepoints and assertions about transaction behavior remain visible in their
+individual tests.
 The root `uv.lock` is the only Python lock; update and production-image
 procedures are documented in
 [locked dependencies and production images](../docs/production-images.md).
