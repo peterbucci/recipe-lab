@@ -46,14 +46,8 @@ jobs:
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
           npm ci --prefix frontend
 
-      - name: Audit immutable repository inputs
-        run: python scripts/verify_repository_policy.py
-
-      - name: Enforce backend architecture boundaries
-        run: python scripts/verify_architecture.py
-
-      - name: Check documentation links
-        run: python scripts/verify_doc_links.py
+      - name: Run checked-in contract gates
+        run: python scripts/run_quality_gate.py contracts
 
       - name: Validate GitHub workflows
         run: >-
@@ -62,18 +56,6 @@ jobs:
           --workdir /repo
           docker.io/rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9
           -color
-
-      - name: Check backend API contract drift
-        working-directory: backend
-        run: python -m app.openapi_contract check
-
-      - name: Validate bundled seed catalog
-        working-directory: backend
-        run: python -m app.seeds validate
-
-      - name: Check generated frontend API contract drift
-        working-directory: frontend
-        run: npm run api:contracts:check
 
   lint:
     name: Lint
@@ -101,26 +83,8 @@ jobs:
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
           npm ci --prefix frontend
 
-      - name: Check backend formatting and lint
-        working-directory: backend
-        run: |
-          python -m ruff format --check .
-          python -m ruff check --output-format=github .
-
-      - name: Check ML formatting and lint
-        working-directory: ml
-        run: |
-          python -m ruff format --check src tests
-          python -m ruff check --output-format=github src tests
-
-      - name: Check repository tooling formatting and lint
-        run: |
-          python -m ruff format --check scripts
-          python -m ruff check --output-format=github scripts
-
-      - name: Lint frontend
-        working-directory: frontend
-        run: npm run lint
+      - name: Run checked-in lint gates
+        run: python scripts/run_quality_gate.py lint
 
   typecheck:
     name: Types
@@ -148,17 +112,8 @@ jobs:
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
           npm ci --prefix frontend
 
-      - name: Type-check backend
-        working-directory: backend
-        run: python -m mypy app migrations tests
-
-      - name: Type-check ML
-        working-directory: ml
-        run: python -m mypy src tests
-
-      - name: Type-check frontend
-        working-directory: frontend
-        run: npm run typecheck
+      - name: Run checked-in type gates
+        run: python scripts/run_quality_gate.py types
 
   backend:
     name: Backend unit and integration
@@ -201,14 +156,8 @@ jobs:
           uv pip check
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
 
-      - name: Apply database migrations
-        run: python -m alembic upgrade head
-
-      - name: Check migration completeness
-        run: python -m alembic check
-
-      - name: Test backend
-        run: python -m pytest
+      - name: Run checked-in backend gate
+        run: python ../scripts/run_quality_gate.py backend
 
   frontend:
     name: Frontend unit and build
@@ -232,14 +181,8 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Test frontend
-        run: npm test
-
-      - name: Build frontend
-        run: npm run build
-
-      - name: Validate Playwright configuration
-        run: npx --no-install playwright test --list
+      - name: Run checked-in frontend gate
+        run: npm run ci:verify
 
   rcp34b-baselines:
     name: RCP-34B deterministic baselines
@@ -461,7 +404,7 @@ jobs:
         run: python -m alembic upgrade head
 
       - name: Test evaluation package
-        run: python -m pytest
+        run: python ../scripts/run_quality_gate.py ml
 
       - name: Verify byte-identical evaluation reports
         shell: bash
