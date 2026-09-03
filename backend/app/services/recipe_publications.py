@@ -26,7 +26,6 @@ from app.models import (
     RECIPE_DRAFT_STATUS_ACTIVE,
     RECIPE_DRAFT_STATUS_PUBLISHED,
     RECIPE_PUBLICATION_STATE_PUBLISHED,
-    MeasurementUnit,
     RecipeDraft,
     RecipeDraftIngredient,
     RecipeDraftInstructionAction,
@@ -61,6 +60,12 @@ from app.services.measurements import (
     validate_measure_input,
 )
 from app.services.preference_events import PreferenceEventIntent, record_preference_event
+from app.services.recipe_documents import (
+    RecipeDocument,
+    materialize_immutable_recipe_document,
+    recipe_document_from_draft,
+    recipe_structure_from_document,
+)
 from app.services.recipe_duplicate_preflights import (
     RecipeDuplicatePreflightServiceResult,
     RecipeDuplicatePreflightUnavailableError,
@@ -68,42 +73,24 @@ from app.services.recipe_duplicate_preflights import (
     run_structural_recipe_duplicate_preflight,
 )
 from app.services.recipe_fingerprint_persistence import (
-    canonical_unit_from_measurement,
     fingerprint_and_store_recipe_version,
 )
 from app.services.recipe_fingerprints import (
     RecipeStructure,
-    StructuralAction,
     StructuralFingerprint,
-    StructuralIngredient,
-    StructuralInstruction,
-    StructuralMeasure,
     build_structural_fingerprint,
 )
 from app.services.recipe_publication_snapshots import (
     RecipeForkSourceUnavailableError as RecipeForkSourceUnavailableError,
 )
-from app.services.recipe_publication_snapshots import (
-    copy_recipe_version_action_inputs,
-    copy_recipe_version_action_measures,
-    copy_recipe_version_actions,
-    copy_recipe_version_categories,
-    copy_recipe_version_ingredients,
-    copy_recipe_version_instructions,
-    create_recipe_version_identity,
-)
+from app.services.recipe_publication_snapshots import create_recipe_version_identity
 
 CURRENT_COMMUNITY_RULES_VERSION = "community-rules-v1"
 
 type PublicationWritePhase = Literal[
     "duplicate_evidence",
     "version_identity",
-    "categories",
-    "ingredients",
-    "instructions",
-    "actions",
-    "action_inputs",
-    "action_measures",
+    "recipe_document",
     "structural_fingerprint",
     "publication_receipt",
     "fork_preference_event",
@@ -113,12 +100,7 @@ type PublicationWritePhase = Literal[
 _PUBLICATION_WRITE_PHASES: tuple[PublicationWritePhase, ...] = (
     "duplicate_evidence",
     "version_identity",
-    "categories",
-    "ingredients",
-    "instructions",
-    "actions",
-    "action_inputs",
-    "action_measures",
+    "recipe_document",
     "structural_fingerprint",
     "publication_receipt",
     "fork_preference_event",
@@ -194,6 +176,7 @@ class PublishedRecipeFingerprintMismatchError(RuntimeError):
 @dataclass(frozen=True, slots=True)
 class PreparedRecipeDraft:
     draft: RecipeDraft
+    document: RecipeDocument
     structure: RecipeStructure
     structural_fingerprint: StructuralFingerprint
     preflight_request_fingerprint: str
@@ -362,82 +345,6 @@ def _validate_action_contract(
             raise _invalid("A structured action measurement is no longer authoritative.")
 
 
-def _structural_measure(
-    *,
-    mode: str,
-    quantity_min: Decimal | None,
-    quantity_max: Decimal | None,
-    unit: MeasurementUnit | None,
-    package_size_id: UUID | None,
-) -> StructuralMeasure:
-    return StructuralMeasure(
-        mode=mode,
-        quantity_min=quantity_min,
-        quantity_max=quantity_max,
-        unit=canonical_unit_from_measurement(unit),
-        package_size_identity=str(package_size_id) if package_size_id is not None else None,
-    )
-
-
-def _build_draft_structure(draft: RecipeDraft) -> RecipeStructure:
-    occurrence_keys = {
-        item.id: f"draft-ingredient:{index:04d}" for index, item in enumerate(draft.ingredients)
-    }
-    ingredients = tuple(
-        StructuralIngredient(
-            occurrence_key=occurrence_keys[item.id],
-            ingredient_identity=str(item.ingredient_id) if item.ingredient_id else None,
-            measure=_structural_measure(
-                mode=item.measure_mode,
-                quantity_min=item.quantity_min,
-                quantity_max=item.quantity_max,
-                unit=item.measurement_unit,
-                package_size_id=item.package_size_id,
-            ),
-        )
-        for item in draft.ingredients
-    )
-    instructions: list[StructuralInstruction] = []
-    for instruction in draft.instructions:
-        actions: list[StructuralAction] = []
-        for action in instruction.actions:
-            measures = {measure.semantic: measure for measure in action.measures}
-            duration = measures.get("duration")
-            temperature = measures.get("temperature")
-            actions.append(
-                StructuralAction(
-                    action_type_key=action.action_type.key,
-                    ingredient_occurrence_keys=tuple(
-                        occurrence_keys[item.recipe_draft_ingredient_id] for item in action.inputs
-                    ),
-                    duration=(
-                        _structural_measure(
-                            mode=duration.measure_mode,
-                            quantity_min=duration.quantity_min,
-                            quantity_max=duration.quantity_max,
-                            unit=duration.measurement_unit,
-                            package_size_id=None,
-                        )
-                        if duration is not None
-                        else None
-                    ),
-                    temperature=(
-                        _structural_measure(
-                            mode=temperature.measure_mode,
-                            quantity_min=temperature.quantity_min,
-                            quantity_max=temperature.quantity_max,
-                            unit=temperature.measurement_unit,
-                            package_size_id=None,
-                        )
-                        if temperature is not None
-                        else None
-                    ),
-                )
-            )
-        instructions.append(StructuralInstruction(actions=tuple(actions)))
-    return RecipeStructure(ingredients=ingredients, instructions=tuple(instructions))
-
-
 def _preflight_request_fingerprint(
     draft: RecipeDraft,
     structural_fingerprint: StructuralFingerprint,
@@ -532,12 +439,14 @@ def _prepare_locked_recipe_draft_content(
         for action in instruction.actions:
             _validate_action_contract(session, action, catalog_ingredient_ids)
 
-    structure = _build_draft_structure(draft)
+    document = recipe_document_from_draft(draft)
+    structure = recipe_structure_from_document(document)
     structural_fingerprint = build_structural_fingerprint(structure)
     if structural_fingerprint is None:
         raise _invalid("The draft does not contain a complete canonical recipe structure.")
     return PreparedRecipeDraft(
         draft=draft,
+        document=document,
         structure=structure,
         structural_fingerprint=structural_fingerprint,
         preflight_request_fingerprint=_preflight_request_fingerprint(
@@ -603,57 +512,26 @@ def run_recipe_draft_duplicate_preflight(
 run_original_recipe_draft_duplicate_preflight = run_recipe_draft_duplicate_preflight
 
 
-def _copy_draft_snapshot_phases(
+def _materialize_draft_snapshot(
     session: Session,
     *,
     draft: RecipeDraft,
+    document: RecipeDocument,
     author_user_id: UUID,
 ) -> RecipeVersion:
     version = create_recipe_version_identity(
         session,
-        draft=draft,
+        source_version_id=draft.source_version_id,
+        document=document,
         author_user_id=author_user_id,
     )
     _finish_publication_write_phase(session, "version_identity")
-    copy_recipe_version_categories(
+    materialize_immutable_recipe_document(
         session,
-        draft=draft,
         recipe_version_id=version.id,
+        document=document,
     )
-    _finish_publication_write_phase(session, "categories")
-    ingredient_ids = copy_recipe_version_ingredients(
-        session,
-        draft=draft,
-        recipe_version_id=version.id,
-    )
-    _finish_publication_write_phase(session, "ingredients")
-    instruction_ids = copy_recipe_version_instructions(
-        session,
-        draft=draft,
-        recipe_version_id=version.id,
-    )
-    _finish_publication_write_phase(session, "instructions")
-    action_ids = copy_recipe_version_actions(
-        session,
-        draft=draft,
-        recipe_version_id=version.id,
-        instruction_ids=instruction_ids,
-    )
-    _finish_publication_write_phase(session, "actions")
-    copy_recipe_version_action_inputs(
-        session,
-        draft=draft,
-        recipe_version_id=version.id,
-        action_ids=action_ids,
-        ingredient_ids=ingredient_ids,
-    )
-    _finish_publication_write_phase(session, "action_inputs")
-    copy_recipe_version_action_measures(
-        session,
-        draft=draft,
-        action_ids=action_ids,
-    )
-    _finish_publication_write_phase(session, "action_measures")
+    _finish_publication_write_phase(session, "recipe_document")
     return version
 
 
@@ -939,9 +817,10 @@ def publish_recipe_draft(
         payload=payload,
     )
 
-    version = _copy_draft_snapshot_phases(
+    version = _materialize_draft_snapshot(
         session,
         draft=draft,
+        document=prepared.document,
         author_user_id=author_user_id,
     )
     _fingerprint_snapshot_phase(

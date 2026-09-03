@@ -1,23 +1,14 @@
-"""Concrete ORM copies from a private draft into an immutable recipe snapshot."""
+"""Publication topology allocation around the shared recipe document boundary."""
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.domain_errors import DomainConflictError
-from app.models import (
-    RecipeDraft,
-    RecipeIngredient,
-    RecipeInstruction,
-    RecipeInstructionAction,
-    RecipeInstructionActionInput,
-    RecipeInstructionActionMeasure,
-    RecipeLineage,
-    RecipeVersion,
-    RecipeVersionCategory,
-)
+from app.models import RecipeLineage, RecipeVersion
 from app.policies.recipe_visibility import publicly_readable_recipe_version_filter
+from app.services.recipe_documents import RecipeDocument, RecipeDocumentMaterializationError
 
 
 class RecipeForkSourceUnavailableError(DomainConflictError):
@@ -32,18 +23,17 @@ class RecipeForkSourceUnavailableError(DomainConflictError):
 def create_recipe_version_identity(
     session: Session,
     *,
-    draft: RecipeDraft,
+    source_version_id: UUID | None,
+    document: RecipeDocument,
     author_user_id: UUID,
 ) -> RecipeVersion:
-    """Allocate the lineage position and immutable version header for one draft."""
+    """Stage lineage position and immutable header without owning the flush."""
 
-    source_version_id = draft.source_version_id
     parent_version_id: UUID | None = None
+    new_lineage: RecipeLineage | None = None
     if source_version_id is None:
-        lineage = RecipeLineage(created_by_user_id=author_user_id)
-        session.add(lineage)
-        session.flush()
-        lineage_id = lineage.id
+        new_lineage = RecipeLineage(id=uuid4(), created_by_user_id=author_user_id)
+        lineage_id = new_lineage.id
         version_number = 1
     else:
         source_lineage_id = session.scalar(
@@ -83,179 +73,25 @@ def create_recipe_version_identity(
         parent_version_id = source_version_id
         version_number = (highest_version or 0) + 1
 
+    if document.servings is None:
+        raise RecipeDocumentMaterializationError(
+            "Immutable recipe documents require a serving quantity."
+        )
     version = RecipeVersion(
+        id=uuid4(),
         lineage_id=lineage_id,
         parent_version_id=parent_version_id,
         created_by_user_id=author_user_id,
         version_number=version_number,
-        title=draft.title,
-        description=draft.description,
-        servings=draft.servings,
-        total_time_minutes=draft.total_time_minutes,
-        active_time_minutes=draft.active_time_minutes,
-        difficulty=draft.difficulty,
-        notes=draft.notes,
+        title=document.title,
+        description=document.description,
+        servings=document.servings,
+        total_time_minutes=document.total_time_minutes,
+        active_time_minutes=document.active_time_minutes,
+        difficulty=document.difficulty,
+        notes=document.notes,
     )
+    if new_lineage is not None:
+        version.lineage = new_lineage
     session.add(version)
-    session.flush()
     return version
-
-
-def copy_recipe_version_categories(
-    session: Session,
-    *,
-    draft: RecipeDraft,
-    recipe_version_id: UUID,
-) -> None:
-    """Copy the ordered category snapshot for one immutable version."""
-
-    session.add_all(
-        [
-            RecipeVersionCategory(
-                recipe_version_id=recipe_version_id,
-                recipe_category_id=item.recipe_category_id,
-                category_name=item.category.name,
-                category_slug=item.category.slug,
-                display_order=item.display_order,
-            )
-            for item in draft.categories
-        ]
-    )
-    session.flush()
-
-
-def copy_recipe_version_ingredients(
-    session: Session,
-    *,
-    draft: RecipeDraft,
-    recipe_version_id: UUID,
-) -> dict[UUID, UUID]:
-    """Copy ingredients and return draft-to-version occurrence identities."""
-
-    rows = [
-        RecipeIngredient(
-            recipe_version_id=recipe_version_id,
-            ingredient_id=item.ingredient_id,
-            name=item.name,
-            measure_mode=item.measure_mode,
-            quantity_min=item.quantity_min,
-            quantity_max=item.quantity_max,
-            measurement_unit_id=item.measurement_unit_id,
-            unit_display=item.unit_display,
-            package_size_id=item.package_size_id,
-            preparation_notes=item.preparation_notes,
-            display_order=item.display_order,
-        )
-        for item in draft.ingredients
-    ]
-    session.add_all(rows)
-    session.flush()
-    return {
-        draft_item.id: version_item.id
-        for draft_item, version_item in zip(draft.ingredients, rows, strict=True)
-    }
-
-
-def copy_recipe_version_instructions(
-    session: Session,
-    *,
-    draft: RecipeDraft,
-    recipe_version_id: UUID,
-) -> dict[UUID, UUID]:
-    """Copy instructions and return draft-to-version instruction identities."""
-
-    rows = [
-        RecipeInstruction(
-            recipe_version_id=recipe_version_id,
-            title=item.title,
-            instruction=item.instruction,
-            display_order=item.display_order,
-        )
-        for item in draft.instructions
-    ]
-    session.add_all(rows)
-    session.flush()
-    return {
-        draft_item.id: version_item.id
-        for draft_item, version_item in zip(draft.instructions, rows, strict=True)
-    }
-
-
-def copy_recipe_version_actions(
-    session: Session,
-    *,
-    draft: RecipeDraft,
-    recipe_version_id: UUID,
-    instruction_ids: dict[UUID, UUID],
-) -> dict[UUID, UUID]:
-    """Copy structured actions and return draft-to-version action identities."""
-
-    draft_actions = [action for instruction in draft.instructions for action in instruction.actions]
-    rows = [
-        RecipeInstructionAction(
-            recipe_version_id=recipe_version_id,
-            recipe_instruction_id=instruction_ids[action.recipe_draft_instruction_id],
-            action_type_id=action.action_type_id,
-            display_order=action.display_order,
-        )
-        for action in draft_actions
-    ]
-    session.add_all(rows)
-    session.flush()
-    return {
-        draft_action.id: version_action.id
-        for draft_action, version_action in zip(draft_actions, rows, strict=True)
-    }
-
-
-def copy_recipe_version_action_inputs(
-    session: Session,
-    *,
-    draft: RecipeDraft,
-    recipe_version_id: UUID,
-    action_ids: dict[UUID, UUID],
-    ingredient_ids: dict[UUID, UUID],
-) -> None:
-    """Copy ordered ingredient references for every structured action."""
-
-    session.add_all(
-        [
-            RecipeInstructionActionInput(
-                recipe_version_id=recipe_version_id,
-                recipe_instruction_action_id=action_ids[action.id],
-                recipe_ingredient_id=ingredient_ids[item.recipe_draft_ingredient_id],
-                display_order=item.display_order,
-            )
-            for instruction in draft.instructions
-            for action in instruction.actions
-            for item in action.inputs
-        ]
-    )
-    session.flush()
-
-
-def copy_recipe_version_action_measures(
-    session: Session,
-    *,
-    draft: RecipeDraft,
-    action_ids: dict[UUID, UUID],
-) -> None:
-    """Copy duration and temperature snapshots for every structured action."""
-
-    session.add_all(
-        [
-            RecipeInstructionActionMeasure(
-                recipe_instruction_action_id=action_ids[action.id],
-                semantic=measure.semantic,
-                measure_mode=measure.measure_mode,
-                quantity_min=measure.quantity_min,
-                quantity_max=measure.quantity_max,
-                measurement_unit_id=measure.measurement_unit_id,
-                unit_display=measure.unit_display,
-            )
-            for instruction in draft.instructions
-            for action in instruction.actions
-            for measure in action.measures
-        ]
-    )
-    session.flush()
