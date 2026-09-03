@@ -980,7 +980,7 @@ def _select_counter(engine: Engine) -> Iterator[list[str]]:
 @pytest.mark.parametrize(
     ("client_name", "path", "view", "maximum_selects"),
     [
-        ("anonymous", "/api/recipes", None, 4),
+        ("anonymous", "/api/recipes", None, 6),
         ("anonymous", "/api/cooks/member_alpha", None, 8),
         ("member_a", "/api/my/recipes", "drafts", 8),
         ("member_a", "/api/my/recipes", "published", 8),
@@ -1026,8 +1026,9 @@ def test_seeded_public_catalog_select_count_matches_performance_baseline(
         assert response.status_code == 200
         counts.append(len(statements))
 
-    # The fourth bounded query loads immutable category snapshots for every card.
-    assert counts == [4, 4]
+    # The browse, parent, category, rating, and save reads remain bounded; the
+    # count query is independent of the requested page size as well.
+    assert counts == [6, 6]
 
 
 def test_openapi_documents_public_identity_and_private_library_contracts(
