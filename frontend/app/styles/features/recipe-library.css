@@ -1,3 +1,5 @@
+@layer features {
+
 .member-recipe-card--withdrawn .member-recipe-card__artwork,
 .member-recipe-card--moderation_hidden .member-recipe-card__artwork {
   filter: saturate(0.55);
@@ -420,13 +422,6 @@
     border-radius: 0;
     margin-inline: -1rem;
   }
-  .account-workspace-page.member-library .member-library__views {
-    gap: 1.35rem;
-    width: 100%;
-    margin: 0;
-    padding-inline: 1rem;
-    display: flex;
-  }
   .member-library__content {
     padding: 0.75rem;
   }
@@ -509,10 +504,6 @@
     background: canvas;
     border: 1px solid canvastext;
   }
-  .account-workspace-page.member-library
-    .member-library__view-link[aria-current="page"]:after {
-    background: highlight;
-  }
 }
 
 /* Shared treatment for blocking errors with a clear retry and safe exit. */
@@ -568,4 +559,6 @@
 .account-ingredient-requests-page.member-request-page {
   width: min(74rem, 100% - 3rem);
   padding-block: 1.875rem 4.25rem;
+}
+
 }

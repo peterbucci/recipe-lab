@@ -1,3 +1,5 @@
+@layer features {
+
 .draft-editor {
   max-width: 70rem;
 }
@@ -1106,4 +1108,6 @@
 }
 .detail-skeleton > div {
   min-height: 26rem;
+}
+
 }

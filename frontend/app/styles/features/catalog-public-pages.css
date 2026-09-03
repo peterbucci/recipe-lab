@@ -1,3 +1,5 @@
+@layer features {
+
 .catalog-dashboard__intro,
 .catalog-dashboard__results,
 .catalog-state-panel {
@@ -802,4 +804,6 @@
     background: canvas;
     border-color: canvastext;
   }
+}
+
 }

@@ -1,3 +1,8 @@
+@layer base {
+
+* {
+  box-sizing: border-box;
+}
 html {
   background: var(--paper);
 }
@@ -51,7 +56,7 @@ a {
 .skip-link {
   z-index: 100;
   background: var(--ink);
-  color: #fff;
+  color: var(--text-on-accent);
   border-radius: 0.25rem;
   padding: 0.7rem 0.9rem;
   font-weight: 700;
@@ -94,4 +99,6 @@ a {
   margin-bottom: 1rem;
   padding: 0.35rem;
   display: flex;
+}
+
 }

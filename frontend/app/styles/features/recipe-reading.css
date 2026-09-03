@@ -1,3 +1,5 @@
+@layer features {
+
 .breadcrumb {
   margin-bottom: 1.5rem;
 }
@@ -205,7 +207,7 @@
 .recipe-rating-option input:checked + span {
   border-color: var(--leaf-dark);
   background: var(--leaf-dark);
-  color: #fff;
+  color: var(--text-on-accent);
 }
 .recipe-rating-option input:focus-visible + span {
   outline: 0.18rem solid var(--focus);
@@ -678,4 +680,6 @@
   color: var(--muted);
   margin-bottom: 0;
   line-height: 1.65;
+}
+
 }

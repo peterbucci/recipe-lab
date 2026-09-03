@@ -5,6 +5,7 @@
   "scripts": {
     "api:contracts:check": "node scripts/api-contract-codegen.mjs check",
     "api:contracts:generate": "node scripts/api-contract-codegen.mjs generate",
+    "styles:contracts:check": "node scripts/css-architecture.mjs",
     "dev": "node server.mjs --dev",
     "build": "next build",
     "start": "node server.mjs",

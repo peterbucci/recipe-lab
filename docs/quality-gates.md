@@ -46,6 +46,7 @@ Run the contract checks locally from PowerShell:
 python scripts/verify_repository_policy.py
 python scripts/verify_architecture.py
 python scripts/verify_doc_links.py
+npm --prefix frontend run styles:contracts:check
 docker compose config --quiet
 docker run --rm `
   --volume "${PWD}:/repo:ro" `

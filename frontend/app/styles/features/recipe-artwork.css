@@ -1,3 +1,5 @@
+@layer features {
+
 .recipe-artwork {
   --recipe-thumbnail-bg-top: #f3e5d3;
   --recipe-thumbnail-bg-bottom: #ead6bd;
@@ -226,4 +228,6 @@
 }
 .recipe-artwork__segment--4 {
   transform: rotate(135deg);
+}
+
 }

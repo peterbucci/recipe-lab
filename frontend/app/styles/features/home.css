@@ -1,3 +1,5 @@
+@layer features {
+
 .home-dashboard {
   background: var(--surface);
   flex-direction: column;
@@ -509,4 +511,6 @@
     background: canvas;
     border-color: canvastext;
   }
+}
+
 }

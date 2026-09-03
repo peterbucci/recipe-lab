@@ -73,7 +73,9 @@ jobs:
 
       - name: Check generated frontend API contract drift
         working-directory: frontend
-        run: npm run api:contracts:check
+        run: |
+          npm run api:contracts:check
+          npm run styles:contracts:check
 
   lint:
     name: Lint

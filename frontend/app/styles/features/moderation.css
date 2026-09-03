@@ -1,3 +1,5 @@
+@layer features {
+
 .staff-workspace--moderation .moderation-workspace__header {
   border: 0;
   border-radius: 0;
@@ -56,65 +58,6 @@
   color: var(--leaf-dark);
 }
 
-.staff-workspace--moderation .moderation-workspace__filters {
-  border: 1px solid var(--line);
-  border-radius: 0.7rem;
-  background: var(--surface);
-  scrollbar-width: none;
-  box-shadow: none;
-  gap: 1.25rem;
-  margin-bottom: 0.85rem;
-  padding: 0 0.9rem;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-.staff-workspace--moderation .moderation-workspace__filters::-webkit-scrollbar {
-  display: none;
-}
-
-.staff-workspace--moderation .moderation-workspace__tab {
-  border: 0;
-  border-bottom: 0.14rem solid transparent;
-  border-radius: 0;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 3.2rem;
-  padding: 0.85rem 0.25rem 0.7rem;
-  font-size: 0.78rem;
-  font-weight: 750;
-  display: inline-flex;
-}
-
-.staff-workspace--moderation .moderation-workspace__tab:hover {
-  border-bottom-color: var(--line-strong, var(--line));
-  background: transparent;
-  color: var(--ink);
-}
-
-.staff-workspace--moderation .moderation-workspace__tab[aria-pressed="true"],
-.staff-workspace--moderation .moderation-workspace__tab--active {
-  border: 0;
-  border-bottom: 0.14rem solid var(--leaf);
-  border-radius: 0;
-  background: transparent;
-  color: var(--leaf-dark);
-}
-
-.staff-workspace--moderation .moderation-workspace__tab-count {
-  border-radius: 999px;
-  background: var(--leaf-soft);
-  min-width: 1.35rem;
-  padding: 0.15rem 0.38rem;
-  color: var(--leaf-dark);
-  text-align: center;
-  font-size: 0.65rem;
-  line-height: 1.2;
-}
-
 .staff-workspace--curation .staff-workspace__tab-shell,
 .staff-workspace--moderation .staff-workspace__tab-shell {
   border: 1px solid var(--line);
@@ -122,18 +65,6 @@
   background: var(--surface);
   overflow: hidden;
   margin-bottom: 0.875rem;
-}
-
-.staff-workspace--curation
-  .staff-workspace__tab-shell
-  > .curation-filters,
-.staff-workspace--moderation
-  .staff-workspace__tab-shell
-  > .moderation-workspace__filters {
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  margin: 0;
 }
 
 .staff-workspace--moderation .moderation-workspace__layout {
@@ -592,7 +523,6 @@
 
 @media (max-width: 56.25rem) {
   .staff-workspace--moderation .moderation-workspace__header,
-  .staff-workspace--moderation .moderation-workspace__filters,
   .staff-workspace--moderation > .staff-workspace__notice,
   .staff-workspace--moderation .moderation-workspace__layout,
   .staff-workspace--moderation .moderation-workspace__status {
@@ -625,11 +555,6 @@
 
   .staff-workspace--moderation .staff-workspace__resource-link {
     align-self: flex-start;
-  }
-
-  .staff-workspace--moderation .moderation-workspace__filters {
-    margin-inline: 0;
-    padding-inline: 0.75rem;
   }
 
   .staff-workspace--moderation .moderation-queue {
@@ -711,7 +636,6 @@
     scroll-snap-type: none;
   }
 
-  .staff-workspace--moderation .moderation-workspace__tab,
   .staff-workspace--moderation .moderation-queue__case,
   .staff-workspace--moderation .staff-workspace__resource-link {
     transition: none;
@@ -719,7 +643,6 @@
 }
 
 @media (forced-colors: active) {
-  .staff-workspace--moderation .moderation-workspace__filters,
   .staff-workspace--moderation .moderation-queue,
   .staff-workspace--moderation .moderation-detail,
   .staff-workspace--moderation .moderation-queue__search input,
@@ -729,16 +652,12 @@
   .staff-workspace--moderation .moderation-actions__note,
   .staff-workspace--moderation .moderation-history-disclosure,
   .staff-workspace--moderation .moderation-detail__status-pill,
-  .staff-workspace--moderation .moderation-workspace__tab-count,
   .staff-workspace--moderation .staff-workspace__resource-link {
     border-color: canvastext;
     background: canvas;
     color: canvastext;
   }
 
-  .staff-workspace--moderation
-    .moderation-workspace__tab[aria-pressed="true"],
-  .staff-workspace--moderation .moderation-workspace__tab--active,
   .staff-workspace--moderation .moderation-queue__case[aria-current="true"] {
     border-color: highlight;
     background: highlight;
@@ -752,3 +671,5 @@
 }
 
 /* Hosted sign-in entry */
+
+}

@@ -1,3 +1,5 @@
+@layer features {
+
 .recipe-action-strip {
   grid-template-columns: minmax(5.35rem, auto) minmax(5.35rem, auto) minmax(
       12rem,
@@ -53,13 +55,13 @@
 .recipe-action-button--primary {
   border-color: var(--leaf);
   background: var(--leaf);
-  color: #fff;
+  color: var(--text-on-accent);
   box-shadow: 0 0.125rem #3f1b9933;
 }
 .recipe-action-button--primary:hover {
   border-color: var(--leaf-dark);
   background: var(--leaf-dark);
-  color: #fff;
+  color: var(--text-on-accent);
 }
 .recipe-action-button.is-disabled,
 .recipe-action-button:disabled {
@@ -373,4 +375,6 @@
   .page-shell {
     padding-block: 2rem;
   }
+}
+
 }

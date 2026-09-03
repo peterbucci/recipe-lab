@@ -1,33 +1,10 @@
+@layer features {
+
 .curation-page {
   width: min(88rem, 100% - 2rem);
 }
 .curation-page__intro {
   max-width: 55rem;
-}
-.curation-filters {
-  overflow-x: auto;
-}
-.curation-filter {
-  min-height: 2.65rem;
-  color: var(--muted);
-  cursor: pointer;
-  white-space: nowrap;
-  background: 0 0;
-  border: 1px solid #0000;
-  border-radius: 0.62rem;
-  flex: 1;
-  padding: 0.55rem 0.85rem;
-  font-size: 0.82rem;
-  font-weight: 750;
-}
-.curation-filter:hover {
-  background: var(--surface-soft);
-  color: var(--leaf-dark);
-}
-.curation-filter[aria-pressed="true"] {
-  border-color: var(--leaf);
-  background: var(--leaf-soft);
-  color: var(--leaf-dark);
 }
 .curation-workspace {
   grid-template-columns: minmax(17rem, 0.72fr) minmax(0, 1.65fr);
@@ -883,7 +860,6 @@
   .curation-target-results nav .button {
     width: 100%;
   }
-  .curation-filter {
-    min-width: 6.7rem;
-  }
+}
+
 }

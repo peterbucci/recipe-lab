@@ -1,3 +1,5 @@
+@layer features {
+
 .staff-workspace {
   width: min(88rem, 100% - 3rem);
   padding-block: 2rem 3rem;
@@ -153,11 +155,6 @@
   .staff-workspace__resource-link {
     align-self: flex-start;
   }
-  .staff-workspace--curation .curation-filter {
-    min-width: 0;
-    padding-inline: 0.4rem;
-    font-size: 0.75rem;
-  }
 }
 @media (forced-colors: active) {
   .staff-workspace__header,
@@ -171,4 +168,6 @@
     background: canvas;
     border-color: canvastext;
   }
+}
+
 }

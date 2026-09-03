@@ -1,6 +1,8 @@
+@layer tokens, base, shell, primitives, features, patterns;
+
 @import "./styles/tokens.css";
 @import "./styles/base.css";
-@import "./styles/features/site-shell-auth.css";
+@import "./styles/shell/site-shell-auth.css";
 @import "./styles/primitives.css";
 @import "./styles/features/recipe-artwork.css";
 @import "./styles/features/recipe-discovery.css";
@@ -29,4 +31,4 @@
 @import "./styles/features/ingredient-requests.css";
 @import "./styles/features/moderation.css";
 @import "./styles/features/sign-in.css";
-@import "./styles/features/workspace-tabs.css";
+@import "./styles/patterns/workspace-tabs.css";

@@ -1,3 +1,5 @@
+@layer features {
+
 .account-access-page--sign-in {
   width: min(76.25rem, 100% - 3rem);
   min-height: calc(100dvh - var(--header-height) - 4rem);
@@ -241,5 +243,7 @@
     background: canvas;
     color: canvastext;
   }
+}
+
 }
 

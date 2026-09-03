@@ -1,3 +1,5 @@
+@layer features {
+
 .recipe-authoring-entry,
 .recipe-authoring-state,
 .draft-editor-page {
@@ -368,4 +370,6 @@
     background: canvas;
     border-color: canvastext;
   }
+}
+
 }
