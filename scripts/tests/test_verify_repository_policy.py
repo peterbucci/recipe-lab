@@ -34,16 +34,21 @@ class RepositoryPolicyTests(unittest.TestCase):
             "POSTGRES_IMAGE=example.invalid/postgres:v1@sha256:" + "b" * 64 + "\n",
             encoding="utf-8",
         )
+        postgres_image = "example.invalid/postgres:v1@sha256:" + "b" * 64
         (self.repository / "compose.yaml").write_text(
-            """services:
-  db:
-    image: ${POSTGRES_IMAGE:-example.invalid/postgres:v1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}
-  frontend:
-    volumes:
-      - frontend_next_data:/app/.next
-    healthcheck:
-      test: http://127.0.0.1:3000/healthz
-""",
+            "\n".join(
+                (
+                    "services:",
+                    "  db:",
+                    f"    image: ${{POSTGRES_IMAGE:-{postgres_image}}}",
+                    "  frontend:",
+                    "    volumes:",
+                    "      - frontend_next_data:/app/.next",
+                    "    healthcheck:",
+                    "      test: http://127.0.0.1:3000/healthz",
+                    "",
+                )
+            ),
             encoding="utf-8",
         )
 
@@ -53,12 +58,13 @@ class RepositoryPolicyTests(unittest.TestCase):
         return path
 
     def test_accepts_exact_actions_runtimes_runners_and_images(self) -> None:
+        tool_image = "example.invalid/tool:v1@sha256:" + "a" * 64
         workflow = self._workflow(
-            """jobs:
+            f"""jobs:
   checks:
     runs-on: ubuntu-24.04
     container:
-      image: example.invalid/tool:v1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      image: {tool_image}
     steps:
       - uses: owner/action@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb # v1
         with:
@@ -92,9 +98,7 @@ class RepositoryPolicyTests(unittest.TestCase):
         violations = policy.audit_workflow(workflow, self.repository)
 
         self.assertEqual(len(violations), 6)
-        self.assertTrue(
-            all(item.path == ".github/workflows/ci.yml" for item in violations)
-        )
+        self.assertTrue(all(item.path == ".github/workflows/ci.yml" for item in violations))
         self.assertEqual([item.line for item in violations], [3, 6, 8, 8, 9, 11])
 
     def test_cli_fails_closed_and_does_not_modify_workflow(self) -> None:
@@ -137,10 +141,7 @@ class RepositoryPolicyTests(unittest.TestCase):
         self.assertIn("Compose service image is not digest-pinned", messages)
         self.assertIn("frontend Compose health check is missing", messages)
         self.assertTrue(
-            any(
-                "Docker build context does not exclude" in message
-                for message in messages
-            )
+            any("Docker build context does not exclude" in message for message in messages)
         )
 
 

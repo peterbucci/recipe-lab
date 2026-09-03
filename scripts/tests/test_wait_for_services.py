@@ -54,14 +54,10 @@ class ServiceReadinessTests(unittest.TestCase):
     def test_timeout_names_only_services_that_are_not_ready(self) -> None:
         oidc_pid = Path(self.temporary.name) / "oidc.pid"
         oidc_pid.write_text("456\n", encoding="ascii")
-        oidc = readiness.Service(
-            "identity provider", "http://127.0.0.1:8200/health", oidc_pid
-        )
+        oidc = readiness.Service("identity provider", "http://127.0.0.1:8200/health", oidc_pid)
         clock = iter((0.0, 1.0))
 
-        with self.assertRaisesRegex(
-            readiness.ServiceReadinessError, "identity provider"
-        ) as caught:
+        with self.assertRaisesRegex(readiness.ServiceReadinessError, "identity provider") as caught:
             readiness.wait_for_services(
                 [self.service, oidc],
                 timeout_seconds=1,
@@ -77,9 +73,7 @@ class ServiceReadinessTests(unittest.TestCase):
         self.pid_file.write_text("0\n", encoding="ascii")
 
         with self.assertRaisesRegex(readiness.ServiceReadinessError, "identifier"):
-            readiness.wait_for_services(
-                [self.service], timeout_seconds=1, sleep=lambda _: None
-            )
+            readiness.wait_for_services([self.service], timeout_seconds=1, sleep=lambda _: None)
 
 
 if __name__ == "__main__":

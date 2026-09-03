@@ -12,16 +12,15 @@ import hashlib
 import json
 import math
 import os
-from pathlib import Path, PurePosixPath
 import re
 import stat
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass, replace
 import unicodedata
 import zipfile
-
+from dataclasses import dataclass, replace
+from pathlib import Path, PurePosixPath
 
 TOOL_NAME = "recipe-lab-safe-source-export"
 TOOL_VERSION = "1.2.0"
@@ -609,9 +608,7 @@ class SecretFinding:
 HIGH_CONFIDENCE_SECRET_RULES: tuple[tuple[str, re.Pattern[bytes]], ...] = (
     (
         "private-key",
-        re.compile(
-            rb"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY(?: BLOCK)?-----"
-        ),
+        re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY(?: BLOCK)?-----"),
     ),
     (
         "aws-access-key-id",
@@ -644,9 +641,7 @@ GENERIC_UNQUOTED_CREDENTIAL_ASSIGNMENT = re.compile(
     rb"\s*(?P<operator>=|:)\s*(?P<value>[A-Za-z0-9_./+=%-]{16,})"
     rb"(?=\s*(?:$|[,;}#]))"
 )
-CREDENTIAL_URI_COMPONENT = (
-    rb"(?:\$\{[A-Za-z_][A-Za-z0-9_]*(?::-[^{}\s/@]*)?\}|[^\s/:@]+)"
-)
+CREDENTIAL_URI_COMPONENT = rb"(?:\$\{[A-Za-z_][A-Za-z0-9_]*(?::-[^{}\s/@]*)?\}|[^\s/:@]+)"
 CREDENTIAL_URI = re.compile(
     rb"(?i)(?:postgres(?:ql)?(?:\+[a-z0-9_-]+)?|mysql|mariadb|redis|"
     rb"mongodb(?:\+srv)?|amqp|amqps)://"
@@ -713,8 +708,7 @@ def _run_git(repository: Path, *arguments: str) -> bytes:
         cwd=repository,
         env=environment,
         check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if result.returncode != 0:
         raise PackagingError("Git could not resolve or read the requested revision.")
@@ -726,9 +720,7 @@ def _repository_root(repository: Path) -> Path:
     try:
         return Path(os.fsdecode(raw_root.rstrip(b"\r\n"))).resolve(strict=True)
     except (OSError, UnicodeError) as error:
-        raise PackagingError(
-            "The Git repository root is not a safe local path."
-        ) from error
+        raise PackagingError("The Git repository root is not a safe local path.") from error
 
 
 def _resolve_commit(repository: Path, revision: str) -> str:
@@ -780,9 +772,7 @@ def _prepare_output(repository: Path, output: Path) -> tuple[Path, Path]:
     resolved_output = output.expanduser().resolve(strict=False)
     manifest = resolved_output.with_name(f"{resolved_output.name}.manifest.json")
     if _is_inside(resolved_output, repository) or _is_inside(manifest, repository):
-        raise PackagingError(
-            "The archive and manifest must be written outside the repository."
-        )
+        raise PackagingError("The archive and manifest must be written outside the repository.")
     for destination in (resolved_output, manifest):
         if destination.exists() or destination.is_symlink():
             raise PackagingError(
@@ -826,9 +816,7 @@ def _validate_source_path(path: str, policy: PackagingPolicy) -> str:
         if not reviewed_root_file:
             raise PackagingError(f"Root file is not in the export allowlist: {path!r}.")
     elif top_level not in policy.allowed_top_level_directories:
-        raise PackagingError(
-            f"Top-level path is not in the export allowlist: {path!r}."
-        )
+        raise PackagingError(f"Top-level path is not in the export allowlist: {path!r}.")
 
     basename = pure_path.name
     folded_basename = basename.casefold()
@@ -836,9 +824,7 @@ def _validate_source_path(path: str, policy: PackagingPolicy) -> str:
     if basename.startswith(".env") and path != ".env.example":
         raise PackagingError(f"Environment file is not exportable: {path!r}.")
     if folded_basename in DENIED_FILENAMES or suffix in DENIED_SUFFIXES:
-        raise PackagingError(
-            f"Sensitive or generated file is not exportable: {path!r}."
-        )
+        raise PackagingError(f"Sensitive or generated file is not exportable: {path!r}.")
     if (
         not reviewed_root_file
         and basename not in policy.allowed_special_basenames
@@ -848,9 +834,7 @@ def _validate_source_path(path: str, policy: PackagingPolicy) -> str:
     return path
 
 
-def _list_tree(
-    repository: Path, commit_sha: str, policy: PackagingPolicy
-) -> list[TreeEntry]:
+def _list_tree(repository: Path, commit_sha: str, policy: PackagingPolicy) -> list[TreeEntry]:
     raw_tree = _run_git(
         repository,
         "ls-tree",
@@ -862,9 +846,7 @@ def _list_tree(
     )
     records = [record for record in raw_tree.split(b"\0") if record]
     if len(records) > policy.max_entries:
-        raise PackagingError(
-            "The selected revision exceeds the configured entry-count limit."
-        )
+        raise PackagingError("The selected revision exceeds the configured entry-count limit.")
 
     entries: list[TreeEntry] = []
     seen: set[str] = set()
@@ -880,37 +862,21 @@ def _list_tree(
             object_id = object_id_raw.decode("ascii")
             size_text = size_raw.decode("ascii")
         except (UnicodeDecodeError, ValueError) as error:
-            raise PackagingError(
-                "Git returned an unsafe or malformed tree entry."
-            ) from error
+            raise PackagingError("Git returned an unsafe or malformed tree entry.") from error
 
         _validate_source_path(path, policy)
-        if (
-            len(_archive_member_path(commit_sha, path).encode("utf-8"))
-            > policy.max_path_bytes
-        ):
-            raise PackagingError(
-                f"Archive path exceeds the configured limit: {path!r}."
-            )
+        if len(_archive_member_path(commit_sha, path).encode("utf-8")) > policy.max_path_bytes:
+            raise PackagingError(f"Archive path exceeds the configured limit: {path!r}.")
         if mode_text not in {"100644", "100755"} or object_type != "blob":
-            raise PackagingError(
-                f"Only regular tracked files may be exported: {path!r}."
-            )
-        if (
-            re.fullmatch(r"[0-9a-f]{40,64}", object_id) is None
-            or not size_text.isdecimal()
-        ):
+            raise PackagingError(f"Only regular tracked files may be exported: {path!r}.")
+        if re.fullmatch(r"[0-9a-f]{40,64}", object_id) is None or not size_text.isdecimal():
             raise PackagingError(f"Git returned invalid metadata for: {path!r}.")
         size = int(size_text)
         if size > policy.max_file_bytes:
-            raise PackagingError(
-                f"Source file exceeds the configured size limit: {path!r}."
-            )
+            raise PackagingError(f"Source file exceeds the configured size limit: {path!r}.")
         total_size += size
         if total_size > policy.max_uncompressed_bytes:
-            raise PackagingError(
-                "The selected revision exceeds the uncompressed-size limit."
-            )
+            raise PackagingError("The selected revision exceeds the uncompressed-size limit.")
 
         portable_key = unicodedata.normalize("NFC", path).casefold()
         if path in seen or portable_key in seen_portable:
@@ -971,9 +937,7 @@ def audit_opaque_policy(
     commit_sha = _resolve_commit(root, revision)
     tree_entries = _list_tree(root, commit_sha, policy)
     tracked_objects = {
-        entry.path: entry.object_id
-        for entry in tree_entries
-        if entry.path.endswith(".png")
+        entry.path: entry.object_id for entry in tree_entries if entry.path.endswith(".png")
     }
     reviewed_objects = _reviewed_opaque_objects(policy)
 
@@ -1061,9 +1025,7 @@ def _shannon_entropy(value: bytes) -> float:
         return 0.0
     counts = {byte: value.count(byte) for byte in set(value)}
     length = len(value)
-    return -sum(
-        (count / length) * math.log2(count / length) for count in counts.values()
-    )
+    return -sum((count / length) * math.log2(count / length) for count in counts.values())
 
 
 def _looks_like_placeholder(value: bytes) -> bool:
@@ -1072,10 +1034,7 @@ def _looks_like_placeholder(value: bytes) -> bool:
         return True
     if any(pattern.fullmatch(value) for pattern in PLACEHOLDER_REFERENCE_PATTERNS):
         return True
-    if (
-        len(set(value)) < GENERIC_MIN_UNIQUE_BYTES
-        or _shannon_entropy(value) < GENERIC_MIN_ENTROPY
-    ):
+    if len(set(value)) < GENERIC_MIN_UNIQUE_BYTES or _shannon_entropy(value) < GENERIC_MIN_ENTROPY:
         return True
     if HEX_CREDENTIAL.fullmatch(value):
         return False
@@ -1083,8 +1042,7 @@ def _looks_like_placeholder(value: bytes) -> bool:
     has_upper = any(65 <= byte <= 90 for byte in value)
     has_digit = any(48 <= byte <= 57 for byte in value)
     has_symbol = any(
-        not (48 <= byte <= 57 or 65 <= byte <= 90 or 97 <= byte <= 122)
-        for byte in value
+        not (48 <= byte <= 57 or 65 <= byte <= 90 or 97 <= byte <= 122) for byte in value
     )
     if (
         len(value) >= GENERIC_ALPHANUMERIC_MIN_LENGTH
@@ -1096,10 +1054,7 @@ def _looks_like_placeholder(value: bytes) -> bool:
         )
     ):
         return False
-    return (
-        sum((has_lower, has_upper, has_digit, has_symbol))
-        < GENERIC_MIN_CHARACTER_CLASSES
-    )
+    return sum((has_lower, has_upper, has_digit, has_symbol)) < GENERIC_MIN_CHARACTER_CLASSES
 
 
 def _is_credential_key(raw_key: bytes) -> bool:
@@ -1153,8 +1108,7 @@ def _scan_entries(entries: list[SourceEntry]) -> list[SecretFinding]:
                     if (
                         pattern is GENERIC_UNQUOTED_CREDENTIAL_ASSIGNMENT
                         and credential_match.group("operator") == b":"
-                        and PurePosixPath(entry.path).suffix
-                        in TYPE_ANNOTATION_EXTENSIONS
+                        and PurePosixPath(entry.path).suffix in TYPE_ANNOTATION_EXTENSIONS
                         and line.rstrip().endswith(TYPE_ANNOTATION_TERMINATORS)
                         and TYPE_ANNOTATION_VALUE.fullmatch(value)
                     ):
@@ -1176,9 +1130,7 @@ def _require_secret_scan(entries: list[SourceEntry], phase: str) -> None:
     try:
         findings = _scan_entries(entries)
     except Exception as error:
-        raise PackagingError(
-            f"The {phase} secret scan could not be completed."
-        ) from error
+        raise PackagingError(f"The {phase} secret scan could not be completed.") from error
     if findings:
         redacted_locations = ", ".join(
             f"{finding.rule} at {finding.path}:{finding.line}" for finding in findings
@@ -1226,8 +1178,7 @@ def _verify_completed_archive(
         raise PackagingError("The completed archive exceeds the compressed-size limit.")
 
     expected_by_member = {
-        _archive_member_path(commit_sha, entry.path): entry
-        for entry in expected_entries
+        _archive_member_path(commit_sha, entry.path): entry for entry in expected_entries
     }
     verified: list[SourceEntry] = []
     seen: set[str] = set()
@@ -1238,13 +1189,8 @@ def _verify_completed_archive(
             if archive.comment:
                 raise PackagingError("The completed archive has an unexpected comment.")
             members = archive.infolist()
-            if (
-                len(members) != len(expected_entries)
-                or len(members) > policy.max_entries
-            ):
-                raise PackagingError(
-                    "The completed archive has an unexpected entry count."
-                )
+            if len(members) != len(expected_entries) or len(members) > policy.max_entries:
+                raise PackagingError("The completed archive has an unexpected entry count.")
             for member in members:
                 if member.flag_bits & 0x1:
                     raise PackagingError("Encrypted archive members are not allowed.")
@@ -1261,41 +1207,26 @@ def _verify_completed_archive(
                         "The completed archive contains non-deterministic metadata."
                     )
                 if member.filename in seen:
-                    raise PackagingError(
-                        "The completed archive contains a duplicate path."
-                    )
+                    raise PackagingError("The completed archive contains a duplicate path.")
                 portable_key = unicodedata.normalize("NFC", member.filename).casefold()
                 if portable_key in seen_portable:
-                    raise PackagingError(
-                        "The completed archive contains a path collision."
-                    )
+                    raise PackagingError("The completed archive contains a path collision.")
                 seen.add(member.filename)
                 seen_portable.add(portable_key)
 
                 expected = expected_by_member.get(member.filename)
                 if expected is None:
-                    raise PackagingError(
-                        "The completed archive contains an unexpected path."
-                    )
+                    raise PackagingError("The completed archive contains an unexpected path.")
                 if len(member.filename.encode("utf-8")) > policy.max_path_bytes:
-                    raise PackagingError(
-                        "The completed archive contains an overlong path."
-                    )
+                    raise PackagingError("The completed archive contains an overlong path.")
                 member_mode = (member.external_attr >> 16) & 0xFFFF
                 if not stat.S_ISREG(member_mode) or member_mode & 0o777 not in {
                     0o644,
                     0o755,
                 }:
-                    raise PackagingError(
-                        "The completed archive contains a non-regular entry."
-                    )
-                if (
-                    member.file_size != expected.size
-                    or member.file_size > policy.max_file_bytes
-                ):
-                    raise PackagingError(
-                        "The completed archive contains an invalid file size."
-                    )
+                    raise PackagingError("The completed archive contains a non-regular entry.")
+                if member.file_size != expected.size or member.file_size > policy.max_file_bytes:
+                    raise PackagingError("The completed archive contains an invalid file size.")
                 total_size += member.file_size
                 if total_size > policy.max_uncompressed_bytes:
                     raise PackagingError(
@@ -1303,16 +1234,10 @@ def _verify_completed_archive(
                     )
                 data = archive.read(member)
                 if hashlib.sha256(data).hexdigest() != expected.sha256:
-                    raise PackagingError(
-                        "The completed archive failed its content hash check."
-                    )
-                verified.append(
-                    replace(expected, data=data, compressed_size=member.compress_size)
-                )
+                    raise PackagingError("The completed archive failed its content hash check.")
+                verified.append(replace(expected, data=data, compressed_size=member.compress_size))
             if set(expected_by_member) != seen:
-                raise PackagingError(
-                    "The completed archive is missing an expected path."
-                )
+                raise PackagingError("The completed archive is missing an expected path.")
     except (OSError, zipfile.BadZipFile, RuntimeError) as error:
         if isinstance(error, PackagingError):
             raise
@@ -1359,18 +1284,13 @@ def _manifest(
         "windows_reserved_names": sorted(WINDOWS_RESERVED_NAMES),
     }
     policy_sha256 = hashlib.sha256(
-        json.dumps(
-            policy_fingerprint_input, separators=(",", ":"), sort_keys=True
-        ).encode("utf-8")
+        json.dumps(policy_fingerprint_input, separators=(",", ":"), sort_keys=True).encode("utf-8")
     ).hexdigest()
     scanner_fingerprint_input = {
         "credential_key_pairs": [
-            sorted(part.decode("ascii") for part in pair)
-            for pair in CREDENTIAL_KEY_PAIRS
+            sorted(part.decode("ascii") for part in pair) for pair in CREDENTIAL_KEY_PAIRS
         ],
-        "credential_key_tokens": sorted(
-            token.decode("ascii") for token in CREDENTIAL_KEY_TOKENS
-        ),
+        "credential_key_tokens": sorted(token.decode("ascii") for token in CREDENTIAL_KEY_TOKENS),
         "credential_key_tokenization": {
             "flags": CREDENTIAL_KEY_SEPARATOR.flags,
             "pattern": CREDENTIAL_KEY_SEPARATOR.pattern.decode("ascii"),
@@ -1386,9 +1306,7 @@ def _manifest(
             },
             {
                 "flags": GENERIC_UNQUOTED_CREDENTIAL_ASSIGNMENT.flags,
-                "pattern": GENERIC_UNQUOTED_CREDENTIAL_ASSIGNMENT.pattern.decode(
-                    "ascii"
-                ),
+                "pattern": GENERIC_UNQUOTED_CREDENTIAL_ASSIGNMENT.pattern.decode("ascii"),
             },
         ],
         "high_confidence_rules": [
@@ -1442,9 +1360,7 @@ def _manifest(
         },
     }
     scanner_sha256 = hashlib.sha256(
-        json.dumps(
-            scanner_fingerprint_input, separators=(",", ":"), sort_keys=True
-        ).encode("utf-8")
+        json.dumps(scanner_fingerprint_input, separators=(",", ":"), sort_keys=True).encode("utf-8")
     ).hexdigest()
     return {
         "archive": {
@@ -1530,9 +1446,7 @@ def package_source(
             resolved_output.parent, resolved_output.name, ".archive.tmp"
         )
         _write_archive(temporary_archive, commit_sha, sources)
-        verified_sources = _verify_completed_archive(
-            temporary_archive, commit_sha, sources, policy
-        )
+        verified_sources = _verify_completed_archive(temporary_archive, commit_sha, sources, policy)
         _require_secret_scan(verified_sources, "completed-archive")
         report = _manifest(commit_sha, temporary_archive, verified_sources, policy)
 
@@ -1565,9 +1479,7 @@ def package_source(
             temporary_manifest.unlink()
             temporary_manifest = None
         except OSError as error:
-            raise PackagingError(
-                "The verified outputs could not be published safely."
-            ) from error
+            raise PackagingError("The verified outputs could not be published safely.") from error
         return report
     except BaseException as error:
         cleanup_failed = False
@@ -1633,9 +1545,7 @@ def main(arguments: list[str] | None = None) -> int:
         parser.error("--output cannot be used with --audit-opaque-policy")
     if not options.audit_opaque_policy and options.output is None:
         parser.error("--output is required unless --audit-opaque-policy is used")
-    operation = (
-        "Opaque policy audit" if options.audit_opaque_policy else "Safe source export"
-    )
+    operation = "Opaque policy audit" if options.audit_opaque_policy else "Safe source export"
     try:
         if options.audit_opaque_policy:
             report = audit_opaque_policy(Path.cwd(), options.revision)

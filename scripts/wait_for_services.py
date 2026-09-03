@@ -56,9 +56,7 @@ def read_pid(service: Service) -> int:
             f"{service.name} has no readable process identifier."
         ) from error
     if pid <= 0:
-        raise ServiceReadinessError(
-            f"{service.name} has no readable process identifier."
-        )
+        raise ServiceReadinessError(f"{service.name} has no readable process identifier.")
     return pid
 
 
@@ -103,9 +101,7 @@ def wait_for_services(
         readiness: list[bool] = []
         for service, pid in managed:
             if not is_running(pid):
-                raise ServiceReadinessError(
-                    f"{service.name} stopped before becoming ready."
-                )
+                raise ServiceReadinessError(f"{service.name} stopped before becoming ready.")
             readiness.append(is_ready(service.health_url))
         if all(readiness):
             return

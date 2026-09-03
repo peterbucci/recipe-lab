@@ -43,9 +43,7 @@ fixed startup sleep or copies service logs into ordinary output.
 Run the contract checks locally from PowerShell:
 
 ```powershell
-python scripts/verify_repository_policy.py
-python scripts/verify_architecture.py
-python scripts/verify_doc_links.py
+python scripts/run_quality_gate.py contracts
 docker compose config --quiet
 docker run --rm `
   --volume "${PWD}:/repo:ro" `
@@ -53,6 +51,14 @@ docker run --rm `
   docker.io/rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9 `
   -color
 ```
+
+The same fail-fast runner owns the stable `lint`, `types`, `backend`, `frontend`,
+and `ml` command groups used by CI. Multiple groups can be run in one process,
+for example `python scripts/run_quality_gate.py contracts lint types`. It only
+orchestrates checked-in package commands; dependency installation and the
+external actionlint container remain explicit workflow steps. On Windows the
+frontend unit-test command selects Vitest's portable runner loader, while CI
+keeps the package's normal invocation.
 
 The repository fixes shell and workflow line endings through `.gitattributes`,
 so the Linux-only release helper remains executable after a Windows checkout.

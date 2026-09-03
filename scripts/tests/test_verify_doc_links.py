@@ -21,9 +21,7 @@ class DocumentationLinkTests(unittest.TestCase):
 
     def test_heading_anchors_match_github_duplicates_and_markup(self) -> None:
         self.assertEqual(
-            links.heading_anchors(
-                "# API `contracts`\n## Retry & recovery\n## Retry & recovery\n"
-            ),
+            links.heading_anchors("# API `contracts`\n## Retry & recovery\n## Retry & recovery\n"),
             frozenset({"api-contracts", "retry--recovery", "retry--recovery-1"}),
         )
 
