@@ -14,9 +14,7 @@ from sqlalchemy import Engine, delete, func, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_session
 from app.core.security import AUTH_CSRF_COOKIE_NAME, AUTH_SESSION_COOKIE_NAME
-from app.main import create_app
 from app.models import (
     CatalogCurator,
     Ingredient,
@@ -28,6 +26,7 @@ from app.models import (
 from app.schemas.ingredient_catalog import MemberIngredientCatalogRequestResponse
 from app.seeds import load_bundled_catalog, seed_catalog
 from app.seeds.identifiers import seed_uuid
+from tests.application import application_with_database
 from tests.conftest import make_alembic_config
 from tests.member_session import (
     MemberCredentials,
@@ -104,14 +103,10 @@ def catalog_api(empty_postgres_engine: Engine) -> Iterator[CatalogApi]:
             ]
         )
 
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        with Session(bind=empty_postgres_engine, expire_on_commit=False) as session:
-            yield session
-
-    application.dependency_overrides[get_session] = override_session
-    try:
+    with application_with_database(
+        empty_postgres_engine,
+        expire_on_commit=False,
+    ) as application:
         with (
             TestClient(application) as anonymous_client,
             TestClient(application) as member_client,
@@ -136,8 +131,6 @@ def catalog_api(empty_postgres_engine: Engine) -> Iterator[CatalogApi]:
                 member_credentials=member,
                 engine=empty_postgres_engine,
             )
-    finally:
-        application.dependency_overrides.clear()
 
 
 def _json_object(value: object) -> dict[str, Any]:

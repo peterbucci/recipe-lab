@@ -13,14 +13,13 @@ from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
 import app.services.auth_workflows as auth_workflows
-from app.api.dependencies import get_oidc_client, get_session
+from app.api.dependencies import get_oidc_client
 from app.core.config import Settings, get_settings
 from app.core.security import (
     AUTH_CSRF_COOKIE_NAME,
     AUTH_FORCE_LOGIN_COOKIE_NAME,
     token_digest,
 )
-from app.main import create_app
 from app.models import AbuseRateLimitBucket, OIDCIdentity, OIDCLoginTransaction, User, UserSession
 from app.models.auth import OIDC_LOGIN_PURPOSE_REAUTHENTICATE
 from app.models.recipe_draft import RecipeDraft
@@ -29,6 +28,7 @@ from app.services.oidc import (
     OIDCProviderUnavailableError,
     VerifiedOIDCIdentity,
 )
+from tests.application import application_with_database
 
 
 class FakeOIDCClient:
@@ -105,7 +105,6 @@ def _clear_member_auth(engine: Engine) -> None:
 @pytest.fixture
 def auth_api(migrated_engine: Engine) -> Iterator[AuthApi]:
     _clear_member_auth(migrated_engine)
-    application = create_app()
     settings = Settings.model_validate(
         {
             "app_environment": "local",
@@ -119,23 +118,21 @@ def auth_api(migrated_engine: Engine) -> Iterator[AuthApi]:
     )
     fake_oidc = FakeOIDCClient()
 
-    def override_session() -> Iterator[Session]:
-        with Session(bind=migrated_engine, expire_on_commit=False) as session:
-            yield session
-
-    application.dependency_overrides[get_session] = override_session
-    application.dependency_overrides[get_settings] = lambda: settings
-    application.dependency_overrides[get_oidc_client] = lambda: fake_oidc
     try:
-        with TestClient(application, base_url="https://internal-backend.test") as client:
-            yield AuthApi(
-                client=client,
-                engine=migrated_engine,
-                oidc=fake_oidc,
-                settings=settings,
-            )
+        with application_with_database(
+            migrated_engine,
+            expire_on_commit=False,
+        ) as application:
+            application.dependency_overrides[get_settings] = lambda: settings
+            application.dependency_overrides[get_oidc_client] = lambda: fake_oidc
+            with TestClient(application, base_url="https://internal-backend.test") as client:
+                yield AuthApi(
+                    client=client,
+                    engine=migrated_engine,
+                    oidc=fake_oidc,
+                    settings=settings,
+                )
     finally:
-        application.dependency_overrides.clear()
         _clear_member_auth(migrated_engine)
 
 

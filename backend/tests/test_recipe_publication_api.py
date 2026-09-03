@@ -18,8 +18,6 @@ from sqlalchemy.orm import Session
 import app.api.routes.recipe_publications as publication_routes
 import app.services.recipe_duplicate_preflights as duplicate_preflight_service
 import app.services.recipe_publications as publication_service
-from app.api.dependencies import get_session
-from app.main import create_app
 from app.models import (
     PreferenceEvent,
     RecipeDraft,
@@ -50,6 +48,7 @@ from app.repositories.recipes import (
 from app.seeds import load_bundled_catalog, seed_catalog
 from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
 from app.services.recipe_duplicate_preflights import RecipeDuplicatePreflightCapacityError
+from tests.application import application_with_database
 from tests.conftest import make_alembic_config
 from tests.member_session import authenticate_client, create_member_credentials
 
@@ -149,14 +148,10 @@ def publication_api(empty_postgres_engine: Engine) -> Iterator[PublicationApi]:
         handle="other_publication_member",
         display_name="Other Publication Member",
     )
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        with Session(bind=empty_postgres_engine, expire_on_commit=False) as session:
-            yield session
-
-    application.dependency_overrides[get_session] = override_session
-    try:
+    with application_with_database(
+        empty_postgres_engine,
+        expire_on_commit=False,
+    ) as application:
         with TestClient(application) as member, TestClient(application) as other_member:
             authenticate_client(member, member_credentials)
             authenticate_client(other_member, other_credentials)
@@ -165,8 +160,6 @@ def publication_api(empty_postgres_engine: Engine) -> Iterator[PublicationApi]:
                 member=member,
                 other_member=other_member,
             )
-    finally:
-        application.dependency_overrides.clear()
 
 
 def _json_object(value: object) -> dict[str, Any]:

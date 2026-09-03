@@ -11,8 +11,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_session
-from app.main import create_app
 from app.models import (
     RECIPE_PUBLICATION_STATE_MODERATION_HIDDEN,
     RECIPE_PUBLICATION_STATE_PUBLISHED,
@@ -22,6 +20,7 @@ from app.models import (
     RecipeVersionPublication,
     User,
 )
+from tests.application import application_with_database
 from tests.conftest import make_alembic_config
 from tests.member_session import authenticate_client, create_member_credentials
 
@@ -113,29 +112,23 @@ def follow_api(empty_postgres_engine: Engine) -> Iterator[FollowApi]:
         display_name="Member Charlie",
     )
 
-    app = create_app()
-
-    def session_override() -> Iterator[Session]:
-        with Session(bind=empty_postgres_engine) as session:
-            yield session
-
-    app.dependency_overrides[get_session] = session_override
-    with (
-        TestClient(app) as anonymous,
-        TestClient(app) as client_a,
-        TestClient(app) as client_b,
-        TestClient(app) as client_c,
-    ):
-        authenticate_client(client_a, member_a)
-        authenticate_client(client_b, member_b)
-        authenticate_client(client_c, member_c)
-        yield FollowApi(
-            engine=empty_postgres_engine,
-            anonymous=anonymous,
-            member_a=client_a,
-            member_b=client_b,
-            member_c=client_c,
-        )
+    with application_with_database(empty_postgres_engine) as application:
+        with (
+            TestClient(application) as anonymous,
+            TestClient(application) as client_a,
+            TestClient(application) as client_b,
+            TestClient(application) as client_c,
+        ):
+            authenticate_client(client_a, member_a)
+            authenticate_client(client_b, member_b)
+            authenticate_client(client_c, member_c)
+            yield FollowApi(
+                engine=empty_postgres_engine,
+                anonymous=anonymous,
+                member_a=client_a,
+                member_b=client_b,
+                member_c=client_c,
+            )
 
 
 def test_follow_and_unfollow_are_idempotent_and_update_both_members(
