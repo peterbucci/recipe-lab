@@ -5,8 +5,8 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useReducer,
   useRef,
-  useState,
 } from "react";
 
 import { isAbortError } from "../../lib/abort-error";
@@ -14,14 +14,17 @@ import { AuthApiError } from "../../lib/auth-api";
 import { createIdempotencyKey } from "../../lib/idempotency-key";
 import { formatMemberRecipeDate } from "../../lib/member-recipe-presentation";
 import {
+  createMyRecipeLibraryState,
+  currentMyRecipeLibraryState,
+  myRecipeLibraryReducer,
+} from "../../lib/my-recipe-library-state";
+import {
   discardRecipeDraft,
   RecipeDraftApiError,
   type RecipeDraftListItem,
 } from "../../lib/recipe-draft-api";
 import {
   fetchMyRecipeLibrary,
-  type MyRecipeLibraryItem,
-  type MyRecipeLibraryPage,
   type MyRecipeLibraryView,
   type RecipeVisibilityState,
 } from "../../lib/recipe-library-api";
@@ -95,12 +98,6 @@ function viewLabel(view: MyRecipeLibraryView): string {
   return view.slice(0, 1).toUpperCase() + view.slice(1);
 }
 
-function libraryItemKey(item: MyRecipeLibraryItem): string {
-  return item.kind === "draft"
-    ? `draft:${item.draft.id}`
-    : `published:${item.recipe.id}`;
-}
-
 function MyRecipePagination({
   currentPage,
   totalPages,
@@ -135,46 +132,28 @@ function MyRecipePagination({
 
 function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
   const router = useRouter();
+  const key = `${view}:${pageNumber}`;
   const requestSequence = useRef(0);
   const discardAttempts = useRef(new Map<string, string>());
   const discardInFlight = useRef(false);
   const statusRef = useRef<HTMLParagraphElement>(null);
   const discardReturnFocusRef = useRef<HTMLElement | null>(null);
-  const [result, setResult] = useState<{
-    key: string;
-    page: MyRecipeLibraryPage;
-  } | null>(null);
-  const [pendingKey, setPendingKey] = useState<string | null>(
-    `${view}:${pageNumber}`,
+  const [state, dispatch] = useReducer(
+    myRecipeLibraryReducer,
+    key,
+    createMyRecipeLibraryState,
   );
-  const [loadError, setLoadError] = useState<{
-    key: string;
-    message: string;
-  } | null>(null);
-  const [operationErrorState, setOperationError] = useState<{
-    key: string;
-    message: string;
-  } | null>(null);
-  const [statusState, setStatus] = useState<{
-    focus: boolean;
-    key: string;
-    message: string;
-  } | null>(null);
-  const [confirmation, setConfirmation] = useState<{
-    key: string;
-    id: string;
-  } | null>(null);
-  const [discardingId, setDiscardingId] = useState<string | null>(null);
-  const key = `${view}:${pageNumber}`;
   const currentLocation = useRef({ key, pageNumber, view });
-  const page = result?.key === key ? result.page : null;
-  const error = loadError?.key === key ? loadError.message : "";
-  const operationError =
-    operationErrorState?.key === key ? operationErrorState.message : "";
-  const status = statusState?.key === key ? statusState.message : "";
-  const focusStatus = statusState?.key === key && statusState.focus;
-  const confirmingId = confirmation?.key === key ? confirmation.id : null;
-  const loading = pendingKey === key || (!page && !error);
+  const {
+    confirmingId,
+    discardingId,
+    error,
+    focusStatus,
+    loading,
+    operationError,
+    page,
+    status,
+  } = currentMyRecipeLibraryState(state, key);
   const copy = VIEW_COPY[view];
   const beyondLastPage = Boolean(
     page && page.total > 0 && page.items.length === 0,
@@ -193,8 +172,7 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
       if (signal?.aborted) return;
       const requestKey = `${requestedView}:${requestedPage}`;
       const sequence = ++requestSequence.current;
-      setPendingKey(requestKey);
-      setLoadError(null);
+      dispatch({ type: "load_started", key: requestKey });
       try {
         const nextPage = await fetchMyRecipeLibrary({
           view: requestedView,
@@ -203,22 +181,28 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
           signal,
         });
         if (sequence === requestSequence.current && !signal?.aborted) {
-          setResult({ key: requestKey, page: nextPage });
+          dispatch({
+            type: "load_succeeded",
+            key: requestKey,
+            page: nextPage,
+          });
         }
       } catch (reason) {
-        if (isAbortError(reason))
+        if (isAbortError(reason)) {
+          if (sequence === requestSequence.current && !signal?.aborted) {
+            dispatch({ type: "load_cancelled", key: requestKey });
+          }
           return;
+        }
         if (sequence === requestSequence.current) {
-          setLoadError({
+          dispatch({
+            type: "load_failed",
             key: requestKey,
             message: `Recipe Lab could not load your ${VIEW_COPY[
               requestedView
             ].heading.toLowerCase()}. Please try again.`,
           });
         }
-      } finally {
-        if (sequence === requestSequence.current && !signal?.aborted)
-          setPendingKey(null);
       }
     },
     [],
@@ -228,9 +212,7 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
     const controller = new AbortController();
     void Promise.resolve().then(() => {
       if (controller.signal.aborted) return;
-      setOperationError((current) => (current?.key === key ? current : null));
-      setStatus((current) => (current?.key === key ? current : null));
-      setConfirmation((current) => (current?.key === key ? current : null));
+      dispatch({ type: "location_changed", key });
       discardReturnFocusRef.current = null;
       return load(view, pageNumber, controller.signal);
     });
@@ -248,7 +230,12 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
   ) {
     const location = currentLocation.current;
     if (location.key !== originKey) {
-      setStatus({ focus: false, key: location.key, message });
+      dispatch({
+        type: "status_set",
+        focus: false,
+        key: location.key,
+        message,
+      });
       await load(location.view, location.pageNumber);
       return;
     }
@@ -256,28 +243,14 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
     const targetPage =
       page?.items.length === 1 && pageNumber > 1 ? pageNumber - 1 : pageNumber;
     const targetKey = `${view}:${targetPage}`;
-    setResult((current) => {
-      if (current?.key !== originKey) return current;
-      const items = current.page.items.filter(
-        (item) => libraryItemKey(item) !== itemKey,
-      );
-      const total = Math.max(
-        0,
-        current.page.total - (items.length < current.page.items.length ? 1 : 0),
-      );
-      return {
-        key: current.key,
-        page: {
-          ...current.page,
-          items,
-          total,
-          total_pages: Math.ceil(total / current.page.page_size),
-        },
-      };
+    dispatch({
+      type: "item_removed",
+      itemKey,
+      message,
+      originKey,
+      targetKey,
     });
-    setConfirmation(null);
     discardReturnFocusRef.current = null;
-    setStatus({ focus: true, key: targetKey, message });
     if (targetPage !== pageNumber) {
       router.replace(myRecipesHref(view, targetPage));
       return;
@@ -288,9 +261,7 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
   async function discard(draft: RecipeDraftListItem) {
     if (discardInFlight.current || discardingId) return;
     discardInFlight.current = true;
-    setDiscardingId(draft.id);
-    setOperationError(null);
-    setStatus(null);
+    dispatch({ type: "discard_started", key, draftId: draft.id });
     const idempotencyKey =
       discardAttempts.current.get(draft.id) ?? createIdempotencyKey();
     discardAttempts.current.set(draft.id, idempotencyKey);
@@ -310,7 +281,8 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
         reason instanceof RecipeDraftApiError &&
         reason.code === "recipe_draft_revision_conflict"
       ) {
-        setOperationError({
+        dispatch({
+          type: "discard_failed",
           key: originKey,
           message:
             "This draft changed in another tab. It was not discarded. Refresh the list and review it first.",
@@ -320,13 +292,15 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
           reason instanceof AuthApiError) &&
         reason.status === 401
       ) {
-        setOperationError({
+        dispatch({
+          type: "discard_failed",
           key: originKey,
           message:
             "Your session expired. This draft was not discarded. Sign in again to continue.",
         });
       } else {
-        setOperationError({
+        dispatch({
+          type: "discard_failed",
           key: originKey,
           message:
             "Recipe Lab could not discard this draft. It is still private and intact.",
@@ -334,7 +308,7 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
       }
     } finally {
       discardInFlight.current = false;
-      setDiscardingId(null);
+      dispatch({ type: "discard_finished", draftId: draft.id });
     }
   }
 
@@ -553,9 +527,11 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
                             onClick={(event) => {
                               if (!confirming)
                                 discardReturnFocusRef.current = event.currentTarget;
-                              setConfirmation(
-                                confirming ? null : { key, id: draft.id },
-                              );
+                              dispatch({
+                                type: "confirmation_toggled",
+                                key,
+                                draftId: draft.id,
+                              });
                             }}
                           >
                             Discard
@@ -590,7 +566,7 @@ function MyRecipeLibraryInner({ pageNumber, view }: MyRecipeLibraryProps) {
                                 type="button"
                                 disabled={discardingId === draft.id}
                                 onClick={() => {
-                                  setConfirmation(null);
+                                  dispatch({ type: "confirmation_closed" });
                                   window.requestAnimationFrame(() =>
                                     discardReturnFocusRef.current?.focus(),
                                   );
