@@ -43,7 +43,6 @@ const SAFE_CSRF = "rcp34b-public-csrf";
 const BASELINE_MEMBER_SESSION = "rcp34b-member-session";
 const REVIEWED_LOOPBACK_PORTS = new Set(["4317", "4318"]);
 const blockedNetworkRequests = new WeakMap<BrowserContext, number>();
-const memberHomeCookieCleanup = new WeakSet<Page>();
 const BASELINE_FONT = readFileSync(
   resolve(
     process.cwd(),
@@ -54,6 +53,7 @@ const BASELINE_FONT = readFileSync(
 interface FixtureAudit {
   accepted_api_requests: number;
   unknown_api_requests: number;
+  unknown_api_routes: string[];
   privacy_rejections: number;
   route_counts: Record<string, number>;
 }
@@ -172,16 +172,8 @@ async function installFrozenBrowserState(
   );
 }
 
-async function gotoMemberHome(page: Page): Promise<void> {
-  if (!memberHomeCookieCleanup.has(page)) {
-    await page.addInitScript(() => {
-      document.cookie =
-        "recipe_lab_session=; Path=/; Max-Age=0; SameSite=Lax";
-    });
-    memberHomeCookieCleanup.add(page);
-  }
-
-  await page.context().addCookies([
+async function installMemberSession(context: BrowserContext): Promise<void> {
+  await context.addCookies([
     {
       name: "recipe_lab_session",
       value: BASELINE_MEMBER_SESSION,
@@ -189,18 +181,15 @@ async function gotoMemberHome(page: Page): Promise<void> {
       sameSite: "Lax",
     },
   ]);
+}
+
+async function gotoMemberHome(page: Page): Promise<void> {
+  await installMemberSession(page.context());
   await page.goto("/");
 }
 
 async function reloadMemberHome(page: Page): Promise<void> {
-  await page.context().addCookies([
-    {
-      name: "recipe_lab_session",
-      value: BASELINE_MEMBER_SESSION,
-      url: BASELINE_FRONTEND_ORIGIN,
-      sameSite: "Lax",
-    },
-  ]);
+  await installMemberSession(page.context());
   await page.reload();
 }
 
@@ -607,7 +596,7 @@ async function expectAccountActivityReady(page: Page): Promise<void> {
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Back to home", exact: true }),
-  ).toHaveAttribute("href", "/");
+  ).toHaveCount(0);
 
   const activity = page.getByRole("region", { name: "Account activity" });
   const filters = activity.getByRole("group", { name: "Activity filters" });
@@ -658,9 +647,10 @@ async function expectAccountActivityReady(page: Page): Promise<void> {
   ).toHaveAttribute("href", "/account/ingredient-requests");
 
   const audit = await readAudit();
-  expect(audit.route_counts["my-recipes"] ?? 0).toBe(3);
-  expect(audit.route_counts["saved-recipes"] ?? 0).toBe(1);
-  expect(audit.route_counts["member-ingredient-requests"] ?? 0).toBe(1);
+  expect(audit.route_counts["member-activity"] ?? 0).toBe(1);
+  expect(audit.route_counts["my-recipes"] ?? 0).toBe(0);
+  expect(audit.route_counts["saved-recipes"] ?? 0).toBe(0);
+  expect(audit.route_counts["member-ingredient-requests"] ?? 0).toBe(0);
 }
 
 async function selectActivityFilter(
@@ -1097,7 +1087,7 @@ test("community View all opens every followed-cook publication", async ({
   ).toBeVisible();
   await expect(
     community.getByRole("link", { name: "Sunlit Tomato Soup", exact: true }),
-  ).toHaveCount(0);
+  ).toBeVisible();
 
   await community.getByRole("link", { name: "View all" }).click();
   await expect(page).toHaveURL("/account/community-activity");
@@ -1186,8 +1176,8 @@ test("homepage keeps public discovery usable through account and section recover
     await setScenario("homepage-empty");
     await reloadMemberHome(page);
     await expect(
-      page.getByText("You have no active drafts right now."),
-    ).toBeVisible();
+      page.getByRole("heading", { name: "Continue where you left off" }),
+    ).toHaveCount(0);
     await expect(
       page.getByText("No recipes are featured right now."),
     ).toBeVisible();
@@ -1216,6 +1206,10 @@ test("homepage keeps public discovery usable through account and section recover
         exact: true,
       }),
     ).toBeVisible();
+    await expect(
+      page.getByText("Latest draft unavailable."),
+    ).toBeVisible();
+    await expect(page.getByText("Unavailable.", { exact: true })).toBeVisible();
     await expect(
       page
         .getByRole("region", { name: "Your stats" })
@@ -1576,21 +1570,25 @@ test("my recipes intermediate normal", async ({ page }, testInfo) => {
 test("authoring entry desktop normal", async ({ page }, testInfo) => {
   desktopOnly(testInfo);
   await setScenario("slow-draft-creation");
+  await installMemberSession(page.context());
   await page.setViewportSize({ width: 1_440, height: 900 });
   await page.goto("/recipes/new");
   await expect(
-    page.getByRole("heading", {
-      name: "Opening your private draft…",
-      level: 1,
+    page.getByRole("status").filter({
+      hasText: "Preparing a private workspace for your new recipe.",
     }),
-  ).toBeVisible();
+  ).toHaveText("Preparing a private workspace for your new recipe.");
   await stabilizeVisuals(page);
   await captureBaseline(page, "authoring-entry-desktop-normal");
 
   const forkPage = await page.context().newPage();
   await forkPage.goto(`/recipes/${VARIANT_RECIPE_ID}/fork`);
-  const forkEntry = forkPage.locator(".recipe-authoring-entry__card");
-  await expect(forkEntry.getByRole("status")).toHaveText(
+  await expect(
+    forkPage.getByRole("status").filter({
+      hasText:
+        "Copying this recipe into a private workspace. The public recipe stays unchanged.",
+    }),
+  ).toHaveText(
     "Copying this recipe into a private workspace. The public recipe stays unchanged.",
   );
   await expectNoHorizontalOverflow(forkPage);
@@ -1655,7 +1653,7 @@ test("unresolved ingredient validation phone", async ({ page }, testInfo) => {
     unresolved.getByRole("combobox", { name: "Ingredient" }),
   ).toHaveValue("Sunberry tomato");
   await expect(unresolved.getByRole("status")).toContainText(
-    "Awaiting approval",
+    "Pending review",
   );
   await page
     .getByRole("button", { name: /^(?:Finish recipe|Publish draft)$/ })
@@ -1923,11 +1921,7 @@ test("stale curator decision desktop visual evidence", async ({
   const alert = await submitStaleCuratorDecision(page);
   await alert.scrollIntoViewIfNeeded();
   await stabilizeVisuals(page);
-  await captureBaseline(page, "stale-curation-decision", {
-    allowedVisibleTechnicalIdentifiers: [
-      "70000000-0000-4000-8000-000000000001",
-    ],
-  });
+  await captureBaseline(page, "stale-curation-decision");
 });
 
 test.describe("desktop visual state matrix", () => {
@@ -2230,7 +2224,9 @@ test.describe("desktop visual state matrix", () => {
   test("draft editor validation", async ({ page }) => {
     await setScenario("incomplete-draft");
     await page.goto(`/recipes/drafts/${DRAFT_ID}`);
-    await expect(page.getByLabel("Title")).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "Title", exact: true }),
+    ).toBeVisible();
     await stabilizeVisuals(page);
     await page
       .getByRole("button", { name: /^(?:Finish recipe|Publish draft)$/ })
@@ -2257,7 +2253,7 @@ test.describe("desktop visual state matrix", () => {
 
   test("draft similarity and publication review", async ({ page }) => {
     await page.goto(`/recipes/drafts/${DRAFT_ID}`);
-    await expect(page.getByLabel("Title")).toHaveValue(
+    await expect(page.getByRole("textbox", { name: "Title", exact: true })).toHaveValue(
       "Late-Summer Tomato Pot",
     );
     await stabilizeVisuals(page);
@@ -2320,8 +2316,8 @@ test.describe("desktop visual state matrix", () => {
       waitUntil: "domcontentloaded",
     });
     await expect(
-      page.getByRole("heading", { name: "Checking your account…" }),
-    ).toBeVisible();
+      page.getByRole("status").filter({ hasText: "Checking your account…" }),
+    ).toContainText("Checking your account…");
     await stabilizeVisuals(page, false);
     await captureBaseline(page, "private-workspace-loading");
   });
@@ -2615,7 +2611,9 @@ test.describe("phone visual state matrix", () => {
   test("draft editor validation", async ({ page }) => {
     await setScenario("incomplete-draft");
     await page.goto(`/recipes/drafts/${DRAFT_ID}`);
-    await expect(page.getByLabel("Title")).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "Title", exact: true }),
+    ).toBeVisible();
     await stabilizeVisuals(page);
     await page
       .getByRole("button", { name: /^(?:Finish recipe|Publish draft)$/ })
@@ -2642,7 +2640,7 @@ test.describe("phone visual state matrix", () => {
 
   test("draft similarity and publication review", async ({ page }) => {
     await page.goto(`/recipes/drafts/${DRAFT_ID}`);
-    await expect(page.getByLabel("Title")).toHaveValue(
+    await expect(page.getByRole("textbox", { name: "Title", exact: true })).toHaveValue(
       "Late-Summer Tomato Pot",
     );
     await stabilizeVisuals(page);
@@ -2715,10 +2713,13 @@ test("intermediate account navigation reaches a private library by keyboard", as
   await page.keyboard.press("Enter");
   await page.keyboard.press("Tab");
   await expect(
-    page.getByRole("link", { name: /View Baseline Cook.*public profile/ }),
+    page.getByRole("link", { name: "View profile", exact: true }),
   ).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("link", { name: "My recipes" })).toBeFocused();
+  const accountPanel = page.locator(".account-menu__panel");
+  await expect(
+    accountPanel.getByRole("link", { name: "My recipes", exact: true }),
+  ).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(
     `${BASELINE_FRONTEND_ORIGIN}/account/recipes?view=drafts`,
@@ -2750,10 +2751,13 @@ test("keyboard account-to-private-workspace journey", async ({ page }) => {
   await page.keyboard.press("Enter");
   await page.keyboard.press("Tab");
   await expect(
-    page.getByRole("link", { name: /View Baseline Cook.*public profile/ }),
+    page.getByRole("link", { name: "View profile", exact: true }),
   ).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("link", { name: "My recipes" })).toBeFocused();
+  const accountPanel = page.locator(".account-menu__panel");
+  await expect(
+    accountPanel.getByRole("link", { name: "My recipes", exact: true }),
+  ).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(
     `${BASELINE_FRONTEND_ORIGIN}/account/recipes?view=drafts`,
