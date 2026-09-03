@@ -84,4 +84,3 @@ Each topic branch records:
    evidence when that surface changes; and
 5. rollback notes for changes that alter persistence, caching, security, or
    deployment behavior.
-
