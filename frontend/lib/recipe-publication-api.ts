@@ -1,12 +1,24 @@
 import {
   type ApiValidationIssue,
-  memberMutationHeaders,
-  notifySessionExpired,
 } from "./auth-api";
+import type { operations } from "./api-contracts/generated";
+import { browserApiRequest } from "./api-transport/browser";
+import {
+  ApiTransportError,
+  createRequestFingerprint,
+  type PublicApiErrorContract,
+} from "./api-transport/core";
 import type {
   RecipeDuplicateDecision,
   RecipeDuplicatePreflight,
 } from "./recipe-duplicate-api";
+
+type RecipePublicationOperation =
+  operations["publish_original_draft_api_recipe_drafts__draft_id__publish_post"];
+type RecipePublicationInput =
+  RecipePublicationOperation["requestBody"]["content"]["application/json"];
+type RecipePublicationWire =
+  RecipePublicationOperation["responses"][201]["content"]["application/json"];
 
 export interface RecipeDraftDuplicateReviewInput {
   preflight_id: string;
@@ -25,10 +37,6 @@ export interface RecipeDraftPublishRequest {
 export interface RecipeDraftPublication {
   recipe_version_id: string;
   location: string;
-}
-
-interface ApiErrorPayload {
-  error?: { code?: unknown; message?: unknown; issues?: unknown };
 }
 
 const KNOWN_RECIPE_PUBLICATION_ERROR_CODES = new Set([
@@ -53,13 +61,6 @@ const KNOWN_RECIPE_PUBLICATION_ERROR_CODES = new Set([
   "recipe_not_found",
   "validation_error",
 ]);
-
-function knownRecipePublicationErrorCode(value: unknown): string {
-  return typeof value === "string" &&
-    KNOWN_RECIPE_PUBLICATION_ERROR_CODES.has(value)
-    ? value
-    : "recipe_publication_api_error";
-}
 
 export class RecipePublicationApiError extends Error {
   readonly status: number;
@@ -251,26 +252,18 @@ export function parseRecipeDraftPublication(
   };
 }
 
-async function publicationError(
-  response: Response,
-): Promise<RecipePublicationApiError> {
-  let code = "recipe_publication_api_error";
-  let issues: ApiValidationIssue[] = [];
-  try {
-    const payload: unknown = await response.json();
-    if (isRecord(payload) && isRecord((payload as ApiErrorPayload).error)) {
-      const error = (payload as ApiErrorPayload).error!;
-      code = knownRecipePublicationErrorCode(error.code);
-      issues = parseIssues(error.issues);
-    }
-  } catch {
-    // Keep the stable draft-preserving fallback.
-  }
+const RECIPE_PUBLICATION_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "recipe_publication_api_error",
+  knownCodes: KNOWN_RECIPE_PUBLICATION_ERROR_CODES,
+  parseIssues,
+};
+
+function publicationError(error: ApiTransportError): RecipePublicationApiError {
   return new RecipePublicationApiError(
-    safePublicationMessage(response.status, code),
-    response.status,
-    code,
-    issues,
+    safePublicationMessage(error.status, error.code),
+    error.status,
+    error.code,
+    error.issues,
   );
 }
 
@@ -292,33 +285,45 @@ export async function publishRecipeDraft(
   idempotencyKey: string,
   signal?: AbortSignal,
 ): Promise<RecipeDraftPublication> {
-  const response = await fetch(
-    `/api/recipe-drafts/${encodeURIComponent(draftId)}/publish`,
-    {
-      method: "POST",
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "Idempotency-Key": idempotencyKey,
-        ...memberMutationHeaders(),
-      },
-      body: JSON.stringify(payload),
-      signal,
-    },
-  );
-  if (!response.ok) {
-    if (response.status === 401) notifySessionExpired();
-    throw await publicationError(response);
-  }
   try {
+    const input: RecipePublicationInput = payload;
+    const requestFingerprint = await createRequestFingerprint({
+      draft_id: draftId.toLowerCase(),
+      payload: input,
+      schema: "recipe-draft-publication",
+      version: 1,
+    });
+    const response = await browserApiRequest(
+      `/api/recipe-drafts/${encodeURIComponent(draftId)}/publish`,
+      {
+        body: JSON.stringify(input),
+        csrf: "member",
+        errorContract: RECIPE_PUBLICATION_ERROR_CONTRACT,
+        headers: { "Content-Type": "application/json" },
+        identity: { idempotencyKey, requestFingerprint },
+        kind: "mutation",
+        method: "POST",
+        signal,
+      },
+    );
     return parseRecipeDraftPublication(
-      await response.json(),
+      response.data as RecipePublicationWire,
       response.headers.get("Location"),
     );
   } catch (error) {
     if (error instanceof RecipePublicationApiError) throw error;
+    if (error instanceof ApiTransportError) {
+      if (signal?.aborted) {
+        throw new DOMException("The request was aborted.", "AbortError");
+      }
+      if (error.reason === "invalid_response") {
+        throw invalidPublicationResponse();
+      }
+      if (error.reason === "http" || error.reason === "not_sent") {
+        throw publicationError(error);
+      }
+      throw new TypeError("Recipe Lab could not reach the publication service.");
+    }
     throw invalidPublicationResponse();
   }
 }

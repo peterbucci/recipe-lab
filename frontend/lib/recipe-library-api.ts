@@ -1,9 +1,9 @@
-import { notifySessionExpired } from "./auth-api";
 import { browserApiRequest } from "./api-transport/browser";
 import {
   ApiTransportError,
   type PublicApiErrorContract,
 } from "./api-transport/core";
+import { serverApiRequest } from "./api-transport/server";
 import type { operations } from "./api-contracts/generated";
 import type { RecipeDraftListItem } from "./recipe-draft-api";
 import type {
@@ -26,6 +26,10 @@ type MyPublishedRecipeItem = Extract<
   MyRecipeLibraryContractPage["items"][number],
   { readonly kind: "published" }
 >;
+type PublicCookProfileWire =
+  operations["public_cook_profile_api_cooks__handle__get"]["responses"][200]["content"]["application/json"];
+type SavedRecipeLibraryWire =
+  operations["my_saved_recipe_library_api_my_saved_recipes_get"]["responses"][200]["content"]["application/json"];
 
 export type RecipeVisibilityState = MyPublishedRecipeItem["visibility_state"];
 export type MyRecipeLibraryView =
@@ -58,10 +62,6 @@ export interface SavedRecipeLibraryPage {
   total_pages: number;
 }
 
-interface ApiErrorPayload {
-  error?: { code?: unknown; message?: unknown };
-}
-
 const KNOWN_RECIPE_LIBRARY_ERROR_CODES = new Set([
   "abuse_protection_unavailable",
   "account_setup_required",
@@ -77,13 +77,6 @@ const RECIPE_LIBRARY_ERROR_CONTRACT: PublicApiErrorContract = {
   fallbackCode: "recipe_library_api_error",
   knownCodes: KNOWN_RECIPE_LIBRARY_ERROR_CODES,
 };
-
-function knownRecipeLibraryErrorCode(value: unknown): string {
-  return typeof value === "string" &&
-    KNOWN_RECIPE_LIBRARY_ERROR_CODES.has(value)
-    ? value
-    : "recipe_library_api_error";
-}
 
 export class RecipeLibraryApiError extends Error {
   readonly status: number;
@@ -420,32 +413,6 @@ export function parseSavedRecipeLibraryPage(
   return { ...envelope, items: items as SavedRecipeLibraryItem[] };
 }
 
-async function apiError(response: Response): Promise<RecipeLibraryApiError> {
-  let code = "recipe_library_api_error";
-  try {
-    const payload: unknown = await response.json();
-    if (isRecord(payload) && isRecord((payload as ApiErrorPayload).error)) {
-      const error = (payload as ApiErrorPayload).error!;
-      code = knownRecipeLibraryErrorCode(error.code);
-    }
-  } catch {
-    // Keep the stable fallback instead of exposing an upstream response body.
-  }
-  return new RecipeLibraryApiError(
-    recipeLibraryErrorMessage(response.status),
-    response.status,
-    code,
-  );
-}
-
-function apiBaseUrl(): string {
-  const configured =
-    process.env.RECIPE_API_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:8000";
-  return configured.trim().replace(/\/+$/, "");
-}
-
 export async function fetchPublicCookProfile({
   handle,
   page = 1,
@@ -455,36 +422,24 @@ export async function fetchPublicCookProfile({
   page?: number;
   pageSize?: number;
 }): Promise<PublicCookProfilePage | null> {
-  const url = new URL(
-    `/api/cooks/${encodeURIComponent(handle)}`,
-    `${apiBaseUrl()}/`,
-  );
-  url.searchParams.set("page", String(page));
-  url.searchParams.set("page_size", String(pageSize));
-  const response = await fetch(url, {
-    cache: "no-store",
-    headers: { Accept: "application/json" },
+  const query = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
   });
-  if (response.status === 404) return null;
-  if (!response.ok) throw await apiError(response);
-  return parsePublicCookProfilePage(await response.json());
-}
-
-async function memberFetch(
-  path: string,
-  signal?: AbortSignal,
-): Promise<Response> {
-  const response = await fetch(path, {
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-    signal,
-  });
-  if (!response.ok) {
-    if (response.status === 401) notifySessionExpired();
-    throw await apiError(response);
+  try {
+    const response = await serverApiRequest(
+      `/api/cooks/${encodeURIComponent(handle)}?${query.toString()}`,
+      { errorContract: RECIPE_LIBRARY_ERROR_CONTRACT, kind: "query", retry: "never" },
+    );
+    const payload = response.data as PublicCookProfileWire;
+    return parsePublicCookProfilePage(payload);
+  } catch (error) {
+    if (error instanceof ApiTransportError) {
+      if (error.status === 404) return null;
+      throw fromTransportError(error);
+    }
+    throw error;
   }
-  return response;
 }
 
 function pageQuery(page: number, pageSize: number): string {
@@ -574,9 +529,28 @@ export async function fetchSavedRecipeLibrary({
   pageSize?: number;
   signal?: AbortSignal;
 } = {}): Promise<SavedRecipeLibraryPage> {
-  const response = await memberFetch(
-    `/api/my/saved-recipes?${pageQuery(page, pageSize)}`,
-    signal,
-  );
-  return parseSavedRecipeLibraryPage(await response.json());
+  try {
+    const response = await browserApiRequest(
+      `/api/my/saved-recipes?${pageQuery(page, pageSize)}`,
+      {
+        errorContract: RECIPE_LIBRARY_ERROR_CONTRACT,
+        kind: "query",
+        retry: "never",
+        signal,
+      },
+    );
+    return parseSavedRecipeLibraryPage(response.data as SavedRecipeLibraryWire);
+  } catch (error) {
+    if (error instanceof RecipeLibraryApiError) throw error;
+    if (error instanceof ApiTransportError) {
+      if (error.reason === "aborted") {
+        throw new DOMException("The request was aborted.", "AbortError");
+      }
+      throw fromTransportError(error);
+    }
+    throw new RecipeLibraryApiError(
+      "Recipe Lab could not load this recipe library. Please try again.",
+      0,
+    );
+  }
 }

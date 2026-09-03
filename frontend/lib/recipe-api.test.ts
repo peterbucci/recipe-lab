@@ -225,15 +225,16 @@ describe("recipe API client", () => {
     );
 
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(fetchMock).toHaveBeenCalledWith(
-      new URL(
-        "http://api.example.test/api/recipes/variant%2Fid%3Fdraft%3Dtrue/diff",
-      ),
-      {
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-      },
+    const [target, init] = fetchMock.mock.calls[0];
+    expect(String(target)).toBe(
+      "http://api.example.test/api/recipes/variant%2Fid%3Fdraft%3Dtrue/diff",
     );
+    expect(init).toMatchObject({
+      cache: "no-store",
+      method: "GET",
+      redirect: "error",
+    });
+    expect(new Headers(init?.headers).get("Accept")).toBe("application/json");
   });
 
   it("fetches an explicit same-family comparison", async () => {
@@ -250,15 +251,16 @@ describe("recipe API client", () => {
       fetchRecipeDiff("selected-version", "open/page version"),
     ).resolves.toEqual(noChangeDiff);
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      new URL(
-        "http://api.example.test/api/recipes/selected-version/diff?base_version_id=open%2Fpage+version",
-      ),
-      {
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-      },
+    const [target, init] = fetchMock.mock.calls[0];
+    expect(String(target)).toBe(
+      "http://api.example.test/api/recipes/selected-version/diff?base_version_id=open%2Fpage+version",
     );
+    expect(init).toMatchObject({
+      cache: "no-store",
+      method: "GET",
+      redirect: "error",
+    });
+    expect(new Headers(init?.headers).get("Accept")).toBe("application/json");
   });
 
   it("maps a missing recipe comparison to null", async () => {

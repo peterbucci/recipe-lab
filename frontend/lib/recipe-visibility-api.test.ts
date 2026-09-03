@@ -28,18 +28,17 @@ describe("recipe visibility API", () => {
     await expect(updateRecipeVisibility(RECIPE_ID, "author_withdrawn")).resolves.toEqual(payload);
     expect(fetchMock).toHaveBeenCalledWith(
       `/api/recipes/${RECIPE_ID}/visibility`,
-      {
+      expect.objectContaining({
         method: "PUT",
         cache: "no-store",
         credentials: "same-origin",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "X-CSRF-Token": "csrf-value",
-        },
         body: JSON.stringify({ state: "author_withdrawn" }),
-      },
+      }),
     );
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.get("Accept")).toBe("application/json");
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(headers.get("X-CSRF-Token")).toBe("csrf-value");
   });
 
   it("rejects undocumented states and extra response fields", () => {

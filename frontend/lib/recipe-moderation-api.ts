@@ -1,8 +1,43 @@
-import { memberMutationHeaders, notifySessionExpired } from "./auth-api";
+import type { operations } from "./api-contracts/generated";
+import { browserApiRequest } from "./api-transport/browser";
+import {
+  ApiTransportError,
+  createRequestFingerprint,
+  type PublicApiErrorContract,
+} from "./api-transport/core";
 import type { PublicUserReference } from "./recipe-api";
 import type { RecipeReportReason } from "./recipe-report-api";
 
+type ModerationQueueWire =
+  operations["moderation_queue_api_moderation_recipe_reports_get"]["responses"][200]["content"]["application/json"];
+type ModerationDetailWire =
+  operations["moderation_case_detail_api_moderation_recipe_reports__recipe_version_id__get"]["responses"][200]["content"]["application/json"];
+type ModerationActionOperation =
+  operations["moderate_recipe_api_moderation_recipe_reports__recipe_version_id__actions_post"];
+type ModerationActionInput =
+  ModerationActionOperation["requestBody"]["content"]["application/json"];
+type ModerationActionWire =
+  ModerationActionOperation["responses"][200]["content"]["application/json"];
+
 export const MODERATION_PRIVATE_NOTE_MAX_LENGTH = 1_000;
+
+const MODERATION_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "recipe_moderation_api_error",
+  knownCodes: new Set([
+    "abuse_protection_unavailable",
+    "account_setup_required",
+    "authentication_required",
+    "idempotency_key_conflict",
+    "invalid_csrf",
+    "invalid_identifier",
+    "moderation_case_not_found",
+    "moderation_action_conflict",
+    "rate_limit_exceeded",
+    "recipe_moderator_required",
+    "recipe_not_found",
+    "validation_error",
+  ]),
+};
 
 export type RecipeModerationStatus = "open" | "resolved";
 export type RecipeModerationAction = "hide" | "restore" | "resolve";
@@ -381,44 +416,30 @@ export function parseRecipeModerationActionResult(
   };
 }
 
-async function moderationError(response: Response): Promise<RecipeModerationApiError> {
+function moderationError(error: ApiTransportError): RecipeModerationApiError {
   let message = "Recipe Lab could not complete this moderation request.";
-  let code = "recipe_moderation_api_error";
-  try {
-    const payload: unknown = await response.json();
-    if (isRecord(payload) && isRecord(payload.error)) {
-      if (typeof payload.error.message === "string" && payload.error.message.length <= 500) {
-        message = payload.error.message;
-      }
-      if (typeof payload.error.code === "string" && payload.error.code.length <= 100) {
-        code = payload.error.code;
-      }
-    }
-  } catch {
-    // Keep the stable fallback rather than exposing an upstream response body.
-  }
-  if (response.status === 401) {
+  if (error.status === 401) {
     message = "Your session expired. Sign in again to continue.";
-  } else if (response.status === 413) {
+  } else if (error.status === 413) {
     message = "That moderation note is too large. Shorten it and try again.";
-  } else if (response.status === 429) {
+  } else if (error.status === 429) {
     message = "Too many moderation changes were submitted. Please wait and try again.";
   }
-  return new RecipeModerationApiError(message, response.status, code);
+  return new RecipeModerationApiError(message, error.status, error.code);
 }
 
-async function moderationFetch(path: string, init: RequestInit): Promise<Response> {
-  const response = await fetch(path, {
-    ...init,
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: { Accept: "application/json", ...init.headers },
-  });
-  if (!response.ok) {
-    if (response.status === 401) notifySessionExpired();
-    throw await moderationError(response);
+function rethrowModerationTransportError(
+  error: unknown,
+  signal?: AbortSignal,
+): never {
+  if (error instanceof ApiTransportError) {
+    if (signal?.aborted) {
+      throw new DOMException("The request was aborted.", "AbortError");
+    }
+    if (error.reason === "invalid_response") throw invalidResponse();
+    throw moderationError(error);
   }
-  return response;
+  throw error;
 }
 
 export async function browseRecipeModerationCases(options: {
@@ -432,15 +453,20 @@ export async function browseRecipeModerationCases(options: {
     page: String(options.page ?? 1),
     page_size: String(options.pageSize ?? 20),
   });
-  const response = await moderationFetch(`/api/moderation/recipe-reports?${query}`, {
-    method: "GET",
-    signal: options.signal,
-  });
   try {
-    return parseRecipeModerationCasePage(await response.json());
+    const response = await browserApiRequest(
+      `/api/moderation/recipe-reports?${query}`,
+      {
+        errorContract: MODERATION_ERROR_CONTRACT,
+        kind: "query",
+        retry: "never",
+        signal: options.signal,
+      },
+    );
+    return parseRecipeModerationCasePage(response.data as ModerationQueueWire);
   } catch (error) {
     if (error instanceof RecipeModerationApiError) throw error;
-    throw invalidResponse();
+    return rethrowModerationTransportError(error, options.signal);
   }
 }
 
@@ -448,15 +474,23 @@ export async function fetchRecipeModerationCase(
   recipeVersionId: string,
   signal?: AbortSignal,
 ): Promise<RecipeModerationCaseDetail> {
-  const response = await moderationFetch(
-    `/api/moderation/recipe-reports/${encodeURIComponent(recipeVersionId)}`,
-    { method: "GET", signal },
-  );
   try {
-    return parseRecipeModerationCaseDetail(await response.json(), recipeVersionId);
+    const response = await browserApiRequest(
+      `/api/moderation/recipe-reports/${encodeURIComponent(recipeVersionId)}`,
+      {
+        errorContract: MODERATION_ERROR_CONTRACT,
+        kind: "query",
+        retry: "never",
+        signal,
+      },
+    );
+    return parseRecipeModerationCaseDetail(
+      response.data as ModerationDetailWire,
+      recipeVersionId,
+    );
   } catch (error) {
     if (error instanceof RecipeModerationApiError) throw error;
-    throw invalidResponse();
+    return rethrowModerationTransportError(error, signal);
   }
 }
 
@@ -466,22 +500,35 @@ export async function moderateRecipeCase(
   privateNote: string | null,
   idempotencyKey: string,
 ): Promise<RecipeModerationActionResult> {
-  const response = await moderationFetch(
-    `/api/moderation/recipe-reports/${encodeURIComponent(recipeVersionId)}/actions`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": idempotencyKey,
-        ...memberMutationHeaders(),
-      },
-      body: JSON.stringify({ action, private_note: privateNote }),
-    },
-  );
   try {
-    return parseRecipeModerationActionResult(await response.json(), recipeVersionId);
+    const input: ModerationActionInput = {
+      action,
+      private_note: privateNote,
+    };
+    const requestFingerprint = await createRequestFingerprint({
+      payload: input,
+      recipe_version_id: recipeVersionId.toLowerCase(),
+      schema: "recipe-moderation-action",
+      version: 1,
+    });
+    const response = await browserApiRequest(
+      `/api/moderation/recipe-reports/${encodeURIComponent(recipeVersionId)}/actions`,
+      {
+        body: JSON.stringify(input),
+        csrf: "member",
+        errorContract: MODERATION_ERROR_CONTRACT,
+        headers: { "Content-Type": "application/json" },
+        identity: { idempotencyKey, requestFingerprint },
+        kind: "mutation",
+        method: "POST",
+      },
+    );
+    return parseRecipeModerationActionResult(
+      response.data as ModerationActionWire,
+      recipeVersionId,
+    );
   } catch (error) {
     if (error instanceof RecipeModerationApiError) throw error;
-    throw invalidResponse();
+    return rethrowModerationTransportError(error);
   }
 }

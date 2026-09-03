@@ -69,6 +69,7 @@ afterEach(() => {
 
 describe("recipe library API", () => {
   it("fetches a public cook page from the server endpoint without caching", async () => {
+    vi.stubGlobal("window", undefined);
     vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
@@ -88,13 +89,16 @@ describe("recipe library API", () => {
       description: "Weeknight baking and family recipes.",
       items: [recipe],
     });
-    expect(fetchMock).toHaveBeenCalledWith(
-      new URL("http://api.example.test/api/cooks/Alice_Cook?page=2&page_size=6"),
-      { cache: "no-store", headers: { Accept: "application/json" } },
+    const [target, init] = fetchMock.mock.calls[0];
+    expect(String(target)).toBe(
+      "http://api.example.test/api/cooks/Alice_Cook?page=2&page_size=6",
     );
+    expect(init).toMatchObject({ cache: "no-store", method: "GET", redirect: "error" });
+    expect(new Headers(init?.headers).get("Accept")).toBe("application/json");
   });
 
   it("returns null only for a missing public cook", async () => {
+    vi.stubGlobal("window", undefined);
     vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 404 })));
     await expect(fetchPublicCookProfile({ handle: "missing-cook" })).resolves.toBeNull();
   });

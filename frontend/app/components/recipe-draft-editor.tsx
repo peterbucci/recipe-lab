@@ -12,6 +12,12 @@ import {
 
 import { isAbortError } from "../../lib/abort-error";
 import { AuthApiError } from "../../lib/auth-api";
+import type { operations } from "../../lib/api-contracts/generated";
+import { browserApiRequest } from "../../lib/api-transport/browser";
+import {
+  ApiTransportError,
+  type PublicApiErrorContract,
+} from "../../lib/api-transport/core";
 import type { CatalogActionType } from "../../lib/cooking-action-api";
 import { createIdempotencyKey } from "../../lib/idempotency-key";
 import type { CatalogUnit } from "../../lib/measurement-unit-api";
@@ -99,20 +105,49 @@ interface EditorRequest {
   id: number;
 }
 
+type RecipeDetailWire =
+  operations["recipe_detail_api_recipes__recipe_version_id__get"]["responses"][200]["content"]["application/json"];
+type RecipePageWire =
+  operations["browse_recipes_api_recipes_get"]["responses"][200]["content"]["application/json"];
+
+const RECIPE_FAMILY_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "recipe_api_error",
+  knownCodes: new Set([
+    "invalid_identifier",
+    "recipe_not_found",
+    "validation_error",
+  ]),
+};
+
+function rethrowRecipeFamilyAbort(error: unknown, signal: AbortSignal): void {
+  if (
+    signal.aborted &&
+    (error instanceof ApiTransportError || isAbortError(error))
+  ) {
+    throw new DOMException("The request was aborted.", "AbortError");
+  }
+}
+
 async function fetchRecipeFamily(
   sourceVersionId: string,
   signal: AbortSignal,
 ): Promise<LoadedRecipeFamily> {
-  const recipeResponse = await fetch(
-    `/api/recipes/${encodeURIComponent(sourceVersionId)}`,
-    {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-      signal,
-    },
-  );
-  if (!recipeResponse.ok) throw new Error("Recipe family unavailable");
-  const recipe = (await recipeResponse.json()) as RecipeDetail;
+  let recipe: RecipeDetail;
+  try {
+    const recipeResponse = await browserApiRequest(
+      `/api/recipes/${encodeURIComponent(sourceVersionId)}`,
+      {
+        errorContract: RECIPE_FAMILY_ERROR_CONTRACT,
+        kind: "query",
+        retry: "never",
+        signal,
+      },
+    );
+    recipe = recipeResponse.data as RecipeDetailWire as RecipeDetail;
+  } catch (error) {
+    rethrowRecipeFamilyAbort(error, signal);
+    throw new Error("Recipe family unavailable");
+  }
   const query = new URLSearchParams({
     lineage_id: recipe.lineage_id,
     page: "1",
@@ -121,22 +156,19 @@ async function fetchRecipeFamily(
   });
   let versions: readonly RecipeCardSummary[] = [];
   try {
-    const familyResponse = await fetch(`/api/recipes?${query.toString()}`, {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-      signal,
-    });
-    if (familyResponse.ok) {
-      const family = (await familyResponse.json()) as RecipePage;
-      versions = family.items;
-    }
-  } catch (reason) {
-    if (
-      signal.aborted ||
-      isAbortError(reason)
-    ) {
-      throw reason;
-    }
+    const familyResponse = await browserApiRequest(
+      `/api/recipes?${query.toString()}`,
+      {
+        errorContract: RECIPE_FAMILY_ERROR_CONTRACT,
+        kind: "query",
+        retry: "never",
+        signal,
+      },
+    );
+    const family = familyResponse.data as RecipePageWire as RecipePage;
+    versions = family.items;
+  } catch (error) {
+    rethrowRecipeFamilyAbort(error, signal);
   }
   return {
     recipe,

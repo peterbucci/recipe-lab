@@ -1,5 +1,17 @@
-import { memberMutationHeaders, notifySessionExpired } from "./auth-api";
+import type { operations } from "./api-contracts/generated";
+import { browserApiRequest } from "./api-transport/browser";
+import {
+  ApiTransportError,
+  type PublicApiErrorContract,
+} from "./api-transport/core";
 import type { RecipeVisibilityState } from "./recipe-library-api";
+
+type RecipeVisibilityOperation =
+  operations["update_authored_recipe_visibility_api_recipes__recipe_version_id__visibility_put"];
+type RecipeVisibilityInput =
+  RecipeVisibilityOperation["requestBody"]["content"]["application/json"];
+type RecipeVisibilityWire =
+  RecipeVisibilityOperation["responses"][200]["content"]["application/json"];
 
 export type AuthorRecipeVisibilityState = Extract<
   RecipeVisibilityState,
@@ -10,10 +22,6 @@ export interface RecipeVisibilityUpdate {
   recipe_version_id: string;
   state: RecipeVisibilityState;
   updated_at: string;
-}
-
-interface ApiErrorPayload {
-  error?: { code?: unknown; message?: unknown };
 }
 
 const KNOWN_RECIPE_VISIBILITY_ERROR_CODES = new Set([
@@ -30,12 +38,10 @@ const KNOWN_RECIPE_VISIBILITY_ERROR_CODES = new Set([
   "visibility_service_unavailable",
 ]);
 
-function knownRecipeVisibilityErrorCode(value: unknown): string {
-  return typeof value === "string" &&
-    KNOWN_RECIPE_VISIBILITY_ERROR_CODES.has(value)
-    ? value
-    : "recipe_visibility_api_error";
-}
+const RECIPE_VISIBILITY_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "recipe_visibility_api_error",
+  knownCodes: KNOWN_RECIPE_VISIBILITY_ERROR_CODES,
+};
 
 export class RecipeVisibilityApiError extends Error {
   readonly status: number;
@@ -109,58 +115,47 @@ export function parseRecipeVisibilityUpdate(
   };
 }
 
-async function apiError(response: Response): Promise<RecipeVisibilityApiError> {
-  let code = "recipe_visibility_api_error";
-  try {
-    const payload: unknown = await response.json();
-    if (isRecord(payload) && isRecord((payload as ApiErrorPayload).error)) {
-      const error = (payload as ApiErrorPayload).error!;
-      code = knownRecipeVisibilityErrorCode(error.code);
-    }
-  } catch {
-    // Keep the stable fallback instead of exposing an upstream response body.
-  }
+function fromTransportError(error: ApiTransportError): RecipeVisibilityApiError {
   const message =
-    response.status === 401
+    error.status === 401
       ? "Your session expired. Sign in again before changing recipe visibility."
-      : response.status === 403
+      : error.status === 403
         ? "Recipe Lab could not verify this visibility change. Refresh the page and try again."
-        : response.status === 404
+        : error.status === 404
           ? "This recipe is no longer available in your account."
-          : response.status === 409
+          : error.status === 409
             ? "This recipe’s visibility changed. Refresh your recipes and try again."
-            : response.status === 429
+            : error.status === 429
               ? "Too many visibility changes were requested. Please wait and try again."
               : "Recipe Lab could not change this recipe’s public visibility. Try again.";
-  return new RecipeVisibilityApiError(message, response.status, code);
+  return new RecipeVisibilityApiError(message, error.status, error.code);
 }
 
 export async function updateRecipeVisibility(
   recipeVersionId: string,
   state: AuthorRecipeVisibilityState,
 ): Promise<RecipeVisibilityUpdate> {
-  const response = await fetch(
-    `/api/recipes/${encodeURIComponent(recipeVersionId)}/visibility`,
-    {
-      method: "PUT",
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        ...memberMutationHeaders(),
-      },
-      body: JSON.stringify({ state }),
-    },
-  );
-  if (!response.ok) {
-    if (response.status === 401) notifySessionExpired();
-    throw await apiError(response);
-  }
   try {
-    return parseRecipeVisibilityUpdate(await response.json());
+    const input: RecipeVisibilityInput = { state };
+    const response = await browserApiRequest(
+      `/api/recipes/${encodeURIComponent(recipeVersionId)}/visibility`,
+      {
+        body: JSON.stringify(input),
+        csrf: "member",
+        errorContract: RECIPE_VISIBILITY_ERROR_CONTRACT,
+        headers: { "Content-Type": "application/json" },
+        identity: null,
+        kind: "mutation",
+        method: "PUT",
+      },
+    );
+    return parseRecipeVisibilityUpdate(response.data as RecipeVisibilityWire);
   } catch (error) {
     if (error instanceof RecipeVisibilityApiError) throw error;
+    if (error instanceof ApiTransportError) {
+      if (error.reason === "invalid_response") throw invalidResponse();
+      throw fromTransportError(error);
+    }
     throw invalidResponse();
   }
 }

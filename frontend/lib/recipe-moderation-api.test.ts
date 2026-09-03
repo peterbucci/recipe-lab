@@ -109,12 +109,11 @@ describe("recipe moderation API", () => {
         method: "POST",
         cache: "no-store",
         credentials: "same-origin",
-        headers: expect.objectContaining({
-          "Idempotency-Key": ACTION_ID,
-          "X-CSRF-Token": "test-token",
-        }),
         body: JSON.stringify({ action: "hide", private_note: "  Private reason  " }),
       }),
     ]);
+    const headers = new Headers(fetchMock.mock.calls[2]?.[1]?.headers);
+    expect(headers.get("Idempotency-Key")).toBe(ACTION_ID);
+    expect(headers.get("X-CSRF-Token")).toBe("test-token");
   });
 });
