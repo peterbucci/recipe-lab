@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.schema import CreateSchema, DropSchema
 
 from app.seeds import load_bundled_catalog, seed_catalog
+from tests.database import session_with_outer_rollback
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 TEST_DATABASE_ENV_VAR = "TEST_DATABASE_URL"
@@ -99,12 +100,5 @@ def empty_postgres_engine(postgres_url: str) -> Iterator[Engine]:
 
 @pytest.fixture
 def db_session(migrated_engine: Engine) -> Iterator[Session]:
-    with migrated_engine.connect() as connection:
-        transaction = connection.begin()
-        session = Session(bind=connection, expire_on_commit=False)
-        try:
-            yield session
-        finally:
-            session.close()
-            if transaction.is_active:
-                transaction.rollback()
+    with session_with_outer_rollback(migrated_engine) as session:
+        yield session

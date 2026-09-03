@@ -61,6 +61,7 @@ from app.testing.community_release_gate import (
     validate_stage_demo_environment,
     verify_release_gate,
 )
+from tests.database import session_with_outer_rollback
 
 MANIFEST_VALUES: dict[str, object] = {
     "version": 1,
@@ -651,15 +652,8 @@ def _stage_release_gate(session: Session) -> CommunityReleaseManifest:
 def release_gate_database(
     seeded_api_engine: Engine,
 ) -> Iterator[tuple[Session, CommunityReleaseManifest]]:
-    with seeded_api_engine.connect() as connection:
-        transaction = connection.begin()
-        session = Session(bind=connection, expire_on_commit=False)
-        try:
-            yield session, _stage_release_gate(session)
-        finally:
-            session.close()
-            if transaction.is_active:
-                transaction.rollback()
+    with session_with_outer_rollback(seeded_api_engine) as session:
+        yield session, _stage_release_gate(session)
 
 
 def _demo_activity_recipe_version_id() -> UUID:
