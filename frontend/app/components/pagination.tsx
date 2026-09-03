@@ -1,9 +1,8 @@
-import Link from "next/link";
-
 import {
   recipeBrowseHref,
   type RecipeBrowseType,
 } from "../../lib/recipe-browse-query";
+import { WorkspacePagination } from "./workspace-pagination";
 
 interface PaginationProps {
   category?: string;
@@ -26,53 +25,17 @@ export function Pagination({
   sort,
   totalPages,
 }: PaginationProps) {
-  if (totalPages <= 1) {
-    return null;
-  }
-
   return (
-    <nav className="pagination pagination--catalog" aria-label="Recipe result pages">
-      {currentPage > 1 ? (
-        <Link
-          className="button button--secondary pagination__link"
-          href={recipeBrowseHref(currentPage - 1, query, {
-            category,
-            recipeType,
-            sort,
-          })}
-        >
-          ← Previous
-        </Link>
-      ) : (
-        <span
-          className="button button--disabled pagination__link pagination__link--disabled"
-          aria-disabled="true"
-        >
-          ← Previous
-        </span>
-      )}
-      <span className="pagination__status" aria-current="page">
-        Page {currentPage} of {totalPages}
-      </span>
-      {currentPage < totalPages ? (
-        <Link
-          className="button button--secondary pagination__link"
-          href={recipeBrowseHref(currentPage + 1, query, {
-            category,
-            recipeType,
-            sort,
-          })}
-        >
-          Next →
-        </Link>
-      ) : (
-        <span
-          className="button button--disabled pagination__link pagination__link--disabled"
-          aria-disabled="true"
-        >
-          Next →
-        </span>
-      )}
-    </nav>
+    <WorkspacePagination
+      buttonClassName="button button--secondary pagination__link"
+      className="pagination--catalog"
+      currentPage={currentPage}
+      disabledClassName="button button--disabled pagination__link pagination__link--disabled"
+      hrefForPage={(page) =>
+        recipeBrowseHref(page, query, { category, recipeType, sort })
+      }
+      label="Recipe result pages"
+      totalPages={totalPages}
+    />
   );
 }

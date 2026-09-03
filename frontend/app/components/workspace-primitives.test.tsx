@@ -88,6 +88,32 @@ describe("workspace primitives", () => {
     expect(within(pagination).getByRole("button", { name: "Next →" })).toBeDisabled();
   });
 
+  it("renders accessible link pagination without linking disabled bounds", () => {
+    render(
+      <WorkspacePagination
+        currentPage={1}
+        hrefForPage={(page) => `/recipes?page=${page}`}
+        label="Recipe result pages"
+        totalPages={3}
+      />,
+    );
+
+    const pagination = screen.getByRole("navigation", {
+      name: "Recipe result pages",
+    });
+    const previous = within(pagination).getByText("← Previous");
+    expect(previous).toHaveAttribute("aria-disabled", "true");
+    expect(previous).not.toHaveAttribute("href");
+    expect(within(pagination).getByText("Page 1 of 3")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(pagination).getByRole("link", { name: "Next →" })).toHaveAttribute(
+      "href",
+      "/recipes?page=2",
+    );
+  });
+
   it("standardizes panel errors and accessible loading feedback", () => {
     render(
       <>

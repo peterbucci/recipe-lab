@@ -4,6 +4,7 @@ import type { PublicCookProfilePage } from "../../lib/recipe-library-api";
 import { CookFollowControl } from "./cook-follow-control";
 import { RecipeCard } from "./recipe-card";
 import { RecipeCardViewerStateProvider } from "./recipe-card-engagement";
+import { WorkspacePagination } from "./workspace-pagination";
 
 interface CookProfileViewProps {
   data: PublicCookProfilePage;
@@ -84,35 +85,12 @@ export function CookProfileView({ data }: CookProfileViewProps) {
       </section>
 
       {!beyondLastPage && data.total_pages > 1 ? (
-        <nav className="pagination" aria-label={`Recipe pages for ${data.cook.display_name}`}>
-          {data.page > 1 ? (
-            <Link
-              className="button button--secondary"
-              href={profileHref(data.cook.handle, data.page - 1)}
-            >
-              ← Previous
-            </Link>
-          ) : (
-            <span className="button button--disabled" aria-disabled="true">
-              ← Previous
-            </span>
-          )}
-          <span className="pagination__status" aria-current="page">
-            Page {data.page} of {data.total_pages}
-          </span>
-          {data.page < data.total_pages ? (
-            <Link
-              className="button button--secondary"
-              href={profileHref(data.cook.handle, data.page + 1)}
-            >
-              Next →
-            </Link>
-          ) : (
-            <span className="button button--disabled" aria-disabled="true">
-              Next →
-            </span>
-          )}
-        </nav>
+        <WorkspacePagination
+          currentPage={data.page}
+          hrefForPage={(page) => profileHref(data.cook.handle, page)}
+          label={`Recipe pages for ${data.cook.display_name}`}
+          totalPages={data.total_pages}
+        />
       ) : null}
     </>
   );
