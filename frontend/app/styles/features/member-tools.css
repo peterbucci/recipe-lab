@@ -1,3 +1,5 @@
+@layer features {
+
 .draft-starter {
   border: 1px solid var(--line);
   background: var(--surface);
@@ -325,30 +327,6 @@
 .member-library__intro > div {
   max-width: 48rem;
 }
-.member-library__views {
-  border-bottom: 1px solid var(--line);
-  gap: clamp(1.2rem, 4vw, 2.25rem);
-  margin: 0 0 1.4rem;
-  display: flex;
-  overflow-x: auto;
-}
-.member-library__view-link {
-  color: var(--muted);
-  white-space: nowrap;
-  border-bottom: 0.16rem solid #0000;
-  margin-bottom: -1px;
-  padding: 0.8rem 0 0.7rem;
-  font-size: 0.9rem;
-  font-weight: 750;
-  text-decoration: none;
-}
-.member-library__view-link:hover {
-  color: var(--leaf-dark);
-}
-.member-library__view-link[aria-current="page"] {
-  border-bottom-color: var(--leaf-dark);
-  color: var(--leaf-dark);
-}
 .member-library__privacy {
   border-left: 0.22rem solid var(--leaf);
   background: var(--leaf-soft);
@@ -563,3 +541,5 @@
 }
 
 /* Shared loading system */
+
+}

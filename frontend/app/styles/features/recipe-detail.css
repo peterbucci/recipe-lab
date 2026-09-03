@@ -1,3 +1,5 @@
+@layer features {
+
 .recipe-reading-page {
   overflow-anchor: none;
   width: min(80rem, 100% - 3rem);
@@ -387,12 +389,12 @@
 }
 .recipe-detail .ingredient-list li {
   border: 0;
-  border-bottom: 1px solid #efeff4;
+  border-bottom: 1px solid var(--line-subtle);
   min-height: 2.625rem;
   padding: 0;
 }
 .recipe-detail .ingredient-list li:first-child {
-  border-top: 1px solid #efeff4;
+  border-top: 1px solid var(--line-subtle);
 }
 .recipe-detail .ingredient-list label {
   color: #363748;
@@ -674,7 +676,7 @@
   display: grid;
 }
 .recipe-detail .recipe-instructions__action-stack > li + li {
-  border-top: 1px solid #efeff4;
+  border-top: 1px solid var(--line-subtle);
 }
 .recipe-detail .recipe-instructions__action-verb {
   color: var(--leaf);
@@ -1060,4 +1062,6 @@
   border-top: 0;
   margin-top: 0;
   padding-top: 0;
+}
+
 }

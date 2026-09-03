@@ -146,7 +146,7 @@ async function installFrozenBrowserState(
           }
         }
 
-        static now() {
+        static override now() {
           return timestamp;
         }
       }

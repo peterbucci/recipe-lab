@@ -1,3 +1,5 @@
+@layer features {
+
 .draft-publication {
   padding: 1.125rem 1.625rem 1.5rem;
 }
@@ -536,7 +538,7 @@
 }
 .recipe-workspace__category-summary .recipe-category-list li {
   color: #4f5062;
-  background: #f7f5fc;
+  background: var(--surface-control-hover);
   border: 1px solid #ddd7ee;
   min-height: 1.45rem;
   padding: 0.24rem 0.56rem;
@@ -708,7 +710,7 @@
   box-shadow: none;
   background: 0 0;
   border: 0;
-  border-bottom: 1px solid #efeff4;
+  border-bottom: 1px solid var(--line-subtle);
   border-radius: 0;
   margin: 0;
   padding: 0.75rem 0;
@@ -874,4 +876,6 @@
     background: canvas;
     border: 1px solid canvastext;
   }
+}
+
 }

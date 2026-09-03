@@ -1,5 +1,7 @@
-/* Shared tab-menu treatment, based on the account Activity toolbar. */
-#main-content .workspace-tab-menu {
+@layer patterns {
+
+/* Authoritative shared tab-menu pattern. Feature aliases may control only context outside it. */
+.workspace-tab-menu {
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
@@ -17,8 +19,8 @@
   overflow: hidden;
 }
 
-#main-content .workspace-tab-menu--items-only,
-#main-content .workspace-tab-menu__items {
+.workspace-tab-menu--items-only,
+.workspace-tab-menu__items {
   scrollbar-width: thin;
   min-width: 0;
   align-items: center;
@@ -28,15 +30,15 @@
   overflow-y: hidden;
 }
 
-#main-content .workspace-tab-menu--items-only {
+.workspace-tab-menu--items-only {
   justify-content: flex-start;
 }
 
-#main-content .workspace-tab-menu__item {
+.workspace-tab-menu__item {
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: #6f7083;
+  color: var(--text-control);
   cursor: pointer;
   text-align: left;
   text-decoration: none;
@@ -54,18 +56,17 @@
   position: static;
 }
 
-#main-content .workspace-tab-menu__item::after {
+.workspace-tab-menu__item::after {
   content: none;
 }
 
-#main-content .workspace-tab-menu__item:hover {
+.workspace-tab-menu__item:hover {
   border: 0;
-  background: #f7f5fc;
+  background: var(--surface-control-hover);
   color: var(--leaf);
 }
 
-#main-content
-  .workspace-tab-menu__item:is(
+.workspace-tab-menu__item:is(
     [aria-current="page"],
     [aria-pressed="true"],
     [aria-selected="true"]
@@ -75,11 +76,11 @@
   color: var(--leaf);
 }
 
-#main-content .workspace-tab-menu__count {
+.workspace-tab-menu__count {
   border: 0;
   border-radius: 999px;
-  background: #efeff4;
-  color: #77788a;
+  background: var(--surface-control-muted);
+  color: var(--text-control-muted);
   place-items: center;
   min-width: 1.25rem;
   min-height: 0;
@@ -91,8 +92,7 @@
   display: grid;
 }
 
-#main-content
-  .workspace-tab-menu__item:is(
+.workspace-tab-menu__item:is(
     [aria-current="page"],
     [aria-pressed="true"],
     [aria-selected="true"]
@@ -102,7 +102,7 @@
   color: var(--leaf);
 }
 
-#main-content .workspace-tab-menu__search {
+.workspace-tab-menu__search {
   border: 1px solid var(--control-line);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -119,12 +119,12 @@
   display: flex;
 }
 
-#main-content .workspace-tab-menu__search:focus-within {
+.workspace-tab-menu__search:focus-within {
   border-color: var(--leaf);
-  box-shadow: 0 0 0 0.18rem #6032d51f;
+  box-shadow: 0 0 0 0.18rem var(--focus-halo);
 }
 
-#main-content .workspace-tab-menu__search svg {
+.workspace-tab-menu__search svg {
   stroke: currentColor;
   stroke-width: 1.7px;
   flex: 0 0 auto;
@@ -132,7 +132,7 @@
   height: 1rem;
 }
 
-#main-content .workspace-tab-menu__search input {
+.workspace-tab-menu__search input {
   border: 0;
   outline: 0;
   background: transparent;
@@ -145,42 +145,45 @@
 }
 
 @media (max-width: 43.75rem) {
-  #main-content .workspace-tab-menu:not(.workspace-tab-menu--items-only) {
+  .workspace-tab-menu:not(.workspace-tab-menu--items-only) {
     align-items: stretch;
     flex-direction: column;
     gap: 0.65rem;
     padding: 0.7rem 0.75rem;
   }
 
-  #main-content .workspace-tab-menu--items-only {
+  .workspace-tab-menu--items-only {
     padding-inline: 0.75rem;
   }
 
-  #main-content .workspace-tab-menu__items,
-  #main-content .workspace-tab-menu__search {
+  .workspace-tab-menu__items,
+  .workspace-tab-menu__search {
     width: 100%;
   }
 
-  #main-content .workspace-tab-menu__search {
+  .workspace-tab-menu__search {
     flex-basis: auto;
   }
 }
 
 @media (forced-colors: active) {
-  #main-content .workspace-tab-menu,
-  #main-content .workspace-tab-menu__search {
+  .workspace-tab-menu,
+  .workspace-tab-menu__search {
     border-color: canvastext;
+    background: canvas;
+    color: canvastext;
   }
 
-  #main-content
-    .workspace-tab-menu__item:is(
+  .workspace-tab-menu__item:is(
       [aria-current="page"],
       [aria-pressed="true"],
       [aria-selected="true"]
     ),
-  #main-content .workspace-tab-menu__count {
+  .workspace-tab-menu__count {
     border: 1px solid canvastext;
     background: canvas;
     color: canvastext;
   }
+}
+
 }

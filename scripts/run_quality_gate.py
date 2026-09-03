@@ -51,6 +51,7 @@ def _contracts() -> tuple[Check, ...]:
         ),
         _python("-m", "app.seeds", "validate", working_directory=REPOSITORY / "backend"),
         _npm("run", "api:contracts:check"),
+        _npm("run", "styles:contracts:check"),
     )
 
 

@@ -1,3 +1,5 @@
+@layer features {
+
 .page-shell--catalog {
   width: min(85.625rem, 100% - 4.25rem);
   padding-block: 1.25rem 3.5rem;
@@ -283,4 +285,6 @@
   .catalog-filter-select:after {
     display: none;
   }
+}
+
 }

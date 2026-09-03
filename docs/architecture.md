@@ -86,24 +86,26 @@ visualization remain outside the frontend MVP.
 
 #### Global styling foundation
 
-The root layout imports `frontend/app/globals.css` once. That file is an ordered
-manifest for `styles/tokens.css`, `styles/base.css`, shared primitives, and
-feature-owned stylesheets. The first split preserved the former stylesheet byte
-order when the imported files are concatenated; later moves between files must
-still treat cascade order as an observable contract.
+The root layout imports `frontend/app/globals.css` once. That file is the
+complete stylesheet manifest and declares the stable cascade order: `tokens`,
+`base`, `shell`, `primitives`, `features`, then `patterns`. The `shell` layer
+keeps the site-wide header and authentication chrome in their historical
+position before general primitives. Every imported stylesheet wraps its rules
+in its owned layer. Feature import order remains observable, while the final
+pattern layer is reserved for authoritative shared components whose appearance
+must stay consistent across feature aliases.
 
 Shared styling primitives are low-specificity, opt-in classes for declarations
-that are already identical in multiple features. A feature adopts a primitive
-without removing its existing declarations; incremental cleanup happens only
-after desktop and phone evidence confirms that the primitive preserves the
-affected surfaces. A primitive may expand only when at least two consumers
-share the same declarations and their relevant tests or visual baselines cover
-the change.
+that are already identical in multiple features. Patterns are similarly shared
+but authoritative: a feature may control the surrounding layout without
+restyling the pattern itself. A primitive or pattern may expand only when at
+least two consumers share the declarations and focused component or visual
+coverage protects the change.
 
-Cascade layers are deliberately deferred. Introducing `@layer`, moving broad
-selector groups, or changing cascade order requires a separate evidence-backed
-story after the incremental migration, because those changes can alter pixels
-outside the feature being edited.
+`npm run styles:contracts:check` verifies the manifest, one-layer-per-file
+ownership, complete import coverage, and the shared-pattern specificity
+boundary. Moving a rule between layers remains a visual change and requires
+desktop and phone evidence even when its declaration text is unchanged.
 
 ### API
 

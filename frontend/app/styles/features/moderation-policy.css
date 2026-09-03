@@ -1,3 +1,5 @@
+@layer features {
+
 .recipe-report {
   border-top: 1px solid var(--line);
   max-width: 42rem;
@@ -155,24 +157,6 @@
 .moderation-workspace__header > a {
   color: var(--leaf-dark);
   font-weight: 750;
-}
-.moderation-workspace__filters button {
-  min-height: 2.65rem;
-  color: var(--muted);
-  cursor: pointer;
-  background: 0 0;
-  border: 1px solid #0000;
-  border-radius: 0.62rem;
-  flex: 1;
-  font-weight: 750;
-}
-.moderation-workspace__filters button:hover {
-  background: var(--surface-soft);
-}
-.moderation-workspace__filters button[aria-pressed="true"] {
-  border-color: var(--leaf);
-  background: var(--leaf-soft);
-  color: var(--leaf-dark);
 }
 .moderation-workspace__layout {
   grid-template-columns: minmax(18rem, 0.72fr) minmax(0, 1.65fr);
@@ -362,7 +346,6 @@
   .recipe-report__body,
   .draft-publication__requirements,
   .policy-page__sections section,
-  .moderation-workspace__filters,
   .moderation-queue,
   .moderation-detail,
   .moderation-queue li button,
@@ -371,4 +354,6 @@
     background: canvas;
     border-color: canvastext;
   }
+}
+
 }

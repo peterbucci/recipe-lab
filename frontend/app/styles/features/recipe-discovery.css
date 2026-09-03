@@ -1,3 +1,5 @@
+@layer features {
+
 .section-heading {
   justify-content: space-between;
   align-items: end;
@@ -266,4 +268,6 @@
   min-height: 70vh;
   margin: 0 auto;
   padding: clamp(3rem, 7vw, 5.5rem) 0;
+}
+
 }

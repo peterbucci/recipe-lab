@@ -1,3 +1,5 @@
+@layer features {
+
 .recipe-workspace-page {
   width: min(80rem, 100% - 3rem);
 }
@@ -374,4 +376,6 @@
     > .recipe-form-field:last-child {
     border-bottom: 0;
   }
+}
+
 }
