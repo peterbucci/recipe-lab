@@ -1,9 +1,11 @@
 from typing import cast
+from uuid import uuid4
 
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import Engine, Index, Table, inspect, text
+from sqlalchemy import Connection, Engine, Index, Table, inspect, text
+from sqlalchemy.schema import CreateSchema, DropSchema
 
 from app.models import (
     PreferenceEvent,
@@ -32,6 +34,18 @@ def _database_index_names(engine: Engine, table_name: str) -> set[str]:
         for index in inspect(engine).get_indexes(table_name)
         if index["name"] is not None
     }
+
+
+def _pg_trgm_schema(connection: Connection) -> str | None:
+    value = connection.scalar(
+        text(
+            "SELECT namespace.nspname "
+            "FROM pg_extension AS extension "
+            "JOIN pg_namespace AS namespace ON namespace.oid = extension.extnamespace "
+            "WHERE extension.extname = 'pg_trgm'"
+        )
+    )
+    return None if value is None else str(value)
 
 
 def test_high_growth_indexes_match_orm_metadata() -> None:
@@ -103,59 +117,81 @@ def test_high_growth_index_migration_upgrades_and_downgrades(
     empty_postgres_engine: Engine,
     alembic_config: Config,
 ) -> None:
+    created_extension_schema: str | None = None
     with empty_postgres_engine.begin() as connection:
         alembic_config.attributes["connection"] = connection
         command.upgrade(alembic_config, "20260902_0029")
+        current_schema = connection.scalar(text("SELECT current_schema()"))
+        extension_schema = _pg_trgm_schema(connection)
+        if extension_schema is None:
+            extension_schema = f"recipe_lab_extension_{uuid4().hex}"
+            connection.execute(CreateSchema(extension_schema))
+            quoted_schema = connection.dialect.identifier_preparer.quote(extension_schema)
+            connection.execute(text(f"CREATE EXTENSION pg_trgm WITH SCHEMA {quoted_schema}"))
+            created_extension_schema = extension_schema
 
-    assert _RECIPE_TITLE_SEARCH_INDEX not in _database_index_names(
-        empty_postgres_engine, "recipe_versions"
-    )
+        # A cluster-scoped extension can live outside this fixture's isolated
+        # search path. The migration must resolve its operator class there.
+        assert extension_schema != current_schema
 
-    with empty_postgres_engine.begin() as connection:
-        alembic_config.attributes["connection"] = connection
-        command.upgrade(alembic_config, "20260902_0030")
-        assert (
-            connection.scalar(
-                text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm')")
-            )
-            is True
+    try:
+        assert _RECIPE_TITLE_SEARCH_INDEX not in _database_index_names(
+            empty_postgres_engine, "recipe_versions"
         )
 
-    assert {
-        _RECIPE_TITLE_SEARCH_INDEX,
-        _RECIPE_DESCRIPTION_SEARCH_INDEX,
-    } <= _database_index_names(empty_postgres_engine, "recipe_versions")
-    assert _PUBLICATION_NEWEST_INDEX in _database_index_names(
-        empty_postgres_engine, "recipe_version_publications"
-    )
-    assert _MODERATION_QUEUE_INDEX in _database_index_names(
-        empty_postgres_engine, "recipe_moderation_cases"
-    )
-    assert {
-        _PREFERENCE_RECIPE_INDEX,
-        _PREFERENCE_RELATED_INDEX,
-    } <= _database_index_names(empty_postgres_engine, "preference_events")
-    assert _RATING_PROFILE_INDEX in _database_index_names(empty_postgres_engine, "recipe_ratings")
+        with empty_postgres_engine.begin() as connection:
+            alembic_config.attributes["connection"] = connection
+            command.upgrade(alembic_config, "20260902_0030")
+            assert _pg_trgm_schema(connection) == extension_schema
 
-    with empty_postgres_engine.begin() as connection:
-        alembic_config.attributes["connection"] = connection
-        command.downgrade(alembic_config, "20260902_0029")
+        assert {
+            _RECIPE_TITLE_SEARCH_INDEX,
+            _RECIPE_DESCRIPTION_SEARCH_INDEX,
+        } <= _database_index_names(empty_postgres_engine, "recipe_versions")
+        assert _PUBLICATION_NEWEST_INDEX in _database_index_names(
+            empty_postgres_engine, "recipe_version_publications"
+        )
+        assert _MODERATION_QUEUE_INDEX in _database_index_names(
+            empty_postgres_engine, "recipe_moderation_cases"
+        )
+        assert {
+            _PREFERENCE_RECIPE_INDEX,
+            _PREFERENCE_RELATED_INDEX,
+        } <= _database_index_names(empty_postgres_engine, "preference_events")
+        assert _RATING_PROFILE_INDEX in _database_index_names(
+            empty_postgres_engine, "recipe_ratings"
+        )
 
-    assert _RECIPE_TITLE_SEARCH_INDEX not in _database_index_names(
-        empty_postgres_engine, "recipe_versions"
-    )
-    assert _PUBLICATION_NEWEST_INDEX not in _database_index_names(
-        empty_postgres_engine, "recipe_version_publications"
-    )
-    assert _MODERATION_QUEUE_INDEX not in _database_index_names(
-        empty_postgres_engine, "recipe_moderation_cases"
-    )
-    assert _PREFERENCE_RECIPE_INDEX not in _database_index_names(
-        empty_postgres_engine, "preference_events"
-    )
-    assert _PREFERENCE_RELATED_INDEX not in _database_index_names(
-        empty_postgres_engine, "preference_events"
-    )
-    assert _RATING_PROFILE_INDEX not in _database_index_names(
-        empty_postgres_engine, "recipe_ratings"
-    )
+        with empty_postgres_engine.begin() as connection:
+            alembic_config.attributes["connection"] = connection
+            command.downgrade(alembic_config, "20260902_0029")
+
+        assert _RECIPE_TITLE_SEARCH_INDEX not in _database_index_names(
+            empty_postgres_engine, "recipe_versions"
+        )
+        assert _PUBLICATION_NEWEST_INDEX not in _database_index_names(
+            empty_postgres_engine, "recipe_version_publications"
+        )
+        assert _MODERATION_QUEUE_INDEX not in _database_index_names(
+            empty_postgres_engine, "recipe_moderation_cases"
+        )
+        assert _PREFERENCE_RECIPE_INDEX not in _database_index_names(
+            empty_postgres_engine, "preference_events"
+        )
+        assert _PREFERENCE_RELATED_INDEX not in _database_index_names(
+            empty_postgres_engine, "preference_events"
+        )
+        assert _RATING_PROFILE_INDEX not in _database_index_names(
+            empty_postgres_engine, "recipe_ratings"
+        )
+    finally:
+        if created_extension_schema is not None:
+            with empty_postgres_engine.begin() as connection:
+                connection.execute(text("DROP EXTENSION IF EXISTS pg_trgm CASCADE"))
+                connection.execute(
+                    DropSchema(
+                        created_extension_schema,
+                        cascade=True,
+                        if_exists=True,
+                    )
+                )
