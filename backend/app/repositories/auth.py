@@ -247,6 +247,11 @@ def consume_oidc_login_transaction(
     ):
         return None
 
-    login_transaction.consumed_at = now
+    # ``created_at`` is assigned by PostgreSQL while ``now`` is sampled by the
+    # application. An immediate callback can therefore arrive with an
+    # application timestamp fractionally earlier than the database timestamp.
+    # Preserve the database ordering invariant without weakening the one-time
+    # row lock or trusting application/database clocks to be perfectly aligned.
+    login_transaction.consumed_at = max(now, login_transaction.created_at)
     session.flush()
     return login_transaction
