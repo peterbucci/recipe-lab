@@ -1,6 +1,7 @@
 import json
 import logging
 from collections.abc import Iterator
+from typing import cast
 from unittest.mock import Mock
 from uuid import UUID
 
@@ -9,8 +10,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_session
 from app.main import app, create_app
+from tests.application import application_with_session, application_with_session_dependency
 
 client = TestClient(app)
 
@@ -24,16 +25,12 @@ def test_health_check() -> None:
 
 
 def test_readiness_checks_the_database_dependency() -> None:
-    application = create_app()
     session = Mock(spec=Session)
     session.execute.return_value.scalar_one.return_value = 1
 
-    def override_session() -> Iterator[Session]:
-        yield session
-
-    application.dependency_overrides[get_session] = override_session
-    with TestClient(application) as ready_client:
-        response = ready_client.get("/api/readiness")
+    with application_with_session(cast(Session, session)) as application:
+        with TestClient(application) as ready_client:
+            response = ready_client.get("/api/readiness")
 
     assert response.status_code == 200
     assert response.json() == {"status": "ready", "service": "recipe-lab-api"}
@@ -45,17 +42,15 @@ def test_readiness_checks_the_database_dependency() -> None:
 def test_liveness_survives_database_failure_while_readiness_fails_closed(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    application = create_app()
-
     def unavailable_session() -> Iterator[Session]:
         raise OperationalError("SELECT private_value", {"token": "provider-secret"}, RuntimeError())
         yield  # pragma: no cover
 
-    application.dependency_overrides[get_session] = unavailable_session
-    with TestClient(application) as unavailable_client:
-        health = unavailable_client.get("/api/health")
-        with caplog.at_level(logging.ERROR, logger="recipe_lab.operations"):
-            readiness = unavailable_client.get("/api/readiness")
+    with application_with_session_dependency(unavailable_session) as application:
+        with TestClient(application) as unavailable_client:
+            health = unavailable_client.get("/api/health")
+            with caplog.at_level(logging.ERROR, logger="recipe_lab.operations"):
+                readiness = unavailable_client.get("/api/readiness")
 
     assert health.status_code == 200
     assert health.json() == {"status": "ok", "service": "recipe-lab-api"}

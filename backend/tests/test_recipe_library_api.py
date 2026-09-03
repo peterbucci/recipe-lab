@@ -13,8 +13,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, event, text
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_session
-from app.main import create_app
 from app.models import (
     ACCOUNT_KIND_MEMBER,
     RecipeDraft,
@@ -26,6 +24,7 @@ from app.models import (
     User,
 )
 from app.services.recipe_visibility import set_authored_recipe_visibility
+from tests.application import application_with_database
 from tests.conftest import make_alembic_config
 from tests.member_session import authenticate_client, create_member_credentials
 
@@ -314,14 +313,10 @@ def recipe_library_api(empty_postgres_engine: Engine) -> Iterator[RecipeLibraryA
             ]
         )
 
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        with Session(bind=empty_postgres_engine, expire_on_commit=False) as session:
-            yield session
-
-    application.dependency_overrides[get_session] = override_session
-    try:
+    with application_with_database(
+        empty_postgres_engine,
+        expire_on_commit=False,
+    ) as application:
         with (
             TestClient(application) as anonymous,
             TestClient(application) as member_a_client,
@@ -335,8 +330,6 @@ def recipe_library_api(empty_postgres_engine: Engine) -> Iterator[RecipeLibraryA
                 member_a=member_a_client,
                 member_b=member_b_client,
             )
-    finally:
-        application.dependency_overrides.clear()
 
 
 def test_public_authorship_profiles_and_chain_are_truthful_and_public_safe(
