@@ -13,6 +13,8 @@ historical references do not break merely to create folders.
   boundary between product and research features.
 - [API contracts](api-contracts.md) — deterministic OpenAPI ownership,
   classifications, and generated frontend wire types.
+- [Reachability and compatibility](reachability-and-compatibility.md) — exhaustive
+  page/API lifecycle inventory, redirects, evidence, and safe-removal rules.
 
 ## Product and domain behavior
 

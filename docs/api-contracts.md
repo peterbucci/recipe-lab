@@ -15,7 +15,7 @@ schema, response, stable operation-ID, classification, and consumer-evidence
 drift reviewable without starting a server or querying PostgreSQL.
 
 FastAPI's four framework-owned documentation/schema routes are tracked as
-`staff_internal` GET/HEAD surfaces even though the framework does not include
+`staff_internal`/`internal` GET/HEAD surfaces even though the framework does not include
 those routes as operations inside its own OpenAPI document. They are inventory
 evidence, not ordinary product endpoints.
 
@@ -45,13 +45,14 @@ stored data.
 
 ## Operation classifications
 
-The snapshot records these as `x-recipe-lab-classification` and
-`x-recipe-lab-consumer-evidence`. Its 50 OpenAPI operations have exactly one of
+The snapshot records these as `x-recipe-lab-classification`,
+`x-recipe-lab-reachability`, and `x-recipe-lab-consumer-evidence`. Its 54
+OpenAPI operations have exactly one of
 four classifications:
 
 | Classification | OpenAPI operations | Meaning |
 | --- | ---: | --- |
-| `active_consumer` | 40 | A current in-repository product workflow calls the operation. Its evidence identifies the maintained consumer boundary. |
+| `active_consumer` | 44 | A current in-repository product workflow calls the operation. Its evidence identifies the maintained consumer boundary. |
 | `staff_internal` | 8 | The operation supports a bounded curator, moderator, or operator workflow rather than an ordinary cook-facing workflow. Staff-only does not mean unreviewed or safe to remove. The four separately inventoried framework routes use this classification too. |
 | `research_experimental` | 2 | The operation is limited to an explicitly identified research or experimental boundary. It is not evidence of a supported consumer product claim. |
 | `retired` | 0 | No maintained in-repository product consumer remains. A deployed operation stays in this class until an external-consumer, deprecation, or removal decision is reviewed; new consumers must not depend on it. |
@@ -59,6 +60,14 @@ four classifications:
 These labels describe the present contract and its known in-repository use. They
 do not authorize a behavior change. Reclassification is itself inventory drift
 and must be reviewed with updated evidence.
+
+The repository-wide lifecycle vocabulary is deliberately smaller: the 44
+`active_consumer` operations are `active`; the eight `staff_internal` and two
+`research_experimental` operations are `internal`; and a `retired` operation is
+`retired`. There are no live `compatibility-only` backend operations. That class
+is available for a deliberately retained transport adapter, not for an operation
+that merely lacks a known frontend caller. The complete reviewed operation and
+frontend-route inventory is in [Reachability and compatibility](reachability-and-compatibility.md).
 
 Classification describes consumers, not implementation quality. In particular,
 measurement conversion is `research_experimental` because the evidence audit
