@@ -434,6 +434,18 @@ unresolved slot instead has an owner-scoped ingredient-request reference and no
 canonical identity. This permits incomplete private work without weakening any
 published-snapshot constraint.
 
+A frozen `RecipeDocument` is the single content boundary between loaded or
+validated recipe data and the mutable draft or immutable version storage
+graphs. Its adapters preserve explicit category, ingredient, instruction,
+action, and action-input ordering. Copying a public version into a new editable
+draft refreshes only the deliberately current curated unit display labels;
+adapting a saved draft for publication retains its stored display snapshots and
+canonical fingerprint inputs exactly. Both materializers allocate local UUIDs,
+remap document references, and stage complete child graphs without flushing or
+committing. The draft and publication application services remain transaction
+owners: they order destructive replacement flushes, define publication
+checkpoints, and own rollback and commit.
+
 Creation evidence is stored on the draft row. A unique member/action binding
 and server-computed fingerprint distinguish a blank intent from each exact
 source intent. Replay resolves that binding before source visibility is read,
@@ -463,8 +475,9 @@ rechecks the exact source through the shared public predicate, locks its
 lineage, allocates the next lineage-wide version number, and creates a direct
 child without changing the source or lineage creator.
 
-The transaction also creates fresh ordered child rows, a fresh fingerprint, the
-publication receipt, and terminal draft status. A fork additionally creates
+The transaction also stages the complete immutable child graph as one recipe
+document write phase, then creates a fresh fingerprint, the publication
+receipt, and terminal draft status. A fork additionally creates
 exactly one preference event from its direct source to the child. The child
 version, receipt, and event all attribute the operation to the authenticated
 publisher; lineage creation does not grant rights over another author's

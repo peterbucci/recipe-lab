@@ -380,6 +380,14 @@ over another member's child. RCP-29 presents that persisted attribution through
 an explicit public reference containing only stable ID, handle, and display
 name. Original publication appends no fork or other preference event.
 
+Draft validation and public-source copying both produce the same frozen
+`RecipeDocument`. Its mutable and immutable materializers preallocate local
+UUIDs, preserve every explicit ordering field, and stage a complete child graph
+without flushing or committing. The application service owns the replacement
+ordering, publication checkpoints, rollback, and commit; publication therefore
+writes its child graph as one batched recipe-document phase without changing
+request fingerprints, response contracts, or immutable snapshot fields.
+
 Any validation or database failure rolls back the entire transition and leaves
 the draft active and editable. An exact retry by the same member with the same
 idempotency key and request returns `201`, the original
