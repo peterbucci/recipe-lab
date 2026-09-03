@@ -1,19 +1,21 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useRef, useState } from "react";
+import { useRef } from "react";
 
 import {
   type IngredientCatalogRequestStatus,
   type IngredientCatalogReviewItem,
 } from "../../lib/ingredient-catalog-api";
-import { useAuthSession } from "./auth-session-provider";
 import { IngredientRequestReviewDetail } from "./ingredient-request-review-detail";
 import {
   IngredientRequestReviewQueue,
   IngredientRequestStatusFilters,
 } from "./ingredient-request-review-queue";
-import { AuthGateLoading } from "./loading-ui";
+import {
+  StaffWorkspaceAccess,
+  StaffWorkspaceShell,
+  StaffWorkspaceSplitPanel,
+} from "./staff-workspace-shell";
 import { WorkspaceEmptyState } from "./workspace-empty-state";
 import { WorkspacePanelHeader } from "./workspace-panel-header";
 import {
@@ -52,82 +54,18 @@ const REQUEST_STATUS_PANEL_COPY: Record<
   },
 };
 
-function unavailablePage() {
-  return (
-    <main
-      id="main-content"
-      className="state-page staff-state-page staff-state-page--curation staff-state-page--authorization"
-    >
-      <div className="error-state staff-state-panel" role="alert">
-        <h1>We couldn’t find that page.</h1>
-        <p>Browse the recipe collection to find something to cook.</p>
-        <Link className="button button--primary" href="/recipes">
-          Browse recipes
-        </Link>
-      </div>
-    </main>
-  );
-}
-
 export function IngredientRequestReviewWorkspace() {
-  const { state, refreshSession } = useAuthSession();
-  const [authorizationLost, setAuthorizationLost] = useState(false);
-
-  const handleAuthorizationLost = useCallback(() => {
-    setAuthorizationLost(true);
-    void refreshSession();
-  }, [refreshSession]);
-
-  if (state.phase === "loading") {
-    return (
-      <main
-        id="main-content"
-        className="state-page staff-state-page staff-state-page--curation staff-state-page--loading"
-      >
-        <AuthGateLoading
-          className="staff-state-panel"
-          label="Checking review access…"
-        />
-      </main>
-    );
-  }
-
-  if (state.phase === "error") {
-    return (
-      <main
-        id="main-content"
-        className="state-page staff-state-page staff-state-page--curation staff-state-page--error"
-      >
-        <div className="error-state staff-state-panel" role="alert">
-          <p className="eyebrow">Account unavailable</p>
-          <h1>We couldn’t check access.</h1>
-          <p>Try checking your account again, or return to the recipe collection.</p>
-          <div className="button-row">
-            <button
-              className="button button--primary"
-              type="button"
-              onClick={() => void refreshSession()}
-            >
-              Try again
-            </button>
-            <Link className="button button--secondary" href="/recipes">
-              Browse recipes
-            </Link>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  if (
-    authorizationLost ||
-    state.session.status !== "authenticated" ||
-    !state.session.capabilities?.review_ingredient_requests
-  ) {
-    return unavailablePage();
-  }
-
-  return <AuthorizedReviewWorkspace onAuthorizationLost={handleAuthorizationLost} />;
+  return (
+    <StaffWorkspaceAccess
+      capability="review_ingredient_requests"
+      loadingLabel="Checking review access…"
+      variant="curation"
+    >
+      {(onAuthorizationLost) => (
+        <AuthorizedReviewWorkspace onAuthorizationLost={onAuthorizationLost} />
+      )}
+    </StaffWorkspaceAccess>
+  );
 }
 
 function AuthorizedReviewWorkspace({
@@ -161,14 +99,13 @@ function AuthorizedReviewWorkspace({
   }
 
   return (
-    <main
-      id="main-content"
-      className="page-shell staff-workspace staff-workspace--curation curation-page"
+    <StaffWorkspaceShell
+      className="curation-page"
+      description="Review missing ingredients, compare possible matches, and record one catalog decision."
+      headerClassName="page-intro curation-page__intro"
+      title="Ingredient requests"
+      variant="curation"
     >
-      <header className="page-intro staff-workspace__header curation-page__intro">
-        <h1>Ingredient requests</h1>
-        <p>Review missing ingredients, compare possible matches, and record one catalog decision.</p>
-      </header>
 
       <div className="staff-workspace__tab-shell">
         <IngredientRequestStatusFilters
@@ -216,22 +153,23 @@ function AuthorizedReviewWorkspace({
       ) : null}
 
       {!queueIsEmpty ? (
-        <div className="staff-workspace__layout curation-workspace">
-        <IngredientRequestReviewQueue
-          key={requestStatus}
-          queue={queue}
-          queueError={queueError}
-          queueLoading={queueLoading}
-          requestStatus={requestStatus}
-          selectedRequestId={selectedRequestId}
-          onChangePage={changePage}
-          onReloadQueue={reloadQueue}
-          onSelectRequest={selectRequest}
-        />
-
-        <section
-          className="staff-panel-surface staff-workspace__detail curation-detail"
-          aria-labelledby="curation-detail-heading"
+        <StaffWorkspaceSplitPanel
+          className="curation-workspace"
+          detailClassName="curation-detail"
+          detailHeadingId="curation-detail-heading"
+          queue={
+            <IngredientRequestReviewQueue
+              key={requestStatus}
+              queue={queue}
+              queueError={queueError}
+              queueLoading={queueLoading}
+              requestStatus={requestStatus}
+              selectedRequestId={selectedRequestId}
+              onChangePage={changePage}
+              onReloadQueue={reloadQueue}
+              onSelectRequest={selectRequest}
+            />
+          }
         >
           {!selectedRequestId && !queueLoading ? (
             <div className="curation-panel-state">
@@ -280,9 +218,8 @@ function AuthorizedReviewWorkspace({
               onReviewed={handleReviewed}
             />
           ) : null}
-        </section>
-        </div>
+        </StaffWorkspaceSplitPanel>
       ) : null}
-    </main>
+    </StaffWorkspaceShell>
   );
 }
