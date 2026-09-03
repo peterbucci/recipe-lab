@@ -15,10 +15,10 @@ from app.models import (
     RecipeInstructionAction,
     RecipeInstructionActionInput,
     RecipeInstructionActionMeasure,
-    RecipeLineage,
     RecipeVersion,
     User,
 )
+from tests.recipe_builders import build_recipe_lineage, build_recipe_version
 
 
 def _constraint_name(error: IntegrityError) -> str | None:
@@ -38,16 +38,13 @@ def _version_snapshot(
     ingredient = Ingredient(canonical_name=f"Action model ingredient {suffix}")
     session.add_all([user, ingredient])
     session.flush()
-    lineage = RecipeLineage(created_by_user_id=user.id)
+    lineage = build_recipe_lineage(created_by_user_id=user.id)
     session.add(lineage)
     session.flush()
-    version = RecipeVersion(
+    version = build_recipe_version(
         lineage_id=lineage.id,
-        parent_version_id=None,
         created_by_user_id=user.id,
-        version_number=1,
         title=f"Action model recipe {suffix}",
-        description=None,
         servings=Decimal("1.00"),
     )
     session.add(version)

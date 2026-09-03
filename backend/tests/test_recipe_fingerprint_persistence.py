@@ -12,7 +12,6 @@ from app.models import (
     RecipeInstruction,
     RecipeInstructionAction,
     RecipeInstructionActionInput,
-    RecipeLineage,
     RecipeStructuralFingerprint,
     RecipeVersion,
     User,
@@ -30,6 +29,7 @@ from app.services.recipe_fingerprint_persistence import (
     fingerprint_and_store_recipe_version,
 )
 from tests.database import session_with_outer_rollback
+from tests.recipe_builders import build_recipe_lineage, build_recipe_version
 
 
 def _create_recipe_versions(session: Session, count: int = 2) -> list[RecipeVersion]:
@@ -39,17 +39,15 @@ def _create_recipe_versions(session: Session, count: int = 2) -> list[RecipeVers
     )
     session.add(user)
     session.flush()
-    lineage = RecipeLineage(created_by_user_id=user.id)
+    lineage = build_recipe_lineage(created_by_user_id=user.id)
     session.add(lineage)
     session.flush()
     versions = [
-        RecipeVersion(
+        build_recipe_version(
             lineage_id=lineage.id,
-            parent_version_id=None if number == 1 else None,
             created_by_user_id=user.id,
             version_number=number,
             title=f"Fingerprint fixture {number}",
-            description=None,
             servings=Decimal("2.00"),
         )
         for number in range(1, count + 1)
@@ -60,7 +58,7 @@ def _create_recipe_versions(session: Session, count: int = 2) -> list[RecipeVers
     session.add(versions[0])
     session.flush()
     for version in versions[1:]:
-        child_lineage = RecipeLineage(created_by_user_id=user.id)
+        child_lineage = build_recipe_lineage(created_by_user_id=user.id)
         session.add(child_lineage)
         session.flush()
         version.lineage_id = child_lineage.id
@@ -243,20 +241,16 @@ def _create_complete_measured_recipe(
     unit_key: str,
     version_id: UUID | None = None,
 ) -> RecipeVersion:
-    lineage = RecipeLineage(created_by_user_id=user.id)
+    lineage = build_recipe_lineage(created_by_user_id=user.id)
     session.add(lineage)
     session.flush()
-    version = RecipeVersion(
+    version = build_recipe_version(
+        recipe_version_id=version_id,
         lineage_id=lineage.id,
-        parent_version_id=None,
         created_by_user_id=user.id,
-        version_number=1,
         title=title,
-        description=None,
         servings=Decimal("1.00"),
     )
-    if version_id is not None:
-        version.id = version_id
     session.add(version)
     session.flush()
     recipe_ingredient = RecipeIngredient(
