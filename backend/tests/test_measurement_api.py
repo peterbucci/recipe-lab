@@ -10,9 +10,7 @@ from pytest import MonkeyPatch
 from sqlalchemy import Engine, delete
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_session
 from app.api.routes import measurements as measurement_routes
-from app.main import create_app
 from app.models import MeasurementConversionRule, MeasurementUnit, MeasurementUnitAlias
 from app.schemas.measurements import (
     MeasurementConversionRequest,
@@ -20,6 +18,7 @@ from app.schemas.measurements import (
     MeasurementUnitSummary,
 )
 from app.services.measurements import PackageSizeRequiredError
+from tests.application import application_with_database, application_with_session
 
 TEST_SESSION = cast(Session, object())
 
@@ -35,14 +34,9 @@ class MeasurementApiCatalog:
 
 @pytest.fixture
 def measurement_client() -> Iterator[TestClient]:
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        yield TEST_SESSION
-
-    application.dependency_overrides[get_session] = override_session
-    with TestClient(application) as client:
-        yield client
+    with application_with_session(TEST_SESSION) as application:
+        with TestClient(application) as client:
+            yield client
 
 
 @pytest.fixture
@@ -146,16 +140,10 @@ def measurement_database_client(
         count_id=count_id,
         clove_id=clove_id,
     )
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        with Session(bind=migrated_engine) as session:
-            yield session
-
-    application.dependency_overrides[get_session] = override_session
     try:
-        with TestClient(application) as client:
-            yield client, catalog
+        with application_with_database(migrated_engine) as application:
+            with TestClient(application) as client:
+                yield client, catalog
     finally:
         with Session(bind=migrated_engine) as session, session.begin():
             session.execute(

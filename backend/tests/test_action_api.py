@@ -1,4 +1,3 @@
-from collections.abc import Iterator
 from typing import cast
 from uuid import uuid4
 
@@ -6,10 +5,10 @@ from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_session
 from app.api.routes import actions as action_routes
 from app.main import create_app
 from app.models import CookingActionType
+from tests.application import application_with_session
 
 TEST_SESSION = cast(Session, object())
 
@@ -27,12 +26,6 @@ def _action_type(*, active: bool = True) -> CookingActionType:
 def test_action_catalog_returns_the_bounded_reviewed_contract(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        yield TEST_SESSION
-
-    application.dependency_overrides[get_session] = override_session
     action_type = _action_type()
     observed: dict[str, object] = {}
 
@@ -41,8 +34,9 @@ def test_action_catalog_returns_the_bounded_reviewed_contract(
         return [action_type]
 
     monkeypatch.setattr(action_routes, "list_active_cooking_action_types", list_actions)
-    with TestClient(application) as client:
-        response = client.get("/api/cooking-action-types", params={"limit": 12})
+    with application_with_session(TEST_SESSION) as application:
+        with TestClient(application) as client:
+            response = client.get("/api/cooking-action-types", params={"limit": 12})
 
     assert response.status_code == 200
     assert response.json() == {
