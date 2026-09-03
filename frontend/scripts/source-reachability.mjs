@@ -120,7 +120,6 @@ function resolveInternalImport(sourceRoot, importer, specifier, sources) {
 export function auditSourceReachability(
   sourceRoot = resolve(process.env.RECIPE_LAB_FRONTEND_SOURCE_ROOT ?? process.cwd()),
 ) {
-  const ts = loadTypeScript(sourceRoot);
   const files = [
     ...walk(join(sourceRoot, "app")),
     ...walk(join(sourceRoot, "lib")),
@@ -140,6 +139,12 @@ export function auditSourceReachability(
       })
       .map(normalized),
   );
+  if (sources.size === 0 || entries.size === 0) {
+    throw new Error(
+      `No frontend runtime inventory was found under ${sourceRoot}. Run this check from the frontend package.`,
+    );
+  }
+  const ts = loadTypeScript(sourceRoot);
   const graph = new Map(
     files.map((path) => {
       const importer = normalized(path);

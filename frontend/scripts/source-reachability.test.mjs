@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { reachableModulePaths } from "./source-reachability.mjs";
+import {
+  auditSourceReachability,
+  reachableModulePaths,
+} from "./source-reachability.mjs";
 
 describe("source reachability graph", () => {
   it("walks transitive imports and cycles without treating an isolated export as reachable", () => {
@@ -16,5 +19,11 @@ describe("source reachability graph", () => {
       "page.tsx",
       "view.tsx",
     ]);
+  });
+
+  it("fails closed when it is pointed at a directory without runtime entries", () => {
+    expect(() => auditSourceReachability(import.meta.dirname)).toThrow(
+      "No frontend runtime inventory was found",
+    );
   });
 });
