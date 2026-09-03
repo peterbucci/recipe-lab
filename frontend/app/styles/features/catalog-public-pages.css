@@ -37,17 +37,6 @@
 .catalog-dashboard__search-panel {
   margin: 0;
 }
-.recipe-search__controls {
-  max-width: none;
-}
-.recipe-search input {
-  background: var(--surface-soft);
-}
-.recipe-search .button {
-  min-height: 2.75rem;
-  padding-inline: 0.9rem;
-  font-size: 0.78rem;
-}
 .catalog-dashboard__results {
   overflow: hidden;
 }

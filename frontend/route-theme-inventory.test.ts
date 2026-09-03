@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -52,5 +52,40 @@ describe("RCP-46 route and theme-family source inventory", () => {
     for (const item of RCP46_ROUTE_STATE_THEME_INVENTORY) {
       expect(basename(item.file)).toBe(`${item.kind}.tsx`);
     }
+  });
+
+  it("classifies every executable page with checked-in reachability evidence", () => {
+    const counts = new Map<string, number>();
+    for (const item of RCP46_PAGE_THEME_INVENTORY) {
+      counts.set(item.reachability, (counts.get(item.reachability) ?? 0) + 1);
+      expect(item.consumerEvidence.length).toBeGreaterThan(0);
+      for (const evidence of item.consumerEvidence) {
+        expect(evidence.startsWith("/")).toBe(false);
+        expect(existsSync(join(process.cwd(), "..", evidence))).toBe(true);
+      }
+    }
+
+    expect(Object.fromEntries(counts)).toEqual({
+      active: 16,
+      internal: 6,
+      "compatibility-only": 3,
+    });
+    expect(
+      RCP46_PAGE_THEME_INVENTORY.filter(
+        ({ reachability }) => reachability === "compatibility-only",
+      ).map((item) => [
+        item.route,
+        "redirectTo" in item ? item.redirectTo : undefined,
+      ]),
+    ).toEqual([
+      ["/account/recipe-drafts/[draftId]", "/recipes/drafts/[draftId]"],
+      ["/account/recipe-drafts", "/account/recipes?view=drafts"],
+      ["/account/saved-recipes", "/account/recipes?view=saved"],
+    ]);
+    expect(
+      RCP46_PAGE_THEME_INVENTORY.filter(
+        ({ reachability }) => reachability !== "compatibility-only",
+      ).every((item) => !("redirectTo" in item)),
+    ).toBe(true);
   });
 });

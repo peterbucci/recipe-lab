@@ -33,6 +33,7 @@ EXPECTED_CLASSIFICATION_COUNTS = {
     "research_experimental": 2,
     "staff_internal": 8,
 }
+EXPECTED_REACHABILITY_COUNTS = {"active": 44, "internal": 10}
 
 
 def _operations(document: dict[str, object]) -> list[dict[str, object]]:
@@ -86,6 +87,10 @@ def test_registry_freezes_every_operation_with_stable_unique_metadata() -> None:
         Counter(operation["x-recipe-lab-classification"] for operation in operations)
         == EXPECTED_CLASSIFICATION_COUNTS
     )
+    assert (
+        Counter(operation["x-recipe-lab-reachability"] for operation in operations)
+        == EXPECTED_REACHABILITY_COUNTS
+    )
     assert document["x-recipe-lab-external-consumer-status"] == EXTERNAL_CONSUMER_STATUS
 
     for operation in operations:
@@ -132,6 +137,7 @@ def test_framework_routes_are_separately_inventoried_and_reachable() -> None:
         {
             **item,
             "classification": "staff_internal",
+            "reachability": "internal",
             "consumer_evidence": ["docs/api-contracts.md"],
             "external_consumer_status": EXTERNAL_CONSUMER_STATUS,
         }

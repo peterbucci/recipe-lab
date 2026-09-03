@@ -6102,7 +6102,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/auth-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/auth/callback": {
@@ -6250,7 +6251,8 @@
           "frontend/lib/auth-api.ts",
           "frontend/app/api/[...path]/route.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/auth/login": {
@@ -6365,7 +6367,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/auth-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/auth/logout": {
@@ -6482,7 +6485,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/auth-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/auth/reauthenticate": {
@@ -6597,7 +6601,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/auth-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/auth/session": {
@@ -6719,7 +6724,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/auth-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/auth/session/profile": {
@@ -6853,7 +6859,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/auth-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/cooking-action-types": {
@@ -6924,7 +6931,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/cooking-action-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/cooks/{handle}": {
@@ -7029,7 +7037,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-library-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/cooks/{handle}/follow": {
@@ -7155,7 +7164,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/member-follow-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       },
       "get": {
         "operationId": "cook_follow_state_api_cooks__handle__follow_get",
@@ -7263,7 +7273,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/member-follow-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       },
       "put": {
         "operationId": "follow_cook_api_cooks__handle__follow_put",
@@ -7387,7 +7398,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/member-follow-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/health": {
@@ -7413,7 +7425,8 @@
         "x-recipe-lab-consumer-evidence": [
           "docs/operations-observability.md"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "internal"
       }
     },
     "/api/ingredient-requests": {
@@ -7577,7 +7590,8 @@
           "frontend/lib/ingredient-catalog-api.ts",
           "frontend/app/components/ingredient-request-review-workspace.tsx"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "internal"
       },
       "post": {
         "description": "Stores bounded member input in a review queue. A pending request is not a catalog identity and cannot be selected or published.",
@@ -7710,7 +7724,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/ingredient-catalog-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/ingredient-requests/mine": {
@@ -7884,7 +7899,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/ingredient-catalog-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/ingredient-requests/{request_id}": {
@@ -7992,7 +8008,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/ingredient-catalog-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/ingredient-requests/{request_id}/review": {
@@ -8102,7 +8119,8 @@
           "frontend/lib/ingredient-catalog-api.ts",
           "frontend/app/components/ingredient-request-review-workspace.tsx"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "internal"
       },
       "post": {
         "description": "Only a separately granted catalog curator may apply one terminal decision. Approval creates the ingredient, reviewed aliases, provenance snapshot, and append-only audit event in one transaction.",
@@ -8247,7 +8265,8 @@
           "frontend/lib/ingredient-catalog-api.ts",
           "frontend/app/components/ingredient-request-review-workspace.tsx"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "internal"
       }
     },
     "/api/ingredients": {
@@ -8349,7 +8368,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/ingredient-catalog-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/measurement-units": {
@@ -8428,7 +8448,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/measurement-unit-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/measurements/convert": {
@@ -8505,7 +8526,8 @@
         "x-recipe-lab-consumer-evidence": [
           "docs/measurements.md"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "internal"
       }
     },
     "/api/moderation/recipe-reports": {
@@ -8648,7 +8670,8 @@
           "frontend/lib/recipe-moderation-api.ts",
           "frontend/app/components/recipe-moderation-workspace.tsx"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "internal"
       }
     },
     "/api/moderation/recipe-reports/{recipe_version_id}": {
@@ -8757,7 +8780,8 @@
           "frontend/lib/recipe-moderation-api.ts",
           "frontend/app/components/recipe-moderation-workspace.tsx"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "internal"
       }
     },
     "/api/moderation/recipe-reports/{recipe_version_id}/actions": {
@@ -8904,7 +8928,8 @@
           "frontend/lib/recipe-moderation-api.ts",
           "frontend/app/components/recipe-moderation-workspace.tsx"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "internal"
       }
     },
     "/api/my/activity": {
@@ -9041,7 +9066,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/member-activity-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/my/community-activity": {
@@ -9144,7 +9170,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/member-follow-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/my/dashboard": {
@@ -9221,7 +9248,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/member-activity-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/my/follow-stats": {
@@ -9317,7 +9345,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/member-follow-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/my/followers": {
@@ -9420,7 +9449,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/member-follow-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/my/recipes": {
@@ -9531,7 +9561,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-library-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/my/saved-recipes": {
@@ -9633,7 +9664,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-library-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/readiness": {
@@ -9669,7 +9701,8 @@
         "x-recipe-lab-consumer-evidence": [
           "docs/operations-observability.md"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "internal"
       }
     },
     "/api/recipe-categories": {
@@ -9716,7 +9749,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recipe-drafts": {
@@ -9857,7 +9891,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-draft-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       },
       "post": {
         "description": "Creates a blank original draft or copies one exact public immutable recipe snapshot. The required Idempotency-Key recovers the same active draft after an ambiguous response. Authorship always comes from the active member session.",
@@ -10002,7 +10037,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-draft-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recipe-drafts/{draft_id}": {
@@ -10130,7 +10166,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-draft-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       },
       "get": {
         "operationId": "private_recipe_draft_detail_api_recipe_drafts__draft_id__get",
@@ -10236,7 +10273,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-draft-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       },
       "put": {
         "description": "Atomically replaces the member-owned draft document when the submitted revision matches. The source, author, status, and server-controlled ordering remain outside the client contract.",
@@ -10369,7 +10407,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-draft-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recipe-drafts/{draft_id}/duplicate-preflights": {
@@ -10526,7 +10565,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-duplicate-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recipe-drafts/{draft_id}/publish": {
@@ -10693,7 +10733,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-publication-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recipes": {
@@ -10895,7 +10936,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recipes/featured": {
@@ -10942,7 +10984,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recipes/viewer-states": {
@@ -11035,7 +11078,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/interaction-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recipes/{recipe_version_id}": {
@@ -11113,7 +11157,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recipes/{recipe_version_id}/diff": {
@@ -11211,7 +11256,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recipes/{recipe_version_id}/rating": {
@@ -11364,7 +11410,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/interaction-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       },
       "put": {
         "operationId": "rate_recipe_for_current_user_api_recipes__recipe_version_id__rating_put",
@@ -11508,7 +11555,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/interaction-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recipes/{recipe_version_id}/reports": {
@@ -11665,7 +11713,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-report-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recipes/{recipe_version_id}/save": {
@@ -11818,7 +11867,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/interaction-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       },
       "put": {
         "operationId": "save_recipe_for_current_user_api_recipes__recipe_version_id__save_put",
@@ -11969,7 +12019,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/interaction-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recipes/{recipe_version_id}/view": {
@@ -12115,7 +12166,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/interaction-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recipes/{recipe_version_id}/visibility": {
@@ -12250,7 +12302,8 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/lib/recipe-visibility-api.ts"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
       }
     },
     "/api/recommendations": {
@@ -12333,7 +12386,8 @@
         "x-recipe-lab-consumer-evidence": [
           "docs/recommendations.md"
         ],
-        "x-recipe-lab-external-consumer-status": "unknown_pending"
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "internal"
       }
     }
   },
@@ -12349,7 +12403,8 @@
         "GET",
         "HEAD"
       ],
-      "path": "/docs"
+      "path": "/docs",
+      "reachability": "internal"
     },
     {
       "classification": "staff_internal",
@@ -12361,7 +12416,8 @@
         "GET",
         "HEAD"
       ],
-      "path": "/docs/oauth2-redirect"
+      "path": "/docs/oauth2-redirect",
+      "reachability": "internal"
     },
     {
       "classification": "staff_internal",
@@ -12373,7 +12429,8 @@
         "GET",
         "HEAD"
       ],
-      "path": "/openapi.json"
+      "path": "/openapi.json",
+      "reachability": "internal"
     },
     {
       "classification": "staff_internal",
@@ -12385,7 +12442,8 @@
         "GET",
         "HEAD"
       ],
-      "path": "/redoc"
+      "path": "/redoc",
+      "reachability": "internal"
     }
   ]
 }

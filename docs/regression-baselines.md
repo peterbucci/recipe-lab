@@ -164,8 +164,8 @@ than duplicating the same system-state treatment across every width.
 
 ### RCP-46 source theme-family inventory
 
-`frontend/route-theme-inventory.ts` is the plain source inventory for the 20
-App Router page modules and 26 convention-based `loading.tsx`, `error.tsx`, and
+`frontend/route-theme-inventory.ts` is the plain source inventory for the 25
+App Router page modules and 29 convention-based `loading.tsx`, `error.tsx`, and
 `not-found.tsx` modules. Its Vitest contract recursively discovers both sets
 under `frontend/app` and requires exact equality, so an added, removed, or moved
 route cannot remain silently unassigned. This is a source-ownership check, not
@@ -176,10 +176,11 @@ a compatibility layer and not a request to render or screenshot every route.
 | Discovery | `/`, `/recipes` | 2 | 2 |
 | Public context | `/community-rules`, `/cooks/[handle]`, `/recipes/[recipeVersionId]`, `/recipes/[recipeVersionId]/compare` | 4 | 9 |
 | Account access | `/account/deleted`, `/auth/callback`, `/onboarding`, `/sign-in` | 4 | 4 |
-| Account workspace | `/account/ingredient-requests`, `/account/recipe-drafts`, `/account/recipes`, `/account/saved-recipes`, `/account/settings` | 5 | 5 |
-| Recipe authoring | `/account/recipe-drafts/[draftId]`, `/recipes/[recipeVersionId]/fork`, `/recipes/new` | 3 | 3 |
+| Account workspace | `/account/activity`, `/account/community-activity`, `/account/followers`, `/account/ingredient-requests`, `/account/recipe-drafts`, `/account/recipes`, `/account/saved-recipes`, `/account/settings` | 8 | 5 |
+| Recipe authoring | `/account/recipe-drafts/[draftId]`, `/recipes/[recipeVersionId]/fork`, `/recipes/drafts/[draftId]`, `/recipes/new` | 4 | 6 |
 | Staff curation | `/catalog/ingredient-requests` | 1 | 1 |
 | Staff moderation | `/moderation/recipes` | 1 | 1 |
+| Staff tools | `/staff` | 1 | 0 |
 | System state | No page route; owns the root unmatched-route boundary | 0 | 1 |
 
 The counts are descriptive review boundaries, not quotas. Any legitimate new

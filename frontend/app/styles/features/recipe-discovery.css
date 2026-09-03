@@ -54,42 +54,8 @@
 .catalog-toolbar {
   margin-bottom: 1.75rem;
 }
-.recipe-search {
-  min-width: 0;
-}
-.recipe-search label {
-  color: var(--ink);
-  margin-bottom: 0.55rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  display: block;
-}
-.recipe-search__controls {
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 0.55rem;
-  max-width: 44rem;
-  display: grid;
-}
 .catalog-results__heading {
   margin-bottom: 1rem;
-}
-.recipe-search input {
-  border: 1px solid var(--control-line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  min-width: 0;
-  min-height: 2.75rem;
-  color: var(--ink);
-  flex: 1;
-  padding: 0.65rem 0.85rem;
-}
-.recipe-search input:hover {
-  border-color: var(--leaf);
-}
-.recipe-search input::placeholder {
-  color: var(--muted);
-  opacity: 1;
 }
 .result-count {
   min-width: max-content;

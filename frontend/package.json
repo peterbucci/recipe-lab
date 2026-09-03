@@ -5,11 +5,12 @@
   "scripts": {
     "api:contracts:check": "node scripts/api-contract-codegen.mjs check",
     "api:contracts:generate": "node scripts/api-contract-codegen.mjs generate",
-    "ci:verify": "npm test && npm run build && npx --no-install playwright test --list",
+    "ci:verify": "npm test && npm run reachability:check && npm run build && npx --no-install playwright test --list",
     "dev": "node server.mjs --dev",
     "build": "next build",
     "start": "node server.mjs",
     "lint": "eslint .",
+    "reachability:check": "node scripts/source-reachability.mjs",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
