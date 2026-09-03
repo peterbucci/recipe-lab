@@ -7225,7 +7225,7 @@ export interface operations {
                     readonly "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description The complete research ranking exceeds its configured safe capacity. */
+            /** @description A recommendation dependency is temporarily unavailable. */
             readonly 503: {
                 headers: {
                     readonly [name: string]: unknown;
