@@ -28,8 +28,7 @@ def validate_results(
     ]
     accepted_full_only = {"success"} if tier == "full" else {"success", "skipped"}
     failures.extend(
-        f"{label}: expected {'success' if tier == 'full' else 'success or skipped'}, "
-        f"got {result}"
+        f"{label}: expected {'success' if tier == 'full' else 'success or skipped'}, got {result}"
         for label, result in full_only
         if result not in accepted_full_only
     )
