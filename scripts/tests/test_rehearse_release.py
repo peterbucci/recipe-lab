@@ -413,9 +413,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
     def test_rejects_duplicate_json_keys_and_unbounded_inputs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             duplicate = Path(temporary) / "duplicate.json"
-            duplicate.write_text(
-                '{"status":"passed","status":"failed"}', encoding="utf-8"
-            )
+            duplicate.write_text('{"status":"passed","status":"failed"}', encoding="utf-8")
             with self.assertRaises(rehearse_release.ReleaseEvidenceError):
                 rehearse_release.load_bounded_json_object(duplicate, max_bytes=1024)
 
@@ -436,13 +434,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
             rehearse_release.write_release_evidence(destination, evidence)
 
-            expected = (
-                json.dumps(evidence, sort_keys=True, separators=(",", ":")) + "\n"
-            )
+            expected = json.dumps(evidence, sort_keys=True, separators=(",", ":")) + "\n"
             self.assertEqual(destination.read_text(encoding="utf-8"), expected)
-            with self.assertRaisesRegex(
-                rehearse_release.ReleaseEvidenceError, "overwrite"
-            ):
+            with self.assertRaisesRegex(rehearse_release.ReleaseEvidenceError, "overwrite"):
                 rehearse_release.write_release_evidence(destination, evidence)
             self.assertEqual(destination.read_text(encoding="utf-8"), expected)
 

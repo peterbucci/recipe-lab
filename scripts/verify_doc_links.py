@@ -79,15 +79,11 @@ def audit_document(path: Path, repository: Path) -> list[Violation]:
         try:
             target_path.relative_to(repository.resolve())
         except ValueError:
-            violations.append(
-                Violation(source, line, f"link escapes repository: {raw_target}")
-            )
+            violations.append(Violation(source, line, f"link escapes repository: {raw_target}"))
             continue
 
         if not target_path.exists():
-            violations.append(
-                Violation(source, line, f"missing link target: {raw_target}")
-            )
+            violations.append(Violation(source, line, f"missing link target: {raw_target}"))
             continue
 
         fragment = unquote(parsed.fragment).lower()

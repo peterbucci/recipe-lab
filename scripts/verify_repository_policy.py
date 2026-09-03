@@ -108,15 +108,11 @@ def audit_workflow(path: Path, repository: Path) -> list[Violation]:
         runner_match = RUNNER_REFERENCE.match(line)
         if runner_match and runner_match.group(1).endswith("-latest"):
             violations.append(
-                Violation(
-                    relative, line_number, "runner image uses a mutable -latest label"
-                )
+                Violation(relative, line_number, "runner image uses a mutable -latest label")
             )
 
         toolchain_match = TOOLCHAIN_REFERENCE.match(line)
-        if toolchain_match and not EXACT_TOOLCHAIN_VERSION.fullmatch(
-            toolchain_match.group(1)
-        ):
+        if toolchain_match and not EXACT_TOOLCHAIN_VERSION.fullmatch(toolchain_match.group(1)):
             violations.append(
                 Violation(
                     relative,
@@ -150,16 +146,12 @@ def audit_docker_policy(repository: Path) -> list[Violation]:
         )
         for missing in sorted(required - entries):
             violations.append(
-                Violation(
-                    relative, 1, f"Docker build context does not exclude {missing}"
-                )
+                Violation(relative, 1, f"Docker build context does not exclude {missing}")
             )
 
     for relative in ("backend/Dockerfile", "frontend/Dockerfile"):
         path = repository / relative
-        for line_number, line in enumerate(
-            path.read_text(encoding="utf-8").splitlines(), 1
-        ):
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             image = DOCKERFILE_IMAGE_ARGUMENT.match(line)
             if image and "@sha256:" not in image.group(1):
                 violations.append(
@@ -181,13 +173,9 @@ def audit_compose_environment(repository: Path) -> list[Violation]:
 
     compose_path = repository / "compose.yaml"
     compose = compose_path.read_text(encoding="utf-8")
-    example_lines = (
-        (repository / ".env.example").read_text(encoding="utf-8").splitlines()
-    )
+    example_lines = (repository / ".env.example").read_text(encoding="utf-8").splitlines()
     documented = {
-        match.group(1)
-        for line in example_lines
-        if (match := ENVIRONMENT_ASSIGNMENT.match(line))
+        match.group(1) for line in example_lines if (match := ENVIRONMENT_ASSIGNMENT.match(line))
     }
     violations = [
         Violation(".env.example", 1, f"Compose variable {name} is not documented")

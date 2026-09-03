@@ -18,9 +18,7 @@ from app.repositories.recipes import get_recipe
 """
 
         self.assertEqual(
-            architecture.audit_source(
-                path="backend/app/services/example.py", source=source
-            ),
+            architecture.audit_source(path="backend/app/services/example.py", source=source),
             [],
         )
 

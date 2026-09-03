@@ -34,10 +34,7 @@ class Violation:
 
 
 def _is_forbidden(module: str) -> bool:
-    return any(
-        module == root or module.startswith(f"{root}.")
-        for root in FORBIDDEN_IMPORT_ROOTS
-    )
+    return any(module == root or module.startswith(f"{root}.") for root in FORBIDDEN_IMPORT_ROOTS)
 
 
 def audit_source(*, path: str, source: str) -> list[Violation]:
@@ -54,9 +51,7 @@ def audit_source(*, path: str, source: str) -> list[Violation]:
         else:
             continue
         violations.extend(
-            Violation(path, node.lineno, module)
-            for module in modules
-            if _is_forbidden(module)
+            Violation(path, node.lineno, module) for module in modules if _is_forbidden(module)
         )
     return violations
 
@@ -69,9 +64,7 @@ def audit_repository(repository: Path) -> list[Violation]:
         root = repository / relative_root
         for path in sorted(root.rglob("*.py")):
             relative = path.relative_to(repository).as_posix()
-            violations.extend(
-                audit_source(path=relative, source=path.read_text(encoding="utf-8"))
-            )
+            violations.extend(audit_source(path=relative, source=path.read_text(encoding="utf-8")))
     return sorted(violations)
 
 
