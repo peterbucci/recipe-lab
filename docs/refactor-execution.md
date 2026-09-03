@@ -73,14 +73,84 @@ migration state or one dense publication fixture, so moving tests solely to
 reduce line counts would duplicate setup and invalidate stable collection
 references. New independent concerns should continue to use focused modules.
 
-## Evidence required from each work package
+## Completed work packages
 
-Each topic branch records:
+Implementation is complete for every work package tracked on the private
+**Recipe Lab Refactor** project. The final package remains in review rather
+than being merged to `main`.
 
-1. the invariant and behavior it preserves;
-2. the focused tests and static checks it ran;
-3. before/after measurements for any performance claim;
-4. migration, generated-contract, accessibility, visual, or deterministic
-   evidence when that surface changes; and
-5. rollback notes for changes that alter persistence, caching, security, or
-   deployment behavior.
+| Package | Scope completed | Verification evidence |
+| --- | --- | --- |
+| RF-00 | Recorded invariants, the starting baseline, integration rules, and rollback expectations before changing behavior. | Baseline checks and the branch boundary are preserved in this record. |
+| RF-01 | Repaired repository-health issues, removed reviewed unreachable source, and made reachability and compatibility inventories fail closed. | Repository policy, source reachability, architecture, and documentation-link checks pass. |
+| RF-02 | Grouped configuration by concern, isolated authentication workflow orchestration, and hardened OIDC cache, session, throttle, and immediate-consumption ordering. | Focused authentication tests pass, including deterministic database/application timestamp-ordering coverage. |
+| RF-03 | Established OpenAPI ownership, deterministic generated frontend types, shared browser/server transports, explicit mutation policy, and complete feature adoption of the transport boundary. | OpenAPI and generated-client drift checks pass; the transport-boundary audit has no violations. |
+| RF-04 | Kept domain outcomes transport-neutral, unified idempotency contracts, preserved atomic transactions and visibility rules, and added reproducible PostgreSQL migrations and policy checks. | The live PostgreSQL suite, migration upgrade/check, security-boundary audit, and isolation tests pass. |
+| RF-05 | Bounded activity, homepage, recommendation, duplicate-detection, search, and catalog reads; added covering indexes and shared link pagination where policies match. | Large-catalog and shortlist regressions pass; migration indexes and bounded-query behavior are covered. |
+| RF-06 | Unified draft and publication state transitions, separated publication phases, preserved atomic/idempotent publication, and centralized recipe-document materialization. | Draft, publication, snapshot, and recipe-materialization tests pass against PostgreSQL. |
+| RF-07 | Introduced accessible overlay, loading, access-gate, staff-workspace, and card primitives; corrected icon semantics and approved accessibility baselines. | Focused component tests and the accessibility/visual suite pass. |
+| RF-08 | Consolidated feature state with discriminated reducers, made saved reads and request cleanup effect-safe, narrowed client boundaries, isolated recipe-family APIs, and reused compatible pagination mechanics. | The complete frontend unit/component suite and production build pass. |
+| RF-09 | Established explicit CSS cascade ownership, modularized feature styles, enforced style contracts, and completed strict backend, frontend, ML, and scripts typing/lint cleanup. | CSS contracts, Ruff, ESLint, mypy, Next type generation, and TypeScript checks pass. |
+| RF-10 | Decomposed and hardened the ML/recommendation pipeline, bounded candidate shortlists, and preserved deterministic evaluation and generated wire contracts. | The full ML suite and recommendation contract/shortlist regressions pass. |
+| RF-11 | Consolidated test builders and harnesses, checked in stable quality commands, tiered fast and full CI gates, and hardened documentation, source packaging, security, Docker, and release checks. | Scripts tests, workflow-tier tests, source-package audit, Compose validation, and documentation gates pass. |
+| RF-12 | Integrated all reviewed topic branches, aligned approved visual baselines, limited Vitest worker contention, removed generated comparison artifacts, and reran the complete verification matrix. | Final static, backend, frontend, ML, scripts, migration, visual/accessibility, image, lockfile, and Compose checks pass. |
+
+## Final verification
+
+The completed integration branch produced the following final evidence:
+
+| Area | Final result |
+| --- | --- |
+| Backend with live PostgreSQL | 813 collected; 812 passed and 1 expected skip |
+| PostgreSQL migrations | Single head `20260902_0030`; upgrade and drift check passed with no pending operations |
+| Frontend unit/component tests | 124 files and 785 tests passed |
+| Frontend production build | Passed; all 19 static pages generated |
+| Playwright functional discovery | 39 tests across 15 files discovered successfully |
+| Visual and accessibility baselines | 170 cases completed: 88 passed, 82 expected viewport skips, and 0 failures |
+| Tracked visual assets | 88 opaque PNG baselines reviewed; 0 stale, missing, or mismatched files |
+| ML tests | 323 collected; 322 passed and 1 expected skip |
+| Repository scripts | 112 tests passed, including 71 subprocess cases |
+| Static and contract gates | Repository policy, architecture, documentation links, OpenAPI, seed data, generated frontend contracts, CSS contracts, lint, and strict typing passed |
+| Packaging and deployment inputs | Deterministic source-package audit, `uv` lock check, and Docker Compose configuration validation passed |
+
+Seed validation covered 34 recipe versions, 9 variants, 99 ingredients, 12
+substitutions, 19 units, and 54 action types. Generated visual comparison
+artifacts were not retained; only the approved tracked baselines remain.
+
+## Deliberate boundaries
+
+The refactor shares mechanics only when their contracts are actually the same.
+Several apparent opportunities were intentionally not generalized:
+
+- Route handlers keep small `ApiError` translations for simple reads and wire
+  validation. Domain and service code remains transport-neutral, while HTTP
+  concerns stay at the boundary.
+- The shared backend application/database harness owns repeated connection,
+  session, cleanup, and outer-rollback mechanics. Tests that exercise or assert
+  savepoints keep transaction setup visible at the call site.
+- The broad migration and publication conformance modules retain their file
+  paths and pytest node identities because their cases depend on ordered
+  migration state or one dense publication fixture.
+- Frontend primitives share identical interaction, accessibility, transport,
+  and pagination policies. Feature-specific reducers and orchestration remain
+  local when their transitions or invariants differ.
+
+These decisions avoid abstractions that would hide important behavior or couple
+features that only look similar at the presentation layer.
+
+## Local environment limitations
+
+The managed Windows environment could validate Docker Compose configuration but
+could not access a Docker daemon. Production image builds, `actionlint`, hosted
+CI status attestation, and the complete deployment/release rehearsal therefore
+remain hosted-CI checks. Repository-owned temporary directories, Vite's
+`runner` config loader, and bounded Vitest workers were used for reliable local
+execution; none changes application behavior or weakens the asserted contracts.
+
+## Review and merge status
+
+All refactor implementation and verification commits are on
+`refactor/recipe-lab-integration`, pending user review. The branch began from
+`a727faf`; `main` and `origin/main` remain untouched at `2149c43`. No refactor
+topic branch has been merged directly to `main`, and no integration-to-`main`
+merge will occur without explicit approval after review.
