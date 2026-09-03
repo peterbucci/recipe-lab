@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 export interface WorkspacePaginationControl {
@@ -12,6 +13,8 @@ interface WorkspacePaginationProps {
   buttonClassName?: string;
   className?: string;
   currentPage: number;
+  disabledClassName?: string;
+  hrefForPage?: (page: number) => string;
   label: string;
   loading?: boolean;
   nextLabel?: string;
@@ -25,6 +28,8 @@ export function WorkspacePagination({
   buttonClassName = "button button--secondary",
   className,
   currentPage,
+  disabledClassName = "button button--disabled",
+  hrefForPage,
   label,
   loading = false,
   nextLabel = "Next →",
@@ -52,6 +57,18 @@ export function WorkspacePagination({
     };
 
     if (renderControl) return renderControl(definition);
+
+    if (hrefForPage) {
+      return disabled ? (
+        <span className={disabledClassName} aria-disabled="true">
+          {controlLabel}
+        </span>
+      ) : (
+        <Link className={buttonClassName} href={hrefForPage(page)}>
+          {controlLabel}
+        </Link>
+      );
+    }
 
     return (
       <button
