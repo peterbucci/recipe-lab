@@ -575,6 +575,10 @@ python -m pytest
 
 Schema tests use real PostgreSQL behavior and create a random isolated schema
 that is dropped after the run. Use a local or disposable test database only.
+API tests use the small `tests.application` harness to create one isolated app,
+bind either a database-backed or fixed route-unit-test session dependency, and
+clear every dependency override even when a test fails. Feature fixtures still
+own authentication and domain data so the harness does not hide test intent.
 The root `uv.lock` is the only Python lock; update and production-image
 procedures are documented in
 [locked dependencies and production images](../docs/production-images.md).

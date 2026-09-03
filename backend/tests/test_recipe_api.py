@@ -8,12 +8,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, delete, event
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_session
 from app.homepage_content import FEATURED_RECIPE_VERSION_IDS
-from app.main import create_app
 from app.models import CookingActionType, RecipeCategory, RecipeRating, RecipeSave, User
 from app.seeds.identifiers import action_uuid, seed_uuid
 from app.services.recipe_visibility import set_authored_recipe_visibility
+from tests.application import application_with_database
 
 DATASET_ID = "recipe-lab-demo-v1"
 CARROT_ROOT_ID = seed_uuid(
@@ -63,16 +62,9 @@ QUICK_EASY_CATEGORY_ID = seed_uuid(DATASET_ID, "recipe-category", "quick-easy")
 
 @pytest.fixture
 def api_client(seeded_api_engine: Engine) -> Iterator[TestClient]:
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        with Session(bind=seeded_api_engine) as session:
-            yield session
-
-    application.dependency_overrides[get_session] = override_session
-    with TestClient(application) as client:
-        yield client
-    application.dependency_overrides.clear()
+    with application_with_database(seeded_api_engine) as application:
+        with TestClient(application) as client:
+            yield client
 
 
 def _json_object(response_json: object) -> dict[str, Any]:

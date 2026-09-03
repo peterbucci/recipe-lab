@@ -6,11 +6,9 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, event
-from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_session
-from app.main import create_app
 from app.seeds.identifiers import measurement_uuid, seed_uuid
+from tests.application import application_with_database
 
 DATASET_ID = "recipe-lab-demo-v1"
 
@@ -60,18 +58,9 @@ MISSING_BASE_ID = uuid4()
 
 @pytest.fixture
 def diff_client(seeded_api_engine: Engine) -> Iterator[TestClient]:
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        with Session(bind=seeded_api_engine) as session:
-            yield session
-
-    application.dependency_overrides[get_session] = override_session
-    try:
+    with application_with_database(seeded_api_engine) as application:
         with TestClient(application) as client:
             yield client
-    finally:
-        application.dependency_overrides.clear()
 
 
 def _json_object(value: object) -> dict[str, Any]:

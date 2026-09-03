@@ -8,10 +8,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_session
-from app.main import create_app
 from app.models import PreferenceEvent, RecipeRating, RecipeSave, RecipeVersion, User
 from app.seeds.identifiers import seed_uuid
+from tests.application import application_with_database
 from tests.member_session import (
     MemberCredentials,
     authenticate_client,
@@ -75,34 +74,27 @@ def member_activity_api(seeded_api_engine: Engine) -> Iterator[MemberActivityApi
         handle=None,
         display_name="Incomplete Member",
     )
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        with Session(bind=seeded_api_engine) as session:
-            yield session
-
-    application.dependency_overrides[get_session] = override_session
     try:
-        with (
-            TestClient(application) as anonymous_client,
-            TestClient(application) as member_a_client,
-            TestClient(application) as member_b_client,
-            TestClient(application) as incomplete_client,
-        ):
-            authenticate_client(member_a_client, member_a)
-            authenticate_client(member_b_client, member_b)
-            authenticate_client(incomplete_client, incomplete)
-            yield MemberActivityApi(
-                anonymous=anonymous_client,
-                member_a=member_a_client,
-                member_b=member_b_client,
-                incomplete=incomplete_client,
-                member_a_credentials=member_a,
-                member_b_credentials=member_b,
-                engine=seeded_api_engine,
-            )
+        with application_with_database(seeded_api_engine) as application:
+            with (
+                TestClient(application) as anonymous_client,
+                TestClient(application) as member_a_client,
+                TestClient(application) as member_b_client,
+                TestClient(application) as incomplete_client,
+            ):
+                authenticate_client(member_a_client, member_a)
+                authenticate_client(member_b_client, member_b)
+                authenticate_client(incomplete_client, incomplete)
+                yield MemberActivityApi(
+                    anonymous=anonymous_client,
+                    member_a=member_a_client,
+                    member_b=member_b_client,
+                    incomplete=incomplete_client,
+                    member_a_credentials=member_a,
+                    member_b_credentials=member_b,
+                    engine=seeded_api_engine,
+                )
     finally:
-        application.dependency_overrides.clear()
         _clear_members(seeded_api_engine)
 
 

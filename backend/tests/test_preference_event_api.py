@@ -9,8 +9,6 @@ from sqlalchemy import Engine, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 import app.api.routes.interactions as interaction_routes
-from app.api.dependencies import get_session
-from app.main import create_app
 from app.models import (
     PreferenceEvent,
     RecipeIngredient,
@@ -24,6 +22,7 @@ from app.models import (
     User,
 )
 from app.seeds.identifiers import seed_uuid
+from tests.application import application_with_database
 from tests.member_session import (
     MemberCredentials,
     authenticate_client,
@@ -116,19 +115,10 @@ def preference_client(
     seeded_api_engine: Engine,
     test_member_credentials: MemberCredentials,
 ) -> Iterator[TestClient]:
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        with Session(bind=seeded_api_engine) as session:
-            yield session
-
-    application.dependency_overrides[get_session] = override_session
-    try:
+    with application_with_database(seeded_api_engine) as application:
         with TestClient(application) as client:
             authenticate_client(client, test_member_credentials)
             yield client
-    finally:
-        application.dependency_overrides.clear()
 
 
 def _json_object(value: object) -> dict[str, Any]:

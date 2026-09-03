@@ -10,11 +10,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_session
-from app.main import create_app
 from app.models import PreferenceEvent, RecipeRating, RecipeSave, User
 from app.repositories.interactions import save_recipe
 from app.seeds.identifiers import seed_uuid
+from tests.application import application_with_database
 from tests.member_session import authenticate_client, create_member_credentials
 
 DATASET_ID = "recipe-lab-demo-v1"
@@ -42,19 +41,12 @@ def _clear_member_interactions(engine: Engine) -> None:
 def interaction_client(seeded_api_engine: Engine) -> Iterator[TestClient]:
     _clear_member_interactions(seeded_api_engine)
     credentials = create_member_credentials(seeded_api_engine, user_id=MEMBER_USER_ID)
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        with Session(bind=seeded_api_engine) as session:
-            yield session
-
-    application.dependency_overrides[get_session] = override_session
     try:
-        with TestClient(application) as client:
-            authenticate_client(client, credentials)
-            yield client
+        with application_with_database(seeded_api_engine) as application:
+            with TestClient(application) as client:
+                authenticate_client(client, credentials)
+                yield client
     finally:
-        application.dependency_overrides.clear()
         _clear_member_interactions(seeded_api_engine)
         with Session(bind=seeded_api_engine) as session, session.begin():
             session.execute(delete(User).where(User.id == MEMBER_USER_ID))
