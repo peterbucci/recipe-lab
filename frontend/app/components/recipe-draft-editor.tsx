@@ -351,7 +351,7 @@ function RecipeDraftEditorInner({
     return () => setBlocked(false);
   }, [dirty, setBlocked]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!pendingFocusId.current) return;
     document.getElementById(pendingFocusId.current)?.focus();
     pendingFocusId.current = null;

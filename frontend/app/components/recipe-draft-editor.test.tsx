@@ -957,6 +957,30 @@ describe("RecipeDraftEditor", () => {
     );
   });
 
+  it("focuses an ingredient added immediately after the draft loads", async () => {
+    const observer = new MutationObserver(() => {
+      const addIngredient = document.getElementById("draft-add-ingredient");
+      if (!addIngredient) return;
+      observer.disconnect();
+      // A native click in this callback reaches the newly committed editor
+      // before the loaded draft's passive effects have run.
+      addIngredient.click();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    try {
+      renderEditor();
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole("combobox", { name: "Ingredient" }),
+        ).toHaveFocus(),
+      );
+    } finally {
+      observer.disconnect();
+    }
+  });
+
   it("preserves the public recipe landmarks while exposing blank-recipe editing controls", async () => {
     renderEditor();
 
