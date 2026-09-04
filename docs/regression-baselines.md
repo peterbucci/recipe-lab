@@ -280,6 +280,10 @@ expected screenshots, service logs, network logs, and the whole
 
 ## Reviewing and updating screenshots
 
+The [2026-09-04 canonical reference repair](baselines/2026-09-04-canonical-visual-review.md)
+records the pinned-CI provenance, full-resolution review, and required follow-up
+comparison for the integration branch's platform-dependent reference repair.
+
 Run a normal comparison from `frontend` with:
 
 ```powershell
