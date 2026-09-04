@@ -323,12 +323,12 @@ jobs:
       - name: Reproduce locked Python environment
         run: |
           uv lock --check
-          uv sync --frozen --package recipe-lab-api
+          uv sync --frozen --package recipe-lab-api --extra dev
           uv pip check
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Test fail-closed source packaging
-        run: python -m unittest discover -s scripts/tests -p "test_*.py"
+        run: python -m pytest scripts/tests -q
 
       - name: Audit reviewed opaque source objects
         run: python scripts/package_source.py --ref "$GITHUB_SHA" --audit-opaque-policy
