@@ -376,7 +376,7 @@ section 'Rehearse fresh, upgraded, and failed migrations'
   DATABASE_URL="$fresh_url" python -m alembic check
 
   DATABASE_URL="$upgraded_url" python -m alembic upgrade 20260827_0019
-  DATABASE_URL="$upgraded_url" python -m app.seeds load
+  DATABASE_URL="$upgraded_url" python -m tests.release_rehearsal_fixture
   upgraded_before="$(catalog_counts recipe_lab_rcp32_acceptance)"
   DATABASE_URL="$upgraded_url" python -m alembic upgrade head
   DATABASE_URL="$upgraded_url" python -m alembic check
@@ -386,7 +386,7 @@ section 'Rehearse fresh, upgraded, and failed migrations'
 
   create_database recipe_lab_rcp33g_migration_failure
   DATABASE_URL="$failure_url" python -m alembic upgrade 20260827_0019
-  DATABASE_URL="$failure_url" python -m app.seeds load
+  DATABASE_URL="$failure_url" python -m tests.release_rehearsal_fixture
   failure_before="$(catalog_counts recipe_lab_rcp33g_migration_failure)"
   docker run --rm --network host \
     -e PGPASSWORD="$PGPASSWORD" \
@@ -433,6 +433,8 @@ reload_environment
 
 section 'Start isolated identity and application services'
 cd backend
+# Current demo data is journey setup, after historical data preservation passed.
+python -m app.seeds load
 python -m app.testing.community_release_gate stage-demo-activity \
   > "$RCP33G_PRIVATE_DIR/staged-demo-summary.json"
 nohup python -m app.testing.local_oidc_provider \
