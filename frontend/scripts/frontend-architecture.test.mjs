@@ -19,6 +19,12 @@ describe("frontend ownership architecture", () => {
       kind: "features",
       feature: "recipes",
     });
+    expect(
+      ownerForPath("features/ingredients/catalog/ingredient-catalog-api.ts"),
+    ).toEqual({
+      kind: "features",
+      feature: "ingredients",
+    });
     expect(ownerForPath("shared/ui/overlay.tsx")).toEqual({ kind: "shared" });
     expect(ownerForPath("shell/site-header.tsx")).toEqual({ kind: "shell" });
     expect(ownerForPath("server/api-proxy.ts")).toEqual({ kind: "server" });
@@ -37,6 +43,9 @@ describe("frontend ownership architecture", () => {
     expect(migrationRuleForLegacyPath("lib/recipe-draft-api.test.ts")?.story).toBe(
       "RCP-49H",
     );
+    expect(
+      migrationRuleForLegacyPath("lib/ingredient-catalog-api.ts"),
+    ).toBeUndefined();
     expect(migrationRuleForLegacyPath("lib/new-unowned-client.ts")).toBeUndefined();
   });
 

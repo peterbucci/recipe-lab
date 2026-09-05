@@ -79,7 +79,7 @@ describe("public product language policy", () => {
     ]);
 
     const staff = findViolations(
-      "app/components/ingredient-request-decision-form.tsx",
+      "features/ingredients/review/ingredient-request-decision-form.tsx",
       `export function Staff() {
         return <><p>Canonical identity</p><p>Get recommendations shaped by your activity.</p></>;
       }`,

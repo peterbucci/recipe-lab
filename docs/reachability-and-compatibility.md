@@ -83,13 +83,13 @@ executable FastAPI route, including schema-excluded routes.
 | `GET /api/cooks/{handle}/follow` | active | `active_consumer` | `frontend/lib/member-follow-api.ts` |
 | `PUT /api/cooks/{handle}/follow` | active | `active_consumer` | `frontend/lib/member-follow-api.ts` |
 | `GET /api/health` | internal | `staff_internal` | `docs/operations-observability.md` |
-| `GET /api/ingredient-requests` | internal | `staff_internal` | `frontend/lib/ingredient-catalog-api.ts`; curator workspace |
-| `POST /api/ingredient-requests` | active | `active_consumer` | `frontend/lib/ingredient-catalog-api.ts` |
-| `GET /api/ingredient-requests/mine` | active | `active_consumer` | `frontend/lib/ingredient-catalog-api.ts` |
-| `GET /api/ingredient-requests/{request_id}` | active | `active_consumer` | `frontend/lib/ingredient-catalog-api.ts` |
-| `GET /api/ingredient-requests/{request_id}/review` | internal | `staff_internal` | `frontend/lib/ingredient-catalog-api.ts`; curator workspace |
-| `POST /api/ingredient-requests/{request_id}/review` | internal | `staff_internal` | `frontend/lib/ingredient-catalog-api.ts`; curator workspace |
-| `GET /api/ingredients` | active | `active_consumer` | `frontend/lib/ingredient-catalog-api.ts` |
+| `GET /api/ingredient-requests` | internal | `staff_internal` | `frontend/features/ingredients/review/ingredient-request-review-api.ts`; `frontend/features/ingredients/review/ingredient-request-review-workspace.tsx` |
+| `POST /api/ingredient-requests` | active | `active_consumer` | `frontend/features/ingredients/requests/ingredient-request-api.ts` |
+| `GET /api/ingredient-requests/mine` | active | `active_consumer` | `frontend/features/ingredients/requests/ingredient-request-api.ts` |
+| `GET /api/ingredient-requests/{request_id}` | active | `active_consumer` | `frontend/features/ingredients/requests/ingredient-request-api.ts` |
+| `GET /api/ingredient-requests/{request_id}/review` | internal | `staff_internal` | `frontend/features/ingredients/review/ingredient-request-review-api.ts`; `frontend/features/ingredients/review/ingredient-request-review-workspace.tsx` |
+| `POST /api/ingredient-requests/{request_id}/review` | internal | `staff_internal` | `frontend/features/ingredients/review/ingredient-request-review-api.ts`; `frontend/features/ingredients/review/ingredient-request-review-workspace.tsx` |
+| `GET /api/ingredients` | active | `active_consumer` | `frontend/features/ingredients/catalog/ingredient-catalog-api.ts` |
 | `GET /api/measurement-units` | active | `active_consumer` | `frontend/lib/measurement-unit-api.ts` |
 | `POST /api/measurements/convert` | internal | `research_experimental` | `docs/measurements.md` |
 | `GET /api/moderation/recipe-reports` | internal | `staff_internal` | `frontend/features/moderation/review/recipe-moderation-api.ts`; moderator workspace |
