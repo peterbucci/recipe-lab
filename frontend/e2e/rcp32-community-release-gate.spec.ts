@@ -1864,9 +1864,9 @@ test.describe("RCP-32 two-user community release gate", () => {
           .getByRole("button", { name: `Confirm withdrawal of ${rootTitle}` })
           .click();
         expect((await withdrawalResponse).status()).toBe(200);
-        await expect(alice.getByRole("status")).toHaveText(
-          `${rootTitle} moved to Withdrawn.`,
-        );
+        await expect(
+          alice.locator(".member-library__content > .form-status"),
+        ).toHaveText(`${rootTitle} moved to Withdrawn.`);
         await expect(rootCard).toHaveCount(0);
 
         await alice.goto("/account/recipes?view=withdrawn");
