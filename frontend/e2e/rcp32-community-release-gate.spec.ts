@@ -321,8 +321,7 @@ async function publishDistinctOriginal(
   expect(preflightBody.classification).toBe("distinct");
   expect(preflightBody.same_lineage_no_change).toBe(false);
   const published = await publicationPayload(await publishResponse);
-  await expect(page).toHaveURL("/account/recipes?view=published");
-  await page.goto(published.location);
+  await expect(page).toHaveURL(published.location);
   return published.recipe_version_id;
 }
 
@@ -382,8 +381,7 @@ async function publishReviewedFork(
   );
   await activateWithKeyboard(page, continueButton);
   const published = await publicationPayload(await publishResponse);
-  await expect(page).toHaveURL("/account/recipes?view=published");
-  await page.goto(published.location);
+  await expect(page).toHaveURL(published.location);
   return { preflightId, recipeVersionId: published.recipe_version_id };
 }
 
