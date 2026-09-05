@@ -43,11 +43,35 @@ export const VITEST_PROJECT_NAMES = {
   node: "node",
 } as const;
 
+export const COVERAGE_SOURCE_INCLUDE = [
+  "app/**/*.{ts,tsx}",
+  "lib/**/*.ts",
+  "server/**/*.{mjs,ts}",
+  "server.mjs",
+] as const;
+
+export const COVERAGE_SOURCE_EXCLUDE = [
+  "**/*.test.{mjs,ts,tsx}",
+  "**/*.d.{mts,ts}",
+  "app/**/*-test-support.{ts,tsx}",
+  "lib/api-contracts/generated.ts",
+] as const;
+
+export const COVERAGE_REPORTERS = ["text", "json-summary", "lcov"] as const;
+
 export default defineConfig({
   test: {
     // A bounded worker pool avoids resource-contention timeouts on high-core
     // developer and CI hosts while retaining file-level parallelism.
     maxWorkers: 4,
+    coverage: {
+      clean: true,
+      exclude: [...COVERAGE_SOURCE_EXCLUDE],
+      include: [...COVERAGE_SOURCE_INCLUDE],
+      provider: "v8",
+      reporter: [...COVERAGE_REPORTERS],
+      reportsDirectory: "coverage",
+    },
     projects: [
       defineProject({
         test: {

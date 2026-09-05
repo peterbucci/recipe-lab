@@ -4,6 +4,9 @@ import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import vitestConfig, {
+  COVERAGE_REPORTERS,
+  COVERAGE_SOURCE_EXCLUDE,
+  COVERAGE_SOURCE_INCLUDE,
   JSDOM_LIBRARY_TEST_INCLUDE,
   JSDOM_TEST_INCLUDE,
   NODE_TEST_INCLUDE,
@@ -97,5 +100,17 @@ describe("Vitest runtime ownership", () => {
       jsdomOwned.filter((path) => path.startsWith("lib/")).sort(),
     );
     expect([...owned].sort()).toEqual(discovered.sort());
+  });
+
+  it("collects a non-blocking production-source coverage baseline", () => {
+    expect(vitestConfig.test?.coverage).toMatchObject({
+      clean: true,
+      exclude: [...COVERAGE_SOURCE_EXCLUDE],
+      include: [...COVERAGE_SOURCE_INCLUDE],
+      provider: "v8",
+      reporter: [...COVERAGE_REPORTERS],
+      reportsDirectory: "coverage",
+    });
+    expect(vitestConfig.test?.coverage).not.toHaveProperty("thresholds");
   });
 });
