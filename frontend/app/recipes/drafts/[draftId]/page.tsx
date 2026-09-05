@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { fetchCookingActionTypes } from "../../../../lib/cooking-action-api";
-import { fetchMeasurementUnits } from "../../../../lib/measurement-unit-api";
+import { fetchCookingActionTypes } from "../../../../features/recipes/authoring/shared/cooking-action-api";
+import { fetchMeasurementUnits } from "../../../../features/recipes/authoring/shared/measurement-unit-api";
 import { isRecipeVersionId } from "../../../../features/recipes/shared/recipe-id";
-import { RecipeDraftEditor } from "../../../components/recipe-draft-editor";
+import { RecipeDraftEditor } from "../../../../features/recipes/authoring/editor/recipe-draft-editor";
 
 export const dynamic = "force-dynamic";
 

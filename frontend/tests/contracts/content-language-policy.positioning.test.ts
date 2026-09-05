@@ -63,13 +63,16 @@ describe("public product language policy", () => {
       readFileSync(
         resolve(
           REPOSITORY_ROOT,
-          "frontend/features/recipes/detail/recipe-family-navigator.tsx",
+          "frontend/features/recipes/shared/recipe-family-navigator.tsx",
         ),
         "utf8",
       ),
     ].join("\n");
     const similarity = readFileSync(
-      resolve(APP_ROOT, "components/recipe-duplicate-preflight-review.tsx"),
+      resolve(
+        REPOSITORY_ROOT,
+        "frontend/features/recipes/authoring/duplicate/recipe-duplicate-preflight-review.tsx",
+      ),
       "utf8",
     );
 

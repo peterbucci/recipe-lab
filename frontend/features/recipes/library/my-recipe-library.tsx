@@ -22,7 +22,7 @@ import {
   discardRecipeDraft,
   RecipeDraftApiError,
   type RecipeDraftListItem,
-} from "../../../lib/recipe-draft-api";
+} from "../authoring/draft/recipe-draft-api";
 import { fetchMyRecipeLibrary } from "./recipe-library-api";
 import {
   type MyRecipeLibraryView,

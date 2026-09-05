@@ -1,4 +1,4 @@
-import { PageLoadingSkeleton } from "../../../shell/page-loading-skeleton";
+import { PageLoadingSkeleton } from "../../../shared/ui/page-loading-skeleton";
 
 export default function MyRecipesLoading() {
   return (

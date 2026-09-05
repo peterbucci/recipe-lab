@@ -120,7 +120,9 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/community-rules",
     family: "public-context",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/recipe-draft-publication.tsx"],
+    consumerEvidence: [
+      "frontend/features/recipes/authoring/publication/recipe-draft-publication.tsx",
+    ],
   },
   {
     file: "app/cooks/[handle]/page.tsx",
@@ -156,7 +158,7 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     family: "public-context",
     reachability: "active",
     consumerEvidence: [
-      "frontend/features/recipes/detail/recipe-family-navigator.tsx",
+      "frontend/features/recipes/shared/recipe-family-navigator.tsx",
     ],
   },
   {
@@ -180,7 +182,9 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/recipes/drafts/[draftId]",
     family: "recipe-authoring",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/recipe-draft-starter.tsx"],
+    consumerEvidence: [
+      "frontend/features/recipes/authoring/draft/recipe-draft-starter.tsx",
+    ],
   },
   {
     file: "app/recipes/new/page.tsx",

@@ -193,6 +193,16 @@ depends only on `shared` and `shell`; `app` composes feature-aware navigation
 into that shell. The existing stylesheet cascade and import order remain
 unchanged.
 
+RCP-49H owns draft creation and recovery, editing state and validation,
+structured cooking controls, duplicate preflight, and publication under
+`features/recipes/authoring`. Draft, editor, duplicate, publication, and
+authoring-shared modules are grouped by responsibility with their tests
+colocated. Recipe structure contracts, catalog models, family navigation, and
+instruction presentation shared with published recipe views live in
+`features/recipes/shared`; route entry and multi-workflow detail/editor
+composition remain under `app`. Navigation blocking stays domain-neutral in
+`shared/navigation`, and the stylesheet cascade remains unchanged.
+
 Each story is implemented on its own topic branch, verified, and merged into
 `refactor/frontend-architecture`. That integration branch remains separate from
 `main` until review.

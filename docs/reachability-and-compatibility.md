@@ -41,15 +41,15 @@ redirects and their targets.
 | `/account/settings` | active | `frontend/features/auth/account-menu.tsx` links to account settings. |
 | `/auth/callback` | internal | `frontend/server/api-proxy.ts` redirects sanitized provider failures to this presentation route. |
 | `/catalog/ingredient-requests` | internal | `frontend/app/staff/_components/staff-tools.tsx` links authorized curators to this workspace. |
-| `/community-rules` | active | `frontend/app/components/recipe-draft-publication.tsx` links the required publication acknowledgement. |
+| `/community-rules` | active | `frontend/features/recipes/authoring/publication/recipe-draft-publication.tsx` links the required publication acknowledgement. |
 | `/cooks/[handle]` | active | `frontend/features/community/public-cook-attribution.tsx` links public author attribution. |
 | `/moderation/recipes` | internal | `frontend/app/staff/_components/staff-tools.tsx` links authorized moderators to this workspace. |
 | `/onboarding` | internal | `frontend/app/api/[...path]/route.ts` forwards the backend authentication completion redirect here. |
 | `/recipes` | active | `frontend/shell/site-header.tsx` links the public recipe catalog. |
 | `/recipes/[recipeVersionId]` | active | `frontend/features/recipes/browse/recipe-card.tsx` links every public catalog card to recipe detail. |
-| `/recipes/[recipeVersionId]/compare` | active | `frontend/features/recipes/detail/recipe-family-navigator.tsx` builds the selected-version comparison link. |
+| `/recipes/[recipeVersionId]/compare` | active | `frontend/features/recipes/shared/recipe-family-navigator.tsx` builds the selected-version comparison link. |
 | `/recipes/[recipeVersionId]/fork` | active | `frontend/features/recipes/detail/recipe-member-actions.tsx` builds the make/continue-version link. |
-| `/recipes/drafts/[draftId]` | active | `frontend/app/components/recipe-draft-starter.tsx` navigates newly created drafts to the canonical editor. |
+| `/recipes/drafts/[draftId]` | active | `frontend/features/recipes/authoring/draft/recipe-draft-starter.tsx` navigates newly created drafts to the canonical editor. |
 | `/recipes/new` | active | `frontend/features/auth/site-header-member-navigation.tsx` links the create-recipe action. |
 | `/sign-in` | active | `frontend/features/auth/account-menu.tsx` links anonymous members and preserves the return path. |
 | `/staff` | internal | `frontend/features/auth/account-menu.tsx` links members with staff capabilities to the tool index. |
@@ -77,7 +77,7 @@ executable FastAPI route, including schema-excluded routes.
 | `GET /api/auth/reauthenticate` | active | `active_consumer` | `frontend/features/auth/auth-api.ts` |
 | `GET /api/auth/session` | active | `active_consumer` | `frontend/features/auth/auth-api.ts` |
 | `PATCH /api/auth/session/profile` | active | `active_consumer` | `frontend/features/account/account-api.ts` |
-| `GET /api/cooking-action-types` | active | `active_consumer` | `frontend/lib/cooking-action-api.ts` |
+| `GET /api/cooking-action-types` | active | `active_consumer` | `frontend/features/recipes/authoring/shared/cooking-action-api.ts` |
 | `GET /api/cooks/{handle}` | active | `active_consumer` | `frontend/features/community/public-cook-profile-server-api.ts` |
 | `DELETE /api/cooks/{handle}/follow` | active | `active_consumer` | `frontend/features/community/member-follow-api.ts` |
 | `GET /api/cooks/{handle}/follow` | active | `active_consumer` | `frontend/features/community/member-follow-api.ts` |
@@ -90,7 +90,7 @@ executable FastAPI route, including schema-excluded routes.
 | `GET /api/ingredient-requests/{request_id}/review` | internal | `staff_internal` | `frontend/features/ingredients/review/ingredient-request-review-api.ts`; `frontend/features/ingredients/review/ingredient-request-review-workspace.tsx` |
 | `POST /api/ingredient-requests/{request_id}/review` | internal | `staff_internal` | `frontend/features/ingredients/review/ingredient-request-review-api.ts`; `frontend/features/ingredients/review/ingredient-request-review-workspace.tsx` |
 | `GET /api/ingredients` | active | `active_consumer` | `frontend/features/ingredients/catalog/ingredient-catalog-api.ts` |
-| `GET /api/measurement-units` | active | `active_consumer` | `frontend/lib/measurement-unit-api.ts` |
+| `GET /api/measurement-units` | active | `active_consumer` | `frontend/features/recipes/authoring/shared/measurement-unit-api.ts` |
 | `POST /api/measurements/convert` | internal | `research_experimental` | `docs/measurements.md` |
 | `GET /api/moderation/recipe-reports` | internal | `staff_internal` | `frontend/features/moderation/review/recipe-moderation-api.ts`; moderator workspace |
 | `GET /api/moderation/recipe-reports/{recipe_version_id}` | internal | `staff_internal` | `frontend/features/moderation/review/recipe-moderation-api.ts`; moderator workspace |
@@ -104,13 +104,13 @@ executable FastAPI route, including schema-excluded routes.
 | `GET /api/my/saved-recipes` | active | `active_consumer` | `frontend/features/recipes/library/recipe-library-api.ts` |
 | `GET /api/readiness` | internal | `staff_internal` | `docs/operations-observability.md` |
 | `GET /api/recipe-categories` | active | `active_consumer` | `frontend/features/recipes/browse/recipe-browse-server-api.ts`; `frontend/features/recipes/browse/recipe-category-client-api.ts` |
-| `GET /api/recipe-drafts` | active | `active_consumer` | `frontend/lib/recipe-draft-api.ts` |
-| `POST /api/recipe-drafts` | active | `active_consumer` | `frontend/lib/recipe-draft-api.ts` |
-| `DELETE /api/recipe-drafts/{draft_id}` | active | `active_consumer` | `frontend/lib/recipe-draft-api.ts` |
-| `GET /api/recipe-drafts/{draft_id}` | active | `active_consumer` | `frontend/lib/recipe-draft-api.ts` |
-| `PUT /api/recipe-drafts/{draft_id}` | active | `active_consumer` | `frontend/lib/recipe-draft-api.ts` |
-| `POST /api/recipe-drafts/{draft_id}/duplicate-preflights` | active | `active_consumer` | `frontend/lib/recipe-duplicate-api.ts` |
-| `POST /api/recipe-drafts/{draft_id}/publish` | active | `active_consumer` | `frontend/lib/recipe-publication-api.ts` |
+| `GET /api/recipe-drafts` | active | `active_consumer` | `frontend/features/recipes/authoring/draft/recipe-draft-api.ts` |
+| `POST /api/recipe-drafts` | active | `active_consumer` | `frontend/features/recipes/authoring/draft/recipe-draft-api.ts` |
+| `DELETE /api/recipe-drafts/{draft_id}` | active | `active_consumer` | `frontend/features/recipes/authoring/draft/recipe-draft-api.ts` |
+| `GET /api/recipe-drafts/{draft_id}` | active | `active_consumer` | `frontend/features/recipes/authoring/draft/recipe-draft-api.ts` |
+| `PUT /api/recipe-drafts/{draft_id}` | active | `active_consumer` | `frontend/features/recipes/authoring/draft/recipe-draft-api.ts` |
+| `POST /api/recipe-drafts/{draft_id}/duplicate-preflights` | active | `active_consumer` | `frontend/features/recipes/authoring/duplicate/recipe-duplicate-api.ts` |
+| `POST /api/recipe-drafts/{draft_id}/publish` | active | `active_consumer` | `frontend/features/recipes/authoring/publication/recipe-publication-api.ts` |
 | `GET /api/recipes` | active | `active_consumer` | `frontend/features/recipes/browse/recipe-browse-server-api.ts` |
 | `GET /api/recipes/featured` | active | `active_consumer` | `frontend/features/recipes/browse/recipe-browse-server-api.ts` |
 | `GET /api/recipes/viewer-states` | active | `active_consumer` | `frontend/features/recipes/detail/interaction-api.ts` |

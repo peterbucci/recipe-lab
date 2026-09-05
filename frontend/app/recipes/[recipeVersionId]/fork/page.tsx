@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { isRecipeVersionId } from "../../../../features/recipes/shared/recipe-id";
-import { RecipeDraftStarter } from "../../../components/recipe-draft-starter";
+import { RecipeDraftStarter } from "../../../../features/recipes/authoring/draft/recipe-draft-starter";
 
 export const dynamic = "force-dynamic";
 

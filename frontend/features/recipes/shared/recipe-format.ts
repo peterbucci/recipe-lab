@@ -1,4 +1,4 @@
-import type { RecipeIngredientMeasure } from "../../../lib/structured-measure";
+import type { RecipeIngredientMeasure } from "./recipe-structure";
 import type {
   RecipeDifficulty,
 } from "./recipe-contracts";

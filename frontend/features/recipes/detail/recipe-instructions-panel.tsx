@@ -6,11 +6,11 @@ import type {
   RecipeIngredient,
   RecipeInstruction,
 } from "../shared/recipe-contracts";
-import type { RecipeInstructionAction } from "../../../lib/structured-action";
+import type { RecipeInstructionAction } from "../shared/recipe-structure";
 import {
   RecipeInstructionFactPills,
   recipeActionLabel,
-} from "./recipe-instruction-actions";
+} from "../shared/recipe-instruction-actions";
 
 interface RecipeInstructionsPanelProps {
   ingredients: RecipeIngredient[];

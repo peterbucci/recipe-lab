@@ -7,9 +7,9 @@ import type {
   RecipeCardSummary,
   RecipeDetail,
 } from "../../../../features/recipes/shared/recipe-contracts";
-import type { RecipeDraftEditorEntry } from "../../../../lib/recipe-draft-editor-entry";
+import type { RecipeDraftEditorEntry } from "../../../../features/recipes/authoring/draft/recipe-draft-editor-entry";
 import { RecipeDetailView } from "../../../../features/recipes/detail/recipe-detail-view";
-import { RecipeDraftEditor } from "../../../components/recipe-draft-editor";
+import { RecipeDraftEditor } from "../../../../features/recipes/authoring/editor/recipe-draft-editor";
 
 interface RecipeDetailExperienceProps {
   familyVersions: RecipeCardSummary[];

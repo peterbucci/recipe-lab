@@ -8,7 +8,7 @@ import {
   MemberActivityApiError,
   type MemberDashboard,
 } from "../../features/account/member-activity-api";
-import type { RecipeDraftListItem } from "../../lib/recipe-draft-api";
+import type { RecipeDraftListItem } from "../../features/recipes/authoring/draft/recipe-draft-api";
 import { relativeTimeLabel } from "../../shared/time/relative-time";
 import { LoadingBlock, SectionLoading } from "../../shared/ui/loading-ui";
 import { MemberActivityIcon } from "../../features/account/member-activity-icon";
