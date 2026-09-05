@@ -141,15 +141,15 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-activity-saved-filtered.png",
-            "a9e151de8b14c1df32b7c20a30eaa9aeb58b943b",
+            "58e3b1fe02f52f2334fb0940b1698d8f51c5f666",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-settings-danger-intermediate-normal.png",
-            "2bb4824d41c43ad30daa9557e718094e901ee3cf",
+            "4ab1129014b096d0a91ce9212f7659c1faf7d08c",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-settings-danger-normal.png",
-            "9db355e6a46ebd6bd99b31851cf2fa150c877837",
+            "f58a5ed205299fbf596b937e6eaa55a6d8a50ed1",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-settings-profile-intermediate-normal.png",
@@ -217,7 +217,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-instruction-editor-normal.png",
-            "d8e962215c5b3e430633220b6b959ff0e237b88e",
+            "cf8017a73dc40be9e71d561a1d4129f4c3b59822",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-publish-dialog.png",
@@ -309,7 +309,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-instructions-normal.png",
-            "5508379feb3f49411d96271956a02489e2d52dc9",
+            "debef8ede82acb1b2ff717a436a10bf2f989b83f",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-moderation-staff-review-intermediate.png",
@@ -321,11 +321,11 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/staff-tools-moderator-selected-intermediate.png",
-            "d2e21bb2302874593c00c435723caad6eda0db46",
+            "cca642dd9bf6360f78ef1f30e0638ccc7aa8461f",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/staff-tools-moderator-selected.png",
-            "ca7f6c4cd444be2888999096fedfe52beb631bf1",
+            "6e009f3bc64f6785bfa5a0a8c308c9c9e982213b",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/staff-tools-normal-intermediate.png",
@@ -345,11 +345,11 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/account-activity-requests-filtered.png",
-            "1c3abb23f4f07aee87e8cfa13ca18a2f6fb7af95",
+            "0c8a8ca278830a3ce2e52052c5eddf7afc858e32",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/account-settings-danger-normal.png",
-            "42538ad51f5919805e7327d2417dbb975166f902",
+            "e6a4e9f45ca0f9d9e05a06d75b98192120918772",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/account-settings-profile-normal.png",
@@ -389,7 +389,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-instruction-editor-normal.png",
-            "eb8845b62ebbaa65f3fa936d31ea942938addde5",
+            "fb020bfac79d46c34b93468fdf86ee21b1ea6502",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-similarity-publication-review.png",
@@ -437,7 +437,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-instructions-normal.png",
-            "b7c75c15dd3385ad7cb943a5ec0382f263b2515e",
+            "e1575f20c67ad3a9b995b30e1b47ffa36812dab7",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-moderation-staff-review.png",
@@ -445,7 +445,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/staff-tools-moderator-selected.png",
-            "3a2f9f81dbdcf9a86eee4ea1b95c9807e54cf416",
+            "8c6de385e0dacbef2941d4fd4afe8b6a4a358a29",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/staff-tools-normal.png",
