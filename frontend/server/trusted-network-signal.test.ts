@@ -22,6 +22,13 @@ describe("trusted frontend network boundary", () => {
     expect(() =>
       internalNetworkSignalSecret({ NODE_ENV: "production", INTERNAL_NETWORK_SIGNAL_SECRET: "x" }),
     ).toThrow("at least 32 characters");
+    expect(() =>
+      internalNetworkSignalSecret({
+        NODE_ENV: "production",
+        INTERNAL_NETWORK_SIGNAL_SECRET:
+          "recipe-lab-local-internal-network-signal-secret",
+      }),
+    ).toThrow("must be private in production");
   });
 
   it("canonicalizes IPv4, mapped IPv4, and IPv6 networks", () => {
@@ -94,6 +101,106 @@ describe("trusted frontend network boundary", () => {
         path: "/api/recipe-drafts",
         secret: SECRET,
         now: timestamp + 1,
+      }),
+    ).toBeNull();
+  });
+
+  it("accepts the freshness boundary and rejects expired or future signals", () => {
+    const timestamp = 1_800_000_000;
+    const signal = buildNetworkSignalHeaders({
+      remoteAddress: "203.0.113.45",
+      method: "POST",
+      path: "/api/recipe-drafts",
+      secret: SECRET,
+      timestamp,
+    });
+    const headers = new Headers(signal ?? {});
+    const verifyAt = (now: number) =>
+      verifyNetworkSignalHeaders(headers, {
+        method: "POST",
+        path: "/api/recipe-drafts",
+        secret: SECRET,
+        now,
+        ttlSeconds: 30,
+      });
+
+    expect(verifyAt(timestamp - 30)).toEqual(signal);
+    expect(verifyAt(timestamp + 30)).toEqual(signal);
+    expect(verifyAt(timestamp - 31)).toBeNull();
+    expect(verifyAt(timestamp + 31)).toBeNull();
+  });
+
+  it.each([
+    ["missing digits", "180000000"],
+    ["extra digits", "18000000000"],
+    ["decimal", "180000000.0"],
+    ["negative", "-800000000"],
+    ["non-numeric", "180000000x"],
+  ])("rejects a malformed timestamp with %s", (_caseName, rawTimestamp) => {
+    const timestamp = 1_800_000_000;
+    const signal = buildNetworkSignalHeaders({
+      remoteAddress: "203.0.113.45",
+      method: "POST",
+      path: "/api/recipe-drafts",
+      secret: SECRET,
+      timestamp,
+    });
+    const headers = new Headers(signal ?? {});
+    headers.set(NETWORK_TIMESTAMP_HEADER, rawTimestamp);
+
+    expect(
+      verifyNetworkSignalHeaders(headers, {
+        method: "POST",
+        path: "/api/recipe-drafts",
+        secret: SECRET,
+        now: timestamp,
+      }),
+    ).toBeNull();
+  });
+
+  it.each([
+    ["too short", "0".repeat(63)],
+    ["too long", "0".repeat(65)],
+    ["non-hexadecimal", "g".repeat(64)],
+    ["incorrect digest", "0".repeat(64)],
+  ])("rejects a signature that is %s", (_caseName, signature) => {
+    const timestamp = 1_800_000_000;
+    const signal = buildNetworkSignalHeaders({
+      remoteAddress: "203.0.113.45",
+      method: "POST",
+      path: "/api/recipe-drafts",
+      secret: SECRET,
+      timestamp,
+    });
+    const headers = new Headers(signal ?? {});
+    headers.set(NETWORK_SIGNATURE_HEADER, signature);
+
+    expect(
+      verifyNetworkSignalHeaders(headers, {
+        method: "POST",
+        path: "/api/recipe-drafts",
+        secret: SECRET,
+        now: timestamp,
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects a correctly shaped signature made with a different secret", () => {
+    const timestamp = 1_800_000_000;
+    const signal = buildNetworkSignalHeaders({
+      remoteAddress: "203.0.113.45",
+      method: "POST",
+      path: "/api/recipe-drafts",
+      secret: SECRET,
+      timestamp,
+    });
+
+    expect(
+      verifyNetworkSignalHeaders(new Headers(signal ?? {}), {
+        method: "POST",
+        path: "/api/recipe-drafts",
+        secret: "different-network-signal-secret-123456789",
+        now: timestamp,
       }),
     ).toBeNull();
   });
