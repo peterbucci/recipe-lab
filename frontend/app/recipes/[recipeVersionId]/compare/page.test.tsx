@@ -9,7 +9,12 @@ import RecipeComparePage from "./page";
 
 const mocks = vi.hoisted(() => ({
   fetchRecipeDiff: vi.fn(),
+  notFound: vi.fn(() => {
+    throw new Error("not-found");
+  }),
 }));
+
+vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 
 vi.mock("../../../../lib/recipe-api", async (importOriginal) => {
   const actual =
@@ -44,6 +49,7 @@ const explicitDiff: RecipeDiff = {
 describe("RecipeComparePage", () => {
   beforeEach(() => {
     mocks.fetchRecipeDiff.mockReset();
+    mocks.notFound.mockClear();
   });
 
   it("explains when a starting recipe has nothing earlier to compare", async () => {
@@ -77,6 +83,7 @@ describe("RecipeComparePage", () => {
     expect(
       screen.queryByText(/private implementation detail/i),
     ).not.toBeInTheDocument();
+    expect(mocks.fetchRecipeDiff).toHaveBeenCalledWith(RECIPE_ID, undefined);
   });
 
   it("compares a selected family recipe with the recipe page it came from", async () => {
@@ -98,5 +105,63 @@ describe("RecipeComparePage", () => {
     expect(
       screen.getByRole("link", { name: "← Banana Oat Pancakes" }),
     ).toHaveAttribute("href", `/recipes/${RECIPE_ID}`);
+  });
+  it.each([
+    {
+      label: "invalid target ID",
+      recipeVersionId: "not-a-recipe-id",
+      baseVersionId: undefined,
+    },
+    {
+      label: "invalid base ID",
+      recipeVersionId: SELECTED_ID,
+      baseVersionId: "not-a-recipe-id",
+    },
+    {
+      label: "repeated base query",
+      recipeVersionId: SELECTED_ID,
+      baseVersionId: [RECIPE_ID],
+    },
+  ])(
+    "uses the not-found boundary for an $label",
+    async ({ recipeVersionId, baseVersionId }) => {
+      await expect(
+        RecipeComparePage({
+          params: Promise.resolve({ recipeVersionId }),
+          searchParams: Promise.resolve({
+            base_version_id: baseVersionId,
+          }),
+        }),
+      ).rejects.toThrow("not-found");
+
+      expect(mocks.notFound).toHaveBeenCalledOnce();
+      expect(mocks.fetchRecipeDiff).not.toHaveBeenCalled();
+    },
+  );
+
+  it("uses the not-found boundary when no comparison exists", async () => {
+    mocks.fetchRecipeDiff.mockResolvedValue(null);
+
+    await expect(
+      RecipeComparePage({
+        params: Promise.resolve({ recipeVersionId: RECIPE_ID }),
+      }),
+    ).rejects.toThrow("not-found");
+
+    expect(mocks.notFound).toHaveBeenCalledOnce();
+  });
+
+  it("lets ordinary comparison failures reach the route error boundary", async () => {
+    mocks.fetchRecipeDiff.mockRejectedValue(
+      new Error("comparison service unavailable"),
+    );
+
+    await expect(
+      RecipeComparePage({
+        params: Promise.resolve({ recipeVersionId: RECIPE_ID }),
+      }),
+    ).rejects.toThrow("comparison service unavailable");
+
+    expect(mocks.notFound).not.toHaveBeenCalled();
   });
 });
