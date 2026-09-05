@@ -147,9 +147,13 @@ and was deleted after measurement.
 - Production-source reachability: 199 modules from 57 runtime entries, passed.
 - Browser mode discovery: 17 / 23 / 1 / 1 / 170, passed.
 - Browser smoke: 17 passed across Chromium, Firefox, and WebKit in 31.2 s.
+- Repository policy, architecture, documentation links, API contracts, seed
+  validation, and CSS architecture contracts: passed.
+- Backend and ML type checks: 289 and 60 source files passed respectively.
 - Repository CI/release tooling: 120 tests plus 71 subtests passed in 27.27 s.
 - Backend: full suite passed; its existing Starlette/httpx deprecation warning
   remains unrelated to this branch.
+- ML: 322 passed and one existing test skipped in 20.46 s.
 
 The successful smoke run generated 516,316 bytes of temporary report data,
 compared with 533,061 bytes from the failed starting-baseline run. Both were
