@@ -2,13 +2,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Page, Response } from "@playwright/test";
 
-import type { SourceDraftScope } from "../e2e/acceptance-draft-isolation";
-import type { MemberName } from "../e2e/acceptance-session";
+import type { SourceDraftScope } from "../e2e/acceptance/acceptance-draft-isolation";
+import type { MemberName } from "../e2e/acceptance/acceptance-session";
 
 const mocks = vi.hoisted(() => ({ extend: vi.fn(), member: vi.fn() }));
 vi.mock("@playwright/test", () => ({ test: { extend: mocks.extend }, expect: {} }));
-vi.mock("../e2e/acceptance-session", () => ({ useAcceptanceMember: mocks.member }));
-import "../e2e/acceptance-draft-isolation";
+vi.mock("../e2e/acceptance/acceptance-session", () => ({ useAcceptanceMember: mocks.member }));
+import "../e2e/acceptance/acceptance-draft-isolation";
 
 const SOURCE = "11111111-1111-4111-8111-111111111111";
 const OTHER_SOURCE = "22222222-2222-4222-8222-222222222222";
