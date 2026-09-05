@@ -112,6 +112,22 @@ inputs, uploads no browser report, and deletes local diagnostics even after
 failure. The heavier acceptance, visual, performance, and release modes remain
 outside the pull-request tier.
 
+## Coverage
+
+`npm run test:coverage` measures production modules in `app`, `lib`,
+`server`, and `server.mjs`. It excludes tests, declarations, generated API
+contracts, and colocated `*-test-support` modules. The command writes text,
+JSON summary, and LCOV output to the ignored `frontend/coverage` directory.
+Coverage output is temporary evidence and should be deleted after its results
+are recorded.
+
+The first measured baseline intentionally has no percentage gate. A threshold
+should be introduced only after several comparable runs establish a stable
+floor, and it should protect meaningful production ownership rather than reward
+low-value line execution. Current measured results and the completed RCP-48
+deltas are recorded in the
+[frontend test refactor results](baselines/2026-09-05-frontend-test-refactor-results.md).
+
 ## Behavior ownership map
 
 This map prevents a coverage percentage or a screenshot from being mistaken
