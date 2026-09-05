@@ -27,6 +27,17 @@ Linux-versus-Windows text, icon, and control-edge rasterization differences;
 content, wrapping, layout geometry, control state, and responsive placement
 were unchanged.
 
+The next pinned run reached five still-later snapshots that both earlier rounds
+had prevented from executing. Their replacements use the canonical capture
+bytes from
+[CI run 33934714446](https://github.com/peterbucci/recipe-lab/actions/runs/33934714446),
+job `101220274281`, source commit `5e94e709`, sanitized visual-differences
+artifact `9959886851`. Both repetitions produced byte-identical actual and
+diff PNGs for all five cases. Original-resolution review found the same
+Linux-versus-Windows text, icon, and control-edge rasterization differences;
+content, wrapping, layout geometry, control state, and responsive placement
+were unchanged.
+
 The runner used the existing immutable linux/amd64 container:
 
 ```text
@@ -68,6 +79,13 @@ The follow-up review covered these additional references:
 | baseline-desktop-chromium | `account-activity-saved-filtered`, `account-settings-danger-intermediate-normal`, `account-settings-danger-normal`, `draft-instruction-editor-normal`, `recipe-instructions-normal`, `staff-tools-moderator-selected-intermediate`, `staff-tools-moderator-selected` |
 | baseline-phone-chromium | `account-activity-requests-filtered`, `account-settings-danger-normal`, `draft-instruction-editor-normal`, `recipe-instructions-normal`, `staff-tools-moderator-selected` |
 
+The second follow-up review covered these additional references:
+
+| Project | Reviewed reference names |
+| --- | --- |
+| baseline-desktop-chromium | `account-activity-no-matches`, `draft-instruction-editor-expanded`, `recipe-detail-history` |
+| baseline-phone-chromium | `draft-instruction-editor-expanded`, `recipe-detail-history` |
+
 All 64 cases had two independent captures. For 63 cases the capture bytes were
 identical. The phone account-navigation pair differed in only ten pixels at
 x=12–13, y=514–535, with a maximum RGB-channel delta of 1; both diff images were
@@ -85,8 +103,8 @@ coverage claims.
 
 Instead of rerunning update mode solely to regenerate the reviewed bytes,
 this repair copies the canonical captures into their existing expected
-`frontend/baselines/{project}/{name}.png` paths. Across the initial and
-follow-up repairs, only the 76 reviewed expected files and their exact Git blob
+`frontend/baselines/{project}/{name}.png` paths. Across the initial and two
+follow-up repairs, only the 81 reviewed expected files and their exact Git blob
 IDs in `EXPORT_POLICY` change. Artifact directories, actual/diff filenames,
 reports, and private browser evidence remain excluded.
 
@@ -99,7 +117,12 @@ accessibility or behavioral acceptance evidence. The follow-up capture run
 reported 152 passed, 24 failed screenshot comparisons, and 164 expected
 viewport skips across two repetitions; its 24 failures were the 12 additional
 reviewed references repeated twice. It likewise is provenance, not a passing
-gate.
+gate. The second follow-up capture run reported 166 passed, 10 failed
+screenshot comparisons, and 164 expected viewport skips across two
+repetitions; its 10 failures were the five additional reviewed references
+repeated twice. It also remains provenance rather than passing acceptance
+evidence, and other full-suite browser failures from that run are outside this
+visual reference review.
 
 Before merge, the repaired final revision must pass the normal pinned-image
 comparison with `--repeat-each=2`, its accessibility and keyboard assertions,
