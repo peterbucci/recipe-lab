@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from scripts import rehearse_release
+from scripts import package_source, rehearse_release
 
 COMMIT_SHA = "a" * 40
 ROLLBACK_COMMIT_SHA = "9" * 40
@@ -62,7 +62,7 @@ def _source_manifest() -> dict[str, object]:
         },
         "schema_version": 1,
         "source": {"commit_sha": COMMIT_SHA, "working_tree": "clean"},
-        "tool": {"name": "recipe-lab-safe-source-export", "version": "1.1.0"},
+        "tool": {"name": "recipe-lab-safe-source-export", "version": "1.2.0"},
     }
 
 
@@ -158,6 +158,33 @@ def _compile(**overrides: object) -> dict[str, object]:
 
 
 class ReleaseEvidenceTests(unittest.TestCase):
+    def test_safe_source_producer_and_compiler_contracts_are_synchronized(self) -> None:
+        policy = package_source.EXPORT_POLICY
+
+        self.assertEqual(
+            rehearse_release.SOURCE_TOOL,
+            {"name": package_source.TOOL_NAME, "version": package_source.TOOL_VERSION},
+        )
+        self.assertEqual(
+            rehearse_release.SOURCE_SCANNER,
+            {"name": package_source.SCANNER_NAME, "version": package_source.SCANNER_VERSION},
+        )
+        self.assertEqual(
+            rehearse_release.SOURCE_MANIFEST_SCHEMA_VERSION,
+            package_source.MANIFEST_SCHEMA_VERSION,
+        )
+        self.assertEqual(rehearse_release.SOURCE_POLICY_VERSION, package_source.POLICY_VERSION)
+        self.assertEqual(
+            rehearse_release.SOURCE_POLICY_LIMITS,
+            {
+                "max_compressed_bytes": policy.max_compressed_bytes,
+                "max_entries": policy.max_entries,
+                "max_file_bytes": policy.max_file_bytes,
+                "max_path_bytes": policy.max_path_bytes,
+                "max_uncompressed_bytes": policy.max_uncompressed_bytes,
+            },
+        )
+
     def test_compiles_only_fixed_privacy_safe_evidence(self) -> None:
         evidence = _compile()
 
