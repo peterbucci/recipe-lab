@@ -52,11 +52,6 @@ function recipeVersionId(page: Page): string {
 
 test.describe("MVP acceptance", () => {
   test.describe.configure({ retries: 0 });
-  test.skip(
-    process.env.MVP_ACCEPTANCE !== "1" ||
-      process.env.ACCEPTANCE_DATABASE_ISOLATED !== "1",
-    "The canonical journey requires the isolated, freshly seeded acceptance database.",
-  );
 
   test("browses, saves, creates, and resumes a private fork draft using the real stack", async ({
     page,

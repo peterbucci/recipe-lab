@@ -31,9 +31,6 @@ import {
   revokeCommunityModerator,
 } from "./rcp32-operator";
 
-const acceptanceEnabled =
-  process.env.RCP32_ACCEPTANCE === "1" &&
-  process.env.ACCEPTANCE_DATABASE_ISOLATED === "1";
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -539,10 +536,6 @@ async function waitForPreDeletionBackup(): Promise<void> {
 
 test.describe("RCP-32 two-user community release gate", () => {
   test.describe.configure({ retries: 0, timeout: 420_000 });
-  test.skip(
-    !acceptanceEnabled,
-    "RCP-32 requires the explicitly guarded disposable acceptance database.",
-  );
 
   test("proves the complete real-provider community lifecycle", async ({
     browser,

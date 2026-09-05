@@ -8,9 +8,6 @@ import {
   useAcceptanceMember as applyAcceptanceMember,
 } from "./acceptance-session";
 
-const acceptanceEnabled =
-  process.env.MVP_ACCEPTANCE === "1" &&
-  process.env.ACCEPTANCE_DATABASE_ISOLATED === "1";
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 
 type RequestStatus = "pending" | "approved" | "rejected" | "duplicate";
@@ -195,10 +192,6 @@ function ingredientRequestArticle(
 
 test.describe("member ingredient-request acceptance", () => {
   test.describe.configure({ retries: 0 });
-  test.skip(
-    !acceptanceEnabled,
-    "Ingredient-request history requires the isolated, freshly seeded acceptance database.",
-  );
 
   test("shows one member every request status without leaking curator-only data", async ({
     page,

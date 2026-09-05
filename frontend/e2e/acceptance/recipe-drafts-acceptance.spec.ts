@@ -3,9 +3,6 @@ import { expect, test, type Page, type Request } from "@playwright/test";
 
 import { useAcceptanceMember } from "./acceptance-session";
 
-const acceptanceEnabled =
-  process.env.MVP_ACCEPTANCE === "1" &&
-  process.env.ACCEPTANCE_DATABASE_ISOLATED === "1";
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 
 function isDraftCreationRequest(request: Request): boolean {
@@ -48,10 +45,6 @@ async function dismissUnsavedChangesDialog(
 
 test.describe("private recipe draft acceptance", () => {
   test.describe.configure({ retries: 0 });
-  test.skip(
-    !acceptanceEnabled,
-    "Private-draft acceptance requires the isolated, freshly seeded acceptance database.",
-  );
 
   test("creates, protects, resumes, and discards an incomplete private draft", async ({
     page,

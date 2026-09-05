@@ -15,7 +15,7 @@ import {
   BASELINE_CLOCK_ISO,
   BASELINE_FIXTURE_ORIGIN,
   BASELINE_FRONTEND_ORIGIN,
-} from "../playwright.baseline.config";
+} from "../../playwright.baseline.config";
 import {
   RCP46F_STAFF_ROUTES,
   RCP46F_STAFF_STATE_MATRIX,

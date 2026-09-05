@@ -6,9 +6,6 @@ import {
   useAcceptanceMember as applyAcceptanceMember,
 } from "./acceptance-session";
 
-const acceptanceEnabled =
-  process.env.MVP_ACCEPTANCE === "1" &&
-  process.env.ACCEPTANCE_DATABASE_ISOLATED === "1";
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 
 interface DraftResponse {
@@ -123,10 +120,6 @@ async function expectLibraryView(
 
 test.describe("cook profiles and member recipe libraries acceptance", () => {
   test.describe.configure({ retries: 0 });
-  test.skip(
-    !acceptanceEnabled,
-    "Recipe-library acceptance requires the isolated, freshly seeded database.",
-  );
 
   test("attributes public cards and isolates one member’s private recipe library", async ({ page }) => {
     const runId = crypto.randomUUID().slice(0, 8);

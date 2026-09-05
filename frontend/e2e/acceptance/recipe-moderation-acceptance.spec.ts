@@ -4,9 +4,6 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./acceptance-draft-isolation";
 import { useAcceptanceMember as applyAcceptanceMember } from "./acceptance-session";
 
-const acceptanceEnabled =
-  process.env.MVP_ACCEPTANCE === "1" &&
-  process.env.ACCEPTANCE_DATABASE_ISOLATED === "1";
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 
 interface RecipeSummary {
@@ -40,10 +37,6 @@ async function expectNoAccessibilityViolations(page: Page): Promise<void> {
 
 test.describe("recipe reporting and moderation acceptance", () => {
   test.describe.configure({ retries: 0, timeout: 90_000 });
-  test.skip(
-    !acceptanceEnabled,
-    "Recipe moderation requires the isolated, freshly seeded acceptance database.",
-  );
 
   test("keeps reports private and exercises the separate moderator workflow", async ({
     browser,

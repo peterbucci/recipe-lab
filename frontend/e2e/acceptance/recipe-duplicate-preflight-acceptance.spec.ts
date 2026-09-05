@@ -131,11 +131,6 @@ function probableResponse(publicRecipeVersionId: string) {
 
 test.describe("recipe duplicate preflight acceptance", () => {
   test.describe.configure({ retries: 0 });
-  test.skip(
-    process.env.MVP_ACCEPTANCE !== "1" ||
-      process.env.ACCEPTANCE_DATABASE_ISOLATED !== "1",
-    "Recipe duplicate acceptance requires the isolated, freshly seeded database.",
-  );
   test("reviews and acknowledges a direct-parent structural match before publishing", async ({
     page,
     sourceDrafts,

@@ -83,17 +83,10 @@ async function completeOriginalDraft(page: Page, title: string): Promise<void> {
   ).toBeDisabled();
 }
 
-const acceptanceEnabled =
-  process.env.MVP_ACCEPTANCE === "1" &&
-  process.env.ACCEPTANCE_DATABASE_ISOLATED === "1";
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 
 test.describe("original recipe publication acceptance", () => {
   test.describe.configure({ retries: 0 });
-  test.skip(
-    !acceptanceEnabled,
-    "Original-publication acceptance requires the isolated, freshly seeded database.",
-  );
 
   test("reviews and publishes one private original as an immutable public root", async ({
     browser,

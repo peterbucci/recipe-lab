@@ -36,11 +36,6 @@ async function expectNoAccessibilityViolations(
 
 test.describe("structured cooking action acceptance", () => {
   test.describe.configure({ retries: 0 });
-  test.skip(
-    process.env.MVP_ACCEPTANCE !== "1" ||
-      process.env.ACCEPTANCE_DATABASE_ISOLATED !== "1",
-    "Structured action acceptance requires the isolated, freshly seeded database.",
-  );
 
   test("edits, validates, orders, saves, and resumes structured actions in a fork draft", async ({
     page,

@@ -14,7 +14,7 @@ import {
   type PerformanceBaselineDocument,
   type ServiceRouteLabel,
   type ServiceSample,
-} from "../performance/public-performance-baseline";
+} from "../../performance/public-performance-baseline";
 
 interface BrowserPerformanceState {
   lcp_ms: number;
@@ -46,7 +46,6 @@ class PrivacySafePerformanceError extends Error {
   }
 }
 
-const performanceRequested = process.env.RCP34B_PERFORMANCE === "1";
 const performanceEnvironmentReady =
   process.env.MVP_ACCEPTANCE === "1" &&
   process.env.ACCEPTANCE_DATABASE_ISOLATED === "1";
@@ -250,10 +249,6 @@ async function writeAggregateFile(name: string, value: unknown): Promise<string>
 
 test.describe("RCP-34B public performance baseline", () => {
   test.describe.configure({ retries: 0 });
-  test.skip(
-    !performanceRequested,
-    "Public performance checks require an explicit RCP34B_PERFORMANCE request.",
-  );
 
   test("captures privacy-safe aggregates and checks headroom budgets", async ({ browser, page }, testInfo) => {
     test.setTimeout(180_000);

@@ -3,9 +3,6 @@ import { expect, test, type Page, type Response } from "@playwright/test";
 
 import { useAcceptanceMember } from "./acceptance-session";
 
-const acceptanceEnabled =
-  process.env.MVP_ACCEPTANCE === "1" &&
-  process.env.ACCEPTANCE_DATABASE_ISOLATED === "1";
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 
 async function confirmPublicationRequirements(page: Page): Promise<void> {
@@ -128,10 +125,6 @@ async function finishOriginalPublication(
 
 test.describe("cross-user fork publication acceptance", () => {
   test.describe.configure({ retries: 0 });
-  test.skip(
-    !acceptanceEnabled,
-    "Fork-publication acceptance requires the isolated, freshly seeded database.",
-  );
 
   test("publishes a private source-backed draft after an explicit no-change review", async ({
     browser,
