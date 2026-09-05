@@ -1223,7 +1223,7 @@ jobs:
             safe_location="$(python ../scripts/extract_playwright_failure_location.py "$RCP32_BROWSER_LOG")"
             if [[ "$safe_location" =~ ^[1-9][0-9]*:[1-9][0-9]*$ ]]; then
               IFS=: read -r failure_line failure_column <<< "$safe_location"
-              echo "::error file=frontend/e2e/release/rcp32-community-release-gate.spec.ts,line=$failure_line,col=$failure_column::RCP-32 failed at this assertion; private diagnostics were withheld."
+              echo "::error file=frontend/e2e/release/community-release-gate.spec.ts,line=$failure_line,col=$failure_column::RCP-32 failed at this assertion; private diagnostics were withheld."
             fi
             echo "The RCP-32 browser journey failed; private diagnostics were withheld."
             exit "$browser_result"

@@ -13,17 +13,19 @@ from scripts.extract_playwright_failure_location import (
 
 
 class ExtractPlaywrightFailureLocationTests(unittest.TestCase):
-    def test_extracts_only_the_first_stack_location(self) -> None:
+    def test_extracts_first_spec_location_after_ignoring_stage_helpers(self) -> None:
         spec_path = "/work/frontend/e2e/release/community-release-gate.spec.ts"
         log = f"""
         1) [chromium] › e2e/release/community-release-gate.spec.ts:549:7
         RCP32_PRIVATE_REQUEST_CONTEXT_CANARY secret@example.invalid
-            at publishDistinctOriginal ({spec_path}:324:22)
+            at publishDistinctOriginal (/work/frontend/e2e/release/community-release-gate-support.ts:324:22)
+            at publishRootRecipe (/work/frontend/e2e/release/community-release-publication-stages.ts:337:9)
+            at <anonymous> ({spec_path}:57:9)
             at another helper ({spec_path}:999:4)
         """
         self.assertEqual(
             extract_failure_location(log),
-            (324, 22),
+            (57, 9),
         )
 
     def test_ignores_headers_and_unrelated_stack_frames(self) -> None:
