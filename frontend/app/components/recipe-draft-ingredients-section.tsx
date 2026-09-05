@@ -7,7 +7,7 @@ import {
 } from "react";
 
 import type { CatalogIngredientSelection } from "../../lib/ingredient-catalog-api";
-import type { CatalogUnit } from "../../lib/measurement-unit-api";
+import type { CatalogUnit } from "../../lib/measurement-unit-model";
 import {
   draftIngredientFieldKey,
   draftIngredientMeasureFieldKey,

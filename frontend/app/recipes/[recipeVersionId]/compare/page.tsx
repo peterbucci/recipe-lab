@@ -2,12 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import {
-  RecipeApiError,
-  fetchRecipeDiff,
-  isRecipeVersionId,
-  type RecipeDiff,
-} from "../../../../lib/recipe-api";
+import { RecipeApiError, fetchRecipeDiff, type RecipeDiff } from "../../../../lib/recipe-api";
+import { isRecipeVersionId } from "../../../../lib/recipe-id";
 import { RecipeDiffView } from "../../../components/recipe-diff-view";
 
 export const dynamic = "force-dynamic";

@@ -1,12 +1,12 @@
-import { browserApiRequest } from "./api-transport/browser";
+import { browserApiRequest } from "../shared/api/browser";
 import {
   ApiTransportError,
   createRequestFingerprint,
   type ApiAuthenticationRecovery,
   type ApiMutationOutcome,
   type PublicApiErrorContract,
-} from "./api-transport/core";
-import type { operations } from "./api-contracts/generated";
+} from "../shared/api/core";
+import type { operations } from "../shared/api/generated/generated";
 
 export const RECIPE_REPORT_DETAILS_MAX_LENGTH = 1_000;
 

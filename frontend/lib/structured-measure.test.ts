@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { CatalogUnit } from "./measurement-unit-api";
+import type { CatalogUnit } from "./measurement-unit-model";
 import {
   compareDecimalStrings,
   createStructuredMeasureDraft,

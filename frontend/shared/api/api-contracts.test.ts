@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import type { operations } from "./generated";
+import type { operations } from "./generated/generated";
 
 type ReportOperation =
   operations["report_recipe_api_recipes__recipe_version_id__reports_post"];

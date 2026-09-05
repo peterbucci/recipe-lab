@@ -137,6 +137,13 @@ owner, outward imports in the target structure, and broad barrel files. It is
 part of `npm run ci:verify`. The final story removes the transitional legacy
 allowance only after `app/components` and `lib` no longer own runtime code.
 
+Shared API infrastructure may not import migration-owned legacy modules.
+The architecture check follows runtime imports from every `"use client"`
+boundary and rejects direct or indirect paths into a marked server module or
+the standalone `server` directory. Type-only imports do not enter that runtime
+graph. Next's `server-only` compiler checks complement this source audit;
+unit-test marker aliases are confined to Vitest configuration.
+
 ## Story ownership map
 
 | Story | Responsibility | Destination |

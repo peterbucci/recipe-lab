@@ -56,17 +56,6 @@ export const LEGACY_MIGRATION_RULES = Object.freeze([
     ),
   },
   {
-    story: "RCP-49C",
-    destination: "shared/api",
-    pattern: moduleFamilies(
-      "abort-error",
-      "api-contracts",
-      "api-transport",
-      "idempotency-key",
-      "ordinary-api-error-boundary",
-    ),
-  },
-  {
     story: "RCP-49D",
     destination: "features/moderation",
     pattern: moduleFamilies(
@@ -123,6 +112,7 @@ export const LEGACY_MIGRATION_RULES = Object.freeze([
       "rating-summary",
       "recipe-action-icons",
       "recipe-api",
+      "recipe-id",
       "recipe-artwork",
       "recipe-browse-query",
       "recipe-browser",
@@ -143,6 +133,8 @@ export const LEGACY_MIGRATION_RULES = Object.freeze([
       "recipe-instructions-panel",
       "recipe-interaction-panel",
       "recipe-library-api",
+      "recipe-library-model",
+      "recipe-library-server-api",
       "recipe-library-views",
       "recipe-member-actions",
       "recipe-view-tracker",
@@ -184,9 +176,11 @@ export const LEGACY_MIGRATION_RULES = Object.freeze([
     destination: "features/recipes/authoring",
     pattern: moduleFamilies(
       "cooking-action-api",
+      "cooking-action-model",
       "editor-row-icon",
       "ingredient-amount-control",
       "measurement-unit-api",
+      "measurement-unit-model",
       "recipe-category-selector",
       "recipe-draft-api",
       "recipe-draft-creation-attempt",
@@ -261,7 +255,11 @@ export function forbiddenDependencyReason(importerPath, dependencyPath) {
   if (!importer || !dependency || importer.kind === FRONTEND_OWNERS.legacy) {
     return undefined;
   }
-  if (dependency.kind === FRONTEND_OWNERS.legacy) return undefined;
+  if (dependency.kind === FRONTEND_OWNERS.legacy) {
+    return importer.kind === FRONTEND_OWNERS.shared
+      ? "shared modules cannot depend on legacy modules"
+      : undefined;
+  }
   if (
     importer.kind === FRONTEND_OWNERS.routes &&
     dependency.kind === FRONTEND_OWNERS.server &&
@@ -305,7 +303,7 @@ function loadTypeScript(sourceRoot) {
   return require("typescript");
 }
 
-function moduleSpecifiers(ts, path) {
+function moduleMetadata(ts, path) {
   const source = ts.createSourceFile(
     path,
     readFileSync(path, "utf8"),
@@ -319,7 +317,11 @@ function moduleSpecifiers(ts, path) {
       node.moduleSpecifier &&
       ts.isStringLiteralLike(node.moduleSpecifier)
     ) {
-      specifiers.push(node.moduleSpecifier.text);
+      const bindings = node.importClause?.namedBindings ?? node.exportClause;
+      const typeOnly = node.isTypeOnly || node.importClause?.isTypeOnly ||
+        (bindings && (ts.isNamedImports(bindings) || ts.isNamedExports(bindings)) && !node.importClause?.name &&
+          bindings.elements.length > 0 && bindings.elements.every((element) => element.isTypeOnly));
+      specifiers.push({ specifier: node.moduleSpecifier.text, typeOnly: Boolean(typeOnly) });
     } else if (
       ts.isCallExpression(node) &&
       node.arguments.length === 1 &&
@@ -327,12 +329,37 @@ function moduleSpecifiers(ts, path) {
       (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
         (ts.isIdentifier(node.expression) && node.expression.text === "require"))
     ) {
-      specifiers.push(node.arguments[0].text);
+      specifiers.push({ specifier: node.arguments[0].text, typeOnly: false });
     }
     ts.forEachChild(node, visit);
   }
   visit(source);
-  return specifiers;
+  return {
+    imports: specifiers,
+    client: source.statements.some((statement) => ts.isExpressionStatement(statement) &&
+      ts.isStringLiteral(statement.expression) && statement.expression.text === "use client"),
+    serverOnly: specifiers.some(({ specifier, typeOnly }) => specifier === "server-only" && !typeOnly),
+  };
+}
+
+export function clientServerBoundaryErrors(graph, clients, serverModules) {
+  const errors = [];
+  for (const client of clients) {
+    const pending = [[client]];
+    const visited = new Set();
+    while (pending.length) {
+      const chain = pending.shift();
+      const current = chain.at(-1);
+      if (visited.has(current)) continue;
+      visited.add(current);
+      if (serverModules.has(current)) {
+        errors.push(`${chain.join(" -> ")}: client code reaches a server-only module`);
+        break;
+      }
+      for (const dependency of graph.get(current) ?? []) pending.push([...chain, dependency]);
+    }
+  }
+  return errors;
 }
 
 function resolveInternalImport(sourceRoot, importer, specifier, sources) {
@@ -380,9 +407,19 @@ export function auditFrontendArchitecture(
 
   const ts = loadTypeScript(sourceRoot);
   const sourcePaths = new Set(files.map((path) => resolve(path)));
+  const metadata = new Map(files.map((path) => [path, moduleMetadata(ts, path)]));
+  const runtimeGraph = new Map();
+  const clients = [];
+  const serverModules = new Set();
   for (const path of files) {
     const importer = normalized(relative(sourceRoot, path));
-    for (const specifier of moduleSpecifiers(ts, path)) {
+    const moduleInfo = metadata.get(path);
+    const dependencies = [];
+    if (moduleInfo.client) clients.push(importer);
+    if (moduleInfo.serverOnly || importer === "server.mjs" || importer.startsWith("server/")) {
+      serverModules.add(importer);
+    }
+    for (const { specifier, typeOnly } of moduleInfo.imports) {
       const dependencyPath = resolveInternalImport(
         sourceRoot,
         path,
@@ -391,10 +428,13 @@ export function auditFrontendArchitecture(
       );
       if (!dependencyPath) continue;
       const dependency = normalized(relative(sourceRoot, dependencyPath));
+      if (!typeOnly) dependencies.push(dependency);
       const reason = forbiddenDependencyReason(importer, dependency);
       if (reason) errors.push(`${importer} -> ${dependency}: ${reason}`);
     }
+    runtimeGraph.set(importer, dependencies);
   }
+  errors.push(...clientServerBoundaryErrors(runtimeGraph, clients, serverModules));
 
   return {
     errors: errors.sort(),

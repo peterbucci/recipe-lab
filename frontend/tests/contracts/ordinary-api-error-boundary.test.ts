@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CSRF_COOKIE_NAME } from "./auth-api";
+import { CSRF_COOKIE_NAME } from "../../shared/api/browser-session";
 import {
   searchCatalogIngredients,
   submitMissingIngredientRequest,
-} from "./ingredient-catalog-api";
-import { createRecipeDraft } from "./recipe-draft-api";
-import { createRecipeDraftDuplicatePreflight } from "./recipe-duplicate-api";
-import { fetchMyRecipeLibrary } from "./recipe-library-api";
-import { publishRecipeDraft } from "./recipe-publication-api";
-import { submitRecipeReport } from "./recipe-report-api";
-import { updateRecipeVisibility } from "./recipe-visibility-api";
+} from "../../lib/ingredient-catalog-api";
+import { createRecipeDraft } from "../../lib/recipe-draft-api";
+import { createRecipeDraftDuplicatePreflight } from "../../lib/recipe-duplicate-api";
+import { fetchMyRecipeLibrary } from "../../lib/recipe-library-api";
+import { publishRecipeDraft } from "../../lib/recipe-publication-api";
+import { submitRecipeReport } from "../../lib/recipe-report-api";
+import { updateRecipeVisibility } from "../../lib/recipe-visibility-api";
 
 const RECIPE_ID = "11111111-1111-4111-8111-111111111111";
 const DRAFT_ID = "22222222-2222-4222-8222-222222222222";

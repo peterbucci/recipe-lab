@@ -1,4 +1,4 @@
-import type { operations } from "./api-contracts/generated";
+import type { operations } from "../shared/api/generated/generated";
 import {
   ApiTransportError,
   executeJsonApiRequest,
@@ -6,9 +6,12 @@ import {
   type ApiJsonResponse,
   type ApiValidationIssue,
   type PublicApiErrorContract,
-} from "./api-transport/core";
+} from "../shared/api/core";
 
-export type { ApiValidationIssue } from "./api-transport/core";
+import {
+  memberMutationHeaders as browserMemberMutationHeaders,
+  notifySessionExpired,
+} from "../shared/api/browser-session";
 
 type AccountSessionOperation =
   operations["account_session_api_auth_session_get"];
@@ -73,9 +76,6 @@ export class AuthApiError extends Error {
     this.issues = issues;
   }
 }
-
-export const AUTH_SESSION_EXPIRED_EVENT = "recipe-lab:auth-session-expired";
-export const CSRF_COOKIE_NAME = "recipe_lab_csrf";
 
 const FALLBACK_RETURN_TO = "/recipes";
 
@@ -273,12 +273,6 @@ function safeAuthErrorMessage(status: number, code: string): string {
   return "Recipe Lab could not update your account.";
 }
 
-export function notifySessionExpired() {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT));
-  }
-}
-
 interface AuthRequestOptions {
   body?: BodyInit | null;
   headers?: Record<string, string>;
@@ -362,39 +356,13 @@ export async function fetchAuthSession(
   return parseAuthSession(response.data);
 }
 
-export function readCookie(name: string, cookieHeader?: string): string | null {
-  const cookies =
-    cookieHeader ?? (typeof document === "undefined" ? "" : document.cookie);
-
-  for (const entry of cookies.split(";")) {
-    const [rawName, ...rawValueParts] = entry.trim().split("=");
-    if (rawName !== name) {
-      continue;
-    }
-
-    const rawValue = rawValueParts.join("=");
-    try {
-      return decodeURIComponent(rawValue);
-    } catch {
-      return rawValue;
-    }
-  }
-
-  return null;
-}
-
 export function memberMutationHeaders(): Record<string, string> {
-  const csrfToken = readCookie(CSRF_COOKIE_NAME);
-  if (!csrfToken) {
-    notifySessionExpired();
-    throw new AuthApiError(
-      "Your session expired. Sign in again to continue.",
-      401,
-      "csrf_token_unavailable",
-    );
+  try {
+    return browserMemberMutationHeaders();
+  } catch (error) {
+    if (error instanceof ApiTransportError) throw fromTransportError(error);
+    throw error;
   }
-
-  return { "X-CSRF-Token": csrfToken };
 }
 
 export async function updateAccountProfile(

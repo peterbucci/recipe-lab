@@ -1,4 +1,4 @@
-import { isAbortError } from "../abort-error";
+import { isAbortError } from "./abort-error";
 import { retryTransientRead } from "./transient-read-retry";
 
 export type ApiRequestKind = "query" | "mutation";

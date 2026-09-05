@@ -1,8 +1,4 @@
-import type {
-  CatalogUnit,
-  CatalogUnitSummary,
-  UnitDimension,
-} from "./measurement-unit-api";
+import type { CatalogUnit, CatalogUnitSummary, UnitDimension } from "./measurement-unit-model";
 
 export type QualitativeMeasureValue = "to_taste" | "as_needed" | "unspecified";
 

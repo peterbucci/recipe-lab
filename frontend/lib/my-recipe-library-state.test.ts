@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { MyRecipeLibraryPage } from "./recipe-library-api";
+import type { MyRecipeLibraryPage } from "./recipe-library-model";
 import {
   createMyRecipeLibraryState,
   currentMyRecipeLibraryState,

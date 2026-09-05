@@ -8,8 +8,8 @@ import {
   useState,
 } from "react";
 
-import type { CatalogActionType } from "../../lib/cooking-action-api";
-import type { CatalogUnit } from "../../lib/measurement-unit-api";
+import type { CatalogActionType } from "../../lib/cooking-action-model";
+import type { CatalogUnit } from "../../lib/measurement-unit-model";
 import {
   draftInstructionActionFieldKey,
   draftInstructionFieldKey,

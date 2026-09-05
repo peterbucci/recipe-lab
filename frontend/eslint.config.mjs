@@ -16,7 +16,7 @@ export default defineConfig([
     ],
     ignores: [
       "**/*.test.{ts,tsx}",
-      "lib/api-transport/core.ts",
+      "shared/api/core.ts",
       "server/api-proxy.ts",
     ],
     rules: {

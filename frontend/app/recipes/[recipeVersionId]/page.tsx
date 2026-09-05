@@ -1,12 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import {
-  fetchRecipe,
-  fetchRecipePage,
-  isRecipeVersionId,
-  type RecipeCardSummary,
-} from "../../../lib/recipe-api";
+import { fetchRecipe, fetchRecipePage, type RecipeCardSummary } from "../../../lib/recipe-api";
+import { isRecipeVersionId } from "../../../lib/recipe-id";
 import { RecipeDetailExperience } from "../../components/recipe-detail-experience";
 
 export const dynamic = "force-dynamic";

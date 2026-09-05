@@ -8,11 +8,8 @@ import {
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  catalogActionTypeSummary,
-  type CatalogActionType,
-} from "../../lib/cooking-action-api";
-import type { CatalogUnit } from "../../lib/measurement-unit-api";
+import { catalogActionTypeSummary, type CatalogActionType } from "../../lib/cooking-action-model";
+import type { CatalogUnit } from "../../lib/measurement-unit-model";
 import {
   createStructuredActionDraft,
   structuredActionFieldKey,

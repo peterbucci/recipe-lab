@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { fetchPublicCookProfile } from "../../../lib/recipe-library-api";
+import { fetchPublicCookProfile } from "../../../lib/recipe-library-server-api";
 import { CookProfileView } from "../../components/cook-profile-view";
 
 export const dynamic = "force-dynamic";

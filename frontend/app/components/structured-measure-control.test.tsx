@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { CatalogUnit } from "../../lib/measurement-unit-api";
+import type { CatalogUnit } from "../../lib/measurement-unit-model";
 import {
   createBlankExactMeasureDraft,
   type StructuredMeasureDraft,

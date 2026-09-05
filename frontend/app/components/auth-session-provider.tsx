@@ -12,12 +12,9 @@ import {
   useState,
 } from "react";
 
-import {
-  AUTH_SESSION_EXPIRED_EVENT,
-  type AuthSession,
-  fetchAuthSession,
-} from "../../lib/auth-api";
-import { isAbortError } from "../../lib/abort-error";
+import { AUTH_SESSION_EXPIRED_EVENT } from "../../shared/api/browser-session";
+import { type AuthSession, fetchAuthSession } from "../../lib/auth-api";
+import { isAbortError } from "../../shared/api/abort-error";
 import { LoadingButton } from "../../shared/ui/loading-ui";
 
 export type AuthSessionState =

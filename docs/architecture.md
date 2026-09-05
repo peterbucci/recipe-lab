@@ -27,7 +27,7 @@ writes refresh the server-rendered aggregate after success. Local CORS
 configuration permits the exact `localhost` and `127.0.0.1` development origins.
 
 RCP-34F introduces a staged application-specific transport under
-`frontend/lib/api-transport`. Its browser entry point is an explicit client
+`frontend/shared/api`. Its browser entry point is an explicit client
 boundary that accepts only relative `/api/...` targets, always uses the
 same-origin proxy, and centralizes no-store requests, CSRF, session-expiry
 signals, idempotency keys, safe public error envelopes, request deadlines, and
@@ -50,6 +50,14 @@ authentication recovery can keep a scoped 401 local. Mutations carry CSRF and,
 where the operation has durable retry semantics, a validated idempotency
 identity. The hardened streaming `/api` route remains a separate security proxy;
 the shared JSON transport does not replace or wrap it.
+
+Browser session-expiry signaling and CSRF cookie mechanics live in
+`frontend/shared/api/browser-session.ts`. The auth API retains its own error
+class and safe public messages while adapting the shared not-sent failure.
+Pure cooking-action, measurement, recipe-identifier, and recipe-library models
+are separate from server loaders, so browser parsers do not import a private
+API origin. Next server modules use `server-only`; the standalone Node runtime
+remains importable without the Next compiler.
 
 Raw `fetch` is limited by lint to two reviewed production boundaries. The shared
 transport core owns JSON dispatch, deadlines, cancellation, retry, and safe

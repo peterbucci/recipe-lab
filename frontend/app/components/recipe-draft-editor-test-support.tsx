@@ -29,7 +29,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mocks.replace, refresh: mocks.refresh }),
 }));
 
-vi.mock("../../lib/idempotency-key", () => ({
+vi.mock("../../shared/api/idempotency-key", () => ({
   createIdempotencyKey: () => mocks.key(),
 }));
 

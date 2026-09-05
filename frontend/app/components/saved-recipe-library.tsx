@@ -2,14 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { isAbortError } from "../../lib/abort-error";
-import { createIdempotencyKey } from "../../lib/idempotency-key";
+import { isAbortError } from "../../shared/api/abort-error";
+import { createIdempotencyKey } from "../../shared/api/idempotency-key";
 import { setRecipeSaved } from "../../lib/interaction-api";
-import {
-  fetchSavedRecipeLibrary,
-  RecipeLibraryApiError,
-  type SavedRecipeLibraryPage,
-} from "../../lib/recipe-library-api";
+import { fetchSavedRecipeLibrary } from "../../lib/recipe-library-api";
+import { RecipeLibraryApiError, type SavedRecipeLibraryPage } from "../../lib/recipe-library-model";
 import { MemberRouteGate } from "./member-route-gate";
 import {
   MyRecipesHubHeader,

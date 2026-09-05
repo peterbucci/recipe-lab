@@ -33,7 +33,7 @@ vi.mock("../../lib/interaction-api", () => ({
   setRecipeSaved: mocks.setRecipeSaved,
 }));
 
-vi.mock("../../lib/idempotency-key", () => ({
+vi.mock("../../shared/api/idempotency-key", () => ({
   createIdempotencyKey: mocks.createIdempotencyKey,
 }));
 

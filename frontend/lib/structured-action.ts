@@ -1,8 +1,5 @@
-import type {
-  CatalogActionType,
-  CatalogActionTypeSummary,
-} from "./cooking-action-api";
-import type { CatalogUnit } from "./measurement-unit-api";
+import type { CatalogActionType, CatalogActionTypeSummary } from "./cooking-action-model";
+import type { CatalogUnit } from "./measurement-unit-model";
 import {
   compareDecimalStrings,
   createStructuredMeasureDraft,

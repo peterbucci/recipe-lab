@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { createIdempotencyKey } from "../../lib/idempotency-key";
+import { createIdempotencyKey } from "../../shared/api/idempotency-key";
 import { recordRecipeView } from "../../lib/interaction-api";
 
 interface RecipeViewTrackerProps {

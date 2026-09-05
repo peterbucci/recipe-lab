@@ -5,10 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MeasurementUnitApiError,
   catalogUnitSummary,
-  fetchMeasurementUnits,
   parseMeasurementUnitResponse,
   type CatalogUnit,
-} from "./measurement-unit-api";
+} from "./measurement-unit-model";
+import { fetchMeasurementUnits } from "./measurement-unit-api";
 
 const gram: CatalogUnit = {
   id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PublicCookProfilePage } from "../../../lib/recipe-library-api";
+import type { PublicCookProfilePage } from "../../../lib/recipe-library-model";
 import { buildRecipeCardSummary } from "../../../tests/support/builders/recipe";
 import CookProfilePage from "./page";
 
@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 
-vi.mock("../../../lib/recipe-library-api", () => ({
+vi.mock("../../../lib/recipe-library-server-api", () => ({
   fetchPublicCookProfile: mocks.fetchPublicCookProfile,
 }));
 

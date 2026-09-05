@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { isAbortError } from "../../lib/abort-error";
+import { isAbortError } from "../../shared/api/abort-error";
 import {
   type CatalogIngredientSelection,
   fetchMyIngredientRequest,

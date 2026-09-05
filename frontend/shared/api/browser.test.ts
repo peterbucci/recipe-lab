@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AUTH_SESSION_EXPIRED_EVENT, CSRF_COOKIE_NAME } from "../auth-api";
+import { AUTH_SESSION_EXPIRED_EVENT, CSRF_COOKIE_NAME } from "./browser-session";
 import { browserApiRequest } from "./browser";
 import { ApiTransportError, type PublicApiErrorContract } from "./core";
 

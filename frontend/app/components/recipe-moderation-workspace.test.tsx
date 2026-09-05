@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   key: vi.fn(),
 }));
 
-vi.mock("../../lib/idempotency-key", () => ({ createIdempotencyKey: mocks.key }));
+vi.mock("../../shared/api/idempotency-key", () => ({ createIdempotencyKey: mocks.key }));
 vi.mock("../../lib/recipe-moderation-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/recipe-moderation-api")>();
   return {

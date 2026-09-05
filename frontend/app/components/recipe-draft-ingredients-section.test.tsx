@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { CatalogUnit } from "../../lib/measurement-unit-api";
+import type { CatalogUnit } from "../../lib/measurement-unit-model";
 import type { RecipeDraftIngredientState } from "../../lib/recipe-draft";
 import { RecipeDraftIngredientsSection } from "./recipe-draft-ingredients-section";
 

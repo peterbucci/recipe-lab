@@ -1,36 +1,55 @@
-import type { components, operations } from "./api-contracts/generated";
+import "server-only";
+
+import type { components, operations } from "../shared/api/generated/generated";
+
 import {
   ApiTransportError,
   type PublicApiErrorContract,
-} from "./api-transport/core";
-import { serverApiRequest } from "./api-transport/server";
+} from "../shared/api/core";
+
+import { serverApiRequest } from "../shared/api/server";
+
 import type { RecipeViewerState } from "./recipe-viewer-state";
+
 import type { RecipeInstructionAction } from "./structured-action";
+
 import type { RecipeIngredientMeasure } from "./structured-measure";
 
 export type { RecipeIngredientMeasure } from "./structured-measure";
 
 type BrowseRecipesOperation = operations["browse_recipes_api_recipes_get"];
+
 export type RecipePage =
   BrowseRecipesOperation["responses"][200]["content"]["application/json"];
+
 export type RecipeCardSummary = RecipePage["items"][number];
+
 export type RecipeSummary = components["schemas"]["RecipeSummary"];
+
 type RecipeCategoriesOperation =
   operations["recipe_categories_api_recipe_categories_get"];
+
 export type RecipeCategoryList =
   RecipeCategoriesOperation["responses"][200]["content"]["application/json"];
+
 export type RecipeCategory = RecipeCategoryList["items"][number];
+
 type FeaturedRecipesOperation =
   operations["featured_recipes_api_recipes_featured_get"];
+
 export type FeaturedRecipeList =
   FeaturedRecipesOperation["responses"][200]["content"]["application/json"];
+
 type RecipeDetailWire =
   operations["recipe_detail_api_recipes__recipe_version_id__get"]["responses"][200]["content"]["application/json"];
+
 type RecipeDiffWire =
   operations["recipe_diff_api_recipes__recipe_version_id__diff_get"]["responses"][200]["content"]["application/json"];
+
 export type PublicUserReference = Omit<RecipeSummary["author"], "handle"> & {
   readonly handle: string | null;
 };
+
 export type RecipeVersionReference = NonNullable<RecipeSummary["parent"]>;
 
 export interface ActivePublicUserReference extends PublicUserReference {
@@ -183,12 +202,6 @@ export class RecipeApiError extends Error {
     this.status = status;
     this.code = code;
   }
-}
-
-export function isRecipeVersionId(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    value,
-  );
 }
 
 function fromRecipeTransportError(error: ApiTransportError): RecipeApiError {

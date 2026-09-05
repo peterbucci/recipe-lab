@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 
-import type { MyRecipeLibraryView } from "../../lib/recipe-library-api";
+import type { MyRecipeLibraryView } from "../../lib/recipe-library-model";
 import { GuardedLink } from "../../shared/navigation/navigation-blocker-provider";
 import {
   WorkspaceTabCount,

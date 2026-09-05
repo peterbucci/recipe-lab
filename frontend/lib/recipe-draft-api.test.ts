@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AUTH_SESSION_EXPIRED_EVENT } from "./auth-api";
+import { AUTH_SESSION_EXPIRED_EVENT } from "../shared/api/browser-session";
 import {
   browseRecipeDrafts,
   createRecipeDraft,

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { type FormEvent, useRef, useState } from "react";
 
-import { createIdempotencyKey } from "../../lib/idempotency-key";
+import { createIdempotencyKey } from "../../shared/api/idempotency-key";
 import {
   RECIPE_REPORT_DETAILS_MAX_LENGTH,
   RecipeReportApiError,

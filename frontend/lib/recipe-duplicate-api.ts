@@ -1,11 +1,11 @@
-import type { operations } from "./api-contracts/generated";
-import { browserApiRequest } from "./api-transport/browser";
+import type { operations } from "../shared/api/generated/generated";
+import { browserApiRequest } from "../shared/api/browser";
 import {
   ApiTransportError,
   createRequestFingerprint,
   type PublicApiErrorContract,
-} from "./api-transport/core";
-import { isRecipeVersionId } from "./recipe-api";
+} from "../shared/api/core";
+import { isRecipeVersionId } from "./recipe-id";
 
 type RecipeDuplicateOperation =
   operations["create_original_draft_duplicate_preflight_api_recipe_drafts__draft_id__duplicate_preflights_post"];

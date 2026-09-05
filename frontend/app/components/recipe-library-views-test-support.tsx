@@ -1,8 +1,8 @@
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
 
-import { CSRF_COOKIE_NAME } from "../../lib/auth-api";
-import type { PublicCookProfilePage } from "../../lib/recipe-library-api";
+import { CSRF_COOKIE_NAME } from "../../shared/api/browser-session";
+import type { PublicCookProfilePage } from "../../lib/recipe-library-model";
 import type { RecipeCardSummary } from "../../lib/recipe-api";
 import { buildRecipeCardSummary } from "../../tests/support/builders/recipe";
 import { AuthSessionProvider } from "./auth-session-provider";

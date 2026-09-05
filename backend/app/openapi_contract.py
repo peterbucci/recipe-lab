@@ -109,7 +109,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("GET", "/api/cooks/{handle}"): _operation(
         "public_cook_profile_api_cooks__handle__get",
         "active_consumer",
-        "frontend/lib/recipe-library-api.ts",
+        "frontend/lib/recipe-library-server-api.ts",
     ),
     ("DELETE", "/api/cooks/{handle}/follow"): _operation(
         "unfollow_cook_api_cooks__handle__follow_delete",

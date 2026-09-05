@@ -10,7 +10,7 @@ import {
   catalogUnitSummary,
   type CatalogUnit,
   type CatalogUnitSummary,
-} from "../../lib/measurement-unit-api";
+} from "../../lib/measurement-unit-model";
 import {
   formatStructuredMeasureDraft,
   ingredientAmountPolicy,

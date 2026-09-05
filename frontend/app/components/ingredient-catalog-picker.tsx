@@ -20,8 +20,8 @@ import {
   searchCatalogIngredients,
   selectionForCatalogIngredient,
 } from "../../lib/ingredient-catalog-api";
-import { isAbortError } from "../../lib/abort-error";
-import { retryTransientRead } from "../../lib/api-transport/transient-read-retry";
+import { isAbortError } from "../../shared/api/abort-error";
+import { retryTransientRead } from "../../shared/api/transient-read-retry";
 import {
   createIngredientCatalogPickerState,
   ingredientCatalogPickerReducer,

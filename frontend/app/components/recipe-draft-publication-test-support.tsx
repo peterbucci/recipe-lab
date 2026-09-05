@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useEffect, useReducer } from "react";
 import { vi } from "vitest";
 
-import type { CatalogActionType } from "../../lib/cooking-action-api";
+import type { CatalogActionType } from "../../lib/cooking-action-model";
 import {
   createDraftIngredientState,
   createDraftInstructionState,
@@ -31,7 +31,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mocks.replace, refresh: mocks.refresh }),
 }));
 
-vi.mock("../../lib/idempotency-key", () => ({
+vi.mock("../../shared/api/idempotency-key", () => ({
   createIdempotencyKey: mocks.key,
 }));
 
