@@ -7,7 +7,7 @@ import {
 } from "../../lib/member-activity-api";
 import type { RecipeDraftListItem } from "../../lib/recipe-draft-api";
 import { deferred } from "../../tests/support/deferred";
-import { HomeLoadNotice, HomeLoadStateProvider } from "./home-load-state";
+import { HomeLoadNotice, HomeLoadStateProvider } from "../_components/home-load-state";
 import { MemberHomeSummary } from "./member-home-summary";
 
 const mocks = vi.hoisted(() => ({ fetchMemberDashboard: vi.fn() }));

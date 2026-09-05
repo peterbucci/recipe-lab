@@ -1,7 +1,9 @@
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
 
-import type { RecipeDetail } from "../../lib/recipe-api";
+import type {
+  RecipeDetail,
+} from "../../features/recipes/shared/recipe-contracts";
 import type { RecipeDraftDetail } from "../../lib/recipe-draft-api";
 import {
   AuthSessionProvider,
@@ -44,7 +46,7 @@ vi.mock("../../lib/recipe-draft-api", async (importOriginal) => {
   };
 });
 
-vi.mock("../../lib/recipe-category-client-api", () => ({
+vi.mock("../../features/recipes/browse/recipe-category-client-api", () => ({
   fetchActiveRecipeCategories: mocks.fetchActiveRecipeCategories,
 }));
 

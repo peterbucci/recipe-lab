@@ -5,10 +5,10 @@ import { searchCatalogIngredients } from "../../features/ingredients/catalog/ing
 import { submitMissingIngredientRequest } from "../../features/ingredients/requests/ingredient-request-api";
 import { createRecipeDraft } from "../../lib/recipe-draft-api";
 import { createRecipeDraftDuplicatePreflight } from "../../lib/recipe-duplicate-api";
-import { fetchMyRecipeLibrary } from "../../lib/recipe-library-api";
+import { fetchMyRecipeLibrary } from "../../features/recipes/library/recipe-library-api";
 import { publishRecipeDraft } from "../../lib/recipe-publication-api";
 import { submitRecipeReport } from "../../features/moderation/reporting/recipe-report-api";
-import { updateRecipeVisibility } from "../../lib/recipe-visibility-api";
+import { updateRecipeVisibility } from "../../features/recipes/library/recipe-visibility-api";
 
 const RECIPE_ID = "11111111-1111-4111-8111-111111111111";
 const DRAFT_ID = "22222222-2222-4222-8222-222222222222";

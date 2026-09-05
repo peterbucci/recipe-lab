@@ -4,11 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   RecipeCardSummary,
   RecipeDetail,
-} from "../../../lib/recipe-api";
+} from "../../../features/recipes/shared/recipe-contracts";
 import {
   buildRecipeCardSummary,
   buildRecipeSummary,
-} from "../../../tests/support/builders/recipe";
+} from "../../../features/recipes/shared/recipe-test-support";
 import RecipeDetailPage from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -21,16 +21,27 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 
-vi.mock("../../../lib/recipe-api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../../lib/recipe-api")>();
+vi.mock("../../../features/recipes/detail/recipe-detail-server-api", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("../../../features/recipes/detail/recipe-detail-server-api")
+  >();
   return {
     ...actual,
     fetchRecipe: mocks.fetchRecipe,
+  };
+});
+
+vi.mock("../../../features/recipes/browse/recipe-browse-server-api", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("../../../features/recipes/browse/recipe-browse-server-api")
+  >();
+  return {
+    ...actual,
     fetchRecipePage: mocks.fetchRecipePage,
   };
 });
 
-vi.mock("../../components/recipe-detail-experience", () => ({
+vi.mock("./_components/recipe-detail-experience", () => ({
   RecipeDetailExperience: ({
     familyVersions,
     recipe,

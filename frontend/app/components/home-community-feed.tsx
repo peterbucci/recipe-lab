@@ -10,7 +10,7 @@ import {
 } from "../../lib/member-follow-api";
 import { useAuthSession } from "./auth-session-provider";
 import { CommunityPublicationList } from "./community-publication-list";
-import { useHomeLoadIssue } from "./home-load-state";
+import { useHomeLoadIssue } from "../_components/home-load-state";
 import { SectionLoading } from "../../shared/ui/loading-ui";
 
 const COMMUNITY_FEED_SIZE = 5;

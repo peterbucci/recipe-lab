@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
-import { isRecipeVersionId } from "../../../../lib/recipe-id";
+import { isRecipeVersionId } from "../../../../features/recipes/shared/recipe-id";
 
 interface RecipeDraftEditorPageProps {
   params: Promise<{ draftId: string }>;

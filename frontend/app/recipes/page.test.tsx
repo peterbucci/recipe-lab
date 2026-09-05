@@ -1,8 +1,11 @@
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { RecipeBrowseType } from "../../lib/recipe-browse-query";
-import type { RecipeCategory, RecipePage } from "../../lib/recipe-api";
+import type { RecipeBrowseType } from "../../features/recipes/browse/recipe-browse-query";
+import type {
+  RecipeCategory,
+  RecipePage,
+} from "../../features/recipes/shared/recipe-contracts";
 import RecipeBrowsePage from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -15,8 +18,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 
-vi.mock("../../lib/recipe-api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../lib/recipe-api")>();
+vi.mock("../../features/recipes/browse/recipe-browse-server-api", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("../../features/recipes/browse/recipe-browse-server-api")
+  >();
   return {
     ...actual,
     fetchRecipeCategories: mocks.fetchRecipeCategories,

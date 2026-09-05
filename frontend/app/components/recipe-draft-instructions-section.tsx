@@ -22,7 +22,7 @@ import { RecipeDraftFieldError } from "./recipe-draft-field-error";
 import {
   RecipeInstructionFactPills,
   recipeDraftStepFacts,
-} from "./recipe-instruction-actions";
+} from "../../features/recipes/detail/recipe-instruction-actions";
 import { StructuredActionEditor } from "./structured-action-editor";
 
 interface RecipeDraftInstructionsSectionProps {

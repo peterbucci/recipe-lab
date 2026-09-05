@@ -3,12 +3,14 @@ import "server-only";
 import { serverApiRequest } from "../shared/api/server";
 import { ApiTransportError } from "../shared/api/core";
 import {
-  RECIPE_LIBRARY_ERROR_CONTRACT,
-  fromTransportError,
   parsePublicCookProfilePage,
   type PublicCookProfilePage,
   type PublicCookProfileWire,
-} from "./recipe-library-model";
+} from "../features/recipes/shared/public-cook-profile";
+import {
+  RECIPE_LIBRARY_ERROR_CONTRACT,
+  recipeLibraryErrorFromTransport as fromTransportError,
+} from "../features/recipes/shared/recipe-library-error";
 
 export async function fetchPublicCookProfile({
   handle,

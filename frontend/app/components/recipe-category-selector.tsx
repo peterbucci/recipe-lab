@@ -9,9 +9,11 @@ import {
 } from "react";
 
 import { isAbortError } from "../../shared/api/abort-error";
-import type { RecipeCategory } from "../../lib/recipe-api";
-import { fetchActiveRecipeCategories } from "../../lib/recipe-category-client-api";
-import { MAX_RECIPE_CATEGORIES } from "../../lib/recipe-category";
+import type {
+  RecipeCategory,
+} from "../../features/recipes/shared/recipe-contracts";
+import { fetchActiveRecipeCategories } from "../../features/recipes/browse/recipe-category-client-api";
+import { MAX_RECIPE_CATEGORIES } from "../../features/recipes/shared/recipe-category";
 import { EditorRowIcon } from "./editor-row-icon";
 import { InlineLoading, SectionLoading } from "../../shared/ui/loading-ui";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/overlay-primitives";

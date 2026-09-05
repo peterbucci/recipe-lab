@@ -46,9 +46,9 @@ redirects and their targets.
 | `/moderation/recipes` | internal | `frontend/app/staff/_components/staff-tools.tsx` links authorized moderators to this workspace. |
 | `/onboarding` | internal | `frontend/app/api/[...path]/route.ts` forwards the backend authentication completion redirect here. |
 | `/recipes` | active | `frontend/shell/site-header.tsx` links the public recipe catalog. |
-| `/recipes/[recipeVersionId]` | active | `frontend/app/components/recipe-card.tsx` links every public catalog card to recipe detail. |
-| `/recipes/[recipeVersionId]/compare` | active | `frontend/app/components/recipe-family-navigator.tsx` builds the selected-version comparison link. |
-| `/recipes/[recipeVersionId]/fork` | active | `frontend/app/components/recipe-member-actions.tsx` builds the make/continue-version link. |
+| `/recipes/[recipeVersionId]` | active | `frontend/features/recipes/browse/recipe-card.tsx` links every public catalog card to recipe detail. |
+| `/recipes/[recipeVersionId]/compare` | active | `frontend/features/recipes/detail/recipe-family-navigator.tsx` builds the selected-version comparison link. |
+| `/recipes/[recipeVersionId]/fork` | active | `frontend/features/recipes/detail/recipe-member-actions.tsx` builds the make/continue-version link. |
 | `/recipes/drafts/[draftId]` | active | `frontend/app/components/recipe-draft-starter.tsx` navigates newly created drafts to the canonical editor. |
 | `/recipes/new` | active | `frontend/shell/site-header.tsx` links the create-recipe action. |
 | `/sign-in` | active | `frontend/shell/account-menu.tsx` links anonymous members and preserves the return path. |
@@ -100,10 +100,10 @@ executable FastAPI route, including schema-excluded routes.
 | `GET /api/my/dashboard` | active | `active_consumer` | `frontend/lib/member-activity-api.ts` |
 | `GET /api/my/followers` | active | `active_consumer` | `frontend/lib/member-follow-api.ts` |
 | `GET /api/my/follow-stats` | active | `active_consumer` | `frontend/lib/member-follow-api.ts` |
-| `GET /api/my/recipes` | active | `active_consumer` | `frontend/lib/recipe-library-api.ts` |
-| `GET /api/my/saved-recipes` | active | `active_consumer` | `frontend/lib/recipe-library-api.ts` |
+| `GET /api/my/recipes` | active | `active_consumer` | `frontend/features/recipes/library/recipe-library-api.ts` |
+| `GET /api/my/saved-recipes` | active | `active_consumer` | `frontend/features/recipes/library/recipe-library-api.ts` |
 | `GET /api/readiness` | internal | `staff_internal` | `docs/operations-observability.md` |
-| `GET /api/recipe-categories` | active | `active_consumer` | `frontend/lib/recipe-api.ts` |
+| `GET /api/recipe-categories` | active | `active_consumer` | `frontend/features/recipes/browse/recipe-browse-server-api.ts`; `frontend/features/recipes/browse/recipe-category-client-api.ts` |
 | `GET /api/recipe-drafts` | active | `active_consumer` | `frontend/lib/recipe-draft-api.ts` |
 | `POST /api/recipe-drafts` | active | `active_consumer` | `frontend/lib/recipe-draft-api.ts` |
 | `DELETE /api/recipe-drafts/{draft_id}` | active | `active_consumer` | `frontend/lib/recipe-draft-api.ts` |
@@ -111,18 +111,18 @@ executable FastAPI route, including schema-excluded routes.
 | `PUT /api/recipe-drafts/{draft_id}` | active | `active_consumer` | `frontend/lib/recipe-draft-api.ts` |
 | `POST /api/recipe-drafts/{draft_id}/duplicate-preflights` | active | `active_consumer` | `frontend/lib/recipe-duplicate-api.ts` |
 | `POST /api/recipe-drafts/{draft_id}/publish` | active | `active_consumer` | `frontend/lib/recipe-publication-api.ts` |
-| `GET /api/recipes` | active | `active_consumer` | `frontend/lib/recipe-api.ts` |
-| `GET /api/recipes/featured` | active | `active_consumer` | `frontend/lib/recipe-api.ts` |
-| `GET /api/recipes/viewer-states` | active | `active_consumer` | `frontend/lib/interaction-api.ts` |
-| `GET /api/recipes/{recipe_version_id}` | active | `active_consumer` | `frontend/lib/recipe-api.ts` |
-| `GET /api/recipes/{recipe_version_id}/diff` | active | `active_consumer` | `frontend/lib/recipe-api.ts` |
-| `DELETE /api/recipes/{recipe_version_id}/rating` | active | `active_consumer` | `frontend/lib/interaction-api.ts` |
-| `PUT /api/recipes/{recipe_version_id}/rating` | active | `active_consumer` | `frontend/lib/interaction-api.ts` |
+| `GET /api/recipes` | active | `active_consumer` | `frontend/features/recipes/browse/recipe-browse-server-api.ts` |
+| `GET /api/recipes/featured` | active | `active_consumer` | `frontend/features/recipes/browse/recipe-browse-server-api.ts` |
+| `GET /api/recipes/viewer-states` | active | `active_consumer` | `frontend/features/recipes/detail/interaction-api.ts` |
+| `GET /api/recipes/{recipe_version_id}` | active | `active_consumer` | `frontend/features/recipes/detail/recipe-detail-server-api.ts` |
+| `GET /api/recipes/{recipe_version_id}/diff` | active | `active_consumer` | `frontend/features/recipes/detail/recipe-detail-server-api.ts` |
+| `DELETE /api/recipes/{recipe_version_id}/rating` | active | `active_consumer` | `frontend/features/recipes/detail/interaction-api.ts` |
+| `PUT /api/recipes/{recipe_version_id}/rating` | active | `active_consumer` | `frontend/features/recipes/detail/interaction-api.ts` |
 | `POST /api/recipes/{recipe_version_id}/reports` | active | `active_consumer` | `frontend/features/moderation/reporting/recipe-report-api.ts` |
-| `DELETE /api/recipes/{recipe_version_id}/save` | active | `active_consumer` | `frontend/lib/interaction-api.ts` |
-| `PUT /api/recipes/{recipe_version_id}/save` | active | `active_consumer` | `frontend/lib/interaction-api.ts` |
-| `POST /api/recipes/{recipe_version_id}/view` | active | `active_consumer` | `frontend/lib/interaction-api.ts` |
-| `PUT /api/recipes/{recipe_version_id}/visibility` | active | `active_consumer` | `frontend/lib/recipe-visibility-api.ts` |
+| `DELETE /api/recipes/{recipe_version_id}/save` | active | `active_consumer` | `frontend/features/recipes/detail/interaction-api.ts` |
+| `PUT /api/recipes/{recipe_version_id}/save` | active | `active_consumer` | `frontend/features/recipes/detail/interaction-api.ts` |
+| `POST /api/recipes/{recipe_version_id}/view` | active | `active_consumer` | `frontend/features/recipes/detail/interaction-api.ts` |
+| `PUT /api/recipes/{recipe_version_id}/visibility` | active | `active_consumer` | `frontend/features/recipes/library/recipe-visibility-api.ts` |
 | `GET /api/recommendations` | internal | `research_experimental` | `docs/recommendations.md` |
 
 The four framework-owned surfaces (`/docs`, `/docs/oauth2-redirect`,

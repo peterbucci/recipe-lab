@@ -7,7 +7,7 @@ import {
   createRequestFingerprint,
   type PublicApiErrorContract,
 } from "../shared/api/core";
-import { parseRecipeSummary } from "./recipe-library-model";
+import { parseRecipeSummary } from "../features/recipes/shared/recipe-summary-parser";
 
 type FollowCookOperation = operations["follow_cook_api_cooks__handle__follow_put"];
 type MyFollowStatsOperation = operations["my_follow_stats_api_my_follow_stats_get"];

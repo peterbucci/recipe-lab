@@ -46,7 +46,7 @@ import {
   useNavigationBlocker,
 } from "../../shared/navigation/navigation-blocker-provider";
 import { LoadingButton } from "../../shared/ui/loading-ui";
-import { BranchIcon } from "./recipe-action-icons";
+import { BranchIcon } from "../../features/recipes/shared/recipe-action-icons";
 import { RecipeDuplicatePreflightReview } from "./recipe-duplicate-preflight-review";
 
 interface RecipeDraftPublicationProps {

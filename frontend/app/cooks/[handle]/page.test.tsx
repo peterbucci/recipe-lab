@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PublicCookProfilePage } from "../../../lib/recipe-library-model";
-import { buildRecipeCardSummary } from "../../../tests/support/builders/recipe";
+import type { PublicCookProfilePage } from "../../../features/recipes/shared/public-cook-profile";
+import { buildRecipeCardSummary } from "../../../features/recipes/shared/recipe-test-support";
 import CookProfilePage from "./page";
 
 const mocks = vi.hoisted(() => ({

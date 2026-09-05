@@ -172,6 +172,16 @@ member requests, and curator review under `features/ingredients`; their common
 model, parsers, and public error boundary remain feature-owned. The existing
 stylesheet cascade and import order stay unchanged during this ownership move.
 
+RCP-49F separates recipe catalog browsing, public detail and interaction,
+private member libraries, and cross-workflow recipe contracts under
+`features/recipes`. Public summary and cook-profile parsing live in
+`features/recipes/shared`, so community and authoring consumers never depend on
+private library models. The home dashboard, recipe-detail experience, and
+account-access wrappers remain route-private under `app` because they compose
+multiple workflows. Public cook-profile loading remains assigned to RCP-49G.
+The existing stylesheet cascade and import order stay unchanged during this
+ownership move.
+
 Each story is implemented on its own topic branch, verified, and merged into
 `refactor/frontend-architecture`. That integration branch remains separate from
 `main` until review.

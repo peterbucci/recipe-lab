@@ -17,7 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/overlay
 import {
   draftActionMeasureLabel,
   recipeActionLabel,
-} from "./recipe-instruction-actions";
+} from "../../features/recipes/detail/recipe-instruction-actions";
 import {
   DurationMeasureControl,
   TemperatureMeasureControl,

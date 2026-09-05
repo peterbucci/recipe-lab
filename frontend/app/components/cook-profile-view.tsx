@@ -1,9 +1,9 @@
 import Link from "next/link";
 
-import type { PublicCookProfilePage } from "../../lib/recipe-library-model";
+import type { PublicCookProfilePage } from "../../features/recipes/shared/public-cook-profile";
 import { CookFollowControl } from "./cook-follow-control";
-import { RecipeCard } from "./recipe-card";
-import { RecipeCardViewerStateProvider } from "./recipe-card-engagement";
+import { RecipeCard } from "../../features/recipes/browse/recipe-card";
+import { RecipeCardViewerStateProvider } from "../../features/recipes/browse/recipe-card-engagement";
 import { WorkspacePagination } from "../../shared/ui/workspace-pagination";
 
 interface CookProfileViewProps {

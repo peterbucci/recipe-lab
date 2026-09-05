@@ -1,6 +1,8 @@
 import Link from "next/link";
 
-import type { RecipeSummary } from "../../lib/recipe-api";
+import type {
+  RecipeSummary,
+} from "../../features/recipes/shared/recipe-contracts";
 import { communityPublicationTimeLabel } from "../../lib/relative-time";
 import { PublicCookAttribution } from "./public-cook-attribution";
 

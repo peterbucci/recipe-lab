@@ -2,14 +2,16 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { RecipeCategory } from "../../lib/recipe-api";
+import type {
+  RecipeCategory,
+} from "../../features/recipes/shared/recipe-contracts";
 import { RecipeCategorySelector } from "./recipe-category-selector";
 
 const mocks = vi.hoisted(() => ({
   fetchActiveRecipeCategories: vi.fn(),
 }));
 
-vi.mock("../../lib/recipe-category-client-api", () => ({
+vi.mock("../../features/recipes/browse/recipe-category-client-api", () => ({
   fetchActiveRecipeCategories: mocks.fetchActiveRecipeCategories,
 }));
 

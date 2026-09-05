@@ -8,8 +8,10 @@ vi.mock("../../lib/member-follow-api", async (importOriginal) => ({
   fetchMyCommunityActivity: apiMocks.fetchMyCommunityActivity,
 }));
 
-import type { RecipeSummary } from "../../lib/recipe-api";
-import { buildRecipeSummary } from "../../tests/support/builders/recipe";
+import type {
+  RecipeSummary,
+} from "../../features/recipes/shared/recipe-contracts";
+import { buildRecipeSummary } from "../../features/recipes/shared/recipe-test-support";
 import { AuthSessionProvider } from "./auth-session-provider";
 import { CommunityActivityTimeline } from "./community-activity-timeline";
 

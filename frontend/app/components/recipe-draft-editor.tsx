@@ -19,7 +19,7 @@ import type {
   RecipeCardSummary,
   RecipeCategory,
   RecipeDetail,
-} from "../../lib/recipe-api";
+} from "../../features/recipes/shared/recipe-contracts";
 import {
   fetchRecipeDraft,
   RecipeDraftApiError,
@@ -51,7 +51,7 @@ import {
 import {
   fetchRecipeFamily,
   type LoadedRecipeFamily,
-} from "../../lib/recipe-family-client-api";
+} from "../../features/recipes/detail/recipe-family-client-api";
 import { MemberRouteGate } from "./member-route-gate";
 import { Dialog } from "../../shared/ui/overlay-primitives";
 import { useAuthSession } from "./auth-session-provider";
@@ -65,8 +65,8 @@ import {
   useNavigationBlocker,
 } from "../../shared/navigation/navigation-blocker-provider";
 import { RecipeCategorySelector } from "./recipe-category-selector";
-import { RecipeArtwork } from "./recipe-artwork";
-import { RecipeDetailTabs } from "./recipe-detail-tabs";
+import { RecipeArtwork } from "../../features/recipes/shared/recipe-artwork";
+import { RecipeDetailTabs } from "../../features/recipes/detail/recipe-detail-tabs";
 import {
   RecipeDraftFactsFields,
   RecipeDraftIdentityFields,
@@ -75,8 +75,8 @@ import { RecipeDraftIngredientsSection } from "./recipe-draft-ingredients-sectio
 import { RecipeDraftInstructionsSection } from "./recipe-draft-instructions-section";
 import { RecipeDraftNotesSection } from "./recipe-draft-notes-section";
 import { RecipeDraftPublication } from "./recipe-draft-publication";
-import { RecipeFamilyNavigator } from "./recipe-family-navigator";
-import { RatingSummary } from "./rating-summary";
+import { RecipeFamilyNavigator } from "../../features/recipes/detail/recipe-family-navigator";
+import { RatingSummary } from "../../features/recipes/shared/rating-summary";
 
 interface RecipeDraftEditorProps {
   actionTypes: readonly CatalogActionType[];

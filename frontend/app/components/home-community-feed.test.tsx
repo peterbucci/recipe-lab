@@ -11,11 +11,13 @@ vi.mock("../../lib/member-follow-api", async (importOriginal) => ({
 }));
 
 import type { AuthSession } from "../../lib/auth-api";
-import type { RecipeSummary } from "../../lib/recipe-api";
-import { buildRecipeSummary } from "../../tests/support/builders/recipe";
+import type {
+  RecipeSummary,
+} from "../../features/recipes/shared/recipe-contracts";
+import { buildRecipeSummary } from "../../features/recipes/shared/recipe-test-support";
 import { AuthSessionProvider } from "./auth-session-provider";
 import { HomeCommunityFeed } from "./home-community-feed";
-import { HomeLoadNotice, HomeLoadStateProvider } from "./home-load-state";
+import { HomeLoadNotice, HomeLoadStateProvider } from "../_components/home-load-state";
 
 function recipe(overrides: Partial<RecipeSummary> = {}): RecipeSummary {
   return buildRecipeSummary({
