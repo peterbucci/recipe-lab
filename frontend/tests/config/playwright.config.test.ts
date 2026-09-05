@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import playwrightConfig, {
   screenshotModeForRun,
   traceModeForRun,
-} from "./playwright.config";
+} from "../../playwright.config";
 
 describe("Playwright diagnostic security", () => {
   it("disables traces when acceptance sessions are active", () => {

@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { RecipeSummary } from "../../lib/recipe-api";
-import { buildRecipeSummary } from "../../test/builders/recipe";
+import { buildRecipeSummary } from "../../tests/support/builders/recipe";
 import { AuthSessionProvider } from "./auth-session-provider";
 import { RecipeCard } from "./recipe-card";
 

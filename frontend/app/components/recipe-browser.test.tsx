@@ -7,7 +7,7 @@ import type {
   RecipeCategory,
   RecipePage,
 } from "../../lib/recipe-api";
-import { buildRecipeCardSummary } from "../../test/builders/recipe";
+import { buildRecipeCardSummary } from "../../tests/support/builders/recipe";
 import { AuthSessionProvider } from "./auth-session-provider";
 import { RecipeBrowser } from "./recipe-browser";
 

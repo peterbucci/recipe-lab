@@ -16,7 +16,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import type { RecipeSummary } from "../../lib/recipe-api";
-import { buildRecipeSummary } from "../../test/builders/recipe";
+import { buildRecipeSummary } from "../../tests/support/builders/recipe";
 import { AuthSessionProvider } from "./auth-session-provider";
 import { HomeLoadNotice, HomeLoadStateProvider } from "./home-load-state";
 import { HomePublicDiscovery } from "./home-public-discovery";

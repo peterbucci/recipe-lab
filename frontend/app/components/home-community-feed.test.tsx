@@ -12,7 +12,7 @@ vi.mock("../../lib/member-follow-api", async (importOriginal) => ({
 
 import type { AuthSession } from "../../lib/auth-api";
 import type { RecipeSummary } from "../../lib/recipe-api";
-import { buildRecipeSummary } from "../../test/builders/recipe";
+import { buildRecipeSummary } from "../../tests/support/builders/recipe";
 import { AuthSessionProvider } from "./auth-session-provider";
 import { HomeCommunityFeed } from "./home-community-feed";
 import { HomeLoadNotice, HomeLoadStateProvider } from "./home-load-state";

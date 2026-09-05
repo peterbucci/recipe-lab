@@ -12,7 +12,7 @@ import type { AuthSession } from "../../lib/auth-api";
 import type { RecipeViewerState } from "../../lib/interaction-api";
 import type { RecipeDraftListItem } from "../../lib/recipe-draft-api";
 import type { RecipeDraftEditorEntry } from "../../lib/recipe-draft-editor-entry";
-import { deferred } from "../../test/deferred";
+import { deferred } from "../../tests/support/deferred";
 import { AuthSessionProvider, useAuthSession } from "./auth-session-provider";
 import { RecipeMemberActions } from "./recipe-member-actions";
 

@@ -10,7 +10,7 @@ import {
   fetchMyIngredientRequest,
   IngredientCatalogApiError,
 } from "../../lib/ingredient-catalog-api";
-import { deferred } from "../../test/deferred";
+import { deferred } from "../../tests/support/deferred";
 import { MemberIngredientRequestHistory } from "./member-ingredient-request-history";
 
 const mocks = vi.hoisted(() => ({

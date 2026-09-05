@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import nextConfig from "./next.config";
+import nextConfig from "../../next.config";
 
 function ignoredIncomingRequests(): RegExp[] {
   const logging = nextConfig.logging;

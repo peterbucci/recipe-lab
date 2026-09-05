@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildRecipeCardSummary } from "../test/builders/recipe";
+import { buildRecipeCardSummary } from "../tests/support/builders/recipe";
 import type { RecipeDetail } from "./recipe-api";
 import { fetchRecipeFamily } from "./recipe-family-client-api";
 

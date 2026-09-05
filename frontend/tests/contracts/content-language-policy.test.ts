@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
-const FRONTEND_ROOT = dirname(fileURLToPath(import.meta.url));
+const FRONTEND_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const REPOSITORY_ROOT = resolve(FRONTEND_ROOT, "..");
 const APP_ROOT = resolve(FRONTEND_ROOT, "app");
 

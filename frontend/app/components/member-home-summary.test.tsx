@@ -6,7 +6,7 @@ import {
   type MemberDashboard,
 } from "../../lib/member-activity-api";
 import type { RecipeDraftListItem } from "../../lib/recipe-draft-api";
-import { deferred } from "../../test/deferred";
+import { deferred } from "../../tests/support/deferred";
 import { HomeLoadNotice, HomeLoadStateProvider } from "./home-load-state";
 import { MemberHomeSummary } from "./member-home-summary";
 

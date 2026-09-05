@@ -5,7 +5,7 @@ import {
   RCP46F_STAFF_STATE_MATRIX,
   RCP46F_STAFF_VIEWPORTS,
   type Rcp46fStaffState,
-} from "./e2e/rcp46f-staff-certification-matrix";
+} from "../../e2e/rcp46f-staff-certification-matrix";
 
 describe("RCP-46F staff certification inventory", () => {
   it("keeps curator and moderator routes and capabilities separate", () => {

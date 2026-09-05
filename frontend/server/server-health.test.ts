@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { handleHealthCheck } from "./server.mjs";
+import { handleHealthCheck } from "../server.mjs";
 
 function responseDouble() {
   const headers = new Map<string, string | number>();

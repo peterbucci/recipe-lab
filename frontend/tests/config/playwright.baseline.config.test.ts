@@ -12,7 +12,7 @@ import baselineConfig, {
   BASELINE_PROJECTS,
   BASELINE_RESULTS_FILE,
   BASELINE_SNAPSHOT_TEMPLATE,
-} from "./playwright.baseline.config";
+} from "../../playwright.baseline.config";
 
 describe("RCP-34B deterministic browser baseline configuration", () => {
   it("freezes the public runner contract and diagnostics policy", () => {

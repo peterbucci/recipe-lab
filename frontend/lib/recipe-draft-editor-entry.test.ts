@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { deferred } from "../test/deferred";
+import { deferred } from "../tests/support/deferred";
 import type { CatalogActionType } from "./cooking-action-api";
 import type { CatalogUnit } from "./measurement-unit-api";
 import type { RecipeDraftDetail } from "./recipe-draft-api";

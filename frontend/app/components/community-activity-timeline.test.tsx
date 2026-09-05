@@ -9,7 +9,7 @@ vi.mock("../../lib/member-follow-api", async (importOriginal) => ({
 }));
 
 import type { RecipeSummary } from "../../lib/recipe-api";
-import { buildRecipeSummary } from "../../test/builders/recipe";
+import { buildRecipeSummary } from "../../tests/support/builders/recipe";
 import { AuthSessionProvider } from "./auth-session-provider";
 import { CommunityActivityTimeline } from "./community-activity-timeline";
 

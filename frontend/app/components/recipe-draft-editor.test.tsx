@@ -11,7 +11,7 @@ import { AUTH_SESSION_EXPIRED_EVENT } from "../../lib/auth-api";
 import type { RecipeDetail } from "../../lib/recipe-api";
 import type { RecipeDraftDetail } from "../../lib/recipe-draft-api";
 import { RecipeDraftApiError } from "../../lib/recipe-draft-api";
-import { deferred } from "../../test/deferred";
+import { deferred } from "../../tests/support/deferred";
 import {
   AuthSessionProvider,
   SessionRecoveryNotice,

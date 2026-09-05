@@ -13,7 +13,7 @@ import {
   submitMissingIngredientRequest,
 } from "../../lib/ingredient-catalog-api";
 import type { RecipeDraftRequestSelection } from "../../lib/recipe-draft-api";
-import { deferred } from "../../test/deferred";
+import { deferred } from "../../tests/support/deferred";
 import { IngredientCatalogPicker } from "./ingredient-catalog-picker";
 
 const mocks = vi.hoisted(() => ({
