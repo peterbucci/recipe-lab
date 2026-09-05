@@ -4,7 +4,7 @@ ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.12.6@sha256:88bc6eb1ccd4b82efd0e1b530caffabd
 FROM ${UV_IMAGE} AS uv
 FROM ${PYTHON_IMAGE} AS python-base
 # Fix util-linux CVEs until the official Python base includes patched libuuid.
-RUN apk add --no-cache libuuid=2.42.3-r0
+RUN apk add --no-cache libuuid=2.42.3-r1
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

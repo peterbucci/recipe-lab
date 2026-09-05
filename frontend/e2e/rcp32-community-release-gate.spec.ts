@@ -157,13 +157,11 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 }
 
 async function activateWithKeyboard(
-  page: Page,
   control: Locator,
   key: "Enter" | "Space" = "Enter",
 ): Promise<void> {
-  await control.focus();
-  await expect(control).toBeFocused();
-  await page.keyboard.press(key);
+  await expect(control).toBeEnabled();
+  await control.press(key);
 }
 
 function containsPrivatePublicKey(value: unknown): boolean {
@@ -367,7 +365,7 @@ async function publishReviewedFork(
         ? /closely matches its source.*publish it separately/i
         : /reviewed these similar recipes/i,
   });
-  await activateWithKeyboard(page, acknowledgement, "Space");
+  await activateWithKeyboard(acknowledgement, "Space");
   await expect(acknowledgement).toBeChecked();
   const continueButton = review.getByRole("button", {
     name: "Publish version",
@@ -379,7 +377,7 @@ async function publishReviewedFork(
       response.request().method() === "POST" &&
       response.url().endsWith(`/api/recipe-drafts/${draftId}/publish`),
   );
-  await activateWithKeyboard(page, continueButton);
+  await activateWithKeyboard(continueButton);
   const published = await publicationPayload(await publishResponse);
   await expect(page).toHaveURL(published.location);
   return { preflightId, recipeVersionId: published.recipe_version_id };
@@ -679,7 +677,7 @@ test.describe("RCP-32 two-user community release gate", () => {
           name: "Request missing ingredient",
           exact: true,
         });
-        await activateWithKeyboard(alice, requestButton);
+        await activateWithKeyboard(requestButton);
         const requestDialog = alice.getByRole("dialog", {
           name: "Request a missing ingredient",
           exact: true,
@@ -796,7 +794,7 @@ test.describe("RCP-32 two-user community release gate", () => {
         const requestItem = curator.getByRole("button").filter({
           has: curator.getByText(requestedIngredient, { exact: true }),
         });
-        await activateWithKeyboard(curator, requestItem);
+        await activateWithKeyboard(requestItem);
         const requestHeading = curator.getByRole("heading", {
           name: requestedIngredient,
           level: 2,
@@ -861,15 +859,21 @@ test.describe("RCP-32 two-user community release gate", () => {
           exact: true,
         });
         await expect(search).toHaveValue(requestedIngredient);
-        await search.focus();
         const useResolution = ingredient
           .getByRole("listbox", { name: "Ingredient suggestions" })
           .getByRole("option", {
             name: `${requestedIngredient} Approved from your ingredient request`,
             exact: true,
           });
+        await search.press("ArrowDown");
         await expect(useResolution).toBeVisible();
-        await activateWithKeyboard(alice, useResolution);
+        const resolutionId = await useResolution.getAttribute("id");
+        expect(resolutionId).not.toBeNull();
+        await expect(search).toHaveAttribute(
+          "aria-activedescendant",
+          resolutionId!,
+        );
+        await search.press("Enter");
         await expect(search).toBeFocused();
         await expect(search).toHaveValue(requestedIngredient);
         await expect(

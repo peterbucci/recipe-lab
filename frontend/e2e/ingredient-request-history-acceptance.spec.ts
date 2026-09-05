@@ -175,12 +175,11 @@ async function selectResolvedComboboxOptionWithKeyboard(
   input: Locator,
   option: Locator,
 ): Promise<void> {
-  await input.focus();
-  await expect(input).toBeFocused();
+  await expect(input).toBeEnabled();
+  await input.press("ArrowDown");
   await expect(option).toBeVisible();
   const optionId = await option.getAttribute("id");
   expect(optionId).not.toBeNull();
-  await input.press("ArrowDown");
   await expect(input).toHaveAttribute("aria-activedescendant", optionId!);
   await input.press("Enter");
 }
@@ -629,12 +628,11 @@ test.describe("member ingredient-request acceptance", () => {
       await expect(page.getByLabel("Makes", { exact: true })).toHaveValue(
         "6",
       );
-      await sugarRow
-        .getByRole("button", {
-          name: "Edit amount for ingredient 3",
-          exact: true,
-        })
-        .click();
+      const sugarAmountTrigger = sugarRow.getByRole("button", {
+        name: "Edit amount for ingredient 3",
+        exact: true,
+      });
+      await sugarAmountTrigger.click();
       const persistedSugarAmount = sugarRow.getByRole("dialog", {
         name: "Amount for ingredient 3",
         exact: true,
@@ -653,12 +651,12 @@ test.describe("member ingredient-request acceptance", () => {
       await persistedSugarAmount
         .getByRole("button", { name: "Done", exact: true })
         .click();
-      await walnutRow
-        .getByRole("button", {
-          name: "Edit amount for ingredient 6",
-          exact: true,
-        })
-        .click();
+      await expect(sugarAmountTrigger).toBeFocused();
+      const walnutAmountTrigger = walnutRow.getByRole("button", {
+        name: "Edit amount for ingredient 6",
+        exact: true,
+      });
+      await walnutAmountTrigger.click();
       const persistedWalnutAmount = walnutRow.getByRole("dialog", {
         name: "Amount for ingredient 6",
         exact: true,
@@ -677,18 +675,18 @@ test.describe("member ingredient-request acceptance", () => {
       await persistedWalnutAmount
         .getByRole("button", { name: "Done", exact: true })
         .click();
+      await expect(walnutAmountTrigger).toBeFocused();
       await expect(
         page.getByLabel("Instruction", { exact: true }).first(),
       ).toHaveValue(draftInstruction);
       await expect(
         eggRow.getByRole("combobox", { name: "Ingredient", exact: true }),
       ).toHaveValue("Egg");
-      await eggRow
-        .getByRole("button", {
-          name: "Edit amount for ingredient 4",
-          exact: true,
-        })
-        .click();
+      const eggAmountTrigger = eggRow.getByRole("button", {
+        name: "Edit amount for ingredient 4",
+        exact: true,
+      });
+      await eggAmountTrigger.click();
       const eggAmountEditor = eggRow.getByRole("dialog", {
         name: "Amount for ingredient 4",
         exact: true,
@@ -699,6 +697,7 @@ test.describe("member ingredient-request acceptance", () => {
       await eggAmountEditor
         .getByRole("button", { name: "Done", exact: true })
         .click();
+      await expect(eggAmountTrigger).toBeFocused();
     };
 
     const submitFromPicker = async (
