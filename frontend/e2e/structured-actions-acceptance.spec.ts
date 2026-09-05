@@ -178,6 +178,8 @@ test.describe("structured cooking action acceptance", () => {
       .getByRole("checkbox", { name: /Ingredient 3: White sugar/i });
     await whiteSugarInput.check();
     await lineSelect.selectOption("");
+    await lineAction.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(lineAction).toHaveCount(0);
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
     await expect(
       lineAction.getByText("Choose a cooking action.", { exact: true }),

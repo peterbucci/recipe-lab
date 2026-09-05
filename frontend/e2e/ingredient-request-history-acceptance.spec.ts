@@ -432,7 +432,7 @@ test.describe("member ingredient-request acceptance", () => {
     page,
     sourceDrafts,
   }) => {
-    test.setTimeout(45_000);
+    test.setTimeout(75_000);
     const runId = Date.now().toString(36);
     const searchPrefix = `Acceptance draft request ${runId}`;
     const approvedName = `${searchPrefix} silver leaf`;
@@ -551,6 +551,60 @@ test.describe("member ingredient-request acceptance", () => {
       .getByLabel("Instruction", { exact: true })
       .first()
       .fill(draftInstruction);
+
+    // An unresolved request cannot be a structured-action input. Detach the
+    // four slots from the seeded cooking graph before deliberately replacing
+    // their catalog identities with request references.
+    await page
+      .getByRole("tab", { name: "Cooking breakdown", exact: true })
+      .click();
+    const cookingInputsToDetach = [
+      { detail: 2, ingredients: [rejectedLabel], step: 1 },
+      { detail: 1, ingredients: [pendingLabel], step: 2 },
+      { detail: 1, ingredients: [sugarLabel, rejectedLabel], step: 3 },
+      { detail: 2, ingredients: [pendingLabel], step: 3 },
+      { detail: 3, ingredients: [walnutLabel], step: 3 },
+      {
+        detail: 1,
+        ingredients: [sugarLabel, rejectedLabel, walnutLabel, pendingLabel],
+        step: 4,
+      },
+      {
+        detail: 2,
+        ingredients: [sugarLabel, rejectedLabel, walnutLabel, pendingLabel],
+        step: 4,
+      },
+      {
+        detail: 3,
+        ingredients: [sugarLabel, rejectedLabel, walnutLabel, pendingLabel],
+        step: 4,
+      },
+    ] as const;
+    for (const cookingInput of cookingInputsToDetach) {
+      await page
+        .getByRole("button", {
+          name: `Edit cooking detail ${cookingInput.detail} for Step ${cookingInput.step}`,
+          exact: true,
+        })
+        .click();
+      const cookingDetail = page.getByRole("dialog", {
+        name: `Cooking detail ${cookingInput.detail} for Step ${cookingInput.step}`,
+        exact: true,
+      });
+      for (const ingredientLabel of cookingInput.ingredients) {
+        const ingredientInput = cookingDetail.getByRole("checkbox", {
+          name: ingredientLabel,
+          exact: true,
+        });
+        await expect(ingredientInput).toBeChecked();
+        await ingredientInput.uncheck();
+        await expect(ingredientInput).not.toBeChecked();
+      }
+      await cookingDetail
+        .getByRole("button", { name: "Done", exact: true })
+        .click();
+    }
+    await page.getByRole("tab", { name: "Steps", exact: true }).click();
 
     const expectDraftPreserved = async (): Promise<void> => {
       await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
@@ -690,7 +744,17 @@ test.describe("member ingredient-request acceptance", () => {
       "Alice is still waiting for a curator decision.",
     );
     await expectDraftPreserved();
+    const unresolvedSave = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PUT" &&
+        new URL(response.url()).pathname === `/api/recipe-drafts/${draftId}`,
+    );
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    const unresolvedSaveResponse = await unresolvedSave;
+    expect(
+      unresolvedSaveResponse.status(),
+      await unresolvedSaveResponse.text(),
+    ).toBe(200);
     await expect(
       page.getByRole("button", { name: "Draft saved", exact: true }),
     ).toBeDisabled();

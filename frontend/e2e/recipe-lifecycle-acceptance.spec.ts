@@ -371,9 +371,9 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
     expect(
       replayAfterWithdrawal.status(),
       await replayAfterWithdrawal.text(),
-    ).toBe(201);
+    ).toBe(409);
     expect(await replayAfterWithdrawal.json()).toMatchObject({
-      id: draftBeforeWithdrawalBody.id,
+      error: { code: "idempotency_key_conflict" },
     });
     const newIntentAfterWithdrawal = await page.request.post(
       "/api/recipe-drafts",

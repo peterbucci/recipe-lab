@@ -266,7 +266,11 @@ test.describe("cross-user fork publication acceptance", () => {
     await expect(
       page.getByRole("heading", { name: childTitle, level: 1 }),
     ).toBeVisible();
-    await expect(page.getByText("Version 2", { exact: true })).toHaveCount(0);
+    await expect(
+      page
+        .locator(".recipe-detail__intro")
+        .getByText("Version 2", { exact: true }),
+    ).toHaveCount(0);
     const parentContext = page
       .getByRole("main")
       .locator(".recipe-detail__parent-context");

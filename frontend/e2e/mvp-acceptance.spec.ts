@@ -111,12 +111,11 @@ test.describe("MVP acceptance", () => {
       name: "Ingredient 6",
       exact: true,
     });
-    await sugarRow
-      .getByRole("button", {
-        name: "Edit amount for ingredient 3",
-        exact: true,
-      })
-      .click();
+    const sugarAmountTrigger = sugarRow.getByRole("button", {
+      name: "Edit amount for ingredient 3",
+      exact: true,
+    });
+    await sugarAmountTrigger.click();
     const sugarAmountEditor = sugarRow.getByRole("dialog", {
       name: "Amount for ingredient 3",
       exact: true,
@@ -130,6 +129,8 @@ test.describe("MVP acceptance", () => {
     await sugarAmountEditor
       .getByRole("button", { name: "Done", exact: true })
       .click();
+    await expect(sugarAmountEditor).toHaveCount(0);
+    await expect(sugarAmountTrigger).toBeFocused();
     const replacementSearch = walnutRow.getByRole("combobox", {
       name: "Ingredient",
       exact: true,

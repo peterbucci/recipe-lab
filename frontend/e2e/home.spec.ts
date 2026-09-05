@@ -512,9 +512,11 @@ test("compares a selected family recipe with the open recipe without signing in"
   ).toBeVisible();
 
   await page.goto(openRecipeUrl);
+  await page.getByRole("tab", { name: "Family", exact: true }).click();
   await expect(
     page.getByRole("tab", { name: "Family", exact: true }),
   ).toHaveAttribute("aria-selected", "true");
+  await expect(page).toHaveURL(openRecipeUrl + "#recipe-family");
   await page
     .getByRole("button", {
       name: "Show Lower-Sugar Pecan Carrot Cake in the family tree",
@@ -901,6 +903,7 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
   await search.press("ArrowDown");
   await search.press("Enter");
   await expect(search).toHaveValue("Pecan");
+  await expect(search).toHaveAttribute("aria-expanded", "false");
   await expect(
     ingredientRow.getByText("Selected ingredient", { exact: true }),
   ).toHaveCount(0);
@@ -918,6 +921,7 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
     .getByRole("combobox", { name: "Unit", exact: true })
     .selectOption({ label: "gram (g)" });
   await amountEditor.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(amountEditor).toHaveCount(0);
 
   const updateRequest = page.waitForRequest(
     (request) =>
@@ -951,11 +955,15 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
   expect(pickerBox).not.toBeNull();
   expect(pickerBox!.x).toBeGreaterThanOrEqual(0);
   expect(pickerBox!.x + pickerBox!.width).toBeLessThanOrEqual(390);
-  expect(
-    await page.evaluate(
+  await expect
+    .poll(
       () =>
-        document.documentElement.scrollWidth >
-        document.documentElement.clientWidth,
-    ),
-  ).toBe(false);
+        page.evaluate(
+          () =>
+            document.documentElement.scrollWidth -
+            document.documentElement.clientWidth,
+        ),
+      { message: "The phone draft editor must not overflow horizontally." },
+    )
+    .toBeLessThanOrEqual(0);
 });
