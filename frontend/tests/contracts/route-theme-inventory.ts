@@ -113,7 +113,7 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/catalog/ingredient-requests",
     family: "staff-curation",
     reachability: "internal",
-    consumerEvidence: ["frontend/app/components/staff-tools.tsx"],
+    consumerEvidence: ["frontend/app/staff/_components/staff-tools.tsx"],
   },
   {
     file: "app/community-rules/page.tsx",
@@ -134,7 +134,7 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/moderation/recipes",
     family: "staff-moderation",
     reachability: "internal",
-    consumerEvidence: ["frontend/app/components/staff-tools.tsx"],
+    consumerEvidence: ["frontend/app/staff/_components/staff-tools.tsx"],
   },
   {
     file: "app/onboarding/page.tsx",

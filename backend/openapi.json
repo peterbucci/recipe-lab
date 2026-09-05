@@ -8667,8 +8667,8 @@
         ],
         "x-recipe-lab-classification": "staff_internal",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/recipe-moderation-api.ts",
-          "frontend/app/components/recipe-moderation-workspace.tsx"
+          "frontend/features/moderation/review/recipe-moderation-api.ts",
+          "frontend/features/moderation/review/recipe-moderation-workspace.tsx"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "internal"
@@ -8777,8 +8777,8 @@
         ],
         "x-recipe-lab-classification": "staff_internal",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/recipe-moderation-api.ts",
-          "frontend/app/components/recipe-moderation-workspace.tsx"
+          "frontend/features/moderation/review/recipe-moderation-api.ts",
+          "frontend/features/moderation/review/recipe-moderation-workspace.tsx"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "internal"
@@ -8925,8 +8925,8 @@
         ],
         "x-recipe-lab-classification": "staff_internal",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/recipe-moderation-api.ts",
-          "frontend/app/components/recipe-moderation-workspace.tsx"
+          "frontend/features/moderation/review/recipe-moderation-api.ts",
+          "frontend/features/moderation/review/recipe-moderation-workspace.tsx"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "internal"
@@ -11711,7 +11711,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/recipe-report-api.ts"
+          "frontend/features/moderation/reporting/recipe-report-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"

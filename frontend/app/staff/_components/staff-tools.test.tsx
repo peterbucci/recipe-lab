@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { AuthSession } from "../../lib/auth-api";
-import { AuthSessionProvider } from "./auth-session-provider";
+import type { AuthSession } from "../../../lib/auth-api";
+import { AuthSessionProvider } from "../../components/auth-session-provider";
 import { StaffTools } from "./staff-tools";
 
 function renderStaffTools(session: AuthSession) {

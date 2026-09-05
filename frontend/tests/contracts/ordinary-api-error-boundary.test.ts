@@ -9,7 +9,7 @@ import { createRecipeDraft } from "../../lib/recipe-draft-api";
 import { createRecipeDraftDuplicatePreflight } from "../../lib/recipe-duplicate-api";
 import { fetchMyRecipeLibrary } from "../../lib/recipe-library-api";
 import { publishRecipeDraft } from "../../lib/recipe-publication-api";
-import { submitRecipeReport } from "../../lib/recipe-report-api";
+import { submitRecipeReport } from "../../features/moderation/reporting/recipe-report-api";
 import { updateRecipeVisibility } from "../../lib/recipe-visibility-api";
 
 const RECIPE_ID = "11111111-1111-4111-8111-111111111111";

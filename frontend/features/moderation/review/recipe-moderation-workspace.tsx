@@ -3,26 +3,25 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import type { RecipeModerationStatus } from "../../lib/recipe-moderation-api";
-import { RECIPE_MODERATION_STATUS_LABELS } from "../../lib/recipe-moderation-presentation";
+import type { RecipeModerationStatus } from "./recipe-moderation-api";
+import { RECIPE_MODERATION_STATUS_LABELS } from "./recipe-moderation-presentation";
 import { RecipeModerationCaseDetail } from "./recipe-moderation-case-detail";
 import { RecipeModerationQueue } from "./recipe-moderation-queue";
 import { useRecipeModerationWorkspace } from "./use-recipe-moderation-workspace";
-import { WorkspaceEmptyState } from "../../shared/ui/workspace-empty-state";
-import { WorkspacePanelHeader } from "../../shared/ui/workspace-panel-header";
+import { WorkspaceEmptyState } from "../../../shared/ui/workspace-empty-state";
+import { WorkspacePanelHeader } from "../../../shared/ui/workspace-panel-header";
 import {
   WorkspaceErrorState,
   WorkspaceLoadingState,
-} from "../../shared/ui/workspace-state";
+} from "../../../shared/ui/workspace-state";
 import {
   WorkspaceTabButton,
   WorkspaceTabMenu,
-} from "../../shared/ui/workspace-tab-menu";
+} from "../../../shared/ui/workspace-tab-menu";
 import {
-  StaffWorkspaceAccess,
   StaffWorkspaceShell,
   StaffWorkspaceSplitPanel,
-} from "./staff-workspace-shell";
+} from "../../../shared/ui/staff-workspace-shell";
 
 const STATUS_FILTERS: ReadonlyArray<{
   value: RecipeModerationStatus;
@@ -50,23 +49,7 @@ const STATUS_PANEL_COPY: Record<
   },
 };
 
-export function RecipeModerationWorkspace() {
-  return (
-    <StaffWorkspaceAccess
-      capability="moderate_recipe_reports"
-      loadingLabel="Checking moderation access…"
-      variant="moderation"
-    >
-      {(onAuthorizationLost) => (
-        <AuthorizedModerationWorkspace
-          onAuthorizationLost={onAuthorizationLost}
-        />
-      )}
-    </StaffWorkspaceAccess>
-  );
-}
-
-function AuthorizedModerationWorkspace({
+export function RecipeModerationWorkspace({
   onAuthorizationLost,
 }: {
   onAuthorizationLost: () => void;

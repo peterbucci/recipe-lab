@@ -130,7 +130,7 @@ export const STAFF_DIAGNOSTIC_EXCEPTIONS: Readonly<
   "app/components/ingredient-request-review-detail.tsx": new Set([
     "staff-identifiers",
   ]),
-  "app/components/recipe-moderation-workspace.tsx": new Set([
+  "features/moderation/review/recipe-moderation-workspace.tsx": new Set([
     "staff-identifiers",
   ]),
   "app/moderation/recipes/loading.tsx": new Set(["staff-identifiers"]),

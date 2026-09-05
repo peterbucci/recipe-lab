@@ -1,7 +1,7 @@
 import { type RefObject, useEffect, useRef, useState } from "react";
 
-import { isAbortError } from "../../shared/api/abort-error";
-import { createIdempotencyKey } from "../../shared/api/idempotency-key";
+import { isAbortError } from "../../../shared/api/abort-error";
+import { createIdempotencyKey } from "../../../shared/api/idempotency-key";
 import {
   browseRecipeModerationCases,
   fetchRecipeModerationCase,
@@ -11,7 +11,7 @@ import {
   type RecipeModerationCaseDetail,
   type RecipeModerationCasePage,
   type RecipeModerationStatus,
-} from "../../lib/recipe-moderation-api";
+} from "./recipe-moderation-api";
 
 interface Attempt {
   fingerprint: string;

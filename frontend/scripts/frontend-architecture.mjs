@@ -56,23 +56,6 @@ export const LEGACY_MIGRATION_RULES = Object.freeze([
     ),
   },
   {
-    story: "RCP-49D",
-    destination: "features/moderation",
-    pattern: moduleFamilies(
-      "recipe-moderation-api",
-      "recipe-moderation-case-detail",
-      "recipe-moderation-presentation",
-      "recipe-moderation-queue",
-      "recipe-moderation-workspace",
-      "recipe-report-access",
-      "recipe-report-api",
-      "recipe-report-panel",
-      "staff-tools",
-      "staff-workspace-shell",
-      "use-recipe-moderation-workspace",
-    ),
-  },
-  {
     story: "RCP-49E",
     destination: "features/ingredients",
     pattern: moduleFamilies(

@@ -11,11 +11,11 @@ import {
   IngredientRequestReviewQueue,
   IngredientRequestStatusFilters,
 } from "./ingredient-request-review-queue";
+import { StaffWorkspaceAccess } from "../_components/staff-workspace-access";
 import {
-  StaffWorkspaceAccess,
   StaffWorkspaceShell,
   StaffWorkspaceSplitPanel,
-} from "./staff-workspace-shell";
+} from "../../shared/ui/staff-workspace-shell";
 import { WorkspaceEmptyState } from "../../shared/ui/workspace-empty-state";
 import { WorkspacePanelHeader } from "../../shared/ui/workspace-panel-header";
 import {
