@@ -51,7 +51,7 @@ Use the smallest layer that can prove the behavior:
 
 | Test kind | Location | Use it for |
 |---|---|---|
-| Unit/component | Beside code in `app`, `lib`, `server`, `scripts`, or `performance` | One clear production owner |
+| Unit/component | Beside code in `app`, `features`, `shared`, `shell`, `server`, `scripts`, or `performance` | One clear production owner |
 | Config contract | `frontend/tests/config` | Next.js, Vitest, or Playwright configuration behavior |
 | Cross-cutting contract | `frontend/tests/contracts` | Language, route, architecture, and inventory rules |
 | Shared Vitest support | `frontend/tests/support` | Builders and helpers used by multiple owners |

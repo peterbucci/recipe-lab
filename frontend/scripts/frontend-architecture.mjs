@@ -1,0 +1,425 @@
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, extname, join, relative, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const SOURCE_EXTENSIONS = new Set([
+  ".ts",
+  ".tsx",
+  ".mts",
+  ".cts",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+]);
+
+export const FRONTEND_OWNERS = Object.freeze({
+  routes: "app",
+  features: "features",
+  shared: "shared",
+  shell: "shell",
+  server: "server",
+  legacy: "legacy",
+});
+
+const RUNTIME_ROOTS = ["app", "features", "shared", "shell", "server", "lib"];
+
+function moduleFamilies(...names) {
+  const alternatives = names
+    .sort((left, right) => right.length - left.length)
+    .map((name) => name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  return new RegExp(`^(?:app/components|lib)/(?:${alternatives})(?:[./-]|$)`);
+}
+
+export const LEGACY_MIGRATION_RULES = Object.freeze([
+  {
+    story: "RCP-49B",
+    destination: "shared/ui or shell",
+    pattern: moduleFamilies(
+      "account-menu",
+      "loading-status",
+      "loading-ui",
+      "navigation-blocker-provider",
+      "overlay-primitives",
+      "site-footer",
+      "site-header",
+      "site-header-member-navigation",
+      "use-floating-panel-placement",
+      "workspace-empty-state",
+      "workspace-pagination",
+      "workspace-panel-header",
+      "workspace-primitives",
+      "workspace-state",
+      "workspace-tab-menu",
+    ),
+  },
+  {
+    story: "RCP-49C",
+    destination: "shared/api",
+    pattern: moduleFamilies(
+      "abort-error",
+      "api-contracts",
+      "api-transport",
+      "idempotency-key",
+      "ordinary-api-error-boundary",
+    ),
+  },
+  {
+    story: "RCP-49D",
+    destination: "features/moderation",
+    pattern: moduleFamilies(
+      "recipe-moderation-api",
+      "recipe-moderation-case-detail",
+      "recipe-moderation-presentation",
+      "recipe-moderation-queue",
+      "recipe-moderation-workspace",
+      "recipe-report-access",
+      "recipe-report-api",
+      "recipe-report-panel",
+      "staff-tools",
+      "staff-workspace-shell",
+      "use-recipe-moderation-workspace",
+    ),
+  },
+  {
+    story: "RCP-49E",
+    destination: "features/ingredients",
+    pattern: moduleFamilies(
+      "ingredient-catalog-api",
+      "ingredient-catalog-picker",
+      "ingredient-catalog-picker-state",
+      "ingredient-request-decision-form",
+      "ingredient-request-duplicate-target-search",
+      "ingredient-request-presentation",
+      "ingredient-request-review-detail",
+      "ingredient-request-review-model",
+      "ingredient-request-review-queue",
+      "ingredient-request-review-workspace",
+      "member-ingredient-request-card",
+      "member-ingredient-request-history",
+      "member-ingredient-request-list",
+      "missing-ingredient-request-panel",
+      "my-ingredient-requests-workspace",
+      "use-ingredient-request-review-workspace",
+      "use-member-ingredient-request-history",
+      "use-member-ingredient-resolution-selection",
+    ),
+  },
+  {
+    story: "RCP-49F",
+    destination: "features/recipes/browse, detail, library, or shared",
+    pattern: moduleFamilies(
+      "catalog-category-retry",
+      "format",
+      "interaction-api",
+      "member-recipe-card",
+      "member-recipe-presentation",
+      "my-recipe-library",
+      "my-recipe-library-state",
+      "my-recipes-hub",
+      "pagination",
+      "rating-summary",
+      "recipe-action-icons",
+      "recipe-api",
+      "recipe-artwork",
+      "recipe-browse-query",
+      "recipe-browser",
+      "recipe-card",
+      "recipe-card-engagement",
+      "recipe-card-shell",
+      "recipe-catalog-filters",
+      "recipe-category",
+      "recipe-category-client-api",
+      "recipe-category-list",
+      "recipe-detail-experience",
+      "recipe-detail-tabs",
+      "recipe-detail-view",
+      "recipe-diff-view",
+      "recipe-family-client-api",
+      "recipe-family-navigator",
+      "recipe-instruction-actions",
+      "recipe-instructions-panel",
+      "recipe-interaction-panel",
+      "recipe-library-api",
+      "recipe-library-views",
+      "recipe-member-actions",
+      "recipe-view-tracker",
+      "recipe-viewer-state",
+      "recipe-visibility-api",
+      "recipe-visibility-control",
+      "saved-recipe-library",
+    ),
+  },
+  {
+    story: "RCP-49G",
+    destination: "features/auth, features/account, or features/community",
+    pattern: moduleFamilies(
+      "account-settings",
+      "auth-api",
+      "auth-session-provider",
+      "community-activity-timeline",
+      "community-publication-list",
+      "cook-follow-control",
+      "cook-profile-view",
+      "home-community-feed",
+      "home-dashboard-layout",
+      "home-load-state",
+      "home-public-discovery",
+      "member-activity-api",
+      "member-activity",
+      "member-activity-icon",
+      "member-activity-timeline",
+      "member-follow-api",
+      "member-followers-list",
+      "member-home-summary",
+      "member-route-gate",
+      "public-cook-attribution",
+      "relative-time",
+    ),
+  },
+  {
+    story: "RCP-49H",
+    destination: "features/recipes/authoring",
+    pattern: moduleFamilies(
+      "cooking-action-api",
+      "editor-row-icon",
+      "ingredient-amount-control",
+      "measurement-unit-api",
+      "recipe-category-selector",
+      "recipe-draft-api",
+      "recipe-draft-creation-attempt",
+      "recipe-draft-details-section",
+      "recipe-draft-editor",
+      "recipe-draft-editor-entry",
+      "recipe-draft-editor-state",
+      "recipe-draft-editor-transforms",
+      "recipe-draft-entry",
+      "recipe-draft-field-error",
+      "recipe-draft-ingredients-section",
+      "recipe-draft-instructions-section",
+      "recipe-draft-notes-section",
+      "recipe-draft-publication",
+      "recipe-draft-publication-state",
+      "recipe-draft-starter",
+      "recipe-draft",
+      "recipe-duplicate-api",
+      "recipe-duplicate-preflight-review",
+      "recipe-publication-api",
+      "structured-action-editor",
+      "structured-action",
+      "structured-measure-control",
+      "structured-measure",
+    ),
+  },
+]);
+
+function normalized(path) {
+  return path.replaceAll("\\", "/").replace(/^\.\//, "");
+}
+
+function isSourceFile(path) {
+  return (
+    SOURCE_EXTENSIONS.has(extname(path)) &&
+    !/\.d\.(?:ts|mts|cts)$/.test(path)
+  );
+}
+
+function walk(directory) {
+  if (!existsSync(directory)) return [];
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    return entry.isDirectory() ? walk(path) : isSourceFile(path) ? [path] : [];
+  });
+}
+
+export function ownerForPath(path) {
+  const candidate = normalized(path);
+  if (candidate === "server.mjs" || candidate.startsWith("server/")) {
+    return { kind: FRONTEND_OWNERS.server };
+  }
+  if (candidate.startsWith("app/components/") || candidate.startsWith("lib/")) {
+    return { kind: FRONTEND_OWNERS.legacy };
+  }
+  if (candidate.startsWith("app/")) return { kind: FRONTEND_OWNERS.routes };
+  if (candidate.startsWith("shared/")) return { kind: FRONTEND_OWNERS.shared };
+  if (candidate.startsWith("shell/")) return { kind: FRONTEND_OWNERS.shell };
+  const feature = /^features\/([^/]+)\//.exec(candidate)?.[1];
+  if (feature) return { kind: FRONTEND_OWNERS.features, feature };
+  return undefined;
+}
+
+export function migrationRuleForLegacyPath(path) {
+  const candidate = normalized(path);
+  return LEGACY_MIGRATION_RULES.find(({ pattern }) => pattern.test(candidate));
+}
+
+export function forbiddenDependencyReason(importerPath, dependencyPath) {
+  const importer = ownerForPath(importerPath);
+  const dependency = ownerForPath(dependencyPath);
+  if (!importer || !dependency || importer.kind === FRONTEND_OWNERS.legacy) {
+    return undefined;
+  }
+  if (dependency.kind === FRONTEND_OWNERS.legacy) return undefined;
+  if (
+    importer.kind === FRONTEND_OWNERS.routes &&
+    dependency.kind === FRONTEND_OWNERS.server &&
+    /\/route(?:\.test)?\.(?:ts|tsx|js|jsx)$/.test(`/${normalized(importerPath)}`)
+  ) {
+    return undefined;
+  }
+
+  const allowed = {
+    [FRONTEND_OWNERS.routes]: new Set([
+      FRONTEND_OWNERS.routes,
+      FRONTEND_OWNERS.features,
+      FRONTEND_OWNERS.shared,
+      FRONTEND_OWNERS.shell,
+    ]),
+    [FRONTEND_OWNERS.features]: new Set([
+      FRONTEND_OWNERS.features,
+      FRONTEND_OWNERS.shared,
+    ]),
+    [FRONTEND_OWNERS.shared]: new Set([FRONTEND_OWNERS.shared]),
+    [FRONTEND_OWNERS.shell]: new Set([
+      FRONTEND_OWNERS.features,
+      FRONTEND_OWNERS.shared,
+      FRONTEND_OWNERS.shell,
+    ]),
+    [FRONTEND_OWNERS.server]: new Set([
+      FRONTEND_OWNERS.server,
+      FRONTEND_OWNERS.shared,
+    ]),
+  }[importer.kind];
+
+  if (allowed?.has(dependency.kind)) return undefined;
+  return `${importer.kind} modules cannot depend on ${dependency.kind} modules`;
+}
+
+function loadTypeScript(sourceRoot) {
+  const dependencyRoot = resolve(
+    process.env.RECIPE_LAB_FRONTEND_DEPENDENCY_ROOT ?? sourceRoot,
+  );
+  const require = createRequire(pathToFileURL(join(dependencyRoot, "package.json")));
+  return require("typescript");
+}
+
+function moduleSpecifiers(ts, path) {
+  const source = ts.createSourceFile(
+    path,
+    readFileSync(path, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const specifiers = [];
+  function visit(node) {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
+    ) {
+      specifiers.push(node.moduleSpecifier.text);
+    } else if (
+      ts.isCallExpression(node) &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteralLike(node.arguments[0]) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === "require"))
+    ) {
+      specifiers.push(node.arguments[0].text);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  return specifiers;
+}
+
+function resolveInternalImport(sourceRoot, importer, specifier, sources) {
+  let base;
+  if (specifier.startsWith("@/")) {
+    base = join(sourceRoot, specifier.slice(2));
+  } else if (specifier.startsWith(".")) {
+    base = resolve(dirname(importer), specifier);
+  } else {
+    return undefined;
+  }
+  const candidates = [
+    base,
+    ...[...SOURCE_EXTENSIONS].map((extension) => `${base}${extension}`),
+    ...[...SOURCE_EXTENSIONS].map((extension) => join(base, `index${extension}`)),
+  ].map((path) => resolve(path));
+  return candidates.find((candidate) => sources.has(candidate));
+}
+
+export function auditFrontendArchitecture(
+  sourceRoot = resolve(process.env.RECIPE_LAB_FRONTEND_SOURCE_ROOT ?? process.cwd()),
+) {
+  const files = RUNTIME_ROOTS.flatMap((root) => walk(join(sourceRoot, root)));
+  if (existsSync(join(sourceRoot, "server.mjs"))) files.push(join(sourceRoot, "server.mjs"));
+  if (files.length === 0) {
+    throw new Error(`No frontend source inventory was found under ${sourceRoot}.`);
+  }
+
+  const errors = [];
+  for (const path of files) {
+    const relativePath = normalized(relative(sourceRoot, path));
+    const owner = ownerForPath(relativePath);
+    if (!owner) errors.push(`${relativePath}: no frontend owner`);
+    if (owner?.kind === FRONTEND_OWNERS.legacy && !migrationRuleForLegacyPath(relativePath)) {
+      errors.push(`${relativePath}: missing legacy migration owner`);
+    }
+    if (
+      owner &&
+      owner.kind !== FRONTEND_OWNERS.legacy &&
+      /\/(?:index)\.(?:ts|tsx|js|jsx|mjs|cjs)$/.test(`/${relativePath}`)
+    ) {
+      errors.push(`${relativePath}: broad barrel files are not allowed`);
+    }
+  }
+
+  const ts = loadTypeScript(sourceRoot);
+  const sourcePaths = new Set(files.map((path) => resolve(path)));
+  for (const path of files) {
+    const importer = normalized(relative(sourceRoot, path));
+    for (const specifier of moduleSpecifiers(ts, path)) {
+      const dependencyPath = resolveInternalImport(
+        sourceRoot,
+        path,
+        specifier,
+        sourcePaths,
+      );
+      if (!dependencyPath) continue;
+      const dependency = normalized(relative(sourceRoot, dependencyPath));
+      const reason = forbiddenDependencyReason(importer, dependency);
+      if (reason) errors.push(`${importer} -> ${dependency}: ${reason}`);
+    }
+  }
+
+  return {
+    errors: errors.sort(),
+    legacy: files
+      .map((path) => normalized(relative(sourceRoot, path)))
+      .filter((path) => ownerForPath(path)?.kind === FRONTEND_OWNERS.legacy)
+      .sort(),
+    sources: files.map((path) => normalized(relative(sourceRoot, path))).sort(),
+  };
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  try {
+    const result = auditFrontendArchitecture();
+    if (result.errors.length > 0) {
+      console.error("Frontend architecture audit failed:");
+      for (const error of result.errors) console.error(`- ${error}`);
+      process.exitCode = 1;
+    } else {
+      console.log(
+        `Frontend architecture audit passed: ${result.sources.length} source files; ${result.legacy.length} remain in migration-owned legacy folders.`,
+      );
+    }
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
+}
