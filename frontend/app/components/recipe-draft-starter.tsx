@@ -11,7 +11,7 @@ import {
   startOrResumeRecipeDraft,
 } from "../../lib/recipe-draft-entry";
 import { useAuthSession } from "./auth-session-provider";
-import { LoadingButton } from "./loading-ui";
+import { LoadingButton } from "../../shared/ui/loading-ui";
 import { MemberRouteGate } from "./member-route-gate";
 import { RecipeDraftLoadingView } from "./recipe-draft-editor";
 

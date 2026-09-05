@@ -18,7 +18,7 @@ import {
   fetchAuthSession,
 } from "../../lib/auth-api";
 import { isAbortError } from "../../lib/abort-error";
-import { LoadingButton } from "./loading-ui";
+import { LoadingButton } from "../../shared/ui/loading-ui";
 
 export type AuthSessionState =
   | { phase: "loading" }

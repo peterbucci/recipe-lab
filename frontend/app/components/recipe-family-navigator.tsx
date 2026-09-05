@@ -7,7 +7,7 @@ import type {
   RecipeDetail,
   RecipeVersionReference,
 } from "../../lib/recipe-api";
-import { GuardedLink } from "./navigation-blocker-provider";
+import { GuardedLink } from "../../shared/navigation/navigation-blocker-provider";
 import { RecipeArtwork } from "./recipe-artwork";
 
 interface RecipeFamilyNavigatorProps {

@@ -11,8 +11,8 @@ import {
   type MissingIngredientRequest,
   submitMissingIngredientRequest,
 } from "../../lib/ingredient-catalog-api";
-import { LoadingButton } from "./loading-ui";
-import { Dialog } from "./overlay-primitives";
+import { LoadingButton } from "../../shared/ui/loading-ui";
+import { Dialog } from "../../shared/ui/overlay-primitives";
 
 interface MissingIngredientRequestPanelProps {
   disabled?: boolean;

@@ -88,7 +88,8 @@ describe("Vitest runtime ownership", () => {
     );
     const jsdomOwned = discovered.filter(
       (path) =>
-        browserLibraries.has(path) || /^app\/.+\.test\.(?:ts|tsx)$/.test(path),
+        browserLibraries.has(path) ||
+        /^(?:app|shell|shared\/(?:ui|navigation))\/.+\.test\.(?:ts|tsx)$/.test(path),
     );
     const overlap = nodeOwned.filter((path) => jsdomOwned.includes(path));
     const owned = new Set([...nodeOwned, ...jsdomOwned]);
@@ -103,6 +104,15 @@ describe("Vitest runtime ownership", () => {
   });
 
   it("collects a non-blocking production-source coverage baseline", () => {
+    expect(COVERAGE_SOURCE_INCLUDE).toEqual(
+      expect.arrayContaining([
+        "app/**/*.{ts,tsx}",
+        "features/**/*.{ts,tsx}",
+        "shared/**/*.{ts,tsx}",
+        "shell/**/*.{ts,tsx}",
+      ]),
+    );
+    expect(COVERAGE_SOURCE_EXCLUDE).toContain("**/*-test-support.{ts,tsx}");
     expect(vitestConfig.test?.coverage).toMatchObject({
       clean: true,
       exclude: [...COVERAGE_SOURCE_EXCLUDE],

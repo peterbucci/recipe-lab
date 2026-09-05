@@ -11,7 +11,7 @@ import {
   updateAccountProfile,
 } from "../../lib/auth-api";
 import { useAuthSession } from "../components/auth-session-provider";
-import { AuthGateLoading, LoadingButton } from "../components/loading-ui";
+import { AuthGateLoading, LoadingButton } from "../../shared/ui/loading-ui";
 
 interface OnboardingFormProps {
   returnTo: string;

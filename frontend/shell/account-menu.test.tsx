@@ -4,12 +4,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AUTH_SESSION_EXPIRED_EVENT,
   CSRF_COOKIE_NAME,
-} from "../../lib/auth-api";
+} from "../lib/auth-api";
 import { AccountMenu } from "./account-menu";
 import {
   AuthSessionProvider,
   SessionRecoveryNotice,
-} from "./auth-session-provider";
+} from "../app/components/auth-session-provider";
 
 const routerMocks = vi.hoisted(() => ({
   pathname: "/",

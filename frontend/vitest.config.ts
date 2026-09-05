@@ -35,6 +35,8 @@ export const JSDOM_LIBRARY_TEST_INCLUDE = [
 
 export const JSDOM_TEST_INCLUDE = [
   "app/**/*.test.{ts,tsx}",
+  "shared/{ui,navigation}/**/*.test.{ts,tsx}",
+  "shell/**/*.test.{ts,tsx}",
   ...JSDOM_LIBRARY_TEST_INCLUDE,
 ] as const;
 
@@ -45,7 +47,10 @@ export const VITEST_PROJECT_NAMES = {
 
 export const COVERAGE_SOURCE_INCLUDE = [
   "app/**/*.{ts,tsx}",
+  "features/**/*.{ts,tsx}",
   "lib/**/*.ts",
+  "shared/**/*.{ts,tsx}",
+  "shell/**/*.{ts,tsx}",
   "server/**/*.{mjs,ts}",
   "server.mjs",
 ] as const;
@@ -53,7 +58,7 @@ export const COVERAGE_SOURCE_INCLUDE = [
 export const COVERAGE_SOURCE_EXCLUDE = [
   "**/*.test.{mjs,ts,tsx}",
   "**/*.d.{mts,ts}",
-  "app/**/*-test-support.{ts,tsx}",
+  "**/*-test-support.{ts,tsx}",
   "lib/api-contracts/generated.ts",
 ] as const;
 

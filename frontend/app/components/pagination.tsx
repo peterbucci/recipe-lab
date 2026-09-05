@@ -2,7 +2,7 @@ import {
   recipeBrowseHref,
   type RecipeBrowseType,
 } from "../../lib/recipe-browse-query";
-import { WorkspacePagination } from "./workspace-pagination";
+import { WorkspacePagination } from "../../shared/ui/workspace-pagination";
 
 interface PaginationProps {
   category?: string;

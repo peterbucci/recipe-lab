@@ -6,7 +6,7 @@ import { useEffect } from "react";
 
 import { safeReturnTo } from "../../../lib/auth-api";
 import { useAuthSession } from "../../components/auth-session-provider";
-import { AuthGateLoading } from "../../components/loading-ui";
+import { AuthGateLoading } from "../../../shared/ui/loading-ui";
 
 interface CallbackStatusProps {
   errorCode?: string;

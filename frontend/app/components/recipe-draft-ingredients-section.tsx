@@ -18,9 +18,9 @@ import type { StructuredMeasureField } from "../../lib/structured-measure";
 import { EditorRowIcon } from "./editor-row-icon";
 import { IngredientAmountControl } from "./ingredient-amount-control";
 import { IngredientCatalogPicker } from "./ingredient-catalog-picker";
-import { Popover, PopoverContent, PopoverTrigger } from "./overlay-primitives";
+import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/overlay-primitives";
 import { RecipeDraftFieldError } from "./recipe-draft-field-error";
-import { useFloatingPanelPlacement } from "./use-floating-panel-placement";
+import { useFloatingPanelPlacement } from "../../shared/ui/use-floating-panel-placement";
 
 interface RecipeDraftIngredientsSectionProps {
   disabled: boolean;

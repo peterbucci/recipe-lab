@@ -16,7 +16,7 @@ import {
   recipeDraftPublicationReducer,
 } from "../../lib/recipe-draft-publication-state";
 import { createUnspecifiedMeasureDraft } from "../../lib/structured-measure";
-import { NavigationBlockerProvider } from "./navigation-blocker-provider";
+import { NavigationBlockerProvider } from "../../shared/navigation/navigation-blocker-provider";
 import { RecipeDraftPublication } from "./recipe-draft-publication";
 
 const mocks = vi.hoisted(() => ({

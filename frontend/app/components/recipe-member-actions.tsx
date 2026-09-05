@@ -21,7 +21,7 @@ import {
   startOrResumeRecipeDraft,
 } from "../../lib/recipe-draft-entry";
 import { useAuthSession } from "./auth-session-provider";
-import { InlineLoading, LoadingButton } from "./loading-ui";
+import { InlineLoading, LoadingButton } from "../../shared/ui/loading-ui";
 import { RatingSummary } from "./rating-summary";
 import { BranchIcon, HeartIcon, StarIcon } from "./recipe-action-icons";
 import { RecipeInteractionPanel } from "./recipe-interaction-panel";

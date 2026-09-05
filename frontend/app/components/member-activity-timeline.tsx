@@ -12,11 +12,11 @@ import {
 import type { MemberActivity } from "../../lib/member-activity";
 import { relativeTimeLabel } from "../../lib/relative-time";
 import { useAuthSession } from "./auth-session-provider";
-import { LoadingButton, SectionLoading } from "./loading-ui";
+import { LoadingButton, SectionLoading } from "../../shared/ui/loading-ui";
 import { MemberActivityIcon } from "./member-activity-icon";
 import { MemberRouteGate } from "./member-route-gate";
-import { WorkspaceEmptyState } from "./workspace-empty-state";
-import { WorkspacePanelHeader } from "./workspace-panel-header";
+import { WorkspaceEmptyState } from "../../shared/ui/workspace-empty-state";
+import { WorkspacePanelHeader } from "../../shared/ui/workspace-panel-header";
 
 const ACTIVITY_PAGE_SIZE = 24;
 const EMPTY_ACTIVITIES: MemberActivity[] = [];

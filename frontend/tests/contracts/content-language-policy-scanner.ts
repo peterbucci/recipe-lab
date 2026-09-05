@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -141,10 +141,10 @@ export function repositoryPath(path: string): string {
   return relative(FRONTEND_ROOT, path).split(sep).join("/");
 }
 
-export function ordinaryUiFiles(directory = APP_ROOT): string[] {
+function uiFilesIn(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = resolve(directory, entry.name);
-    if (entry.isDirectory()) return ordinaryUiFiles(path);
+    if (entry.isDirectory()) return uiFilesIn(path);
     if (
       !entry.isFile() ||
       !entry.name.endsWith(".tsx") ||
@@ -154,6 +154,13 @@ export function ordinaryUiFiles(directory = APP_ROOT): string[] {
     }
     return [path];
   });
+}
+
+export function ordinaryUiFiles(frontendRoot = FRONTEND_ROOT): string[] {
+  return ["app", "features", "shared", "shell"]
+    .map((directory) => resolve(frontendRoot, directory))
+    .filter((directory) => existsSync(directory))
+    .flatMap(uiFilesIn);
 }
 
 function normalizedText(text: string): string {
@@ -487,4 +494,3 @@ export function formatViolations(violations: readonly Violation[]): string {
     .map(({ file, line, rule, text }) => `${file}:${line} [${rule}] ${text}`)
     .join("\n");
 }
-

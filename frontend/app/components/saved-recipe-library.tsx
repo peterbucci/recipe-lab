@@ -16,11 +16,11 @@ import {
   MyRecipesHubNavigation,
 } from "./my-recipes-hub";
 import { MemberRecipeCard } from "./member-recipe-card";
-import { GuardedLink } from "./navigation-blocker-provider";
-import { LoadingButton, SectionLoading } from "./loading-ui";
-import { WorkspaceEmptyState } from "./workspace-empty-state";
-import { WorkspacePanelHeader } from "./workspace-panel-header";
-import { WorkspacePagination } from "./workspace-pagination";
+import { GuardedLink } from "../../shared/navigation/navigation-blocker-provider";
+import { LoadingButton, SectionLoading } from "../../shared/ui/loading-ui";
+import { WorkspaceEmptyState } from "../../shared/ui/workspace-empty-state";
+import { WorkspacePanelHeader } from "../../shared/ui/workspace-panel-header";
+import { WorkspacePagination } from "../../shared/ui/workspace-pagination";
 
 const RETURN_TO = "/account/recipes?view=saved";
 

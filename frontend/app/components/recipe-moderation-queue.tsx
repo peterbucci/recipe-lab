@@ -7,8 +7,8 @@ import {
   formatModerationTime,
   RECIPE_MODERATION_STATUS_LABELS,
 } from "../../lib/recipe-moderation-presentation";
-import { WorkspacePagination } from "./workspace-pagination";
-import { WorkspaceLoadingState } from "./workspace-state";
+import { WorkspacePagination } from "../../shared/ui/workspace-pagination";
+import { WorkspaceLoadingState } from "../../shared/ui/workspace-state";
 
 interface RecipeModerationQueueProps {
   caseStatus: RecipeModerationStatus;

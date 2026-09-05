@@ -8,7 +8,7 @@ import {
 } from "../../lib/recipe-draft-creation-attempt";
 import { RecipeDraftApiError } from "../../lib/recipe-draft-api";
 import { AuthSessionProvider } from "./auth-session-provider";
-import { NavigationBlockerProvider } from "./navigation-blocker-provider";
+import { NavigationBlockerProvider } from "../../shared/navigation/navigation-blocker-provider";
 import { RecipeDraftStarter } from "./recipe-draft-starter";
 
 const mocks = vi.hoisted(() => ({

@@ -34,19 +34,19 @@ import {
   MyRecipesHubNavigation,
   myRecipesHref,
 } from "./my-recipes-hub";
-import { LoadingButton } from "./loading-ui";
+import { LoadingButton } from "../../shared/ui/loading-ui";
 import { MemberRecipeCard } from "./member-recipe-card";
-import { GuardedLink } from "./navigation-blocker-provider";
+import { GuardedLink } from "../../shared/navigation/navigation-blocker-provider";
 import { RecipeArtwork } from "./recipe-artwork";
 import { RecipeCardShell } from "./recipe-card-shell";
 import { RecipeVisibilityControl } from "./recipe-visibility-control";
-import { WorkspaceEmptyState } from "./workspace-empty-state";
-import { WorkspacePagination } from "./workspace-pagination";
-import { WorkspacePanelHeader } from "./workspace-panel-header";
+import { WorkspaceEmptyState } from "../../shared/ui/workspace-empty-state";
+import { WorkspacePagination } from "../../shared/ui/workspace-pagination";
+import { WorkspacePanelHeader } from "../../shared/ui/workspace-panel-header";
 import {
   WorkspaceErrorState,
   WorkspaceLoadingState,
-} from "./workspace-state";
+} from "../../shared/ui/workspace-state";
 
 interface MyRecipeLibraryProps {
   pageNumber: number;

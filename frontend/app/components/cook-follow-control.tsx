@@ -11,7 +11,7 @@ import {
   setCookFollowing,
 } from "../../lib/member-follow-api";
 import { useAuthSession } from "./auth-session-provider";
-import { LoadingButton } from "./loading-ui";
+import { LoadingButton } from "../../shared/ui/loading-ui";
 
 interface CookFollowControlProps {
   cookId: string;

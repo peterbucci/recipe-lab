@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import { HomeDashboardLayout } from "./components/home-dashboard-layout";
 import { HomePublicDiscovery } from "./components/home-public-discovery";
-import { SectionLoading } from "./components/loading-ui";
+import { SectionLoading } from "../shared/ui/loading-ui";
 
 export const dynamic = "force-dynamic";
 

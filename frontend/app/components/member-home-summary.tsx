@@ -10,7 +10,7 @@ import {
 } from "../../lib/member-activity-api";
 import type { RecipeDraftListItem } from "../../lib/recipe-draft-api";
 import { relativeTimeLabel } from "../../lib/relative-time";
-import { LoadingBlock, SectionLoading } from "./loading-ui";
+import { LoadingBlock, SectionLoading } from "../../shared/ui/loading-ui";
 import { MemberActivityIcon } from "./member-activity-icon";
 import { useHomeLoadIssue } from "./home-load-state";
 import { RecipeArtwork } from "./recipe-artwork";

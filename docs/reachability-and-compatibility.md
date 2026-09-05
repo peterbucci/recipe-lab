@@ -28,31 +28,31 @@ redirects and their targets.
 
 | Route | Lifecycle | Concrete in-repository evidence |
 | --- | --- | --- |
-| `/` | active | `frontend/app/components/site-header.tsx` links to the signed-in home; the page conditionally redirects anonymous visits to `/recipes`. |
+| `/` | active | `frontend/shell/site-header.tsx` links to the signed-in home; the page conditionally redirects anonymous visits to `/recipes`. |
 | `/account/activity` | active | `frontend/app/components/member-home-summary.tsx` links to the complete activity view. |
 | `/account/community-activity` | active | `frontend/app/components/home-community-feed.tsx` links its View all action here. |
 | `/account/deleted` | internal | `frontend/app/components/account-settings.tsx` navigates here after confirmed deletion. |
 | `/account/followers` | active | `frontend/app/components/member-home-summary.tsx` links the follower count here. |
-| `/account/ingredient-requests` | active | `frontend/app/components/account-menu.tsx` links to the member request workspace. |
+| `/account/ingredient-requests` | active | `frontend/shell/account-menu.tsx` links to the member request workspace. |
 | `/account/recipe-drafts/[draftId]` | compatibility-only | `docs/architecture.md` records the former editor address; the route validates the ID and redirects to `/recipes/drafts/[draftId]`. |
 | `/account/recipe-drafts` | compatibility-only | `docs/cook-profiles-and-libraries.md` records the legacy collection path; it redirects to `/account/recipes?view=drafts`. |
-| `/account/recipes` | active | `frontend/app/components/account-menu.tsx` and member dashboard links target the unified library. |
+| `/account/recipes` | active | `frontend/shell/account-menu.tsx` and member dashboard links target the unified library. |
 | `/account/saved-recipes` | compatibility-only | `docs/cook-profiles-and-libraries.md` records the old saved-library path; it redirects to `/account/recipes?view=saved`. |
-| `/account/settings` | active | `frontend/app/components/account-menu.tsx` links to account settings. |
+| `/account/settings` | active | `frontend/shell/account-menu.tsx` links to account settings. |
 | `/auth/callback` | internal | `frontend/server/api-proxy.ts` redirects sanitized provider failures to this presentation route. |
 | `/catalog/ingredient-requests` | internal | `frontend/app/components/staff-tools.tsx` links authorized curators to this workspace. |
 | `/community-rules` | active | `frontend/app/components/recipe-draft-publication.tsx` links the required publication acknowledgement. |
 | `/cooks/[handle]` | active | `frontend/app/components/public-cook-attribution.tsx` links public author attribution. |
 | `/moderation/recipes` | internal | `frontend/app/components/staff-tools.tsx` links authorized moderators to this workspace. |
 | `/onboarding` | internal | `frontend/app/api/[...path]/route.ts` forwards the backend authentication completion redirect here. |
-| `/recipes` | active | `frontend/app/components/site-header.tsx` links the public recipe catalog. |
+| `/recipes` | active | `frontend/shell/site-header.tsx` links the public recipe catalog. |
 | `/recipes/[recipeVersionId]` | active | `frontend/app/components/recipe-card.tsx` links every public catalog card to recipe detail. |
 | `/recipes/[recipeVersionId]/compare` | active | `frontend/app/components/recipe-family-navigator.tsx` builds the selected-version comparison link. |
 | `/recipes/[recipeVersionId]/fork` | active | `frontend/app/components/recipe-member-actions.tsx` builds the make/continue-version link. |
 | `/recipes/drafts/[draftId]` | active | `frontend/app/components/recipe-draft-starter.tsx` navigates newly created drafts to the canonical editor. |
-| `/recipes/new` | active | `frontend/app/components/site-header.tsx` links the create-recipe action. |
-| `/sign-in` | active | `frontend/app/components/account-menu.tsx` links anonymous members and preserves the return path. |
-| `/staff` | internal | `frontend/app/components/account-menu.tsx` links members with staff capabilities to the tool index. |
+| `/recipes/new` | active | `frontend/shell/site-header.tsx` links the create-recipe action. |
+| `/sign-in` | active | `frontend/shell/account-menu.tsx` links anonymous members and preserves the return path. |
+| `/staff` | internal | `frontend/shell/account-menu.tsx` links members with staff capabilities to the tool index. |
 
 There are 16 active, six internal, and three compatibility-only page routes.
 No executable page is classified as retired. Next configuration defines no
@@ -144,7 +144,8 @@ audit data.
 imports, and CommonJS requires with the repository's locked TypeScript compiler.
 Starting from every supported Next.js App Router
 convention entry plus `server.mjs`, it walks production modules under `app`,
-`lib`, and `server` and fails when a module is unreachable. Tests, configuration,
+`features`, `lib`, `shared`, `shell`, and `server` and fails when a module is
+unreachable. Tests, configuration,
 generated declarations, and CSS selectors are outside that deliberately narrow
 check rather than being guessed at heuristically.
 

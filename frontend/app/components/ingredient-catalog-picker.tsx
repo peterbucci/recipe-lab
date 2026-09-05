@@ -27,7 +27,7 @@ import {
   ingredientCatalogPickerReducer,
   type IngredientSearchResource,
 } from "../../lib/ingredient-catalog-picker-state";
-import { InlineLoading, LoadingButton } from "./loading-ui";
+import { InlineLoading, LoadingButton } from "../../shared/ui/loading-ui";
 import { MissingIngredientRequestPanel } from "./missing-ingredient-request-panel";
 
 interface IngredientRequestValue {
