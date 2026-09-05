@@ -2031,17 +2031,12 @@ test.describe("RCP-32 two-user community release gate", () => {
           await expect(
             deletedCookAttribution.getByRole("link", { name: "Deleted cook" }),
           ).toHaveCount(0);
-          await expect(
-            publicPage
-              .locator(".recipe-detail__parent-context")
-              .getByRole("link"),
-          ).toHaveCount(0);
-          await expect(
-            publicPage.locator(".recipe-detail__parent-context"),
-          ).toHaveText("Source unavailable");
-          await expect(
-            publicPage.locator(".recipe-detail__parent-context"),
-          ).toBeVisible();
+          const unavailableParentContext = visibleChildDetail.locator(
+            ".recipe-detail__parent-context",
+          );
+          await expect(unavailableParentContext.getByRole("link")).toHaveCount(0);
+          await expect(unavailableParentContext).toHaveText("Source unavailable");
+          await expect(unavailableParentContext).toBeVisible();
           await publicPage.goto("/cooks/rcp32_bob");
           await expect(
             publicPage.getByRole("heading", {

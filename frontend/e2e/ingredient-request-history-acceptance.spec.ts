@@ -593,8 +593,7 @@ test.describe("member ingredient-request acceptance", () => {
       });
       for (const ingredientLabel of cookingInput.ingredients) {
         const ingredientInput = cookingDetail.getByRole("checkbox", {
-          name: ingredientLabel,
-          exact: true,
+          name: new RegExp(`^${ingredientLabel}:`),
         });
         await expect(ingredientInput).toBeChecked();
         await ingredientInput.uncheck();

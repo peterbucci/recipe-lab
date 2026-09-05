@@ -189,7 +189,13 @@ test.describe("structured cooking action acceptance", () => {
     await lineSelect.selectOption({ label: "grease" });
     expect(await lineSelect.inputValue()).toBe(greaseTypeId);
     await lineAction.getByRole("button", { name: "Done", exact: true }).click();
-    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    const correctedSave = page.getByRole("button", {
+      name: "Save draft",
+      exact: true,
+    });
+    await correctedSave.focus();
+    await expect(correctedSave).toBeFocused();
+    await correctedSave.press("Enter");
     await expect(
       page.getByRole("button", { name: "Draft saved", exact: true }),
     ).toBeDisabled();
