@@ -56,12 +56,15 @@ export function AuthSessionProvider({
       : { phase: "ready", session: initialSession },
   );
   const [sessionExpired, setSessionExpired] = useState(false);
+  const mountedRef = useRef(true);
+  const requestVersionRef = useRef(0);
+  const requestControllersRef = useRef(new Set<AbortController>());
   const activeAuthenticatedUserIdRef = useRef(
     initialSession?.status === "authenticated" ? initialSession.user.id : null,
   );
   const interruptedUserIdRef = useRef<string | null>(null);
 
-  const replaceSession = useCallback((session: AuthSession) => {
+  const applySession = useCallback((session: AuthSession) => {
     activeAuthenticatedUserIdRef.current =
       session.status === "authenticated" ? session.user.id : null;
     interruptedUserIdRef.current = null;
@@ -69,21 +72,64 @@ export function AuthSessionProvider({
     setSessionExpired(false);
   }, []);
 
+  const abortPendingRequests = useCallback(() => {
+    requestVersionRef.current += 1;
+    for (const controller of requestControllersRef.current) {
+      controller.abort();
+    }
+    requestControllersRef.current.clear();
+  }, []);
+
+  const beginSessionRequest = useCallback(() => {
+    abortPendingRequests();
+    const controller = new AbortController();
+    requestControllersRef.current.add(controller);
+    return { controller, version: requestVersionRef.current };
+  }, [abortPendingRequests]);
+
+  const isCurrentRequest = useCallback(
+    (controller: AbortController, version: number) =>
+      mountedRef.current &&
+      !controller.signal.aborted &&
+      requestVersionRef.current === version,
+    [],
+  );
+
+  const replaceSession = useCallback((session: AuthSession) => {
+    abortPendingRequests();
+    applySession(session);
+  }, [abortPendingRequests, applySession]);
+
   const refreshSession = useCallback(async () => {
+    const request = beginSessionRequest();
     setState({ phase: "loading" });
     try {
-      const session = await fetchAuthSession();
-      replaceSession(session);
+      const session = await fetchAuthSession(request.controller.signal);
+      if (!isCurrentRequest(request.controller, request.version)) {
+        return null;
+      }
+      applySession(session);
       return session;
-    } catch {
-      setState({ phase: "error" });
+    } catch (reason: unknown) {
+      if (
+        isCurrentRequest(request.controller, request.version) &&
+        !isAbortError(reason)
+      ) {
+        setState({ phase: "error" });
+      }
       return null;
+    } finally {
+      requestControllersRef.current.delete(request.controller);
     }
-  }, [replaceSession]);
+  }, [applySession, beginSessionRequest, isCurrentRequest]);
 
   const recoverSession = useCallback(async () => {
+    const request = beginSessionRequest();
     try {
-      const session = await fetchAuthSession();
+      const session = await fetchAuthSession(request.controller.signal);
+      if (!isCurrentRequest(request.controller, request.version)) {
+        return "unavailable";
+      }
       if (session.status === "authenticated") {
         if (
           interruptedUserIdRef.current === null ||
@@ -91,7 +137,7 @@ export function AuthSessionProvider({
         ) {
           return "different_account";
         }
-        replaceSession(session);
+        applySession(session);
         return "restored";
       }
       // An anonymous or incomplete result means sign-in was canceled or is
@@ -102,24 +148,44 @@ export function AuthSessionProvider({
       // Recovery checks are intentionally non-destructive. The existing
       // interrupted state and local editor values remain in place.
       return "unavailable";
+    } finally {
+      requestControllersRef.current.delete(request.controller);
     }
-  }, [replaceSession]);
+  }, [applySession, beginSessionRequest, isCurrentRequest]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      abortPendingRequests();
+    };
+  }, [abortPendingRequests]);
 
   useEffect(() => {
     if (initialSession !== undefined) {
       return;
     }
 
-    const controller = new AbortController();
-    void fetchAuthSession(controller.signal)
-      .then(replaceSession)
+    const request = beginSessionRequest();
+    void fetchAuthSession(request.controller.signal)
+      .then((session) => {
+        if (isCurrentRequest(request.controller, request.version)) {
+          applySession(session);
+        }
+      })
       .catch((reason: unknown) => {
-        if (!isAbortError(reason)) {
+        if (
+          isCurrentRequest(request.controller, request.version) &&
+          !isAbortError(reason)
+        ) {
           setState({ phase: "error" });
         }
+      })
+      .finally(() => {
+        requestControllersRef.current.delete(request.controller);
       });
-    return () => controller.abort();
-  }, [initialSession, replaceSession]);
+    return () => request.controller.abort();
+  }, [applySession, beginSessionRequest, initialSession, isCurrentRequest]);
 
   useEffect(() => {
     function handleSessionExpired() {
