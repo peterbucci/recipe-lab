@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -53,37 +54,42 @@ function DialogFixture({ onClose = () => undefined }: { onClose?: () => void }) 
 }
 
 describe("overlay primitives", () => {
-  it("connects a popover trigger, focuses content, and dismisses outside", () => {
+  it("connects a popover trigger, focuses content, and dismisses outside", async () => {
+    const user = userEvent.setup();
     render(<PopoverFixture />);
     const trigger = screen.getByRole("button", { name: "Edit details" });
     expect(trigger).toHaveAttribute("aria-expanded", "false");
 
-    fireEvent.click(trigger);
+    await user.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("dialog", { name: "Example details" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Detail name" })).toHaveFocus();
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Save" }));
+    await user.pointer({
+      keys: "[MouseLeft]",
+      target: screen.getByRole("button", { name: "Save" }),
+    });
     expect(screen.getByRole("dialog", { name: "Example details" })).toBeVisible();
-    fireEvent.pointerDown(document.body);
+    await user.pointer({ keys: "[MouseLeft]", target: document.body });
     expect(screen.queryByRole("dialog", { name: "Example details" })).toBeNull();
   });
 
   it("dismisses a popover with Escape and restores its trigger focus", async () => {
+    const user = userEvent.setup();
     render(<PopoverFixture />);
     const trigger = screen.getByRole("button", { name: "Edit details" });
-    fireEvent.click(trigger);
-    fireEvent.keyDown(document, { key: "Escape" });
-    await act(async () => undefined);
+    await user.click(trigger);
+    await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Example details" })).toBeNull();
     expect(trigger).toHaveFocus();
   });
 
   it("portals a modal dialog, traps focus, locks scrolling, and restores focus", async () => {
+    const user = userEvent.setup();
     const onClose = vi.fn();
     render(<DialogFixture onClose={onClose} />);
     const trigger = screen.getByRole("button", { name: "Open dialog" });
-    fireEvent.click(trigger);
+    await user.click(trigger);
 
     const dialog = screen.getByRole("dialog", { name: "Example dialog" });
     const first = screen.getByRole("button", { name: "First action" });
@@ -93,11 +99,10 @@ describe("overlay primitives", () => {
     expect(document.body.style.overflow).toBe("hidden");
     expect(first).toHaveFocus();
 
-    last.focus();
-    fireEvent.keyDown(dialog, { key: "Tab" });
+    await user.click(last);
+    await user.tab();
     expect(first).toHaveFocus();
-    fireEvent.keyDown(dialog, { key: "Escape" });
-    await act(async () => undefined);
+    await user.keyboard("{Escape}");
 
     expect(onClose).toHaveBeenCalledOnce();
     expect(screen.queryByRole("dialog", { name: "Example dialog" })).toBeNull();
