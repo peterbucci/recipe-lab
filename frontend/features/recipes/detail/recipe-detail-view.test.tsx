@@ -5,7 +5,7 @@ import type { AuthSession } from "../../auth/auth-api";
 import type {
   RecipeDetail,
 } from "../shared/recipe-contracts";
-import type { RecipeInstructionAction } from "../../../lib/structured-action";
+import type { RecipeInstructionAction } from "../shared/recipe-structure";
 import { AuthSessionProvider } from "../../auth/auth-session-provider";
 import { RecipeDetailView } from "./recipe-detail-view";
 

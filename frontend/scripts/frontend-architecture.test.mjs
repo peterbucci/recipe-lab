@@ -53,15 +53,14 @@ describe("frontend ownership architecture", () => {
       migrationRuleForLegacyPath("app/components/recipe-card.test.tsx")?.story,
     ).toBe("RCP-49F");
     expect(
-      migrationRuleForLegacyPath("app/components/recipe-category-selector.tsx")
-        ?.story,
-    ).toBe("RCP-49H");
+      migrationRuleForLegacyPath("app/components/recipe-category-selector.tsx"),
+    ).toBeUndefined();
     expect(
       migrationRuleForLegacyPath("lib/recipe-library-server-api.ts"),
     ).toBeUndefined();
-    expect(migrationRuleForLegacyPath("lib/recipe-draft-api.test.ts")?.story).toBe(
-      "RCP-49H",
-    );
+    expect(
+      migrationRuleForLegacyPath("lib/recipe-draft-api.test.ts"),
+    ).toBeUndefined();
     expect(
       migrationRuleForLegacyPath("lib/ingredient-catalog-api.ts"),
     ).toBeUndefined();

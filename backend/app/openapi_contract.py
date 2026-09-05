@@ -104,7 +104,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("GET", "/api/cooking-action-types"): _operation(
         "cooking_action_type_catalog_api_cooking_action_types_get",
         "active_consumer",
-        "frontend/lib/cooking-action-api.ts",
+        "frontend/features/recipes/authoring/shared/cooking-action-api.ts",
     ),
     ("GET", "/api/cooks/{handle}"): _operation(
         "public_cook_profile_api_cooks__handle__get",
@@ -172,7 +172,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("GET", "/api/measurement-units"): _operation(
         "measurement_unit_catalog_api_measurement_units_get",
         "active_consumer",
-        "frontend/lib/measurement-unit-api.ts",
+        "frontend/features/recipes/authoring/shared/measurement-unit-api.ts",
     ),
     ("POST", "/api/measurements/convert"): _operation(
         "measurement_conversion_api_measurements_convert_post",
@@ -240,37 +240,37 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("GET", "/api/recipe-drafts"): _operation(
         "my_private_recipe_drafts_api_recipe_drafts_get",
         "active_consumer",
-        "frontend/lib/recipe-draft-api.ts",
+        "frontend/features/recipes/authoring/draft/recipe-draft-api.ts",
     ),
     ("POST", "/api/recipe-drafts"): _operation(
         "create_private_recipe_draft_api_recipe_drafts_post",
         "active_consumer",
-        "frontend/lib/recipe-draft-api.ts",
+        "frontend/features/recipes/authoring/draft/recipe-draft-api.ts",
     ),
     ("DELETE", "/api/recipe-drafts/{draft_id}"): _operation(
         "delete_private_recipe_draft_api_recipe_drafts__draft_id__delete",
         "active_consumer",
-        "frontend/lib/recipe-draft-api.ts",
+        "frontend/features/recipes/authoring/draft/recipe-draft-api.ts",
     ),
     ("GET", "/api/recipe-drafts/{draft_id}"): _operation(
         "private_recipe_draft_detail_api_recipe_drafts__draft_id__get",
         "active_consumer",
-        "frontend/lib/recipe-draft-api.ts",
+        "frontend/features/recipes/authoring/draft/recipe-draft-api.ts",
     ),
     ("PUT", "/api/recipe-drafts/{draft_id}"): _operation(
         "save_private_recipe_draft_api_recipe_drafts__draft_id__put",
         "active_consumer",
-        "frontend/lib/recipe-draft-api.ts",
+        "frontend/features/recipes/authoring/draft/recipe-draft-api.ts",
     ),
     ("POST", "/api/recipe-drafts/{draft_id}/duplicate-preflights"): _operation(
         "create_original_draft_duplicate_preflight_api_recipe_drafts__draft_id__duplicate_preflights_post",
         "active_consumer",
-        "frontend/lib/recipe-duplicate-api.ts",
+        "frontend/features/recipes/authoring/duplicate/recipe-duplicate-api.ts",
     ),
     ("POST", "/api/recipe-drafts/{draft_id}/publish"): _operation(
         "publish_original_draft_api_recipe_drafts__draft_id__publish_post",
         "active_consumer",
-        "frontend/lib/recipe-publication-api.ts",
+        "frontend/features/recipes/authoring/publication/recipe-publication-api.ts",
     ),
     ("GET", "/api/recipes"): _operation(
         "browse_recipes_api_recipes_get",

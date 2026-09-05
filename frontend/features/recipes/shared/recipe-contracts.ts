@@ -1,7 +1,9 @@
 import type { components, operations } from "../../../shared/api/generated/generated";
 
-import type { RecipeInstructionAction } from "../../../lib/structured-action";
-import type { RecipeIngredientMeasure } from "../../../lib/structured-measure";
+import type {
+  RecipeIngredientMeasure,
+  RecipeInstructionAction,
+} from "./recipe-structure";
 import type { RecipeViewerState } from "./recipe-viewer-state";
 
 type BrowseRecipesOperation = operations["browse_recipes_api_recipes_get"];
@@ -139,4 +141,4 @@ export interface RecipeDiff {
   has_changes: boolean;
 }
 
-export type { RecipeIngredientMeasure } from "../../../lib/structured-measure";
+export type { RecipeIngredientMeasure } from "./recipe-structure";

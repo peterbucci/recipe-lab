@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CSRF_COOKIE_NAME } from "../../shared/api/browser-session";
 import { searchCatalogIngredients } from "../../features/ingredients/catalog/ingredient-catalog-api";
 import { submitMissingIngredientRequest } from "../../features/ingredients/requests/ingredient-request-api";
-import { createRecipeDraft } from "../../lib/recipe-draft-api";
-import { createRecipeDraftDuplicatePreflight } from "../../lib/recipe-duplicate-api";
+import { createRecipeDraft } from "../../features/recipes/authoring/draft/recipe-draft-api";
+import { createRecipeDraftDuplicatePreflight } from "../../features/recipes/authoring/duplicate/recipe-duplicate-api";
 import { fetchMyRecipeLibrary } from "../../features/recipes/library/recipe-library-api";
-import { publishRecipeDraft } from "../../lib/recipe-publication-api";
+import { publishRecipeDraft } from "../../features/recipes/authoring/publication/recipe-publication-api";
 import { submitRecipeReport } from "../../features/moderation/reporting/recipe-report-api";
 import { updateRecipeVisibility } from "../../features/recipes/library/recipe-visibility-api";
 

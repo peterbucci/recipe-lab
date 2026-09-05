@@ -12,16 +12,16 @@ import {
 import type {
   RecipeVersionReference,
 } from "../shared/recipe-contracts";
-import { findActiveRecipeDraftForSource } from "../../../lib/recipe-draft-api";
+import { findActiveRecipeDraftForSource } from "../authoring/draft/recipe-draft-api";
 import {
   prepareRecipeDraftEditorEntry,
   RecipeDraftEditorEntryError,
   type RecipeDraftEditorEntry,
-} from "../../../lib/recipe-draft-editor-entry";
+} from "../authoring/draft/recipe-draft-editor-entry";
 import {
   recipeDraftEntryErrorMessage,
   startOrResumeRecipeDraft,
-} from "../../../lib/recipe-draft-entry";
+} from "../authoring/draft/recipe-draft-entry";
 import { useAuthSession } from "../../auth/auth-session-provider";
 import { InlineLoading, LoadingButton } from "../../../shared/ui/loading-ui";
 import { RatingSummary } from "../shared/rating-summary";

@@ -1,5 +1,5 @@
 import type { operations } from "../../../shared/api/generated/generated";
-import type { RecipeDraftListItem } from "../../../lib/recipe-draft-api";
+import type { RecipeDraftListItem } from "../authoring/draft/recipe-draft-api";
 import type { RecipeSummary } from "../shared/recipe-contracts";
 import { invalidRecipeLibraryResponse } from "../shared/recipe-library-error";
 import { parseRecipeLibraryPageEnvelope } from "../shared/recipe-library-page-parser";

@@ -10,14 +10,14 @@ import type {
   RecipeCardSummary,
   RecipeDetail,
 } from "../shared/recipe-contracts";
-import type { RecipeDraftEditorEntry } from "../../../lib/recipe-draft-editor-entry";
+import type { RecipeDraftEditorEntry } from "../authoring/draft/recipe-draft-editor-entry";
 import { relativeTimeLabel } from "../../../shared/time/relative-time";
 import { CookFollowControl } from "../../community/cook-follow-control";
 import { PublicCookAttribution } from "../../community/public-cook-attribution";
 import { RecipeArtwork } from "../shared/recipe-artwork";
 import { RecipeCategoryList } from "../shared/recipe-category-list";
-import { RecipeDetailTabs } from "./recipe-detail-tabs";
-import { RecipeFamilyNavigator } from "./recipe-family-navigator";
+import { RecipeDetailTabs } from "../shared/recipe-detail-tabs";
+import { RecipeFamilyNavigator } from "../shared/recipe-family-navigator";
 import { RecipeInstructionsPanel } from "./recipe-instructions-panel";
 import { RecipeMemberActions } from "./recipe-member-actions";
 import { RecipeReportAccess } from "../../moderation/reporting/recipe-report-access";

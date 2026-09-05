@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   RecipeDetail,
 } from "../../../../features/recipes/shared/recipe-contracts";
-import type { RecipeDraftEditorEntry } from "../../../../lib/recipe-draft-editor-entry";
+import type { RecipeDraftEditorEntry } from "../../../../features/recipes/authoring/draft/recipe-draft-editor-entry";
 import { RecipeDetailExperience } from "./recipe-detail-experience";
 
 const SOURCE_ID = "11111111-1111-4111-8111-111111111111";
@@ -42,7 +42,7 @@ vi.mock("../../../../features/recipes/detail/recipe-detail-view", () => ({
   ),
 }));
 
-vi.mock("../../../components/recipe-draft-editor", () => ({
+vi.mock("../../../../features/recipes/authoring/editor/recipe-draft-editor", () => ({
   RecipeDraftEditor: ({
     familyRecipe,
     familyVersions,

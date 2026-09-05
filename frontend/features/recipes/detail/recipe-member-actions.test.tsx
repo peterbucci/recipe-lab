@@ -10,8 +10,8 @@ import type { ReactNode } from "react";
 
 import type { AuthSession } from "../../auth/auth-api";
 import type { RecipeViewerState } from "./interaction-api";
-import type { RecipeDraftListItem } from "../../../lib/recipe-draft-api";
-import type { RecipeDraftEditorEntry } from "../../../lib/recipe-draft-editor-entry";
+import type { RecipeDraftListItem } from "../authoring/draft/recipe-draft-api";
+import type { RecipeDraftEditorEntry } from "../authoring/draft/recipe-draft-editor-entry";
 import { deferred } from "../../../tests/support/deferred";
 import { AuthSessionProvider, useAuthSession } from "../../auth/auth-session-provider";
 import { RecipeMemberActions } from "./recipe-member-actions";
@@ -35,23 +35,23 @@ vi.mock("./interaction-api", async (importOriginal) => {
   return { ...actual, fetchRecipeViewerState: mocks.fetchRecipeViewerState };
 });
 
-vi.mock("../../../lib/recipe-draft-api", async (importOriginal) => {
+vi.mock("../authoring/draft/recipe-draft-api", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("../../../lib/recipe-draft-api")>();
+    await importOriginal<typeof import("../authoring/draft/recipe-draft-api")>();
   return {
     ...actual,
     findActiveRecipeDraftForSource: mocks.findActiveRecipeDraftForSource,
   };
 });
 
-vi.mock("../../../lib/recipe-draft-entry", () => ({
+vi.mock("../authoring/draft/recipe-draft-entry", () => ({
   recipeDraftEntryErrorMessage: mocks.recipeDraftEntryErrorMessage,
   startOrResumeRecipeDraft: mocks.startOrResumeRecipeDraft,
 }));
 
-vi.mock("../../../lib/recipe-draft-editor-entry", async (importOriginal) => {
+vi.mock("../authoring/draft/recipe-draft-editor-entry", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("../../../lib/recipe-draft-editor-entry")>();
+    await importOriginal<typeof import("../authoring/draft/recipe-draft-editor-entry")>();
   return {
     ...actual,
     prepareRecipeDraftEditorEntry: mocks.prepareRecipeDraftEditorEntry,

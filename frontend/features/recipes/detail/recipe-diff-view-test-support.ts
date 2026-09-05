@@ -6,7 +6,7 @@ import type {
   RecipeIngredient,
   RecipeInstruction,
 } from "../shared/recipe-contracts";
-import type { RecipeInstructionAction } from "../../../lib/structured-action";
+import type { RecipeInstructionAction } from "../shared/recipe-structure";
 
 export const baseVersion = {
   id: "11111111-1111-4111-8111-111111111111",
