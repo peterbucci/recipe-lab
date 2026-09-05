@@ -1,5 +1,9 @@
 import { defineConfig, devices, type PlaywrightTestConfig } from "@playwright/test";
 
+import { CROSS_BROWSER_SANITY_TAG } from "./e2e/smoke/tags";
+
+export { CROSS_BROWSER_SANITY_TAG } from "./e2e/smoke/tags";
+
 export const PLAYWRIGHT_MODES = [
   "smoke",
   "acceptance",
@@ -172,6 +176,28 @@ export function createPlaywrightModeConfig(
   const isCi = Boolean(environment.CI);
   const isGuarded = mode !== "smoke";
   const baseURL = environment.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+  // Chromium owns the complete controlled-data suite. Secondary engines stay
+  // deliberately bounded to the single tagged public sanity journey.
+  const projects = [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    ...(mode === "smoke"
+      ? [
+          {
+            name: "firefox-sanity",
+            grep: new RegExp(CROSS_BROWSER_SANITY_TAG),
+            use: { ...devices["Desktop Firefox"] },
+          },
+          {
+            name: "webkit-sanity",
+            grep: new RegExp(CROSS_BROWSER_SANITY_TAG),
+            use: { ...devices["Desktop Safari"] },
+          },
+        ]
+      : []),
+  ];
 
   return defineConfig({
     testDir: "./e2e",
@@ -194,12 +220,7 @@ export function createPlaywrightModeConfig(
       // Guarded modes may retain cookies and CSRF headers in traces.
       trace: traceModeForRun(mode),
     },
-    projects: [
-      {
-        name: "chromium",
-        use: { ...devices["Desktop Chrome"] },
-      },
-    ],
+    projects,
     webServer: {
       command:
         environment.PLAYWRIGHT_WEB_SERVER_COMMAND ??

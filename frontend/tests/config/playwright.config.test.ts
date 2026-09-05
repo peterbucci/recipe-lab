@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CROSS_BROWSER_SANITY_TAG,
   createPlaywrightModeConfig,
   MODE_TEST_MATCH,
   requirePlaywrightMode,
@@ -74,9 +75,23 @@ describe("explicit Playwright execution modes", () => {
     expect(MODE_TEST_MATCH[mode]).toBe(expectedMatch);
     expect(config.testDir).toBe("./e2e");
     expect(config.testMatch).toBe(expectedMatch);
-    expect(config.projects?.map((project) => project.name)).toEqual([
-      "chromium",
-    ]);
+    expect(config.projects?.map((project) => project.name)).toEqual(
+      mode === "smoke"
+        ? ["chromium", "firefox-sanity", "webkit-sanity"]
+        : ["chromium"],
+    );
+  });
+
+  it("runs all smoke tests in Chromium and only the tagged sanity slice elsewhere", () => {
+    const projects = createPlaywrightModeConfig(
+      "smoke",
+      environmentFor("smoke"),
+    ).projects;
+    expect(projects?.[0]?.grep).toBeUndefined();
+    expect(projects?.[1]?.grep).toEqual(new RegExp(CROSS_BROWSER_SANITY_TAG));
+    expect(projects?.[2]?.grep).toEqual(new RegExp(CROSS_BROWSER_SANITY_TAG));
+    expect(projects?.[1]?.use).toMatchObject({ defaultBrowserType: "firefox" });
+    expect(projects?.[2]?.use).toMatchObject({ defaultBrowserType: "webkit" });
   });
 
   it("preserves diagnostics only for controlled smoke data", () => {

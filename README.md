@@ -407,12 +407,21 @@ hard-constraint, ordering, caution, and benchmark contracts are in the
 
 The discovery command asks Playwright to list every explicit browser mode and
 fails if any mode selects zero tests. It does not install or launch a browser.
-To run the controlled-data browser smoke mode locally, install Chromium once,
-then run:
+To run the complete controlled-data Chromium smoke suite locally, install
+Chromium once, then run:
 
 ```powershell
 cd frontend
 npx playwright install chromium
+npm run test:e2e:smoke -- --project=chromium
+```
+
+Pull-request CI also reuses one tagged signed-out catalog journey as a small
+Firefox and WebKit engine check. To reproduce all 17 cases locally, install
+those two engines as well and run the unfiltered mode:
+
+```powershell
+npx playwright install firefox webkit
 npm run test:e2e:smoke
 ```
 
@@ -504,12 +513,13 @@ workspace members, and uses a frozen package-specific sync followed by
 `package-lock.json`. Download caches are keyed from those lockfiles and never
 replace their resolution checks.
 
-Pull requests also run the explicit controlled-data Chromium smoke mode in the
-pinned Playwright image. Its non-empty discovery and bounded one-worker run are
-required by the stable `E2E` gate; it receives no database, session, or OIDC
-inputs, uploads no browser artifacts, and deletes local diagnostics after the
-run. The heavier acceptance, performance, visual, and release modes remain on
-the full push, schedule, and manual-dispatch tier.
+Pull requests run all 15 controlled-data smoke checks in Chromium and only one
+tagged signed-out public journey in each of Firefox and WebKit. The pinned
+Playwright job requires non-empty discovery and keeps the resulting 17 cases
+on one worker; it receives no database, session, or OIDC inputs, uploads no
+browser artifacts, and deletes local diagnostics after the run. The heavier
+acceptance, performance, visual, and release modes remain on the full push,
+schedule, and manual-dispatch tier.
 
 All external Actions use full commit SHAs, checkouts discard persisted Git
 credentials, runners and language toolchains use reviewed exact versions, and

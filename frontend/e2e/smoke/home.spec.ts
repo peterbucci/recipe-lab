@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { CROSS_BROWSER_SANITY_TAG } from "./tags";
+
 async function activateWithKeyboard(
   page: Page,
   control: Locator,
@@ -397,37 +399,39 @@ test("identifies a source and starts a private version with the keyboard on a ph
   ).toBeVisible();
 });
 
-test("keeps the signed-out recipe catalog readable at a phone viewport", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
-  await expect(page).toHaveURL("/recipes");
+test(
+  "keeps the signed-out recipe catalog readable at a phone viewport",
+  { tag: CROSS_BROWSER_SANITY_TAG },
+  async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await expect(page).toHaveURL("/recipes");
 
-  await expect(
-    page.getByRole("heading", {
-      name: "All recipes",
-      level: 1,
-    }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Create recipe", exact: true }),
-  ).toHaveCount(0);
-  const filters = page.getByRole("region", { name: "Explore filters" });
-  await expect(
-    filters.getByRole("navigation", { name: "Recipe categories" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("list", { name: "Recipe results" }),
-  ).toBeVisible();
-  expect(
-    await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth >
-        document.documentElement.clientWidth,
-    ),
-  ).toBe(false);
-});
+    await expect(
+      page.getByRole("heading", {
+        name: "All recipes",
+        level: 1,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Create recipe", exact: true }),
+    ).toHaveCount(0);
+    const filters = page.getByRole("region", { name: "Explore filters" });
+    await expect(
+      filters.getByRole("navigation", { name: "Recipe categories" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("list", { name: "Recipe results" }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth >
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(false);
+  },
+);
 
 test("keeps one consistent catalog canvas across tablet and phone widths", async ({
   page,

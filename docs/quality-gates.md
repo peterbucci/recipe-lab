@@ -7,7 +7,7 @@ explicit tiers:
 
 | Event | Tier | Required evidence |
 | --- | --- | --- |
-| Pull request | Fast | Contracts, lint, types, security, backend PostgreSQL tests, frontend tests/build, controlled-data Chromium smoke |
+| Pull request | Fast | Contracts, lint, types, security, backend PostgreSQL tests, frontend tests/build, controlled-data Chromium smoke plus one Firefox/WebKit sanity journey |
 | Push to `main`, nightly schedule, manual dispatch | Full | Common checks plus evaluation, images, safe source, authenticated browser journeys, performance, and deterministic baselines |
 
 Full-only jobs are intentionally skipped on pull requests, and the bounded
@@ -26,7 +26,7 @@ update.
 | `Unit` | Backend and frontend package tests; ML evaluation in the full tier |
 | `Integration` | PostgreSQL-backed backend tests; deterministic evaluation in the full tier |
 | `Build` | Production frontend build; both verified images in the full tier |
-| `E2E` | Fast-tier controlled-data Chromium smoke; full-tier MVP/community browser journeys and deterministic visual/accessibility baselines |
+| `E2E` | Fast-tier controlled-data Chromium smoke plus tagged Firefox/WebKit sanity; full-tier MVP/community browser journeys and deterministic visual/accessibility baselines |
 | `Security` | Locked runtime dependency vulnerabilities and committed-source vulnerability/secret scans |
 
 Some established jobs produce more than one kind of evidence. The small Unit,

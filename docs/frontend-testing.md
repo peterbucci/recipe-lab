@@ -76,7 +76,7 @@ they cannot guess a mode or silently mix guarded and controlled-data tests.
 
 | Mode | Command | Selected directory | Required environment |
 |---|---|---|---|
-| Smoke | `npm run test:e2e:smoke` | `e2e/smoke` | Controlled route fixtures; no real account |
+| Smoke | `npm run test:e2e:smoke` | `e2e/smoke` | Full Chromium suite plus one tagged public journey in Firefox and WebKit; no real account |
 | Acceptance | `npm run test:e2e:acceptance` | `e2e/acceptance` | Isolated MVP database, session fixture, and explicit loopback services |
 | Visual/accessibility | `npm run test:e2e:visual` | `e2e/visual` | Built frontend plus the dedicated sanitized fixture |
 | Performance | `npm run test:e2e:performance` | `e2e/performance` | Isolated MVP database, explicit performance request, and loopback services |
@@ -100,11 +100,13 @@ starting baseline proved the controlled smoke fixtures were unsafe at the old
 unbounded local default. Any increase belongs to measured scheduling work.
 
 Pull-request CI first lists the smoke mode so an empty selection fails, then
-runs its 15 controlled-data Chromium checks with one worker and at most two
-retries. It uses the pinned Playwright image, never receives database, session,
-or OIDC inputs, uploads no browser report, and deletes local diagnostics even
-after failure. The heavier acceptance, visual, performance, and release modes
-remain outside the pull-request tier.
+runs all 15 controlled-data checks in Chromium plus one tagged signed-out
+catalog journey in Firefox and WebKit. The 17 cases share one worker and at
+most two retries; the secondary engines do not multiply the entire suite. The
+job uses the pinned Playwright image, never receives database, session, or OIDC
+inputs, uploads no browser report, and deletes local diagnostics even after
+failure. The heavier acceptance, visual, performance, and release modes remain
+outside the pull-request tier.
 
 ## Behavior ownership map
 

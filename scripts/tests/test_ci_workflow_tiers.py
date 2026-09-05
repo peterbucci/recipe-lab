@@ -55,6 +55,7 @@ def test_pull_request_browser_smoke_is_bounded_required_and_artifact_free() -> N
     workflow = WORKFLOW.read_text(encoding="utf-8")
     smoke = _job(workflow, "browser-smoke")
 
+    assert "name: Browser smoke and engine sanity" in smoke
     assert "timeout-minutes: 10" in smoke
     assert "mcr.microsoft.com/playwright:v1.62.1-noble@sha256:" in smoke
     assert "persist-credentials: false" in smoke

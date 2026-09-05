@@ -191,7 +191,7 @@ jobs:
         run: npm run ci:verify
 
   browser-smoke:
-    name: Browser smoke
+    name: Browser smoke and engine sanity
     if: ${{ github.event_name == 'pull_request' }}
     # Playwright 1.62.1 on Ubuntu 24.04 (Noble), pinned to the linux/amd64
     # manifest published at mcr.microsoft.com/playwright:v1.62.1-noble.
@@ -220,10 +220,10 @@ jobs:
       - name: Install exact frontend dependencies
         run: npm ci
 
-      - name: Require non-empty controlled-data smoke discovery
+      - name: Require non-empty Chromium and engine-sanity discovery
         run: npm run test:e2e:smoke -- --list
 
-      - name: Run bounded controlled-data Chromium smoke
+      - name: Run bounded controlled-data browser smoke
         run: npm run test:e2e:smoke
 
       - name: Remove local browser diagnostics
