@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CSRF_COOKIE_NAME } from "../../lib/auth-api";
+import { CSRF_COOKIE_NAME } from "../../shared/api/browser-session";
 import { AuthSessionProvider } from "../components/auth-session-provider";
 import { OnboardingForm } from "./onboarding-form";
 

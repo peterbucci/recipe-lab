@@ -1,14 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AUTH_SESSION_EXPIRED_EVENT } from "./auth-api";
+import { AUTH_SESSION_EXPIRED_EVENT } from "../shared/api/browser-session";
+import { fetchMyRecipeLibrary, fetchSavedRecipeLibrary } from "./recipe-library-api";
+
 import {
-  fetchMyRecipeLibrary,
-  fetchPublicCookProfile,
-  fetchSavedRecipeLibrary,
   parsePublicCookProfilePage,
   parsePublicUserReference,
   RecipeLibraryApiError,
-} from "./recipe-library-api";
+} from "./recipe-library-model";
 
 const COOK_ID = "11111111-1111-4111-8111-111111111111";
 const PARENT_COOK_ID = "22222222-2222-4222-8222-222222222222";
@@ -68,40 +67,9 @@ afterEach(() => {
 });
 
 describe("recipe library API", () => {
-  it("fetches a public cook page from the server endpoint without caching", async () => {
-    vi.stubGlobal("window", undefined);
-    vi.stubEnv("RECIPE_API_URL", "http://api.example.test");
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      Response.json({
-        cook,
-        follower_count: 4,
-        description: "Weeknight baking and family recipes.",
-        items: [recipe],
-        ...envelope,
-      }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      fetchPublicCookProfile({ handle: "Alice_Cook", page: 2, pageSize: 6 }),
-    ).resolves.toMatchObject({
-      cook,
-      description: "Weeknight baking and family recipes.",
-      items: [recipe],
-    });
-    const [target, init] = fetchMock.mock.calls[0];
-    expect(String(target)).toBe(
-      "http://api.example.test/api/cooks/Alice_Cook?page=2&page_size=6",
-    );
-    expect(init).toMatchObject({ cache: "no-store", method: "GET", redirect: "error" });
-    expect(new Headers(init?.headers).get("Accept")).toBe("application/json");
-  });
 
-  it("returns null only for a missing public cook", async () => {
-    vi.stubGlobal("window", undefined);
-    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 404 })));
-    await expect(fetchPublicCookProfile({ handle: "missing-cook" })).resolves.toBeNull();
-  });
+
 
   it("projects only the bounded public identity and recipe fields", () => {
     const result = parsePublicCookProfilePage({

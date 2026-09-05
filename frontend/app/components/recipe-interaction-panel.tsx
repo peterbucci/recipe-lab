@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
-import { createIdempotencyKey } from "../../lib/idempotency-key";
+import { createIdempotencyKey } from "../../shared/api/idempotency-key";
 import {
   clearRecipeRating,
   type RatingValue,

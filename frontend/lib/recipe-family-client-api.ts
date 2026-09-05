@@ -1,12 +1,12 @@
 "use client";
 
-import { isAbortError } from "./abort-error";
-import type { components, operations } from "./api-contracts/generated";
-import { browserApiRequest } from "./api-transport/browser";
+import { isAbortError } from "../shared/api/abort-error";
+import type { components, operations } from "../shared/api/generated/generated";
+import { browserApiRequest } from "../shared/api/browser";
 import {
   ApiTransportError,
   type PublicApiErrorContract,
-} from "./api-transport/core";
+} from "../shared/api/core";
 import type {
   PublicUserReference,
   RecipeCardSummary,

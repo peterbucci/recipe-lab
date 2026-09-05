@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { AUTH_SESSION_EXPIRED_EVENT } from "../lib/auth-api";
+import { AUTH_SESSION_EXPIRED_EVENT } from "../shared/api/browser-session";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",

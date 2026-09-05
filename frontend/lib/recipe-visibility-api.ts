@@ -1,10 +1,10 @@
-import type { operations } from "./api-contracts/generated";
-import { browserApiRequest } from "./api-transport/browser";
+import type { operations } from "../shared/api/generated/generated";
+import { browserApiRequest } from "../shared/api/browser";
 import {
   ApiTransportError,
   type PublicApiErrorContract,
-} from "./api-transport/core";
-import type { RecipeVisibilityState } from "./recipe-library-api";
+} from "../shared/api/core";
+import type { RecipeVisibilityState } from "./recipe-library-model";
 
 type RecipeVisibilityOperation =
   operations["update_authored_recipe_visibility_api_recipes__recipe_version_id__visibility_put"];

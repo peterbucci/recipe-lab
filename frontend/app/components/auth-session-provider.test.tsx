@@ -1,11 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  AUTH_SESSION_EXPIRED_EVENT,
-  fetchAuthSession,
-  type AuthSession,
-} from "../../lib/auth-api";
+import { AUTH_SESSION_EXPIRED_EVENT } from "../../shared/api/browser-session";
+import { fetchAuthSession, type AuthSession } from "../../lib/auth-api";
 import { deferred } from "../../tests/support/deferred";
 import {
   AuthSessionProvider,

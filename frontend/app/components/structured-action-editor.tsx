@@ -2,11 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  catalogActionTypeSummary,
-  type CatalogActionType,
-} from "../../lib/cooking-action-api";
-import type { CatalogUnit } from "../../lib/measurement-unit-api";
+import { catalogActionTypeSummary, type CatalogActionType } from "../../lib/cooking-action-model";
+import type { CatalogUnit } from "../../lib/measurement-unit-model";
 import {
   createStructuredActionDraft,
   MAX_STRUCTURED_ACTIONS_PER_INSTRUCTION,

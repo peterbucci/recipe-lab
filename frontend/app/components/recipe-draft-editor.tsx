@@ -10,11 +10,11 @@ import {
   useState,
 } from "react";
 
-import { isAbortError } from "../../lib/abort-error";
+import { isAbortError } from "../../shared/api/abort-error";
 import { AuthApiError } from "../../lib/auth-api";
-import type { CatalogActionType } from "../../lib/cooking-action-api";
-import { createIdempotencyKey } from "../../lib/idempotency-key";
-import type { CatalogUnit } from "../../lib/measurement-unit-api";
+import type { CatalogActionType } from "../../lib/cooking-action-model";
+import { createIdempotencyKey } from "../../shared/api/idempotency-key";
+import type { CatalogUnit } from "../../lib/measurement-unit-model";
 import type {
   RecipeCardSummary,
   RecipeCategory,

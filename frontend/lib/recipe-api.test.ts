@@ -9,10 +9,10 @@ import {
   fetchRecipeCategories,
   fetchRecipeDiff,
   fetchRecipePage,
-  isRecipeVersionId,
   type RecipeDiff,
   type RecipePage,
 } from "./recipe-api";
+import { isRecipeVersionId } from "./recipe-id";
 
 const emptyPage: RecipePage = {
   items: [],

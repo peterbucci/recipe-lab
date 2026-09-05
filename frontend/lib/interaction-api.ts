@@ -1,12 +1,12 @@
 "use client";
 
-import type { operations } from "./api-contracts/generated";
-import { browserApiRequest } from "./api-transport/browser";
+import type { operations } from "../shared/api/generated/generated";
+import { browserApiRequest } from "../shared/api/browser";
 import {
   ApiTransportError,
   createRequestFingerprint,
   type PublicApiErrorContract,
-} from "./api-transport/core";
+} from "../shared/api/core";
 import {
   parseRecipeViewerState,
   type RatingValue,

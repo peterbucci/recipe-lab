@@ -15,6 +15,7 @@ import vitestConfig, {
 
 interface InlineProject {
   plugins?: unknown[];
+  resolve?: { alias?: Record<string, string> };
   test?: {
     environment?: string;
     exclude?: string[];
@@ -75,13 +76,18 @@ describe("Vitest runtime ownership", () => {
     expect(jsdomProject.plugins).not.toHaveLength(0);
     expect(jsdomProject.test?.setupFiles).toEqual(["./vitest.setup.ts"]);
     expect(jsdomProject.test?.include).toEqual([...JSDOM_TEST_INCLUDE]);
+    for (const project of projects) {
+      expect(project.resolve?.alias?.["server-only"]).toBe(
+        join(process.cwd(), "tests", "support", "server-only.ts"),
+      );
+    }
 
     const browserLibraries = new Set<string>(JSDOM_LIBRARY_TEST_INCLUDE);
     const discovered = testFiles(process.cwd());
     const nodeOwned = discovered.filter(
       (path) =>
         !browserLibraries.has(path) &&
-        (/^lib\/.+\.test\.ts$/.test(path) ||
+        (/^(?:lib|shared\/api)\/.+\.test\.ts$/.test(path) ||
           /^(?:performance|server)\/.+\.test\.ts$/.test(path) ||
           /^scripts\/.+\.test\.(?:mjs|ts)$/.test(path) ||
           /^tests\/(?:config|contracts)\/.+\.test\.(?:mjs|ts)$/.test(path)),
@@ -98,7 +104,7 @@ describe("Vitest runtime ownership", () => {
     expect(jsdomOwned.length).toBeGreaterThan(0);
     expect(overlap).toEqual([]);
     expect([...browserLibraries].sort()).toEqual(
-      jsdomOwned.filter((path) => path.startsWith("lib/")).sort(),
+      jsdomOwned.filter((path) => browserLibraries.has(path)).sort(),
     );
     expect([...owned].sort()).toEqual(discovered.sort());
   });

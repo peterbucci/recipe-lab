@@ -1,10 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  AUTH_SESSION_EXPIRED_EVENT,
-  CSRF_COOKIE_NAME,
-} from "../lib/auth-api";
+import { AUTH_SESSION_EXPIRED_EVENT, CSRF_COOKIE_NAME } from "../shared/api/browser-session";
 import { AccountMenu } from "./account-menu";
 import {
   AuthSessionProvider,

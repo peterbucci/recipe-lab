@@ -21,7 +21,7 @@ describe("production API transport lint boundary", () => {
   });
 
   it("retains the reviewed executor and streaming proxy exceptions", async () => {
-    for (const filePath of ["lib/api-transport/core.ts", "server/api-proxy.ts"]) {
+    for (const filePath of ["shared/api/core.ts", "server/api-proxy.ts"]) {
       const results = await eslint.lintText(requestSource, { filePath });
       expect(
         results.flatMap(({ messages }) => messages.map(({ ruleId }) => ruleId)),

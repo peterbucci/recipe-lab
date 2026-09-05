@@ -1,4 +1,4 @@
-import type { MyRecipeLibraryPage } from "./recipe-library-api";
+import type { MyRecipeLibraryPage } from "./recipe-library-model";
 
 interface KeyedMessage {
   key: string;

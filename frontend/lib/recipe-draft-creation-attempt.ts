@@ -1,6 +1,6 @@
 "use client";
 
-import { createIdempotencyKey } from "./idempotency-key";
+import { createIdempotencyKey } from "../shared/api/idempotency-key";
 
 export const RECIPE_DRAFT_CREATION_ATTEMPT_STORAGE_PREFIX =
   "recipe-lab:draft-creation-attempt:v1";

@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 
-import { isAbortError } from "../../lib/abort-error";
+import { isAbortError } from "../../shared/api/abort-error";
 import type { RecipeCategory } from "../../lib/recipe-api";
 import { fetchActiveRecipeCategories } from "../../lib/recipe-category-client-api";
 import { MAX_RECIPE_CATEGORIES } from "../../lib/recipe-category";

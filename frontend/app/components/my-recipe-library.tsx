@@ -9,9 +9,9 @@ import {
   useRef,
 } from "react";
 
-import { isAbortError } from "../../lib/abort-error";
+import { isAbortError } from "../../shared/api/abort-error";
 import { AuthApiError } from "../../lib/auth-api";
-import { createIdempotencyKey } from "../../lib/idempotency-key";
+import { createIdempotencyKey } from "../../shared/api/idempotency-key";
 import { formatMemberRecipeDate } from "../../lib/member-recipe-presentation";
 import {
   createMyRecipeLibraryState,
@@ -23,11 +23,11 @@ import {
   RecipeDraftApiError,
   type RecipeDraftListItem,
 } from "../../lib/recipe-draft-api";
+import { fetchMyRecipeLibrary } from "../../lib/recipe-library-api";
 import {
-  fetchMyRecipeLibrary,
   type MyRecipeLibraryView,
   type RecipeVisibilityState,
-} from "../../lib/recipe-library-api";
+} from "../../lib/recipe-library-model";
 import { MemberRouteGate } from "./member-route-gate";
 import {
   MyRecipesHubHeader,

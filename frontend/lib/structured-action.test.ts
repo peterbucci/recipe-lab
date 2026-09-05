@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { CatalogActionType } from "./cooking-action-api";
+import type { CatalogActionType } from "./cooking-action-model";
 import {
   catalogUnitSummary,
   type CatalogUnit,
   type CatalogUnitSummary,
-} from "./measurement-unit-api";
+} from "./measurement-unit-model";
 import {
   createStructuredActionDraft,
   effectiveStructuredActionState,

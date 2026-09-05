@@ -1,8 +1,10 @@
 import react from "@vitejs/plugin-react";
+import { fileURLToPath } from "node:url";
 import { defineConfig, defineProject } from "vitest/config";
 
 export const NODE_TEST_INCLUDE = [
   "lib/**/*.test.ts",
+  "shared/api/**/*.test.ts",
   "performance/**/*.test.ts",
   "scripts/**/*.test.{mjs,ts}",
   "server/**/*.test.{mjs,ts}",
@@ -12,13 +14,13 @@ export const NODE_TEST_INCLUDE = [
 // These colocated library tests deliberately exercise cookies, session storage,
 // browser events, or the browser transport. All other lib tests stay in Node.
 export const JSDOM_LIBRARY_TEST_INCLUDE = [
-  "lib/api-transport/browser.test.ts",
+  "shared/api/browser.test.ts",
   "lib/auth-api.test.ts",
   "lib/ingredient-catalog-api.test.ts",
   "lib/interaction-api.test.ts",
   "lib/member-activity-api.test.ts",
   "lib/member-follow-api.test.ts",
-  "lib/ordinary-api-error-boundary.test.ts",
+  "tests/contracts/ordinary-api-error-boundary.test.ts",
   "lib/recipe-category-client-api.test.ts",
   "lib/recipe-draft-api.test.ts",
   "lib/recipe-draft-creation-attempt.test.ts",
@@ -59,10 +61,14 @@ export const COVERAGE_SOURCE_EXCLUDE = [
   "**/*.test.{mjs,ts,tsx}",
   "**/*.d.{mts,ts}",
   "**/*-test-support.{ts,tsx}",
-  "lib/api-contracts/generated.ts",
+  "shared/api/generated/generated.ts",
 ] as const;
 
 export const COVERAGE_REPORTERS = ["text", "json-summary", "lcov"] as const;
+
+const serverOnlyTestAlias = {
+  "server-only": fileURLToPath(new URL("./tests/support/server-only.ts", import.meta.url)),
+};
 
 export default defineConfig({
   test: {
@@ -79,6 +85,7 @@ export default defineConfig({
     },
     projects: [
       defineProject({
+        resolve: { alias: serverOnlyTestAlias },
         test: {
           name: VITEST_PROJECT_NAMES.node,
           environment: "node",
@@ -87,6 +94,7 @@ export default defineConfig({
         },
       }),
       defineProject({
+        resolve: { alias: serverOnlyTestAlias },
         plugins: [react()],
         test: {
           name: VITEST_PROJECT_NAMES.jsdom,

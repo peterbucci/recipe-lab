@@ -1,16 +1,13 @@
 "use client";
 
-import { browserApiRequest } from "./api-transport/browser";
-import type { PublicApiErrorContract } from "./api-transport/core";
-import {
-  parseCookingActionTypeResponse,
-  type CatalogActionType,
-} from "./cooking-action-api";
+import { browserApiRequest } from "../shared/api/browser";
+import type { PublicApiErrorContract } from "../shared/api/core";
+import { parseCookingActionTypeResponse, type CatalogActionType } from "./cooking-action-model";
 import {
   parseMeasurementUnitResponse,
   type CatalogUnit,
   type MeasurementSemantic,
-} from "./measurement-unit-api";
+} from "./measurement-unit-model";
 import type { RecipeDraftDetail } from "./recipe-draft-api";
 import { startOrResumeRecipeDraftDetail } from "./recipe-draft-entry";
 import type { RecipeCategory } from "./recipe-api";

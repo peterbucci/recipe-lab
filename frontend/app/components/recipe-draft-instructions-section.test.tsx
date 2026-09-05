@@ -8,7 +8,7 @@ import {
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
-import type { CatalogActionType } from "../../lib/cooking-action-api";
+import type { CatalogActionType } from "../../lib/cooking-action-model";
 import type { RecipeDraftInstructionState } from "../../lib/recipe-draft";
 import {
   createStructuredActionDraft,

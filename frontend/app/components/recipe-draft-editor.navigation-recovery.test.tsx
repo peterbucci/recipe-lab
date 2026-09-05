@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AUTH_SESSION_EXPIRED_EVENT } from "../../lib/auth-api";
+import { AUTH_SESSION_EXPIRED_EVENT } from "../../shared/api/browser-session";
 import { deferred } from "../../tests/support/deferred";
 import {
   cleanupRecipeDraftEditorMocks,

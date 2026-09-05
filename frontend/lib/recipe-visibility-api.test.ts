@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CSRF_COOKIE_NAME } from "./auth-api";
+import { CSRF_COOKIE_NAME } from "../shared/api/browser-session";
 import {
   parseRecipeVisibilityUpdate,
   RecipeVisibilityApiError,

@@ -1,10 +1,10 @@
-import type { ApiValidationIssue } from "./auth-api";
-import type { CatalogActionType } from "./cooking-action-api";
+import type { ApiValidationIssue } from "../shared/api/core";
+import type { CatalogActionType } from "./cooking-action-model";
 import type {
   CatalogIngredientSelection,
   MissingIngredientRequest,
 } from "./ingredient-catalog-api";
-import type { CatalogUnit } from "./measurement-unit-api";
+import type { CatalogUnit } from "./measurement-unit-model";
 import { formatDecimal } from "./format";
 import type { RecipeCategory } from "./recipe-api";
 import { MAX_RECIPE_CATEGORIES } from "./recipe-category";

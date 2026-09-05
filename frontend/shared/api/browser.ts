@@ -1,10 +1,9 @@
 "use client";
 
 import {
-  AuthApiError,
   memberMutationHeaders,
   notifySessionExpired,
-} from "../auth-api";
+} from "./browser-session";
 import {
   ApiTransportError,
   assertMutationIdentity,
@@ -44,23 +43,6 @@ export type BrowserApiRequestOptions =
   | BrowserQueryRequest
   | BrowserMutationRequest;
 
-function memberHeaders(): Record<string, string> {
-  try {
-    return memberMutationHeaders();
-  } catch (error) {
-    if (error instanceof AuthApiError) {
-      throw new ApiTransportError({
-        authenticationRecovery: "sign_in",
-        code: error.code,
-        outcome: "rejected",
-        reason: "not_sent",
-        status: error.status,
-      });
-    }
-    throw error;
-  }
-}
-
 export async function browserApiRequest(
   path: string,
   options: BrowserApiRequestOptions,
@@ -77,7 +59,7 @@ export async function browserApiRequest(
       const identity = assertMutationIdentity(options.identity);
       headers.set("Idempotency-Key", identity.idempotencyKey);
     }
-    for (const [name, value] of Object.entries(memberHeaders())) {
+    for (const [name, value] of Object.entries(memberMutationHeaders())) {
       headers.set(name, value);
     }
   }

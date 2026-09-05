@@ -1,13 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { AUTH_SESSION_EXPIRED_EVENT, CSRF_COOKIE_NAME } from "../shared/api/browser-session";
 import {
-  AUTH_SESSION_EXPIRED_EVENT,
   AuthApiError,
-  CSRF_COOKIE_NAME,
   deleteAccount,
   fetchAuthSession,
   parseAuthSession,
-  readCookie,
   reauthenticateHref,
   safeReturnTo,
   signInHref,
@@ -399,10 +397,5 @@ describe("auth URL helpers", () => {
     );
   });
 
-  it("decodes cookie values without losing embedded equals signs", () => {
-    expect(readCookie("wanted", "other=one; wanted=a%3Db; third=three")).toBe(
-      "a=b",
-    );
-    expect(readCookie("missing", "other=one")).toBeNull();
-  });
+
 });

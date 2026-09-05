@@ -1,7 +1,7 @@
 import { type RefObject, useEffect, useRef, useState } from "react";
 
-import { isAbortError } from "../../lib/abort-error";
-import { createIdempotencyKey } from "../../lib/idempotency-key";
+import { isAbortError } from "../../shared/api/abort-error";
+import { createIdempotencyKey } from "../../shared/api/idempotency-key";
 import {
   browseRecipeModerationCases,
   fetchRecipeModerationCase,

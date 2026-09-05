@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 
-import { isAbortError } from "../../lib/abort-error";
+import { isAbortError } from "../../shared/api/abort-error";
 import {
   fetchRecipeViewerState,
   type RecipeViewerState,

@@ -5,10 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   catalogActionTypeSummary,
   CookingActionApiError,
-  fetchCookingActionTypes,
   parseCookingActionTypeResponse,
   type CatalogActionType,
-} from "./cooking-action-api";
+} from "./cooking-action-model";
+import { fetchCookingActionTypes } from "./cooking-action-api";
 
 const mix: CatalogActionType = {
   id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",

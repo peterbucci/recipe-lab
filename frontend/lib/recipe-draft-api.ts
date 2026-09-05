@@ -1,18 +1,16 @@
-import {
-  type ApiValidationIssue,
-} from "./auth-api";
-import type { operations } from "./api-contracts/generated";
-import { browserApiRequest } from "./api-transport/browser";
+import { type ApiValidationIssue } from "../shared/api/core";
+import type { operations } from "../shared/api/generated/generated";
+import { browserApiRequest } from "../shared/api/browser";
 import {
   ApiTransportError,
   createRequestFingerprint,
   type ApiAuthenticationRecovery,
   type ApiMutationOutcome,
   type PublicApiErrorContract,
-} from "./api-transport/core";
-import type { CatalogActionTypeSummary } from "./cooking-action-api";
+} from "../shared/api/core";
+import type { CatalogActionTypeSummary } from "./cooking-action-model";
 import type { CatalogIngredient } from "./ingredient-catalog-api";
-import type { CatalogUnitSummary } from "./measurement-unit-api";
+import type { CatalogUnitSummary } from "./measurement-unit-model";
 import type { RecipeCategory } from "./recipe-api";
 import {
   MAX_RECIPE_CATEGORIES,

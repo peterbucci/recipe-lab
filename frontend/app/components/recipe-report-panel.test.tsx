@@ -6,7 +6,7 @@ import { RecipeReportPanel } from "./recipe-report-panel";
 
 const mocks = vi.hoisted(() => ({ submit: vi.fn(), key: vi.fn() }));
 
-vi.mock("../../lib/idempotency-key", () => ({ createIdempotencyKey: mocks.key }));
+vi.mock("../../shared/api/idempotency-key", () => ({ createIdempotencyKey: mocks.key }));
 vi.mock("../../lib/recipe-report-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/recipe-report-api")>();
   return { ...actual, submitRecipeReport: mocks.submit };
