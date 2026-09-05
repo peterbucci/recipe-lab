@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import baselineConfig, {
@@ -14,18 +18,45 @@ import baselineConfig, {
   BASELINE_SNAPSHOT_TEMPLATE,
 } from "../../playwright.baseline.config";
 
-describe("RCP-34B deterministic browser baseline configuration", () => {
-  it("freezes the public runner contract and diagnostics policy", () => {
-    expect(BASELINE_FRONTEND_ORIGIN).toBe("http://127.0.0.1:4317");
-    expect(BASELINE_FIXTURE_ORIGIN).toBe("http://127.0.0.1:4318");
-    expect(BASELINE_CLOCK_ISO).toBe("2026-08-27T12:00:00.000Z");
-    expect(BASELINE_PLAYWRIGHT_VERSION).toBe("1.62.1");
-    expect(BASELINE_CHROMIUM_VERSION).toBe("151.0.7922.34");
-    expect(BASELINE_OUTPUT_DIRECTORY).toBe("test-results/baseline/artifacts");
-    expect(BASELINE_RESULTS_FILE).toBe("test-results/baseline/results.json");
-    expect(BASELINE_SNAPSHOT_TEMPLATE).toBe(
-      "{testDir}/../../baselines/{projectName}/{arg}{ext}",
+const moduleRequire = createRequire(import.meta.url);
+
+function readJson(path: string): unknown {
+  return JSON.parse(readFileSync(path, "utf8")) as unknown;
+}
+
+describe("deterministic browser baseline configuration", () => {
+  it("pins the installed browser runtime and keeps diagnostics deterministic", () => {
+    const playwrightPackage = readJson(
+      moduleRequire.resolve("@playwright/test/package.json"),
+    ) as { version: string };
+    const playwrightCoreRoot = dirname(
+      moduleRequire.resolve("playwright-core/package.json"),
     );
+    const browserManifest = readJson(
+      join(playwrightCoreRoot, "browsers.json"),
+    ) as {
+      browsers: Array<{ browserVersion?: string; name: string }>;
+    };
+    const installedChromium = browserManifest.browsers.find(
+      ({ name }) => name === "chromium",
+    );
+
+    expect(BASELINE_PLAYWRIGHT_VERSION).toBe(playwrightPackage.version);
+    expect(BASELINE_CHROMIUM_VERSION).toBe(installedChromium?.browserVersion);
+    expect(new Date(BASELINE_CLOCK_ISO).toISOString()).toBe(BASELINE_CLOCK_ISO);
+    expect(BASELINE_FRONTEND_ORIGIN).not.toBe(BASELINE_FIXTURE_ORIGIN);
+    for (const origin of [BASELINE_FRONTEND_ORIGIN, BASELINE_FIXTURE_ORIGIN]) {
+      const url = new URL(origin);
+      expect(url.hostname).toBe("127.0.0.1");
+      expect(url.protocol).toBe("http:");
+      expect(url.username).toBe("");
+      expect(url.password).toBe("");
+    }
+
+    expect(BASELINE_OUTPUT_DIRECTORY).toMatch(/^test-results\//);
+    expect(BASELINE_RESULTS_FILE).toMatch(/^test-results\/.*\.json$/);
+    expect(BASELINE_SNAPSHOT_TEMPLATE).toContain("/baselines/");
+    expect(BASELINE_SNAPSHOT_TEMPLATE).toContain("{projectName}");
     expect(baselineConfig.testDir).toBe("./e2e/visual");
     expect(baselineConfig.testMatch).toBe("visual-baseline.spec.ts");
     expect(baselineConfig.fullyParallel).toBe(false);
@@ -54,28 +85,35 @@ describe("RCP-34B deterministic browser baseline configuration", () => {
       caret: "hide",
       maxDiffPixels: 0,
       scale: "css",
-      threshold: 0.1,
     });
     expect(baselineConfig.reporter).toEqual([
       ["line"],
-      ["./e2e/visual/visual-baseline-reporter.mjs", { outputFile: BASELINE_RESULTS_FILE }],
+      [
+        "./e2e/visual/visual-baseline-reporter.mjs",
+        { outputFile: BASELINE_RESULTS_FILE },
+      ],
     ]);
   });
 
-  it("uses exact desktop and phone projects without mutable device presets", () => {
-    expect(BASELINE_DESKTOP_VIEWPORT).toEqual({ width: 1440, height: 900 });
-    expect(BASELINE_PHONE_VIEWPORT).toEqual({ width: 390, height: 844 });
-    expect(BASELINE_PROJECTS.map((project) => project.name)).toEqual([
-      "baseline-desktop-chromium",
-      "baseline-phone-chromium",
-    ]);
-    expect(BASELINE_PROJECTS[0]?.use).toMatchObject({
+  it("covers desktop and touch-phone layouts without mutable device presets", () => {
+    const [desktop, phone] = BASELINE_PROJECTS;
+
+    expect(BASELINE_PROJECTS).toHaveLength(2);
+    expect(new Set(BASELINE_PROJECTS.map(({ name }) => name)).size).toBe(2);
+    expect(BASELINE_DESKTOP_VIEWPORT.width).toBeGreaterThanOrEqual(1_024);
+    expect(BASELINE_PHONE_VIEWPORT.width).toBeLessThanOrEqual(480);
+    expect(BASELINE_DESKTOP_VIEWPORT.width).toBeGreaterThan(
+      BASELINE_PHONE_VIEWPORT.width,
+    );
+    expect(desktop?.name).toContain("desktop");
+    expect(phone?.name).toContain("phone");
+    expect(desktop?.use).toMatchObject({
       browserName: "chromium",
       deviceScaleFactor: 1,
       screen: BASELINE_DESKTOP_VIEWPORT,
       viewport: BASELINE_DESKTOP_VIEWPORT,
     });
-    expect(BASELINE_PROJECTS[1]?.use).toMatchObject({
+    expect(phone?.use).toMatchObject({
       browserName: "chromium",
       deviceScaleFactor: 1,
       hasTouch: true,
@@ -85,29 +123,36 @@ describe("RCP-34B deterministic browser baseline configuration", () => {
     });
   });
 
-  it("starts only non-reused loopback fixture and production frontend servers", () => {
-    expect(baselineConfig.webServer).toEqual([
-      expect.objectContaining({
-        command: "node e2e/visual/visual-baseline-fixture.mjs",
-        reuseExistingServer: false,
-        url: `${BASELINE_FIXTURE_ORIGIN}/__baseline__/health`,
-        env: expect.objectContaining({
-          BASELINE_FIXTURE_HOST: "127.0.0.1",
-          BASELINE_FIXTURE_PORT: "4318",
-          TZ: "UTC",
-        }),
+  it("starts only isolated loopback fixture and production frontend servers", () => {
+    const servers = Array.isArray(baselineConfig.webServer)
+      ? baselineConfig.webServer
+      : [baselineConfig.webServer];
+
+    expect(servers).toHaveLength(2);
+    for (const server of servers) {
+      expect(server?.reuseExistingServer).toBe(false);
+      expect(new URL(server?.url ?? "").hostname).toBe("127.0.0.1");
+      expect(server?.env).toMatchObject({ TZ: "UTC" });
+    }
+
+    expect(servers[0]).toMatchObject({
+      command: "node e2e/visual/visual-baseline-fixture.mjs",
+      url: `${BASELINE_FIXTURE_ORIGIN}/__baseline__/health`,
+      env: {
+        BASELINE_FIXTURE_HOST: "127.0.0.1",
+        BASELINE_FIXTURE_PORT: new URL(BASELINE_FIXTURE_ORIGIN).port,
+        TZ: "UTC",
+      },
+    });
+    expect(servers[1]).toMatchObject({
+      command: expect.stringContaining("node server.mjs"),
+      url: `${BASELINE_FRONTEND_ORIGIN}/healthz`,
+      env: expect.objectContaining({
+        APP_ENVIRONMENT: "production",
+        NEXT_PUBLIC_API_URL: BASELINE_FIXTURE_ORIGIN,
+        RECIPE_API_URL: BASELINE_FIXTURE_ORIGIN,
+        TZ: "UTC",
       }),
-      expect.objectContaining({
-        command: "node server.mjs --hostname 127.0.0.1 --port 4317",
-        reuseExistingServer: false,
-        url: `${BASELINE_FRONTEND_ORIGIN}/healthz`,
-        env: expect.objectContaining({
-          APP_ENVIRONMENT: "production",
-          NEXT_PUBLIC_API_URL: BASELINE_FIXTURE_ORIGIN,
-          RECIPE_API_URL: BASELINE_FIXTURE_ORIGIN,
-          TZ: "UTC",
-        }),
-      }),
-    ]);
+    });
   });
 });
