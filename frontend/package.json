@@ -21,26 +21,26 @@
     "test:e2e:release-gate": "playwright test e2e/rcp32-community-release-gate.spec.ts"
   },
   "dependencies": {
-    "@next/env": "16.3.1",
+    "@next/env": "16.3.4",
     "lucide-react": "1.39.0",
-    "next": "16.3.1",
+    "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.62.1",
-    "@testing-library/jest-dom": "6.9.1",
-    "@testing-library/react": "16.3.0",
-    "@types/node": "22.15.30",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "5.1.4",
-    "eslint": "9.39.2",
-    "eslint-config-next": "16.3.1",
-    "jsdom": "28.1.0",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@types/node": "26.4.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.1",
+    "eslint": "10.9.1",
+    "eslint-config-next": "16.3.4",
+    "jsdom": "30.0.1",
     "openapi-typescript": "7.13.0",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vitest": "4.1.11"
   }
 }
