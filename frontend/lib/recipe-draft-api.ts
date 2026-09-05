@@ -11,11 +11,13 @@ import {
 import type { CatalogActionTypeSummary } from "./cooking-action-model";
 import type { CatalogIngredient } from "../features/ingredients/ingredient-model";
 import type { CatalogUnitSummary } from "./measurement-unit-model";
-import type { RecipeCategory } from "./recipe-api";
+import type {
+  RecipeCategory,
+} from "../features/recipes/shared/recipe-contracts";
 import {
   MAX_RECIPE_CATEGORIES,
   parseRecipeCategories,
-} from "./recipe-category";
+} from "../features/recipes/shared/recipe-category";
 import type { RecipeNumericMeasure } from "./structured-action";
 import type {
   RecipeIngredientMeasure,

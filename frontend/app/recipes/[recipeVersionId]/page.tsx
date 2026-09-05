@@ -1,9 +1,17 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { fetchRecipe, fetchRecipePage, type RecipeCardSummary } from "../../../lib/recipe-api";
-import { isRecipeVersionId } from "../../../lib/recipe-id";
-import { RecipeDetailExperience } from "../../components/recipe-detail-experience";
+import {
+  fetchRecipe,
+} from "../../../features/recipes/detail/recipe-detail-server-api";
+import {
+  fetchRecipePage,
+} from "../../../features/recipes/browse/recipe-browse-server-api";
+import type {
+  RecipeCardSummary,
+} from "../../../features/recipes/shared/recipe-contracts";
+import { isRecipeVersionId } from "../../../features/recipes/shared/recipe-id";
+import { RecipeDetailExperience } from "./_components/recipe-detail-experience";
 
 export const dynamic = "force-dynamic";
 

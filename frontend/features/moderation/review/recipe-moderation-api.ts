@@ -5,7 +5,9 @@ import {
   createRequestFingerprint,
   type PublicApiErrorContract,
 } from "../../../shared/api/core";
-import type { PublicUserReference } from "../../../lib/recipe-api";
+import type {
+  PublicUserReference,
+} from "../../recipes/shared/recipe-contracts";
 import type { RecipeReportReason } from "../reporting/recipe-report-api";
 
 type ModerationQueueWire =

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { isRecipeVersionId } from "../../../../lib/recipe-id";
+import { isRecipeVersionId } from "../../../../features/recipes/shared/recipe-id";
 import { RecipeDraftStarter } from "../../../components/recipe-draft-starter";
 
 export const dynamic = "force-dynamic";

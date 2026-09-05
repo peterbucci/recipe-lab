@@ -40,6 +40,13 @@ describe("frontend ownership architecture", () => {
     expect(
       migrationRuleForLegacyPath("app/components/recipe-card.test.tsx")?.story,
     ).toBe("RCP-49F");
+    expect(
+      migrationRuleForLegacyPath("app/components/recipe-category-selector.tsx")
+        ?.story,
+    ).toBe("RCP-49H");
+    expect(
+      migrationRuleForLegacyPath("lib/recipe-library-server-api.ts")?.story,
+    ).toBe("RCP-49G");
     expect(migrationRuleForLegacyPath("lib/recipe-draft-api.test.ts")?.story).toBe(
       "RCP-49H",
     );

@@ -2,9 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { RecipeApiError, fetchRecipeDiff, type RecipeDiff } from "../../../../lib/recipe-api";
-import { isRecipeVersionId } from "../../../../lib/recipe-id";
-import { RecipeDiffView } from "../../../components/recipe-diff-view";
+import {
+  RecipeApiError,
+} from "../../../../features/recipes/shared/recipe-api-error";
+import {
+  fetchRecipeDiff,
+} from "../../../../features/recipes/detail/recipe-detail-server-api";
+import type {
+  RecipeDiff,
+} from "../../../../features/recipes/shared/recipe-contracts";
+import { isRecipeVersionId } from "../../../../features/recipes/shared/recipe-id";
+import { RecipeDiffView } from "../../../../features/recipes/detail/recipe-diff-view";
 
 export const dynamic = "force-dynamic";
 

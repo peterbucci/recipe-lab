@@ -5,7 +5,7 @@ import {
   createRequestFingerprint,
   type PublicApiErrorContract,
 } from "../shared/api/core";
-import { isRecipeVersionId } from "./recipe-id";
+import { isRecipeVersionId } from "../features/recipes/shared/recipe-id";
 
 type RecipeDuplicateOperation =
   operations["create_original_draft_duplicate_preflight_api_recipe_drafts__draft_id__duplicate_preflights_post"];

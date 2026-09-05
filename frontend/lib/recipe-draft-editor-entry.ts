@@ -10,8 +10,10 @@ import {
 } from "./measurement-unit-model";
 import type { RecipeDraftDetail } from "./recipe-draft-api";
 import { startOrResumeRecipeDraftDetail } from "./recipe-draft-entry";
-import type { RecipeCategory } from "./recipe-api";
-import { parseRecipeCategories } from "./recipe-category";
+import type {
+  RecipeCategory,
+} from "../features/recipes/shared/recipe-contracts";
+import { parseRecipeCategories } from "../features/recipes/shared/recipe-category";
 
 export interface RecipeDraftEditorEntry {
   actionTypes: CatalogActionType[];

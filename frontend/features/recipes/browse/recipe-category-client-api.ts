@@ -1,0 +1,67 @@
+"use client";
+
+import type { operations } from "../../../shared/api/generated/generated";
+import { browserApiRequest } from "../../../shared/api/browser";
+import {
+  ApiTransportError,
+  type PublicApiErrorContract,
+} from "../../../shared/api/core";
+import { parseRecipeCategories } from "../shared/recipe-category";
+
+type RecipeCategoryOperation =
+  operations["recipe_categories_api_recipe_categories_get"];
+type RecipeCategoryList =
+  RecipeCategoryOperation["responses"][200]["content"]["application/json"];
+
+const CATEGORY_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "recipe_category_api_error",
+  knownCodes: new Set(["validation_error"]),
+};
+
+export class RecipeCategoryApiError extends Error {
+  readonly code: string;
+  readonly status: number;
+
+  constructor(
+    message = "Recipe Lab could not load the curated categories.",
+    status = 0,
+    code = "recipe_category_api_error",
+  ) {
+    super(message);
+    this.name = "RecipeCategoryApiError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+export async function fetchActiveRecipeCategories(
+  signal?: AbortSignal,
+): Promise<RecipeCategoryList> {
+  try {
+    const response = await browserApiRequest("/api/recipe-categories", {
+      errorContract: CATEGORY_ERROR_CONTRACT,
+      kind: "query",
+      signal,
+    });
+    const items =
+      typeof response.data === "object" &&
+      response.data !== null &&
+      "items" in response.data
+        ? parseRecipeCategories(response.data.items)
+        : null;
+    if (!items) {
+      throw new RecipeCategoryApiError(
+        "Recipe Lab received an invalid curated category response.",
+        502,
+        "invalid_recipe_category_response",
+      );
+    }
+    return { items };
+  } catch (error) {
+    if (error instanceof RecipeCategoryApiError) throw error;
+    if (error instanceof ApiTransportError) {
+      throw new RecipeCategoryApiError(undefined, error.status, error.code);
+    }
+    throw error;
+  }
+}

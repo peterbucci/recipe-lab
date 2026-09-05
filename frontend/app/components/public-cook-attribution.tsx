@@ -1,6 +1,8 @@
 import Link from "next/link";
 
-import type { RecipeSummary } from "../../lib/recipe-api";
+import type {
+  RecipeSummary,
+} from "../../features/recipes/shared/recipe-contracts";
 
 interface PublicCookAttributionProps {
   author: RecipeSummary["author"];

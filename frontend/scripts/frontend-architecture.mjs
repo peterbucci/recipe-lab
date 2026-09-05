@@ -30,7 +30,7 @@ function moduleFamilies(...names) {
     .sort((left, right) => right.length - left.length)
     .map((name) => name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&"))
     .join("|");
-  return new RegExp(`^(?:app/components|lib)/(?:${alternatives})(?:[./-]|$)`);
+  return new RegExp(`^(?:app/components|lib)/(?:${alternatives})(?:[./]|$)`);
 }
 
 export const LEGACY_MIGRATION_RULES = Object.freeze([
@@ -93,7 +93,6 @@ export const LEGACY_MIGRATION_RULES = Object.freeze([
       "recipe-interaction-panel",
       "recipe-library-api",
       "recipe-library-model",
-      "recipe-library-server-api",
       "recipe-library-views",
       "recipe-member-actions",
       "recipe-view-tracker",
@@ -128,6 +127,7 @@ export const LEGACY_MIGRATION_RULES = Object.freeze([
       "member-route-gate",
       "public-cook-attribution",
       "relative-time",
+      "recipe-library-server-api",
     ),
   },
   {
@@ -145,6 +145,7 @@ export const LEGACY_MIGRATION_RULES = Object.freeze([
       "recipe-draft-creation-attempt",
       "recipe-draft-details-section",
       "recipe-draft-editor",
+      "recipe-draft-editor-test-support",
       "recipe-draft-editor-entry",
       "recipe-draft-editor-state",
       "recipe-draft-editor-transforms",
@@ -154,6 +155,7 @@ export const LEGACY_MIGRATION_RULES = Object.freeze([
       "recipe-draft-instructions-section",
       "recipe-draft-notes-section",
       "recipe-draft-publication",
+      "recipe-draft-publication-test-support",
       "recipe-draft-publication-state",
       "recipe-draft-starter",
       "recipe-draft",

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 
-import { MyRecipeLibrary } from "../../components/my-recipe-library";
-import type { MyRecipesHubView } from "../../components/my-recipes-hub";
-import { SavedRecipeLibrary } from "../../components/saved-recipe-library";
+import type { MyRecipesHubView } from "../../../features/recipes/library/my-recipes-hub";
+import { MyRecipesWorkspace } from "./_components/my-recipes-workspace";
 
 export const metadata: Metadata = {
   title: "My recipes",
@@ -37,8 +36,7 @@ function pageNumber(value: string | string[] | undefined): number {
 export default async function MyRecipesPage({ searchParams }: MyRecipesPageProps) {
   const query = await searchParams;
   const view = recipeView(query.view);
-  if (view === "saved") {
-    return <SavedRecipeLibrary />;
-  }
-  return <MyRecipeLibrary pageNumber={pageNumber(query.page)} view={view} />;
+  return (
+    <MyRecipesWorkspace pageNumber={pageNumber(query.page)} view={view} />
+  );
 }

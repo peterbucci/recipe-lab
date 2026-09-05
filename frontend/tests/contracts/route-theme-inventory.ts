@@ -155,21 +155,25 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/recipes/[recipeVersionId]/compare",
     family: "public-context",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/recipe-family-navigator.tsx"],
+    consumerEvidence: [
+      "frontend/features/recipes/detail/recipe-family-navigator.tsx",
+    ],
   },
   {
     file: "app/recipes/[recipeVersionId]/fork/page.tsx",
     route: "/recipes/[recipeVersionId]/fork",
     family: "recipe-authoring",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/recipe-member-actions.tsx"],
+    consumerEvidence: [
+      "frontend/features/recipes/detail/recipe-member-actions.tsx",
+    ],
   },
   {
     file: "app/recipes/[recipeVersionId]/page.tsx",
     route: "/recipes/[recipeVersionId]",
     family: "public-context",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/recipe-card.tsx"],
+    consumerEvidence: ["frontend/features/recipes/browse/recipe-card.tsx"],
   },
   {
     file: "app/recipes/drafts/[draftId]/page.tsx",

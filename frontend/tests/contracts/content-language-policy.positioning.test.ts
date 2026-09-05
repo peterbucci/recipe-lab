@@ -46,17 +46,23 @@ describe("public product language policy", () => {
     const home = [
       readFileSync(resolve(APP_ROOT, "page.tsx"), "utf8"),
       readFileSync(
-        resolve(APP_ROOT, "components/home-public-discovery.tsx"),
+        resolve(APP_ROOT, "_components/home-public-discovery.tsx"),
         "utf8",
       ),
     ].join("\n");
     const detail = [
       readFileSync(
-        resolve(APP_ROOT, "components/recipe-detail-view.tsx"),
+        resolve(
+          REPOSITORY_ROOT,
+          "frontend/features/recipes/detail/recipe-detail-view.tsx",
+        ),
         "utf8",
       ),
       readFileSync(
-        resolve(APP_ROOT, "components/recipe-family-navigator.tsx"),
+        resolve(
+          REPOSITORY_ROOT,
+          "frontend/features/recipes/detail/recipe-family-navigator.tsx",
+        ),
         "utf8",
       ),
     ].join("\n");
@@ -72,4 +78,3 @@ describe("public product language policy", () => {
     expect(similarity).toContain("Similar recipes");
   });
 });
-

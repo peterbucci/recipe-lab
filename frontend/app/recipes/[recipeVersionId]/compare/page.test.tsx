@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   RecipeApiError,
-  type RecipeDiff,
-} from "../../../../lib/recipe-api";
+} from "../../../../features/recipes/shared/recipe-api-error";
+import type {
+  RecipeDiff,
+} from "../../../../features/recipes/shared/recipe-contracts";
 import RecipeComparePage from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -16,9 +18,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 
-vi.mock("../../../../lib/recipe-api", async (importOriginal) => {
+vi.mock("../../../../features/recipes/detail/recipe-detail-server-api", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("../../../../lib/recipe-api")>();
+    await importOriginal<
+      typeof import("../../../../features/recipes/detail/recipe-detail-server-api")
+    >();
   return { ...actual, fetchRecipeDiff: mocks.fetchRecipeDiff };
 });
 

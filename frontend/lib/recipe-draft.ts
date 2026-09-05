@@ -5,9 +5,11 @@ import type {
   MissingIngredientRequest,
 } from "../features/ingredients/ingredient-model";
 import type { CatalogUnit } from "./measurement-unit-model";
-import { formatDecimal } from "./format";
-import type { RecipeCategory } from "./recipe-api";
-import { MAX_RECIPE_CATEGORIES } from "./recipe-category";
+import { formatDecimal } from "../features/recipes/shared/recipe-format";
+import type {
+  RecipeCategory,
+} from "../features/recipes/shared/recipe-contracts";
+import { MAX_RECIPE_CATEGORIES } from "../features/recipes/shared/recipe-category";
 import {
   type RecipeDraftDetail,
   type RecipeDifficulty,

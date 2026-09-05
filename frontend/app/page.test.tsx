@@ -16,7 +16,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: navigationMocks.replace }),
 }));
 
-vi.mock("./components/home-public-discovery", () => ({
+vi.mock("./_components/home-public-discovery", () => ({
   HomePublicDiscovery: () => (
     <section>
       <h2>Featured recipes</h2>

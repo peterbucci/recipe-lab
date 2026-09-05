@@ -1,7 +1,9 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { RecipeDetail } from "../../lib/recipe-api";
+import type {
+  RecipeDetail,
+} from "../../features/recipes/shared/recipe-contracts";
 import { deferred } from "../../tests/support/deferred";
 import {
   cleanupRecipeDraftEditorMocks,

@@ -2,8 +2,8 @@ import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { HomeDashboardLayout } from "./components/home-dashboard-layout";
-import { HomePublicDiscovery } from "./components/home-public-discovery";
+import { HomeDashboardLayout } from "./_components/home-dashboard-layout";
+import { HomePublicDiscovery } from "./_components/home-public-discovery";
 import { SectionLoading } from "../shared/ui/loading-ui";
 
 export const dynamic = "force-dynamic";
