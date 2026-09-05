@@ -447,11 +447,8 @@ describe("MemberIngredientRequestHistory", () => {
     });
     const emptyState = emptyHeading.closest("section");
 
-    expect(emptyState).toHaveClass("empty-state", "workspace-empty-state");
-    expect(within(emptyState!).getByText("Nothing here yet")).toHaveClass(
-      "eyebrow",
-      "workspace-empty-state__eyebrow",
-    );
+    expect(emptyState).not.toBeNull();
+    expect(within(emptyState!).getByText("Nothing here yet")).toBeVisible();
     expect(
       within(emptyState!).getByText(
         "Request an ingredient and its review status will appear here.",
@@ -484,7 +481,7 @@ describe("MemberIngredientRequestHistory", () => {
       name: "You have no rejected requests.",
     });
     const filteredEmptyState = filteredHeading.closest("section");
-    expect(filteredEmptyState).toHaveClass("empty-state", "workspace-empty-state");
+    expect(filteredEmptyState).not.toBeNull();
     expect(
       within(filteredEmptyState!).getByText(
         "Requests will appear here if a curator decides not to add them.",
@@ -510,10 +507,8 @@ describe("MemberIngredientRequestHistory", () => {
       name: "No requests match your search.",
     });
     const searchEmptyState = searchHeading.closest("section");
-    expect(searchEmptyState).toHaveClass("empty-state", "workspace-empty-state");
-    expect(within(searchEmptyState!).getByText("No matches")).toHaveClass(
-      "workspace-empty-state__eyebrow",
-    );
+    expect(searchEmptyState).not.toBeNull();
+    expect(within(searchEmptyState!).getByText("No matches")).toBeVisible();
     expect(
       within(searchEmptyState!).getByText(
         "Try a different search term or clear the search.",

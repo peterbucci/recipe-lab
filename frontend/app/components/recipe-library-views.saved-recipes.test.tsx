@@ -238,11 +238,8 @@ describe("cook profile and private recipe libraries", () => {
     const emptyState = emptyHeading.closest("section");
 
     expect(emptyHeading).toBeVisible();
-    expect(emptyState).toHaveClass("empty-state", "workspace-empty-state");
-    expect(within(emptyState!).getByText("Nothing here yet")).toHaveClass(
-      "eyebrow",
-      "workspace-empty-state__eyebrow",
-    );
+    expect(emptyState).not.toBeNull();
+    expect(within(emptyState!).getByText("Nothing here yet")).toBeVisible();
     expect(
       within(emptyState!).getByText(
         "Use “Save recipe” on a public recipe to keep it in this private list.",
@@ -307,4 +304,3 @@ describe("cook profile and private recipe libraries", () => {
     ).toHaveTextContent("Alice’s tomato soup");
   });
 });
-

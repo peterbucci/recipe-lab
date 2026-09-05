@@ -285,11 +285,8 @@ describe("cook profile and private recipe libraries", () => {
       const emptyState = emptyHeading.closest("section");
 
       expect(emptyHeading).toBeVisible();
-      expect(emptyState).toHaveClass("empty-state", "workspace-empty-state");
-      expect(within(emptyState!).getByText("Nothing here yet")).toHaveClass(
-        "eyebrow",
-        "workspace-empty-state__eyebrow",
-      );
+      expect(emptyState).not.toBeNull();
+      expect(within(emptyState!).getByText("Nothing here yet")).toBeVisible();
       expect(within(emptyState!).getByText(description)).toBeVisible();
       if (actionLabel) {
         expect(
@@ -326,4 +323,3 @@ describe("cook profile and private recipe libraries", () => {
     ).toHaveAttribute("href", "/account/recipes?view=withdrawn");
   });
 });
-

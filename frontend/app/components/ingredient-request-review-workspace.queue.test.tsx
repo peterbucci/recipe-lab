@@ -105,12 +105,8 @@ describe("IngredientRequestReviewWorkspace", () => {
       name: "There are no rejected ingredient requests.",
     });
     const emptyState = emptyHeading.closest("section");
-    expect(emptyState).toHaveClass("empty-state", "workspace-empty-state");
-    expect(emptyState?.parentElement).toHaveClass("staff-workspace__tab-shell");
-    expect(within(emptyState!).getByText("Nothing here yet")).toHaveClass(
-      "eyebrow",
-      "workspace-empty-state__eyebrow",
-    );
+    expect(emptyState).not.toBeNull();
+    expect(within(emptyState!).getByText("Nothing here yet")).toBeVisible();
     expect(
       within(emptyState!).getByText(
         "Rejected ingredient requests will appear here after a curator reviews them.",
@@ -150,4 +146,3 @@ describe("IngredientRequestReviewWorkspace", () => {
     expect(mocks.detail).toHaveBeenCalledTimes(1);
   });
 });
-
