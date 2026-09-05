@@ -95,9 +95,11 @@ than being merged to `main`.
 | RF-11 | Consolidated test builders and harnesses, checked in stable quality commands, tiered fast and full CI gates, and hardened documentation, source packaging, security, Docker, and release checks. | Scripts tests, workflow-tier tests, source-package audit, Compose validation, and documentation gates pass. |
 | RF-12 | Integrated all reviewed topic branches, aligned approved visual baselines, limited Vitest worker contention, removed generated comparison artifacts, and reran the complete verification matrix. | Final static, backend, frontend, ML, scripts, migration, visual/accessibility, image, lockfile, and Compose checks pass. |
 
-## Final verification
+## Pre-merge local verification
 
-The completed integration branch produced the following final evidence:
+The integration branch produced the following local evidence before hosted
+merge-readiness verification. These results do not attest the complete browser
+journeys, canonical Linux rendering, production images, or release rehearsal:
 
 | Area | Final result |
 | --- | --- |
@@ -149,8 +151,19 @@ execution; none changes application behavior or weakens the asserted contracts.
 
 ## Review and merge status
 
-All refactor implementation and verification commits are on
-`refactor/recipe-lab-integration`, pending user review. The branch began from
-`a727faf`; `main` and `origin/main` remain untouched at `2149c43`. No refactor
-topic branch has been merged directly to `main`, and no integration-to-`main`
-merge will occur without explicit approval after review.
+The refactor integration branch began from `a727faf`; the pre-merge `main`
+revision was `2149c43`. Topic branches were integrated into
+`refactor/recipe-lab-integration`, not directly into `main`.
+
+On 2026-09-04 the user authorized merging the current integration branch.
+[PR #174](https://github.com/peterbucci/recipe-lab/pull/174) records the exact
+merge candidate, narrow readiness repairs, hosted check results, and final
+merge status. Its hosted checks remain required despite the local results
+above. The [canonical visual review](baselines/2026-09-04-canonical-visual-review.md)
+explains the platform-dependent reference repair without treating its failed
+capture run as acceptance evidence.
+
+The separate frontend test-refactor plan, TF-01 through TF-08, is in the
+[refactor project Backlog](https://github.com/users/peterbucci/projects/6/views/1).
+It is not implemented by this integration merge and requires its own final
+review before a future merge to `main`.

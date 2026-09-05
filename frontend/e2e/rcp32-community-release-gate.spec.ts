@@ -641,7 +641,7 @@ test.describe("RCP-32 two-user community release gate", () => {
         await alice
           .getByLabel("Description", { exact: true })
           .fill(rootDescription);
-        await alice.getByLabel("Servings", { exact: true }).fill("4");
+        await alice.getByLabel("Makes", { exact: true }).fill("4");
         await alice
           .getByRole("button", { name: "Add ingredient", exact: true })
           .click();
@@ -682,10 +682,14 @@ test.describe("RCP-32 two-user community release gate", () => {
           exact: true,
         });
         await activateWithKeyboard(alice, requestButton);
+        const requestDialog = alice.getByRole("dialog", {
+          name: "Request a missing ingredient",
+          exact: true,
+        });
         await expect(
-          ingredient.getByLabel("Proposed ingredient name"),
+          requestDialog.getByLabel("Proposed ingredient name"),
         ).toBeFocused();
-        await ingredient
+        await requestDialog
           .getByLabel("Short context (optional)")
           .fill(requestContextCanary);
         const submitted = alice.waitForResponse(
@@ -693,7 +697,7 @@ test.describe("RCP-32 two-user community release gate", () => {
             response.request().method() === "POST" &&
             new URL(response.url()).pathname === "/api/ingredient-requests",
         );
-        await ingredient
+        await requestDialog
           .getByRole("button", { name: "Submit catalog request" })
           .click();
         const submission = await submitted;
@@ -704,7 +708,7 @@ test.describe("RCP-32 two-user community release gate", () => {
         );
         await expect(search).toHaveValue(requestedIngredient);
         await expect(ingredient.getByRole("status")).toContainText(
-          "Awaiting approval",
+          "Pending review",
         );
         await expect(alice.getByLabel("Title", { exact: true })).toHaveValue(
           rootTitle,
@@ -712,7 +716,7 @@ test.describe("RCP-32 two-user community release gate", () => {
         await expect(
           alice.getByLabel("Description", { exact: true }),
         ).toHaveValue(rootDescription);
-        await expect(alice.getByLabel("Servings", { exact: true })).toHaveValue(
+        await expect(alice.getByLabel("Makes", { exact: true })).toHaveValue(
           "4",
         );
         await alice
@@ -728,7 +732,7 @@ test.describe("RCP-32 two-user community release gate", () => {
         await expect(
           alice.getByLabel("Description", { exact: true }),
         ).toHaveValue(rootDescription);
-        await expect(alice.getByLabel("Servings", { exact: true })).toHaveValue(
+        await expect(alice.getByLabel("Makes", { exact: true })).toHaveValue(
           "4.00",
         );
         const persistedPendingIngredient = alice.getByRole("group", {
@@ -745,14 +749,14 @@ test.describe("RCP-32 two-user community release gate", () => {
         await expect(persistedSearch).toHaveValue(requestedIngredient);
         await expect(
           persistedPendingIngredient.getByRole("status"),
-        ).toContainText("Awaiting approval");
+        ).toContainText("Pending review");
         await persistedSearch.focus();
         await expect(
           persistedPendingIngredient.getByRole("region", {
             name: "Pending ingredient requests",
           }),
         ).toContainText(
-          `${requestedIngredient}Awaiting approval · not available yet`,
+          `${requestedIngredient}Pending review · not available yet`,
         );
         await expect(
           persistedPendingIngredient.getByRole("button", {
@@ -885,7 +889,7 @@ test.describe("RCP-32 two-user community release gate", () => {
         await expect(
           alice.getByLabel("Description", { exact: true }),
         ).toHaveValue(rootDescription);
-        await expect(alice.getByLabel("Servings", { exact: true })).toHaveValue(
+        await expect(alice.getByLabel("Makes", { exact: true })).toHaveValue(
           "4.00",
         );
 
@@ -966,14 +970,14 @@ test.describe("RCP-32 two-user community release gate", () => {
         await expect(
           alice.getByLabel("Description", { exact: true }),
         ).toHaveValue(rootDescription);
-        await expect(alice.getByLabel("Servings", { exact: true })).toHaveValue(
+        await expect(alice.getByLabel("Makes", { exact: true })).toHaveValue(
           "4.00",
         );
-        await expect(
-          alice
-            .getByRole("group", { name: "Ingredient 1", exact: true })
-            .getByText(requestedIngredient, { exact: true }),
-        ).toBeVisible();
+        const persistedIngredient = alice
+          .getByRole("group", { name: "Ingredient 1", exact: true })
+          .getByRole("combobox", { name: "Ingredient", exact: true });
+        await expect(persistedIngredient).toBeVisible();
+        await expect(persistedIngredient).toHaveValue(requestedIngredient);
         await expect(
           alice
             .getByRole("group", { name: "Step 1", exact: true })
@@ -1135,7 +1139,12 @@ test.describe("RCP-32 two-user community release gate", () => {
           bob.getByRole("heading", { name: exactTitle, level: 1 }),
         ).toBeVisible();
         await expect(
-          bob.getByRole("link", { name: /Based on.*RCP32 Atlas Leaf Knot/i }),
+          bob.locator(".recipe-detail__parent-context"),
+        ).toContainText(`Based on ${rootTitle}`);
+        await expect(
+          bob
+            .locator(".recipe-detail__parent-context")
+            .getByRole("link", { name: rootTitle, exact: true }),
         ).toHaveAttribute("href", `/recipes/${rootRecipeVersionId}`);
       });
 
@@ -1311,7 +1320,12 @@ test.describe("RCP-32 two-user community release gate", () => {
           bob.getByRole("link", { name: "Bob Cook", exact: true }).first(),
         ).toHaveAttribute("href", "/cooks/rcp32_bob");
         await expect(
-          bob.getByRole("link", { name: /Based on.*RCP32 Atlas Leaf Knot/i }),
+          bob.locator(".recipe-detail__parent-context"),
+        ).toContainText(`Based on ${rootTitle}`);
+        await expect(
+          bob
+            .locator(".recipe-detail__parent-context")
+            .getByRole("link", { name: rootTitle, exact: true }),
         ).toHaveAttribute("href", `/recipes/${rootRecipeVersionId}`);
         expect(
           (
@@ -1366,8 +1380,30 @@ test.describe("RCP-32 two-user community release gate", () => {
               .first(),
           ).toHaveAttribute("href", "/cooks/rcp32_bob");
           await publicPage
-            .getByRole("link", { name: "See what changed", exact: true })
+            .locator(".recipe-detail__parent-context")
+            .getByRole("link", { name: rootTitle, exact: true })
             .click();
+          await expect(publicPage).toHaveURL(`/recipes/${rootRecipeVersionId}`);
+          await publicPage.getByRole("tab", { name: "Family", exact: true }).click();
+          const family = publicPage.getByRole("tabpanel", {
+            name: "Family",
+            exact: true,
+          });
+          await family
+            .getByRole("button", {
+              name: `Show ${childTitle} in the family tree`,
+              exact: true,
+            })
+            .click();
+          const compare = family.getByRole("link", {
+            name: `Compare with ${rootTitle} →`,
+            exact: true,
+          });
+          const comparisonPath =
+            `/recipes/${childRecipeVersionId}/compare?base_version_id=${rootRecipeVersionId}`;
+          await expect(compare).toHaveAttribute("href", comparisonPath);
+          await compare.click();
+          await expect(publicPage).toHaveURL(comparisonPath);
           await expect(
             publicPage.getByRole("heading", {
               name: `How ${childTitle} changed`,
@@ -1660,6 +1696,10 @@ test.describe("RCP-32 two-user community release gate", () => {
         await expectNoAccessibilityViolations(moderator);
 
         await moderator
+          .locator("summary")
+          .filter({ hasText: "Private moderator note" })
+          .click();
+        await moderator
           .getByLabel("Private note (optional)")
           .fill(moderatorNoteCanary);
         const hideResponse = moderator.waitForResponse(
@@ -1785,9 +1825,9 @@ test.describe("RCP-32 two-user community release gate", () => {
         await expect(
           moderator.getByRole("heading", { name: rootTitle, level: 2 }),
         ).toBeVisible();
-        await expect(
-          moderator.getByText("Resolved case", { exact: true }),
-        ).toBeVisible();
+        const resolvedCaseStatus = moderator.locator(".moderation-detail__status-pill");
+        await expect(resolvedCaseStatus).toBeVisible();
+        await expect(resolvedCaseStatus).toHaveText("Resolved");
 
         await moderator.setViewportSize({ width: 390, height: 844 });
         await expectNoHorizontalOverflow(moderator);
@@ -1973,18 +2013,22 @@ test.describe("RCP-32 two-user community release gate", () => {
           ).toBeVisible();
           await expect(
             publicPage
-              .getByRole("main")
-              .getByText("By Deleted cook", { exact: true })
-              .first(),
+              .locator(".recipe-detail__attribution")
+              .getByText("Deleted cook", { exact: true }),
           ).toBeVisible();
           await expect(
             publicPage.getByRole("link", { name: "Deleted cook" }),
           ).toHaveCount(0);
           await expect(
-            publicPage.getByRole("main").getByText("Based on", { exact: true }),
-          ).toBeVisible();
+            publicPage
+              .locator(".recipe-detail__parent-context")
+              .getByRole("link"),
+          ).toHaveCount(0);
           await expect(
-            publicPage.getByText("Source unavailable", { exact: true }).first(),
+            publicPage.locator(".recipe-detail__parent-context"),
+          ).toHaveText("Source unavailable");
+          await expect(
+            publicPage.locator(".recipe-detail__parent-context"),
           ).toBeVisible();
           await publicPage.goto("/cooks/rcp32_bob");
           await expect(
