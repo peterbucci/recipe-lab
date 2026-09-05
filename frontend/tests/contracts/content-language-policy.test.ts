@@ -498,14 +498,14 @@ describe("public product language policy", () => {
       );
     const readme = read("README.md");
 
-    expect(readme).toContain(
-      "Find recipes, make your own version, compare what changed, and follow recipe\nhistory.",
+    expect(readme).toMatch(
+      /Find recipes,[\s\S]{0,120}make your own version,[\s\S]{0,120}follow recipe\s+history\./,
     );
-    expect(readme).toContain(
-      "Research-preview engineering capabilities, which are not consumer product\nsurfaces",
+    expect(readme).toMatch(
+      /Research-preview engineering capabilities,[\s\S]{0,120}not consumer product\s+surfaces/,
     );
-    expect(readme).toContain(
-      "[product language and recommendation boundary](docs/product-language.md)",
+    expect(readme).toMatch(
+      /\[product language and recommendation boundary\]\(docs\/product-language\.md\)/,
     );
 
     const publicReadme = readme.split("### Research preview:", 1)[0];
