@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { AuthSessionProvider } from "../components/auth-session-provider";
+import { AuthSessionProvider } from "../../features/auth/auth-session-provider";
 import OnboardingPage from "./page";
 
 vi.mock("next/navigation", () => ({

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { useAuthSession } from "../../components/auth-session-provider";
+import { useAuthSession } from "../../../features/auth/auth-session-provider";
 import { AuthGateLoading } from "../../../shared/ui/loading-ui";
 import { GuardedLink } from "../../../shared/navigation/navigation-blocker-provider";
 import { WorkspacePanelHeader } from "../../../shared/ui/workspace-panel-header";

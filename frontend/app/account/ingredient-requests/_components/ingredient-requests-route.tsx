@@ -1,7 +1,7 @@
 "use client";
 
 import { MyIngredientRequestsWorkspace } from "../../../../features/ingredients/requests/my-ingredient-requests-workspace";
-import { MemberRouteGate } from "../../../components/member-route-gate";
+import { MemberRouteGate } from "../../../../features/auth/member-route-gate";
 
 const RETURN_TO = "/account/ingredient-requests";
 

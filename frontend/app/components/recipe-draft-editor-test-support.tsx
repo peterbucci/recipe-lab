@@ -8,7 +8,7 @@ import type { RecipeDraftDetail } from "../../lib/recipe-draft-api";
 import {
   AuthSessionProvider,
   SessionRecoveryNotice,
-} from "./auth-session-provider";
+} from "../../features/auth/auth-session-provider";
 import { NavigationBlockerProvider } from "../../shared/navigation/navigation-blocker-provider";
 import { RecipeDraftEditor } from "./recipe-draft-editor";
 

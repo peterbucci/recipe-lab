@@ -29,20 +29,20 @@ redirects and their targets.
 | Route | Lifecycle | Concrete in-repository evidence |
 | --- | --- | --- |
 | `/` | active | `frontend/shell/site-header.tsx` links to the signed-in home; the page conditionally redirects anonymous visits to `/recipes`. |
-| `/account/activity` | active | `frontend/app/components/member-home-summary.tsx` links to the complete activity view. |
-| `/account/community-activity` | active | `frontend/app/components/home-community-feed.tsx` links its View all action here. |
-| `/account/deleted` | internal | `frontend/app/components/account-settings.tsx` navigates here after confirmed deletion. |
-| `/account/followers` | active | `frontend/app/components/member-home-summary.tsx` links the follower count here. |
-| `/account/ingredient-requests` | active | `frontend/shell/account-menu.tsx` links to the member request workspace. |
+| `/account/activity` | active | `frontend/app/_components/member-home-summary.tsx` links to the complete activity view. |
+| `/account/community-activity` | active | `frontend/app/_components/home-community-feed.tsx` links its View all action here. |
+| `/account/deleted` | internal | `frontend/features/account/account-settings.tsx` navigates here after confirmed deletion. |
+| `/account/followers` | active | `frontend/app/_components/member-home-summary.tsx` links the follower count here. |
+| `/account/ingredient-requests` | active | `frontend/features/auth/account-menu.tsx` links to the member request workspace. |
 | `/account/recipe-drafts/[draftId]` | compatibility-only | `docs/architecture.md` records the former editor address; the route validates the ID and redirects to `/recipes/drafts/[draftId]`. |
 | `/account/recipe-drafts` | compatibility-only | `docs/cook-profiles-and-libraries.md` records the legacy collection path; it redirects to `/account/recipes?view=drafts`. |
-| `/account/recipes` | active | `frontend/shell/account-menu.tsx` and member dashboard links target the unified library. |
+| `/account/recipes` | active | `frontend/features/auth/account-menu.tsx` and `frontend/app/_components/member-home-summary.tsx` link to the unified library. |
 | `/account/saved-recipes` | compatibility-only | `docs/cook-profiles-and-libraries.md` records the old saved-library path; it redirects to `/account/recipes?view=saved`. |
-| `/account/settings` | active | `frontend/shell/account-menu.tsx` links to account settings. |
+| `/account/settings` | active | `frontend/features/auth/account-menu.tsx` links to account settings. |
 | `/auth/callback` | internal | `frontend/server/api-proxy.ts` redirects sanitized provider failures to this presentation route. |
 | `/catalog/ingredient-requests` | internal | `frontend/app/staff/_components/staff-tools.tsx` links authorized curators to this workspace. |
 | `/community-rules` | active | `frontend/app/components/recipe-draft-publication.tsx` links the required publication acknowledgement. |
-| `/cooks/[handle]` | active | `frontend/app/components/public-cook-attribution.tsx` links public author attribution. |
+| `/cooks/[handle]` | active | `frontend/features/community/public-cook-attribution.tsx` links public author attribution. |
 | `/moderation/recipes` | internal | `frontend/app/staff/_components/staff-tools.tsx` links authorized moderators to this workspace. |
 | `/onboarding` | internal | `frontend/app/api/[...path]/route.ts` forwards the backend authentication completion redirect here. |
 | `/recipes` | active | `frontend/shell/site-header.tsx` links the public recipe catalog. |
@@ -50,9 +50,9 @@ redirects and their targets.
 | `/recipes/[recipeVersionId]/compare` | active | `frontend/features/recipes/detail/recipe-family-navigator.tsx` builds the selected-version comparison link. |
 | `/recipes/[recipeVersionId]/fork` | active | `frontend/features/recipes/detail/recipe-member-actions.tsx` builds the make/continue-version link. |
 | `/recipes/drafts/[draftId]` | active | `frontend/app/components/recipe-draft-starter.tsx` navigates newly created drafts to the canonical editor. |
-| `/recipes/new` | active | `frontend/shell/site-header.tsx` links the create-recipe action. |
-| `/sign-in` | active | `frontend/shell/account-menu.tsx` links anonymous members and preserves the return path. |
-| `/staff` | internal | `frontend/shell/account-menu.tsx` links members with staff capabilities to the tool index. |
+| `/recipes/new` | active | `frontend/features/auth/site-header-member-navigation.tsx` links the create-recipe action. |
+| `/sign-in` | active | `frontend/features/auth/account-menu.tsx` links anonymous members and preserves the return path. |
+| `/staff` | internal | `frontend/features/auth/account-menu.tsx` links members with staff capabilities to the tool index. |
 
 There are 16 active, six internal, and three compatibility-only page routes.
 No executable page is classified as retired. Next configuration defines no
@@ -70,18 +70,18 @@ executable FastAPI route, including schema-excluded routes.
 
 | Operation | Lifecycle | Detailed class | Concrete evidence |
 | --- | --- | --- | --- |
-| `DELETE /api/auth/account` | active | `active_consumer` | `frontend/lib/auth-api.ts` |
-| `GET /api/auth/callback` | active | `active_consumer` | `frontend/lib/auth-api.ts`; `frontend/app/api/[...path]/route.ts` |
-| `GET /api/auth/login` | active | `active_consumer` | `frontend/lib/auth-api.ts` |
-| `POST /api/auth/logout` | active | `active_consumer` | `frontend/lib/auth-api.ts` |
-| `GET /api/auth/reauthenticate` | active | `active_consumer` | `frontend/lib/auth-api.ts` |
-| `GET /api/auth/session` | active | `active_consumer` | `frontend/lib/auth-api.ts` |
-| `PATCH /api/auth/session/profile` | active | `active_consumer` | `frontend/lib/auth-api.ts` |
+| `DELETE /api/auth/account` | active | `active_consumer` | `frontend/features/account/account-api.ts` |
+| `GET /api/auth/callback` | active | `active_consumer` | `frontend/features/auth/auth-api.ts`; `frontend/app/api/[...path]/route.ts` |
+| `GET /api/auth/login` | active | `active_consumer` | `frontend/features/auth/auth-api.ts` |
+| `POST /api/auth/logout` | active | `active_consumer` | `frontend/features/auth/auth-api.ts` |
+| `GET /api/auth/reauthenticate` | active | `active_consumer` | `frontend/features/auth/auth-api.ts` |
+| `GET /api/auth/session` | active | `active_consumer` | `frontend/features/auth/auth-api.ts` |
+| `PATCH /api/auth/session/profile` | active | `active_consumer` | `frontend/features/account/account-api.ts` |
 | `GET /api/cooking-action-types` | active | `active_consumer` | `frontend/lib/cooking-action-api.ts` |
-| `GET /api/cooks/{handle}` | active | `active_consumer` | `frontend/lib/recipe-library-server-api.ts` |
-| `DELETE /api/cooks/{handle}/follow` | active | `active_consumer` | `frontend/lib/member-follow-api.ts` |
-| `GET /api/cooks/{handle}/follow` | active | `active_consumer` | `frontend/lib/member-follow-api.ts` |
-| `PUT /api/cooks/{handle}/follow` | active | `active_consumer` | `frontend/lib/member-follow-api.ts` |
+| `GET /api/cooks/{handle}` | active | `active_consumer` | `frontend/features/community/public-cook-profile-server-api.ts` |
+| `DELETE /api/cooks/{handle}/follow` | active | `active_consumer` | `frontend/features/community/member-follow-api.ts` |
+| `GET /api/cooks/{handle}/follow` | active | `active_consumer` | `frontend/features/community/member-follow-api.ts` |
+| `PUT /api/cooks/{handle}/follow` | active | `active_consumer` | `frontend/features/community/member-follow-api.ts` |
 | `GET /api/health` | internal | `staff_internal` | `docs/operations-observability.md` |
 | `GET /api/ingredient-requests` | internal | `staff_internal` | `frontend/features/ingredients/review/ingredient-request-review-api.ts`; `frontend/features/ingredients/review/ingredient-request-review-workspace.tsx` |
 | `POST /api/ingredient-requests` | active | `active_consumer` | `frontend/features/ingredients/requests/ingredient-request-api.ts` |
@@ -95,11 +95,11 @@ executable FastAPI route, including schema-excluded routes.
 | `GET /api/moderation/recipe-reports` | internal | `staff_internal` | `frontend/features/moderation/review/recipe-moderation-api.ts`; moderator workspace |
 | `GET /api/moderation/recipe-reports/{recipe_version_id}` | internal | `staff_internal` | `frontend/features/moderation/review/recipe-moderation-api.ts`; moderator workspace |
 | `POST /api/moderation/recipe-reports/{recipe_version_id}/actions` | internal | `staff_internal` | `frontend/features/moderation/review/recipe-moderation-api.ts`; moderator workspace |
-| `GET /api/my/activity` | active | `active_consumer` | `frontend/lib/member-activity-api.ts` |
-| `GET /api/my/community-activity` | active | `active_consumer` | `frontend/lib/member-follow-api.ts` |
-| `GET /api/my/dashboard` | active | `active_consumer` | `frontend/lib/member-activity-api.ts` |
-| `GET /api/my/followers` | active | `active_consumer` | `frontend/lib/member-follow-api.ts` |
-| `GET /api/my/follow-stats` | active | `active_consumer` | `frontend/lib/member-follow-api.ts` |
+| `GET /api/my/activity` | active | `active_consumer` | `frontend/features/account/member-activity-api.ts` |
+| `GET /api/my/community-activity` | active | `active_consumer` | `frontend/features/community/member-follow-api.ts` |
+| `GET /api/my/dashboard` | active | `active_consumer` | `frontend/features/account/member-activity-api.ts` |
+| `GET /api/my/followers` | active | `active_consumer` | `frontend/features/community/member-follow-api.ts` |
+| `GET /api/my/follow-stats` | active | `active_consumer` | `frontend/features/community/member-follow-api.ts` |
 | `GET /api/my/recipes` | active | `active_consumer` | `frontend/features/recipes/library/recipe-library-api.ts` |
 | `GET /api/my/saved-recipes` | active | `active_consumer` | `frontend/features/recipes/library/recipe-library-api.ts` |
 | `GET /api/readiness` | internal | `staff_internal` | `docs/operations-observability.md` |

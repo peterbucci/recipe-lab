@@ -14,11 +14,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 
-vi.mock("../../../lib/recipe-library-server-api", () => ({
+vi.mock("../../../features/community/public-cook-profile-server-api", () => ({
   fetchPublicCookProfile: mocks.fetchPublicCookProfile,
 }));
 
-vi.mock("../../components/cook-profile-view", () => ({
+vi.mock("./_components/cook-profile-view", () => ({
   CookProfileView: ({ data }: { data: PublicCookProfilePage }) => (
     <section aria-label="Cook profile">
       <h1>{data.cook.display_name}</h1>

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AuthSessionProvider } from "../../../components/auth-session-provider";
+import { AuthSessionProvider } from "../../../../features/auth/auth-session-provider";
 import { IngredientRequestsRoute } from "./ingredient-requests-route";
 
 const mocks = vi.hoisted(() => ({ workspace: vi.fn() }));

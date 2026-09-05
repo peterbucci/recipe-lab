@@ -5,7 +5,7 @@ import type {
   RecipeSummary,
 } from "../shared/recipe-contracts";
 import { formatMemberRecipeDate } from "./member-recipe-presentation";
-import { PublicCookAttribution } from "../../../app/components/public-cook-attribution";
+import { PublicCookAttribution } from "../../community/public-cook-attribution";
 import { RecipeArtwork } from "../shared/recipe-artwork";
 import { RecipeCardShell } from "../shared/recipe-card-shell";
 

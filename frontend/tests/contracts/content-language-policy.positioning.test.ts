@@ -29,10 +29,12 @@ describe("public product language policy", () => {
 
     const publicReadme = readme.split("### Research preview:", 1)[0];
     const positioningSources = [
+      "frontend/app/_components/home-public-discovery.tsx",
       "frontend/app/layout.tsx",
       "frontend/app/onboarding/page.tsx",
       "frontend/app/page.tsx",
       "frontend/app/sign-in/page.tsx",
+      "frontend/features/account/onboarding-form.tsx",
     ].map((path) => read(path));
     positioningSources.unshift(publicReadme);
     const unsupportedClaims =

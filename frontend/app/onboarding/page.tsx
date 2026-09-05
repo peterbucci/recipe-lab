@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
-import { safeReturnTo } from "../../lib/auth-api";
-import { OnboardingForm } from "./onboarding-form";
+import { safeReturnTo } from "../../features/auth/auth-api";
+import { OnboardingForm } from "../../features/account/onboarding-form";
 
 export const metadata: Metadata = {
   title: "Finish account setup",

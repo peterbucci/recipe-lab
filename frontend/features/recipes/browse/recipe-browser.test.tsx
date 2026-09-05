@@ -8,7 +8,7 @@ import type {
   RecipePage,
 } from "../shared/recipe-contracts";
 import { buildRecipeCardSummary } from "../shared/recipe-test-support";
-import { AuthSessionProvider } from "../../../app/components/auth-session-provider";
+import { AuthSessionProvider } from "../../auth/auth-session-provider";
 import { RecipeBrowser } from "./recipe-browser";
 
 const { push, refresh } = vi.hoisted(() => ({

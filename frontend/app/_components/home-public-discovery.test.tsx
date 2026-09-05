@@ -21,7 +21,7 @@ import type {
   RecipeSummary,
 } from "../../features/recipes/shared/recipe-contracts";
 import { buildRecipeSummary } from "../../features/recipes/shared/recipe-test-support";
-import { AuthSessionProvider } from "../components/auth-session-provider";
+import { AuthSessionProvider } from "../../features/auth/auth-session-provider";
 import { HomeLoadNotice, HomeLoadStateProvider } from "./home-load-state";
 import { HomePublicDiscovery } from "./home-public-discovery";
 

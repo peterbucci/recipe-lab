@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { CommunityActivityTimeline } from "../../components/community-activity-timeline";
+import { CommunityActivityRoute } from "./_components/community-activity-route";
 
 export const metadata: Metadata = {
   title: "Community activity",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function CommunityActivityPage() {
-  return <CommunityActivityTimeline />;
+  return <CommunityActivityRoute />;
 }

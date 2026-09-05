@@ -242,7 +242,7 @@ export function resetRecipeDraftPublicationMocks() {
     .mockReturnValueOnce("publish-key");
 }
 
-export { AuthApiError } from "../../lib/auth-api";
+export { AuthApiError } from "../../features/auth/auth-api";
 export { RecipeDuplicateApiError } from "../../lib/recipe-duplicate-api";
 export { RecipePublicationApiError } from "../../lib/recipe-publication-api";
 

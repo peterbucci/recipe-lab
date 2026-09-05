@@ -6100,7 +6100,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/auth-api.ts"
+          "frontend/features/account/account-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"
@@ -6248,7 +6248,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/auth-api.ts",
+          "frontend/features/auth/auth-api.ts",
           "frontend/app/api/[...path]/route.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
@@ -6365,7 +6365,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/auth-api.ts"
+          "frontend/features/auth/auth-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"
@@ -6483,7 +6483,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/auth-api.ts"
+          "frontend/features/auth/auth-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"
@@ -6599,7 +6599,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/auth-api.ts"
+          "frontend/features/auth/auth-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"
@@ -6722,7 +6722,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/auth-api.ts"
+          "frontend/features/auth/auth-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"
@@ -6857,7 +6857,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/auth-api.ts"
+          "frontend/features/account/account-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"
@@ -7035,7 +7035,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/recipe-library-server-api.ts"
+          "frontend/features/community/public-cook-profile-server-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"
@@ -7162,7 +7162,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/member-follow-api.ts"
+          "frontend/features/community/member-follow-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"
@@ -7271,7 +7271,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/member-follow-api.ts"
+          "frontend/features/community/member-follow-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"
@@ -7396,7 +7396,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/member-follow-api.ts"
+          "frontend/features/community/member-follow-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"
@@ -9064,7 +9064,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/member-activity-api.ts"
+          "frontend/features/account/member-activity-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"
@@ -9168,7 +9168,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/member-follow-api.ts"
+          "frontend/features/community/member-follow-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"
@@ -9246,7 +9246,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/member-activity-api.ts"
+          "frontend/features/account/member-activity-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"
@@ -9343,7 +9343,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/member-follow-api.ts"
+          "frontend/features/community/member-follow-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"
@@ -9447,7 +9447,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/lib/member-follow-api.ts"
+          "frontend/features/community/member-follow-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"

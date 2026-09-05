@@ -22,7 +22,7 @@ import {
   recipeDraftEntryErrorMessage,
   startOrResumeRecipeDraft,
 } from "../../../lib/recipe-draft-entry";
-import { useAuthSession } from "../../../app/components/auth-session-provider";
+import { useAuthSession } from "../../auth/auth-session-provider";
 import { InlineLoading, LoadingButton } from "../../../shared/ui/loading-ui";
 import { RatingSummary } from "../shared/rating-summary";
 import { BranchIcon, HeartIcon, StarIcon } from "../shared/recipe-action-icons";

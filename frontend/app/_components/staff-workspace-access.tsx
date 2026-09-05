@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { type ReactNode, useCallback, useState } from "react";
 
-import type { AccountCapabilities } from "../../lib/auth-api";
-import { useAuthSession } from "../components/auth-session-provider";
+import type { AccountCapabilities } from "../../features/auth/auth-api";
+import { useAuthSession } from "../../features/auth/auth-session-provider";
 import { AuthGateLoading } from "../../shared/ui/loading-ui";
 
 type StaffCapability = keyof AccountCapabilities;

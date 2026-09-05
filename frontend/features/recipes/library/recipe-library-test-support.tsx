@@ -2,7 +2,7 @@ import { render } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { CSRF_COOKIE_NAME } from "../../../shared/api/browser-session";
-import { AuthSessionProvider } from "../../../app/components/auth-session-provider";
+import { AuthSessionProvider } from "../../auth/auth-session-provider";
 import { alice } from "../shared/recipe-test-support";
 
 export {

@@ -24,7 +24,7 @@ vi.mock("./_components/home-public-discovery", () => ({
   ),
 }));
 
-import { AuthSessionProvider } from "./components/auth-session-provider";
+import { AuthSessionProvider } from "../features/auth/auth-session-provider";
 import HomePage from "./page";
 
 describe("HomePage", () => {

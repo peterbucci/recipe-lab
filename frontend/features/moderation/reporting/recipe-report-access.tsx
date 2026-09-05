@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuthSession } from "../../../app/components/auth-session-provider";
+import { useAuthSession } from "../../auth/auth-session-provider";
 import { RecipeReportPanel } from "./recipe-report-panel";
 
 interface RecipeReportAccessProps {

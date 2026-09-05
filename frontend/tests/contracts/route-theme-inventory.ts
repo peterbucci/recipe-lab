@@ -33,35 +33,35 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/account/activity",
     family: "account-workspace",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/member-home-summary.tsx"],
+    consumerEvidence: ["frontend/app/_components/member-home-summary.tsx"],
   },
   {
     file: "app/account/community-activity/page.tsx",
     route: "/account/community-activity",
     family: "account-workspace",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/home-community-feed.tsx"],
+    consumerEvidence: ["frontend/app/_components/home-community-feed.tsx"],
   },
   {
     file: "app/account/deleted/page.tsx",
     route: "/account/deleted",
     family: "account-access",
     reachability: "internal",
-    consumerEvidence: ["frontend/app/components/account-settings.tsx"],
+    consumerEvidence: ["frontend/features/account/account-settings.tsx"],
   },
   {
     file: "app/account/followers/page.tsx",
     route: "/account/followers",
     family: "account-workspace",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/member-home-summary.tsx"],
+    consumerEvidence: ["frontend/app/_components/member-home-summary.tsx"],
   },
   {
     file: "app/account/ingredient-requests/page.tsx",
     route: "/account/ingredient-requests",
     family: "account-workspace",
     reachability: "active",
-    consumerEvidence: ["frontend/shell/account-menu.tsx"],
+    consumerEvidence: ["frontend/features/auth/account-menu.tsx"],
   },
   {
     file: "app/account/recipe-drafts/[draftId]/page.tsx",
@@ -84,7 +84,7 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/account/recipes",
     family: "account-workspace",
     reachability: "active",
-    consumerEvidence: ["frontend/shell/account-menu.tsx"],
+    consumerEvidence: ["frontend/features/auth/account-menu.tsx"],
   },
   {
     file: "app/account/saved-recipes/page.tsx",
@@ -99,7 +99,7 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/account/settings",
     family: "account-workspace",
     reachability: "active",
-    consumerEvidence: ["frontend/shell/account-menu.tsx"],
+    consumerEvidence: ["frontend/features/auth/account-menu.tsx"],
   },
   {
     file: "app/auth/callback/page.tsx",
@@ -127,7 +127,7 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/cooks/[handle]",
     family: "public-context",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/public-cook-attribution.tsx"],
+    consumerEvidence: ["frontend/features/community/public-cook-attribution.tsx"],
   },
   {
     file: "app/moderation/recipes/page.tsx",
@@ -187,7 +187,9 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/recipes/new",
     family: "recipe-authoring",
     reachability: "active",
-    consumerEvidence: ["frontend/shell/site-header.tsx"],
+    consumerEvidence: [
+      "frontend/features/auth/site-header-member-navigation.tsx",
+    ],
   },
   {
     file: "app/recipes/page.tsx",
@@ -201,14 +203,14 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/sign-in",
     family: "account-access",
     reachability: "active",
-    consumerEvidence: ["frontend/shell/account-menu.tsx"],
+    consumerEvidence: ["frontend/features/auth/account-menu.tsx"],
   },
   {
     file: "app/staff/page.tsx",
     route: "/staff",
     family: "staff-tools",
     reachability: "internal",
-    consumerEvidence: ["frontend/shell/account-menu.tsx"],
+    consumerEvidence: ["frontend/features/auth/account-menu.tsx"],
   },
 ] as const satisfies readonly PageThemeInventoryItem[];
 

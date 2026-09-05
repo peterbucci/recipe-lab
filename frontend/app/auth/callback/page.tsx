@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
-import { safeReturnTo } from "../../../lib/auth-api";
-import { CallbackStatus } from "./callback-status";
+import { safeReturnTo } from "../../../features/auth/auth-api";
+import { CallbackStatus } from "../../../features/auth/callback-status";
 
 export const metadata: Metadata = {
   title: "Finishing sign-in",

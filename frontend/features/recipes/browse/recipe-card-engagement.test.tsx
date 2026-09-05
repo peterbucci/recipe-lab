@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AuthSession } from "../../../lib/auth-api";
-import { AuthSessionProvider } from "../../../app/components/auth-session-provider";
+import type { AuthSession } from "../../auth/auth-api";
+import { AuthSessionProvider } from "../../auth/auth-session-provider";
 import {
   RecipeCardEngagement,
   RecipeCardViewerStateProvider,

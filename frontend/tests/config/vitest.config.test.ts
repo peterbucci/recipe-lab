@@ -87,7 +87,7 @@ describe("Vitest runtime ownership", () => {
     const nodeOwned = discovered.filter(
       (path) =>
         !browserLibraries.has(path) &&
-        (/^(?:features|lib|shared\/api)\/.+\.test\.ts$/.test(path) ||
+        (/^(?:features|lib|shared\/(?:api|time))\/.+\.test\.ts$/.test(path) ||
           /^(?:performance|server)\/.+\.test\.ts$/.test(path) ||
           /^scripts\/.+\.test\.(?:mjs|ts)$/.test(path) ||
           /^tests\/(?:config|contracts)\/.+\.test\.(?:mjs|ts)$/.test(path)),

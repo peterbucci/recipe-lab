@@ -1,12 +1,12 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AuthSession } from "../../../lib/auth-api";
+import type { AuthSession } from "../../auth/auth-api";
 import type {
   RecipeDetail,
 } from "../shared/recipe-contracts";
 import type { RecipeInstructionAction } from "../../../lib/structured-action";
-import { AuthSessionProvider } from "../../../app/components/auth-session-provider";
+import { AuthSessionProvider } from "../../auth/auth-session-provider";
 import { RecipeDetailView } from "./recipe-detail-view";
 
 const mocks = vi.hoisted(() => ({
@@ -25,9 +25,9 @@ vi.mock("./interaction-api", async (importOriginal) => {
   return { ...actual, fetchRecipeViewerState: mocks.fetchRecipeViewerState };
 });
 
-vi.mock("../../../lib/member-follow-api", async (importOriginal) => {
+vi.mock("../../community/member-follow-api", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("../../../lib/member-follow-api")>();
+    await importOriginal<typeof import("../../community/member-follow-api")>();
   return {
     ...actual,
     fetchCookFollowState: mocks.fetchCookFollowState,

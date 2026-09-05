@@ -1,6 +1,6 @@
 "use client";
 
-import { MemberRouteGate } from "../../../components/member-route-gate";
+import { MemberRouteGate } from "../../../../features/auth/member-route-gate";
 import { MyRecipeLibrary } from "../../../../features/recipes/library/my-recipe-library";
 import {
   myRecipesHref,

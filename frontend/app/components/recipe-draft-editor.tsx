@@ -11,7 +11,7 @@ import {
 } from "react";
 
 import { isAbortError } from "../../shared/api/abort-error";
-import { AuthApiError } from "../../lib/auth-api";
+import { AuthApiError } from "../../features/auth/auth-api";
 import type { CatalogActionType } from "../../lib/cooking-action-model";
 import { createIdempotencyKey } from "../../shared/api/idempotency-key";
 import type { CatalogUnit } from "../../lib/measurement-unit-model";
@@ -52,9 +52,9 @@ import {
   fetchRecipeFamily,
   type LoadedRecipeFamily,
 } from "../../features/recipes/detail/recipe-family-client-api";
-import { MemberRouteGate } from "./member-route-gate";
+import { MemberRouteGate } from "../../features/auth/member-route-gate";
 import { Dialog } from "../../shared/ui/overlay-primitives";
-import { useAuthSession } from "./auth-session-provider";
+import { useAuthSession } from "../../features/auth/auth-session-provider";
 import {
   LoadingButton,
   SectionLoading,
