@@ -16,11 +16,13 @@ import {
 } from "@playwright/test";
 
 import {
+  captureRcp32SessionCookie,
   createAndOnboardRcp32Identity,
+  expectRcp32SessionRevoked,
   installRcp32DeterministicUuids,
   rcp32CsrfToken,
   readRcp32Session,
-  signInExistingRcp32Identity,
+  signInExistingRcp32IdentityAfterSignOut,
   type Rcp32Identity,
 } from "./community-release-oidc";
 import {
@@ -1506,8 +1508,9 @@ test.describe("RCP-32 two-user community release gate", () => {
         expectPublicPayloadSafe(bobRecommendationPayload);
       });
 
-      await test.step("sign Bob out for real, reject a later write, and preserve state after OIDC re-login", async () => {
+      await test.step("sign Bob out for real, revoke the old session, and require a fresh OIDC account choice", async () => {
         const staleCsrf = await rcp32CsrfToken(bob);
+        const signedOutSessionCookie = await captureRcp32SessionCookie(bob);
         const badCsrf = await bob.request.put(
           `/api/recipes/${rootRecipeVersionId}/rating`,
           {
@@ -1559,6 +1562,7 @@ test.describe("RCP-32 two-user community release gate", () => {
         const anonymousSession = await bob.request.get("/api/auth/session");
         expect(anonymousSession.status()).toBe(200);
         expect(await anonymousSession.json()).toEqual({ status: "anonymous" });
+        await expectRcp32SessionRevoked(bob, signedOutSessionCookie);
 
         await bob.goto(`/recipes/${childRecipeVersionId}`);
         await expect(
@@ -1592,7 +1596,10 @@ test.describe("RCP-32 two-user community release gate", () => {
         );
         expect(signedOutWrite.status()).toBe(401);
 
-        const reauthenticated = await signInExistingRcp32Identity(bob, "bob");
+        const reauthenticated = await signInExistingRcp32IdentityAfterSignOut(
+          bob,
+          "bob",
+        );
         expect(reauthenticated.user.id).toBe(bobUserId);
         const unchanged = await bob.request.get(
           `/api/recipes/${rootRecipeVersionId}`,

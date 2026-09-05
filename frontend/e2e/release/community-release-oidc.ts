@@ -120,12 +120,16 @@ async function chooseProviderIdentity(page: Page, identity: Rcp32Identity): Prom
   await providerChoice.click();
 }
 
-async function beginOidcSignIn(page: Page, identity: Rcp32Identity): Promise<void> {
+async function openOidcSignIn(page: Page): Promise<void> {
   await page.goto("/sign-in");
   const continueLink = page.getByRole("link", { name: "Continue to sign in", exact: true });
   await continueLink.focus();
   await expect(continueLink).toBeFocused();
   await continueLink.press("Enter");
+}
+
+async function beginOidcSignIn(page: Page, identity: Rcp32Identity): Promise<void> {
+  await openOidcSignIn(page);
   await chooseProviderIdentity(page, identity);
 }
 
@@ -146,18 +150,64 @@ export async function createAndOnboardRcp32Identity(
   return session;
 }
 
-export async function signInExistingRcp32Identity(
+export async function signInExistingRcp32IdentityAfterSignOut(
   page: Page,
   identity: Rcp32Identity,
 ): Promise<Rcp32Session> {
   const details = identities[identity];
-  await beginOidcSignIn(page, identity);
+  await openOidcSignIn(page);
+  const authorizationUrl = new URL(page.url());
+  expect(authorizationUrl.pathname).toBe("/authorize");
+  expect(authorizationUrl.searchParams.get("prompt")).toBe("login");
+  expect(authorizationUrl.searchParams.get("max_age")).toBe("0");
+  await expect(
+    page.getByRole("button", { name: /^Continue as / }),
+  ).toHaveCount(Object.keys(identities).length);
+  const anonymousSession = await page.request.get("/api/auth/session", {
+    headers: { Accept: "application/json" },
+  });
+  expect(anonymousSession.status()).toBe(200);
+  expect(await anonymousSession.json()).toEqual({ status: "anonymous" });
+
+  await chooseProviderIdentity(page, identity);
   await expect(page).not.toHaveURL(/\/onboarding(?:\?|$)/);
   await expect(page.getByLabel(`Account menu for ${details.displayName}`)).toBeVisible();
   const session = await readRcp32Session(page);
   expect(session.user.display_name).toBe(details.displayName);
   expect(session.user.handle).toBe(details.handle);
   return session;
+}
+
+export async function captureRcp32SessionCookie(page: Page) {
+  const cookies = await page.context().cookies();
+  const session = cookies.find((cookie) => cookie.name === "recipe_lab_session");
+  if (!session) {
+    throw new Error("The authenticated RCP-32 context is missing its session cookie.");
+  }
+  return session;
+}
+
+export async function expectRcp32SessionRevoked(
+  page: Page,
+  sessionCookie: Awaited<ReturnType<typeof captureRcp32SessionCookie>>,
+): Promise<void> {
+  const browser = page.context().browser();
+  if (!browser) {
+    throw new Error("The RCP-32 page is not attached to a browser.");
+  }
+  const replayContext = await browser.newContext({
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000",
+  });
+  try {
+    await replayContext.addCookies([sessionCookie]);
+    const replayedSession = await replayContext.request.get("/api/auth/session", {
+      headers: { Accept: "application/json" },
+    });
+    expect(replayedSession.status()).toBe(200);
+    expect(await replayedSession.json()).toEqual({ status: "anonymous" });
+  } finally {
+    await replayContext.close();
+  }
 }
 
 export async function rcp32CsrfToken(page: Page): Promise<string> {
