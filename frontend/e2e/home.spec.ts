@@ -481,17 +481,18 @@ test("compares a selected family recipe with the open recipe without signing in"
   page,
 }) => {
   const parentRecipeVersionId = await openCarrotRoot(page);
+  const openRecipeUrl = page.url();
 
   await page.getByRole("tab", { name: "Family", exact: true }).click();
   await expect(
     page.getByRole("tab", { name: "Family", exact: true }),
   ).toHaveAttribute("aria-selected", "true");
-  const openRecipeUrl = page.url();
+  await expect(page).toHaveURL(openRecipeUrl + "#recipe-family");
   const childSelector = page.getByRole("button", {
     name: "Show Lower-Sugar Pecan Carrot Cake in the family tree",
   });
   await childSelector.press("Enter");
-  await expect(page).toHaveURL(openRecipeUrl);
+  await expect(page).toHaveURL(openRecipeUrl + "#recipe-family");
   await expect(
     page.getByLabel("Selected family recipe: Lower-Sugar Pecan Carrot Cake"),
   ).toBeVisible();

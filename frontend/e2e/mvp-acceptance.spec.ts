@@ -69,7 +69,7 @@ test.describe("MVP acceptance", () => {
       page.waitForURL((url) => recipePathPattern.test(url.pathname)),
       page
         .getByRole("article", { name: "Carrot Walnut Snack Cake", exact: true })
-        .filter({ hasNot: page.locator(".recipe-card__parent") })
+        .filter({ has: page.getByText("Original", { exact: true }) })
         .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
         .click(),
     ]);

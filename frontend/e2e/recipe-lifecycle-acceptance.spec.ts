@@ -158,8 +158,7 @@ async function finishOriginalPublication(
   expect(body.recipe_version_id).toMatch(/^[0-9a-f-]{36}$/i);
   expect(body.location).toBe(`/recipes/${body.recipe_version_id}`);
   expect(publication.headers().location).toBe(body.location);
-  await expect(page).toHaveURL("/account/recipes?view=published");
-  await page.goto(body.location as string);
+  await expect(page).toHaveURL(body.location as string);
   const categories = page.getByRole("list", { name: /^Categories for / });
   await expect(
     categories.getByText("Breakfast", { exact: true }),
@@ -257,8 +256,7 @@ async function publishUnchangedFork(
   expect(body.recipe_version_id).toMatch(/^[0-9a-f-]{36}$/i);
   expect(body.location).toBe(`/recipes/${body.recipe_version_id}`);
   expect(publication.headers().location).toBe(body.location);
-  await expect(page).toHaveURL("/account/recipes?view=published");
-  await page.goto(body.location as string);
+  await expect(page).toHaveURL(body.location as string);
   const categories = page.getByRole("list", { name: /^Categories for / });
   await expect(
     categories.getByText("Breakfast", { exact: true }),

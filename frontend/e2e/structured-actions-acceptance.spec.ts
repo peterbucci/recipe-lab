@@ -58,7 +58,7 @@ test.describe("structured cooking action acceptance", () => {
         name: "Carrot Walnut Snack Cake",
         exact: true,
       })
-      .filter({ hasNot: page.locator(".recipe-card__parent") });
+      .filter({ has: page.getByText("Original", { exact: true }) });
     await expect(rootRecipeCard).toHaveCount(1);
     await Promise.all([
       page.waitForURL(/\/recipes\/[0-9a-f-]{36}$/i),
@@ -403,11 +403,7 @@ test.describe("structured cooking action acceptance", () => {
     expect(published.recipe_version_id).toMatch(/^[0-9a-f-]{36}$/i);
     expect(published.location).toBe(`/recipes/${published.recipe_version_id}`);
     expect(publication.headers().location).toBe(published.location);
-    await expect(page).toHaveURL("/account/recipes?view=published");
-    await expect(
-      page.getByRole("article", { name: draftTitle, exact: true }),
-    ).toBeVisible();
-    await page.goto(published.location as string);
+    await expect(page).toHaveURL(published.location as string);
 
     const stepsPanel = page.getByRole("tabpanel", { name: "Steps" });
     await expect(

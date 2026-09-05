@@ -195,11 +195,7 @@ test.describe("original recipe publication acceptance", () => {
     );
     expect(publication.headers().location).toBe(publicationBody.location);
 
-    await expect(page).toHaveURL("/account/recipes?view=published");
-    await expect(
-      page.getByRole("article", { name: title, exact: true }),
-    ).toBeVisible();
-    await page.goto(publicationBody.location as string);
+    await expect(page).toHaveURL(publicationBody.location as string);
     await expect(
       page.getByRole("heading", { name: title, level: 1 }),
     ).toBeVisible();
@@ -325,7 +321,7 @@ test.describe("original recipe publication acceptance", () => {
     expect(publicationKeys[0]).toMatch(/^[0-9a-f-]{36}$/i);
     expect(publicationKeys[1]).toBe(publicationKeys[0]);
     expect(replay.headers().location).toBe(replayedPublication.location);
-    await expect(page).toHaveURL("/account/recipes?view=published");
+    await expect(page).toHaveURL(replayedPublication.location as string);
 
     const libraryResponse = await page.request.get(
       new URL(

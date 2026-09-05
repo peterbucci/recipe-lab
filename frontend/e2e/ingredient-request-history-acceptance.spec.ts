@@ -452,7 +452,7 @@ test.describe("member ingredient-request acceptance", () => {
           name: "Carrot Walnut Snack Cake",
           exact: true,
         })
-        .filter({ hasNot: page.locator(".recipe-card__parent") })
+        .filter({ has: page.getByText("Original", { exact: true }) })
         .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
         .click(),
     ]);
@@ -613,7 +613,9 @@ test.describe("member ingredient-request acceptance", () => {
       await expect(
         page.getByLabel("Instruction", { exact: true }).first(),
       ).toHaveValue(draftInstruction);
-      await expect(eggRow.getByText("Egg", { exact: true })).toBeVisible();
+      await expect(
+        eggRow.getByRole("combobox", { name: "Ingredient", exact: true }),
+      ).toHaveValue("Egg");
       await eggRow
         .getByRole("button", {
           name: "Edit amount for ingredient 4",

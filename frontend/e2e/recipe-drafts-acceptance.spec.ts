@@ -215,7 +215,7 @@ test.describe("private recipe draft acceptance", () => {
       .getByRole("button", { name: "Discard permanently", exact: true })
       .click();
     await expect(page).toHaveURL("/account/recipes?view=drafts");
-    await expect(page.getByText("Acceptance interrupted soup")).toHaveCount(0);
+    await expect(savedDraft).toHaveCount(0);
 
     const discardedReplay = await page.request.post(
       new URL("/api/recipe-drafts", baseUrl).toString(),
