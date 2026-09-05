@@ -216,7 +216,7 @@ test.describe("structured cooking action acceptance", () => {
         name: "Duration",
         exact: true,
       }),
-    ).toHaveValue("2.500");
+    ).toHaveValue("2.5");
     await reopenedGreaseAction
       .getByRole("button", { name: "Done", exact: true })
       .click();

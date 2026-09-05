@@ -5,6 +5,7 @@ import type {
   MissingIngredientRequest,
 } from "./ingredient-catalog-api";
 import type { CatalogUnit } from "./measurement-unit-api";
+import { formatDecimal } from "./format";
 import type { RecipeCategory } from "./recipe-api";
 import { MAX_RECIPE_CATEGORIES } from "./recipe-category";
 import {
@@ -117,7 +118,7 @@ export function hydrateRecipeDraft(detail: RecipeDraftDetail): RecipeDraftEditor
   return {
     title: detail.title,
     description: detail.description ?? "",
-    servings: detail.servings ?? "",
+    servings: detail.servings ? formatDecimal(detail.servings) : "",
     totalTimeMinutes: detail.total_time_minutes?.toString() ?? "",
     activeTimeMinutes: detail.active_time_minutes?.toString() ?? "",
     difficulty: detail.difficulty ?? "",

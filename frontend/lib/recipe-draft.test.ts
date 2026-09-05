@@ -125,6 +125,15 @@ describe("private recipe draft state", () => {
     expect(state.ingredients[0]?.measure.exactValue).toBe("2");
   });
 
+  it("hydrates fixed-scale servings as a human-friendly editor value", () => {
+    const state = hydrateRecipeDraft({
+      ...detail,
+      servings: "6.00",
+    });
+
+    expect(state.servings).toBe("6");
+  });
+
   it("round-trips a complex saved draft without losing structured recipe meaning", () => {
     const gram: CatalogUnit = {
       id: "55555555-5555-4555-8555-555555555551",
@@ -264,6 +273,11 @@ describe("private recipe draft state", () => {
       notes: "Taste before seasoning.",
     });
     expect(state.instructions[0]?.title).toBe("Simmer the broth");
+    expect(state.instructions[0]?.actions[0]?.duration.value.exactValue).toBe("5");
+    expect(state.instructions[0]?.actions[0]?.temperature.value).toMatchObject({
+      rangeMinimum: "175",
+      rangeMaximum: "180",
+    });
     const validation = validateRecipeDraft(
       state,
       saved.revision,
@@ -309,11 +323,11 @@ describe("private recipe draft state", () => {
             {
               action_type_id: actionType.id,
               ingredient_refs: [ROW_ID],
-              duration: { kind: "exact", value: "5.000", unit_id: minute.id },
+              duration: { kind: "exact", value: "5", unit_id: minute.id },
               temperature: {
                 kind: "range",
-                minimum: "175.0",
-                maximum: "180.0",
+                minimum: "175",
+                maximum: "180",
                 unit_id: celsius.id,
               },
             },
