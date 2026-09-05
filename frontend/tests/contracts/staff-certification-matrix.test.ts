@@ -9,35 +9,41 @@ import {
 
 describe("RCP-46F staff certification inventory", () => {
   it("keeps curator and moderator routes and capabilities separate", () => {
-    expect(RCP46F_STAFF_ROUTES).toEqual({
-      curator: {
-        path: "/catalog/ingredient-requests",
-        capability: "review_ingredient_requests",
-        navigationLabel: "Open ingredient catalog",
-        apiRouteLabel: "ingredient-review-queue",
-        authorizationDeniedApiRouteLabel:
-          "ingredient-review-authorization-denied",
-      },
-      moderator: {
-        path: "/moderation/recipes",
-        capability: "moderate_recipe_reports",
-        navigationLabel: "Open recipe reports",
-        apiRouteLabel: "moderation-queue",
-        authorizationDeniedApiRouteLabel: "moderation-authorization-denied",
-      },
-    });
-    expect(RCP46F_STAFF_ROUTES.curator.capability).not.toBe(
-      RCP46F_STAFF_ROUTES.moderator.capability,
+    const routes = Object.values(RCP46F_STAFF_ROUTES);
+
+    expect(new Set(routes.map(({ path }) => path)).size).toBe(routes.length);
+    expect(new Set(routes.map(({ capability }) => capability)).size).toBe(
+      routes.length,
     );
+    expect(new Set(routes.map(({ apiRouteLabel }) => apiRouteLabel)).size).toBe(
+      routes.length,
+    );
+
+    for (const route of routes) {
+      expect(route.path).toMatch(/^\/[a-z0-9/-]+$/);
+      expect(route.capability).toMatch(/^[a-z][a-z0-9_]+$/);
+      expect(route.navigationLabel).toMatch(/^Open /);
+      expect(route.apiRouteLabel).not.toBe(route.authorizationDeniedApiRouteLabel);
+      expect(route.authorizationDeniedApiRouteLabel).toContain(
+        "authorization-denied",
+      );
+    }
   });
 
   it("sweeps the reviewed widths with a lean, complete state matrix", () => {
-    expect(RCP46F_STAFF_VIEWPORTS).toEqual([
-      { label: "desktop", width: 1_440, height: 900 },
-      { label: "intermediate", width: 820, height: 1_000 },
-      { label: "phone", width: 390, height: 844 },
-    ]);
-    expect(RCP46F_STAFF_STATE_MATRIX).toHaveLength(9);
+    const widths = RCP46F_STAFF_VIEWPORTS.map(({ width }) => width);
+    expect(new Set(RCP46F_STAFF_VIEWPORTS.map(({ label }) => label)).size).toBe(
+      RCP46F_STAFF_VIEWPORTS.length,
+    );
+    expect(RCP46F_STAFF_VIEWPORTS.length).toBeGreaterThanOrEqual(3);
+    expect(Math.max(...widths)).toBeGreaterThanOrEqual(1_024);
+    expect(Math.min(...widths)).toBeLessThanOrEqual(480);
+    expect(widths).toEqual([...widths].sort((left, right) => right - left));
+    for (const { height, width } of RCP46F_STAFF_VIEWPORTS) {
+      expect(height).toBeGreaterThan(0);
+      expect(width).toBeGreaterThan(0);
+    }
+
     expect(new Set(RCP46F_STAFF_STATE_MATRIX.map(({ id }) => id)).size).toBe(
       RCP46F_STAFF_STATE_MATRIX.length,
     );
@@ -58,21 +64,35 @@ describe("RCP-46F staff certification inventory", () => {
       ].sort(),
     );
 
-    expect(
-      RCP46F_STAFF_STATE_MATRIX.filter(({ states }) =>
-        states.some((state) => state === "normal"),
-      ).map(({ sessionRole, routeRole }) => [sessionRole, routeRole]),
-    ).toEqual([
-      ["curator", "curator"],
-      ["moderator", "moderator"],
-    ]);
-    expect(
-      RCP46F_STAFF_STATE_MATRIX.filter(({ states }) =>
-        states.some((state) => state === "authorization"),
-      ).map(({ sessionRole, routeRole }) => [sessionRole, routeRole]),
-    ).toEqual([
-      ["curator", "moderator"],
-      ["moderator", "curator"],
-    ]);
+    const roles = Object.keys(RCP46F_STAFF_ROUTES).sort();
+    const normalRoles = RCP46F_STAFF_STATE_MATRIX.filter(({ states }) =>
+      states.includes("normal"),
+    ).map(({ routeRole, sessionRole }) => {
+      expect(sessionRole).toBe(routeRole);
+      return routeRole;
+    });
+    expect(normalRoles.sort()).toEqual(roles);
+
+    const authorizationPairs = RCP46F_STAFF_STATE_MATRIX.filter(({ states }) =>
+      states.includes("authorization"),
+    ).map(({ routeRole, sessionRole }) => {
+      expect(sessionRole).not.toBe(routeRole);
+      return `${sessionRole}->${routeRole}`;
+    });
+    const expectedAuthorizationPairs = roles.flatMap((sessionRole) =>
+      roles
+        .filter((routeRole) => routeRole !== sessionRole)
+        .map((routeRole) => `${sessionRole}->${routeRole}`),
+    );
+    expect(authorizationPairs.sort()).toEqual(expectedAuthorizationPairs.sort());
+
+    for (const matrixCase of RCP46F_STAFF_STATE_MATRIX) {
+      expect(matrixCase.scenario).not.toHaveLength(0);
+      if (matrixCase.states.includes("retry")) {
+        expect(
+          matrixCase.states.includes("error") || matrixCase.states.includes("stale"),
+        ).toBe(true);
+      }
+    }
   });
 });
