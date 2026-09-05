@@ -9,9 +9,7 @@ WORKFLOW = Path(__file__).parents[2] / ".github" / "workflows" / "ci.yml"
 def _job(workflow: str, job_id: str) -> str:
     marker = f"  {job_id}:\n"
     start = workflow.index(marker)
-    next_job = re.search(
-        r"^  [a-z0-9-]+:\s*$", workflow[start + len(marker) :], re.MULTILINE
-    )
+    next_job = re.search(r"^  [a-z0-9-]+:\s*$", workflow[start + len(marker) :], re.MULTILINE)
     if next_job is None:
         return workflow[start:]
     return workflow[start : start + len(marker) + next_job.start()]
