@@ -8,6 +8,7 @@ import {
   retryAfterSeconds,
   type PublicApiErrorContract,
 } from "./core";
+import { TRANSIENT_READ_RETRY_DELAY_MS } from "./transient-read-retry";
 
 const ERROR_CONTRACT: PublicApiErrorContract = {
   fallbackCode: "api_error",
@@ -164,6 +165,84 @@ describe("shared API transport core", () => {
 
     await expectation;
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("retries a transient query once and returns the recovered response", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ error: { code: "temporary_failure" } }, { status: 503 }),
+      )
+      .mockResolvedValueOnce(Response.json({ items: ["recipe"] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = executeJsonApiRequest(
+      "/api/example",
+      { method: "GET" },
+      {
+        errorContract: ERROR_CONTRACT,
+        kind: "query",
+        timeoutMs: 1_000,
+      },
+    );
+    await vi.advanceTimersByTimeAsync(TRANSIENT_READ_RETRY_DELAY_MS);
+
+    await expect(request).resolves.toMatchObject({
+      data: { items: ["recipe"] },
+      status: 200,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("allows a query with an explicit recovery UI to opt out of retries", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ error: { code: "temporary_failure" } }, { status: 503 }),
+      )
+      .mockResolvedValueOnce(Response.json({ items: ["recipe"] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      executeJsonApiRequest(
+        "/api/example",
+        { method: "GET" },
+        {
+          errorContract: ERROR_CONTRACT,
+          kind: "query",
+          retry: "never",
+          timeoutMs: 1_000,
+        },
+      ),
+    ).rejects.toMatchObject({ reason: "http", status: 503 });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("stops after one retry when a transient query remains unavailable", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({ error: { code: "temporary_failure" } }, { status: 503 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = executeJsonApiRequest(
+      "/api/example",
+      { method: "GET" },
+      {
+        errorContract: ERROR_CONTRACT,
+        kind: "query",
+        timeoutMs: 1_000,
+      },
+    );
+    const expectation = expect(request).rejects.toMatchObject({
+      reason: "http",
+      status: 503,
+    });
+    await vi.advanceTimersByTimeAsync(TRANSIENT_READ_RETRY_DELAY_MS);
+
+    await expectation;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("treats a caller abort after dispatch as an unknown mutation result", async () => {

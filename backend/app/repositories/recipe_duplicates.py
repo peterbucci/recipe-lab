@@ -9,6 +9,7 @@ from sqlalchemy import Select, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.domain_errors import DomainNotFoundError
 from app.models import (
     RECIPE_DUPLICATE_DECISIONS,
     RECIPE_DUPLICATE_DISTINCT,
@@ -35,8 +36,11 @@ class RecipeDuplicateStorageConflictError(RuntimeError):
     """Raised when an idempotency key already represents different evidence."""
 
 
-class RecipeDuplicatePreflightNotFoundError(LookupError):
+class RecipeDuplicatePreflightNotFoundError(DomainNotFoundError):
     """Raised without disclosing whether another actor owns a preflight."""
+
+    code = "duplicate_preflight_not_found"
+    public_message = "The duplicate preflight was not found."
 
 
 class RecipeDuplicateAcknowledgementConflictError(RuntimeError):

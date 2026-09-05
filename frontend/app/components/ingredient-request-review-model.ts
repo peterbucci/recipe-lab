@@ -3,42 +3,21 @@ import type {
   IngredientCatalogReviewDetail,
   IngredientCatalogReviewItem,
 } from "../../lib/ingredient-catalog-api";
+import { INGREDIENT_REQUEST_STATUS_LABELS } from "../../lib/ingredient-request-presentation";
 
 export const STATUS_FILTERS: Array<{
   label: string;
   value: IngredientCatalogRequestStatus;
 }> = [
-  { label: "Pending", value: "pending" },
-  { label: "Approved", value: "approved" },
-  { label: "Rejected", value: "rejected" },
-  { label: "Duplicate", value: "duplicate" },
+  { label: INGREDIENT_REQUEST_STATUS_LABELS.pending, value: "pending" },
+  { label: INGREDIENT_REQUEST_STATUS_LABELS.approved, value: "approved" },
+  { label: INGREDIENT_REQUEST_STATUS_LABELS.duplicate, value: "duplicate" },
+  { label: INGREDIENT_REQUEST_STATUS_LABELS.rejected, value: "rejected" },
 ];
-
-export const STATUS_LABELS: Record<IngredientCatalogRequestStatus, string> = {
-  pending: "Pending",
-  approved: "Approved",
-  rejected: "Rejected",
-  duplicate: "Duplicate",
-};
 
 export interface ReviewDetailProps {
   detail: IngredientCatalogReviewDetail;
   onAuthorizationLost: () => void;
   onRefresh: () => Promise<void>;
   onReviewed: (request: IngredientCatalogReviewItem) => void;
-}
-
-export function isAbortError(reason: unknown): boolean {
-  return reason instanceof DOMException && reason.name === "AbortError";
-}
-
-export function formatRequestTime(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(parsed);
 }

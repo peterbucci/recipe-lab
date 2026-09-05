@@ -3,6 +3,8 @@ import logging
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from decimal import Decimal
+from hashlib import sha256
 from threading import Barrier
 from typing import Any, NoReturn, cast
 from uuid import UUID, uuid4
@@ -16,8 +18,6 @@ from sqlalchemy.orm import Session
 import app.api.routes.recipe_publications as publication_routes
 import app.services.recipe_duplicate_preflights as duplicate_preflight_service
 import app.services.recipe_publications as publication_service
-from app.api.dependencies import get_session
-from app.main import create_app
 from app.models import (
     PreferenceEvent,
     RecipeDraft,
@@ -27,7 +27,9 @@ from app.models import (
     RecipeDraftInstructionAction,
     RecipeDraftInstructionActionInput,
     RecipeDraftInstructionActionMeasure,
+    RecipeDuplicateCandidate,
     RecipeDuplicateDecision,
+    RecipeDuplicatePreflight,
     RecipeIngredient,
     RecipeInstruction,
     RecipeInstructionAction,
@@ -38,14 +40,15 @@ from app.models import (
     RecipeVersion,
     RecipeVersionCategory,
     RecipeVersionPublication,
+    RecipeVersionVisibilityEvent,
 )
 from app.repositories.recipes import (
     get_public_recipe_version_titles as actual_public_recipe_version_titles,
 )
 from app.seeds import load_bundled_catalog, seed_catalog
 from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
-from app.services.preference_events import record_preference_event as actual_record_preference_event
 from app.services.recipe_duplicate_preflights import RecipeDuplicatePreflightCapacityError
+from tests.application import application_with_database
 from tests.conftest import make_alembic_config
 from tests.member_session import authenticate_client, create_member_credentials
 
@@ -69,6 +72,51 @@ class PublicationApi:
     engine: Engine
     member: TestClient
     other_member: TestClient
+
+
+_ROOT_PUBLICATION_WRITE_PHASES = tuple(
+    phase
+    for phase in publication_service._PUBLICATION_WRITE_PHASES
+    if phase != "fork_preference_event"
+)
+
+
+def _publication_row_counts(session: Session) -> dict[str, int]:
+    return {
+        "lineages": session.scalar(select(func.count()).select_from(RecipeLineage)) or 0,
+        "versions": session.scalar(select(func.count()).select_from(RecipeVersion)) or 0,
+        "categories": session.scalar(select(func.count()).select_from(RecipeVersionCategory)) or 0,
+        "ingredients": session.scalar(select(func.count()).select_from(RecipeIngredient)) or 0,
+        "instructions": session.scalar(select(func.count()).select_from(RecipeInstruction)) or 0,
+        "actions": session.scalar(select(func.count()).select_from(RecipeInstructionAction)) or 0,
+        "action_inputs": (
+            session.scalar(select(func.count()).select_from(RecipeInstructionActionInput)) or 0
+        ),
+        "action_measures": (
+            session.scalar(select(func.count()).select_from(RecipeInstructionActionMeasure)) or 0
+        ),
+        "fingerprints": (
+            session.scalar(select(func.count()).select_from(RecipeStructuralFingerprint)) or 0
+        ),
+        "duplicate_preflights": (
+            session.scalar(select(func.count()).select_from(RecipeDuplicatePreflight)) or 0
+        ),
+        "duplicate_candidates": (
+            session.scalar(select(func.count()).select_from(RecipeDuplicateCandidate)) or 0
+        ),
+        "duplicate_decisions": (
+            session.scalar(select(func.count()).select_from(RecipeDuplicateDecision)) or 0
+        ),
+        "publication_receipts": (
+            session.scalar(select(func.count()).select_from(RecipeVersionPublication)) or 0
+        ),
+        "visibility_events": (
+            session.scalar(select(func.count()).select_from(RecipeVersionVisibilityEvent)) or 0
+        ),
+        "preference_events": (
+            session.scalar(select(func.count()).select_from(PreferenceEvent)) or 0
+        ),
+    }
 
 
 def _operation_events(caplog: pytest.LogCaptureFixture) -> list[dict[str, str]]:
@@ -100,14 +148,10 @@ def publication_api(empty_postgres_engine: Engine) -> Iterator[PublicationApi]:
         handle="other_publication_member",
         display_name="Other Publication Member",
     )
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        with Session(bind=empty_postgres_engine, expire_on_commit=False) as session:
-            yield session
-
-    application.dependency_overrides[get_session] = override_session
-    try:
+    with application_with_database(
+        empty_postgres_engine,
+        expire_on_commit=False,
+    ) as application:
         with TestClient(application) as member, TestClient(application) as other_member:
             authenticate_client(member, member_credentials)
             authenticate_client(other_member, other_credentials)
@@ -116,8 +160,6 @@ def publication_api(empty_postgres_engine: Engine) -> Iterator[PublicationApi]:
                 member=member,
                 other_member=other_member,
             )
-    finally:
-        application.dependency_overrides.clear()
 
 
 def _json_object(value: object) -> dict[str, Any]:
@@ -130,6 +172,10 @@ def _complete_original_payload(*, revision: int = 1) -> dict[str, object]:
         "title": "Publication test chickpeas",
         "description": "A complete private draft becoming one immutable root.",
         "servings": "2.00",
+        "total_time_minutes": 35,
+        "active_time_minutes": 15,
+        "difficulty": "easy",
+        "notes": "Rest briefly before serving.",
         "category_ids": [str(QUICK_EASY_CATEGORY_ID), str(BREAKFAST_CATEGORY_ID)],
         "ingredients": [
             {
@@ -150,6 +196,7 @@ def _complete_original_payload(*, revision: int = 1) -> dict[str, object]:
         "instructions": [
             {
                 "ref": "mix-step",
+                "title": "Mix the chickpeas",
                 "text": "Mix the chickpeas.",
                 "actions": [
                     {
@@ -332,6 +379,151 @@ def test_real_publication_unavailability_emits_only_a_correlated_fixed_event(
     assert "/private/draft/42" not in rendered
 
 
+def test_publication_succeeds_with_more_than_five_hundred_public_fingerprints(
+    publication_api: PublicationApi,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    exact_base_version_id = _publish_complete_original(publication_api)
+    filler_count = duplicate_preflight_service.MAX_PUBLIC_DUPLICATE_COMPARISONS + 1
+    with Session(bind=publication_api.engine) as session, session.begin():
+        exact_fingerprint = session.scalar(
+            select(RecipeStructuralFingerprint).where(
+                RecipeStructuralFingerprint.recipe_version_id == exact_base_version_id
+            )
+        )
+        assert exact_fingerprint is not None
+        filler_payload = _json_object(json.loads(exact_fingerprint.canonical_payload))
+        instructions = cast(list[dict[str, object]], filler_payload["instructions"])
+        actions = cast(list[dict[str, object]], instructions[0]["actions"])
+        actions[0]["action"] = str(KNEAD_ID)
+        filler_canonical_payload = json.dumps(
+            filler_payload,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        filler_digest = sha256(filler_canonical_payload.encode("utf-8")).hexdigest()
+
+        filler_ids = [(uuid4(), uuid4()) for _index in range(filler_count)]
+        session.add_all(
+            [
+                RecipeLineage(
+                    id=lineage_id,
+                    created_by_user_id=OTHER_MEMBER_ID,
+                )
+                for lineage_id, _version_id in filler_ids
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                RecipeVersion(
+                    id=version_id,
+                    lineage_id=lineage_id,
+                    parent_version_id=None,
+                    created_by_user_id=OTHER_MEMBER_ID,
+                    version_number=1,
+                    title=f"Overlap shortlist scale fixture {index}",
+                    description=None,
+                    servings=Decimal("1.00"),
+                )
+                for index, (lineage_id, version_id) in enumerate(filler_ids)
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                RecipeIngredient(
+                    recipe_version_id=version_id,
+                    ingredient_id=CHICKPEA_ID,
+                    name="Chickpea",
+                    measure_mode="unspecified",
+                    quantity_min=None,
+                    quantity_max=None,
+                    measurement_unit_id=None,
+                    unit_display=None,
+                    package_size_id=None,
+                    preparation_notes=None,
+                    display_order=0,
+                )
+                for _lineage_id, version_id in filler_ids
+            ]
+        )
+        session.add_all(
+            [
+                RecipeStructuralFingerprint(
+                    recipe_version_id=version_id,
+                    algorithm_version=exact_fingerprint.algorithm_version,
+                    digest=filler_digest,
+                    canonical_payload=filler_canonical_payload,
+                )
+                for _lineage_id, version_id in filler_ids
+            ]
+        )
+        session.add_all(
+            [
+                RecipeVersionPublication(
+                    recipe_version_id=version_id,
+                    state="published",
+                    state_changed_by_user_id=OTHER_MEMBER_ID,
+                    actor_user_id=OTHER_MEMBER_ID,
+                )
+                for _lineage_id, version_id in filler_ids
+            ]
+        )
+
+    actual_shortlist = duplicate_preflight_service.load_public_duplicate_candidates
+    shortlist_sizes: list[int] = []
+
+    def capture_shortlist(session: Session, **kwargs: Any) -> list[Any]:
+        candidates = actual_shortlist(session, **kwargs)
+        shortlist_sizes.append(len(candidates))
+        return candidates
+
+    monkeypatch.setattr(
+        duplicate_preflight_service,
+        "load_public_duplicate_candidates",
+        capture_shortlist,
+    )
+    draft_id = _create_complete_draft(publication_api)
+    evidence = _run_draft_preflight(publication_api.member, draft_id, revision=2)
+    assert shortlist_sizes == [duplicate_preflight_service.MAX_PUBLIC_DUPLICATE_COMPARISONS]
+    assert evidence["classification"] == "exact_duplicate"
+    assert exact_base_version_id in {
+        UUID(cast(str, candidate["public_recipe_version_id"]))
+        for candidate in cast(list[dict[str, object]], evidence["candidates"])
+    }
+    published = publication_api.member.post(
+        f"/api/recipe-drafts/{draft_id}/publish",
+        headers={"Idempotency-Key": str(uuid4())},
+        json=_publication_payload(evidence, revision=2, decision="continue"),
+    )
+    assert published.status_code == 201, published.text
+    assert shortlist_sizes == [
+        duplicate_preflight_service.MAX_PUBLIC_DUPLICATE_COMPARISONS,
+        duplicate_preflight_service.MAX_PUBLIC_DUPLICATE_COMPARISONS,
+    ]
+    published_version_id = UUID(cast(str, _json_object(published.json())["recipe_version_id"]))
+
+    with Session(bind=publication_api.engine) as session:
+        public_fingerprint_count = session.scalar(
+            select(func.count())
+            .select_from(RecipeStructuralFingerprint)
+            .join(
+                RecipeVersionPublication,
+                RecipeVersionPublication.recipe_version_id
+                == RecipeStructuralFingerprint.recipe_version_id,
+            )
+            .where(RecipeVersionPublication.state == "published")
+        )
+        receipt = session.get(RecipeVersionPublication, published_version_id)
+
+    assert public_fingerprint_count is not None
+    assert public_fingerprint_count > duplicate_preflight_service.MAX_PUBLIC_DUPLICATE_COMPARISONS
+    assert receipt is not None
+
+
 def test_original_draft_preflight_publish_and_exact_retry(
     publication_api: PublicationApi,
 ) -> None:
@@ -401,6 +593,10 @@ def test_original_draft_preflight_publish_and_exact_retry(
     detail_body = _json_object(detail.json())
     assert detail_body["parent_version_id"] is None
     assert detail_body["version_number"] == 1
+    assert detail_body["total_time_minutes"] == 35
+    assert detail_body["active_time_minutes"] == 15
+    assert detail_body["difficulty"] == "easy"
+    assert detail_body["notes"] == "Rest briefly before serving."
     assert detail_body["categories"] == [
         {
             "id": str(BREAKFAST_CATEGORY_ID),
@@ -466,6 +662,10 @@ def test_original_draft_preflight_publish_and_exact_retry(
         assert version.parent_version_id is None
         assert version.version_number == 1
         assert version.created_by_user_id == MEMBER_ID
+        assert version.total_time_minutes == 35
+        assert version.active_time_minutes == 15
+        assert version.difficulty == "easy"
+        assert version.notes == "Rest briefly before serving."
         lineage = session.get(RecipeLineage, version.lineage_id)
         assert lineage is not None and lineage.created_by_user_id == MEMBER_ID
         assert receipt is not None
@@ -579,6 +779,7 @@ def test_original_draft_preflight_publish_and_exact_retry(
         assert draft_actions[0].id != version_actions[0].id
         assert draft_inputs[0].id != version_inputs[0].id
         assert version_ingredients[0].ingredient_id == draft_ingredients[0].ingredient_id
+        assert version_instructions[0].title == draft_instructions[0].title == ("Mix the chickpeas")
         assert version_instructions[0].instruction == draft_instructions[0].instruction
         assert version_actions[0].action_type_id == draft_actions[0].action_type_id
         assert version_inputs[0].recipe_ingredient_id == version_ingredients[0].id
@@ -1044,24 +1245,18 @@ def test_fork_publication_rolls_back_staged_event_and_retries_once(
     )
     payload = _publication_payload(evidence, revision=1, decision="continue")
     with Session(bind=publication_api.engine) as session:
-        before_versions = session.scalar(select(func.count()).select_from(RecipeVersion)) or 0
-        before_receipts = (
-            session.scalar(select(func.count()).select_from(RecipeVersionPublication)) or 0
-        )
-        before_events = session.scalar(select(func.count()).select_from(PreferenceEvent)) or 0
-        before_decisions = (
-            session.scalar(select(func.count()).select_from(RecipeDuplicateDecision)) or 0
-        )
+        before = _publication_row_counts(session)
 
-    real_record_preference_event = actual_record_preference_event
+    reached: list[str] = []
 
-    def fail_after_staging_event(*args: object, **kwargs: object) -> NoReturn:
-        real_record_preference_event(*args, **kwargs)  # type: ignore[arg-type]
-        raise RuntimeError("injected failure after fork event")
+    def fail_after_staging_event(phase: str) -> None:
+        reached.append(phase)
+        if phase == "fork_preference_event":
+            raise RuntimeError("injected failure after fork event")
 
     monkeypatch.setattr(
         publication_service,
-        "record_preference_event",
+        "_test_publication_write_checkpoint",
         fail_after_staging_event,
     )
     failed = publication_api.other_member.post(
@@ -1071,27 +1266,17 @@ def test_fork_publication_rolls_back_staged_event_and_retries_once(
     )
     assert failed.status_code == 500
     assert _json_object(_json_object(failed.json())["error"])["code"] == "internal_error"
+    assert reached[-1] == "fork_preference_event"
 
     with Session(bind=publication_api.engine) as session:
         draft = session.get(RecipeDraft, UUID(draft_id))
         assert draft is not None and draft.status == "active"
-        assert (session.scalar(select(func.count()).select_from(RecipeVersion)) or 0) == (
-            before_versions
-        )
-        assert (
-            session.scalar(select(func.count()).select_from(RecipeVersionPublication)) or 0
-        ) == before_receipts
-        assert (session.scalar(select(func.count()).select_from(PreferenceEvent)) or 0) == (
-            before_events
-        )
-        assert (
-            session.scalar(select(func.count()).select_from(RecipeDuplicateDecision)) or 0
-        ) == before_decisions
+        assert _publication_row_counts(session) == before
 
     monkeypatch.setattr(
         publication_service,
-        "record_preference_event",
-        real_record_preference_event,
+        "_test_publication_write_checkpoint",
+        lambda _phase: None,
     )
     retry = publication_api.other_member.post(
         f"/api/recipe-drafts/{draft_id}/publish",
@@ -1101,12 +1286,11 @@ def test_fork_publication_rolls_back_staged_event_and_retries_once(
     assert retry.status_code == 201, retry.text
     child_id = UUID(cast(str, _json_object(retry.json())["recipe_version_id"]))
     with Session(bind=publication_api.engine) as session:
-        assert (session.scalar(select(func.count()).select_from(RecipeVersion)) or 0) == (
-            before_versions + 1
-        )
-        assert (
-            session.scalar(select(func.count()).select_from(RecipeVersionPublication)) or 0
-        ) == before_receipts + 1
+        after_retry = _publication_row_counts(session)
+        assert after_retry["versions"] == before["versions"] + 1
+        assert after_retry["publication_receipts"] == before["publication_receipts"] + 1
+        assert after_retry["preference_events"] == before["preference_events"] + 1
+        assert after_retry["duplicate_decisions"] == before["duplicate_decisions"] + 1
         event = session.scalar(
             select(PreferenceEvent).where(
                 PreferenceEvent.user_id == OTHER_MEMBER_ID,
@@ -1410,10 +1594,13 @@ def test_publication_openapi_documents_only_current_draft_operations(
     )
 
 
-def test_original_publication_rolls_back_every_row_and_preserves_the_draft(
+@pytest.mark.parametrize("phase", _ROOT_PUBLICATION_WRITE_PHASES)
+def test_original_publication_failure_matrix_rolls_back_every_write_phase(
     publication_api: PublicationApi,
     monkeypatch: pytest.MonkeyPatch,
+    phase: str,
 ) -> None:
+    _publish_complete_original(publication_api)
     draft_id = _create_complete_draft(publication_api)
     preflight = publication_api.member.post(
         f"/api/recipe-drafts/{draft_id}/duplicate-preflights",
@@ -1422,6 +1609,7 @@ def test_original_publication_rolls_back_every_row_and_preserves_the_draft(
     )
     assert preflight.status_code == 201
     acknowledgement = _json_object(_json_object(preflight.json())["acknowledgement"])
+    assert acknowledgement["required"] is True
     payload = {
         "revision": 2,
         "community_rules_accepted": True,
@@ -1430,23 +1618,23 @@ def test_original_publication_rolls_back_every_row_and_preserves_the_draft(
             "preflight_id": acknowledgement["preflight_id"],
             "policy_version": acknowledgement["policy_version"],
             "result_digest": acknowledgement["result_digest"],
-            "decision": "continue" if acknowledgement["required"] else None,
+            "decision": "continue",
         },
     }
     with Session(bind=publication_api.engine) as session:
-        before_versions = session.scalar(select(func.count()).select_from(RecipeVersion)) or 0
-        before_lineages = session.scalar(select(func.count()).select_from(RecipeLineage)) or 0
-        before_receipts = (
-            session.scalar(select(func.count()).select_from(RecipeVersionPublication)) or 0
-        )
+        before = _publication_row_counts(session)
 
-    def fail_after_snapshot_rows(*_args: object, **_kwargs: object) -> None:
-        raise RuntimeError("injected publication failure")
+    reached: list[str] = []
+
+    def fail_at_selected_write_phase(reached_phase: str) -> None:
+        reached.append(reached_phase)
+        if reached_phase == phase:
+            raise RuntimeError(f"injected publication failure after {phase}")
 
     monkeypatch.setattr(
         publication_service,
-        "fingerprint_and_store_recipe_version",
-        fail_after_snapshot_rows,
+        "_test_publication_write_checkpoint",
+        fail_at_selected_write_phase,
     )
     failed = publication_api.member.post(
         f"/api/recipe-drafts/{draft_id}/publish",
@@ -1455,19 +1643,20 @@ def test_original_publication_rolls_back_every_row_and_preserves_the_draft(
     )
     assert failed.status_code == 500
     assert _json_object(_json_object(failed.json())["error"])["code"] == "internal_error"
+    assert reached[-1] == phase
 
     with Session(bind=publication_api.engine) as session:
         draft = session.get(RecipeDraft, UUID(draft_id))
         assert draft is not None and draft.status == "active" and draft.revision == 2
-        assert (session.scalar(select(func.count()).select_from(RecipeVersion)) or 0) == (
-            before_versions
-        )
-        assert (session.scalar(select(func.count()).select_from(RecipeLineage)) or 0) == (
-            before_lineages
-        )
+        assert _publication_row_counts(session) == before
         assert (
-            session.scalar(select(func.count()).select_from(RecipeVersionPublication)) or 0
-        ) == before_receipts
+            session.scalar(
+                select(RecipeVersionPublication).where(
+                    RecipeVersionPublication.source_draft_id == UUID(draft_id)
+                )
+            )
+            is None
+        )
 
 
 def test_concurrent_identical_publication_retries_reuse_one_root(

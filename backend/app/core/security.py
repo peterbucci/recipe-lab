@@ -10,6 +10,7 @@ PKCE_VERIFIER_BYTES = 64
 AUTH_SESSION_COOKIE_NAME = "recipe_lab_session"
 AUTH_CSRF_COOKIE_NAME = "recipe_lab_csrf"
 AUTH_LOGIN_COOKIE_NAME = "recipe_lab_login"
+AUTH_FORCE_LOGIN_COOKIE_NAME = "recipe_lab_force_login"
 _SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 
 

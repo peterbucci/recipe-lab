@@ -130,7 +130,10 @@ describe("recipe draft publication domain state", () => {
       initialRecipeDraftPublicationState,
       { type: "validation-started" },
     );
-    expect(validating.workflow.status).toBe("validating");
+    expect(validating.workflow).toEqual({
+      phase: "validating",
+      status: "reviewing",
+    });
     expect(publicationIsBusy(validating)).toBe(false);
 
     const preflightAttempt = preparePublicationAttempt(null, {
@@ -142,7 +145,11 @@ describe("recipe draft publication domain state", () => {
       scope,
       type: "preflight-started",
     });
-    expect(checking.workflow).toEqual({ scope, status: "checking" });
+    expect(checking.workflow).toEqual({
+      phase: "checking",
+      scope,
+      status: "reviewing",
+    });
     expect(publicationIsBusy(checking)).toBe(true);
 
     const staleReview = recipeDraftPublicationReducer(checking, {
@@ -159,7 +166,7 @@ describe("recipe draft publication domain state", () => {
     });
     expect(reviewRequired.workflow).toMatchObject({
       acknowledged: false,
-      status: "review-required",
+      status: "confirmation",
     });
     expect(publicationReview(reviewRequired.workflow)).toMatchObject({
       acknowledged: false,
@@ -245,10 +252,17 @@ describe("recipe draft publication domain state", () => {
       expect(failed.workflow).toEqual({
         acknowledged: true,
         context: probableContext,
+        kind,
         message: `Stable ${kind} message`,
         operation: "publish",
+        recovery:
+          kind === "revision-conflict"
+            ? "latest-draft"
+            : kind === "source-unavailable"
+              ? "source"
+              : "publish",
         scope,
-        status: kind,
+        status: "failed",
       });
       expect(publicationContext(failed.workflow)).toBe(probableContext);
       expect(publicationReview(failed.workflow)).toMatchObject({
@@ -303,10 +317,12 @@ describe("recipe draft publication domain state", () => {
     expect(conflicted.workflow).toEqual({
       acknowledged: false,
       context: null,
+      kind: "revision-conflict",
       message: "The draft changed.",
       operation: "preflight",
+      recovery: "latest-draft",
       scope,
-      status: "revision-conflict",
+      status: "failed",
     });
     expect(
       preparePublicationAttempt(conflicted.attempts.preflight, {
@@ -327,7 +343,7 @@ describe("recipe draft publication domain state", () => {
     expect(pausedReview.workflow).toMatchObject({
       acknowledged: true,
       review: probableContext,
-      status: "review-required",
+      status: "confirmation",
     });
 
     const keepEditing = recipeDraftPublicationReducer(pausedReview, {

@@ -45,6 +45,7 @@ _INGREDIENT_FIELD_ORDER: tuple[RecipeIngredientChangedField, ...] = (
     "preparation_notes",
 )
 _INSTRUCTION_FIELD_ORDER: tuple[RecipeInstructionChangedField, ...] = (
+    "title",
     "text",
     "actions",
     "inputs",
@@ -272,6 +273,7 @@ def _ingredient_snapshot(item: RecipeIngredient) -> RecipeIngredientResponse:
 def _instruction_snapshot(item: RecipeInstruction) -> RecipeInstructionResponse:
     return RecipeInstructionResponse(
         id=item.id,
+        title=item.title,
         text=item.instruction,
         display_order=item.display_order,
         actions=[
@@ -460,6 +462,7 @@ def _instruction_changed_fields(
         for before_action, after_action in action_pairs
     )
     changed = {
+        "title": before.title != after.title,
         "text": before.instruction != after.instruction,
         "actions": actions_changed,
         "inputs": inputs_changed,
@@ -491,6 +494,10 @@ def _metadata_changes(
         ("title", base.title, target.title),
         ("description", base.description, target.description),
         ("servings", base.servings, target.servings),
+        ("total_time_minutes", base.total_time_minutes, target.total_time_minutes),
+        ("active_time_minutes", base.active_time_minutes, target.active_time_minutes),
+        ("difficulty", base.difficulty, target.difficulty),
+        ("notes", base.notes, target.notes),
     )
     return [
         RecipeFieldChange(field=field, before=before, after=after)
@@ -561,6 +568,7 @@ def _instruction_diff(
         before_items,
         after_items,
         signature=lambda item: (
+            item.title,
             item.instruction,
             tuple(
                 _action_signature(action, all_tokens)

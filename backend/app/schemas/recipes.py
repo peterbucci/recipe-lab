@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -89,6 +90,13 @@ class RecipeIngredientResponse(RecipeSchema):
 
 class RecipeInstructionResponse(RecipeSchema):
     id: UUID
+    title: str | None = Field(
+        min_length=1,
+        max_length=200,
+        description=(
+            "Optional authored heading for this step. Historical instructions may omit it."
+        ),
+    )
     text: str = Field(min_length=1)
     display_order: int = Field(ge=0)
     actions: list[RecipeInstructionActionResponse] = Field(
@@ -100,6 +108,25 @@ class RecipeInstructionResponse(RecipeSchema):
 
 
 class RecipeDetailResponse(RecipeSummary):
+    total_time_minutes: int | None = Field(
+        default=None,
+        gt=0,
+        description="Total elapsed cooking time in whole minutes, or null when not provided.",
+    )
+    active_time_minutes: int | None = Field(
+        default=None,
+        gt=0,
+        description="Hands-on cooking time in whole minutes, or null when not provided.",
+    )
+    difficulty: Literal["easy", "medium", "hard"] | None = Field(
+        default=None,
+        description="Author-selected difficulty, or null when not provided.",
+    )
+    notes: str | None = Field(
+        default=None,
+        max_length=5_000,
+        description="Optional public notes authored for this immutable recipe version.",
+    )
     average_rating: float | None = Field(
         ge=1,
         le=5,
@@ -112,6 +139,10 @@ class RecipeDetailResponse(RecipeSummary):
         ge=0,
         description="Number of ratings included in the aggregate.",
     )
+    save_count: int = Field(
+        ge=0,
+        description="Number of members who saved this recipe version.",
+    )
     viewer_state: RecipeViewerStateResponse | None = Field(
         description="Private member state, or null when the request is signed out."
     )
@@ -120,16 +151,30 @@ class RecipeDetailResponse(RecipeSummary):
     instructions: list[RecipeInstructionResponse]
 
 
+class RecipeCardSummary(RecipeSummary):
+    average_rating: float | None = Field(
+        ge=1,
+        le=5,
+        description="Average public rating for this recipe version, or null when unrated.",
+    )
+    rating_count: int = Field(ge=0, description="Number of ratings in the average.")
+    save_count: int = Field(ge=0, description="Number of members who saved this recipe version.")
+
+
 class RecipePageResponse(BaseModel):
-    items: list[RecipeSummary]
+    items: list[RecipeCardSummary]
     page: int = Field(ge=1)
     page_size: int = Field(ge=1)
     total: int = Field(ge=0, description="Total matches across every page.")
     total_pages: int = Field(ge=0, description="Number of pages at the requested page size.")
 
 
+class FeaturedRecipeSummary(RecipeCardSummary):
+    """Editorially selected recipe card with anonymous engagement totals."""
+
+
 class FeaturedRecipeListResponse(BaseModel):
-    items: list[RecipeSummary] = Field(
+    items: list[FeaturedRecipeSummary] = Field(
         description=(
             "Deploy-reviewed public recipe versions in editorial display order. "
             "The list is global, not personalized or popularity-ranked."

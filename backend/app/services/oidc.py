@@ -116,9 +116,11 @@ class OIDCClient:
         *,
         http_client: httpx.Client | None = None,
     ) -> None:
-        self._settings = settings
+        self._settings = settings.oidc
+        self._session_settings = settings.session
+        self._environment = settings.http.environment
         self._http = http_client or httpx.Client(
-            timeout=settings.oidc_http_timeout_seconds,
+            timeout=self._settings.http_timeout_seconds,
             follow_redirects=False,
             headers={"Accept": "application/json"},
         )
@@ -137,34 +139,30 @@ class OIDCClient:
 
     def validate_configuration(self) -> None:
         settings = self._settings
-        if (
-            not settings.oidc_issuer
-            or not settings.oidc_client_id
-            or not settings.oidc_redirect_uri
-        ):
+        if not settings.issuer or not settings.client_id or not settings.redirect_uri:
             raise OIDCConfigurationError("OIDC is not configured.")
-        if len(settings.oidc_issuer) > 512 or len(settings.oidc_client_id) > 512:
+        if len(settings.issuer) > 512 or len(settings.client_id) > 512:
             raise OIDCConfigurationError("OIDC configuration exceeds supported lengths.")
-        if settings.oidc_login_ttl_seconds <= 0 or settings.auth_session_ttl_seconds <= 0:
+        if settings.login_ttl_seconds <= 0 or self._session_settings.ttl_seconds <= 0:
             raise OIDCConfigurationError("Authentication lifetimes must be positive.")
-        if settings.oidc_http_timeout_seconds <= 0 or settings.oidc_clock_skew_seconds < 0:
+        if settings.http_timeout_seconds <= 0 or settings.clock_skew_seconds < 0:
             raise OIDCConfigurationError("OIDC timeout and clock skew are invalid.")
-        if not {"openid", "email"} <= set(settings.oidc_scope_list):
+        if not {"openid", "email"} <= set(settings.scopes):
             raise OIDCConfigurationError("OIDC scopes must include openid and email.")
 
-        algorithms = set(settings.oidc_allowed_signing_algorithm_list)
+        algorithms = set(settings.allowed_signing_algorithms)
         if not algorithms or not algorithms <= _ASYMMETRIC_SIGNING_ALGORITHMS:
             raise OIDCConfigurationError(
                 "OIDC signing algorithms must be approved asymmetric values."
             )
 
-        allow_local_http = settings.app_environment == "local"
-        _validate_https_url(settings.oidc_issuer, allow_local_http=allow_local_http)
-        _validate_https_url(settings.oidc_redirect_uri, allow_local_http=allow_local_http)
-        issuer = urlsplit(settings.oidc_issuer)
+        allow_local_http = self._environment == "local"
+        _validate_https_url(settings.issuer, allow_local_http=allow_local_http)
+        _validate_https_url(settings.redirect_uri, allow_local_http=allow_local_http)
+        issuer = urlsplit(settings.issuer)
         if issuer.query or issuer.fragment:
             raise OIDCConfigurationError("OIDC issuer must not contain a query or fragment.")
-        redirect = urlsplit(settings.oidc_redirect_uri)
+        redirect = urlsplit(settings.redirect_uri)
         if redirect.query or redirect.fragment:
             raise OIDCConfigurationError("OIDC redirect URI must not contain a query or fragment.")
 
@@ -180,9 +178,9 @@ class OIDCClient:
         parameters: dict[str, str | int] = {
             "response_type": "code",
             "response_mode": "query",
-            "client_id": self._settings.oidc_client_id,
-            "redirect_uri": self._settings.oidc_redirect_uri,
-            "scope": " ".join(self._settings.oidc_scope_list),
+            "client_id": self._settings.client_id,
+            "redirect_uri": self._settings.redirect_uri,
+            "scope": " ".join(self._settings.scopes),
             "state": state,
             "nonce": nonce,
             "code_challenge": code_challenge,
@@ -206,18 +204,18 @@ class OIDCClient:
         data = {
             "grant_type": "authorization_code",
             "code": code,
-            "client_id": self._settings.oidc_client_id,
-            "redirect_uri": self._settings.oidc_redirect_uri,
+            "client_id": self._settings.client_id,
+            "redirect_uri": self._settings.redirect_uri,
             "code_verifier": code_verifier,
         }
         client_secret = (
-            self._settings.oidc_client_secret.get_secret_value()
-            if self._settings.oidc_client_secret is not None
+            self._settings.client_secret.get_secret_value()
+            if self._settings.client_secret is not None
             else None
         )
         auth: httpx.BasicAuth | None = None
         if client_secret:
-            auth = httpx.BasicAuth(self._settings.oidc_client_id, client_secret)
+            auth = httpx.BasicAuth(self._settings.client_id, client_secret)
 
         try:
             if auth is None:
@@ -258,7 +256,7 @@ class OIDCClient:
             if self._metadata is not None and self._metadata[0] > now:
                 return self._metadata[1]
 
-        discovery_url = f"{self._settings.oidc_issuer.rstrip('/')}/.well-known/openid-configuration"
+        discovery_url = f"{self._settings.issuer.rstrip('/')}/.well-known/openid-configuration"
         try:
             response = self._http.get(discovery_url, headers={"Accept": "application/json"})
         except (httpx.HTTPError, httpx.InvalidURL) as error:
@@ -268,7 +266,7 @@ class OIDCClient:
         payload = _json_object(response)
 
         issuer = _required_string(payload, "issuer")
-        if not secrets_match(issuer, self._settings.oidc_issuer):
+        if not secrets_match(issuer, self._settings.issuer):
             raise OIDCProviderUnavailableError(
                 "OIDC discovery issuer does not match configuration."
             )
@@ -279,7 +277,7 @@ class OIDCClient:
         if not isinstance(supported, list) or not all(isinstance(item, str) for item in supported):
             raise OIDCProviderUnavailableError("OIDC discovery signing algorithms are invalid.")
 
-        allow_local_http = self._settings.app_environment == "local"
+        allow_local_http = self._environment == "local"
         for endpoint in (authorization_endpoint, token_endpoint, jwks_uri):
             try:
                 _validate_https_url(endpoint, allow_local_http=allow_local_http)
@@ -289,9 +287,7 @@ class OIDCClient:
                 ) from error
 
         supported_algorithms = frozenset(cast(list[str], supported))
-        if not supported_algorithms.intersection(
-            self._settings.oidc_allowed_signing_algorithm_list
-        ):
+        if not supported_algorithms.intersection(self._settings.allowed_signing_algorithms):
             raise OIDCProviderUnavailableError("OIDC provider has no approved signing algorithm.")
         metadata = OIDCProviderMetadata(
             issuer=issuer,
@@ -370,7 +366,7 @@ class OIDCClient:
         key_id = header.get("kid")
         if (
             not isinstance(algorithm, str)
-            or algorithm not in self._settings.oidc_allowed_signing_algorithm_list
+            or algorithm not in self._settings.allowed_signing_algorithms
             or algorithm not in metadata.signing_algorithms
             or (key_id is not None and not isinstance(key_id, str))
         ):
@@ -397,9 +393,9 @@ class OIDCClient:
                 id_token,
                 key=signing_key.key,
                 algorithms=[algorithm],
-                audience=self._settings.oidc_client_id,
-                issuer=self._settings.oidc_issuer,
-                leeway=self._settings.oidc_clock_skew_seconds,
+                audience=self._settings.client_id,
+                issuer=self._settings.issuer,
+                leeway=self._settings.clock_skew_seconds,
                 options={
                     "require": ["iss", "sub", "aud", "exp", "iat", "nonce", "email"],
                     "verify_signature": True,
@@ -427,9 +423,9 @@ class OIDCClient:
         ):
             raise InvalidOIDCLoginError("ID token audience is invalid.")
         authorized_party = claims.get("azp")
-        if len(audience_list) > 1 and authorized_party != self._settings.oidc_client_id:
+        if len(audience_list) > 1 and authorized_party != self._settings.client_id:
             raise InvalidOIDCLoginError("ID token authorized party is invalid.")
-        if authorized_party is not None and authorized_party != self._settings.oidc_client_id:
+        if authorized_party is not None and authorized_party != self._settings.client_id:
             raise InvalidOIDCLoginError("ID token authorized party is invalid.")
 
         subject = claims.get("sub")
@@ -461,7 +457,7 @@ class OIDCClient:
                 authenticated_at = datetime.fromtimestamp(raw_auth_time, tz=UTC)
             except (OverflowError, OSError, ValueError) as error:
                 raise InvalidOIDCLoginError("ID token authentication time is invalid.") from error
-        skew = timedelta(seconds=self._settings.oidc_clock_skew_seconds)
+        skew = timedelta(seconds=self._settings.clock_skew_seconds)
         if authenticated_at is not None and authenticated_at > datetime.now(UTC) + skew:
             raise InvalidOIDCLoginError("ID token authentication time is invalid.")
         if require_auth_time_after is not None:
@@ -478,7 +474,7 @@ class OIDCClient:
         ):
             suggested_name = "New cook"
         return VerifiedOIDCIdentity(
-            issuer=self._settings.oidc_issuer,
+            issuer=self._settings.issuer,
             subject=subject,
             email=normalized_email,
             email_verified=True,

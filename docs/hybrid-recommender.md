@@ -87,9 +87,9 @@ The fallback component may still use baseline-v1's own positive-history rules
 when signed content signals cancel to zero. Its reason deliberately says that
 the *signed hybrid signal* is unavailable rather than claiming that the profile
 has no recorded activity. The qualifying evaluator always supplies the complete
-novel candidate set. For lower-level subset calls, baseline positions are
-compacted from its supported 50-item fitted-catalog window; candidates outside a
-larger catalog's baseline window receive zero under the documented approximation.
+novel candidate set. Lower-level subset calls score that requested subset before
+the shared 50-item fusion window is applied, so excluded catalog leaders cannot
+consume positions intended for requested candidates.
 
 ## Evaluation and adoption policy
 

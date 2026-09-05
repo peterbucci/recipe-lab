@@ -26,7 +26,9 @@ PRODUCTION_TARGET = "production"
 BACKEND_CONTAINER_PORT = 8000
 FRONTEND_CONTAINER_PORT = 3000
 DATABASE_CONTAINER_PORT = 5432
-DATABASE_IMAGE = "postgres:17-alpine"
+DATABASE_IMAGE = (
+    "postgres:17.11-alpine@sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee"
+)
 DATABASE_NAME = "recipe_lab_image_check"
 DATABASE_USER = "recipe_lab_image_check"
 DATABASE_PASSWORD = "recipe-lab-image-check-database-password"
@@ -179,32 +181,24 @@ def _resolve_context(repository: Path, context: Path) -> Path:
     try:
         resolved_context.relative_to(resolved_repository)
     except ValueError as error:
-        raise VerificationError(
-            "Docker build contexts must stay inside the repository."
-        ) from error
+        raise VerificationError("Docker build contexts must stay inside the repository.") from error
     return resolved_context
 
 
 def _resolve_dockerfile(repository: Path, context: Path, dockerfile: Path) -> Path:
     resolved_repository = repository.resolve(strict=True)
-    candidate = (
-        dockerfile if dockerfile.is_absolute() else resolved_repository / dockerfile
-    )
+    candidate = dockerfile if dockerfile.is_absolute() else resolved_repository / dockerfile
     resolved_dockerfile = candidate.resolve(strict=True)
     if not resolved_dockerfile.is_file():
         raise VerificationError("A Dockerfile path is not a file.")
     try:
         resolved_dockerfile.relative_to(context)
     except ValueError as error:
-        raise VerificationError(
-            "A Dockerfile must stay inside its build context."
-        ) from error
+        raise VerificationError("A Dockerfile must stay inside its build context.") from error
     return resolved_dockerfile
 
 
-def build_image(
-    client: DockerClient, image: str, context: Path, dockerfile: Path
-) -> None:
+def build_image(client: DockerClient, image: str, context: Path, dockerfile: Path) -> None:
     client.run(
         (
             "build",
@@ -227,11 +221,7 @@ def _image_configuration(client: DockerClient, image: str) -> dict[str, Any]:
         payload = json.loads(result.stdout)
     except json.JSONDecodeError as error:
         raise VerificationError("Docker returned unreadable image metadata.") from error
-    if (
-        not isinstance(payload, list)
-        or len(payload) != 1
-        or not isinstance(payload[0], dict)
-    ):
+    if not isinstance(payload, list) or len(payload) != 1 or not isinstance(payload[0], dict):
         raise VerificationError("Docker returned an unexpected image metadata shape.")
     config = payload[0].get("Config")
     if not isinstance(config, dict):
@@ -245,9 +235,7 @@ def resolve_immutable_image_id(client: DockerClient, image: str) -> str:
     result = client.run(("image", "inspect", "--format", "{{.Id}}", image))
     image_id = result.stdout.strip()
     if IMMUTABLE_IMAGE_ID.fullmatch(image_id) is None:
-        raise VerificationError(
-            "Docker returned an invalid immutable image identifier."
-        )
+        raise VerificationError("Docker returned an invalid immutable image identifier.")
     return image_id
 
 
@@ -256,9 +244,7 @@ def _production_image_report(
 ) -> ProductionImageReport:
     for image_id in (backend_image_id, frontend_image_id):
         if IMMUTABLE_IMAGE_ID.fullmatch(image_id) is None:
-            raise VerificationError(
-                "An invalid immutable image identifier was reported."
-            )
+            raise VerificationError("An invalid immutable image identifier was reported.")
     return {
         "images": {
             "backend": {"id": backend_image_id},
@@ -277,15 +263,11 @@ def write_production_image_report(path: Path, report: ProductionImageReport) -> 
     try:
         parent = destination.parent.resolve(strict=True)
     except OSError as error:
-        raise VerificationError(
-            "The image report directory could not be resolved."
-        ) from error
+        raise VerificationError("The image report directory could not be resolved.") from error
     if not parent.is_dir():
         raise VerificationError("The image report directory is not a directory.")
     if destination.exists():
-        raise VerificationError(
-            "The image report already exists; refusing to overwrite it."
-        )
+        raise VerificationError("The image report already exists; refusing to overwrite it.")
 
     temporary: Path | None = None
     published = False
@@ -339,11 +321,7 @@ def verify_image_metadata(
 ) -> None:
     config = _image_configuration(client, image)
     user = config.get("User")
-    if (
-        not isinstance(user, str)
-        or not user.strip()
-        or user.strip().casefold() in {"0", "root"}
-    ):
+    if not isinstance(user, str) or not user.strip() or user.strip().casefold() in {"0", "root"}:
         raise VerificationError("Production images must run as a non-root user.")
 
     healthcheck = config.get("Healthcheck")
@@ -366,27 +344,19 @@ def verify_image_metadata(
     ):
         raise VerificationError("Production images must not run a development server.")
     if required_command is not None and runtime_command != required_command:
-        raise VerificationError(
-            "The production image must use its approved server launcher."
-        )
+        raise VerificationError("The production image must use its approved server launcher.")
 
     environment = config.get("Env")
     if not isinstance(environment, list):
         raise VerificationError("The image is missing environment metadata.")
     configured_keys = {
-        entry.partition("=")[0]
-        for entry in environment
-        if isinstance(entry, str) and "=" in entry
+        entry.partition("=")[0] for entry in environment if isinstance(entry, str) and "=" in entry
     }
     if configured_keys & FORBIDDEN_IMAGE_ENVIRONMENT_KEYS:
-        raise VerificationError(
-            "A runtime secret or credential was baked into image metadata."
-        )
+        raise VerificationError("A runtime secret or credential was baked into image metadata.")
 
 
-def verify_runtime_contents(
-    client: DockerClient, backend_image: str, frontend_image: str
-) -> None:
+def verify_runtime_contents(client: DockerClient, backend_image: str, frontend_image: str) -> None:
     client.run(
         (
             "run",
@@ -418,13 +388,9 @@ def _redaction_canary(label: str) -> str:
 
 def _require_redacted_failure(result: CommandResult, canary: str, service: str) -> None:
     if result.returncode == 0:
-        raise VerificationError(
-            f"The {service} accepted invalid production configuration."
-        )
+        raise VerificationError(f"The {service} accepted invalid production configuration.")
     if canary in result.stdout or canary in result.stderr:
-        raise VerificationError(
-            f"The {service} exposed a production configuration value."
-        )
+        raise VerificationError(f"The {service} exposed a production configuration value.")
 
 
 def verify_invalid_configuration_is_redacted(
@@ -472,9 +438,7 @@ def _container_state(client: DockerClient, container: str) -> tuple[bool, str | 
         state = payload[0]["State"]
         health = state.get("Health")
     except (IndexError, KeyError, TypeError, json.JSONDecodeError) as error:
-        raise VerificationError(
-            "Docker returned unreadable container state."
-        ) from error
+        raise VerificationError("Docker returned unreadable container state.") from error
     if not isinstance(state, dict):
         raise VerificationError("Docker returned unreadable container state.")
     status = health.get("Status") if isinstance(health, dict) else None
@@ -486,15 +450,11 @@ def _wait_for_container_health(client: DockerClient, container: str) -> None:
     while time.monotonic() < deadline:
         running, health = _container_state(client, container)
         if not running:
-            raise VerificationError(
-                "A production container stopped before becoming healthy."
-            )
+            raise VerificationError("A production container stopped before becoming healthy.")
         if health == "healthy":
             return
         if health == "unhealthy":
-            raise VerificationError(
-                "A production container reported an unhealthy state."
-            )
+            raise VerificationError("A production container reported an unhealthy state.")
         time.sleep(1)
     raise VerificationError("A production container did not become healthy in time.")
 
@@ -511,36 +471,26 @@ def _published_port(client: DockerClient, container: str, container_port: int) -
     raise VerificationError("Docker did not publish the expected health-check port.")
 
 
-def _read_endpoint(
-    port: int, path: str, *, accept: str
-) -> tuple[int, dict[str, str], bytes]:
+def _read_endpoint(port: int, path: str, *, accept: str) -> tuple[int, dict[str, str], bytes]:
     request = Request(f"http://127.0.0.1:{port}{path}", headers={"Accept": accept})
     try:
         with urlopen(request, timeout=ENDPOINT_TIMEOUT_SECONDS) as response:
             status = response.status
-            headers = {
-                name.casefold(): value for name, value in response.headers.items()
-            }
+            headers = {name.casefold(): value for name, value in response.headers.items()}
             body = response.read(16 * 1024)
     except HTTPError as error:
         status = error.code
         headers = {name.casefold(): value for name, value in error.headers.items()}
         body = error.read(16 * 1024)
     except (OSError, URLError) as error:
-        raise VerificationError(
-            "A production service endpoint could not be reached."
-        ) from error
+        raise VerificationError("A production service endpoint could not be reached.") from error
     return status, headers, body
 
 
-def _read_health(
-    port: int, path: str, *, accept: str
-) -> tuple[int, dict[str, str], bytes]:
+def _read_health(port: int, path: str, *, accept: str) -> tuple[int, dict[str, str], bytes]:
     status, headers, body = _read_endpoint(port, path, accept=accept)
     if status != 200:
-        raise VerificationError(
-            "A production health endpoint returned a non-success status."
-        )
+        raise VerificationError("A production health endpoint returned a non-success status.")
     return status, headers, body
 
 
@@ -548,13 +498,9 @@ def _assert_backend_health(body: bytes, service: str) -> None:
     try:
         payload = json.loads(body)
     except json.JSONDecodeError as error:
-        raise VerificationError(
-            "The backend health endpoint returned unreadable JSON."
-        ) from error
+        raise VerificationError("The backend health endpoint returned unreadable JSON.") from error
     if payload != {"service": service, "status": "ok"}:
-        raise VerificationError(
-            "The backend health endpoint returned an unexpected payload."
-        )
+        raise VerificationError("The backend health endpoint returned an unexpected payload.")
 
 
 def _assert_backend_readiness(status: int, body: bytes, service: str) -> None:
@@ -569,9 +515,7 @@ def _assert_backend_readiness(status: int, body: bytes, service: str) -> None:
             "The backend readiness endpoint returned unreadable JSON."
         ) from error
     if payload != {"service": service, "status": "ready"}:
-        raise VerificationError(
-            "The backend readiness endpoint returned an unexpected payload."
-        )
+        raise VerificationError("The backend readiness endpoint returned an unexpected payload.")
 
 
 def _assert_backend_dependency_failure(
@@ -597,9 +541,7 @@ def _assert_backend_dependency_failure(
             "message": "A required service dependency is temporarily unavailable.",
         }
     }:
-        raise VerificationError(
-            "The unavailable readiness response exposed an unexpected payload."
-        )
+        raise VerificationError("The unavailable readiness response exposed an unexpected payload.")
 
 
 def _assert_correlation_id(
@@ -613,13 +555,9 @@ def _assert_correlation_id(
     try:
         correlation_id = uuid.UUID(value)
     except ValueError as error:
-        raise VerificationError(
-            "A backend response returned an invalid correlation ID."
-        ) from error
+        raise VerificationError("A backend response returned an invalid correlation ID.") from error
     if correlation_id.version != 4 or str(correlation_id) != value:
-        raise VerificationError(
-            "A backend response returned an invalid correlation ID."
-        )
+        raise VerificationError("A backend response returned an invalid correlation ID.")
     if seen is not None:
         if value in seen:
             raise VerificationError("A backend response reused a correlation ID.")
@@ -629,15 +567,11 @@ def _assert_correlation_id(
 
 def _assert_frontend_health(headers: dict[str, str], body: bytes) -> None:
     if body != b"ok\n":
-        raise VerificationError(
-            "The frontend health endpoint returned an unexpected payload."
-        )
+        raise VerificationError("The frontend health endpoint returned an unexpected payload.")
     if headers.get("cache-control") != "no-store":
         raise VerificationError("The frontend health endpoint must disable caching.")
     if headers.get("content-type", "").casefold() != "text/plain; charset=utf-8":
-        raise VerificationError(
-            "The frontend health endpoint returned an unexpected media type."
-        )
+        raise VerificationError("The frontend health endpoint returned an unexpected media type.")
 
 
 def verify_startup_and_health(
@@ -869,12 +803,8 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Build and verify local Recipe Lab production images without publishing them."
     )
-    parser.add_argument(
-        "--backend-image", required=True, help="Local backend image tag."
-    )
-    parser.add_argument(
-        "--frontend-image", required=True, help="Local frontend image tag."
-    )
+    parser.add_argument("--backend-image", required=True, help="Local backend image tag.")
+    parser.add_argument("--frontend-image", required=True, help="Local frontend image tag.")
     parser.add_argument(
         "--database-image",
         default=DATABASE_IMAGE,
@@ -882,12 +812,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--backend-context", type=Path, default=Path("."))
     parser.add_argument("--frontend-context", type=Path, default=Path("frontend"))
-    parser.add_argument(
-        "--backend-dockerfile", type=Path, default=Path("backend/Dockerfile")
-    )
-    parser.add_argument(
-        "--frontend-dockerfile", type=Path, default=Path("frontend/Dockerfile")
-    )
+    parser.add_argument("--backend-dockerfile", type=Path, default=Path("backend/Dockerfile"))
+    parser.add_argument("--frontend-dockerfile", type=Path, default=Path("frontend/Dockerfile"))
     parser.add_argument(
         "--skip-build",
         action="store_true",
@@ -901,9 +827,7 @@ def _parser() -> argparse.ArgumentParser:
             "Existing files are never replaced."
         ),
     )
-    parser.add_argument(
-        "--version", action="version", version=f"{TOOL_NAME} {TOOL_VERSION}"
-    )
+    parser.add_argument("--version", action="version", version=f"{TOOL_NAME} {TOOL_VERSION}")
     return parser
 
 

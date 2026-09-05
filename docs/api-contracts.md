@@ -15,7 +15,7 @@ schema, response, stable operation-ID, classification, and consumer-evidence
 drift reviewable without starting a server or querying PostgreSQL.
 
 FastAPI's four framework-owned documentation/schema routes are tracked as
-`staff_internal` GET/HEAD surfaces even though the framework does not include
+`staff_internal`/`internal` GET/HEAD surfaces even though the framework does not include
 those routes as operations inside its own OpenAPI document. They are inventory
 evidence, not ordinary product endpoints.
 
@@ -45,13 +45,14 @@ stored data.
 
 ## Operation classifications
 
-The snapshot records these as `x-recipe-lab-classification` and
-`x-recipe-lab-consumer-evidence`. Its 44 OpenAPI operations have exactly one of
+The snapshot records these as `x-recipe-lab-classification`,
+`x-recipe-lab-reachability`, and `x-recipe-lab-consumer-evidence`. Its 54
+OpenAPI operations have exactly one of
 four classifications:
 
 | Classification | OpenAPI operations | Meaning |
 | --- | ---: | --- |
-| `active_consumer` | 34 | A current in-repository product workflow calls the operation. Its evidence identifies the maintained consumer boundary. |
+| `active_consumer` | 44 | A current in-repository product workflow calls the operation. Its evidence identifies the maintained consumer boundary. |
 | `staff_internal` | 8 | The operation supports a bounded curator, moderator, or operator workflow rather than an ordinary cook-facing workflow. Staff-only does not mean unreviewed or safe to remove. The four separately inventoried framework routes use this classification too. |
 | `research_experimental` | 2 | The operation is limited to an explicitly identified research or experimental boundary. It is not evidence of a supported consumer product claim. |
 | `retired` | 0 | No maintained in-repository product consumer remains. A deployed operation stays in this class until an external-consumer, deprecation, or removal decision is reviewed; new consumers must not depend on it. |
@@ -59,6 +60,14 @@ four classifications:
 These labels describe the present contract and its known in-repository use. They
 do not authorize a behavior change. Reclassification is itself inventory drift
 and must be reviewed with updated evidence.
+
+The repository-wide lifecycle vocabulary is deliberately smaller: the 44
+`active_consumer` operations are `active`; the eight `staff_internal` and two
+`research_experimental` operations are `internal`; and a `retired` operation is
+`retired`. There are no live `compatibility-only` backend operations. That class
+is available for a deliberately retained transport adapter, not for an operation
+that merely lacks a known frontend caller. The complete reviewed operation and
+frontend-route inventory is in [Reachability and compatibility](reachability-and-compatibility.md).
 
 Classification describes consumers, not implementation quality. In particular,
 measurement conversion is `research_experimental` because the evidence audit
@@ -145,10 +154,10 @@ in the pull request or release note. Automated comparison between released API
 versions is deferred until Recipe Lab has an independently released API or an
 external client to protect.
 
-The recipe-report client is the first consumer. Its ordinary request and
-response types now come from OpenAPI, while its private receipt parser still
-rejects unexpected response fields. Other clients move when their own story
-changes them; they do not block this foundation.
+Production frontend feature clients import the generated operation types for
+represented request and response wires. Feature modules retain their domain and
+view models plus strict parsers where privacy or exact-shape validation requires
+them; generated compile-time types do not weaken those runtime boundaries.
 
 Generated types do not own requests. The shared Recipe Lab transport remains
 responsible for same-origin routing, sessions, CSRF, idempotency, request
@@ -156,10 +165,13 @@ fingerprints, cancellation, and recovery behavior.
 
 ## Shared browser mutation headers
 
-Browser callers give the shared transport a mutation identity containing an
-opaque idempotency key and a lowercase SHA-256 request fingerprint. The
-transport validates both, overwrites any caller-supplied `Idempotency-Key` with
-the identity value, and obtains `X-CSRF-Token` from the current member session.
+Browser callers for retry-safe operations give the shared transport a mutation
+identity containing an opaque idempotency key and a lowercase SHA-256 request
+fingerprint. The transport requires every caller to make the decision explicit:
+retry-safe operations pass a validated identity, while operations without an
+idempotency contract pass `null`. It writes the validated `Idempotency-Key` or
+strips any caller-supplied key for the explicit `null` case. Every protected
+mutation obtains `X-CSRF-Token` from the current member session.
 The browser supplies the same-origin session cookie through normal credential
 handling; callers never copy a cookie into request options. JSON consumers add
 `Content-Type: application/json`, while the transport supplies

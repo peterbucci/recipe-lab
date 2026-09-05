@@ -1,11 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
-import {
-  expect,
-  test,
-  type APIResponse,
-  type Locator,
-  type Page,
-} from "@playwright/test";
+import type { APIResponse, Locator, Page } from "@playwright/test";
+
+import { expect, test } from "./acceptance-draft-isolation";
 
 import {
   type MemberName,
@@ -125,7 +121,10 @@ async function findCatalogIngredient(
   const ingredient = payload.items.find(
     (item) => item.canonical_name === canonicalName,
   );
-  expect(ingredient, `${canonicalName} must be present in the seeded catalog.`).toBeDefined();
+  expect(
+    ingredient,
+    `${canonicalName} must be present in the seeded catalog.`,
+  ).toBeDefined();
   return ingredient!;
 }
 
@@ -163,10 +162,26 @@ async function expectNoAccessibilityViolations(page: Page): Promise<void> {
   expect(results.violations, JSON.stringify(summary, null, 2)).toEqual([]);
 }
 
-async function activateWithKeyboard(page: Page, control: Locator): Promise<void> {
+async function activateWithKeyboard(
+  page: Page,
+  control: Locator,
+): Promise<void> {
   await control.focus();
   await expect(control).toBeFocused();
   await page.keyboard.press("Enter");
+}
+
+async function selectResolvedComboboxOptionWithKeyboard(
+  input: Locator,
+  option: Locator,
+): Promise<void> {
+  await expect(input).toBeEnabled();
+  await input.press("ArrowDown");
+  await expect(option).toBeVisible();
+  const optionId = await option.getAttribute("id");
+  expect(optionId).not.toBeNull();
+  await expect(input).toHaveAttribute("aria-activedescendant", optionId!);
+  await input.press("Enter");
 }
 
 function ingredientRequestArticle(
@@ -197,15 +212,23 @@ test.describe("member ingredient-request acceptance", () => {
     const rejectedName = `${searchPrefix} mystery herb`;
     const pendingName = `${searchPrefix} waiting herb`;
     const approvedContext = "Alice uses this leaf in a chilled summer soup.";
-    const duplicateContext = "Alice suspects this garnish is the same sapphire leaf.";
+    const duplicateContext =
+      "Alice suspects this garnish is the same sapphire leaf.";
     const rejectedContext = "Alice cannot identify this herb beyond its color.";
     const pendingContext = "Alice is waiting for a trusted catalog decision.";
-    const approvedReason = "The proposal is a distinct, well-described ingredient.";
-    const duplicateReason = "The approved sapphire-leaf identity covers this garnish.";
-    const rejectedReason = "The proposal is not specific enough to curate safely.";
+    const approvedReason =
+      "The proposal is a distinct, well-described ingredient.";
+    const duplicateReason =
+      "The approved sapphire-leaf identity covers this garnish.";
+    const rejectedReason =
+      "The proposal is not specific enough to curate safely.";
 
     const approved = await submitRequest(page, approvedName, approvedContext);
-    const duplicate = await submitRequest(page, duplicateName, duplicateContext);
+    const duplicate = await submitRequest(
+      page,
+      duplicateName,
+      duplicateContext,
+    );
     const rejected = await submitRequest(page, rejectedName, rejectedContext);
     const pending = await submitRequest(page, pendingName, pendingContext);
 
@@ -233,7 +256,12 @@ test.describe("member ingredient-request acceptance", () => {
       rejected,
     };
     const memberRequests = new Map<RequestStatus, MemberIngredientRequest>();
-    for (const status of ["pending", "approved", "rejected", "duplicate"] as const) {
+    for (const status of [
+      "pending",
+      "approved",
+      "rejected",
+      "duplicate",
+    ] as const) {
       const response = await memberGet(
         page,
         "alice",
@@ -270,27 +298,27 @@ test.describe("member ingredient-request acceptance", () => {
     await applyAcceptanceMember(page, "alice");
     await page.goto("/");
     await page.getByLabel("Account menu for Alice Cook").click();
-    await page.getByRole("link", { name: "My ingredient requests" }).click();
+    await page.getByRole("link", { name: "Requests", exact: true }).click();
     await expect(page).toHaveURL("/account/ingredient-requests");
     await expect(
-      page.getByRole("heading", { name: "My ingredient requests", level: 1 }),
+      page.getByRole("heading", { name: "Ingredient Requests", level: 1 }),
     ).toBeVisible();
 
     const search = page.getByRole("searchbox", {
       name: "Search my ingredient requests",
     });
-    const statusFilter = page.getByRole("combobox", { name: "Request status" });
-    await expect(statusFilter.locator("option")).toHaveText([
-      "All",
-      "Pending",
-      "Approved",
-      "Rejected",
-      "Duplicate",
-    ]);
+    const statusFilters = page.getByRole("navigation", {
+      name: "Ingredient request status",
+    });
+    for (const label of ["All", "Pending", "Approved", "Matched", "Rejected"]) {
+      await expect(statusFilters.getByRole("button", { name: label, exact: true })).toBeVisible();
+    }
     await search.fill(searchPrefix);
     await search.press("Enter");
 
-    const results = page.getByRole("region", { name: "My ingredient requests" });
+    const results = page.getByRole("region", {
+      name: "My ingredient requests",
+    });
     await expect(results.getByRole("article")).toHaveCount(4);
     await expect(search).toBeFocused();
     const visibleRequests = [
@@ -306,7 +334,7 @@ test.describe("member ingredient-request acceptance", () => {
         name: duplicateName,
         reason: duplicateReason,
         resolution: approvedCanonical,
-        status: "Duplicate",
+        status: "Matched",
       },
       {
         context: rejectedContext,
@@ -326,24 +354,21 @@ test.describe("member ingredient-request acceptance", () => {
     for (const item of visibleRequests) {
       const article = ingredientRequestArticle(results, item.name);
       await expect(article).toBeVisible();
-      for (const label of ["Status", "Requested", "Context"]) {
-        await expect(article.getByText(label, { exact: true })).toBeVisible();
-      }
-      await expect(article.locator("dd").filter({ hasText: item.status }).first()).toBeVisible();
-      await expect(article.getByText(item.context, { exact: true })).toBeVisible();
+      await expect(article.getByText(item.status, { exact: true })).toBeVisible();
+      await expect(
+        article.getByText(`Context: ${item.context}`, { exact: true }),
+      ).toBeVisible();
       if (item.reason) {
-        await expect(article.getByText("Reviewed", { exact: true })).toBeVisible();
-        await expect(article.getByText("Decision reason", { exact: true })).toBeVisible();
-        await expect(article.getByText(item.reason, { exact: true })).toBeVisible();
+        await expect(
+          article.getByText(item.reason, { exact: true }),
+        ).toBeVisible();
       } else {
-        await expect(article.getByText("Reviewed", { exact: true })).toHaveCount(0);
-        await expect(article.getByText("Decision reason", { exact: true })).toHaveCount(0);
+        await expect(article.getByText("Waiting for curator review.", { exact: true })).toBeVisible();
       }
       if (item.resolution) {
-        await expect(article.getByText("Resolved ingredient", { exact: true })).toBeVisible();
-        await expect(article.getByText(item.resolution, { exact: true })).toBeVisible();
-      } else {
-        await expect(article.getByText("Resolved ingredient", { exact: true })).toHaveCount(0);
+        await expect(
+          article.getByText(item.resolution, { exact: true }),
+        ).toBeVisible();
       }
     }
 
@@ -356,22 +381,30 @@ test.describe("member ingredient-request acceptance", () => {
     ]) {
       await expect(results.getByText(label, { exact: true })).toHaveCount(0);
     }
-    await expect(results.getByRole("button", { name: /^Use .+ for / })).toHaveCount(0);
+    await expect(
+      results.getByRole("button", { name: /^Use .+ for / }),
+    ).toHaveCount(0);
 
     for (const item of visibleRequests) {
+      const statusFilter = statusFilters.getByRole("button", {
+        name: item.status,
+        exact: true,
+      });
       await statusFilter.focus();
-      await statusFilter.selectOption({ label: item.status });
+      await statusFilter.click();
       await expect(results.getByRole("article")).toHaveCount(1);
       await expect(ingredientRequestArticle(results, item.name)).toBeVisible();
       await expect(statusFilter).toBeFocused();
     }
-    await statusFilter.selectOption({ label: "All" });
+    await statusFilters.getByRole("button", { name: "All", exact: true }).click();
     await expect(results.getByRole("article")).toHaveCount(4);
 
     await page.setViewportSize({ width: 390, height: 844 });
     expect(
       await page.evaluate(
-        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        () =>
+          document.documentElement.scrollWidth >
+          document.documentElement.clientWidth,
       ),
     ).toBe(false);
     await expectNoAccessibilityViolations(page);
@@ -379,7 +412,7 @@ test.describe("member ingredient-request acceptance", () => {
     await applyAcceptanceMember(page, "bob");
     await page.goto("/account/ingredient-requests");
     await expect(
-      page.getByRole("heading", { name: "My ingredient requests", level: 1 }),
+      page.getByRole("heading", { name: "Ingredient Requests", level: 1 }),
     ).toBeVisible();
     const bobSearch = page.getByRole("searchbox", {
       name: "Search my ingredient requests",
@@ -408,10 +441,11 @@ test.describe("member ingredient-request acceptance", () => {
     expect(bobDetail.status()).toBe(404);
   });
 
-  test("uses only trusted resolutions in one picker and preserves the whole draft", async ({
+  test("keeps request states in one picker and uses only trusted resolutions", async ({
     page,
+    sourceDrafts,
   }) => {
-    test.setTimeout(45_000);
+    test.setTimeout(75_000);
     const runId = Date.now().toString(36);
     const searchPrefix = `Acceptance draft request ${runId}`;
     const approvedName = `${searchPrefix} silver leaf`;
@@ -419,35 +453,323 @@ test.describe("member ingredient-request acceptance", () => {
     const duplicateName = `${searchPrefix} pecan garnish`;
     const rejectedName = `${searchPrefix} unknown sprig`;
     const pendingName = `${searchPrefix} waiting flower`;
-    const staleName = `${searchPrefix} stale leaf`;
-    const staleCanonical = `Acceptance draft stale leaf ${runId}`;
     const pecan = await findCatalogIngredient(page, "Pecan");
 
-    const approved = await submitRequest(
-      page,
+    await applyAcceptanceMember(page, "alice");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/recipes?q=carrot");
+    await Promise.all([
+      page.waitForURL(/\/recipes\/[0-9a-f-]{36}$/i),
+      page
+        .getByRole("article", {
+          name: "Carrot Walnut Snack Cake",
+          exact: true,
+        })
+        .filter({ has: page.getByText("Original", { exact: true }) })
+        .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
+        .click(),
+    ]);
+    const sourceRecipeUrl = page.url();
+    const sourceId = new URL(sourceRecipeUrl).pathname.split("/").at(-1)!;
+    await sourceDrafts.assertFresh("alice", sourceId);
+    const createdDraft = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/recipe-drafts",
+    );
+    await page
+      .getByRole("button", { name: "Make your own version", exact: true })
+      .click();
+    const draftId = String(
+      ((await (await createdDraft).json()) as { id: string }).id,
+    );
+    expect(draftId).toMatch(/^[0-9a-f-]{36}$/i);
+    await expect(page).toHaveURL(sourceRecipeUrl);
+    await expect(page.getByLabel("Title", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Opening your recipe…", { exact: true }),
+    ).toHaveCount(0);
+
+    const draftTitle = `Acceptance trusted-request carrot cake ${runId}`;
+    const draftDescription =
+      "A carefully preserved draft around a reviewed ingredient.";
+    const draftInstruction =
+      "Heat the oven, prepare the pan, and keep this edited instruction intact.";
+    await page.getByLabel("Title", { exact: true }).fill(draftTitle);
+    await page
+      .getByLabel("Description", { exact: true })
+      .fill(draftDescription);
+    await page.getByLabel("Makes", { exact: true }).fill("6");
+
+    const sugarLabel = "Ingredient 3";
+    const rejectedLabel = "Ingredient 5";
+    const walnutLabel = "Ingredient 6";
+    const pendingLabel = "Ingredient 7";
+    const sugarRow = page.getByRole("group", { name: sugarLabel, exact: true });
+    const rejectedRow = page.getByRole("group", {
+      name: rejectedLabel,
+      exact: true,
+    });
+    const walnutRow = page.getByRole("group", {
+      name: walnutLabel,
+      exact: true,
+    });
+    const pendingRow = page.getByRole("group", {
+      name: pendingLabel,
+      exact: true,
+    });
+    const eggRow = page.getByRole("group", {
+      name: "Ingredient 4",
+      exact: true,
+    });
+    await sugarRow
+      .getByRole("button", {
+        name: "Edit amount for ingredient 3",
+        exact: true,
+      })
+      .click();
+    const sugarAmountEditor = sugarRow.getByRole("dialog", {
+      name: "Amount for ingredient 3",
+      exact: true,
+    });
+    await sugarAmountEditor
+      .getByRole("textbox", { name: "Amount", exact: true })
+      .fill("135");
+    const selectedSugarUnitId = await sugarAmountEditor
+      .getByRole("combobox", { name: "Unit", exact: true })
+      .inputValue();
+    await sugarAmountEditor
+      .getByRole("button", { name: "Done", exact: true })
+      .click();
+    await walnutRow
+      .getByRole("button", {
+        name: "Edit amount for ingredient 6",
+        exact: true,
+      })
+      .click();
+    const walnutAmountEditor = walnutRow.getByRole("dialog", {
+      name: "Amount for ingredient 6",
+      exact: true,
+    });
+    await walnutAmountEditor
+      .getByRole("textbox", { name: "Amount", exact: true })
+      .fill("95");
+    const selectedWalnutUnitId = await walnutAmountEditor
+      .getByRole("combobox", { name: "Unit", exact: true })
+      .inputValue();
+    await walnutAmountEditor
+      .getByRole("button", { name: "Done", exact: true })
+      .click();
+    await page
+      .getByLabel("Instruction", { exact: true })
+      .first()
+      .fill(draftInstruction);
+
+    // An unresolved request cannot be a structured-action input. Detach the
+    // four slots from the seeded cooking graph before deliberately replacing
+    // their catalog identities with request references.
+    await page
+      .getByRole("tab", { name: "Cooking breakdown", exact: true })
+      .click();
+    const cookingInputsToDetach = [
+      { detail: 2, ingredients: [rejectedLabel], step: 1 },
+      { detail: 1, ingredients: [pendingLabel], step: 2 },
+      { detail: 1, ingredients: [sugarLabel, rejectedLabel], step: 3 },
+      { detail: 2, ingredients: [pendingLabel], step: 3 },
+      { detail: 3, ingredients: [walnutLabel], step: 3 },
+      {
+        detail: 1,
+        ingredients: [sugarLabel, rejectedLabel, walnutLabel, pendingLabel],
+        step: 4,
+      },
+      {
+        detail: 2,
+        ingredients: [sugarLabel, rejectedLabel, walnutLabel, pendingLabel],
+        step: 4,
+      },
+      {
+        detail: 3,
+        ingredients: [sugarLabel, rejectedLabel, walnutLabel, pendingLabel],
+        step: 4,
+      },
+    ] as const;
+    for (const cookingInput of cookingInputsToDetach) {
+      await page
+        .getByRole("button", {
+          name: `Edit cooking detail ${cookingInput.detail} for Step ${cookingInput.step}`,
+          exact: true,
+        })
+        .click();
+      const cookingDetail = page.getByRole("dialog", {
+        name: `Cooking detail ${cookingInput.detail} for Step ${cookingInput.step}`,
+        exact: true,
+      });
+      for (const ingredientLabel of cookingInput.ingredients) {
+        const ingredientInput = cookingDetail.getByRole("checkbox", {
+          name: new RegExp(`^${ingredientLabel}:`),
+        });
+        await expect(ingredientInput).toBeChecked();
+        await ingredientInput.uncheck();
+        await expect(ingredientInput).not.toBeChecked();
+      }
+      await cookingDetail
+        .getByRole("button", { name: "Done", exact: true })
+        .click();
+    }
+    await page.getByRole("tab", { name: "Steps", exact: true }).click();
+
+    const expectDraftPreserved = async (): Promise<void> => {
+      await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
+        draftTitle,
+      );
+      await expect(page.getByLabel("Description", { exact: true })).toHaveValue(
+        draftDescription,
+      );
+      await expect(page.getByLabel("Makes", { exact: true })).toHaveValue(
+        "6",
+      );
+      const sugarAmountTrigger = sugarRow.getByRole("button", {
+        name: "Edit amount for ingredient 3",
+        exact: true,
+      });
+      await sugarAmountTrigger.click();
+      const persistedSugarAmount = sugarRow.getByRole("dialog", {
+        name: "Amount for ingredient 3",
+        exact: true,
+      });
+      await expect(
+        persistedSugarAmount.getByRole("textbox", {
+          name: "Amount",
+          exact: true,
+        }),
+      ).toHaveValue("135");
+      await expect(
+        persistedSugarAmount
+          .getByRole("combobox", { name: "Unit", exact: true })
+          .locator("option:checked"),
+      ).toHaveText("gram (g)");
+      await persistedSugarAmount
+        .getByRole("button", { name: "Done", exact: true })
+        .click();
+      await expect(sugarAmountTrigger).toBeFocused();
+      const walnutAmountTrigger = walnutRow.getByRole("button", {
+        name: "Edit amount for ingredient 6",
+        exact: true,
+      });
+      await walnutAmountTrigger.click();
+      const persistedWalnutAmount = walnutRow.getByRole("dialog", {
+        name: "Amount for ingredient 6",
+        exact: true,
+      });
+      await expect(
+        persistedWalnutAmount.getByRole("textbox", {
+          name: "Amount",
+          exact: true,
+        }),
+      ).toHaveValue("95");
+      await expect(
+        persistedWalnutAmount
+          .getByRole("combobox", { name: "Unit", exact: true })
+          .locator("option:checked"),
+      ).toHaveText("gram (g)");
+      await persistedWalnutAmount
+        .getByRole("button", { name: "Done", exact: true })
+        .click();
+      await expect(walnutAmountTrigger).toBeFocused();
+      await expect(
+        page.getByLabel("Instruction", { exact: true }).first(),
+      ).toHaveValue(draftInstruction);
+      await expect(
+        eggRow.getByRole("combobox", { name: "Ingredient", exact: true }),
+      ).toHaveValue("Egg");
+      const eggAmountTrigger = eggRow.getByRole("button", {
+        name: "Edit amount for ingredient 4",
+        exact: true,
+      });
+      await eggAmountTrigger.click();
+      const eggAmountEditor = eggRow.getByRole("dialog", {
+        name: "Amount for ingredient 4",
+        exact: true,
+      });
+      await expect(
+        eggAmountEditor.getByRole("textbox", { name: "Amount", exact: true }),
+      ).toHaveValue("2");
+      await eggAmountEditor
+        .getByRole("button", { name: "Done", exact: true })
+        .click();
+      await expect(eggAmountTrigger).toBeFocused();
+    };
+
+    const submitFromPicker = async (
+      row: Locator,
+      proposedName: string,
+      context: string,
+    ): Promise<CreatedRequest> => {
+      const input = row.getByRole("combobox", {
+        name: "Ingredient",
+        exact: true,
+      });
+      await input.fill(proposedName);
+      const requestAction = row.getByRole("button", {
+        name: "Request missing ingredient",
+        exact: true,
+      });
+      await expect(requestAction).toBeVisible();
+      await activateWithKeyboard(page, requestAction);
+      const requestDialog = page.getByRole("dialog", {
+        name: "Request a missing ingredient",
+        exact: true,
+      });
+      await expect(requestDialog.getByLabel("Proposed ingredient name")).toBeFocused();
+      await requestDialog.getByLabel("Short context (optional)").fill(context);
+      const submitted = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/ingredient-requests",
+      );
+      await requestDialog.getByRole("button", { name: "Submit catalog request" }).click();
+      const response = await submitted;
+      expect(response.status(), await response.text()).toBe(201);
+      await expect(input).toHaveValue(proposedName);
+      await expect(row.getByRole("status")).toContainText("Pending review");
+      return (await response.json()) as CreatedRequest;
+    };
+
+    const approved = await submitFromPicker(
+      walnutRow,
       approvedName,
       "Alice wants to use this reviewed leaf in a recipe draft.",
     );
-    const duplicate = await submitRequest(
-      page,
+    const duplicate = await submitFromPicker(
+      sugarRow,
       duplicateName,
       "Alice thinks this garnish is the cataloged pecan.",
     );
-    const rejected = await submitRequest(
-      page,
+    const rejected = await submitFromPicker(
+      rejectedRow,
       rejectedName,
       "Alice cannot identify this sprig precisely.",
     );
-    const pending = await submitRequest(
-      page,
+    const pending = await submitFromPicker(
+      pendingRow,
       pendingName,
       "Alice is still waiting for a curator decision.",
     );
-    const stale = await submitRequest(
-      page,
-      staleName,
-      "Alice will exercise owner revalidation before selection.",
+    await expectDraftPreserved();
+    const unresolvedSave = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PUT" &&
+        new URL(response.url()).pathname === `/api/recipe-drafts/${draftId}`,
     );
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    const unresolvedSaveResponse = await unresolvedSave;
+    expect(
+      unresolvedSaveResponse.status(),
+      await unresolvedSaveResponse.text(),
+    ).toBe(200);
+    await expect(
+      page.getByRole("button", { name: "Draft saved", exact: true }),
+    ).toBeDisabled();
 
     const approvedReview = await reviewRequest(page, approved.id, {
       decision: "approve",
@@ -468,248 +790,125 @@ test.describe("member ingredient-request acceptance", () => {
       decision: "reject",
       reason: "The proposal cannot be identified safely.",
     });
-    await reviewRequest(page, stale.id, {
-      decision: "approve",
-      canonical_name: staleCanonical,
-      aliases: [],
-      reason: "This is a separate catalog identity used for revalidation coverage.",
-      provenance: "RCP-25A.2 stale-selection acceptance fixture.",
-    });
 
     await applyAcceptanceMember(page, "alice");
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/recipes?q=carrot");
-    await page
-      .getByRole("article", { name: "Carrot Walnut Snack Cake", exact: true })
-      .filter({ hasNot: page.locator(".recipe-card__parent") })
-      .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
-      .click();
-    await page
-      .getByRole("link", { name: "Make your own version", exact: true })
-      .click();
-    await expect(page).toHaveURL(/\/account\/recipe-drafts\/[0-9a-f-]+$/i);
+    await page.goto(`/recipes/drafts/${draftId}`);
+    await expectDraftPreserved();
 
-    const draftTitle = `Acceptance trusted-request carrot cake ${runId}`;
-    const draftDescription = "A carefully preserved draft around a reviewed ingredient.";
-    const draftInstruction =
-      "Heat the oven, prepare the pan, and keep this edited instruction intact.";
-    await page.getByLabel("Title", { exact: true }).fill(draftTitle);
-    await page.getByLabel("Description", { exact: true }).fill(draftDescription);
-    await page.getByLabel("Servings", { exact: true }).fill("6");
-
-    const sugarLabel = "Ingredient 3";
-    const walnutLabel = "Ingredient 6";
-    const sugarRow = page.getByRole("group", { name: sugarLabel, exact: true });
-    const walnutRow = page.getByRole("group", { name: walnutLabel, exact: true });
-    const eggRow = page.getByRole("group", { name: "Ingredient 4", exact: true });
-    await sugarRow.getByRole("textbox", { name: "Amount", exact: true }).fill("135");
-    const selectedSugarUnitId = await sugarRow
-      .getByRole("combobox", { name: "Unit", exact: true })
-      .inputValue();
-    await walnutRow.getByRole("textbox", { name: "Amount", exact: true }).fill("95");
-    const selectedWalnutUnitId = await walnutRow
-      .getByRole("combobox", { name: "Unit", exact: true })
-      .inputValue();
-    await page.getByLabel("Instruction", { exact: true }).first().fill(draftInstruction);
-
-    const expectDraftPreserved = async (): Promise<void> => {
-      await expect(page.getByLabel("Title", { exact: true })).toHaveValue(draftTitle);
-      await expect(page.getByLabel("Description", { exact: true })).toHaveValue(
-        draftDescription,
-      );
-      await expect(page.getByLabel("Servings", { exact: true })).toHaveValue("6");
-      await expect(
-        sugarRow.getByRole("textbox", { name: "Amount", exact: true }),
-      ).toHaveValue("135");
-      await expect(
-        sugarRow.getByRole("combobox", { name: "Unit", exact: true }).locator("option:checked"),
-      ).toHaveText("gram (g)");
-      await expect(
-        walnutRow.getByRole("textbox", { name: "Amount", exact: true }),
-      ).toHaveValue("95");
-      await expect(
-        walnutRow
-          .getByRole("combobox", { name: "Unit", exact: true })
-          .locator("option:checked"),
-      ).toHaveText("gram (g)");
-      await expect(page.getByLabel("Instruction", { exact: true }).first()).toHaveValue(
-        draftInstruction,
-      );
-      await expect(eggRow.getByText("Egg", { exact: true })).toBeVisible();
-      await expect(eggRow.getByRole("textbox", { name: "Amount", exact: true })).toHaveValue("2");
-    };
-
-    const walnutTrigger = walnutRow.getByRole("button", {
-      name: new RegExp(
-        `^(?:Choose from|Hide) my ingredient requests for ${walnutLabel}$`,
-      ),
+    const approvedInput = walnutRow.getByRole("combobox", {
+      name: "Ingredient",
+      exact: true,
     });
-    await activateWithKeyboard(page, walnutTrigger);
-    await expect(walnutTrigger).toHaveAttribute("aria-expanded", "true");
-    const walnutRequests = walnutRow.getByRole("region", {
-      name: `Choose from my ingredient requests for ${walnutLabel}`,
-    });
-    await expect(walnutRequests).toBeVisible();
-    const filterRequestPanel = async (
-      panel: Locator,
-      rowLabel: string,
-    ): Promise<void> => {
-      const requestSearch = panel.getByRole("searchbox", {
-        name: `Search my ingredient requests for ${rowLabel}`,
+    await expect(approvedInput).toHaveValue(approvedName);
+    const approvedOption = walnutRow
+      .getByRole("listbox", { name: "Ingredient suggestions" })
+      .getByRole("option", {
+        name: `${approvedCanonical} Approved from your ingredient request`,
+        exact: true,
       });
-      await requestSearch.fill(searchPrefix);
-      await requestSearch.press("Enter");
-      await expect(panel.getByRole("article")).toHaveCount(5);
-    };
-    await filterRequestPanel(walnutRequests, walnutLabel);
+    await selectResolvedComboboxOptionWithKeyboard(
+      approvedInput,
+      approvedOption,
+    );
+    await expect(approvedInput).toBeFocused();
+    await expect(approvedInput).toHaveValue(approvedCanonical);
 
-    const approvedCard = ingredientRequestArticle(walnutRequests, approvedName);
-    const duplicateCard = ingredientRequestArticle(walnutRequests, duplicateName);
-    const rejectedCard = ingredientRequestArticle(walnutRequests, rejectedName);
-    const pendingCard = ingredientRequestArticle(walnutRequests, pendingName);
-    const staleCard = ingredientRequestArticle(walnutRequests, staleName);
+    const duplicateInput = sugarRow.getByRole("combobox", {
+      name: "Ingredient",
+      exact: true,
+    });
+    await expect(duplicateInput).toHaveValue(duplicateName);
+    const duplicateOption = sugarRow
+      .getByRole("listbox", { name: "Ingredient suggestions" })
+      .getByRole("option", {
+        name: "Pecan Approved from your ingredient request",
+        exact: true,
+      });
+    await selectResolvedComboboxOptionWithKeyboard(
+      duplicateInput,
+      duplicateOption,
+    );
+    await expect(duplicateInput).toHaveValue("Pecan");
+
+    const rejectedInput = rejectedRow.getByRole("combobox", {
+      name: "Ingredient",
+      exact: true,
+    });
+    await expect(rejectedInput).toHaveValue(rejectedName);
+    await expect(rejectedRow.getByRole("status")).toContainText("Not approved");
+    await rejectedInput.focus();
     await expect(
-      approvedCard.getByRole("button", {
-        name: `Use ${approvedCanonical} for ${walnutLabel}`,
+      rejectedRow.getByRole("button", {
+        name: "Request missing ingredient",
+        exact: true,
       }),
     ).toBeVisible();
-    await expect(
-      duplicateCard.getByRole("button", { name: `Use Pecan for ${walnutLabel}` }),
-    ).toBeVisible();
-    await expect(rejectedCard.getByRole("button", { name: /^Use / })).toHaveCount(0);
-    await expect(pendingCard.getByRole("button", { name: /^Use / })).toHaveCount(0);
+    await expect(rejectedRow.getByRole("option")).toHaveCount(0);
 
+    const pendingInput = pendingRow.getByRole("combobox", {
+      name: "Ingredient",
+      exact: true,
+    });
+    await expect(pendingInput).toHaveValue(pendingName);
+    await expect(pendingRow.getByRole("status")).toContainText(
+      "Pending review",
+    );
+    await pendingInput.focus();
+    const pendingResults = pendingRow.getByRole("region", {
+      name: "Pending ingredient requests",
+    });
+    await expect(pendingResults).toContainText(pendingName);
+    await expect(pendingResults).toContainText(
+      "Pending review · not available yet",
+    );
+    await expect(pendingRow.getByRole("option")).toHaveCount(0);
+    await expect(
+      pendingRow.getByRole("button", {
+        name: "Request missing ingredient",
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    await expect(
+      page.getByText("Selected ingredient", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /use a requested ingredient/i }),
+    ).toHaveCount(0);
+    await expectDraftPreserved();
     expect(
       await page.evaluate(
-        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        () =>
+          document.documentElement.scrollWidth >
+          document.documentElement.clientWidth,
       ),
     ).toBe(false);
     await expectNoAccessibilityViolations(page);
 
-    const approvedDetail = page.waitForResponse(
-      (response) =>
-        response.request().method() === "GET" &&
-        new URL(response.url()).pathname === `/api/ingredient-requests/${approved.id}`,
-    );
-    await activateWithKeyboard(
-      page,
-      approvedCard.getByRole("button", {
-        name: `Use ${approvedCanonical} for ${walnutLabel}`,
-      }),
-    );
-    expect((await approvedDetail).status()).toBe(200);
-    await expect(walnutTrigger).toHaveAttribute("aria-expanded", "false");
-    await expect(walnutTrigger).toBeFocused();
-    const walnutSelection = walnutRow
-      .getByText("Selected ingredient", { exact: true })
-      .locator("..");
-    await expect(walnutSelection).toBeVisible();
-    await expect(
-      walnutSelection.getByText(approvedCanonical, { exact: true }),
-    ).toBeVisible();
-    await expectDraftPreserved();
-
-    await activateWithKeyboard(page, walnutTrigger);
-    await expect(walnutRequests).toBeVisible();
-    await filterRequestPanel(walnutRequests, walnutLabel);
-    await page.context().clearCookies({ name: "recipe_lab_session" });
-    const expiredDetail = page.waitForResponse(
-      (response) =>
-        response.request().method() === "GET" &&
-        new URL(response.url()).pathname === `/api/ingredient-requests/${stale.id}`,
-    );
-    await activateWithKeyboard(
-      page,
-      staleCard.getByRole("button", {
-        name: `Use ${staleCanonical} for ${walnutLabel}`,
-      }),
-    );
-    expect((await expiredDetail).status()).toBe(401);
-    await expect(walnutRequests).toBeVisible();
-    await expect(walnutRequests.getByRole("alert")).toContainText(
-      "Your session expired. Your recipe was not changed.",
-    );
-    await expect(
-      walnutRequests.getByRole("link", { name: "Sign in in a new tab" }),
-    ).toHaveAttribute("target", "_blank");
-    await expect(
-      page.getByRole("heading", { name: draftTitle, level: 1 }),
-    ).toBeVisible();
-    await expectDraftPreserved();
-
-    await applyAcceptanceMember(page, "alice");
-    await walnutRequests.getByRole("button", { name: "Refresh my requests" }).click();
-    await expect(walnutRequests.getByRole("article")).toHaveCount(5);
-    await expect(
-      walnutRequests.getByRole("link", { name: "Sign in in a new tab" }),
-    ).toHaveCount(0);
-    await applyAcceptanceMember(page, "bob");
-    const staleDetail = page.waitForResponse(
-      (response) =>
-        response.request().method() === "GET" &&
-        new URL(response.url()).pathname === `/api/ingredient-requests/${stale.id}`,
-    );
-    await activateWithKeyboard(
-      page,
-      staleCard.getByRole("button", {
-        name: `Use ${staleCanonical} for ${walnutLabel}`,
-      }),
-    );
-    expect((await staleDetail).status()).toBe(404);
-    await expect(walnutRequests).toBeVisible();
-    await expect(
-      walnutSelection.getByText(approvedCanonical, { exact: true }),
-    ).toBeVisible();
-    await expectDraftPreserved();
-
-    await applyAcceptanceMember(page, "alice");
-    await walnutTrigger.click();
-    await expect(walnutTrigger).toHaveAttribute("aria-expanded", "false");
-
-    const sugarTrigger = sugarRow.getByRole("button", {
-      name: new RegExp(
-        `^(?:Choose from|Hide) my ingredient requests for ${sugarLabel}$`,
-      ),
-    });
-    await activateWithKeyboard(page, sugarTrigger);
-    const sugarRequests = sugarRow.getByRole("region", {
-      name: `Choose from my ingredient requests for ${sugarLabel}`,
-    });
-    await filterRequestPanel(sugarRequests, sugarLabel);
-    const duplicateDetail = page.waitForResponse(
-      (response) =>
-        response.request().method() === "GET" &&
-        new URL(response.url()).pathname === `/api/ingredient-requests/${duplicate.id}`,
-    );
-    await activateWithKeyboard(
-      page,
-      ingredientRequestArticle(sugarRequests, duplicateName).getByRole("button", {
-        name: `Use Pecan for ${sugarLabel}`,
-      }),
-    );
-    expect((await duplicateDetail).status()).toBe(200);
-    await expect(sugarTrigger).toHaveAttribute("aria-expanded", "false");
-    await expect(sugarTrigger).toBeFocused();
-    const sugarSelection = sugarRow
-      .getByText("Selected ingredient", { exact: true })
-      .locator("..");
-    await expect(sugarSelection).toBeVisible();
-    await expect(sugarSelection.getByText("Pecan", { exact: true })).toBeVisible();
-    await expectDraftPreserved();
-
     const draftRequest = page.waitForRequest(
       (request) =>
-        request.method() === "PUT" && /\/api\/recipe-drafts\/[0-9a-f-]+$/i.test(new URL(request.url()).pathname),
+        request.method() === "PUT" &&
+        /\/api\/recipe-drafts\/[0-9a-f-]+$/i.test(
+          new URL(request.url()).pathname,
+        ),
     );
     const draftResponse = page.waitForResponse(
       (response) =>
-        response.request().method() === "PUT" && /\/api\/recipe-drafts\/[0-9a-f-]+$/i.test(new URL(response.url()).pathname),
+        response.request().method() === "PUT" &&
+        /\/api\/recipe-drafts\/[0-9a-f-]+$/i.test(
+          new URL(response.url()).pathname,
+        ),
     );
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
     const payload = (await draftRequest).postDataJSON() as {
       description: string | null;
       ingredients: Array<{
-        selection: { kind: string; ingredient_id?: string; display_name?: string };
+        selection: {
+          kind: string;
+          ingredient_id?: string;
+          ingredient_request_id?: string;
+          display_name?: string;
+        };
         measure: Record<string, unknown>;
       }>;
       instructions: Array<{ text: string }>;
@@ -728,6 +927,12 @@ test.describe("member ingredient-request acceptance", () => {
     const duplicateReplacement = payload.ingredients.find(
       (item) => item.selection.display_name === "Pecan",
     );
+    const rejectedRequest = payload.ingredients.find(
+      (item) => item.selection.ingredient_request_id === rejected.id,
+    );
+    const pendingRequest = payload.ingredients.find(
+      (item) => item.selection.ingredient_request_id === pending.id,
+    );
     expect(approvedReplacement?.selection).toMatchObject({
       ingredient_id: approvedReview.resolved_ingredient_id,
       kind: "catalog",
@@ -736,30 +941,51 @@ test.describe("member ingredient-request acceptance", () => {
       ingredient_id: pecan.id,
       kind: "catalog",
     });
+    expect(rejectedRequest?.selection).toEqual({
+      ingredient_request_id: rejected.id,
+      kind: "request",
+    });
+    expect(pendingRequest?.selection).toEqual({
+      ingredient_request_id: pending.id,
+      kind: "request",
+    });
     expect(approvedReplacement?.measure).toMatchObject({
-      kind: "exact", unit_id: selectedWalnutUnitId, value: "95",
+      kind: "exact",
+      unit_id: selectedWalnutUnitId,
+      value: "95",
     });
     expect(duplicateReplacement?.measure).toMatchObject({
-      kind: "exact", unit_id: selectedSugarUnitId, value: "135",
+      kind: "exact",
+      unit_id: selectedSugarUnitId,
+      value: "135",
     });
     expect(payload.instructions[0]).toMatchObject({ text: draftInstruction });
     const serializedPayload = JSON.stringify(payload);
     for (const unsafeValue of [
-      approved.id,
       approvedName,
-      duplicate.id,
       duplicateName,
-      rejected.id,
-      pending.id,
-      stale.id,
+      rejectedName,
+      pendingName,
     ]) {
       expect(serializedPayload).not.toContain(unsafeValue);
     }
     expect((await draftResponse).status()).toBe(200);
-    await expect(page.getByText("Draft saved privately.", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Draft saved", exact: true }),
+    ).toBeDisabled();
     await page.reload();
-    await expect(page.getByLabel("Title", { exact: true })).toHaveValue(draftTitle);
-    await expect(page.getByRole("group", { name: walnutLabel, exact: true }).getByText(approvedCanonical, { exact: true })).toBeVisible();
-    await expect(page.getByRole("group", { name: sugarLabel, exact: true }).getByText("Pecan", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
+      draftTitle,
+    );
+    await expect(
+      page
+        .getByRole("group", { name: walnutLabel, exact: true })
+        .getByRole("combobox", { name: "Ingredient", exact: true }),
+    ).toHaveValue(approvedCanonical);
+    await expect(
+      page
+        .getByRole("group", { name: sugarLabel, exact: true })
+        .getByRole("combobox", { name: "Ingredient", exact: true }),
+    ).toHaveValue("Pecan");
   });
 });

@@ -32,6 +32,7 @@ describe("auth API client", () => {
           id: "cook-id",
           display_name: "Alice Cook",
           handle: "alice",
+          description: "Weeknight recipes and bread experiments.",
           email: "not-copied@example.test",
         },
         capabilities: {
@@ -41,7 +42,12 @@ describe("auth API client", () => {
       }),
     ).toEqual({
       status: "authenticated",
-      user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
+      user: {
+        id: "cook-id",
+        display_name: "Alice Cook",
+        handle: "alice",
+        description: "Weeknight recipes and bread experiments.",
+      },
       capabilities: {
         review_ingredient_requests: true,
         moderate_recipe_reports: false,
@@ -73,13 +79,16 @@ describe("auth API client", () => {
 
     await expect(fetchAuthSession()).resolves.toEqual({ status: "anonymous" });
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/auth/session", {
-      method: "GET",
-      signal: undefined,
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [target, init] = fetchMock.mock.calls[0];
+    expect(target).toBe("/api/auth/session");
+    expect(init).toMatchObject({
       cache: "no-store",
       credentials: "same-origin",
-      headers: { Accept: "application/json" },
+      method: "GET",
+      redirect: "error",
     });
+    expect(new Headers(init?.headers).get("Accept")).toBe("application/json");
   });
 
   it("reads the CSRF cookie and sends it for profile, logout, and deletion mutations", async () => {
@@ -97,45 +106,48 @@ describe("auth API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      updateAccountProfile({ handle: "alice", display_name: "Alice Cook" }),
+      updateAccountProfile({
+        handle: "alice",
+        display_name: "Alice Cook",
+        description: "Home cook.",
+      }),
     ).resolves.toMatchObject({ status: "authenticated" });
     await expect(signOut()).resolves.toBeUndefined();
     await expect(deleteAccount("alice")).resolves.toBeUndefined();
 
-    expect(fetchMock.mock.calls[0]).toEqual([
-      "/api/auth/session/profile",
-      expect.objectContaining({
-        method: "PATCH",
-        credentials: "same-origin",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "X-CSRF-Token": "token value",
-        },
+    const [profileTarget, profileInit] = fetchMock.mock.calls[0];
+    expect(profileTarget).toBe("/api/auth/session/profile");
+    expect(profileInit).toMatchObject({
+      method: "PATCH",
+      credentials: "same-origin",
+      body: JSON.stringify({
+        handle: "alice",
+        display_name: "Alice Cook",
+        description: "Home cook.",
       }),
-    ]);
-    expect(fetchMock.mock.calls[1]).toEqual([
-      "/api/auth/logout",
-      expect.objectContaining({
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "X-CSRF-Token": "token value",
-        },
-      }),
-    ]);
-    expect(fetchMock.mock.calls[2]).toEqual([
-      "/api/auth/account",
-      expect.objectContaining({
-        method: "DELETE",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "X-CSRF-Token": "token value",
-        },
-        body: JSON.stringify({ confirmation: "alice" }),
-      }),
-    ]);
+    });
+    const profileHeaders = new Headers(profileInit?.headers);
+    expect(profileHeaders.get("Accept")).toBe("application/json");
+    expect(profileHeaders.get("Content-Type")).toBe("application/json");
+    expect(profileHeaders.get("X-CSRF-Token")).toBe("token value");
+
+    const [logoutTarget, logoutInit] = fetchMock.mock.calls[1];
+    expect(logoutTarget).toBe("/api/auth/logout");
+    expect(logoutInit).toMatchObject({ method: "POST" });
+    const logoutHeaders = new Headers(logoutInit?.headers);
+    expect(logoutHeaders.get("Accept")).toBe("application/json");
+    expect(logoutHeaders.get("X-CSRF-Token")).toBe("token value");
+
+    const [deleteTarget, deleteInit] = fetchMock.mock.calls[2];
+    expect(deleteTarget).toBe("/api/auth/account");
+    expect(deleteInit).toMatchObject({
+      method: "DELETE",
+      body: JSON.stringify({ confirmation: "alice" }),
+    });
+    const deleteHeaders = new Headers(deleteInit?.headers);
+    expect(deleteHeaders.get("Accept")).toBe("application/json");
+    expect(deleteHeaders.get("Content-Type")).toBe("application/json");
+    expect(deleteHeaders.get("X-CSRF-Token")).toBe("token value");
   });
 
   it("reports a missing CSRF cookie as an expired session without making a request", async () => {
@@ -153,6 +165,26 @@ describe("auth API client", () => {
     expect(listener).toHaveBeenCalledOnce();
     expect(fetchMock).not.toHaveBeenCalled();
     window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, listener);
+  });
+
+  it("does not retry account mutations after the request is dispatched", async () => {
+    document.cookie = `${CSRF_COOKIE_NAME}=token; Path=/`;
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json(
+          { error: { code: "authentication_unavailable", issues: [] } },
+          { status: 503 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(signOut()).rejects.toMatchObject({
+      code: "authentication_unavailable",
+      status: 503,
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("preserves known account codes without retaining backend messages", async () => {
@@ -219,6 +251,11 @@ describe("auth API client", () => {
                   type: "internal_display_name_policy_failure",
                 },
                 {
+                  location: ["body", "description"],
+                  message: "Private profile moderation detail.",
+                  type: "internal_description_policy_failure",
+                },
+                {
                   location: ["body", internalId],
                   message: "Private identifier detail.",
                   type: "internal_error",
@@ -250,6 +287,11 @@ describe("auth API client", () => {
         {
           location: ["body", "display_name"],
           message: "Enter a display name with 1–120 visible characters.",
+          type: "validation_error",
+        },
+        {
+          location: ["body", "description"],
+          message: "Keep your profile description to 500 visible characters or fewer.",
           type: "validation_error",
         },
       ],

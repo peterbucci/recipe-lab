@@ -27,10 +27,14 @@ from app.models.catalog import (
 )
 from app.models.engagement import MAX_RATING, MIN_RATING, RecipeRating, RecipeSave
 from app.models.ingredient import (
+    INGREDIENT_CATALOG_NAME_ALIAS,
+    INGREDIENT_CATALOG_NAME_CANONICAL,
+    INGREDIENT_CATALOG_NAME_KINDS,
     Allergen,
     DietaryFlag,
     Ingredient,
     IngredientAlias,
+    IngredientCatalogName,
     IngredientCategory,
     IngredientSubstitution,
 )
@@ -119,6 +123,7 @@ from app.models.recipe_duplicate import (
     RecipeDuplicatePreflight,
 )
 from app.models.recipe_fingerprint import RecipeStructuralFingerprint
+from app.models.social import UserFollow
 from app.models.user import (
     ACCOUNT_KIND_DEMO,
     ACCOUNT_KIND_MEMBER,
@@ -149,8 +154,12 @@ __all__ = [
     "CommunityModerator",
     "CookingActionType",
     "DietaryFlag",
+    "INGREDIENT_CATALOG_NAME_ALIAS",
+    "INGREDIENT_CATALOG_NAME_CANONICAL",
+    "INGREDIENT_CATALOG_NAME_KINDS",
     "Ingredient",
     "IngredientAlias",
+    "IngredientCatalogName",
     "IngredientCategory",
     "IngredientCatalogAuditEvent",
     "IngredientCatalogRequest",
@@ -247,5 +256,6 @@ __all__ = [
     "USER_STATUS_SUSPENDED",
     "USER_STATUSES",
     "User",
+    "UserFollow",
     "UserSession",
 ]

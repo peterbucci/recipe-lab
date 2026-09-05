@@ -12,9 +12,26 @@ vi.mock("next/navigation", () => ({
 
 afterEach(() => {
   routerMocks.replace.mockReset();
+  vi.unstubAllGlobals();
 });
 
 describe("CallbackStatus", () => {
+  it("uses the shared account gate while the callback session resolves", () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+    render(
+      <AuthSessionProvider>
+        <CallbackStatus returnTo="/recipes" />
+      </AuthSessionProvider>,
+    );
+
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Finishing sign-in…");
+    expect(screen.getByRole("status").closest(".auth-gate-loading")).toHaveClass(
+      "account-access-state--loading",
+    );
+    expect(document.querySelector(".loading-state__pulse")).toBeNull();
+  });
+
   it("shows an allowlisted callback error without reflecting arbitrary provider text", () => {
     render(
       <AuthSessionProvider initialSession={{ status: "anonymous" }}>

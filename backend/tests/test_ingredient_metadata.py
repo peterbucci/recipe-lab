@@ -1,19 +1,23 @@
 from decimal import Decimal
 from typing import cast
+from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.catalog_names import catalog_name_digest
 from app.models import (
     Allergen,
     DietaryFlag,
     Ingredient,
     IngredientAlias,
+    IngredientCatalogName,
     IngredientCategory,
     IngredientSubstitution,
 )
+from tests.builders.catalog import persist_catalog_ingredient
 
 
 def assert_constraint_name(error: IntegrityError, expected_constraint: str) -> None:
@@ -33,13 +37,6 @@ def assert_flush_violates(
             session.flush()
 
     assert_constraint_name(error.value, expected_constraint)
-
-
-def create_ingredient(session: Session, canonical_name: str) -> Ingredient:
-    ingredient = Ingredient(canonical_name=canonical_name)
-    session.add(ingredient)
-    session.flush()
-    return ingredient
 
 
 def test_ingredient_metadata_round_trip(db_session: Session) -> None:
@@ -108,9 +105,124 @@ def test_normalized_canonical_and_alias_names_are_unique(db_session: Session) ->
     )
 
 
+def test_canonical_names_and_aliases_share_the_strong_normalized_namespace(
+    db_session: Session,
+) -> None:
+    sage = Ingredient(canonical_name="Ｓａｇｅ   leaves")
+    thyme = Ingredient(canonical_name="Thyme")
+    db_session.add_all([sage, thyme])
+    db_session.flush()
+
+    namespace = sage.catalog_name
+    assert namespace is not None
+    assert namespace.display_name == "Ｓａｇｅ   leaves"
+    assert namespace.normalized_name == "sage leaves"
+    assert namespace.normalized_name_digest == catalog_name_digest("sage leaves")
+
+    assert_flush_violates(
+        db_session,
+        IngredientAlias(ingredient_id=thyme.id, alias="sage leaves"),
+        "uq_ingredient_catalog_names_normalized_digest",
+    )
+
+
+def test_catalog_namespace_tracks_source_renames_without_changing_display_text(
+    db_session: Session,
+) -> None:
+    ingredient = Ingredient(
+        canonical_name="Fresh herb",
+        aliases=[IngredientAlias(alias="Garden herb")],
+    )
+    db_session.add(ingredient)
+    db_session.flush()
+
+    ingredient.canonical_name = "  ＦＲＥＳＨ   herb  "
+    ingredient.aliases[0].alias = " GARDEN\therb "
+    db_session.flush()
+
+    assert ingredient.catalog_name is not None
+    assert ingredient.catalog_name.display_name == "  ＦＲＥＳＨ   herb  "
+    assert ingredient.catalog_name.normalized_name == "fresh herb"
+    assert ingredient.aliases[0].catalog_name is not None
+    assert ingredient.aliases[0].catalog_name.display_name == " GARDEN\therb "
+    assert ingredient.aliases[0].catalog_name.normalized_name == "garden herb"
+
+
+def test_database_rejects_sources_without_namespace_and_tampered_namespace_rows(
+    db_session: Session,
+) -> None:
+    missing_namespace_id = uuid4()
+    with pytest.raises(IntegrityError) as missing_error:
+        with db_session.begin_nested():
+            db_session.execute(
+                text(
+                    "INSERT INTO ingredients (id, canonical_name) "
+                    "VALUES (:ingredient_id, 'Unindexed herb')"
+                ),
+                {"ingredient_id": missing_namespace_id},
+            )
+            db_session.execute(
+                text("SET CONSTRAINTS ingredient_catalog_name_namespace_required IMMEDIATE")
+            )
+    assert_constraint_name(
+        missing_error.value,
+        "ingredient_catalog_name_namespace_required",
+    )
+
+    ingredient = Ingredient(canonical_name="Indexed herb")
+    db_session.add(ingredient)
+    db_session.flush()
+    assert ingredient.catalog_name is not None
+
+    missing_alias_id = uuid4()
+    with pytest.raises(IntegrityError) as missing_alias_error:
+        with db_session.begin_nested():
+            db_session.execute(
+                text(
+                    "INSERT INTO ingredient_aliases (id, ingredient_id, alias) "
+                    "VALUES (:alias_id, :ingredient_id, 'Unindexed alias')"
+                ),
+                {"alias_id": missing_alias_id, "ingredient_id": ingredient.id},
+            )
+            db_session.execute(
+                text("SET CONSTRAINTS ingredient_alias_catalog_name_namespace_required IMMEDIATE")
+            )
+    assert_constraint_name(
+        missing_alias_error.value,
+        "ingredient_alias_catalog_name_namespace_required",
+    )
+
+    with pytest.raises(IntegrityError) as digest_error:
+        with db_session.begin_nested():
+            db_session.execute(
+                update(IngredientCatalogName)
+                .where(IngredientCatalogName.id == ingredient.catalog_name.id)
+                .values(normalized_name_digest="0" * 64)
+            )
+    assert_constraint_name(
+        digest_error.value,
+        "ck_ingredient_catalog_names_normalized_name_digest_matches",
+    )
+
+    with pytest.raises(IntegrityError) as delete_error:
+        with db_session.begin_nested():
+            db_session.execute(
+                delete(IngredientCatalogName).where(
+                    IngredientCatalogName.id == ingredient.catalog_name.id
+                )
+            )
+            db_session.execute(
+                text("SET CONSTRAINTS ingredient_catalog_name_source_matches IMMEDIATE")
+            )
+    assert_constraint_name(
+        delete_error.value,
+        "ingredient_catalog_name_namespace_required",
+    )
+
+
 def test_substitution_pairs_are_directed_and_unique(db_session: Session) -> None:
-    source = create_ingredient(db_session, "Source")
-    replacement = create_ingredient(db_session, "Replacement")
+    source = persist_catalog_ingredient(db_session, "Source")
+    replacement = persist_catalog_ingredient(db_session, "Replacement")
     db_session.add_all(
         [
             IngredientSubstitution(
@@ -144,8 +256,8 @@ def test_substitution_pairs_are_directed_and_unique(db_session: Session) -> None
 def test_substitution_ingredients_are_protected_from_deletion(
     db_session: Session,
 ) -> None:
-    source = create_ingredient(db_session, "Protected substitution source")
-    replacement = create_ingredient(db_session, "Protected substitution replacement")
+    source = persist_catalog_ingredient(db_session, "Protected substitution source")
+    replacement = persist_catalog_ingredient(db_session, "Protected substitution replacement")
     db_session.add(
         IngredientSubstitution(
             source_ingredient_id=source.id,
@@ -177,8 +289,8 @@ def test_substitution_ingredients_are_protected_from_deletion(
 def test_substitution_constraints_reject_unexplainable_edges(
     db_session: Session,
 ) -> None:
-    source = create_ingredient(db_session, "Constraint source")
-    replacement = create_ingredient(db_session, "Constraint replacement")
+    source = persist_catalog_ingredient(db_session, "Constraint source")
+    replacement = persist_catalog_ingredient(db_session, "Constraint replacement")
 
     assert_flush_violates(
         db_session,

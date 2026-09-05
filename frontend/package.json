@@ -5,10 +5,13 @@
   "scripts": {
     "api:contracts:check": "node scripts/api-contract-codegen.mjs check",
     "api:contracts:generate": "node scripts/api-contract-codegen.mjs generate",
+    "ci:verify": "npm test && npm run reachability:check && npm run build && npx --no-install playwright test --list",
+    "styles:contracts:check": "node scripts/css-architecture.mjs",
     "dev": "node server.mjs --dev",
     "build": "next build",
     "start": "node server.mjs",
     "lint": "eslint .",
+    "reachability:check": "node scripts/source-reachability.mjs",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -19,6 +22,7 @@
   },
   "dependencies": {
     "@next/env": "16.3.1",
+    "lucide-react": "1.39.0",
     "next": "16.3.1",
     "react": "19.2.8",
     "react-dom": "19.2.8"

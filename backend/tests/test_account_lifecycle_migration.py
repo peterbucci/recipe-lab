@@ -1,5 +1,4 @@
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -7,16 +6,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine, inspect, text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
-from app.models import (
-    RecipeLineage,
-    RecipeModerationAuditEvent,
-    RecipeModerationCase,
-    RecipeVersion,
-    RecipeVersionPublication,
-    User,
-)
 from app.repositories.account_lifecycle import DELETED_MODERATION_FINGERPRINT
 
 
@@ -136,96 +126,113 @@ def test_deleted_moderator_audit_scrub_migration_preserves_append_only_evidence(
     now = datetime.now(UTC)
     actor_id = uuid4()
     already_deleted_actor_id = uuid4()
+    lineage_id = uuid4()
     version_id = uuid4()
 
     with empty_postgres_engine.begin() as connection:
         alembic_config.attributes["connection"] = connection
         command.upgrade(alembic_config, "20260826_0018")
 
-    with Session(bind=empty_postgres_engine) as setup, setup.begin():
-        setup.add(
-            User(
-                id=actor_id,
-                email="moderator@example.test",
-                display_name="Moderator",
-                handle="moderator",
-            )
+    with empty_postgres_engine.begin() as setup:
+        setup.execute(
+            text(
+                "INSERT INTO users "
+                "(id, email, display_name, handle, account_kind, status) "
+                "VALUES (:id, :email, :display_name, :handle, 'member', 'active')"
+            ),
+            {
+                "id": actor_id,
+                "email": "moderator@example.test",
+                "display_name": "Moderator",
+                "handle": "moderator",
+            },
         )
-        setup.add(
-            User(
-                id=already_deleted_actor_id,
-                email=None,
-                display_name="Deleted cook",
-                handle=None,
-                status="deleted",
-                deleted_at=now,
-            )
+        setup.execute(
+            text(
+                "INSERT INTO users "
+                "(id, email, display_name, handle, account_kind, status, deleted_at) "
+                "VALUES (:id, NULL, 'Deleted cook', NULL, 'member', 'deleted', :deleted_at)"
+            ),
+            {"id": already_deleted_actor_id, "deleted_at": now},
         )
-        setup.flush()
-        lineage = RecipeLineage(created_by_user_id=actor_id)
-        setup.add(lineage)
-        setup.flush()
-        setup.add(
-            RecipeVersion(
-                id=version_id,
-                lineage_id=lineage.id,
-                parent_version_id=None,
-                created_by_user_id=actor_id,
-                version_number=1,
-                title="Moderated recipe",
-                description=None,
-                servings=Decimal("1.00"),
-            )
+        setup.execute(
+            text(
+                "INSERT INTO recipe_lineages (id, created_by_user_id) "
+                "VALUES (:id, :created_by_user_id)"
+            ),
+            {"id": lineage_id, "created_by_user_id": actor_id},
         )
-        setup.flush()
-        setup.add(
-            RecipeVersionPublication(
-                recipe_version_id=version_id,
-                actor_user_id=actor_id,
-                state_changed_by_user_id=actor_id,
-            )
+        setup.execute(
+            text(
+                "INSERT INTO recipe_versions "
+                "(id, lineage_id, parent_version_id, created_by_user_id, "
+                "version_number, title, description, servings) "
+                "VALUES (:id, :lineage_id, NULL, :created_by_user_id, "
+                "1, 'Moderated recipe', NULL, 1.00)"
+            ),
+            {
+                "id": version_id,
+                "lineage_id": lineage_id,
+                "created_by_user_id": actor_id,
+            },
         )
-        setup.flush()
-        setup.add(
-            RecipeModerationCase(
-                recipe_version_id=version_id,
-                status="open",
-                opened_at=now,
-                reporter_count=1,
-                last_reported_at=now,
-                updated_at=now,
-            )
+        setup.execute(
+            text(
+                "INSERT INTO recipe_version_publications "
+                "(recipe_version_id, actor_user_id, state_changed_by_user_id) "
+                "VALUES (:recipe_version_id, :actor_user_id, :state_changed_by_user_id)"
+            ),
+            {
+                "recipe_version_id": version_id,
+                "actor_user_id": actor_id,
+                "state_changed_by_user_id": actor_id,
+            },
         )
-        setup.flush()
-        event = RecipeModerationAuditEvent(
-            recipe_version_id=version_id,
-            actor_user_id=actor_id,
-            action="hide",
-            previous_status="open",
-            status="open",
-            visibility_state="moderation_hidden",
-            private_note="Private deletion migration note.",
-            action_id=uuid4(),
-            request_fingerprint="c" * 64,
-            occurred_at=now,
+        setup.execute(
+            text(
+                "INSERT INTO recipe_moderation_cases "
+                "(recipe_version_id, status, opened_at, reporter_count, "
+                "last_reported_at, updated_at) "
+                "VALUES (:recipe_version_id, 'open', :now, 1, :now, :now)"
+            ),
+            {"recipe_version_id": version_id, "now": now},
         )
-        setup.add(event)
-        already_deleted_event = RecipeModerationAuditEvent(
-            recipe_version_id=version_id,
-            actor_user_id=already_deleted_actor_id,
-            action="resolve",
-            previous_status="open",
-            status="resolved",
-            visibility_state="published",
-            private_note="Legacy private note must be backfilled away.",
-            action_id=uuid4(),
-            request_fingerprint="d" * 64,
-            occurred_at=now,
-        )
-        setup.add(already_deleted_event)
-        setup.flush()
-        event_id = event.id
-        already_deleted_event_id = already_deleted_event.id
+        event_id = setup.execute(
+            text(
+                "INSERT INTO recipe_moderation_audit_events "
+                "(recipe_version_id, actor_user_id, action, previous_status, status, "
+                "visibility_state, private_note, action_id, request_fingerprint, occurred_at) "
+                "VALUES (:recipe_version_id, :actor_user_id, 'hide', 'open', 'open', "
+                "'moderation_hidden', :private_note, :action_id, :request_fingerprint, :now) "
+                "RETURNING id"
+            ),
+            {
+                "recipe_version_id": version_id,
+                "actor_user_id": actor_id,
+                "private_note": "Private deletion migration note.",
+                "action_id": uuid4(),
+                "request_fingerprint": "c" * 64,
+                "now": now,
+            },
+        ).scalar_one()
+        already_deleted_event_id = setup.execute(
+            text(
+                "INSERT INTO recipe_moderation_audit_events "
+                "(recipe_version_id, actor_user_id, action, previous_status, status, "
+                "visibility_state, private_note, action_id, request_fingerprint, occurred_at) "
+                "VALUES (:recipe_version_id, :actor_user_id, 'resolve', 'open', 'resolved', "
+                "'published', :private_note, :action_id, :request_fingerprint, :now) "
+                "RETURNING id"
+            ),
+            {
+                "recipe_version_id": version_id,
+                "actor_user_id": already_deleted_actor_id,
+                "private_note": "Legacy private note must be backfilled away.",
+                "action_id": uuid4(),
+                "request_fingerprint": "d" * 64,
+                "now": now,
+            },
+        ).scalar_one()
 
     with empty_postgres_engine.begin() as connection:
         alembic_config.attributes["connection"] = connection

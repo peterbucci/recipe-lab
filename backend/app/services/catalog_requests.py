@@ -17,7 +17,7 @@ from app.repositories.catalog_requests import (
     find_pending_request_by_normalized_name,
     get_catalog_request,
 )
-from app.repositories.ingredients import get_ingredient, list_catalog_labels
+from app.repositories.ingredients import find_catalog_name, get_ingredient
 from app.schemas.ingredient_catalog import (
     ApproveIngredientCatalogRequest,
     DuplicateIngredientCatalogRequest,
@@ -51,15 +51,6 @@ def catalog_candidate_search_terms(proposed_name: str, *, limit: int = 6) -> lis
     return terms
 
 
-def _normalized_catalog_candidates(session: Session) -> dict[str, str]:
-    """Index likely duplicate labels without asserting semantic identity."""
-
-    candidates: dict[str, str] = {}
-    for label in sorted(list_catalog_labels(session), key=lambda value: (value.casefold(), value)):
-        candidates.setdefault(normalize_catalog_name(label), label)
-    return candidates
-
-
 def submit_catalog_request(
     session: Session,
     *,
@@ -72,11 +63,15 @@ def submit_catalog_request(
     context = payload.context.strip() if payload.context is not None else None
 
     lock_catalog_names(session, {normalized_name})
-    catalog_candidate = _normalized_catalog_candidates(session).get(normalized_name)
+    catalog_candidate = find_catalog_name(
+        session,
+        normalized_name=normalized_name,
+        normalized_name_digest=normalized_name_digest,
+    )
     if catalog_candidate is not None:
         raise CatalogRequestConflictError(
             f'"{proposed_name}" matches the normalized catalog candidate '
-            f'"{catalog_candidate}"; no ingredient identity was inferred.'
+            f'"{catalog_candidate.display_name}"; no ingredient identity was inferred.'
         )
     if (
         find_pending_request_by_normalized_name(
@@ -154,13 +149,17 @@ def _approve_request(
         )
 
     lock_catalog_names(session, normalized_names)
-    catalog_candidates = _normalized_catalog_candidates(session)
     for name in [canonical_name, *aliases]:
         normalized_name = normalize_catalog_name(name)
-        catalog_candidate = catalog_candidates.get(normalized_name)
+        catalog_candidate = find_catalog_name(
+            session,
+            normalized_name=normalized_name,
+            normalized_name_digest=catalog_name_digest(normalized_name),
+        )
         if catalog_candidate is not None:
             raise CatalogRequestConflictError(
-                f'Catalog name or alias "{name}" matches existing candidate "{catalog_candidate}".'
+                f'Catalog name or alias "{name}" matches existing candidate '
+                f'"{catalog_candidate.display_name}".'
             )
         pending_candidate = find_pending_request_by_normalized_name(
             session,

@@ -8,11 +8,12 @@ from uuid import UUID
 
 from ..dataset import SnapshotRecipe
 from ..protocol import (
-    FittedEvaluationModel,
+    FittedRankingModel,
     ModelMetadata,
     ModelTrainingData,
     derive_model_seed,
 )
+from ._ranking import validate_ranking_request
 from .baseline_v1 import BaselineV1Model
 from .collaborative_v1 import (
     MIN_ITEM_SIGNAL_PROFILES,
@@ -118,7 +119,7 @@ def _positions(ranking: tuple[UUID, ...]) -> dict[UUID, int]:
     return {recipe_id: position for position, recipe_id in enumerate(ranking, start=1)}
 
 
-class _FittedCollaborativeComponent(FittedEvaluationModel, Protocol):
+class _FittedCollaborativeComponent(FittedRankingModel, Protocol):
     @property
     def signals_by_user(self) -> Mapping[UUID, Mapping[UUID, int]]: ...
 
@@ -130,9 +131,9 @@ class _FittedCollaborativeComponent(FittedEvaluationModel, Protocol):
 class _FittedHybridV1:
     metadata: ModelMetadata
     recipes_by_id: Mapping[UUID, SnapshotRecipe]
-    content: FittedEvaluationModel
+    content: FittedRankingModel
     collaborative: _FittedCollaborativeComponent
-    fallback: FittedEvaluationModel
+    fallback: FittedRankingModel
 
     def _collaborative_detail(
         self,
@@ -160,16 +161,12 @@ class _FittedHybridV1:
         candidate_ids: tuple[UUID, ...],
         limit: int,
     ) -> tuple[HybridRecommendation, ...]:
-        if (
-            isinstance(limit, bool)
-            or not isinstance(limit, int)
-            or not 0 <= limit <= len(candidate_ids)
-        ):
-            raise ValueError("limit must be between zero and the candidate count")
-
-        # content-v1 owns the shared duplicate, catalog-membership, and subset validation.
+        validate_ranking_request(
+            candidate_ids=candidate_ids,
+            limit=limit,
+            fitted_recipe_ids=self.recipes_by_id.keys(),
+        )
         if limit == 0:
-            self.content.rank(user_id=user_id, candidate_ids=candidate_ids, limit=0)
             return ()
 
         window = min(len(candidate_ids), HYBRID_FUSION_WINDOW)
@@ -191,11 +188,7 @@ class _FittedHybridV1:
             self.fallback.rank(
                 user_id=user_id,
                 candidate_ids=candidate_ids,
-                # baseline-v1 ranks its full fitted catalog before applying the
-                # candidate filter. Request its complete supported window so a
-                # smaller direct candidate subset is compacted whenever the
-                # fitted catalog itself fits within the 50-item product bound.
-                limit=min(len(self.recipes_by_id), HYBRID_FUSION_WINDOW),
+                limit=window,
             )
         )
         content_positions = _positions(content_ranking)

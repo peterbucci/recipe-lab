@@ -1,22 +1,20 @@
-import hashlib
-import json
-from dataclasses import dataclass
-from decimal import Decimal
 from typing import Literal, cast
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.domain_errors import DomainConflictError, DomainValidationError
+from app.core.idempotency import (
+    IdempotencyConflictError,
+    canonical_request_fingerprint,
+    require_same_request,
+)
 from app.models import (
     RECIPE_DRAFT_STATUS_DISCARDED,
-    MeasurementUnit,
     RecipeCategory,
     RecipeDraft,
-    RecipeDraftCategory,
     RecipeDraftIngredient,
-    RecipeDraftInstruction,
     RecipeDraftInstructionAction,
-    RecipeDraftInstructionActionInput,
     RecipeDraftInstructionActionMeasure,
 )
 from app.repositories.catalog_requests import get_catalog_request
@@ -58,77 +56,58 @@ from app.schemas.recipe_drafts import (
 )
 from app.services.actions import (
     ActionContractError,
-    ValidatedActionMeasure,
     cooking_action_type_summary,
     validate_structured_actions,
 )
-from app.services.measurements import MeasurementError, serialize_measure, validate_measure_input
+from app.services.measurements import (
+    MeasurementError,
+    measurement_unit_snapshot_label,
+    serialize_measure,
+    validate_measure_input,
+)
+from app.services.recipe_documents import (
+    RecipeDocument,
+    RecipeDocumentAction,
+    RecipeDocumentActionInput,
+    RecipeDocumentActionMeasure,
+    RecipeDocumentCategory,
+    RecipeDocumentIngredient,
+    RecipeDocumentIngredientMeasure,
+    RecipeDocumentInstruction,
+    empty_recipe_document,
+    materialize_mutable_recipe_document,
+    recipe_document_from_version,
+)
 
 
-class InvalidRecipeDraftError(ValueError):
+class InvalidRecipeDraftError(DomainValidationError):
     """Raised when submitted private authoring state violates the curated contract."""
 
+    code = "invalid_recipe_draft"
 
-class RecipeDraftRevisionConflictError(ValueError):
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail, public_message=detail)
+
+
+class RecipeDraftRevisionConflictError(DomainConflictError):
     """Raised when a stale editor attempts to replace or discard a newer revision."""
 
+    code = "recipe_draft_revision_conflict"
+    public_message = "This draft has a newer saved revision. Reload it before trying again."
 
-class RecipeDraftCreationIdempotencyConflictError(RuntimeError):
+
+class RecipeDraftCreationIdempotencyConflictError(IdempotencyConflictError):
     """Raised when one creation action cannot safely resolve to an active draft."""
+
+    public_message = "The Idempotency-Key conflicts with an earlier draft creation intent."
 
 
 RECIPE_DRAFT_CREATION_FINGERPRINT_SCHEMA = "recipe-draft-creation"
 RECIPE_DRAFT_CREATION_FINGERPRINT_VERSION = 1
 
 
-@dataclass(frozen=True, slots=True)
-class _MeasureFields:
-    mode: str
-    quantity_min: Decimal | None
-    quantity_max: Decimal | None
-    measurement_unit_id: UUID | None
-    unit_display: str | None
-    package_size_id: UUID | None
-
-
-@dataclass(frozen=True, slots=True)
-class _ValidatedIngredient:
-    ref: str
-    selection_kind: str
-    ingredient_id: UUID | None
-    ingredient_request_id: UUID | None
-    name: str | None
-    measure: _MeasureFields
-    preparation_notes: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class _ValidatedAction:
-    action_type_id: UUID
-    ingredient_refs: tuple[str, ...]
-    measures: tuple[ValidatedActionMeasure, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class _ValidatedInstruction:
-    text: str
-    actions: tuple[_ValidatedAction, ...]
-
-
 def _invalid(message: str) -> InvalidRecipeDraftError:
     return InvalidRecipeDraftError(message)
-
-
-def _unit_display(symbol: str | None, canonical_label: str) -> str:
-    return symbol or canonical_label
-
-
-def _current_unit_display(unit: MeasurementUnit | None) -> str | None:
-    """Use current curated labels when an immutable source becomes an editable draft."""
-
-    if unit is None:
-        return None
-    return _unit_display(unit.symbol, unit.canonical_label)
 
 
 def _measure_fields(
@@ -136,7 +115,7 @@ def _measure_fields(
     *,
     measure: StructuredMeasureInput,
     ingredient_id: UUID | None,
-) -> _MeasureFields:
+) -> RecipeDocumentIngredientMeasure:
     try:
         unit = validate_measure_input(
             session,
@@ -150,33 +129,36 @@ def _measure_fields(
     if isinstance(measure, ExactMeasureInput):
         if unit is None:
             raise RuntimeError("A validated exact draft measure has no curated unit.")
-        return _MeasureFields(
+        return RecipeDocumentIngredientMeasure(
             mode="exact",
             quantity_min=measure.value,
             quantity_max=None,
             measurement_unit_id=unit.id,
-            unit_display=_unit_display(unit.symbol, unit.canonical_label),
+            unit_display=measurement_unit_snapshot_label(unit.symbol, unit.canonical_label),
             package_size_id=measure.package_size_id,
+            canonical_unit=None,
         )
     if isinstance(measure, RangeMeasureInput):
         if unit is None:
             raise RuntimeError("A validated range draft measure has no curated unit.")
-        return _MeasureFields(
+        return RecipeDocumentIngredientMeasure(
             mode="range",
             quantity_min=measure.minimum,
             quantity_max=measure.maximum,
             measurement_unit_id=unit.id,
-            unit_display=_unit_display(unit.symbol, unit.canonical_label),
+            unit_display=measurement_unit_snapshot_label(unit.symbol, unit.canonical_label),
             package_size_id=measure.package_size_id,
+            canonical_unit=None,
         )
     if isinstance(measure, QualitativeMeasureInput):
-        return _MeasureFields(
+        return RecipeDocumentIngredientMeasure(
             mode=measure.value,
             quantity_min=None,
             quantity_max=None,
             measurement_unit_id=None,
             unit_display=None,
             package_size_id=None,
+            canonical_unit=None,
         )
     raise AssertionError("Unsupported structured draft measure.")
 
@@ -186,7 +168,8 @@ def _validate_ingredient(
     *,
     author_user_id: UUID,
     item: RecipeDraftIngredientInput,
-) -> _ValidatedIngredient:
+    display_order: int,
+) -> RecipeDocumentIngredient:
     selection = item.selection
     if isinstance(selection, RecipeDraftCatalogSelectionInput):
         ingredient = get_ingredient(session, selection.ingredient_id)
@@ -197,7 +180,7 @@ def _validate_ingredient(
             raise _invalid("The selected ingredient label does not belong to its curated identity.")
         ingredient_id: UUID | None = ingredient.id
         ingredient_request_id: UUID | None = None
-        selection_kind = "catalog"
+        selection_kind: Literal["catalog", "request"] = "catalog"
         name: str | None = display_name
     elif isinstance(selection, RecipeDraftRequestSelectionInput):
         request = get_catalog_request(session, selection.ingredient_request_id)
@@ -210,7 +193,7 @@ def _validate_ingredient(
     else:
         raise AssertionError("Unsupported draft ingredient selection.")
 
-    return _ValidatedIngredient(
+    return RecipeDocumentIngredient(
         ref=item.ref,
         selection_kind=selection_kind,
         ingredient_id=ingredient_id,
@@ -222,6 +205,7 @@ def _validate_ingredient(
             ingredient_id=ingredient_id,
         ),
         preparation_notes=item.preparation_notes,
+        display_order=display_order,
     )
 
 
@@ -229,7 +213,9 @@ def _validate_action(
     session: Session,
     *,
     item: RecipeDraftActionInput,
-) -> _ValidatedAction:
+    ref: str,
+    display_order: int,
+) -> RecipeDocumentAction:
     translated = StructuredActionInput(
         action_type_id=item.action_type_id,
         ingredient_refs=[
@@ -246,10 +232,29 @@ def _validate_action(
         validated = validate_structured_actions(session, [translated])[0]
     except ActionContractError as error:
         raise _invalid(str(error)) from error
-    return _ValidatedAction(
+    return RecipeDocumentAction(
+        ref=ref,
         action_type_id=validated.action_type_id,
-        ingredient_refs=tuple(item.ingredient_refs),
-        measures=validated.measures,
+        action_type_key=None,
+        inputs=tuple(
+            RecipeDocumentActionInput(
+                ingredient_ref=ingredient_ref,
+                display_order=display_order,
+            )
+            for display_order, ingredient_ref in enumerate(item.ingredient_refs)
+        ),
+        measures=tuple(
+            RecipeDocumentActionMeasure(
+                semantic=measure.semantic,
+                mode=measure.measure_mode,
+                quantity_min=measure.quantity_min,
+                quantity_max=measure.quantity_max,
+                measurement_unit_id=measure.measurement_unit_id,
+                unit_display=measure.unit_display,
+            )
+            for measure in validated.measures
+        ),
+        display_order=display_order,
     )
 
 
@@ -258,17 +263,23 @@ def _validate_document(
     *,
     author_user_id: UUID,
     payload: RecipeDraftUpdateRequest,
-) -> tuple[list[_ValidatedIngredient], list[_ValidatedInstruction]]:
-    ingredients = [
-        _validate_ingredient(session, author_user_id=author_user_id, item=item)
-        for item in payload.ingredients
-    ]
+    categories: list[RecipeCategory],
+) -> RecipeDocument:
+    ingredients = tuple(
+        _validate_ingredient(
+            session,
+            author_user_id=author_user_id,
+            item=item,
+            display_order=display_order,
+        )
+        for display_order, item in enumerate(payload.ingredients)
+    )
     ingredients_by_ref = {ingredient.ref: ingredient for ingredient in ingredients}
 
-    instructions: list[_ValidatedInstruction] = []
-    for item in payload.instructions:
-        actions: list[_ValidatedAction] = []
-        for action in item.actions:
+    instructions: list[RecipeDocumentInstruction] = []
+    for instruction_order, item in enumerate(payload.instructions):
+        actions: list[RecipeDocumentAction] = []
+        for action_order, action in enumerate(item.actions):
             unresolved = [
                 ingredient_ref
                 for ingredient_ref in action.ingredient_refs
@@ -279,109 +290,43 @@ def _validate_document(
                     "Structured actions may reference only catalog-backed ingredient "
                     f"slots; unresolved refs={unresolved!r}."
                 )
-            actions.append(_validate_action(session, item=action))
+            actions.append(
+                _validate_action(
+                    session,
+                    item=action,
+                    ref=f"validated-action:{instruction_order:04d}:{action_order:04d}",
+                    display_order=action_order,
+                )
+            )
         instructions.append(
-            _ValidatedInstruction(
+            RecipeDocumentInstruction(
+                ref=f"validated-instruction:{instruction_order:04d}",
+                title=item.title,
                 text=item.text,
                 actions=tuple(actions),
+                display_order=instruction_order,
             )
         )
-    return ingredients, instructions
-
-
-def _insert_validated_document(
-    session: Session,
-    *,
-    draft: RecipeDraft,
-    categories: list[RecipeCategory],
-    ingredients: list[_ValidatedIngredient],
-    instructions: list[_ValidatedInstruction],
-) -> None:
-    session.add_all(
-        [
-            RecipeDraftCategory(
-                recipe_draft_id=draft.id,
-                recipe_category_id=category.id,
+    return RecipeDocument(
+        title=payload.title,
+        description=payload.description,
+        servings=payload.servings,
+        total_time_minutes=payload.total_time_minutes,
+        active_time_minutes=payload.active_time_minutes,
+        difficulty=payload.difficulty,
+        notes=payload.notes,
+        categories=tuple(
+            RecipeDocumentCategory(
+                category_id=category.id,
+                name=category.name,
+                slug=category.slug,
                 display_order=display_order,
             )
             for display_order, category in enumerate(categories)
-        ]
+        ),
+        ingredients=ingredients,
+        instructions=tuple(instructions),
     )
-
-    ingredient_rows = [
-        RecipeDraftIngredient(
-            recipe_draft_id=draft.id,
-            selection_kind=item.selection_kind,
-            ingredient_id=item.ingredient_id,
-            ingredient_request_id=item.ingredient_request_id,
-            name=item.name,
-            measure_mode=item.measure.mode,
-            quantity_min=item.measure.quantity_min,
-            quantity_max=item.measure.quantity_max,
-            measurement_unit_id=item.measure.measurement_unit_id,
-            unit_display=item.measure.unit_display,
-            package_size_id=item.measure.package_size_id,
-            preparation_notes=item.preparation_notes,
-            display_order=display_order,
-        )
-        for display_order, item in enumerate(ingredients)
-    ]
-    session.add_all(ingredient_rows)
-    session.flush()
-    ingredient_ids = {
-        item.ref: row.id for item, row in zip(ingredients, ingredient_rows, strict=True)
-    }
-
-    instruction_rows = [
-        RecipeDraftInstruction(
-            recipe_draft_id=draft.id,
-            instruction=item.text,
-            display_order=display_order,
-        )
-        for display_order, item in enumerate(instructions)
-    ]
-    session.add_all(instruction_rows)
-    session.flush()
-
-    for instruction, instruction_row in zip(instructions, instruction_rows, strict=True):
-        action_rows = [
-            RecipeDraftInstructionAction(
-                recipe_draft_id=draft.id,
-                recipe_draft_instruction_id=instruction_row.id,
-                action_type_id=action.action_type_id,
-                display_order=display_order,
-            )
-            for display_order, action in enumerate(instruction.actions)
-        ]
-        session.add_all(action_rows)
-        session.flush()
-        for action, action_row in zip(instruction.actions, action_rows, strict=True):
-            session.add_all(
-                [
-                    RecipeDraftInstructionActionInput(
-                        recipe_draft_id=draft.id,
-                        recipe_draft_instruction_action_id=action_row.id,
-                        recipe_draft_ingredient_id=ingredient_ids[ingredient_ref],
-                        display_order=display_order,
-                    )
-                    for display_order, ingredient_ref in enumerate(action.ingredient_refs)
-                ]
-            )
-            session.add_all(
-                [
-                    RecipeDraftInstructionActionMeasure(
-                        recipe_draft_instruction_action_id=action_row.id,
-                        semantic=measure.semantic,
-                        measure_mode=measure.measure_mode,
-                        quantity_min=measure.quantity_min,
-                        quantity_max=measure.quantity_max,
-                        measurement_unit_id=measure.measurement_unit_id,
-                        unit_display=measure.unit_display,
-                    )
-                    for measure in action.measures
-                ]
-            )
-    session.flush()
 
 
 def create_recipe_draft(
@@ -410,6 +355,9 @@ def create_recipe_draft(
         source = get_public_recipe_snapshot_for_draft(session, source_version_id)
         if source is None:
             return None
+    document = (
+        recipe_document_from_version(source) if source is not None else empty_recipe_document()
+    )
 
     inserted_id = insert_recipe_draft_shell(
         session,
@@ -417,9 +365,13 @@ def create_recipe_draft(
         creation_action_id=creation_action_id,
         creation_request_fingerprint=request_fingerprint,
         source_version_id=source.id if source is not None else None,
-        title=source.title if source is not None else "",
-        description=source.description if source is not None else None,
-        servings=source.servings if source is not None else None,
+        title=document.title,
+        description=document.description,
+        servings=document.servings,
+        total_time_minutes=document.total_time_minutes,
+        active_time_minutes=document.active_time_minutes,
+        difficulty=document.difficulty,
+        notes=document.notes,
     )
     if inserted_id is None:
         concurrent = get_owned_recipe_draft_by_creation_action(
@@ -444,100 +396,7 @@ def create_recipe_draft(
     if source is None:
         return draft
 
-    session.add_all(
-        [
-            RecipeDraftCategory(
-                recipe_draft_id=draft.id,
-                recipe_category_id=item.recipe_category_id,
-                display_order=item.display_order,
-            )
-            for item in source.categories
-        ]
-    )
-
-    ingredient_rows = [
-        RecipeDraftIngredient(
-            recipe_draft_id=draft.id,
-            selection_kind="catalog",
-            ingredient_id=item.ingredient_id,
-            ingredient_request_id=None,
-            name=item.name,
-            measure_mode=item.measure_mode,
-            quantity_min=item.quantity_min,
-            quantity_max=item.quantity_max,
-            measurement_unit_id=item.measurement_unit_id,
-            unit_display=_current_unit_display(item.measurement_unit),
-            package_size_id=item.package_size_id,
-            preparation_notes=item.preparation_notes,
-            display_order=item.display_order,
-        )
-        for item in source.ingredients
-    ]
-    session.add_all(ingredient_rows)
-    session.flush()
-    ingredient_ids = {
-        source_item.id: draft_item.id
-        for source_item, draft_item in zip(source.ingredients, ingredient_rows, strict=True)
-    }
-
-    instruction_rows = [
-        RecipeDraftInstruction(
-            recipe_draft_id=draft.id,
-            instruction=item.instruction,
-            display_order=item.display_order,
-        )
-        for item in source.instructions
-    ]
-    session.add_all(instruction_rows)
-    session.flush()
-    for source_instruction, draft_instruction in zip(
-        source.instructions,
-        instruction_rows,
-        strict=True,
-    ):
-        action_rows = [
-            RecipeDraftInstructionAction(
-                recipe_draft_id=draft.id,
-                recipe_draft_instruction_id=draft_instruction.id,
-                action_type_id=action.action_type_id,
-                display_order=action.display_order,
-            )
-            for action in source_instruction.actions
-        ]
-        session.add_all(action_rows)
-        session.flush()
-        for source_action, draft_action in zip(
-            source_instruction.actions,
-            action_rows,
-            strict=True,
-        ):
-            session.add_all(
-                [
-                    RecipeDraftInstructionActionInput(
-                        recipe_draft_id=draft.id,
-                        recipe_draft_instruction_action_id=draft_action.id,
-                        recipe_draft_ingredient_id=ingredient_ids[
-                            source_input.recipe_ingredient_id
-                        ],
-                        display_order=source_input.display_order,
-                    )
-                    for source_input in source_action.inputs
-                ]
-            )
-            session.add_all(
-                [
-                    RecipeDraftInstructionActionMeasure(
-                        recipe_draft_instruction_action_id=draft_action.id,
-                        semantic=measure.semantic,
-                        measure_mode=measure.measure_mode,
-                        quantity_min=measure.quantity_min,
-                        quantity_max=measure.quantity_max,
-                        measurement_unit_id=measure.measurement_unit_id,
-                        unit_display=_current_unit_display(measure.measurement_unit),
-                    )
-                    for measure in source_action.measures
-                ]
-            )
+    materialize_mutable_recipe_document(session, draft=draft, document=document)
     session.flush()
     return draft
 
@@ -545,14 +404,15 @@ def create_recipe_draft(
 def recipe_draft_creation_request_fingerprint(source_version_id: UUID | None) -> str:
     """Hash one versioned canonical blank-or-source creation intent."""
 
-    document = {
+    fields = {
         "intent": "blank" if source_version_id is None else "source",
-        "schema": RECIPE_DRAFT_CREATION_FINGERPRINT_SCHEMA,
         "source_version_id": str(source_version_id) if source_version_id is not None else None,
-        "version": RECIPE_DRAFT_CREATION_FINGERPRINT_VERSION,
     }
-    canonical = json.dumps(document, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return canonical_request_fingerprint(
+        schema=RECIPE_DRAFT_CREATION_FINGERPRINT_SCHEMA,
+        version=RECIPE_DRAFT_CREATION_FINGERPRINT_VERSION,
+        fields=fields,
+    )
 
 
 def _resolve_recipe_draft_creation_replay(
@@ -560,10 +420,12 @@ def _resolve_recipe_draft_creation_replay(
     *,
     request_fingerprint: str,
 ) -> RecipeDraft:
-    if draft.creation_request_fingerprint != request_fingerprint:
-        raise RecipeDraftCreationIdempotencyConflictError(
-            "The draft creation action is already bound to another request."
-        )
+    require_same_request(
+        draft.creation_request_fingerprint,
+        request_fingerprint,
+        conflict_error=RecipeDraftCreationIdempotencyConflictError,
+        detail="The draft creation action is already bound to another request.",
+    )
     if draft.status != "active":
         raise RecipeDraftCreationIdempotencyConflictError(
             "The draft creation action is already bound to a completed draft."
@@ -589,32 +451,26 @@ def replace_recipe_draft(
     if draft.revision != payload.revision:
         raise RecipeDraftRevisionConflictError("The draft has a newer saved revision.")
 
-    ingredients, instructions = _validate_document(
-        session,
-        author_user_id=author_user_id,
-        payload=payload,
-    )
     categories = resolve_active_recipe_categories(session, payload.category_ids)
     if categories is None:
         raise _invalid("Select only active curated recipe categories.")
+    document = _validate_document(
+        session,
+        author_user_id=author_user_id,
+        payload=payload,
+        categories=categories,
+    )
 
-    draft.categories.clear()
-    session.flush()
+    # Action inputs reference ingredient occurrences, so retire the instruction
+    # graph first. Independent categories and ingredients can then be deleted in
+    # one ordered unit-of-work flush.
     draft.instructions.clear()
     session.flush()
     draft.ingredients.clear()
+    draft.categories.clear()
     session.flush()
-    draft.title = payload.title
-    draft.description = payload.description
-    draft.servings = payload.servings
     draft.revision += 1
-    _insert_validated_document(
-        session,
-        draft=draft,
-        categories=list(categories),
-        ingredients=ingredients,
-        instructions=instructions,
-    )
+    materialize_mutable_recipe_document(session, draft=draft, document=document)
     session.flush()
     return draft
 
@@ -639,12 +495,15 @@ def discard_recipe_draft(
     draft.instructions.clear()
     session.flush()
     draft.ingredients.clear()
-    session.flush()
     draft.categories.clear()
     session.flush()
     draft.title = ""
     draft.description = None
     draft.servings = None
+    draft.total_time_minutes = None
+    draft.active_time_minutes = None
+    draft.difficulty = None
+    draft.notes = None
     draft.status = RECIPE_DRAFT_STATUS_DISCARDED
     session.flush()
     return True
@@ -750,6 +609,10 @@ def recipe_draft_detail_response(draft: RecipeDraft) -> RecipeDraftDetailRespons
         title=draft.title,
         description=draft.description,
         servings=draft.servings,
+        total_time_minutes=draft.total_time_minutes,
+        active_time_minutes=draft.active_time_minutes,
+        difficulty=cast(Literal["easy", "medium", "hard"] | None, draft.difficulty),
+        notes=draft.notes,
         categories=[
             RecipeCategorySummary(
                 id=item.category.id,
@@ -762,6 +625,7 @@ def recipe_draft_detail_response(draft: RecipeDraft) -> RecipeDraftDetailRespons
         instructions=[
             RecipeDraftInstructionResponse(
                 id=item.id,
+                title=item.title,
                 text=item.instruction,
                 actions=[_action_response(action) for action in item.actions],
                 display_order=item.display_order,

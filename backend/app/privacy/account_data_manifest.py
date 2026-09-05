@@ -160,6 +160,33 @@ def _table(
 
 DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
     _table(
+        "user_follows",
+        "follower_user_id followed_user_id created_at",
+        foreign_keys=(
+            "user_follows(followed_user_id)->users(id)",
+            "user_follows(follower_user_id)->users(id)",
+        ),
+        column_disposition=DataDisposition.DELETE,
+        row_policies=(
+            _row_policy(
+                "deleted member follows another cook",
+                DataDisposition.DELETE,
+                "follower_user_id equals the deleted user id",
+                "Inside the account-deletion transaction.",
+                "A deleted account cannot retain a social relationship.",
+            ),
+            _row_policy(
+                "another member follows the deleted cook",
+                DataDisposition.DELETE,
+                "followed_user_id equals the deleted user id",
+                "Inside the account-deletion transaction.",
+                "Followers should not remain attached to a deleted profile.",
+            ),
+        ),
+        scope="Delete every incoming and outgoing follow involving the deleted member.",
+        rationale="Follow relationships are private account state with no retained audit use.",
+    ),
+    _table(
         "abuse_rate_limit_buckets",
         "operation dimension subject_digest account_user_id window_started_at request_count "
         "expires_at",
@@ -545,7 +572,7 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
     ),
     _table(
         "recipe_draft_instructions",
-        "recipe_draft_id instruction display_order id",
+        "recipe_draft_id title instruction display_order id",
         foreign_keys=("recipe_draft_instructions(recipe_draft_id)->recipe_drafts(id)",),
         relationships=(
             "recipe_draft_instructions.actions->recipe_draft_instruction_actions",
@@ -556,12 +583,13 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
         rationale=(
             "Human-readable instructions are private until publication creates a version copy."
         ),
-        embedded_content_columns="instruction",
+        embedded_content_columns="title instruction",
     ),
     _table(
         "recipe_drafts",
         "author_user_id source_version_id creation_action_id creation_request_fingerprint status "
-        "revision title description servings id created_at updated_at",
+        "revision title description servings total_time_minutes active_time_minutes difficulty "
+        "notes id created_at updated_at",
         foreign_keys=(
             "recipe_drafts(author_user_id)->users(id)",
             "recipe_drafts(source_version_id)->recipe_versions(id)",
@@ -576,7 +604,8 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
         ),
         column_policies=(
             _column_policy(
-                "title description servings",
+                "title description servings total_time_minutes active_time_minutes difficulty "
+                "notes",
                 DataDisposition.ANONYMIZE,
                 "Erase private draft content from the published source shell.",
             ),
@@ -608,10 +637,10 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
         scope=(
             "Delete active drafts and discarded shells. Retain a content-free published shell "
             "only where publication idempotency and source linkage require it; erase title, "
-            "description, and servings."
+            "description, servings, cooking times, difficulty, and notes."
         ),
         rationale="Private work is erased while immutable publication topology stays valid.",
-        embedded_content_columns="title description",
+        embedded_content_columns="title description notes",
     ),
     _table(
         "recipe_duplicate_candidates",
@@ -961,7 +990,7 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
     ),
     _table(
         "recipe_version_instructions",
-        "recipe_version_id instruction display_order id",
+        "recipe_version_id title instruction display_order id",
         foreign_keys=("recipe_version_instructions(recipe_version_id)->recipe_versions(id)",),
         relationships=(
             "recipe_version_instructions.actions->recipe_instruction_actions",
@@ -970,7 +999,7 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
         column_disposition=DataDisposition.RETAIN,
         scope="Retain as immutable public recipe content.",
         rationale="Published instructions are community content and structural evidence.",
-        embedded_content_columns="instruction",
+        embedded_content_columns="title instruction",
     ),
     _table(
         "recipe_version_publications",
@@ -1026,7 +1055,7 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
     _table(
         "recipe_versions",
         "lineage_id parent_version_id created_by_user_id version_number title description servings "
-        "id created_at",
+        "total_time_minutes active_time_minutes difficulty notes id created_at",
         foreign_keys=(
             "recipe_versions(created_by_user_id)->users(id)",
             "recipe_versions(lineage_id)->recipe_lineages(id)",
@@ -1050,7 +1079,7 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
         rationale=(
             "Deleting a published version would break public recipes, forks, and audit topology."
         ),
-        embedded_content_columns="title description",
+        embedded_content_columns="title description notes",
     ),
     _table(
         "user_sessions",
@@ -1066,13 +1095,14 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
     ),
     _table(
         "users",
-        "email display_name handle account_kind status deleted_at id created_at updated_at",
+        "email display_name handle profile_description account_kind status deleted_at id "
+        "created_at updated_at",
         column_policies=(
             _column_policy(
-                "email display_name handle",
+                "email display_name handle profile_description",
                 DataDisposition.ANONYMIZE,
-                "Clear identity fields and replace the display name with the fixed tombstone "
-                "label.",
+                "Clear identity and profile fields and replace the display name with the fixed "
+                "tombstone label.",
             ),
             _column_policy(
                 "account_kind status deleted_at id created_at updated_at",
@@ -1084,10 +1114,11 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
         scope=(
             "Retain id, account kind, deleted status, deletion timestamp, and audit timestamps "
             "as a "
-            "stable tombstone; clear email and handle and replace display_name with 'Deleted cook'."
+            "stable tombstone; clear email, handle, and profile description and replace "
+            "display_name with 'Deleted cook'."
         ),
         rationale="A non-identifying tombstone preserves public authorship and audit foreign keys.",
-        embedded_content_columns="email display_name handle",
+        embedded_content_columns="email display_name handle profile_description",
     ),
 )
 

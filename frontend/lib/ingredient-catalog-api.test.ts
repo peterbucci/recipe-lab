@@ -126,20 +126,22 @@ describe("ingredient catalog API client", () => {
         context: "Fresh pink fruit",
       }),
     ).resolves.toMatchObject({ id: REQUEST_ID, status: "pending" });
-    expect(fetchMock).toHaveBeenCalledWith("/api/ingredient-requests", {
-      method: "POST",
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "X-CSRF-Token": "test-csrf-token",
-      },
-      body: JSON.stringify({
-        proposed_name: "Dragon fruit",
-        context: "Fresh pink fruit",
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/ingredient-requests",
+      expect.objectContaining({
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        body: JSON.stringify({
+          proposed_name: "Dragon fruit",
+          context: "Fresh pink fruit",
+        }),
       }),
-    });
+    );
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.get("Accept")).toBe("application/json");
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(headers.get("X-CSRF-Token")).toBe("test-csrf-token");
   });
 
   it("maps a duplicate request to stable member-facing copy", async () => {
@@ -200,20 +202,21 @@ describe("ingredient catalog API client", () => {
 
   it("hides ingredient-search backend messages and identifiers", async () => {
     const internalId = "99999999-9999-4999-8999-999999999999";
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () =>
+      Response.json(
+        {
+          error: {
+            code: "catalog_search_unavailable",
+            message: `Canonical UUID ${internalId} failed an operator policy check.`,
+            issues: [],
+          },
+        },
+        { status: 503 },
+      ),
+    );
     vi.stubGlobal(
       "fetch",
-      vi.fn<typeof fetch>().mockResolvedValue(
-        Response.json(
-          {
-            error: {
-              code: "catalog_search_unavailable",
-              message: `Canonical UUID ${internalId} failed an operator policy check.`,
-              issues: [],
-            },
-          },
-          { status: 503 },
-        ),
-      ),
+      fetchMock,
     );
 
     const error = await searchCatalogIngredients({ query: "pecan" }).catch(
@@ -227,6 +230,24 @@ describe("ingredient catalog API client", () => {
     expect(`${String(error)} ${JSON.stringify(error)}`).not.toMatch(
       /99999999|canonical|uuid|operator|policy/i,
     );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("maps an unreadable successful search body to the validated response error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response("not-json", {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    await expect(searchCatalogIngredients({ query: "pecan" })).rejects.toMatchObject({
+      code: "invalid_ingredient_catalog_response",
+      status: 502,
+    });
   });
 
   it("loads a member's filtered request history and its trusted resolution detail", async () => {
@@ -500,14 +521,13 @@ describe("ingredient catalog curator API client", () => {
       `/api/ingredient-requests/${REQUEST_ID}/review`,
       expect.objectContaining({
         method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "X-CSRF-Token": "test-csrf-token",
-        },
         body: JSON.stringify(input),
       }),
     ]);
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.get("Accept")).toBe("application/json");
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(headers.get("X-CSRF-Token")).toBe("test-csrf-token");
 
     await expect(
       reviewIngredientCatalogRequest(REQUEST_ID, {

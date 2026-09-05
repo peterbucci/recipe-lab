@@ -22,7 +22,7 @@ class ApplicationEngineOptions(TypedDict):
 def application_engine_options(settings: Settings) -> ApplicationEngineOptions:
     """Derive every application database wait bound from one reviewed setting."""
 
-    timeout_seconds = settings.database_operation_timeout_seconds
+    timeout_seconds = settings.database.operation_timeout_seconds
     timeout_milliseconds = timeout_seconds * 1_000
     return {
         "pool_pre_ping": True,

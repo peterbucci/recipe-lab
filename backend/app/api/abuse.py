@@ -2,13 +2,8 @@ from fastapi import Request
 
 from app.api.dependencies import SessionDependency, SettingsDependency
 from app.core.security import AUTH_SESSION_COOKIE_NAME
-from app.services.abuse_limits import (
-    RateLimitUnavailableError,
-    abuse_protection_unavailable_error,
-    classify_rate_limited_request,
-    client_network_subject,
-    enforce_request_rate_limit,
-)
+from app.policies.abuse import classify_rate_limited_request
+from app.services.abuse_limits import client_network_subject, enforce_request_rate_limit
 from app.services.auth import resolve_authenticated_session, utc_now
 
 
@@ -37,21 +32,18 @@ def enforce_abuse_rate_limits(
         if raw_session_token is not None
         else None
     )
-    try:
-        enforce_request_rate_limit(
-            session,
+    enforce_request_rate_limit(
+        session,
+        settings=settings,
+        policy=policy,
+        client_host=client_network_subject(
+            request.headers,
             settings=settings,
-            policy=policy,
-            client_host=client_network_subject(
-                request.headers,
-                settings=settings,
-                method=request.method,
-                path=request.url.path,
-                direct_client_host=request.client.host if request.client is not None else None,
-                now=now,
-            ),
-            account_user_id=authenticated.user_id if authenticated is not None else None,
+            method=request.method,
+            path=request.url.path,
+            direct_client_host=request.client.host if request.client is not None else None,
             now=now,
-        )
-    except RateLimitUnavailableError as error:
-        raise abuse_protection_unavailable_error() from error
+        ),
+        account_user_id=authenticated.user_id if authenticated is not None else None,
+        now=now,
+    )

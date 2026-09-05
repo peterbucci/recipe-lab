@@ -10,17 +10,24 @@ on:
         type: string
   pull_request:
     paths:
+      - .gitattributes
+      - .github/actions/**
+      - .github/workflows/ci.yml
       - .github/workflows/release-rehearsal.yml
+      - .github/workflows/security.yml
       - .dockerignore
+      - .env.example
       - backend/**
       - frontend/**
       - ml/**
       - pyproject.toml
       - uv.lock
       - scripts/package_source.py
+      - scripts/verify_repository_policy.py
       - scripts/rehearse_release.py
       - scripts/run_release_rehearsal.sh
       - scripts/tests/test_package_source.py
+      - scripts/tests/test_verify_repository_policy.py
       - scripts/tests/test_rehearse_release.py
       - scripts/tests/test_verify_production_images.py
       - scripts/verify_production_images.py
@@ -28,17 +35,24 @@ on:
     branches:
       - main
     paths:
+      - .gitattributes
+      - .github/actions/**
+      - .github/workflows/ci.yml
       - .github/workflows/release-rehearsal.yml
+      - .github/workflows/security.yml
       - .dockerignore
+      - .env.example
       - backend/**
       - frontend/**
       - ml/**
       - pyproject.toml
       - uv.lock
       - scripts/package_source.py
+      - scripts/verify_repository_policy.py
       - scripts/rehearse_release.py
       - scripts/run_release_rehearsal.sh
       - scripts/tests/test_package_source.py
+      - scripts/tests/test_verify_repository_policy.py
       - scripts/tests/test_rehearse_release.py
       - scripts/tests/test_verify_production_images.py
       - scripts/verify_production_images.py
@@ -53,7 +67,7 @@ concurrency:
 jobs:
   rehearsal:
     name: RCP-33G automated rehearsal
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       PGHOST: 127.0.0.1
@@ -80,11 +94,12 @@ jobs:
       RCP32_PYTHON_EXECUTABLE: python
       RCP33G_CANDIDATE_BACKEND_IMAGE: recipe-lab-backend:rcp33g-candidate-${{ github.sha }}
       RCP33G_CANDIDATE_FRONTEND_IMAGE: recipe-lab-frontend:rcp33g-candidate-${{ github.sha }}
+      RCP33G_DATABASE_IMAGE: postgres:17.11-alpine@sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee
       RCP33G_ROLLBACK_BACKEND_IMAGE: recipe-lab-backend:rcp33g-rollback-${{ github.run_id }}-${{ github.run_attempt }}
       RCP33G_ROLLBACK_FRONTEND_IMAGE: recipe-lab-frontend:rcp33g-rollback-${{ github.run_id }}-${{ github.run_attempt }}
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17.11-alpine@sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee
         env:
           POSTGRES_DB: recipe_lab_rcp32_acceptance
           POSTGRES_USER: recipe_lab
@@ -120,29 +135,16 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Check out exact candidate with ancestor history
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
+      - name: Set up locked Python
+        uses: ./.github/actions/setup-python
 
-      - name: Set up locked Python resolver
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          version: "0.12.6"
-          enable-cache: true
-          cache-dependency-glob: uv.lock
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+      - name: Set up locked Node.js
+        uses: ./.github/actions/setup-node
 
       - name: Set up pinned Trivy
         uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
@@ -158,7 +160,7 @@ jobs:
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
           cd frontend
           npm ci
-          npx playwright install --with-deps chromium
+          npx --no-install playwright install --with-deps chromium
 
       - name: Verify the rehearsal helpers
         run: |
@@ -204,7 +206,7 @@ jobs:
 
       - name: Upload bounded success evidence
         if: ${{ success() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: rcp33g-release-rehearsal-evidence
           path: |
@@ -217,7 +219,7 @@ jobs:
 
       - name: Upload bounded failure phase
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: rcp33g-release-rehearsal-failure
           path: ${{ runner.temp }}/recipe-lab-rcp33g-safe/failure-summary.json

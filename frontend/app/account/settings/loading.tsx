@@ -1,10 +1,12 @@
+import { PageLoadingSkeleton } from "../../components/loading-ui";
+
 export default function AccountSettingsLoading() {
   return (
-    <main
-      id="main-content"
-      className="page-shell account-settings-page account-settings-page--loading"
-    >
-      <p role="status">Loading account settings…</p>
-    </main>
+    <PageLoadingSkeleton
+      className="page-shell account-settings account-settings-page account-settings-page--loading"
+      label="Loading account settings…"
+      title="Settings"
+      variant="settings"
+    />
   );
 }

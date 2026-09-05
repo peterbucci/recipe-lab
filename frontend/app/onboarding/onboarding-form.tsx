@@ -11,6 +11,7 @@ import {
   updateAccountProfile,
 } from "../../lib/auth-api";
 import { useAuthSession } from "../components/auth-session-provider";
+import { AuthGateLoading, LoadingButton } from "../components/loading-ui";
 
 interface OnboardingFormProps {
   returnTo: string;
@@ -218,9 +219,14 @@ function ProfileFields({ returnTo, session }: ProfileFieldsProps) {
       ) : null}
 
       <div className="button-row profile-form__actions">
-        <button className="button button--primary" type="submit" disabled={pending}>
-          {pending ? "Saving account…" : "Finish account setup"}
-        </button>
+        <LoadingButton
+          className="button button--primary"
+          type="submit"
+          pending={pending}
+          pendingLabel="Saving account…"
+        >
+          Finish account setup
+        </LoadingButton>
         <Link className="button button--secondary" href="/recipes">
           Finish later
         </Link>
@@ -241,13 +247,11 @@ export function OnboardingForm({ returnTo }: OnboardingFormProps) {
 
   if (state.phase === "loading") {
     return (
-      <div
+      <AuthGateLoading
         className="auth-state account-access-state account-access-state--loading"
-        role="status"
-      >
-        <span className="loading-state__pulse" aria-hidden="true" />
-        <strong>Checking your account…</strong>
-      </div>
+        exitHref="/recipes"
+        label="Checking your account…"
+      />
     );
   }
 

@@ -309,7 +309,7 @@ test.describe("RCP-34B public performance baseline", () => {
             path: "/",
             ready: (currentPage) =>
               currentPage.getByRole("heading", {
-                name: "Recipes change. Recipe Lab keeps track.",
+                name: "All recipes",
                 level: 1,
               }),
           },
@@ -317,7 +317,11 @@ test.describe("RCP-34B public performance baseline", () => {
             label: "public_recipe_catalog",
             path: "/recipes?q=carrot",
             ready: (currentPage) =>
-              currentPage.getByRole("heading", { name: /results for “carrot”/i }),
+              currentPage.getByRole("heading", {
+                name: "All recipes matching “carrot”",
+                level: 1,
+                exact: true,
+              }),
           },
           {
             label: "public_recipe_detail",

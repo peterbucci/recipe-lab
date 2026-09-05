@@ -5,16 +5,15 @@ import importlib.util
 import io
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
-from typing import Any, cast
 import unittest
-from contextlib import redirect_stderr
-from unittest import mock
 import zipfile
-
+from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
+from typing import Any, cast
+from unittest import mock
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "package_source.py"
 SPEC = importlib.util.spec_from_file_location("recipe_lab_package_source", SCRIPT_PATH)
@@ -40,15 +39,12 @@ class SourcePackageTestCase(unittest.TestCase):
         self._write("backend/app.py", "print('safe fixture')\n")
         self._commit("safe fixture")
 
-    def _git(
-        self, *arguments: str, check: bool = True
-    ) -> subprocess.CompletedProcess[bytes]:
+    def _git(self, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[bytes]:
         return subprocess.run(
             ["git", *arguments],
             cwd=self.repository,
             check=check,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
 
     def _write(self, relative_path: str, content: str | bytes) -> Path:
@@ -93,6 +89,10 @@ class SourcePackageTestCase(unittest.TestCase):
 class SuccessfulPackageTests(SourcePackageTestCase):
     def test_includes_only_the_reviewed_root_dependency_contract_files(self) -> None:
         self._write(
+            ".gitattributes",
+            "*.sh text eol=lf\n",
+        )
+        self._write(
             ".dockerignore",
             ".env*\n.git\n.venv\n",
         )
@@ -113,6 +113,7 @@ class SuccessfulPackageTests(SourcePackageTestCase):
             [file_report["path"] for file_report in files],
             [
                 ".dockerignore",
+                ".gitattributes",
                 ".gitignore",
                 "README.md",
                 "backend/app.py",
@@ -125,6 +126,10 @@ class SuccessfulPackageTests(SourcePackageTestCase):
             self.assertEqual(
                 archive.read(f"{archive_root}/.dockerignore"),
                 b".env*\n.git\n.venv\n",
+            )
+            self.assertEqual(
+                archive.read(f"{archive_root}/.gitattributes"),
+                b"*.sh text eol=lf\n",
             )
             self.assertEqual(
                 archive.read(f"{archive_root}/pyproject.toml"),
@@ -151,20 +156,15 @@ class SuccessfulPackageTests(SourcePackageTestCase):
         self.assertEqual(scanner["result"], "passed")
         self.assertRegex(scanner["sha256"], r"^[0-9a-f]{64}$")
         policy_report = cast(dict[str, Any], report["policy"])
-        self.assertEqual(policy_report["version"], 3)
+        self.assertEqual(policy_report["version"], 5)
         self.assertRegex(policy_report["sha256"], r"^[0-9a-f]{64}$")
         archive_report = cast(dict[str, Any], report["archive"])
-        self.assertEqual(
-            archive_report["sha256"], hashlib.sha256(output.read_bytes()).hexdigest()
-        )
+        self.assertEqual(archive_report["sha256"], hashlib.sha256(output.read_bytes()).hexdigest())
         self.assertEqual(archive_report["entry_count"], 3)
         self.assertEqual(archive_report["compressed_bytes"], output.stat().st_size)
         self.assertEqual(
             archive_report["uncompressed_bytes"],
-            sum(
-                len(value)
-                for value in (".env\n", "# Fixture\n", "print('safe fixture')\n")
-            ),
+            sum(len(value) for value in (".env\n", "# Fixture\n", "print('safe fixture')\n")),
         )
         files = cast(list[dict[str, Any]], report["files"])
         self.assertEqual(
@@ -229,9 +229,7 @@ class SuccessfulPackageTests(SourcePackageTestCase):
         output, _ = self._package()
 
         with zipfile.ZipFile(output) as archive:
-            member = next(
-                item for item in archive.infolist() if item.filename.endswith("tool.py")
-            )
+            member = next(item for item in archive.infolist() if item.filename.endswith("tool.py"))
             self.assertEqual((member.external_attr >> 16) & 0o777, 0o755)
 
     def test_packages_reviewed_shell_scripts_as_scanned_text(self) -> None:
@@ -247,9 +245,7 @@ class SuccessfulPackageTests(SourcePackageTestCase):
         output, report = self._package()
 
         files = cast(list[dict[str, Any]], report["files"])
-        shell_report = next(
-            item for item in files if item["path"] == "scripts/rehearsal.sh"
-        )
+        shell_report = next(item for item in files if item["path"] == "scripts/rehearsal.sh")
         self.assertEqual(shell_report["mode"], "100755")
         scanner = cast(dict[str, Any], report["scanner"])
         self.assertEqual(scanner["text_files_scanned_per_pass"], 4)
@@ -257,9 +253,7 @@ class SuccessfulPackageTests(SourcePackageTestCase):
         self.assertEqual(policy["reviewed_opaque_entries"], 0)
         with zipfile.ZipFile(output) as archive:
             member = next(
-                item
-                for item in archive.infolist()
-                if item.filename.endswith("rehearsal.sh")
+                item for item in archive.infolist() if item.filename.endswith("rehearsal.sh")
             )
             self.assertEqual((member.external_attr >> 16) & 0o777, 0o755)
 
@@ -267,54 +261,38 @@ class SuccessfulPackageTests(SourcePackageTestCase):
 class DirtyAndOutputGuardTests(SourcePackageTestCase):
     def test_refuses_unstaged_tracked_change_without_leaking_path(self) -> None:
         self._write("README.md", "changed\n")
-        with self.assertRaisesRegex(
-            package_module.PackagingError, "working tree is dirty"
-        ):
+        with self.assertRaisesRegex(package_module.PackagingError, "working tree is dirty"):
             self._package()
 
     def test_refuses_staged_change(self) -> None:
         self._write("backend/new.py", "value = 1\n")
         self._git("add", "backend/new.py")
-        with self.assertRaisesRegex(
-            package_module.PackagingError, "working tree is dirty"
-        ):
+        with self.assertRaisesRegex(package_module.PackagingError, "working tree is dirty"):
             self._package()
 
     def test_refuses_untracked_change(self) -> None:
         self._write("backend/untracked.py", "value = 1\n")
-        with self.assertRaisesRegex(
-            package_module.PackagingError, "working tree is dirty"
-        ):
+        with self.assertRaisesRegex(package_module.PackagingError, "working tree is dirty"):
             self._package()
 
     def test_refuses_output_inside_repository(self) -> None:
         output = self.repository / "source.zip"
-        with self.assertRaisesRegex(
-            package_module.PackagingError, "outside the repository"
-        ):
+        with self.assertRaisesRegex(package_module.PackagingError, "outside the repository"):
             self._package(output=output)
         self.assertFalse(output.exists())
 
     def test_refuses_existing_output_or_manifest(self) -> None:
         output = self._output()
         output.write_bytes(b"existing")
-        with self.assertRaisesRegex(
-            package_module.PackagingError, "refusing to overwrite"
-        ):
+        with self.assertRaisesRegex(package_module.PackagingError, "refusing to overwrite"):
             self._package(output=output)
         self.assertEqual(output.read_bytes(), b"existing")
 
     def test_post_scan_failure_leaves_no_archive_or_manifest(self) -> None:
         output = self._output()
-        finding = package_module.SecretFinding(
-            rule="test-post-scan", path="backend/app.py", line=1
-        )
-        with mock.patch.object(
-            package_module, "_scan_entries", side_effect=[[], [finding]]
-        ):
-            with self.assertRaisesRegex(
-                package_module.PackagingError, "completed-archive"
-            ):
+        finding = package_module.SecretFinding(rule="test-post-scan", path="backend/app.py", line=1)
+        with mock.patch.object(package_module, "_scan_entries", side_effect=[[], [finding]]):
+            with self.assertRaisesRegex(package_module.PackagingError, "completed-archive"):
                 self._package(output=output)
         self.assertFalse(output.exists())
         self.assertFalse(output.with_name(f"{output.name}.manifest.json").exists())
@@ -325,9 +303,7 @@ class DirtyAndOutputGuardTests(SourcePackageTestCase):
         with mock.patch.object(
             package_module, "_scan_entries", side_effect=RuntimeError("scanner detail")
         ):
-            with self.assertRaisesRegex(
-                package_module.PackagingError, "could not be completed"
-            ):
+            with self.assertRaisesRegex(package_module.PackagingError, "could not be completed"):
                 self._package(output=output)
         self.assertFalse(output.exists())
         self.assertFalse(output.with_name(f"{output.name}.manifest.json").exists())
@@ -350,13 +326,9 @@ class DirtyAndOutputGuardTests(SourcePackageTestCase):
     def test_cli_hides_unexpected_exception_detail(self) -> None:
         canary = "sensitive-" + "internal-canary"
         stderr = io.StringIO()
-        with mock.patch.object(
-            package_module, "package_source", side_effect=RuntimeError(canary)
-        ):
+        with mock.patch.object(package_module, "package_source", side_effect=RuntimeError(canary)):
             with redirect_stderr(stderr):
-                result = package_module.main(
-                    ["--ref", "HEAD", "--output", str(self._output())]
-                )
+                result = package_module.main(["--ref", "HEAD", "--output", str(self._output())])
         self.assertEqual(result, 1)
         self.assertNotIn(canary, stderr.getvalue())
 
@@ -372,9 +344,7 @@ class DirtyAndOutputGuardTests(SourcePackageTestCase):
                 raise KeyboardInterrupt
             original_link(source, destination)
 
-        with mock.patch.object(
-            package_module.os, "link", side_effect=interrupt_second_link
-        ):
+        with mock.patch.object(package_module.os, "link", side_effect=interrupt_second_link):
             with self.assertRaises(KeyboardInterrupt):
                 self._package(output=output)
         self.assertFalse(output.exists())
@@ -389,14 +359,10 @@ class RejectedTreeTests(SourcePackageTestCase):
             self._package()
 
     def test_rejects_environment_file(self) -> None:
-        self._commit_and_reject(
-            "backend/.env.production", "VALUE=hidden\n", "Environment file"
-        )
+        self._commit_and_reject("backend/.env.production", "VALUE=hidden\n", "Environment file")
 
     def test_rejects_nested_env_example(self) -> None:
-        self._commit_and_reject(
-            "backend/.env.example", "VALUE=hidden\n", "Environment file"
-        )
+        self._commit_and_reject("backend/.env.example", "VALUE=hidden\n", "Environment file")
 
     def test_rejects_nested_dependency_lock(self) -> None:
         self._commit_and_reject(
@@ -406,14 +372,10 @@ class RejectedTreeTests(SourcePackageTestCase):
         )
 
     def test_rejects_private_key_filename(self) -> None:
-        self._commit_and_reject(
-            "backend/server.key", "not even a key\n", "not exportable"
-        )
+        self._commit_and_reject("backend/server.key", "not even a key\n", "not exportable")
 
     def test_rejects_gitmodules_metadata(self) -> None:
-        self._commit_and_reject(
-            ".gitmodules", '[submodule "x"]\n', "not in the export allowlist"
-        )
+        self._commit_and_reject(".gitmodules", '[submodule "x"]\n', "not in the export allowlist")
 
     def test_rejects_dependency_cache_build_report_and_test_output_paths(self) -> None:
         cases = (
@@ -448,9 +410,7 @@ class RejectedTreeTests(SourcePackageTestCase):
                 repository = Path(temporary.name) / "repo"
                 repository.mkdir()
                 subprocess.run(["git", "init", "--quiet"], cwd=repository, check=True)
-                subprocess.run(
-                    ["git", "config", "user.name", "Test"], cwd=repository, check=True
-                )
+                subprocess.run(["git", "config", "user.name", "Test"], cwd=repository, check=True)
                 subprocess.run(
                     ["git", "config", "user.email", "test@example.invalid"],
                     cwd=repository,
@@ -506,9 +466,7 @@ class RejectedTreeTests(SourcePackageTestCase):
         line = f'CLIENT_SECRET="replace-with-example"; API_TOKEN="{secret}"\n'
         self._write("backend/config.py", line)
         self._commit("add same-line secret decoy")
-        with self.assertRaisesRegex(
-            package_module.PackagingError, "generic-credential"
-        ):
+        with self.assertRaisesRegex(package_module.PackagingError, "generic-credential"):
             self._package()
 
     def test_unquoted_placeholder_cannot_hide_later_secret(self) -> None:
@@ -516,45 +474,35 @@ class RejectedTreeTests(SourcePackageTestCase):
         line = f"CLIENT_SECRET=replace-with-example; API_TOKEN={secret}\n"
         self._write("backend/config.py", line)
         self._commit("add same-line unquoted secret decoy")
-        with self.assertRaisesRegex(
-            package_module.PackagingError, "generic-credential"
-        ):
+        with self.assertRaisesRegex(package_module.PackagingError, "generic-credential"):
             self._package()
 
     def test_rejects_exported_shell_credential(self) -> None:
         secret = "".join(("Q7mv", "R9pK", "2nZ4", "cL6s", "W8dF"))
         self._write("backend/config.py", f"export API_TOKEN={secret}\n")
         self._commit("add exported secret decoy")
-        with self.assertRaisesRegex(
-            package_module.PackagingError, "generic-credential"
-        ):
+        with self.assertRaisesRegex(package_module.PackagingError, "generic-credential"):
             self._package()
 
     def test_rejects_lowercase_unquoted_yaml_credential(self) -> None:
         secret = "".join(("a7m2", "c9v4", "n6q8", "r3s5", "w1x0", "y2z9"))
         self._write("backend/config.yaml", f"client_secret: {secret}\n")
         self._commit("add lowercase secret decoy")
-        with self.assertRaisesRegex(
-            package_module.PackagingError, "generic-credential"
-        ):
+        with self.assertRaisesRegex(package_module.PackagingError, "generic-credential"):
             self._package()
 
     def test_secret_substring_does_not_trigger_placeholder_exemption(self) -> None:
         secret = "".join(("Ab7Con", "testX9", "mQ2vL", "5sK8d"))
         self._write("backend/config.py", f"CLIENT_SECRET={secret}\n")
         self._commit("add substring secret decoy")
-        with self.assertRaisesRegex(
-            package_module.PackagingError, "generic-credential"
-        ):
+        with self.assertRaisesRegex(package_module.PackagingError, "generic-credential"):
             self._package()
 
     def test_delimited_local_word_does_not_exempt_secret(self) -> None:
         secret = "".join(("Q7mv", "-local-", "R9pK", "2nZ4", "cL6s", "W8dF"))
         self._write("backend/config.py", f"CLIENT_SECRET={secret}\n")
         self._commit("add local-word secret decoy")
-        with self.assertRaisesRegex(
-            package_module.PackagingError, "generic-credential"
-        ):
+        with self.assertRaisesRegex(package_module.PackagingError, "generic-credential"):
             self._package()
 
     def test_placeholder_delimiter_inside_secret_does_not_exempt_it(self) -> None:
@@ -626,9 +574,7 @@ class RejectedTreeTests(SourcePackageTestCase):
         self._commit_and_reject("backend/model.py", pointer, "LFS pointer")
 
     def test_rejects_symlink_mode_without_creating_os_symlink(self) -> None:
-        blob_id = (
-            self._git("rev-parse", "HEAD:backend/app.py").stdout.decode("ascii").strip()
-        )
+        blob_id = self._git("rev-parse", "HEAD:backend/app.py").stdout.decode("ascii").strip()
         self._git(
             "update-index",
             "--add",
@@ -637,12 +583,8 @@ class RejectedTreeTests(SourcePackageTestCase):
         )
         self._git("commit", "--quiet", "-m", "add symlink entry")
         commit_id = self._git("rev-parse", "HEAD").stdout.decode("ascii").strip()
-        with self.assertRaisesRegex(
-            package_module.PackagingError, "regular tracked files"
-        ):
-            package_module._list_tree(
-                self.repository, commit_id, package_module.EXPORT_POLICY
-            )
+        with self.assertRaisesRegex(package_module.PackagingError, "regular tracked files"):
+            package_module._list_tree(self.repository, commit_id, package_module.EXPORT_POLICY)
 
     def test_rejects_gitlink_mode(self) -> None:
         target_commit_id = self._git("rev-parse", "HEAD").stdout.decode("ascii").strip()
@@ -654,12 +596,8 @@ class RejectedTreeTests(SourcePackageTestCase):
         )
         self._git("commit", "--quiet", "-m", "add gitlink entry")
         commit_id = self._git("rev-parse", "HEAD").stdout.decode("ascii").strip()
-        with self.assertRaisesRegex(
-            package_module.PackagingError, "regular tracked files"
-        ):
-            package_module._list_tree(
-                self.repository, commit_id, package_module.EXPORT_POLICY
-            )
+        with self.assertRaisesRegex(package_module.PackagingError, "regular tracked files"):
+            package_module._list_tree(self.repository, commit_id, package_module.EXPORT_POLICY)
 
 
 class OpaquePngPolicyTests(SourcePackageTestCase):
@@ -674,48 +612,104 @@ class OpaquePngPolicyTests(SourcePackageTestCase):
             ),
         )
 
-    def test_every_workspace_png_matches_one_literal_policy_object(self) -> None:
+    def test_every_tracked_png_at_head_matches_one_literal_policy_object(self) -> None:
         repository = SCRIPT_PATH.parents[1]
-        listed = subprocess.run(
-            [
-                "git",
-                "ls-files",
-                "-z",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-                "--",
-                "*.png",
-            ],
-            cwd=repository,
-            check=True,
-            capture_output=True,
-        ).stdout
-        paths = sorted(
-            value.decode("utf-8") for value in listed.rstrip(b"\0").split(b"\0")
-        )
-        actual_objects = {
-            path: subprocess.run(
-                ["git", "hash-object", "--", path],
-                cwd=repository,
-                check=True,
-                capture_output=True,
-            )
-            .stdout.decode("ascii")
-            .strip()
-            for path in paths
-        }
         reviewed_entries = package_module.EXPORT_POLICY.reviewed_opaque_git_objects
         reviewed_objects = dict(reviewed_entries)
+        report = package_module.audit_opaque_policy(repository, "HEAD")
+        counts = cast(dict[str, int], report["counts"])
 
         self.assertEqual(len(reviewed_entries), len(reviewed_objects))
+        self.assertEqual(list(reviewed_objects), sorted(reviewed_objects))
         self.assertTrue(
-            all(
-                not any(character in path for character in "*?[]{}")
-                for path in reviewed_objects
-            )
+            all(not any(character in path for character in "*?[]{}") for path in reviewed_objects)
         )
-        self.assertEqual(reviewed_objects, actual_objects)
+        self.assertEqual(report["result"], "passed")
+        self.assertEqual(report["missing"], [])
+        self.assertEqual(report["mismatched"], [])
+        self.assertEqual(report["stale"], [])
+        self.assertGreater(counts["tracked_pngs"], 0)
+        self.assertEqual(counts["tracked_pngs"], counts["reviewed_entries"])
+
+    def test_audit_reports_missing_mismatched_and_stale_entries(self) -> None:
+        exact_path = "frontend/baselines/exact.png"
+        mismatch_path = "frontend/baselines/mismatch.png"
+        missing_path = "frontend/baselines/missing.png"
+        for path in (exact_path, mismatch_path, missing_path):
+            self._write(path, b"\x89PNG\r\n\x1a\n" + path.encode("ascii"))
+        commit_sha = self._commit("add audit fixtures")
+        exact_object_id = (
+            self._git("rev-parse", f"{commit_sha}:{exact_path}").stdout.decode("ascii").strip()
+        )
+        mismatch_object_id = (
+            self._git("rev-parse", f"{commit_sha}:{mismatch_path}").stdout.decode("ascii").strip()
+        )
+        missing_object_id = (
+            self._git("rev-parse", f"{commit_sha}:{missing_path}").stdout.decode("ascii").strip()
+        )
+        stale_path = "frontend/baselines/stale.png"
+        policy = package_module.replace(
+            package_module.EXPORT_POLICY,
+            reviewed_opaque_git_objects=(
+                (exact_path, exact_object_id),
+                (mismatch_path, "a" * 40),
+                (stale_path, "b" * 40),
+            ),
+        )
+
+        report = package_module.audit_opaque_policy(self.repository, commit_sha, policy=policy)
+
+        self.assertEqual(report["result"], "drift")
+        self.assertEqual(
+            report["counts"],
+            {
+                "tracked_pngs": 3,
+                "reviewed_entries": 3,
+                "missing": 1,
+                "mismatched": 1,
+                "stale": 1,
+            },
+        )
+        self.assertEqual(
+            report["missing"],
+            [{"path": missing_path, "actual_object_id": missing_object_id}],
+        )
+        self.assertEqual(
+            report["mismatched"],
+            [
+                {
+                    "path": mismatch_path,
+                    "reviewed_object_id": "a" * 40,
+                    "actual_object_id": mismatch_object_id,
+                }
+            ],
+        )
+        self.assertEqual(
+            report["stale"],
+            [{"path": stale_path, "reviewed_object_id": "b" * 40}],
+        )
+
+    def test_audit_reads_only_the_selected_commit(self) -> None:
+        policy = package_module.replace(
+            package_module.EXPORT_POLICY, reviewed_opaque_git_objects=()
+        )
+        self._write("artifacts/local-screenshot.png", b"local disposable screenshot")
+        status_before = self._git("status", "--porcelain=v1").stdout
+
+        report = package_module.audit_opaque_policy(self.repository, "HEAD", policy=policy)
+
+        self.assertEqual(report["result"], "passed")
+        self.assertEqual(status_before, self._git("status", "--porcelain=v1").stdout)
+
+    def test_audit_cli_returns_nonzero_for_reported_drift(self) -> None:
+        report = {"result": "drift", "missing": [], "mismatched": [], "stale": []}
+        stdout = io.StringIO()
+        with mock.patch.object(package_module, "audit_opaque_policy", return_value=report):
+            with redirect_stdout(stdout):
+                result = package_module.main(["--ref", "HEAD", "--audit-opaque-policy"])
+
+        self.assertEqual(result, 1)
+        self.assertEqual(json.loads(stdout.getvalue()), report)
 
     def test_unreviewed_png_is_rejected(self) -> None:
         self._write("frontend/baselines/unreviewed.png", b"\x89PNG\r\n\x1a\nnew")
@@ -729,9 +723,7 @@ class OpaquePngPolicyTests(SourcePackageTestCase):
         contents = b"\x89PNG\r\n\x1a\nreviewed fixture"
         self._write(path, contents)
         commit_id = self._commit("add reviewed png")
-        object_id = (
-            self._git("rev-parse", f"{commit_id}:{path}").stdout.decode("ascii").strip()
-        )
+        object_id = self._git("rev-parse", f"{commit_id}:{path}").stdout.decode("ascii").strip()
         policy = self._policy_with_reviewed_png(path, object_id)
 
         output, report = self._package(revision=commit_id, policy=policy)
@@ -747,9 +739,7 @@ class OpaquePngPolicyTests(SourcePackageTestCase):
         self._write(path, b"\x89PNG\r\n\x1a\nfirst reviewed fixture")
         first_commit = self._commit("add first reviewed png")
         reviewed_object_id = (
-            self._git("rev-parse", f"{first_commit}:{path}")
-            .stdout.decode("ascii")
-            .strip()
+            self._git("rev-parse", f"{first_commit}:{path}").stdout.decode("ascii").strip()
         )
         self._write(path, b"\x89PNG\r\n\x1a\nchanged fixture")
         changed_commit = self._commit("change reviewed png")
@@ -759,9 +749,7 @@ class OpaquePngPolicyTests(SourcePackageTestCase):
             self._package(revision=changed_commit, policy=policy)
 
     def test_wildcard_cannot_authorize_pngs(self) -> None:
-        wildcard_policy = self._policy_with_reviewed_png(
-            "frontend/baselines/**/*.png", "a" * 40
-        )
+        wildcard_policy = self._policy_with_reviewed_png("frontend/baselines/**/*.png", "a" * 40)
 
         with self.assertRaisesRegex(package_module.PackagingError, "literal paths"):
             self._package(policy=wildcard_policy)
@@ -783,9 +771,7 @@ class LimitAndPathTests(SourcePackageTestCase):
         for path in invalid_paths:
             with self.subTest(path=path):
                 with self.assertRaises(package_module.PackagingError):
-                    package_module._validate_source_path(
-                        path, package_module.EXPORT_POLICY
-                    )
+                    package_module._validate_source_path(path, package_module.EXPORT_POLICY)
 
     def test_casefold_collision_is_rejected(self) -> None:
         object_id = b"a" * 40
@@ -799,9 +785,7 @@ class LimitAndPathTests(SourcePackageTestCase):
         )
         with mock.patch.object(package_module, "_run_git", return_value=raw_tree):
             with self.assertRaisesRegex(package_module.PackagingError, "path"):
-                package_module._list_tree(
-                    self.repository, "a" * 40, package_module.EXPORT_POLICY
-                )
+                package_module._list_tree(self.repository, "a" * 40, package_module.EXPORT_POLICY)
 
     def test_entry_count_limit_is_enforced(self) -> None:
         policy = package_module.replace(package_module.EXPORT_POLICY, max_entries=2)
@@ -815,9 +799,7 @@ class LimitAndPathTests(SourcePackageTestCase):
 
     def test_file_and_uncompressed_limits_are_enforced(self) -> None:
         with self.subTest(limit="file"):
-            policy = package_module.replace(
-                package_module.EXPORT_POLICY, max_file_bytes=5
-            )
+            policy = package_module.replace(package_module.EXPORT_POLICY, max_file_bytes=5)
             with self.assertRaisesRegex(package_module.PackagingError, "file exceeds"):
                 self._package(policy=policy)
         with self.subTest(limit="total"):
@@ -826,16 +808,12 @@ class LimitAndPathTests(SourcePackageTestCase):
                 max_uncompressed_bytes=10,
                 max_file_bytes=10,
             )
-            with self.assertRaisesRegex(
-                package_module.PackagingError, "uncompressed-size"
-            ):
+            with self.assertRaisesRegex(package_module.PackagingError, "uncompressed-size"):
                 self._package(policy=policy)
 
     def test_compressed_limit_is_enforced_without_partial_output(self) -> None:
         output = self._output()
-        policy = package_module.replace(
-            package_module.EXPORT_POLICY, max_compressed_bytes=10
-        )
+        policy = package_module.replace(package_module.EXPORT_POLICY, max_compressed_bytes=10)
         with self.assertRaisesRegex(package_module.PackagingError, "compressed-size"):
             self._package(output=output, policy=policy)
         self.assertFalse(output.exists())
@@ -845,16 +823,12 @@ class LimitAndPathTests(SourcePackageTestCase):
     ) -> None:
         destination = self._output("malicious.zip")
         destination.parent.mkdir(exist_ok=True)
-        member = zipfile.ZipInfo(
-            "../escape.py", date_time=package_module.FIXED_ZIP_TIMESTAMP
-        )
+        member = zipfile.ZipInfo("../escape.py", date_time=package_module.FIXED_ZIP_TIMESTAMP)
         member.create_system = 3
         member.external_attr = (0o100644 & 0xFFFF) << 16
         with zipfile.ZipFile(destination, "w") as archive:
             archive.writestr(member, b"bad")
-        with self.assertRaisesRegex(
-            package_module.PackagingError, "entry count|unexpected path"
-        ):
+        with self.assertRaisesRegex(package_module.PackagingError, "entry count|unexpected path"):
             package_module._verify_completed_archive(
                 destination,
                 "a" * 40,

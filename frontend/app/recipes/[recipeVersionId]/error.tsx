@@ -10,7 +10,7 @@ interface RecipeDetailErrorProps {
 export default function RecipeDetailError({ retry }: RecipeDetailErrorProps) {
   return (
     <main id="main-content" className="state-page public-context-state">
-      <div className="error-state" role="alert">
+      <div className="error-state blocking-error-state" role="alert">
         <p className="eyebrow">Something went wrong</p>
         <h1>We couldn’t load this recipe.</h1>
         <p>This recipe may be temporarily unavailable. Try again or browse the recipe collection.</p>

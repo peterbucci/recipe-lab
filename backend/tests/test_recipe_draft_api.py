@@ -13,8 +13,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_session
-from app.main import create_app
 from app.models import (
     IngredientPackageSize,
     MeasurementUnit,
@@ -31,6 +29,7 @@ from app.services.recipe_drafts import (
     create_recipe_draft,
     recipe_draft_creation_request_fingerprint,
 )
+from tests.application import application_with_database
 from tests.conftest import make_alembic_config
 from tests.member_session import authenticate_client, create_member_credentials
 
@@ -39,6 +38,11 @@ CARROT_ROOT_ID = seed_uuid(
     DATASET_ID,
     "recipe-version",
     "carrot-walnut-snack-cake-v1",
+)
+BANANA_ROOT_ID = seed_uuid(
+    DATASET_ID,
+    "recipe-version",
+    "banana-oat-pancakes-v1",
 )
 CHICKPEA_ID = seed_uuid(DATASET_ID, "ingredient", "chickpea")
 WALNUT_ID = seed_uuid(DATASET_ID, "ingredient", "walnut")
@@ -83,14 +87,10 @@ def draft_api(empty_postgres_engine: Engine) -> Iterator[DraftApi]:
         handle="other_draft_member",
         display_name="Other Draft Member",
     )
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        with Session(bind=empty_postgres_engine, expire_on_commit=False) as session:
-            yield session
-
-    application.dependency_overrides[get_session] = override_session
-    try:
+    with application_with_database(
+        empty_postgres_engine,
+        expire_on_commit=False,
+    ) as application:
         with (
             TestClient(application) as anonymous,
             TestClient(application) as member,
@@ -104,8 +104,6 @@ def draft_api(empty_postgres_engine: Engine) -> Iterator[DraftApi]:
                 member=member,
                 other_member=other_member,
             )
-    finally:
-        application.dependency_overrides.clear()
 
 
 def _json_object(value: object) -> dict[str, Any]:
@@ -257,6 +255,80 @@ def test_owner_scoped_revisioned_crud_and_immediate_discard(draft_api: DraftApi)
         assert shell.title == ""
         assert shell.description is None
         assert shell.servings is None
+
+
+def test_source_filter_returns_most_recent_active_owned_drafts(
+    draft_api: DraftApi,
+) -> None:
+    def create_source_draft(client: TestClient, source_version_id: UUID) -> str:
+        created = client.post(
+            "/api/recipe-drafts",
+            headers=_creation_headers(),
+            json={"source_version_id": str(source_version_id)},
+        )
+        assert created.status_code == 201
+        return cast(str, _json_object(created.json())["id"])
+
+    older_id = create_source_draft(draft_api.member, CARROT_ROOT_ID)
+    create_source_draft(draft_api.member, BANANA_ROOT_ID)
+    newer_id = create_source_draft(draft_api.member, CARROT_ROOT_ID)
+    other_member_id = create_source_draft(draft_api.other_member, CARROT_ROOT_ID)
+    with Session(bind=draft_api.engine) as session, session.begin():
+        older = session.get(RecipeDraft, UUID(older_id))
+        newer = session.get(RecipeDraft, UUID(newer_id))
+        assert older is not None
+        assert newer is not None
+        older.updated_at = datetime(2026, 8, 30, 12, 0, tzinfo=UTC)
+        newer.updated_at = datetime(2026, 8, 30, 13, 0, tzinfo=UTC)
+
+    first_page = draft_api.member.get(
+        "/api/recipe-drafts",
+        params={
+            "source_version_id": str(CARROT_ROOT_ID),
+            "page_size": 1,
+        },
+    )
+    assert first_page.status_code == 200
+    first_body = _json_object(first_page.json())
+    assert [_json_object(item)["id"] for item in cast(list[object], first_body["items"])] == [
+        newer_id
+    ]
+    assert first_body["total"] == 2
+    assert first_body["total_pages"] == 2
+
+    second_page = draft_api.member.get(
+        "/api/recipe-drafts",
+        params={
+            "source_version_id": str(CARROT_ROOT_ID),
+            "page": 2,
+            "page_size": 1,
+        },
+    )
+    assert second_page.status_code == 200
+    assert [
+        _json_object(item)["id"]
+        for item in cast(
+            list[object],
+            _json_object(second_page.json())["items"],
+        )
+    ] == [older_id]
+
+    other_page = draft_api.other_member.get(
+        "/api/recipe-drafts",
+        params={"source_version_id": str(CARROT_ROOT_ID)},
+    )
+    assert other_page.status_code == 200
+    assert [
+        _json_object(item)["id"]
+        for item in cast(list[object], _json_object(other_page.json())["items"])
+    ] == [other_member_id]
+    assert (
+        draft_api.member.get(
+            "/api/recipe-drafts",
+            params={"source_version_id": "not-a-uuid"},
+        ).status_code
+        == 422
+    )
 
 
 def test_creation_requires_uuid_key_and_replays_one_actor_scoped_intent(
@@ -507,6 +579,59 @@ def test_exact_source_clone_and_curated_full_replacement(draft_api: DraftApi) ->
         ]
     )
     assert action["ingredient_occurrence_ids"] == [ingredient["id"]]
+
+
+def test_optional_instruction_title_round_trips_through_private_draft_save(
+    draft_api: DraftApi,
+) -> None:
+    created = draft_api.member.post(
+        "/api/recipe-drafts",
+        headers=_creation_headers(),
+        json={"source_version_id": None},
+    )
+    assert created.status_code == 201
+    draft_id = _json_object(created.json())["id"]
+    payload = {
+        **_blank_update(revision=1, title="Titled private draft"),
+        "instructions": [
+            {
+                "ref": "make-batter",
+                "title": "Make the batter",
+                "text": "Mix until smooth.",
+                "actions": [],
+            }
+        ],
+    }
+
+    saved = draft_api.member.put(f"/api/recipe-drafts/{draft_id}", json=payload)
+
+    assert saved.status_code == 200
+    saved_instruction = _json_object(
+        cast(list[object], _json_object(saved.json())["instructions"])[0]
+    )
+    assert saved_instruction["title"] == "Make the batter"
+    reloaded = draft_api.member.get(f"/api/recipe-drafts/{draft_id}")
+    assert reloaded.status_code == 200
+    reloaded_instruction = _json_object(
+        cast(list[object], _json_object(reloaded.json())["instructions"])[0]
+    )
+    assert reloaded_instruction["title"] == "Make the batter"
+
+
+def test_source_clone_preserves_optional_instruction_titles(draft_api: DraftApi) -> None:
+    copied = draft_api.member.post(
+        "/api/recipe-drafts",
+        headers=_creation_headers(),
+        json={"source_version_id": str(BANANA_ROOT_ID)},
+    )
+
+    assert copied.status_code == 201
+    instructions = cast(list[object], _json_object(copied.json())["instructions"])
+    assert [_json_object(item)["title"] for item in instructions] == [
+        "Make the batter",
+        "Rest the batter and heat the skillet",
+        "Cook the pancakes",
+    ]
 
 
 def test_source_clone_preserves_historical_package_metadata_but_rejects_reselection(

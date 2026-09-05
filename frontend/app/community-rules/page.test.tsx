@@ -9,15 +9,16 @@ describe("CommunityRulesPage", () => {
 
     expect(metadata.title).toBe("Community rules");
     expect(screen.getByRole("heading", { name: "Community rules", level: 1 })).toBeVisible();
+    expect(screen.queryByText("Recipe Lab community")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /right to publish/i })).toBeVisible();
     expect(screen.getByRole("heading", { name: /safe and lawful/i })).toBeVisible();
     expect(screen.getByText(/keep clear recipe history/i)).toBeVisible();
     expect(screen.queryByText(/fork|lineage|immutable/i)).toBeNull();
     expect(screen.getByText(/reporter identities and report details are not shown/i)).toBeVisible();
     expect(screen.getByText(/confirm that you accept these rules/i)).toBeVisible();
-    expect(screen.getByRole("link", { name: /how recipe lab works/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /explore recipes/i })).toHaveAttribute(
       "href",
-      "/#how-it-works",
+      "/recipes",
     );
   });
 });

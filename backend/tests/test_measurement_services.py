@@ -20,6 +20,11 @@ from app.services import measurements
 TEST_SESSION = cast(Session, object())
 
 
+def test_measurement_unit_snapshot_label_prefers_symbol() -> None:
+    assert measurements.measurement_unit_snapshot_label("g", "gram") == "g"
+    assert measurements.measurement_unit_snapshot_label(None, "pinch") == "pinch"
+
+
 def _unit(
     key: str,
     dimension: str,

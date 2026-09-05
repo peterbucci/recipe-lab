@@ -2,7 +2,7 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -65,7 +65,7 @@ class _ArtifactFittedModel:
         user_id: UUID,
         candidate_ids: tuple[UUID, ...],
         limit: int,
-    ) -> Sequence[UUID]:
+    ) -> tuple[UUID, ...]:
         del user_id
         return candidate_ids[:limit]
 
@@ -112,7 +112,7 @@ class _MalformedArtifactFittedModel:
         user_id: UUID,
         candidate_ids: tuple[UUID, ...],
         limit: int,
-    ) -> Sequence[UUID]:
+    ) -> tuple[UUID, ...]:
         del user_id
         return candidate_ids[:limit]
 

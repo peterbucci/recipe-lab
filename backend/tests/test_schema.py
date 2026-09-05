@@ -643,6 +643,16 @@ def test_preference_event_context_matches_event_type(db_session: Session) -> Non
     db_session.add(child)
     db_session.flush()
 
+    rating_removal = PreferenceEvent(
+        id=uuid4(),
+        user_id=participant.id,
+        recipe_version_id=source.id,
+        event_type="rating",
+    )
+    db_session.add(rating_removal)
+    db_session.flush()
+    assert rating_removal.rating_value is None
+
     invalid_events = [
         PreferenceEvent(
             id=uuid4(),
@@ -656,12 +666,6 @@ def test_preference_event_context_matches_event_type(db_session: Session) -> Non
             user_id=participant.id,
             recipe_version_id=source.id,
             event_type="save",
-        ),
-        PreferenceEvent(
-            id=uuid4(),
-            user_id=participant.id,
-            recipe_version_id=source.id,
-            event_type="rating",
         ),
         PreferenceEvent(
             id=uuid4(),

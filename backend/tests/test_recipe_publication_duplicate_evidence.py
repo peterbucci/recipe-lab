@@ -9,8 +9,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_session
-from app.main import create_app
 from app.models import (
     RecipeDuplicateDecision,
     RecipeDuplicatePreflight,
@@ -20,6 +18,7 @@ from app.models import (
 )
 from app.seeds import load_bundled_catalog, seed_catalog
 from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
+from tests.application import application_with_database
 from tests.conftest import isolated_postgres_engine, make_alembic_config
 from tests.member_session import authenticate_client, create_member_credentials
 
@@ -62,14 +61,7 @@ def duplicate_evidence_api(postgres_url: str) -> Iterator[DuplicateEvidenceApi]:
             handle="duplicate_evidence_other",
             display_name="Other Duplicate Evidence Member",
         )
-        application = create_app()
-
-        def override_session() -> Iterator[Session]:
-            with Session(bind=engine, expire_on_commit=False) as session:
-                yield session
-
-        application.dependency_overrides[get_session] = override_session
-        try:
+        with application_with_database(engine, expire_on_commit=False) as application:
             with TestClient(application) as member, TestClient(application) as other_member:
                 authenticate_client(member, member_credentials)
                 authenticate_client(other_member, other_credentials)
@@ -78,8 +70,6 @@ def duplicate_evidence_api(postgres_url: str) -> Iterator[DuplicateEvidenceApi]:
                     member=member,
                     other_member=other_member,
                 )
-        finally:
-            application.dependency_overrides.clear()
 
 
 def _json_object(value: object) -> dict[str, Any]:

@@ -1,13 +1,15 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
+  CatalogIngredientPage,
   IngredientCatalogReviewDetail,
   IngredientCatalogReviewItem,
   IngredientCatalogReviewPage,
 } from "../../lib/ingredient-catalog-api";
 import { IngredientCatalogApiError } from "../../lib/ingredient-catalog-api";
 import { AuthSessionProvider } from "./auth-session-provider";
+import { DuplicateTargetSearch } from "./ingredient-request-duplicate-target-search";
 import { IngredientRequestReviewWorkspace } from "./ingredient-request-review-workspace";
 
 const mocks = vi.hoisted(() => ({
@@ -132,6 +134,67 @@ beforeEach(() => {
 });
 
 describe("IngredientRequestReviewWorkspace", () => {
+  it("keeps duplicate-search progress in the initiating button", async () => {
+    let resolveCatalog!: (page: CatalogIngredientPage) => void;
+    let resolveRequests!: (page: IngredientCatalogReviewPage) => void;
+    mocks.searchCatalog.mockReturnValue(
+      new Promise<CatalogIngredientPage>((resolve) => {
+        resolveCatalog = resolve;
+      }),
+    );
+    mocks.browse.mockReturnValue(
+      new Promise<IngredientCatalogReviewPage>((resolve) => {
+        resolveRequests = resolve;
+      }),
+    );
+
+    render(
+      <DuplicateTargetSearch
+        detail={reviewDetail()}
+        disabled={false}
+        inputName="duplicate-target"
+        onSelect={() => undefined}
+        value=""
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Search duplicate targets"), {
+      target: { value: "saffron" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    const pendingSearch = screen.getByRole("button", { name: "Searching…" });
+    expect(pendingSearch).toBeDisabled();
+    expect(pendingSearch).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+
+    await act(async () => {
+      resolveCatalog({
+        items: [],
+        page: 1,
+        page_size: 10,
+        total: 0,
+        total_pages: 0,
+      });
+      resolveRequests(reviewPage([], { page_size: 10 }));
+    });
+
+    expect(
+      await screen.findByText(
+        "No existing ingredients or approved requests match saffron.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("uses the shared section loader while the review queue resolves", () => {
+    mocks.browse.mockReturnValue(new Promise(() => undefined));
+    renderWorkspace();
+
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Loading pending requests…");
+    expect(status.closest(".section-loading--rows")).not.toBeNull();
+  });
+
   it("does not discover or fetch curator controls for an ordinary member", () => {
     renderWorkspace(false);
 
@@ -142,6 +205,7 @@ describe("IngredientRequestReviewWorkspace", () => {
     );
     expect(screen.getByRole("alert")).toHaveClass("staff-state-panel");
     expect(screen.getByRole("heading", { name: "We couldn’t find that page." })).toBeVisible();
+    expect(screen.queryByText("Page unavailable")).not.toBeInTheDocument();
     expect(screen.queryByText("Catalog curation")).not.toBeInTheDocument();
     expect(mocks.browse).not.toHaveBeenCalled();
     expect(mocks.detail).not.toHaveBeenCalled();
@@ -167,19 +231,28 @@ describe("IngredientRequestReviewWorkspace", () => {
     );
     expect(
       screen
-        .getByRole("heading", { name: "Review ingredient requests.", level: 1 })
+        .getByRole("heading", { name: "Ingredient requests", level: 1 })
         .closest("header"),
     ).toHaveClass("staff-workspace__header", "curation-page__intro");
+    expect(screen.queryByText("Catalog curation")).not.toBeInTheDocument();
     expect(
       screen.getByRole("navigation", { name: "Ingredient request status filters" }),
     ).toHaveClass("staff-workspace__filters", "curation-filters");
+    const pendingHeader = document.querySelector(
+      ".staff-workspace--curation .workspace-panel-header",
+    );
+    expect(pendingHeader).toHaveTextContent("Pending requests");
+    expect(pendingHeader).toHaveTextContent(
+      "Review requests waiting for a catalog decision.",
+    );
+    expect(pendingHeader).toHaveTextContent("1 request");
     const queueList = screen.getByRole("list", { name: "Pending requests" });
     expect(queueList).toHaveClass("staff-workspace__queue-list", "curation-request-list");
     expect(queueList.closest("section")).toHaveClass("staff-workspace__queue");
     expect(detailHeading.closest(".curation-detail")).toHaveClass("staff-workspace__detail");
     expect(detailHeading.closest(".curation-workspace")).toHaveClass("staff-workspace__layout");
     expect(
-      screen.getByRole("heading", { name: "Record a decision" }).closest("section"),
+      screen.getByRole("heading", { name: "Decision" }).closest("section"),
     ).toHaveClass("staff-workspace__decision");
     expect(screen.queryByRole("link", { name: "Community rules" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Private note (optional)")).not.toBeInTheDocument();
@@ -198,7 +271,37 @@ describe("IngredientRequestReviewWorkspace", () => {
         expect.objectContaining({ status: "rejected", page: 1, pageSize: 20 }),
       ),
     );
-    expect(await screen.findByText("No rejected requests.")).toBeVisible();
+    const emptyHeading = await screen.findByRole("heading", {
+      level: 3,
+      name: "There are no rejected ingredient requests.",
+    });
+    const emptyState = emptyHeading.closest("section");
+    expect(emptyState).toHaveClass("empty-state", "workspace-empty-state");
+    expect(emptyState?.parentElement).toHaveClass("staff-workspace__tab-shell");
+    expect(within(emptyState!).getByText("Nothing here yet")).toHaveClass(
+      "eyebrow",
+      "workspace-empty-state__eyebrow",
+    );
+    expect(
+      within(emptyState!).getByText(
+        "Rejected ingredient requests will appear here after a curator reviews them.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(emptyState!).getByRole("button", { name: "Refresh requests" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("searchbox", { name: "Search this queue" })).toBeNull();
+    const rejectedHeader = document.querySelector(
+      ".staff-workspace--curation .workspace-panel-header",
+    );
+    expect(rejectedHeader).toHaveTextContent("Rejected requests");
+    expect(rejectedHeader).toHaveTextContent(
+      "Requests that were not added to the catalog.",
+    );
+    expect(rejectedHeader).toHaveTextContent("0 requests");
+    expect(
+      screen.queryByText("Choose another status to review a different part of the queue."),
+    ).not.toBeInTheDocument();
     expect(rejected).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -207,14 +310,14 @@ describe("IngredientRequestReviewWorkspace", () => {
     mocks.detail.mockResolvedValue(reviewDetail());
     renderWorkspace();
 
-    await screen.findByLabelText("Reviewed canonical name");
+    await screen.findByLabelText("Canonical ingredient name");
     const queue = screen.getByRole("list", { name: "Pending requests" });
     const selectedItem = within(queue).getByRole("button");
     expect(selectedItem).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(selectedItem);
 
-    expect(screen.getByLabelText("Reviewed canonical name")).toBeVisible();
+    expect(screen.getByLabelText("Canonical ingredient name")).toBeVisible();
     expect(mocks.detail).toHaveBeenCalledTimes(1);
   });
 
@@ -242,7 +345,7 @@ describe("IngredientRequestReviewWorkspace", () => {
     expect(
       screen.getByText(/shown to the requesting member.*do not include private reviewer notes/i),
     ).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Save approve decision" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve request" }));
     await waitFor(() => expect(screen.getByLabelText("Decision reason")).toHaveFocus());
     expect(screen.getByText("Enter a reason for this catalog decision.")).toBeVisible();
 
@@ -256,7 +359,7 @@ describe("IngredientRequestReviewWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Approval provenance"), {
       target: { value: "Reviewed culinary reference." },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save approve decision" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve request" }));
 
     await waitFor(() =>
       expect(mocks.review).toHaveBeenCalledWith(REQUEST_ID, {
@@ -293,14 +396,14 @@ describe("IngredientRequestReviewWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Decision reason"), {
       target: { value: "Already represented by Pitaya." },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save duplicate decision" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark as duplicate" }));
     expect(
       screen.getByText("Choose the existing ingredient or approved request this duplicates."),
     ).toBeVisible();
 
     const targets = screen.getByRole("group", { name: "Duplicate target" });
     fireEvent.click(within(targets).getByRole("radio", { name: /existing catalog ingredient/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Save duplicate decision" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark as duplicate" }));
 
     await waitFor(() =>
       expect(mocks.review).toHaveBeenCalledWith(REQUEST_ID, {
@@ -406,7 +509,7 @@ describe("IngredientRequestReviewWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Decision reason"), {
       target: { value: "The approved request already represents this ingredient." },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save duplicate decision" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark as duplicate" }));
 
     await waitFor(() =>
       expect(mocks.review).toHaveBeenCalledWith(REQUEST_ID, {
@@ -456,7 +559,7 @@ describe("IngredientRequestReviewWorkspace", () => {
     renderWorkspace();
 
     await screen.findByRole("heading", { name: "Dragon fruit", level: 2 });
-    fireEvent.change(screen.getByLabelText("Reviewed canonical name"), {
+    fireEvent.change(screen.getByLabelText("Canonical ingredient name"), {
       target: { value: "Pink dragon fruit" },
     });
     fireEvent.change(screen.getByLabelText("Decision reason"), {
@@ -465,19 +568,19 @@ describe("IngredientRequestReviewWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Approval provenance"), {
       target: { value: "My source notes." },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save approve decision" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve request" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Your entered review is still here.",
     );
-    expect(screen.getByLabelText("Reviewed canonical name")).toHaveValue("Pink dragon fruit");
+    expect(screen.getByLabelText("Canonical ingredient name")).toHaveValue("Pink dragon fruit");
     expect(screen.getByLabelText("Decision reason")).toHaveValue("My careful review notes.");
 
     fireEvent.click(screen.getByRole("button", { name: "Load current request" }));
     await waitFor(() => expect(mocks.detail).toHaveBeenCalledTimes(2));
     expect(await screen.findByText("Another curator completed this review.")).toBeVisible();
-    expect(screen.getByLabelText("Reviewed canonical name")).toHaveValue("Pink dragon fruit");
+    expect(screen.getByLabelText("Canonical ingredient name")).toHaveValue("Pink dragon fruit");
     expect(screen.getByLabelText("Decision reason")).toHaveValue("My careful review notes.");
-    expect(screen.getByLabelText("Reviewed canonical name")).toBeDisabled();
+    expect(screen.getByLabelText("Canonical ingredient name")).toBeDisabled();
   });
 });

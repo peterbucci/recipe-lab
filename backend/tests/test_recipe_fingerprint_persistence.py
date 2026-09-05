@@ -12,7 +12,6 @@ from app.models import (
     RecipeInstruction,
     RecipeInstructionAction,
     RecipeInstructionActionInput,
-    RecipeLineage,
     RecipeStructuralFingerprint,
     RecipeVersion,
     User,
@@ -29,6 +28,8 @@ from app.services.recipe_fingerprint_persistence import (
     backfill_recipe_structural_fingerprints,
     fingerprint_and_store_recipe_version,
 )
+from tests.database import session_with_outer_rollback
+from tests.recipe_builders import build_recipe_lineage, build_recipe_version
 
 
 def _create_recipe_versions(session: Session, count: int = 2) -> list[RecipeVersion]:
@@ -38,17 +39,15 @@ def _create_recipe_versions(session: Session, count: int = 2) -> list[RecipeVers
     )
     session.add(user)
     session.flush()
-    lineage = RecipeLineage(created_by_user_id=user.id)
+    lineage = build_recipe_lineage(created_by_user_id=user.id)
     session.add(lineage)
     session.flush()
     versions = [
-        RecipeVersion(
+        build_recipe_version(
             lineage_id=lineage.id,
-            parent_version_id=None if number == 1 else None,
             created_by_user_id=user.id,
             version_number=number,
             title=f"Fingerprint fixture {number}",
-            description=None,
             servings=Decimal("2.00"),
         )
         for number in range(1, count + 1)
@@ -59,7 +58,7 @@ def _create_recipe_versions(session: Session, count: int = 2) -> list[RecipeVers
     session.add(versions[0])
     session.flush()
     for version in versions[1:]:
-        child_lineage = RecipeLineage(created_by_user_id=user.id)
+        child_lineage = build_recipe_lineage(created_by_user_id=user.id)
         session.add(child_lineage)
         session.flush()
         version.lineage_id = child_lineage.id
@@ -242,20 +241,16 @@ def _create_complete_measured_recipe(
     unit_key: str,
     version_id: UUID | None = None,
 ) -> RecipeVersion:
-    lineage = RecipeLineage(created_by_user_id=user.id)
+    lineage = build_recipe_lineage(created_by_user_id=user.id)
     session.add(lineage)
     session.flush()
-    version = RecipeVersion(
+    version = build_recipe_version(
+        recipe_version_id=version_id,
         lineage_id=lineage.id,
-        parent_version_id=None,
         created_by_user_id=user.id,
-        version_number=1,
         title=title,
-        description=None,
         servings=Decimal("1.00"),
     )
-    if version_id is not None:
-        version.id = version_id
     session.add(version)
     session.flush()
     recipe_ingredient = RecipeIngredient(
@@ -341,67 +336,58 @@ def test_orm_adapter_eagerly_loads_reviewed_conversions_and_normalizes_equivalen
 def test_backfill_is_bounded_resumable_and_idempotent(
     seeded_api_engine: Engine,
 ) -> None:
-    with seeded_api_engine.connect() as connection:
-        transaction = connection.begin()
-        session = Session(bind=connection, expire_on_commit=False)
-        try:
-            existing_cursor = session.scalar(
-                select(RecipeVersion.id).order_by(RecipeVersion.id.desc())
-            )
-            assert existing_cursor is not None
-            user = User(
-                email="fingerprint-backfill@example.test",
-                display_name="Fingerprint backfill",
-            )
-            ingredient = Ingredient(canonical_name="Fingerprint backfill ingredient")
-            session.add_all([user, ingredient])
-            session.flush()
-            recipe_version_ids = [
-                _create_complete_measured_recipe(
-                    session,
-                    user=user,
-                    ingredient=ingredient,
-                    title=f"Fingerprint backfill {number}",
-                    quantity=Decimal(number),
-                    unit_key="g",
-                    version_id=UUID(f"ffffffff-ffff-4fff-8fff-fffffffffff{number}"),
-                ).id
-                for number in range(1, 4)
-            ]
-
-            first = backfill_recipe_structural_fingerprints(
+    with session_with_outer_rollback(seeded_api_engine) as session:
+        existing_cursor = session.scalar(select(RecipeVersion.id).order_by(RecipeVersion.id.desc()))
+        assert existing_cursor is not None
+        user = User(
+            email="fingerprint-backfill@example.test",
+            display_name="Fingerprint backfill",
+        )
+        ingredient = Ingredient(canonical_name="Fingerprint backfill ingredient")
+        session.add_all([user, ingredient])
+        session.flush()
+        recipe_version_ids = [
+            _create_complete_measured_recipe(
                 session,
-                after_recipe_version_id=existing_cursor,
-                limit=1,
-            )
-            assert first.scanned == 1
-            assert first.created == 1
-            assert first.reused == 0
-            assert first.incomplete == 0
-            assert first.next_cursor == recipe_version_ids[0]
+                user=user,
+                ingredient=ingredient,
+                title=f"Fingerprint backfill {number}",
+                quantity=Decimal(number),
+                unit_key="g",
+                version_id=UUID(f"ffffffff-ffff-4fff-8fff-fffffffffff{number}"),
+            ).id
+            for number in range(1, 4)
+        ]
 
-            retried = backfill_recipe_structural_fingerprints(
-                session,
-                after_recipe_version_id=existing_cursor,
-                limit=1,
-            )
-            assert retried.scanned == 1
-            assert retried.created == 0
-            assert retried.reused == 1
-            assert retried.next_cursor == recipe_version_ids[0]
+        first = backfill_recipe_structural_fingerprints(
+            session,
+            after_recipe_version_id=existing_cursor,
+            limit=1,
+        )
+        assert first.scanned == 1
+        assert first.created == 1
+        assert first.reused == 0
+        assert first.incomplete == 0
+        assert first.next_cursor == recipe_version_ids[0]
 
-            second = backfill_recipe_structural_fingerprints(
-                session,
-                after_recipe_version_id=first.next_cursor,
-                limit=1,
-            )
-            assert second.scanned == 1
-            assert second.created == 1
-            assert second.next_cursor == recipe_version_ids[1]
-        finally:
-            session.close()
-            if transaction.is_active:
-                transaction.rollback()
+        retried = backfill_recipe_structural_fingerprints(
+            session,
+            after_recipe_version_id=existing_cursor,
+            limit=1,
+        )
+        assert retried.scanned == 1
+        assert retried.created == 0
+        assert retried.reused == 1
+        assert retried.next_cursor == recipe_version_ids[0]
+
+        second = backfill_recipe_structural_fingerprints(
+            session,
+            after_recipe_version_id=first.next_cursor,
+            limit=1,
+        )
+        assert second.scanned == 1
+        assert second.created == 1
+        assert second.next_cursor == recipe_version_ids[1]
 
 
 @pytest.mark.parametrize("limit", [0, MAX_FINGERPRINT_BACKFILL_BATCH_SIZE + 1])

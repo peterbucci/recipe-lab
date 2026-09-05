@@ -76,12 +76,11 @@ describe("recipe publication API", () => {
         cache: "no-store",
         credentials: "same-origin",
         body: JSON.stringify(request),
-        headers: expect.objectContaining({
-          "Idempotency-Key": ACTION_ID,
-          "X-CSRF-Token": "test-token",
-        }),
       }),
     );
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.get("Idempotency-Key")).toBe(ACTION_ID);
+    expect(headers.get("X-CSRF-Token")).toBe("test-token");
   });
 
   it("keeps failures bounded and announces an expired session", async () => {

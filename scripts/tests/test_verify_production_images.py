@@ -27,9 +27,7 @@ def _result(
 
 
 class FakeDockerClient(image_verifier.DockerClient):
-    def __init__(
-        self, results: list[image_verifier.CommandResult] | None = None
-    ) -> None:
+    def __init__(self, results: list[image_verifier.CommandResult] | None = None) -> None:
         self.results = list(results or [])
         self.calls: list[tuple[tuple[str, ...], bool]] = []
 
@@ -95,11 +93,7 @@ class ImageMetadataTests(unittest.TestCase):
 
     def test_backend_image_must_use_the_guarded_production_launcher(self) -> None:
         approved = FakeDockerClient(
-            [
-                _result(
-                    stdout=_metadata(command=["python", "-m", "app.production_server"])
-                )
-            ]
+            [_result(stdout=_metadata(command=["python", "-m", "app.production_server"]))]
         )
         image_verifier.verify_image_metadata(
             approved,
@@ -108,9 +102,7 @@ class ImageMetadataTests(unittest.TestCase):
         )
 
         bypass = FakeDockerClient([_result(stdout=_metadata())])
-        with self.assertRaisesRegex(
-            image_verifier.VerificationError, "approved server launcher"
-        ):
+        with self.assertRaisesRegex(image_verifier.VerificationError, "approved server launcher"):
             image_verifier.verify_image_metadata(
                 bypass,
                 "recipe-lab-backend:test",
@@ -156,9 +148,7 @@ class EndpointTests(unittest.TestCase):
         entered.headers.items.return_value = [("Content-Type", "text/plain")]
         entered.read.return_value = b"ok\n"
 
-        with mock.patch.object(
-            image_verifier, "urlopen", return_value=response
-        ) as urlopen:
+        with mock.patch.object(image_verifier, "urlopen", return_value=response) as urlopen:
             status, headers, body = image_verifier._read_endpoint(
                 49101,
                 "/healthz",
@@ -169,9 +159,7 @@ class EndpointTests(unittest.TestCase):
             image_verifier.ENDPOINT_TIMEOUT_SECONDS,
             image_verifier.DATABASE_OPERATION_TIMEOUT_SECONDS,
         )
-        self.assertEqual(
-            (status, headers, body), (200, {"content-type": "text/plain"}, b"ok\n")
-        )
+        self.assertEqual((status, headers, body), (200, {"content-type": "text/plain"}, b"ok\n"))
         self.assertEqual(
             urlopen.call_args.kwargs["timeout"],
             image_verifier.ENDPOINT_TIMEOUT_SECONDS,
@@ -195,9 +183,7 @@ class ImageReportTests(unittest.TestCase):
             mock.patch.object(image_verifier, "build_image"),
             mock.patch.object(image_verifier, "verify_image_metadata"),
             mock.patch.object(image_verifier, "verify_runtime_contents"),
-            mock.patch.object(
-                image_verifier, "verify_invalid_configuration_is_redacted"
-            ),
+            mock.patch.object(image_verifier, "verify_invalid_configuration_is_redacted"),
             mock.patch.object(image_verifier, "verify_startup_and_health"),
         ):
             report = image_verifier.verify_production_images(
@@ -243,9 +229,7 @@ class ImageReportTests(unittest.TestCase):
         with (
             mock.patch.object(image_verifier, "verify_image_metadata"),
             mock.patch.object(image_verifier, "verify_runtime_contents"),
-            mock.patch.object(
-                image_verifier, "verify_invalid_configuration_is_redacted"
-            ),
+            mock.patch.object(image_verifier, "verify_invalid_configuration_is_redacted"),
             mock.patch.object(image_verifier, "verify_startup_and_health"),
             self.assertRaisesRegex(image_verifier.VerificationError, "tag changed"),
         ):
@@ -461,9 +445,7 @@ class ConfigurationAndHealthTests(unittest.TestCase):
             "recipe-lab-api",
         )
         with self.assertRaises(image_verifier.VerificationError):
-            image_verifier._assert_backend_health(
-                b'{"status":"degraded"}', "recipe-lab-api"
-            )
+            image_verifier._assert_backend_health(b'{"status":"degraded"}', "recipe-lab-api")
 
     def test_backend_readiness_contract_fails_closed_without_database(self) -> None:
         image_verifier._assert_backend_readiness(
@@ -479,26 +461,20 @@ class ConfigurationAndHealthTests(unittest.TestCase):
                         "code": "dependency_unavailable",
                         "correlation_id": self.correlation_id,
                         "issues": [],
-                        "message": (
-                            "A required service dependency is temporarily unavailable."
-                        ),
+                        "message": ("A required service dependency is temporarily unavailable."),
                     }
                 }
             ).encode(),
             self.correlation_id,
         )
 
-        with self.assertRaisesRegex(
-            image_verifier.VerificationError, "unavailable dependency"
-        ):
+        with self.assertRaisesRegex(image_verifier.VerificationError, "unavailable dependency"):
             image_verifier._assert_backend_readiness(
                 503,
                 b"{}",
                 "recipe-lab-api",
             )
-        with self.assertRaisesRegex(
-            image_verifier.VerificationError, "did not fail closed"
-        ):
+        with self.assertRaisesRegex(image_verifier.VerificationError, "did not fail closed"):
             image_verifier._assert_backend_dependency_failure(
                 200,
                 b"{}",
@@ -507,9 +483,7 @@ class ConfigurationAndHealthTests(unittest.TestCase):
 
     def test_backend_correlation_id_is_a_canonical_uuid4(self) -> None:
         self.assertEqual(
-            image_verifier._assert_correlation_id(
-                {"x-correlation-id": self.correlation_id}
-            ),
+            image_verifier._assert_correlation_id({"x-correlation-id": self.correlation_id}),
             self.correlation_id,
         )
         for headers in (
@@ -542,9 +516,7 @@ class ConfigurationAndHealthTests(unittest.TestCase):
             "323e4567-e89b-42d3-a456-426614174000",
             "423e4567-e89b-42d3-a456-426614174000",
         )
-        backend_headers = tuple(
-            {"x-correlation-id": value} for value in backend_correlation_ids
-        )
+        backend_headers = tuple({"x-correlation-id": value} for value in backend_correlation_ids)
         frontend_headers = {
             "cache-control": "no-store",
             "content-type": "text/plain; charset=utf-8",
@@ -589,21 +561,17 @@ class ConfigurationAndHealthTests(unittest.TestCase):
         commands = [call[0] for call in client.calls]
         self.assertTrue(
             any(
-                command[:2] == ("run", "--detach")
-                and image_verifier.DATABASE_IMAGE in command
+                command[:2] == ("run", "--detach") and image_verifier.DATABASE_IMAGE in command
                 for command in commands
             )
         )
         self.assertTrue(
             any(
-                command[:2] == ("run", "--rm")
-                and command[-3:] == ("alembic", "upgrade", "head")
+                command[:2] == ("run", "--rm") and command[-3:] == ("alembic", "upgrade", "head")
                 for command in commands
             )
         )
-        self.assertTrue(
-            any(command[:3] == ("stop", "--time", "0") for command in commands)
-        )
+        self.assertTrue(any(command[:3] == ("stop", "--time", "0") for command in commands))
         self.assertEqual(
             [call.args[1] for call in read_endpoint.call_args_list],
             [

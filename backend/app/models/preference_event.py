@@ -12,6 +12,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -46,7 +47,6 @@ class PreferenceEvent(Base):
             OR (
                 event_type = 'rating'
                 AND saved_value IS NULL
-                AND rating_value IS NOT NULL
                 AND related_recipe_version_id IS NULL
                 AND request_fingerprint IS NULL
             )
@@ -95,6 +95,17 @@ class PreferenceEvent(Base):
             "event_type",
             "occurred_at",
             "id",
+        ),
+        Index(
+            "ix_preference_events_user_recipe_version",
+            "user_id",
+            "recipe_version_id",
+        ),
+        Index(
+            "ix_preference_events_user_related_recipe_version",
+            "user_id",
+            "related_recipe_version_id",
+            postgresql_where=text("related_recipe_version_id IS NOT NULL"),
         ),
     )
 

@@ -115,6 +115,7 @@ def recommend_recipe_versions(
                 )
                 for event in data.events
             ),
+            normalization=data.normalization,
         ),
         limit,
     )

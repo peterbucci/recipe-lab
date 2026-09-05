@@ -9,8 +9,20 @@ from pathlib import Path
 from typing import Literal, cast
 from uuid import UUID
 
+from .json_codec import (
+    JsonCodecError,
+    JsonDocumentLimits,
+    decode_json_document,
+    load_json_document,
+)
+
 SNAPSHOT_SCHEMA_VERSION = "recipe-lab-evaluation-snapshot-v2"
 LEGACY_SNAPSHOT_SCHEMA_VERSION = "recipe-lab-evaluation-snapshot-v1"
+_SNAPSHOT_JSON_LIMITS = JsonDocumentLimits(
+    maximum_utf8_bytes=512 * 1024 * 1024,
+    maximum_depth=32,
+    maximum_nodes=16_000_000,
+)
 
 type EventType = Literal["view", "save", "rating", "fork"]
 type MeasureKind = Literal["exact", "range", "qualitative"]
@@ -176,15 +188,6 @@ def _normalized_document(
             for event in events
         ],
     }
-
-
-def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise SnapshotValidationError(f"duplicate JSON key: {key!r}")
-        result[key] = value
-    return result
 
 
 def _object(value: object, *, path: str) -> dict[str, object]:
@@ -471,13 +474,7 @@ def _parse_event(value: object, index: int) -> SnapshotEvent:
     )
 
 
-def parse_snapshot_json(text: str) -> EvaluationSnapshot:
-    """Parse and fully validate the strict, versioned evaluation snapshot format."""
-
-    try:
-        raw = json.loads(text, object_pairs_hook=_reject_duplicate_keys)
-    except json.JSONDecodeError as error:
-        raise SnapshotValidationError(f"invalid JSON: {error.msg}") from error
+def _parse_snapshot_document(raw: object) -> EvaluationSnapshot:
     document = _object(raw, path="snapshot")
     _exact_keys(document, expected=_TOP_LEVEL_KEYS, path="snapshot")
 
@@ -559,12 +556,44 @@ def parse_snapshot_json(text: str) -> EvaluationSnapshot:
     )
 
 
+def parse_snapshot_json(text: str) -> EvaluationSnapshot:
+    """Parse and fully validate the strict, versioned evaluation snapshot format."""
+
+    try:
+        raw = decode_json_document(
+            text,
+            limits=_SNAPSHOT_JSON_LIMITS,
+            document_name="snapshot",
+        )
+    except JsonCodecError as error:
+        raise SnapshotValidationError(str(error)) from error
+    return _parse_snapshot_document(raw)
+
+
 def load_snapshot(path: str | Path) -> EvaluationSnapshot:
     try:
-        text = Path(path).read_text(encoding="utf-8")
-    except UnicodeError as error:
-        raise SnapshotValidationError("snapshot must be valid UTF-8") from error
-    return parse_snapshot_json(text)
+        raw = load_json_document(
+            path,
+            limits=_SNAPSHOT_JSON_LIMITS,
+            document_name="snapshot",
+        )
+    except JsonCodecError as error:
+        raise SnapshotValidationError(str(error)) from error
+    return _parse_snapshot_document(raw)
+
+
+def validate_snapshot(snapshot: EvaluationSnapshot) -> EvaluationSnapshot:
+    """Validate and normalize an in-memory snapshot without a JSON encode/decode cycle."""
+
+    document = _normalized_document(
+        schema_version=snapshot.schema_version,
+        dataset_id=snapshot.dataset_id,
+        cutoff=snapshot.cutoff,
+        limitations=tuple(sorted(snapshot.limitations)),
+        recipes=tuple(sorted(snapshot.recipes, key=lambda recipe: recipe.id.int)),
+        events=tuple(sorted(snapshot.events, key=lambda event: (event.occurred_at, event.id.int))),
+    )
+    return _parse_snapshot_document(document)
 
 
 def create_snapshot(
@@ -590,7 +619,7 @@ def create_snapshot(
         recipes=tuple(sorted(recipes, key=lambda recipe: recipe.id.int)),
         events=tuple(sorted(events, key=lambda event: (event.occurred_at, event.id.int))),
     )
-    return parse_snapshot_json(canonical_json(document))
+    return _parse_snapshot_document(document)
 
 
 def snapshot_to_json(snapshot: EvaluationSnapshot) -> str:

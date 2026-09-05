@@ -1,6 +1,8 @@
 ARG NODE_IMAGE=node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
 
 FROM ${NODE_IMAGE} AS base
+# Fix CVE-2026-14456 until the official Node base includes patched OpenSSL.
+RUN apk add --no-cache libcrypto3=3.5.8-r0 libssl3=3.5.8-r0
 WORKDIR /app
 
 FROM base AS dependencies
@@ -33,8 +35,7 @@ ENV APP_ENVIRONMENT=production \
     NODE_ENV=production \
     PORT=3000
 
-RUN apk upgrade --no-cache \
-    && addgroup --system --gid 10001 nodejs \
+RUN addgroup --system --gid 10001 nodejs \
     && adduser --system --uid 10001 --ingroup nodejs --home /nonexistent nextjs \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
       /opt/yarn-v1.22.22 \

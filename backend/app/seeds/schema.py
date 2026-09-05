@@ -25,6 +25,12 @@ PositiveServings = Annotated[
     Decimal,
     Field(gt=0, max_digits=8, decimal_places=2),
 ]
+PositiveTimeMinutes = Annotated[int, Field(strict=True, gt=0, le=525_600)]
+RecipeDifficulty = Literal["easy", "medium", "hard"]
+RecipeNotes = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=5_000),
+]
 PositiveQuantity = Annotated[
     Decimal,
     Field(gt=0, max_digits=12, decimal_places=4),
@@ -217,6 +223,10 @@ class RecipeIngredientSeed(SeedModel):
 
 class RecipeInstructionSeed(SeedModel):
     key: SeedKey
+    title: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+        | None
+    ) = None
     text: NonBlank
     actions: Annotated[list[RecipeActionSeed], Field(min_length=1, max_length=20)]
 
@@ -228,9 +238,23 @@ class RecipeSeed(SeedModel):
     title: NonBlank
     description: NonBlank | None = None
     servings: PositiveServings
+    total_time_minutes: PositiveTimeMinutes | None = None
+    active_time_minutes: PositiveTimeMinutes | None = None
+    difficulty: RecipeDifficulty | None = None
+    notes: RecipeNotes | None = None
     categories: list[SeedKey] = Field(default_factory=list, max_length=MAX_RECIPE_CATEGORIES)
     ingredients: Annotated[list[RecipeIngredientSeed], Field(min_length=1)]
     instructions: Annotated[list[RecipeInstructionSeed], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def active_time_does_not_exceed_total_time(self) -> Self:
+        if (
+            self.total_time_minutes is not None
+            and self.active_time_minutes is not None
+            and self.active_time_minutes > self.total_time_minutes
+        ):
+            raise ValueError("active_time_minutes must not exceed total_time_minutes")
+        return self
 
 
 class SeedCatalog(SeedModel):

@@ -25,6 +25,7 @@ from app.services.recommendation_scoring import (
 
 from ..dataset import SnapshotEvent, SnapshotIngredientMeasure
 from ..protocol import ModelMetadata, ModelTrainingData
+from ._ranking import validate_ranking_request
 
 
 def _latest_state_events(
@@ -69,19 +70,40 @@ class _FittedBaselineV1:
         candidate_ids: tuple[UUID, ...],
         limit: int,
     ) -> tuple[UUID, ...]:
+        catalog_ids = frozenset(candidate.recipe_version_id for candidate in self.candidates)
+        requested_ids = validate_ranking_request(
+            candidate_ids=candidate_ids,
+            limit=limit,
+            fitted_recipe_ids=catalog_ids,
+        )
+        if limit == 0:
+            return ()
+
+        saved_recipe_version_ids = self.saved_by_user.get(user_id, frozenset())
+        ratings = self.ratings_by_user.get(user_id, ())
+        events = self.events_by_user.get(user_id, ())
+        scoring_context_ids = set(requested_ids)
+        scoring_context_ids.update(saved_recipe_version_ids)
+        scoring_context_ids.update(rating.recipe_version_id for rating in ratings)
+        for event in events:
+            scoring_context_ids.add(event.recipe_version_id)
+            if event.related_recipe_version_id is not None:
+                scoring_context_ids.add(event.related_recipe_version_id)
+
         result = score_baseline_recommendations(
             BaselineScoringInput(
-                candidates=self.candidates,
-                saved_recipe_version_ids=self.saved_by_user.get(user_id, frozenset()),
-                ratings=self.ratings_by_user.get(user_id, ()),
-                events=self.events_by_user.get(user_id, ()),
+                candidates=tuple(
+                    candidate
+                    for candidate in self.candidates
+                    if candidate.recipe_version_id in scoring_context_ids
+                ),
+                saved_recipe_version_ids=saved_recipe_version_ids,
+                ratings=ratings,
+                events=events,
             ),
             limit,
         )
-        allowed = frozenset(candidate_ids)
-        return tuple(
-            item.recipe_version_id for item in result.items if item.recipe_version_id in allowed
-        )
+        return tuple(item.recipe_version_id for item in result.items)
 
 
 class BaselineV1Model:

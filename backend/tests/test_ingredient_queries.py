@@ -8,13 +8,7 @@ from app.repositories.ingredients import (
     list_direct_substitutions,
     resolve_ingredient_name,
 )
-
-
-def create_ingredient(session: Session, canonical_name: str) -> Ingredient:
-    ingredient = Ingredient(canonical_name=canonical_name)
-    session.add(ingredient)
-    session.flush()
-    return ingredient
+from tests.builders.catalog import persist_catalog_ingredient
 
 
 def test_exact_canonical_and_alias_names_resolve_case_insensitively(
@@ -27,17 +21,16 @@ def test_exact_canonical_and_alias_names_resolve_case_insensitively(
             IngredientAlias(alias="Spring onion"),
         ],
     )
-    canonical_scallion = Ingredient(canonical_name="Scallion")
-    db_session.add_all([green_onion, canonical_scallion])
+    db_session.add(green_onion)
     db_session.flush()
 
     canonical_match = resolve_ingredient_name(db_session, "  GREEN ONION ")
     alias_match = resolve_ingredient_name(db_session, "  SpRiNg OnIoN  ")
-    canonical_precedence = resolve_ingredient_name(db_session, "  sCaLlIoN  ")
+    second_alias_match = resolve_ingredient_name(db_session, "  sCaLlIoN  ")
 
     assert canonical_match is green_onion
     assert alias_match is green_onion
-    assert canonical_precedence is canonical_scallion
+    assert second_alias_match is green_onion
     assert resolve_ingredient_name(db_session, "shallot") is None
     with pytest.raises(ValueError, match="must not be blank"):
         resolve_ingredient_name(db_session, "   ")
@@ -46,11 +39,11 @@ def test_exact_canonical_and_alias_names_resolve_case_insensitively(
 def test_substitution_lookup_returns_only_direct_outgoing_edges(
     db_session: Session,
 ) -> None:
-    butter = create_ingredient(db_session, "Butter")
-    coconut_oil = create_ingredient(db_session, "Coconut oil")
-    applesauce = create_ingredient(db_session, "Applesauce")
-    olive_oil = create_ingredient(db_session, "Olive oil")
-    salt = create_ingredient(db_session, "Salt")
+    butter = persist_catalog_ingredient(db_session, "Butter")
+    coconut_oil = persist_catalog_ingredient(db_session, "Coconut oil")
+    applesauce = persist_catalog_ingredient(db_session, "Applesauce")
+    olive_oil = persist_catalog_ingredient(db_session, "Olive oil")
+    salt = persist_catalog_ingredient(db_session, "Salt")
     db_session.add_all(
         [
             IngredientSubstitution(

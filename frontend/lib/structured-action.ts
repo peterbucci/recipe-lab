@@ -5,6 +5,7 @@ import type {
 import type { CatalogUnit } from "./measurement-unit-api";
 import {
   compareDecimalStrings,
+  createStructuredMeasureDraft,
   createUnspecifiedMeasureDraft,
   durationPolicy,
   structuredMeasureDraftMatchesRecipe,
@@ -92,24 +93,7 @@ function optionalMeasureDraft(
 function structuredNumericMeasureDraft(
   measure: RecipeNumericMeasure,
 ): StructuredMeasureDraft {
-  if (measure.kind === "exact") {
-    return {
-      mode: "exact",
-      exactValue: measure.value,
-      rangeMinimum: "",
-      rangeMaximum: "",
-      unit: measure.unit,
-      packageSizeId: null,
-    };
-  }
-  return {
-    mode: "range",
-    exactValue: "",
-    rangeMinimum: measure.minimum,
-    rangeMaximum: measure.maximum,
-    unit: measure.unit,
-    packageSizeId: null,
-  };
+  return createStructuredMeasureDraft(measure);
 }
 
 export function createStructuredActionDraft(

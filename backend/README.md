@@ -26,8 +26,9 @@ an interaction-only user removes that user's saves, ratings, and event history.
 
 Canonical ingredients can have exact aliases, one broad category, and
 positive dietary-flag and allergen assignments. Missing assignments mean
-"unknown," not that an ingredient is safe for a diet or allergy. Exact lookup
-gives a canonical name precedence if another ingredient has a colliding alias.
+"unknown," not that an ingredient is safe for a diet or allergy. Canonical
+names and aliases share one compatibility-normalized database namespace, so
+the same lookup key cannot belong to two catalog records or name kinds.
 
 Substitutions are explicit directed edges. Each edge identifies its source and
 replacement and includes a positive quantity ratio or written guidance, plus
@@ -379,6 +380,14 @@ over another member's child. RCP-29 presents that persisted attribution through
 an explicit public reference containing only stable ID, handle, and display
 name. Original publication appends no fork or other preference event.
 
+Draft validation and public-source copying both produce the same frozen
+`RecipeDocument`. Its mutable and immutable materializers preallocate local
+UUIDs, preserve every explicit ordering field, and stage a complete child graph
+without flushing or committing. The application service owns the replacement
+ordering, publication checkpoints, rollback, and commit; publication therefore
+writes its child graph as one batched recipe-document phase without changing
+request fingerprints, response contracts, or immutable snapshot fields.
+
 Any validation or database failure rolls back the entire transition and leaves
 the draft active and editable. An exact retry by the same member with the same
 idempotency key and request returns `201`, the original
@@ -474,19 +483,23 @@ It returns `exact_duplicate`, `probable_duplicate`, or `distinct`, at most five
 public candidates, at most three fixed explanation reasons per candidate, and
 a stable acknowledgement.
 
-Exact candidates require both the digest and canonical payload to match.
-Probable candidates use the versioned deterministic ingredient, normalized
-quantity, and structured-action scorer. A proposed child that is structurally
-identical to its direct source also receives `same_lineage_no_change`. Titles,
-descriptions, instruction prose, display aliases, authors, and lineage metadata
-do not affect either classification.
+Exact candidates require both the digest and canonical payload to match and are
+looked up independently of public-library size. The remaining fixed comparison
+budget is filled by a deterministic shortlist ordered by distinct shared
+canonical ingredient IDs and recipe UUID. Probable candidates then use the
+unchanged versioned ingredient, normalized quantity, and structured-action
+scorer. A proposed child that is structurally identical to its direct source
+also receives `same_lineage_no_change`. Titles, descriptions, instruction prose,
+display aliases, authors, and lineage metadata do not affect either
+classification.
 
 The separately versioned preflight policy pins the scorer parameters,
 public-only candidate selection and ordering, direct-parent warning semantics,
-and fixed work budgets: 500 public comparisons, 200 ingredient occurrences,
+and fixed work budgets: a 500-candidate shortlist, 200 ingredient occurrences,
 500 actions, 2,000 flattened inputs, and 10,000,000 conservative aggregate
 non-exact work units. Budget overflow fails closed with one generic `503`
-response; the service never returns partial candidate evidence.
+response; the service never returns partial candidate evidence. A public library
+larger than the shortlist is not itself an overflow condition.
 
 Draft publication binds the revision, optional source, policy, result digest,
 and optional `continue` directly inside its atomic transaction. Revising means
@@ -570,6 +583,16 @@ python -m pytest
 
 Schema tests use real PostgreSQL behavior and create a random isolated schema
 that is dropped after the run. Use a local or disposable test database only.
+API tests use the small `tests.application` harness to create one isolated app,
+bind either a database-backed or fixed route-unit-test session dependency, and
+clear every dependency override even when a test fails. Feature fixtures still
+own authentication and domain data so the harness does not hide test intent.
+Tests that need a non-expiring request session pass that policy explicitly to
+the harness. `tests.database.session_with_outer_rollback` is narrower: it is
+used only when a test deliberately permits session flushes or commits inside a
+connection-owned transaction that must be rolled back during cleanup. Expected
+savepoints and assertions about transaction behavior remain visible in their
+individual tests.
 The root `uv.lock` is the only Python lock; update and production-image
 procedures are documented in
 [locked dependencies and production images](../docs/production-images.md).

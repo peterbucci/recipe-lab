@@ -22,6 +22,14 @@ class RecipeViewerStateResponse(BaseModel):
     )
 
 
+class RecipeViewerStateListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[RecipeViewerStateResponse] = Field(
+        description="Private member state for each requested recipe version, in request order."
+    )
+
+
 class RatingUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

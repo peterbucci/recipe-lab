@@ -1,0 +1,216 @@
+{
+  "metadata": {
+    "version": 1,
+    "namespace_url": "https://github.com/peterbucci/recipe-lab/action-catalog/v1",
+    "title": "Recipe Lab Cooking Action Catalog v1",
+    "provenance": "Curated and reviewed for the Recipe Lab demo catalog; no actions were inferred from instruction prose at runtime.",
+    "published_at": "2026-08-24T00:00:00Z"
+  },
+  "action_types": [
+    {"key": "add", "canonical_verb": "add", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "arrange", "canonical_verb": "arrange", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "assemble", "canonical_verb": "assemble", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "bake", "canonical_verb": "bake", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "blend", "canonical_verb": "blend", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "boil", "canonical_verb": "boil", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "brown", "canonical_verb": "brown", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "brush", "canonical_verb": "brush", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "chill", "canonical_verb": "chill", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "chop", "canonical_verb": "chop", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "combine", "canonical_verb": "combine", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "cook", "canonical_verb": "cook", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "cool", "canonical_verb": "cool", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "cover", "canonical_verb": "cover", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "crack", "canonical_verb": "crack", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "divide", "canonical_verb": "divide", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "dice", "canonical_verb": "dice", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "drain", "canonical_verb": "drain", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "fill", "canonical_verb": "fill", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "flake", "canonical_verb": "flake", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "fold", "canonical_verb": "fold", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "fry", "canonical_verb": "fry", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "grease", "canonical_verb": "grease", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "heat", "canonical_verb": "heat", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "knead", "canonical_verb": "knead", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "line", "canonical_verb": "line", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "mash", "canonical_verb": "mash", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "mince", "canonical_verb": "mince", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "melt", "canonical_verb": "melt", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "mix", "canonical_verb": "mix", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "preheat", "canonical_verb": "preheat", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "refrigerate", "canonical_verb": "refrigerate", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "rest", "canonical_verb": "rest", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "return", "canonical_verb": "return", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "roast", "canonical_verb": "roast", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "roll", "canonical_verb": "roll", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "scatter", "canonical_verb": "scatter", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "serve", "canonical_verb": "serve", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "shape", "canonical_verb": "shape", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "shred", "canonical_verb": "shred", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "simmer", "canonical_verb": "simmer", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "slice", "canonical_verb": "slice", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "soften", "canonical_verb": "soften", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "spoon", "canonical_verb": "spoon", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "spread", "canonical_verb": "spread", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "stir", "canonical_verb": "stir", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "toast", "canonical_verb": "toast", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "top", "canonical_verb": "top", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "toss", "canonical_verb": "toss", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "transfer", "canonical_verb": "transfer", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "turn", "canonical_verb": "turn", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "warm", "canonical_verb": "warm", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "whisk", "canonical_verb": "whisk", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."},
+    {"key": "wilt", "canonical_verb": "wilt", "active": true, "provenance": "Recipe Lab reviewed cooking-action vocabulary v1."}
+  ],
+  "instruction_mappings": [
+    {"recipe":"banana-oat-pancakes-v1","instruction":"blend","actions":[{"key":"blend-oats","action_type":"blend","inputs":["oats"]},{"key":"blend-batter","action_type":"blend","inputs":["oats","banana","egg","milk","baking-powder","cinnamon"]}]},
+    {"recipe":"banana-oat-pancakes-v1","instruction":"rest","actions":[{"key":"blend-smooth","action_type":"blend","inputs":["oats","banana","egg","milk","baking-powder","cinnamon"]},{"key":"rest-batter","action_type":"rest","inputs":["oats","banana","egg","milk","baking-powder","cinnamon"],"duration":{"kind":"exact","value":"5","unit":"minute"}},{"key":"heat-skillet","action_type":"heat","inputs":[]}]},
+    {"recipe":"banana-oat-pancakes-v1","instruction":"cook","actions":[{"key":"brush-skillet","action_type":"brush","inputs":["oil"]},{"key":"cook-first-side","action_type":"cook","inputs":["oats","banana","egg","milk","baking-powder","cinnamon","oil"]},{"key":"turn-rounds","action_type":"turn","inputs":["oats","banana","egg","milk","baking-powder","cinnamon","oil"]},{"key":"cook-second-side","action_type":"cook","inputs":["oats","banana","egg","milk","baking-powder","cinnamon","oil"]}]},
+
+    {"recipe":"blueberry-banana-oat-pancakes-v2","instruction":"blend","actions":[{"key":"blend-oats","action_type":"blend","inputs":["oats"]},{"key":"blend-batter","action_type":"blend","inputs":["oats","banana","egg","milk","baking-powder","cinnamon"]}]},
+    {"recipe":"blueberry-banana-oat-pancakes-v2","instruction":"fold","actions":[{"key":"rest-batter","action_type":"rest","inputs":["oats","banana","egg","milk","baking-powder","cinnamon"],"duration":{"kind":"exact","value":"5","unit":"minute"}},{"key":"fold-blueberries","action_type":"fold","inputs":["blueberries"]}]},
+    {"recipe":"blueberry-banana-oat-pancakes-v2","instruction":"cook","actions":[{"key":"brush-skillet","action_type":"brush","inputs":["oil"]},{"key":"cook-rounds","action_type":"cook","inputs":["oats","banana","egg","milk","baking-powder","cinnamon","blueberries","oil"]}]},
+
+    {"recipe":"apple-cinnamon-overnight-oats-v1","instruction":"mix","actions":[{"key":"stir-base","action_type":"stir","inputs":["oats","milk","yogurt","chia","maple","cinnamon"]}]},
+    {"recipe":"apple-cinnamon-overnight-oats-v1","instruction":"chill","actions":[{"key":"fold-apple","action_type":"fold","inputs":["apple"]},{"key":"cover-oats","action_type":"cover","inputs":["oats","milk","yogurt","apple","chia","maple","cinnamon"]},{"key":"refrigerate-oats","action_type":"refrigerate","inputs":["oats","milk","yogurt","apple","chia","maple","cinnamon"]}]},
+    {"recipe":"apple-cinnamon-overnight-oats-v1","instruction":"finish","actions":[{"key":"stir-oats","action_type":"stir","inputs":["oats","milk","yogurt","apple","chia","maple","cinnamon"]},{"key":"top-apple","action_type":"top","inputs":["apple"]}]},
+
+    {"recipe":"oat-milk-apple-overnight-oats-v2","instruction":"mix","actions":[{"key":"stir-base","action_type":"stir","inputs":["oats","oat-milk","yogurt","chia","maple","cinnamon"]}]},
+    {"recipe":"oat-milk-apple-overnight-oats-v2","instruction":"chill","actions":[{"key":"fold-apple","action_type":"fold","inputs":["apple"]},{"key":"cover-oats","action_type":"cover","inputs":["oats","oat-milk","yogurt","apple","chia","maple","cinnamon"]},{"key":"refrigerate-oats","action_type":"refrigerate","inputs":["oats","oat-milk","yogurt","apple","chia","maple","cinnamon"]}]},
+    {"recipe":"oat-milk-apple-overnight-oats-v2","instruction":"finish","actions":[{"key":"stir-oats","action_type":"stir","inputs":["oats","oat-milk","yogurt","apple","chia","maple","cinnamon"]},{"key":"spoon-apple","action_type":"spoon","inputs":["apple"]}]},
+
+    {"recipe":"spinach-tomato-egg-skillet-v1","instruction":"saute","actions":[{"key":"heat-oil","action_type":"heat","inputs":["oil"]},{"key":"soften-onion","action_type":"soften","inputs":["onion","paprika","salt"]}]},
+    {"recipe":"spinach-tomato-egg-skillet-v1","instruction":"wilt","actions":[{"key":"add-vegetables","action_type":"add","inputs":["tomatoes","spinach"]},{"key":"cook-vegetables","action_type":"cook","inputs":["tomatoes","spinach"]}]},
+    {"recipe":"spinach-tomato-egg-skillet-v1","instruction":"set-eggs","actions":[{"key":"crack-eggs","action_type":"crack","inputs":["eggs"]},{"key":"cover-skillet","action_type":"cover","inputs":["eggs","spinach","tomatoes","onion"]},{"key":"cook-eggs","action_type":"cook","inputs":["eggs"]}]},
+
+    {"recipe":"lemon-chickpea-toast-v1","instruction":"mash","actions":[{"key":"mash-chickpeas","action_type":"mash","inputs":["chickpeas","tahini","lemon","garlic","oil"]}]},
+    {"recipe":"lemon-chickpea-toast-v1","instruction":"toast","actions":[{"key":"toast-bread","action_type":"toast","inputs":["bread"]}]},
+    {"recipe":"lemon-chickpea-toast-v1","instruction":"assemble","actions":[{"key":"fold-parsley","action_type":"fold","inputs":["parsley","chickpeas"]},{"key":"spoon-topping","action_type":"spoon","inputs":["chickpeas","tahini","lemon","garlic","parsley","oil","bread"]}]},
+
+    {"recipe":"peanut-butter-apple-oat-bites-v1","instruction":"combine","actions":[{"key":"mix-dough","action_type":"mix","inputs":["oats","peanut-butter","maple","chia","cinnamon"]}]},
+    {"recipe":"peanut-butter-apple-oat-bites-v1","instruction":"add-apple","actions":[{"key":"fold-apple","action_type":"fold","inputs":["apple"]},{"key":"chill-mixture","action_type":"chill","inputs":["oats","peanut-butter","apple","maple","chia","cinnamon"],"duration":{"kind":"exact","value":"20","unit":"minute"}}]},
+    {"recipe":"peanut-butter-apple-oat-bites-v1","instruction":"shape","actions":[{"key":"roll-bites","action_type":"roll","inputs":["oats","peanut-butter","apple","maple","chia","cinnamon"]},{"key":"chill-bites","action_type":"chill","inputs":["oats","peanut-butter","apple","maple","chia","cinnamon"]}]},
+
+    {"recipe":"red-lentil-coconut-stew-v1","instruction":"aromatics","actions":[{"key":"soften-onion","action_type":"soften","inputs":["onion","coconut-milk"]},{"key":"stir-aromatics","action_type":"stir","inputs":["garlic","ginger","curry"]}]},
+    {"recipe":"red-lentil-coconut-stew-v1","instruction":"simmer","actions":[{"key":"add-stew","action_type":"add","inputs":["lentils","coconut-milk","tomatoes","broth"]},{"key":"simmer-stew","action_type":"simmer","inputs":["lentils","coconut-milk","tomatoes","broth"]}]},
+    {"recipe":"red-lentil-coconut-stew-v1","instruction":"finish","actions":[{"key":"fold-spinach","action_type":"fold","inputs":["spinach"]},{"key":"cook-spinach","action_type":"cook","inputs":["spinach"]}]},
+
+    {"recipe":"sweet-potato-red-lentil-stew-v2","instruction":"aromatics","actions":[{"key":"soften-onion","action_type":"soften","inputs":["onion","coconut-milk"]},{"key":"stir-aromatics","action_type":"stir","inputs":["garlic","ginger","curry"]}]},
+    {"recipe":"sweet-potato-red-lentil-stew-v2","instruction":"simmer","actions":[{"key":"add-stew","action_type":"add","inputs":["lentils","sweet-potato","coconut-milk","tomatoes","broth"]},{"key":"simmer-stew","action_type":"simmer","inputs":["lentils","sweet-potato","coconut-milk","tomatoes","broth"]}]},
+    {"recipe":"sweet-potato-red-lentil-stew-v2","instruction":"finish","actions":[{"key":"stir-spinach","action_type":"stir","inputs":["spinach"]},{"key":"cook-spinach","action_type":"cook","inputs":["spinach"]}]},
+
+    {"recipe":"tomato-white-bean-soup-v1","instruction":"soften","actions":[{"key":"heat-oil","action_type":"heat","inputs":["oil"]},{"key":"soften-vegetables","action_type":"soften","inputs":["onion","carrot","celery"]}]},
+    {"recipe":"tomato-white-bean-soup-v1","instruction":"simmer","actions":[{"key":"stir-soup","action_type":"stir","inputs":["garlic","tomatoes","beans","broth"]},{"key":"simmer-soup","action_type":"simmer","inputs":["garlic","tomatoes","beans","broth"],"duration":{"kind":"exact","value":"20","unit":"minute"}}]},
+    {"recipe":"tomato-white-bean-soup-v1","instruction":"finish","actions":[{"key":"fold-basil","action_type":"fold","inputs":["basil"]},{"key":"mash-beans","action_type":"mash","inputs":["beans"]}]},
+
+    {"recipe":"black-bean-sweet-potato-chili-v1","instruction":"soften","actions":[{"key":"heat-oil","action_type":"heat","inputs":["oil"]},{"key":"soften-vegetables","action_type":"soften","inputs":["onion","pepper"]}]},
+    {"recipe":"black-bean-sweet-potato-chili-v1","instruction":"spice","actions":[{"key":"stir-spices","action_type":"stir","inputs":["cumin","paprika"]},{"key":"add-chili","action_type":"add","inputs":["sweet-potato","tomatoes","beans","broth"]}]},
+    {"recipe":"black-bean-sweet-potato-chili-v1","instruction":"simmer","actions":[{"key":"simmer-chili","action_type":"simmer","inputs":["beans","sweet-potato","tomatoes","broth","pepper","onion","cumin","paprika","oil"]}]},
+
+    {"recipe":"chicken-ginger-rice-soup-v1","instruction":"start","actions":[{"key":"simmer-base","action_type":"simmer","inputs":["broth","ginger","carrot","celery","rice"]}]},
+    {"recipe":"chicken-ginger-rice-soup-v1","instruction":"cook-chicken","actions":[{"key":"add-chicken","action_type":"add","inputs":["chicken"]},{"key":"simmer-chicken","action_type":"simmer","inputs":["chicken"],"temperature":{"kind":"exact","value":"165","unit":"fahrenheit"}}]},
+    {"recipe":"chicken-ginger-rice-soup-v1","instruction":"shred","actions":[{"key":"transfer-chicken","action_type":"transfer","inputs":["chicken"]},{"key":"shred-chicken","action_type":"shred","inputs":["chicken"]},{"key":"return-chicken","action_type":"return","inputs":["chicken","soy-sauce"]}]},
+    {"recipe":"chicken-ginger-rice-soup-v1","instruction":"finish","actions":[{"key":"cook-rice","action_type":"cook","inputs":["rice"]},{"key":"scatter-scallion","action_type":"scatter","inputs":["scallion"]}]},
+
+    {"recipe":"mushroom-barley-soup-v1","instruction":"brown","actions":[{"key":"heat-oil","action_type":"heat","inputs":["oil"]},{"key":"brown-mushrooms","action_type":"brown","inputs":["mushrooms"]}]},
+    {"recipe":"mushroom-barley-soup-v1","instruction":"soften","actions":[{"key":"soften-vegetables","action_type":"soften","inputs":["onion","carrot","celery"]},{"key":"stir-seasoning","action_type":"stir","inputs":["garlic","thyme"]}]},
+    {"recipe":"mushroom-barley-soup-v1","instruction":"simmer","actions":[{"key":"add-soup","action_type":"add","inputs":["barley","broth"]},{"key":"simmer-soup","action_type":"simmer","inputs":["barley","mushrooms","broth","carrot","celery","onion","garlic","thyme","oil"]}]},
+
+    {"recipe":"lemon-herb-chickpea-quinoa-bowl-v1","instruction":"cook-quinoa","actions":[{"key":"cook-quinoa","action_type":"cook","inputs":["quinoa"]},{"key":"cool-quinoa","action_type":"cool","inputs":["quinoa"]}]},
+    {"recipe":"lemon-herb-chickpea-quinoa-bowl-v1","instruction":"dress","actions":[{"key":"whisk-dressing","action_type":"whisk","inputs":["lemon","oil","tahini"]}]},
+    {"recipe":"lemon-herb-chickpea-quinoa-bowl-v1","instruction":"assemble","actions":[{"key":"divide-bowls","action_type":"divide","inputs":["quinoa","chickpeas","cucumber","tomatoes"]},{"key":"top-bowls","action_type":"top","inputs":["parsley","lemon","oil","tahini"]}]},
+
+    {"recipe":"brown-rice-chickpea-bowl-v2","instruction":"prepare-rice","actions":[{"key":"cook-rice","action_type":"cook","inputs":["brown-rice"]},{"key":"cool-rice","action_type":"cool","inputs":["brown-rice"]}]},
+    {"recipe":"brown-rice-chickpea-bowl-v2","instruction":"dress","actions":[{"key":"whisk-dressing","action_type":"whisk","inputs":["lemon","oil","tahini"]}]},
+    {"recipe":"brown-rice-chickpea-bowl-v2","instruction":"assemble","actions":[{"key":"divide-bowls","action_type":"divide","inputs":["brown-rice","chickpeas","cucumber","tomatoes"]},{"key":"top-bowls","action_type":"top","inputs":["parsley","lemon","oil","tahini"]}]},
+
+    {"recipe":"sesame-tofu-broccoli-rice-bowl-v1","instruction":"cook-rice","actions":[{"key":"cook-rice","action_type":"cook","inputs":["rice"]},{"key":"cover-rice","action_type":"cover","inputs":["rice"]}]},
+    {"recipe":"sesame-tofu-broccoli-rice-bowl-v1","instruction":"brown-tofu","actions":[{"key":"brown-tofu","action_type":"brown","inputs":["tofu"]},{"key":"add-vegetables","action_type":"add","inputs":["broccoli","carrot"]},{"key":"cover-vegetables","action_type":"cover","inputs":["broccoli","carrot"]}]},
+    {"recipe":"sesame-tofu-broccoli-rice-bowl-v1","instruction":"sauce","actions":[{"key":"stir-sauce","action_type":"stir","inputs":["soy-sauce","sesame-oil","vinegar","garlic"]},{"key":"toss-skillet","action_type":"toss","inputs":["tofu","broccoli","carrot","soy-sauce","sesame-oil","vinegar","garlic"]}]},
+    {"recipe":"sesame-tofu-broccoli-rice-bowl-v1","instruction":"serve","actions":[{"key":"spoon-bowls","action_type":"spoon","inputs":["tofu","broccoli","rice","carrot"]},{"key":"scatter-sesame","action_type":"scatter","inputs":["sesame-seed"]}]},
+
+    {"recipe":"sesame-tempeh-broccoli-rice-bowl-v2","instruction":"cook-rice","actions":[{"key":"cook-rice","action_type":"cook","inputs":["rice"]},{"key":"cover-rice","action_type":"cover","inputs":["rice"]}]},
+    {"recipe":"sesame-tempeh-broccoli-rice-bowl-v2","instruction":"brown-tempeh","actions":[{"key":"brown-tempeh","action_type":"brown","inputs":["tempeh"]},{"key":"turn-tempeh","action_type":"turn","inputs":["tempeh"]}]},
+    {"recipe":"sesame-tempeh-broccoli-rice-bowl-v2","instruction":"vegetables","actions":[{"key":"add-vegetables","action_type":"add","inputs":["broccoli","carrot"]},{"key":"cover-vegetables","action_type":"cover","inputs":["broccoli","carrot"]}]},
+    {"recipe":"sesame-tempeh-broccoli-rice-bowl-v2","instruction":"finish","actions":[{"key":"toss-sauce","action_type":"toss","inputs":["tempeh","broccoli","carrot","soy-sauce","sesame-oil","vinegar","garlic"]},{"key":"serve-rice","action_type":"serve","inputs":["rice","tempeh","broccoli","carrot","sesame-seed"]}]},
+
+    {"recipe":"roasted-vegetable-couscous-salad-v1","instruction":"roast","actions":[{"key":"toss-vegetables","action_type":"toss","inputs":["zucchini","pepper","onion","oil"]},{"key":"roast-vegetables","action_type":"roast","inputs":["zucchini","pepper","onion","oil"]}]},
+    {"recipe":"roasted-vegetable-couscous-salad-v1","instruction":"prepare-couscous","actions":[{"key":"cook-couscous","action_type":"cook","inputs":["couscous"]},{"key":"cool-couscous","action_type":"cool","inputs":["couscous"]}]},
+    {"recipe":"roasted-vegetable-couscous-salad-v1","instruction":"combine","actions":[{"key":"fold-salad","action_type":"fold","inputs":["couscous","zucchini","pepper","onion","chickpeas","lemon","oil","parsley"]}]},
+
+    {"recipe":"tuna-white-bean-salad-v1","instruction":"dress","actions":[{"key":"whisk-dressing","action_type":"whisk","inputs":["lemon","oil"]}]},
+    {"recipe":"tuna-white-bean-salad-v1","instruction":"combine","actions":[{"key":"add-salad","action_type":"add","inputs":["beans","cucumber","tomatoes","onion","parsley"]},{"key":"toss-salad","action_type":"toss","inputs":["beans","cucumber","tomatoes","onion","lemon","oil","parsley"]}]},
+    {"recipe":"tuna-white-bean-salad-v1","instruction":"finish","actions":[{"key":"flake-tuna","action_type":"flake","inputs":["tuna"]},{"key":"fold-tuna","action_type":"fold","inputs":["tuna","beans","cucumber","tomatoes","onion","lemon","oil","parsley"]}]},
+
+    {"recipe":"lentil-beet-walnut-salad-v1","instruction":"roast-beets","actions":[{"key":"toss-beets","action_type":"toss","inputs":["beets","oil"]},{"key":"roast-beets","action_type":"roast","inputs":["beets","oil"]}]},
+    {"recipe":"lentil-beet-walnut-salad-v1","instruction":"cook-lentils","actions":[{"key":"simmer-lentils","action_type":"simmer","inputs":["lentils"]},{"key":"drain-lentils","action_type":"drain","inputs":["lentils"]},{"key":"cool-lentils","action_type":"cool","inputs":["lentils"]}]},
+    {"recipe":"lentil-beet-walnut-salad-v1","instruction":"assemble","actions":[{"key":"whisk-dressing","action_type":"whisk","inputs":["oil","vinegar"]},{"key":"toss-salad","action_type":"toss","inputs":["lentils","beets","arugula","vinegar","oil"]},{"key":"top-salad","action_type":"top","inputs":["feta","walnuts"]}]},
+
+    {"recipe":"tomato-basil-spaghetti-v1","instruction":"sauce","actions":[{"key":"soften-onion","action_type":"soften","inputs":["onion","oil"]},{"key":"stir-sauce","action_type":"stir","inputs":["garlic","tomato-paste","tomatoes"]},{"key":"simmer-sauce","action_type":"simmer","inputs":["tomatoes","tomato-paste","onion","garlic","oil"]}]},
+    {"recipe":"tomato-basil-spaghetti-v1","instruction":"cook-pasta","actions":[{"key":"boil-pasta","action_type":"boil","inputs":["spaghetti"]},{"key":"drain-pasta","action_type":"drain","inputs":["spaghetti"]}]},
+    {"recipe":"tomato-basil-spaghetti-v1","instruction":"combine","actions":[{"key":"toss-pasta","action_type":"toss","inputs":["spaghetti","tomatoes","tomato-paste","onion","garlic","oil"]},{"key":"fold-basil","action_type":"fold","inputs":["basil"]},{"key":"top-parmesan","action_type":"top","inputs":["parmesan"]}]},
+
+    {"recipe":"whole-wheat-spinach-spaghetti-v2","instruction":"sauce","actions":[{"key":"soften-onion","action_type":"soften","inputs":["onion","oil"]},{"key":"stir-sauce","action_type":"stir","inputs":["garlic","tomato-paste","tomatoes"]},{"key":"simmer-sauce","action_type":"simmer","inputs":["tomatoes","tomato-paste","onion","garlic","oil"]}]},
+    {"recipe":"whole-wheat-spinach-spaghetti-v2","instruction":"cook-pasta","actions":[{"key":"boil-pasta","action_type":"boil","inputs":["spaghetti"]},{"key":"drain-pasta","action_type":"drain","inputs":["spaghetti"]}]},
+    {"recipe":"whole-wheat-spinach-spaghetti-v2","instruction":"wilt","actions":[{"key":"wilt-spinach","action_type":"wilt","inputs":["spinach","tomatoes","tomato-paste","onion","garlic","oil"]}]},
+    {"recipe":"whole-wheat-spinach-spaghetti-v2","instruction":"combine","actions":[{"key":"toss-pasta","action_type":"toss","inputs":["spaghetti","tomatoes","tomato-paste","onion","garlic","oil","spinach"]},{"key":"add-finish","action_type":"add","inputs":["basil","parmesan"]}]},
+
+    {"recipe":"mushroom-whole-wheat-spaghetti-v3","instruction":"brown-mushrooms","actions":[{"key":"brown-mushrooms","action_type":"brown","inputs":["mushrooms","oil"]},{"key":"transfer-mushrooms","action_type":"transfer","inputs":["mushrooms"]}]},
+    {"recipe":"mushroom-whole-wheat-spaghetti-v3","instruction":"sauce","actions":[{"key":"soften-onion","action_type":"soften","inputs":["onion","oil"]},{"key":"add-sauce","action_type":"add","inputs":["garlic","tomato-paste","tomatoes"]},{"key":"simmer-sauce","action_type":"simmer","inputs":["tomatoes","tomato-paste","onion","garlic","oil"]}]},
+    {"recipe":"mushroom-whole-wheat-spaghetti-v3","instruction":"cook-pasta","actions":[{"key":"boil-pasta","action_type":"boil","inputs":["spaghetti"]}]},
+    {"recipe":"mushroom-whole-wheat-spaghetti-v3","instruction":"combine","actions":[{"key":"wilt-spinach","action_type":"wilt","inputs":["spinach"]},{"key":"return-mushrooms","action_type":"return","inputs":["mushrooms"]},{"key":"toss-pasta","action_type":"toss","inputs":["spaghetti","tomatoes","tomato-paste","mushrooms","onion","garlic","oil","spinach","basil","parmesan"]}]},
+
+    {"recipe":"mushroom-pea-risotto-v1","instruction":"brown","actions":[{"key":"melt-butter","action_type":"melt","inputs":["butter"]},{"key":"brown-mushrooms","action_type":"brown","inputs":["mushrooms"]},{"key":"transfer-mushrooms","action_type":"transfer","inputs":["mushrooms"]}]},
+    {"recipe":"mushroom-pea-risotto-v1","instruction":"toast-rice","actions":[{"key":"melt-butter","action_type":"melt","inputs":["butter"]},{"key":"soften-onion","action_type":"soften","inputs":["onion"]},{"key":"stir-garlic","action_type":"stir","inputs":["garlic"]},{"key":"toast-rice","action_type":"toast","inputs":["rice"],"duration":{"kind":"exact","value":"1","unit":"minute"}}]},
+    {"recipe":"mushroom-pea-risotto-v1","instruction":"add-broth","actions":[{"key":"add-broth","action_type":"add","inputs":["broth"]},{"key":"stir-rice","action_type":"stir","inputs":["rice","broth"]}]},
+    {"recipe":"mushroom-pea-risotto-v1","instruction":"finish","actions":[{"key":"fold-finish","action_type":"fold","inputs":["peas","mushrooms","parmesan"]},{"key":"serve-risotto","action_type":"serve","inputs":["rice","mushrooms","peas","broth","onion","garlic","butter","parmesan"]}]},
+
+    {"recipe":"sheet-pan-lemon-chicken-vegetables-v1","instruction":"start-potatoes","actions":[{"key":"preheat-oven","action_type":"preheat","inputs":[],"temperature":{"kind":"exact","value":"220","unit":"celsius"}},{"key":"toss-potatoes","action_type":"toss","inputs":["potatoes","oil"]},{"key":"roast-potatoes","action_type":"roast","inputs":["potatoes","oil"],"duration":{"kind":"exact","value":"15","unit":"minute"},"temperature":{"kind":"exact","value":"220","unit":"celsius"}}]},
+    {"recipe":"sheet-pan-lemon-chicken-vegetables-v1","instruction":"season","actions":[{"key":"mix-seasoning","action_type":"mix","inputs":["oil","lemon","garlic","oregano"]},{"key":"toss-chicken","action_type":"toss","inputs":["chicken","broccoli","oil","lemon","garlic","oregano"]}]},
+    {"recipe":"sheet-pan-lemon-chicken-vegetables-v1","instruction":"roast","actions":[{"key":"add-pan","action_type":"add","inputs":["chicken","broccoli"]},{"key":"roast-dinner","action_type":"roast","inputs":["chicken","potatoes","broccoli","lemon","oil","garlic","oregano"],"temperature":{"kind":"exact","value":"165","unit":"fahrenheit"}}]},
+
+    {"recipe":"baked-dill-salmon-potatoes-v1","instruction":"start-potatoes","actions":[{"key":"preheat-oven","action_type":"preheat","inputs":[],"temperature":{"kind":"exact","value":"220","unit":"celsius"}},{"key":"toss-potatoes","action_type":"toss","inputs":["potatoes","oil"]},{"key":"roast-potatoes","action_type":"roast","inputs":["potatoes","oil"],"duration":{"kind":"exact","value":"20","unit":"minute"},"temperature":{"kind":"exact","value":"220","unit":"celsius"}}]},
+    {"recipe":"baked-dill-salmon-potatoes-v1","instruction":"add-pan","actions":[{"key":"mix-seasoning","action_type":"mix","inputs":["oil","lemon","dill","garlic"]},{"key":"brush-salmon","action_type":"brush","inputs":["salmon","green-beans","oil","lemon","dill","garlic"]}]},
+    {"recipe":"baked-dill-salmon-potatoes-v1","instruction":"bake","actions":[{"key":"add-pan","action_type":"add","inputs":["salmon","green-beans"]},{"key":"bake-salmon","action_type":"bake","inputs":["salmon","potatoes","green-beans","lemon","oil","dill","garlic"],"temperature":{"kind":"exact","value":"145","unit":"fahrenheit"}}]},
+
+    {"recipe":"turkey-meatballs-tomato-spaghetti-v1","instruction":"shape","actions":[{"key":"mix-meatballs","action_type":"mix","inputs":["turkey","egg","breadcrumbs","parmesan","garlic"]},{"key":"shape-meatballs","action_type":"shape","inputs":["turkey","egg","breadcrumbs","parmesan","garlic"]}]},
+    {"recipe":"turkey-meatballs-tomato-spaghetti-v1","instruction":"brown","actions":[{"key":"brown-meatballs","action_type":"brown","inputs":["turkey","egg","breadcrumbs","parmesan","garlic","oil"]},{"key":"transfer-meatballs","action_type":"transfer","inputs":["turkey"]},{"key":"soften-onion","action_type":"soften","inputs":["onion"]}]},
+    {"recipe":"turkey-meatballs-tomato-spaghetti-v1","instruction":"simmer","actions":[{"key":"add-sauce","action_type":"add","inputs":["garlic","tomatoes"]},{"key":"return-meatballs","action_type":"return","inputs":["turkey"]},{"key":"simmer-meatballs","action_type":"simmer","inputs":["turkey","garlic","tomatoes"],"temperature":{"kind":"exact","value":"165","unit":"fahrenheit"}}]},
+    {"recipe":"turkey-meatballs-tomato-spaghetti-v1","instruction":"serve","actions":[{"key":"boil-spaghetti","action_type":"boil","inputs":["spaghetti"]},{"key":"drain-spaghetti","action_type":"drain","inputs":["spaghetti"]},{"key":"toss-spaghetti","action_type":"toss","inputs":["spaghetti","tomatoes","garlic","onion","oil"]},{"key":"serve-meatballs","action_type":"serve","inputs":["turkey","spaghetti","tomatoes","parmesan"]}]},
+
+    {"recipe":"black-bean-tacos-v1","instruction":"slaw","actions":[{"key":"toss-slaw","action_type":"toss","inputs":["cabbage","lime","cilantro"]}]},
+    {"recipe":"black-bean-tacos-v1","instruction":"filling","actions":[{"key":"heat-oil","action_type":"heat","inputs":["oil"]},{"key":"soften-vegetables","action_type":"soften","inputs":["onion","pepper"]},{"key":"add-beans","action_type":"add","inputs":["beans"]},{"key":"warm-beans","action_type":"warm","inputs":["beans"]}]},
+    {"recipe":"black-bean-tacos-v1","instruction":"warm-tortillas","actions":[{"key":"warm-tortillas","action_type":"warm","inputs":["tortillas"]}]},
+    {"recipe":"black-bean-tacos-v1","instruction":"assemble","actions":[{"key":"fill-tacos","action_type":"fill","inputs":["tortillas","beans","pepper","onion","cabbage","avocado","lime","cilantro"]}]},
+
+    {"recipe":"vegetable-fried-rice-v1","instruction":"eggs","actions":[{"key":"heat-oil","action_type":"heat","inputs":["neutral-oil"]},{"key":"cook-eggs","action_type":"cook","inputs":["eggs"]},{"key":"transfer-eggs","action_type":"transfer","inputs":["eggs"]}]},
+    {"recipe":"vegetable-fried-rice-v1","instruction":"vegetables","actions":[{"key":"add-oil","action_type":"add","inputs":["neutral-oil"]},{"key":"cook-vegetables","action_type":"cook","inputs":["carrot","peas"]}]},
+    {"recipe":"vegetable-fried-rice-v1","instruction":"fry-rice","actions":[{"key":"add-rice","action_type":"add","inputs":["rice"]},{"key":"fry-rice","action_type":"fry","inputs":["rice","neutral-oil"]},{"key":"toss-rice","action_type":"toss","inputs":["rice"]}]},
+    {"recipe":"vegetable-fried-rice-v1","instruction":"finish","actions":[{"key":"return-eggs","action_type":"return","inputs":["eggs"]},{"key":"stir-seasoning","action_type":"stir","inputs":["soy-sauce","sesame-oil","scallion"]}]},
+
+    {"recipe":"herbed-chickpea-patties-tahini-v1","instruction":"mix","actions":[{"key":"mash-chickpeas","action_type":"mash","inputs":["chickpeas"]},{"key":"mix-patties","action_type":"mix","inputs":["chickpeas","onion","garlic","parsley","cumin","flour","oil"]}]},
+    {"recipe":"herbed-chickpea-patties-tahini-v1","instruction":"shape","actions":[{"key":"shape-patties","action_type":"shape","inputs":["chickpeas","onion","garlic","parsley","cumin","flour","oil"]},{"key":"brush-patties","action_type":"brush","inputs":["oil"]},{"key":"arrange-patties","action_type":"arrange","inputs":["chickpeas","onion","garlic","parsley","cumin","flour","oil"]}]},
+    {"recipe":"herbed-chickpea-patties-tahini-v1","instruction":"bake","actions":[{"key":"bake-patties","action_type":"bake","inputs":["chickpeas","onion","garlic","parsley","cumin","flour","oil"],"temperature":{"kind":"exact","value":"220","unit":"celsius"}},{"key":"turn-patties","action_type":"turn","inputs":["chickpeas","onion","garlic","parsley","cumin","flour","oil"]}]},
+    {"recipe":"herbed-chickpea-patties-tahini-v1","instruction":"sauce","actions":[{"key":"whisk-sauce","action_type":"whisk","inputs":["tahini","lemon"]},{"key":"serve-patties","action_type":"serve","inputs":["chickpeas","tahini","lemon"]}]},
+
+    {"recipe":"carrot-walnut-snack-cake-v1","instruction":"prepare","actions":[{"key":"preheat-oven","action_type":"preheat","inputs":[],"temperature":{"kind":"exact","value":"180","unit":"celsius"}},{"key":"grease-pan","action_type":"grease","inputs":["oil"]},{"key":"line-pan","action_type":"line","inputs":[]}]},
+    {"recipe":"carrot-walnut-snack-cake-v1","instruction":"mix-dry","actions":[{"key":"whisk-dry","action_type":"whisk","inputs":["flour","cinnamon","baking-powder","baking-soda"]}]},
+    {"recipe":"carrot-walnut-snack-cake-v1","instruction":"combine","actions":[{"key":"whisk-wet","action_type":"whisk","inputs":["sugar","eggs","oil"]},{"key":"fold-dry","action_type":"fold","inputs":["flour","cinnamon","baking-powder","baking-soda"]},{"key":"fold-carrots-nuts","action_type":"fold","inputs":["carrot","nuts"]}]},
+    {"recipe":"carrot-walnut-snack-cake-v1","instruction":"bake","actions":[{"key":"spread-batter","action_type":"spread","inputs":["flour","carrot","sugar","eggs","oil","nuts","cinnamon","baking-powder","baking-soda"]},{"key":"bake-cake","action_type":"bake","inputs":["flour","carrot","sugar","eggs","oil","nuts","cinnamon","baking-powder","baking-soda"],"temperature":{"kind":"exact","value":"180","unit":"celsius"}},{"key":"cool-cake","action_type":"cool","inputs":["flour","carrot","sugar","eggs","oil","nuts","cinnamon","baking-powder","baking-soda"]}]},
+
+    {"recipe":"lower-sugar-pecan-carrot-cake-v2","instruction":"prepare","actions":[{"key":"preheat-oven","action_type":"preheat","inputs":[],"temperature":{"kind":"exact","value":"180","unit":"celsius"}},{"key":"grease-pan","action_type":"grease","inputs":["oil"]},{"key":"line-pan","action_type":"line","inputs":[]}]},
+    {"recipe":"lower-sugar-pecan-carrot-cake-v2","instruction":"mix-dry","actions":[{"key":"whisk-dry","action_type":"whisk","inputs":["flour","cinnamon","baking-powder","baking-soda"]}]},
+    {"recipe":"lower-sugar-pecan-carrot-cake-v2","instruction":"combine","actions":[{"key":"whisk-wet","action_type":"whisk","inputs":["sugar","eggs","oil"]},{"key":"fold-dry","action_type":"fold","inputs":["flour","cinnamon","baking-powder","baking-soda"]},{"key":"fold-carrots-nuts","action_type":"fold","inputs":["carrot","nuts"]}]},
+    {"recipe":"lower-sugar-pecan-carrot-cake-v2","instruction":"bake","actions":[{"key":"spread-batter","action_type":"spread","inputs":["flour","carrot","sugar","eggs","oil","nuts","cinnamon","baking-powder","baking-soda"]},{"key":"bake-cake","action_type":"bake","inputs":["flour","carrot","sugar","eggs","oil","nuts","cinnamon","baking-powder","baking-soda"],"temperature":{"kind":"exact","value":"180","unit":"celsius"}},{"key":"cool-cake","action_type":"cool","inputs":["flour","carrot","sugar","eggs","oil","nuts","cinnamon","baking-powder","baking-soda"]}]},
+
+    {"recipe":"orange-raisin-carrot-cake-v3","instruction":"prepare","actions":[{"key":"preheat-oven","action_type":"preheat","inputs":[],"temperature":{"kind":"exact","value":"180","unit":"celsius"}},{"key":"grease-pan","action_type":"grease","inputs":["oil"]},{"key":"line-pan","action_type":"line","inputs":[]}]},
+    {"recipe":"orange-raisin-carrot-cake-v3","instruction":"mix-dry","actions":[{"key":"whisk-dry","action_type":"whisk","inputs":["flour","cinnamon","baking-powder","baking-soda"]}]},
+    {"recipe":"orange-raisin-carrot-cake-v3","instruction":"combine","actions":[{"key":"whisk-wet","action_type":"whisk","inputs":["sugar","eggs","oil","orange-zest"]},{"key":"fold-dry","action_type":"fold","inputs":["flour","cinnamon","baking-powder","baking-soda"]},{"key":"fold-carrots-raisins","action_type":"fold","inputs":["carrot","raisins"]}]},
+    {"recipe":"orange-raisin-carrot-cake-v3","instruction":"bake","actions":[{"key":"spread-batter","action_type":"spread","inputs":["flour","carrot","sugar","eggs","oil","raisins","orange-zest","cinnamon","baking-powder","baking-soda"]},{"key":"bake-cake","action_type":"bake","inputs":["flour","carrot","sugar","eggs","oil","raisins","orange-zest","cinnamon","baking-powder","baking-soda"],"temperature":{"kind":"exact","value":"180","unit":"celsius"}},{"key":"cool-cake","action_type":"cool","inputs":["flour","carrot","sugar","eggs","oil","raisins","orange-zest","cinnamon","baking-powder","baking-soda"]}]},
+
+    {"recipe":"blueberry-oat-muffins-v1","instruction":"prepare","actions":[{"key":"preheat-oven","action_type":"preheat","inputs":[],"temperature":{"kind":"exact","value":"190","unit":"celsius"}},{"key":"line-pan","action_type":"line","inputs":[]}]},
+    {"recipe":"blueberry-oat-muffins-v1","instruction":"mix","actions":[{"key":"whisk-dry","action_type":"whisk","inputs":["flour","oats","sugar","baking-powder","cinnamon"]},{"key":"whisk-wet","action_type":"whisk","inputs":["egg","milk","oil"]}]},
+    {"recipe":"blueberry-oat-muffins-v1","instruction":"combine","actions":[{"key":"fold-wet-dry","action_type":"fold","inputs":["flour","oats","sugar","egg","milk","oil","baking-powder","cinnamon"]},{"key":"fold-blueberries","action_type":"fold","inputs":["blueberries"]}]},
+    {"recipe":"blueberry-oat-muffins-v1","instruction":"bake","actions":[{"key":"divide-batter","action_type":"divide","inputs":["flour","oats","blueberries","sugar","egg","milk","oil","baking-powder","cinnamon"]},{"key":"bake-muffins","action_type":"bake","inputs":["flour","oats","blueberries","sugar","egg","milk","oil","baking-powder","cinnamon"],"temperature":{"kind":"exact","value":"190","unit":"celsius"}},{"key":"cool-muffins","action_type":"cool","inputs":["flour","oats","blueberries","sugar","egg","milk","oil","baking-powder","cinnamon"]}]}
+  ]
+}

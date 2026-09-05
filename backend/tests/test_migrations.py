@@ -1,4 +1,5 @@
 from decimal import Decimal
+from hashlib import sha256
 from uuid import UUID, uuid4
 
 import pytest
@@ -17,6 +18,18 @@ from app.repositories.recipes import browse_recipe_versions
 from app.seeds.catalog import load_bundled_catalog
 from app.seeds.identifiers import action_uuid, measurement_uuid, seed_uuid
 from app.services.recipe_responses import recipe_summary_response
+from migrations.frozen.catalog_20260824 import (
+    action_uuid as frozen_action_uuid,
+)
+from migrations.frozen.catalog_20260824 import (
+    load_frozen_action_backfill_catalog,
+)
+from migrations.frozen.catalog_20260824 import (
+    measurement_uuid as frozen_measurement_uuid,
+)
+from migrations.frozen.catalog_20260824 import (
+    seed_uuid as frozen_seed_uuid,
+)
 
 DOMAIN_TABLES = {
     "abuse_rate_limit_buckets",
@@ -27,6 +40,7 @@ DOMAIN_TABLES = {
     "dietary_flags",
     "ingredient_aliases",
     "ingredient_catalog_audit_events",
+    "ingredient_catalog_names",
     "ingredient_catalog_requests",
     "ingredient_allergens",
     "ingredient_categories",
@@ -60,6 +74,7 @@ DOMAIN_TABLES = {
     "recipe_instruction_actions",
     "recipe_ratings",
     "recipe_saves",
+    "user_follows",
     "recipe_structural_fingerprints",
     "recipe_version_ingredients",
     "recipe_version_categories",
@@ -76,6 +91,7 @@ INGREDIENT_TABLES = {
     "allergens",
     "dietary_flags",
     "ingredient_aliases",
+    "ingredient_catalog_names",
     "ingredient_allergens",
     "ingredient_categories",
     "ingredient_dietary_flags",
@@ -165,6 +181,15 @@ def test_migrations_round_trip_on_empty_postgres_schema(
         column["name"]: column
         for column in upgraded_inspector.get_columns("recipe_version_ingredients")
     }
+    ingredient_indexes = {
+        index["name"]: index
+        for index in upgraded_inspector.get_indexes("recipe_version_ingredients")
+    }
+    assert "ix_recipe_version_ingredients_ingredient_id" not in ingredient_indexes
+    assert ingredient_indexes["ix_recipe_version_ingredients_ingredient_version"][
+        "column_names"
+    ] == ["ingredient_id", "recipe_version_id"]
+    assert ingredient_indexes["ix_recipe_version_ingredients_ingredient_version"]["unique"] is False
     assert ingredient_columns["ingredient_id"]["nullable"] is False
     assert ingredient_columns["measure_mode"]["nullable"] is False
     action_input_foreign_keys = {
@@ -229,6 +254,111 @@ def test_migrations_round_trip_on_empty_postgres_schema(
 
     assert current_revision == script.get_current_head()
     assert DOMAIN_TABLES <= set(inspect(empty_postgres_engine).get_table_names())
+
+
+def test_catalog_name_namespace_migration_backfills_normalized_canonical_and_alias_rows(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    ingredient_id = uuid4()
+    alias_id = uuid4()
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260902_0027")
+        connection.execute(
+            sa.text(
+                "INSERT INTO ingredients (id, canonical_name) "
+                "VALUES (:ingredient_id, :canonical_name)"
+            ),
+            {
+                "ingredient_id": ingredient_id,
+                "canonical_name": "Ｃｈｉｃｋｐｅａ",
+            },
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO ingredient_aliases (id, ingredient_id, alias) "
+                "VALUES (:alias_id, :ingredient_id, :alias)"
+            ),
+            {
+                "alias_id": alias_id,
+                "ingredient_id": ingredient_id,
+                "alias": "Garbanzo\t beans",
+            },
+        )
+        command.upgrade(alembic_config, "head")
+        rows = connection.execute(
+            sa.text(
+                "SELECT name_kind, display_name, normalized_name, "
+                "normalized_name_digest, canonical_ingredient_id, ingredient_alias_id "
+                "FROM ingredient_catalog_names ORDER BY name_kind"
+            )
+        ).mappings()
+        namespace_rows = [dict(row) for row in rows]
+
+    expected = {
+        "alias": ("Garbanzo\t beans", "garbanzo beans", alias_id),
+        "canonical": ("Ｃｈｉｃｋｐｅａ", "chickpea", ingredient_id),
+    }
+    assert len(namespace_rows) == 2
+    for row in namespace_rows:
+        display_name, normalized_name, source_id = expected[row["name_kind"]]
+        assert row["display_name"] == display_name
+        assert row["normalized_name"] == normalized_name
+        assert row["normalized_name_digest"] == sha256(normalized_name.encode("utf-8")).hexdigest()
+        if row["name_kind"] == "canonical":
+            assert row["canonical_ingredient_id"] == source_id
+            assert row["ingredient_alias_id"] is None
+        else:
+            assert row["canonical_ingredient_id"] is None
+            assert row["ingredient_alias_id"] == source_id
+
+    indexes = {
+        index["name"]: index
+        for index in inspect(empty_postgres_engine).get_indexes("ingredient_catalog_names")
+    }
+    assert indexes["uq_ingredient_catalog_names_normalized_digest"]["unique"] is True
+    assert indexes["uq_ingredient_catalog_names_normalized_digest"]["column_names"] == [
+        "normalized_name_digest"
+    ]
+
+
+def test_catalog_name_namespace_migration_refuses_cross_kind_normalized_collisions(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    canonical_id = uuid4()
+    alias_owner_id = uuid4()
+    alias_id = uuid4()
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260902_0027")
+        connection.execute(
+            sa.text(
+                "INSERT INTO ingredients (id, canonical_name) VALUES "
+                "(:canonical_id, 'ＣＨＩＣＫＰＥＡ'), (:alias_owner_id, 'Other ingredient')"
+            ),
+            {
+                "canonical_id": canonical_id,
+                "alias_owner_id": alias_owner_id,
+            },
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO ingredient_aliases (id, ingredient_id, alias) "
+                "VALUES (:alias_id, :alias_owner_id, 'chickpea')"
+            ),
+            {"alias_id": alias_id, "alias_owner_id": alias_owner_id},
+        )
+
+    with pytest.raises(RuntimeError, match="normalized catalog name collision"):
+        with empty_postgres_engine.begin() as connection:
+            alembic_config.attributes["connection"] = connection
+            command.upgrade(alembic_config, "head")
+
+    with empty_postgres_engine.connect() as connection:
+        assert MigrationContext.configure(connection).get_current_revision() == "20260902_0027"
+    assert "ingredient_catalog_names" not in inspect(empty_postgres_engine).get_table_names()
 
 
 def test_recipe_category_migration_uses_only_explicit_demo_assignments(
@@ -984,14 +1114,14 @@ def test_measurement_downgrade_refuses_non_seed_catalog_metadata(
 def _insert_seed_action_migration_fixture(
     connection: Connection,
 ) -> tuple[UUID, UUID]:
-    catalog = load_bundled_catalog()
+    catalog = load_frozen_action_backfill_catalog()
     recipe = next(item for item in catalog.recipes if item.key == "blueberry-oat-muffins-v1")
     instruction = next(item for item in recipe.instructions if item.key == "prepare")
-    dataset_id = catalog.metadata.dataset_id
+    dataset_id = catalog.dataset_id
     user_id = uuid4()
-    lineage_id = seed_uuid(dataset_id, "recipe-lineage", recipe.key)
-    version_id = seed_uuid(dataset_id, "recipe-version", recipe.key)
-    instruction_id = seed_uuid(
+    lineage_id = frozen_seed_uuid(dataset_id, "recipe-lineage", recipe.key)
+    version_id = frozen_seed_uuid(dataset_id, "recipe-version", recipe.key)
+    instruction_id = frozen_seed_uuid(
         dataset_id,
         "recipe-instruction",
         f"{recipe.key}:{instruction.key}",
@@ -1021,9 +1151,9 @@ def _insert_seed_action_migration_fixture(
             parent_version_id=None,
             created_by_user_id=user_id,
             version_number=1,
-            title=recipe.title,
-            description=recipe.description,
-            servings=recipe.servings,
+            title="Action migration fixture",
+            description=None,
+            servings=Decimal("1.00"),
         )
     )
     connection.execute(
@@ -1089,14 +1219,14 @@ def test_action_migration_uses_only_explicit_seed_mappings(
         ).one()
 
         assert len(mapped) == 2
-        assert mapped[0].action_type_id == action_uuid("action-type", "preheat")
-        assert mapped[1].action_type_id == action_uuid("action-type", "line")
+        assert mapped[0].action_type_id == frozen_action_uuid("action-type", "preheat")
+        assert mapped[1].action_type_id == frozen_action_uuid("action-type", "line")
         assert inferred == 0
         assert temperature == (
             "temperature",
             "exact",
             Decimal("190.000000"),
-            measurement_uuid("unit", "celsius"),
+            frozen_measurement_uuid("unit", "celsius"),
         )
 
         command.downgrade(alembic_config, "20260824_0009")
@@ -1612,3 +1742,66 @@ def test_community_moderation_downgrade_refuses_durable_attestation_evidence(
 
         with pytest.raises(ProgrammingError, match="cannot downgrade community moderation"):
             command.downgrade(alembic_config, "20260826_0017")
+
+
+def test_public_profile_description_migration_is_nullable_bounded_and_scrubbed_on_delete(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    member_id = uuid4()
+
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260830_0025")
+        legacy_metadata = sa.MetaData()
+        legacy_users = sa.Table("users", legacy_metadata, autoload_with=connection)
+        connection.execute(
+            legacy_users.insert().values(
+                id=member_id,
+                email="profile-migration@example.test",
+                handle="profile_migration",
+                display_name="Profile Migration",
+                account_kind="member",
+                status="active",
+            )
+        )
+
+        command.upgrade(alembic_config, "head")
+        migrated_metadata = sa.MetaData()
+        users = sa.Table("users", migrated_metadata, autoload_with=connection)
+        assert users.c.profile_description.nullable is True
+        profile_description_type = users.c.profile_description.type
+        assert isinstance(profile_description_type, sa.String)
+        assert profile_description_type.length == 500
+        assert (
+            connection.scalar(sa.select(users.c.profile_description).where(users.c.id == member_id))
+            is None
+        )
+
+        connection.execute(
+            users.update()
+            .where(users.c.id == member_id)
+            .values(profile_description="Weeknight recipes.")
+        )
+        with pytest.raises(IntegrityError, match="profile_description_valid"):
+            with connection.begin_nested():
+                connection.execute(
+                    users.update().where(users.c.id == member_id).values(profile_description="   ")
+                )
+        with pytest.raises(IntegrityError, match="lifecycle_shape_valid"):
+            with connection.begin_nested():
+                connection.execute(
+                    users.update()
+                    .where(users.c.id == member_id)
+                    .values(
+                        status="deleted",
+                        email=None,
+                        handle=None,
+                        display_name="Deleted cook",
+                        deleted_at=sa.func.now(),
+                    )
+                )
+
+        command.downgrade(alembic_config, "20260830_0025")
+        downgraded_columns = {column["name"] for column in inspect(connection).get_columns("users")}
+        assert "profile_description" not in downgraded_columns

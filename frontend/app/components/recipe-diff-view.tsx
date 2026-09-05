@@ -1,8 +1,14 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { formatIngredientMeasure, formatServings } from "../../lib/format";
+import {
+  formatIngredientMeasure,
+  formatRecipeDifficulty,
+  formatRecipeDuration,
+  formatServings,
+} from "../../lib/format";
 import type {
+  RecipeDifficulty,
   RecipeDiff,
   RecipeFieldChange,
   RecipeIngredient,
@@ -26,6 +32,10 @@ const metadataLabels: Record<RecipeFieldChange["field"], string> = {
   title: "Title",
   description: "Description",
   servings: "Yield",
+  total_time_minutes: "Total time",
+  active_time_minutes: "Active time",
+  difficulty: "Difficulty",
+  notes: "Notes",
 };
 
 function ValuePair({
@@ -210,12 +220,30 @@ function PairedIngredientChange({
 
 function metadataValue(
   change: RecipeFieldChange,
-  value: string | null,
+  value: RecipeFieldChange["before"],
 ): string {
-  if (value === null || value.trim() === "") {
+  if (value === null || (typeof value === "string" && value.trim() === "")) {
     return "Not provided";
   }
-  return change.field === "servings" ? formatServings(value) : value;
+
+  if (change.field === "servings") {
+    return formatServings(String(value));
+  }
+  if (
+    change.field === "total_time_minutes" ||
+    change.field === "active_time_minutes"
+  ) {
+    const minutes = typeof value === "number" ? value : Number(value);
+    return formatRecipeDuration(Number.isFinite(minutes) ? minutes : null);
+  }
+  if (change.field === "difficulty") {
+    const difficulty: RecipeDifficulty | null =
+      value === "easy" || value === "medium" || value === "hard"
+        ? value
+        : null;
+    return formatRecipeDifficulty(difficulty);
+  }
+  return String(value);
 }
 
 function MetadataChange({ change }: { change: RecipeFieldChange }) {
@@ -294,6 +322,11 @@ function InstructionValue({
 }) {
   return (
     <div className="recipe-diff-instruction">
+      {instruction.title ? (
+        <strong className="recipe-diff-instruction__title">
+          {instruction.title}
+        </strong>
+      ) : null}
       <span>{instruction.text}</span>
       <ComparisonInstructionActions
         actions={instruction.actions}
@@ -359,6 +392,7 @@ function instructionChangeLabels(
     RecipeInstructionPairChange["changed_fields"][number],
     string
   >([
+    ["title", "Step title changed"],
     ["text", "Wording changed"],
     ["actions", "Cooking actions changed"],
     ["inputs", "Ingredients used in the step changed"],
@@ -441,6 +475,11 @@ function instructionChangeCount(diff: RecipeDiff): number {
 function instructionChangeSummary(change: RecipeInstructionPairChange): string {
   const step = change.after.display_order + 1;
   const fields = new Set(change.changed_fields);
+  if (fields.has("title")) {
+    return change.after.title
+      ? `Rename step ${step} to ${change.after.title}.`
+      : `Remove the title from step ${step}.`;
+  }
   if (fields.has("text")) {
     return `Update step ${step}: ${change.after.text}`;
   }

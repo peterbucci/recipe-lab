@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, SmallInteger, Uuid, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, SmallInteger, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -53,6 +53,13 @@ class RecipeRating(Base):
             name="rating_supported_range",
         ),
         Index("ix_recipe_ratings_recipe_version_id", "recipe_version_id"),
+        Index(
+            "ix_recipe_ratings_user_positive_profile",
+            "user_id",
+            text("rating DESC"),
+            text("created_at DESC"),
+            "recipe_version_id",
+        ),
     )
 
     user_id: Mapped[UUID] = mapped_column(

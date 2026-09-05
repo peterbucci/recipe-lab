@@ -1,8 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
+import {
+  type Dispatch,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
+import { isAbortError } from "../../lib/abort-error";
 import { AuthApiError } from "../../lib/auth-api";
 import type { CatalogActionType } from "../../lib/cooking-action-api";
 import { createIdempotencyKey } from "../../lib/idempotency-key";
@@ -24,18 +31,22 @@ import {
   validateRecipeDraftForPublication,
 } from "../../lib/recipe-draft";
 import {
-  initialRecipeDraftPublicationState,
   preparePublicationAttempt,
   publicationContext,
-  publicationIsBusy,
   publicationReview,
   publicationScopeMatches,
-  recipeDraftPublicationReducer,
   type PublicationContext,
   type PublicationFailureStatus,
   type PublicationScope,
+  type RecipeDraftPublicationEvent,
+  type RecipeDraftPublicationState,
 } from "../../lib/recipe-draft-publication-state";
-import { GuardedLink, useNavigationBlocker } from "./navigation-blocker-provider";
+import {
+  GuardedLink,
+  useNavigationBlocker,
+} from "./navigation-blocker-provider";
+import { LoadingButton } from "./loading-ui";
+import { BranchIcon } from "./recipe-action-icons";
 import { RecipeDuplicatePreflightReview } from "./recipe-duplicate-preflight-review";
 
 interface RecipeDraftPublicationProps {
@@ -44,14 +55,22 @@ interface RecipeDraftPublicationProps {
   draftId: string;
   dirty: boolean;
   measurementUnits: readonly CatalogUnit[];
-  onBusyChange: (busy: boolean) => void;
+  onRequestClose?: () => void;
   onValidation: (validation: RecipeDraftValidation) => void;
+  publicationDispatch: Dispatch<RecipeDraftPublicationEvent>;
+  publicationState: RecipeDraftPublicationState;
   revision: number;
+  sourceRecipeTitle?: string;
   sourceVersionId: string | null;
 }
 
 type PendingOperation = "preflight" | "publish" | null;
 type RetryOperation = "preflight" | "publish" | null;
+
+interface PublicationRequest {
+  controller: AbortController;
+  id: number;
+}
 
 const PUBLICATION_CONFIRMATION_MESSAGE =
   "Confirm the community rules and your right to share this recipe before publishing.";
@@ -112,13 +131,15 @@ function publicationFailureStatus(reason: unknown): PublicationFailureStatus {
     return "authentication-interruption";
   }
   if (
-    (reason instanceof RecipeDuplicateApiError || reason instanceof RecipePublicationApiError) &&
+    (reason instanceof RecipeDuplicateApiError ||
+      reason instanceof RecipePublicationApiError) &&
     reason.code === "recipe_fork_source_unavailable"
   ) {
     return "source-unavailable";
   }
   if (
-    (reason instanceof RecipeDuplicateApiError || reason instanceof RecipePublicationApiError) &&
+    (reason instanceof RecipeDuplicateApiError ||
+      reason instanceof RecipePublicationApiError) &&
     reason.code === "recipe_draft_revision_conflict"
   ) {
     return "revision-conflict";
@@ -145,9 +166,12 @@ export function RecipeDraftPublication({
   draftId,
   dirty,
   measurementUnits,
-  onBusyChange,
+  onRequestClose,
   onValidation,
+  publicationDispatch: dispatchPublication,
+  publicationState,
   revision,
+  sourceRecipeTitle,
   sourceVersionId,
 }: RecipeDraftPublicationProps) {
   const router = useRouter();
@@ -155,19 +179,11 @@ export function RecipeDraftPublication({
   const fingerprint = recipeDraftFingerprint(draft);
   const currentScope: PublicationScope = { fingerprint, revision };
   const latestIntent = useRef({ dirty, fingerprint, revision });
-  const submitting = useRef(false);
-  const communityRulesRef = useRef<HTMLInputElement>(null);
-  const contentRightsRef = useRef<HTMLInputElement>(null);
-  const [publicationState, dispatchPublication] = useReducer(
-    recipeDraftPublicationReducer,
-    initialRecipeDraftPublicationState,
-  );
+  const nextRequestId = useRef(0);
+  const activeRequest = useRef<PublicationRequest | null>(null);
+  const publicationConfirmationRef = useRef<HTMLInputElement>(null);
   const confirmationScope = `${revision}:${fingerprint}`;
-  const [communityRulesConfirmation, setCommunityRulesConfirmation] = useState({
-    scope: "",
-    checked: false,
-  });
-  const [contentRightsConfirmation, setContentRightsConfirmation] = useState({
+  const [publicationConfirmation, setPublicationConfirmation] = useState({
     scope: "",
     checked: false,
   });
@@ -175,66 +191,98 @@ export function RecipeDraftPublication({
     scope: string;
     message: string;
   } | null>(null);
-  const communityRulesAccepted =
-    communityRulesConfirmation.scope === confirmationScope && communityRulesConfirmation.checked;
-  const contentRightsConfirmed =
-    contentRightsConfirmation.scope === confirmationScope && contentRightsConfirmation.checked;
+  const publicationConfirmed =
+    publicationConfirmation.scope === confirmationScope &&
+    publicationConfirmation.checked;
   const confirmationError =
-    confirmationFailure?.scope === confirmationScope ? confirmationFailure.message : "";
+    confirmationFailure?.scope === confirmationScope
+      ? confirmationFailure.message
+      : "";
   const [status, setStatus] = useState("");
   const isFork = sourceVersionId !== null;
   const workflow = publicationState.workflow;
-  const failureWorkflow =
-    workflow.status === "ambiguous-result" ||
-    workflow.status === "authentication-interruption" ||
-    workflow.status === "failed-retryable" ||
-    workflow.status === "revision-conflict" ||
-    workflow.status === "source-unavailable"
-      ? workflow
-      : null;
+  const failureWorkflow = workflow.status === "failed" ? workflow : null;
   const pending: PendingOperation =
-    workflow.status === "checking"
+    workflow.status === "reviewing" && workflow.phase === "checking"
       ? "preflight"
       : workflow.status === "publishing" || workflow.status === "published"
         ? "publish"
         : null;
   const retryOperation: RetryOperation =
-    failureWorkflow?.status === "source-unavailable"
+    failureWorkflow?.recovery === "source"
       ? null
-      : failureWorkflow?.operation === "publish" && failureWorkflow.context === null
-        ? "preflight"
-        : failureWorkflow?.operation ?? null;
+      : failureWorkflow?.recovery === "publish"
+        ? "publish"
+        : failureWorkflow
+          ? "preflight"
+          : null;
   const workflowReview = publicationReview(workflow);
   const retryContext = publicationContext(workflow);
   const currentRetryContext =
-    retryContext && publicationScopeMatches(retryContext.scope, currentScope, dirty)
+    retryContext &&
+    publicationScopeMatches(retryContext.scope, currentScope, dirty)
       ? retryContext
       : null;
   const activeReview =
-    workflowReview && publicationScopeMatches(workflowReview.review.scope, currentScope, dirty)
+    workflowReview &&
+    publicationScopeMatches(workflowReview.review.scope, currentScope, dirty)
       ? workflowReview
       : null;
   const reviewInvalidated = workflowReview !== null && activeReview === null;
   const error = failureWorkflow?.message ?? "";
   const failureHeading = failureWorkflow
-    ? publicationFailureHeading(failureWorkflow.status, failureWorkflow.operation)
+    ? publicationFailureHeading(
+        failureWorkflow.kind,
+        failureWorkflow.operation,
+      )
     : "";
   const ambiguousPublicationResult =
-    failureWorkflow?.status === "ambiguous-result" && retryOperation === "publish";
-  const revisionConflict = failureWorkflow?.status === "revision-conflict";
-  const sessionExpired = failureWorkflow?.status === "authentication-interruption";
-  const sourceUnavailable = failureWorkflow?.status === "source-unavailable";
+    failureWorkflow?.kind === "ambiguous-result" &&
+    retryOperation === "publish";
+  const revisionConflict = failureWorkflow?.kind === "revision-conflict";
+  const sessionExpired =
+    failureWorkflow?.kind === "authentication-interruption";
+  const sourceUnavailable = failureWorkflow?.kind === "source-unavailable";
 
   useEffect(
-    () => onBusyChange(publicationIsBusy(publicationState)),
-    [onBusyChange, publicationState],
+    () => () => {
+      activeRequest.current?.controller.abort();
+      activeRequest.current = null;
+    },
+    [],
   );
 
   useLayoutEffect(() => {
     latestIntent.current = { dirty, fingerprint, revision };
   }, [dirty, fingerprint, revision]);
 
-  function intentIsCurrent(expectedFingerprint: string, expectedRevision: number): boolean {
+  function beginRequest(): PublicationRequest {
+    activeRequest.current?.controller.abort();
+    const request = {
+      controller: new AbortController(),
+      id: ++nextRequestId.current,
+    };
+    activeRequest.current = request;
+    return request;
+  }
+
+  function requestIsCurrent(request: PublicationRequest): boolean {
+    return (
+      activeRequest.current?.id === request.id &&
+      !request.controller.signal.aborted
+    );
+  }
+
+  function finishRequest(request: PublicationRequest): boolean {
+    if (!requestIsCurrent(request)) return false;
+    activeRequest.current = null;
+    return true;
+  }
+
+  function intentIsCurrent(
+    expectedFingerprint: string,
+    expectedRevision: number,
+  ): boolean {
     const current = latestIntent.current;
     return (
       !current.dirty &&
@@ -247,10 +295,7 @@ export function RecipeDraftPublication({
     community_rules_accepted: true;
     content_rights_confirmed: true;
   } | null {
-    if (
-      communityRulesRef.current?.checked !== true ||
-      contentRightsRef.current?.checked !== true
-    ) {
+    if (publicationConfirmationRef.current?.checked !== true) {
       return null;
     }
     return {
@@ -264,7 +309,7 @@ export function RecipeDraftPublication({
     context: PublicationContext,
     preserveExistingFailure: boolean,
   ) {
-    submitting.current = false;
+    activeRequest.current = null;
     if (!preserveExistingFailure) {
       dispatchPublication({ context, type: "confirmation-paused" });
     }
@@ -276,11 +321,7 @@ export function RecipeDraftPublication({
       "Publishing paused because a required confirmation was removed. Your draft is still here.",
     );
     window.setTimeout(() => {
-      if (communityRulesRef.current?.checked !== true) {
-        communityRulesRef.current?.focus();
-      } else if (contentRightsRef.current?.checked !== true) {
-        contentRightsRef.current?.focus();
-      }
+      publicationConfirmationRef.current?.focus();
     }, 0);
   }
 
@@ -288,20 +329,28 @@ export function RecipeDraftPublication({
     reason: unknown,
     operation: Exclude<RetryOperation, null>,
     attemptId: string,
+    request: PublicationRequest,
   ) {
+    if (!finishRequest(request)) return;
     const sourceWasUnavailable =
       isFork &&
-      (reason instanceof RecipeDuplicateApiError || reason instanceof RecipePublicationApiError) &&
+      (reason instanceof RecipeDuplicateApiError ||
+        reason instanceof RecipePublicationApiError) &&
       reason.status === 409 &&
       reason.code === "recipe_fork_source_unavailable";
-    submitting.current = false;
     const resetReview =
-      (reason instanceof RecipeDuplicateApiError || reason instanceof RecipePublicationApiError) &&
+      (reason instanceof RecipeDuplicateApiError ||
+        reason instanceof RecipePublicationApiError) &&
       reason.status === 409;
     const failureKind = sourceWasUnavailable
       ? "source-unavailable"
       : publicationFailureStatus(reason);
-    const failureMessage = publicationFailureMessage(reason, operation, isFork, failureKind);
+    const failureMessage = publicationFailureMessage(
+      reason,
+      operation,
+      isFork,
+      failureKind,
+    );
     dispatchPublication({
       attemptId,
       kind: failureKind,
@@ -310,23 +359,33 @@ export function RecipeDraftPublication({
       resetReview,
       type: "operation-failed",
     });
-    if (reason instanceof RecipePublicationApiError && reason.issues.length > 0) {
-      const serverFieldErrors = recipeDraftFieldErrorsFromIssues(draft, reason.issues);
+    if (
+      reason instanceof RecipePublicationApiError &&
+      reason.issues.length > 0
+    ) {
+      const serverFieldErrors = recipeDraftFieldErrorsFromIssues(
+        draft,
+        reason.issues,
+      );
       onValidation({
         fieldErrors: serverFieldErrors,
-        formErrors: Object.keys(serverFieldErrors).length > 0 ? [] : [failureMessage],
+        formErrors:
+          Object.keys(serverFieldErrors).length > 0 ? [] : [failureMessage],
         payload: null,
       });
     }
     setStatus("");
   }
 
-  async function publish(context: PublicationContext, preserveExistingFailure: boolean) {
+  async function publish(
+    context: PublicationContext,
+    preserveExistingFailure: boolean,
+  ) {
     const { result, scope, decision } = context;
     const expectedFingerprint = scope.fingerprint;
     const expectedRevision = scope.revision;
     if (!intentIsCurrent(expectedFingerprint, expectedRevision)) {
-      submitting.current = false;
+      activeRequest.current = null;
       dispatchPublication({ type: "draft-changed" });
       setStatus("Your draft changed. Save it before publishing.");
       return;
@@ -354,6 +413,7 @@ export function RecipeDraftPublication({
           });
     dispatchPublication({ attempt, context, type: "publish-started" });
     setStatus(`Publishing your ${isFork ? "version" : "recipe"}…`);
+    const request = beginRequest();
     try {
       const receipt = await publishRecipeDraft(
         draftId,
@@ -363,29 +423,37 @@ export function RecipeDraftPublication({
           ...attestations,
         },
         attempt.idempotencyKey,
+        request.controller.signal,
       );
-      dispatchPublication({ attemptId: attempt.idempotencyKey, receipt, type: "published" });
-      setStatus(`${isFork ? "Version" : "Recipe"} published. Opening your published recipes…`);
+      if (!finishRequest(request)) return;
+      dispatchPublication({
+        attemptId: attempt.idempotencyKey,
+        receipt,
+        type: "published",
+      });
+      setStatus(`${isFork ? "Version" : "Recipe"} published. Opening it…`);
       setBlocked(false);
-      router.replace("/account/recipes?view=published");
+      router.replace(receipt.location);
       router.refresh();
     } catch (reason) {
-      finishFailure(reason, "publish", attempt.idempotencyKey);
+      if (
+        request.controller.signal.aborted ||
+        isAbortError(reason)
+      ) {
+        return;
+      }
+      finishFailure(reason, "publish", attempt.idempotencyKey, request);
     }
   }
 
   async function startReview() {
-    if (submitting.current || dirty) return;
-    if (!communityRulesAccepted || !contentRightsConfirmed) {
+    if (activeRequest.current || dirty) return;
+    if (!publicationConfirmed) {
       setConfirmationFailure({
         scope: confirmationScope,
         message: PUBLICATION_CONFIRMATION_MESSAGE,
       });
-      window.setTimeout(
-        () =>
-          (!communityRulesAccepted ? communityRulesRef : contentRightsRef).current?.focus(),
-        0,
-      );
+      window.setTimeout(() => publicationConfirmationRef.current?.focus(), 0);
       return;
     }
     dispatchPublication({ type: "validation-started" });
@@ -411,7 +479,6 @@ export function RecipeDraftPublication({
             fingerprint: attemptFingerprint,
             newIdempotencyKey: createIdempotencyKey(),
           });
-    submitting.current = true;
     dispatchPublication({
       attempt,
       scope: { fingerprint: expectedFingerprint, revision: expectedRevision },
@@ -419,30 +486,39 @@ export function RecipeDraftPublication({
     });
     setStatus("Checking for similar recipes…");
     setConfirmationFailure(null);
+    const request = beginRequest();
     try {
       const result = await createRecipeDraftDuplicatePreflight(
         draftId,
         expectedRevision,
         attempt.idempotencyKey,
+        request.controller.signal,
       );
+      if (!requestIsCurrent(request)) return;
       if (!intentIsCurrent(expectedFingerprint, expectedRevision)) {
-        submitting.current = false;
+        finishRequest(request);
         dispatchPublication({ type: "draft-changed" });
-        setStatus("Your draft changed. Save it before checking for similar recipes again.");
+        setStatus(
+          "Your draft changed. Save it before checking for similar recipes again.",
+        );
         return;
       }
       if (result.classification === "distinct") {
+        finishRequest(request);
         await publish(
           {
             decision: null,
             result,
-            scope: { fingerprint: expectedFingerprint, revision: expectedRevision },
+            scope: {
+              fingerprint: expectedFingerprint,
+              revision: expectedRevision,
+            },
           },
           false,
         );
         return;
       }
-      submitting.current = false;
+      finishRequest(request);
       dispatchPublication({
         attemptId: attempt.idempotencyKey,
         result,
@@ -450,13 +526,19 @@ export function RecipeDraftPublication({
       });
       setStatus("Review the similar recipes before publishing.");
     } catch (reason) {
-      finishFailure(reason, "preflight", attempt.idempotencyKey);
+      if (
+        request.controller.signal.aborted ||
+        isAbortError(reason)
+      ) {
+        return;
+      }
+      finishFailure(reason, "preflight", attempt.idempotencyKey, request);
     }
   }
 
   async function continuePublication() {
-    if (!activeReview || !activeReview.acknowledged || submitting.current) return;
-    submitting.current = true;
+    if (!activeReview || !activeReview.acknowledged || activeRequest.current)
+      return;
     await publish(
       { ...activeReview.review, decision: "continue" },
       failureWorkflow !== null,
@@ -466,12 +548,12 @@ export function RecipeDraftPublication({
   async function retryPublication() {
     if (
       !currentRetryContext ||
-      submitting.current ||
-      (currentRetryContext.result.classification !== "distinct" && !activeReview?.acknowledged)
+      activeRequest.current ||
+      (currentRetryContext.result.classification !== "distinct" &&
+        !activeReview?.acknowledged)
     ) {
       return;
     }
-    submitting.current = true;
     await publish(currentRetryContext, true);
   }
 
@@ -479,88 +561,91 @@ export function RecipeDraftPublication({
     if (pending) return;
     dispatchPublication({ type: "keep-editing" });
     setStatus("Every saved field is ready for you to revise.");
-    window.setTimeout(() => document.getElementById("draft-title")?.focus(), 0);
+    if (onRequestClose) {
+      onRequestClose();
+    } else {
+      window.setTimeout(
+        () => document.getElementById("draft-title")?.focus(),
+        0,
+      );
+    }
   }
 
-  return (
-    <section
-      className={`draft-editor__publish-note draft-editor__surface draft-editor__surface--publication draft-publication draft-publication--${isFork ? "fork" : "original"}${activeReview ? " draft-publication--review" : ""}`}
-      aria-labelledby="draft-publish-title"
-    >
-      <p className="eyebrow">Publishing</p>
-      <h2 id="draft-publish-title">
-        {isFork ? "Publish your version without changing its source." : "Publish this original recipe."}
-      </h2>
-      {isFork ? (
-        <p>
-          Publishing creates a separate public version, keeps it based on the recipe you started
-          from, and credits you as the author. The starting recipe stays unchanged.
-        </p>
-      ) : (
-        <p>
-          Publishing makes this draft a public recipe. Later changes create new versions instead
-          of replacing the version people already saw.
-        </p>
-      )}
-      <p className="draft-publication__retention-disclosure">
-        Published recipes and their recipe history stay public if you later delete your account.
-        Your name is replaced with <strong>Deleted cook</strong>. You can withdraw a recipe from
-        My recipes before deleting your account; a withdrawn recipe stays unavailable after the
-        account is gone.
-      </p>
-      <fieldset
-        className="draft-publication__requirements"
-        aria-describedby={confirmationError ? "draft-publication-confirmation-error" : undefined}
-      >
-        <legend>Before publishing</legend>
-        <div className="draft-publication__requirement">
-          <input
-            id="draft-publication-community-rules"
-            ref={communityRulesRef}
-            type="checkbox"
-            checked={communityRulesAccepted}
-            required
-            onChange={(event) => {
-              setCommunityRulesConfirmation({
-                scope: confirmationScope,
-                checked: event.target.checked,
-              });
-              setConfirmationFailure(null);
-            }}
-          />
-          <div>
-            <label htmlFor="draft-publication-community-rules">
-              I have read and agree to the community rules.
-            </label>{" "}
-            <GuardedLink href="/community-rules">Open the community rules</GuardedLink>.
-          </div>
-        </div>
-        <div className="draft-publication__requirement">
-          <input
-            id="draft-publication-content-rights"
-            ref={contentRightsRef}
-            type="checkbox"
-            checked={contentRightsConfirmed}
-            required
-            onChange={(event) => {
-              setContentRightsConfirmation({
-                scope: confirmationScope,
-                checked: event.target.checked,
-              });
-              setConfirmationFailure(null);
-            }}
-          />
-          <label htmlFor="draft-publication-content-rights">
-            I created this recipe or have the right to share it.
-          </label>
-        </div>
-      </fieldset>
+  const publicationConfirmationControl = (
+    <>
+      <div className="draft-publication__confirmation">
+        <input
+          id="draft-publication-confirmation"
+          ref={publicationConfirmationRef}
+          type="checkbox"
+          aria-describedby={
+            confirmationError
+              ? "draft-publication-confirmation-error"
+              : undefined
+          }
+          aria-invalid={confirmationError ? true : undefined}
+          checked={publicationConfirmed}
+          required
+          onChange={(event) => {
+            setPublicationConfirmation({
+              scope: confirmationScope,
+              checked: event.target.checked,
+            });
+            setConfirmationFailure(null);
+          }}
+        />
+        <label htmlFor="draft-publication-confirmation">
+          I have the right to share this recipe and agree to the{" "}
+          <GuardedLink href="/community-rules">community rules</GuardedLink>.
+        </label>
+      </div>
       {confirmationError ? (
-        <p className="form-alert" id="draft-publication-confirmation-error" role="alert">
+        <p
+          className="form-alert"
+          id="draft-publication-confirmation-error"
+          role="alert"
+        >
           {confirmationError}
         </p>
       ) : null}
-      {dirty ? <p className="draft-publication__save-first">Save your latest changes before publishing.</p> : null}
+    </>
+  );
+
+  return (
+    <section
+      className={`draft-publication draft-publication--${isFork ? "fork" : "original"}${activeReview ? " draft-publication--review" : ""}`}
+      aria-label="Publication details"
+    >
+      <p
+        id="recipe-workspace-finish-summary"
+        className="draft-publication__summary"
+      >
+        Your {isFork ? "version" : "recipe"} will be public, credited to you,
+        and{" "}
+        {isFork
+          ? "stay linked to the recipe you started from."
+          : "start a new recipe family."}
+      </p>
+
+      {isFork ? (
+        <div className="draft-publication__source-summary">
+          <span className="draft-publication__source-icon">
+            <BranchIcon />
+          </span>
+          <span>
+            Based on{" "}
+            <strong>{sourceRecipeTitle || "Source recipe unavailable"}</strong>
+            {" · "}the source recipe will not change.
+          </span>
+        </div>
+      ) : null}
+
+      {activeReview ? null : publicationConfirmationControl}
+      {dirty ? (
+        <p className="draft-publication__save-first">
+          Save your latest changes before publishing.
+        </p>
+      ) : null}
       {error ? (
         <div className="form-alert draft-publication__alert" role="alert">
           <h3>{failureHeading}</h3>
@@ -569,21 +654,33 @@ export function RecipeDraftPublication({
             {revisionConflict ? (
               <a
                 className="button button--secondary"
-                href={`/account/recipe-drafts/${draftId}`}
+                href={`/recipes/drafts/${draftId}`}
                 target="_blank"
                 rel="noreferrer"
               >
                 Open latest draft in a new tab
               </a>
             ) : (
-              <button
+              <LoadingButton
                 className="button button--secondary"
                 type="button"
-                disabled={pending !== null}
+                pending={pending !== null}
+                pendingLabel={
+                  pending === "publish"
+                    ? `Publishing ${isFork ? "version" : "recipe"}…`
+                    : sourceUnavailable
+                      ? "Checking source…"
+                      : ambiguousPublicationResult
+                        ? "Checking publication result…"
+                        : "Checking similar recipes again…"
+                }
                 onClick={() => {
                   if (sourceUnavailable) {
                     void startReview();
-                  } else if (retryOperation === "publish" && currentRetryContext) {
+                  } else if (
+                    retryOperation === "publish" &&
+                    currentRetryContext
+                  ) {
                     void retryPublication();
                   } else {
                     void startReview();
@@ -597,9 +694,11 @@ export function RecipeDraftPublication({
                     : retryOperation === "publish"
                       ? "Try publishing again"
                       : "Check similar recipes again"}
-              </button>
+              </LoadingButton>
             )}
-            {!activeReview && !ambiguousPublicationResult && !revisionConflict ? (
+            {!activeReview &&
+            !ambiguousPublicationResult &&
+            !revisionConflict ? (
               <button
                 className="button button--quiet"
                 type="button"
@@ -620,7 +719,7 @@ export function RecipeDraftPublication({
             {sessionExpired ? (
               <a
                 className="button button--quiet"
-                href={`/sign-in?${new URLSearchParams({ return_to: `/account/recipe-drafts/${draftId}` }).toString()}`}
+                href={`/sign-in?${new URLSearchParams({ return_to: `/recipes/drafts/${draftId}` }).toString()}`}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -634,12 +733,16 @@ export function RecipeDraftPublication({
         <RecipeDuplicatePreflightReview
           mode="publication"
           publicationKind={isFork ? "fork" : "original"}
+          confirmationSlot={publicationConfirmationControl}
           result={activeReview.review.result}
           acknowledged={activeReview.acknowledged}
           decisionFailure={null}
           pendingDecision={pending === "publish" ? "continue" : null}
           onAcknowledgedChange={(acknowledged) =>
-            dispatchPublication({ acknowledged, type: "acknowledgement-changed" })
+            dispatchPublication({
+              acknowledged,
+              type: "acknowledgement-changed",
+            })
           }
           onContinue={() => void continuePublication()}
           onRevise={keepEditing}
@@ -648,28 +751,57 @@ export function RecipeDraftPublication({
           onReturnWithoutRecordedDecision={keepEditing}
         />
       ) : !failureWorkflow ? (
-        <button
-          className="button button--primary"
-          type="button"
-          disabled={dirty || pending !== null}
-          onClick={() => void startReview()}
-        >
-          {pending === "preflight"
-            ? "Checking for similar recipes…"
-            : pending === "publish"
-              ? `Publishing ${isFork ? "version" : "recipe"}…`
-              : isFork
-                ? "Review and publish version"
-                : "Review and publish"}
-        </button>
+        <div className="draft-publication__actions">
+          <LoadingButton
+            className="button button--primary"
+            type="button"
+            aria-label={
+              pending === null
+                ? isFork
+                  ? "Review and publish version"
+                  : "Review and publish"
+                : undefined
+            }
+            disabled={dirty || !publicationConfirmed}
+            pending={pending !== null}
+            pendingLabel={
+              pending === "publish"
+                ? `Publishing ${isFork ? "version" : "recipe"}…`
+                : "Checking for similar recipes…"
+            }
+            onClick={() => void startReview()}
+          >
+            Review &amp; publish
+          </LoadingButton>
+          <button
+            className="button button--secondary"
+            type="button"
+            disabled={pending !== null}
+            onClick={keepEditing}
+          >
+            Keep editing
+          </button>
+        </div>
       ) : null}
-      <p className="draft-publication__status" role="status" aria-live="polite">
-        {reviewInvalidated
-          ? "Your draft changed. Save it before checking for similar recipes again."
-          : status || `Only you can publish this saved ${isFork ? "version" : "original recipe"} draft.`}
-      </p>
-      <p className="draft-publication__boundary">
-        Not ready? <GuardedLink href="/account/recipes?view=drafts">Return to your private drafts</GuardedLink>.
+      {pending === null || workflow.status === "published" ? (
+        <p
+          className={
+            reviewInvalidated
+              ? "draft-publication__status"
+              : "draft-publication__status visually-hidden"
+          }
+          role="status"
+          aria-live="polite"
+        >
+          {reviewInvalidated
+            ? "Your draft changed. Save it before checking for similar recipes again."
+            : status ||
+              `Only you can publish this saved ${isFork ? "version" : "original recipe"} draft.`}
+        </p>
+      ) : null}
+      <p className="draft-publication__fine-print">
+        You can withdraw a published {isFork ? "version" : "recipe"} later from
+        My Recipes.
       </p>
     </section>
   );

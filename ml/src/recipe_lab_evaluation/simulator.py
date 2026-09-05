@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from itertools import chain
 from math import gcd
+from typing import Literal
 from uuid import UUID, uuid5
 
 from .dataset import (
@@ -15,8 +18,7 @@ from .dataset import (
     SnapshotValidationError,
     canonical_json,
     create_snapshot,
-    parse_snapshot_json,
-    snapshot_to_json,
+    validate_snapshot,
 )
 
 SIMULATION_ASSUMPTIONS = (
@@ -54,6 +56,18 @@ class CohortSimulationConfig:
     holdout_window_days: int = 7
     dataset_id: str | None = None
 
+    @property
+    def training_event_count(self) -> int:
+        return self.profile_count * self.training_items_per_profile * 2
+
+    @property
+    def holdout_event_count(self) -> int:
+        return self.profile_count * self.holdout_items_per_profile * 2
+
+    @property
+    def generated_event_count(self) -> int:
+        return self.training_event_count + self.holdout_event_count
+
     def __post_init__(self) -> None:
         _bounded_integer("seed", self.seed, minimum=0, maximum=(2**63) - 1)
         _bounded_integer("profile_count", self.profile_count, minimum=2, maximum=100_000)
@@ -89,11 +103,7 @@ class CohortSimulationConfig:
                 "dataset_id must be 1-128 identifier characters: letters, digits, '.', '_', "
                 "':' or '-'"
             )
-        generated_events = (
-            self.profile_count
-            * (self.training_items_per_profile + self.holdout_items_per_profile)
-            * 2
-        )
+        generated_events = self.generated_event_count
         if generated_events > _MAX_GENERATED_EVENTS:
             raise CohortSimulationError(
                 f"configuration would generate {generated_events} events; "
@@ -221,13 +231,14 @@ def _holdout_action(
     )
 
 
-def _draft_profile_events(
+def _profile_phase_drafts(
     *,
     recipes: tuple[SnapshotRecipe, ...],
     profile_index: int,
     config: CohortSimulationConfig,
     run_digest: str,
-) -> tuple[tuple[_EventDraft, ...], tuple[_EventDraft, ...]]:
+    phase: Literal["training", "holdout"],
+) -> Iterator[_EventDraft]:
     user_id = _opaque_uuid(run_digest, "profile", profile_index)
     ordered = _profile_recipe_order(
         recipes,
@@ -236,75 +247,107 @@ def _draft_profile_events(
         selected_item_count=(config.training_items_per_profile + config.holdout_items_per_profile),
         run_digest=run_digest,
     )
-    training_recipes = ordered[: config.training_items_per_profile]
-    holdout_recipes = ordered[
-        config.training_items_per_profile : (
-            config.training_items_per_profile + config.holdout_items_per_profile
-        )
-    ]
     anchor = ordered[0]
-    training: list[_EventDraft] = []
-    holdout: list[_EventDraft] = []
-    for position, recipe in enumerate(training_recipes):
-        training.append(
-            _EventDraft(user_id=user_id, recipe_version_id=recipe.id, event_type="view")
-        )
-        training.append(
-            _training_action(
+    if phase == "training":
+        selected_recipes = ordered[: config.training_items_per_profile]
+    else:
+        selected_recipes = ordered[
+            config.training_items_per_profile : (
+                config.training_items_per_profile + config.holdout_items_per_profile
+            )
+        ]
+    for position, recipe in enumerate(selected_recipes):
+        yield _EventDraft(user_id=user_id, recipe_version_id=recipe.id, event_type="view")
+        if phase == "training":
+            yield _training_action(
                 user_id=user_id,
                 anchor=anchor,
                 recipe=recipe,
                 position=position,
                 run_digest=run_digest,
             )
-        )
-    for position, recipe in enumerate(holdout_recipes):
-        holdout.append(_EventDraft(user_id=user_id, recipe_version_id=recipe.id, event_type="view"))
-        holdout.append(
-            _holdout_action(
+        else:
+            yield _holdout_action(
                 user_id=user_id,
                 recipe=recipe,
                 position=position,
                 run_digest=run_digest,
             )
-        )
-    return tuple(training), tuple(holdout)
 
 
 def _microseconds(delta: timedelta) -> int:
     return ((delta.days * 86_400) + delta.seconds) * 1_000_000 + delta.microseconds
 
 
-def _training_timestamps(
+def _training_events(
     *,
+    recipes: tuple[SnapshotRecipe, ...],
+    config: CohortSimulationConfig,
+    run_digest: str,
     ready_at: datetime,
     cutoff: datetime,
     configured_start: datetime,
-    count: int,
-) -> tuple[datetime, ...]:
+) -> Iterator[SnapshotEvent]:
+    count = config.training_event_count
     start = max(ready_at, configured_start)
     span_microseconds = _microseconds(cutoff - start)
     if span_microseconds <= 0:
         raise CohortSimulationError(
             "available recipes must be created before the cutoff to schedule training events"
         )
-    return tuple(
-        start + timedelta(microseconds=((index + 1) * span_microseconds) // (count + 1))
-        for index in range(count)
-    )
+    event_index = 0
+    for profile_index in range(config.profile_count):
+        for draft in _profile_phase_drafts(
+            recipes=recipes,
+            profile_index=profile_index,
+            config=config,
+            run_digest=run_digest,
+            phase="training",
+        ):
+            yield SnapshotEvent(
+                id=_opaque_uuid(run_digest, "training-event", event_index),
+                user_id=draft.user_id,
+                recipe_version_id=draft.recipe_version_id,
+                event_type=draft.event_type,
+                occurred_at=start
+                + timedelta(microseconds=((event_index + 1) * span_microseconds) // (count + 1)),
+                saved_value=draft.saved_value,
+                rating_value=draft.rating_value,
+                related_recipe_version_id=None,
+            )
+            event_index += 1
 
 
-def _holdout_timestamps(
+def _holdout_events(
     *,
+    recipes: tuple[SnapshotRecipe, ...],
+    config: CohortSimulationConfig,
+    run_digest: str,
     cutoff: datetime,
-    holdout_window_days: int,
-    count: int,
-) -> tuple[datetime, ...]:
-    span_microseconds = _microseconds(timedelta(days=holdout_window_days))
-    return tuple(
-        cutoff + timedelta(microseconds=(index * span_microseconds) // count)
-        for index in range(count)
-    )
+) -> Iterator[SnapshotEvent]:
+    count = config.holdout_event_count
+    span_microseconds = _microseconds(timedelta(days=config.holdout_window_days))
+    event_index = 0
+    for profile_index in range(config.profile_count):
+        for draft in _profile_phase_drafts(
+            recipes=recipes,
+            profile_index=profile_index,
+            config=config,
+            run_digest=run_digest,
+            phase="holdout",
+        ):
+            yield SnapshotEvent(
+                id=_opaque_uuid(run_digest, "holdout-event", event_index),
+                user_id=draft.user_id,
+                recipe_version_id=draft.recipe_version_id,
+                event_type=draft.event_type,
+                occurred_at=cutoff
+                + timedelta(microseconds=(event_index * span_microseconds) // count),
+                saved_value=draft.saved_value,
+                rating_value=draft.rating_value,
+                related_recipe_version_id=None,
+            )
+            event_index += 1
 
 
 def _configured_training_start(
@@ -337,28 +380,6 @@ def _available_catalog_sha256(
     return projection.sha256
 
 
-def _materialize_events(
-    drafts: tuple[_EventDraft, ...],
-    timestamps: tuple[datetime, ...],
-    *,
-    phase: str,
-    run_digest: str,
-) -> tuple[SnapshotEvent, ...]:
-    return tuple(
-        SnapshotEvent(
-            id=_opaque_uuid(run_digest, f"{phase}-event", index),
-            user_id=draft.user_id,
-            recipe_version_id=draft.recipe_version_id,
-            event_type=draft.event_type,
-            occurred_at=timestamps[index],
-            saved_value=draft.saved_value,
-            rating_value=draft.rating_value,
-            related_recipe_version_id=None,
-        )
-        for index, draft in enumerate(drafts)
-    )
-
-
 def simulate_preference_cohort(
     catalog: EvaluationSnapshot,
     config: CohortSimulationConfig,
@@ -371,7 +392,7 @@ def simulate_preference_cohort(
     """
 
     try:
-        normalized_catalog = parse_snapshot_json(snapshot_to_json(catalog))
+        normalized_catalog = validate_snapshot(catalog)
     except SnapshotValidationError as error:
         raise CohortSimulationError("catalog snapshot violates the evaluation contract") from error
     if normalized_catalog.events:
@@ -408,41 +429,24 @@ def simulate_preference_cohort(
     run_digest = hashlib.sha256(canonical_json(run_document).encode("utf-8")).hexdigest()
     dataset_id = config.dataset_id or f"recipe-lab-simulated-preferences-v1-{run_digest[:16]}"
 
-    training_drafts: list[_EventDraft] = []
-    holdout_drafts: list[_EventDraft] = []
-    for profile_index in range(config.profile_count):
-        profile_training, profile_holdout = _draft_profile_events(
-            recipes=available_recipes,
-            profile_index=profile_index,
-            config=config,
-            run_digest=run_digest,
-        )
-        training_drafts.extend(profile_training)
-        holdout_drafts.extend(profile_holdout)
-
     ready_at = max(recipe.created_at for recipe in available_recipes)
-    training_draft_tuple = tuple(training_drafts)
-    holdout_draft_tuple = tuple(holdout_drafts)
-    training_events = _materialize_events(
-        training_draft_tuple,
-        _training_timestamps(
-            ready_at=ready_at,
-            cutoff=normalized_catalog.cutoff,
-            configured_start=configured_training_start,
-            count=len(training_draft_tuple),
-        ),
-        phase="training",
-        run_digest=run_digest,
-    )
-    holdout_events = _materialize_events(
-        holdout_draft_tuple,
-        _holdout_timestamps(
-            cutoff=normalized_catalog.cutoff,
-            holdout_window_days=config.holdout_window_days,
-            count=len(holdout_draft_tuple),
-        ),
-        phase="holdout",
-        run_digest=run_digest,
+    events = tuple(
+        chain(
+            _training_events(
+                recipes=available_recipes,
+                config=config,
+                run_digest=run_digest,
+                ready_at=ready_at,
+                cutoff=normalized_catalog.cutoff,
+                configured_start=configured_training_start,
+            ),
+            _holdout_events(
+                recipes=available_recipes,
+                config=config,
+                run_digest=run_digest,
+                cutoff=normalized_catalog.cutoff,
+            ),
+        )
     )
     limitations = tuple(sorted(set(normalized_catalog.limitations).union(SIMULATION_ASSUMPTIONS)))
     return create_snapshot(
@@ -450,5 +454,5 @@ def simulate_preference_cohort(
         cutoff=normalized_catalog.cutoff,
         limitations=limitations,
         recipes=normalized_catalog.recipes,
-        events=training_events + holdout_events,
+        events=events,
     )

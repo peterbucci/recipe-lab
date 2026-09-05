@@ -1,107 +1,71 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 
 import {
-  browseIngredientCatalogReviewRequests,
-  fetchIngredientCatalogReviewDetail,
   type IngredientCatalogRequestStatus,
-  IngredientCatalogApiError,
-  type IngredientCatalogReviewDetail,
   type IngredientCatalogReviewItem,
-  type IngredientCatalogReviewPage,
 } from "../../lib/ingredient-catalog-api";
-import { useAuthSession } from "./auth-session-provider";
 import { IngredientRequestReviewDetail } from "./ingredient-request-review-detail";
-import { isAbortError, STATUS_LABELS } from "./ingredient-request-review-model";
 import {
   IngredientRequestReviewQueue,
   IngredientRequestStatusFilters,
 } from "./ingredient-request-review-queue";
+import {
+  StaffWorkspaceAccess,
+  StaffWorkspaceShell,
+  StaffWorkspaceSplitPanel,
+} from "./staff-workspace-shell";
+import { WorkspaceEmptyState } from "./workspace-empty-state";
+import { WorkspacePanelHeader } from "./workspace-panel-header";
+import {
+  WorkspaceErrorState,
+  WorkspaceLoadingState,
+} from "./workspace-state";
+import { useIngredientRequestReviewWorkspace } from "./use-ingredient-request-review-workspace";
 
-function unavailablePage() {
-  return (
-    <main
-      id="main-content"
-      className="state-page staff-state-page staff-state-page--curation staff-state-page--authorization"
-    >
-      <div className="error-state staff-state-panel" role="alert">
-        <p className="eyebrow">Page unavailable</p>
-        <h1>We couldn’t find that page.</h1>
-        <p>Browse the recipe collection to find something to cook.</p>
-        <Link className="button button--primary" href="/recipes">
-          Browse recipes
-        </Link>
-      </div>
-    </main>
-  );
-}
+const REQUEST_STATUS_PANEL_COPY: Record<
+  IngredientCatalogRequestStatus,
+  { description: string; emptyDescription: string; emptyTitle: string; title: string }
+> = {
+  approved: {
+    description: "Requests that added a new ingredient to the catalog.",
+    emptyDescription: "Approved ingredient requests will appear here after a curator adds them to the catalog.",
+    emptyTitle: "There are no approved ingredient requests.",
+    title: "Approved requests",
+  },
+  duplicate: {
+    description: "Requests resolved to an ingredient already in the catalog.",
+    emptyDescription: "Requests resolved to an existing ingredient will appear here.",
+    emptyTitle: "There are no duplicate ingredient requests.",
+    title: "Duplicate requests",
+  },
+  pending: {
+    description: "Review requests waiting for a catalog decision.",
+    emptyDescription: "New requests will appear here when cooks submit ingredients for review.",
+    emptyTitle: "There are no pending ingredient requests.",
+    title: "Pending requests",
+  },
+  rejected: {
+    description: "Requests that were not added to the catalog.",
+    emptyDescription: "Rejected ingredient requests will appear here after a curator reviews them.",
+    emptyTitle: "There are no rejected ingredient requests.",
+    title: "Rejected requests",
+  },
+};
 
 export function IngredientRequestReviewWorkspace() {
-  const { state, refreshSession } = useAuthSession();
-  const [authorizationLost, setAuthorizationLost] = useState(false);
-
-  const handleAuthorizationLost = useCallback(() => {
-    setAuthorizationLost(true);
-    void refreshSession();
-  }, [refreshSession]);
-
-  if (state.phase === "loading") {
-    return (
-      <main
-        id="main-content"
-        className="state-page staff-state-page staff-state-page--curation staff-state-page--loading"
-      >
-        <div
-          className="loading-state staff-state-panel"
-          role="status"
-          aria-live="polite"
-        >
-          <span className="loading-state__pulse" aria-hidden="true" />
-          <strong>Checking review access…</strong>
-          <span>Loading your account permissions.</span>
-        </div>
-      </main>
-    );
-  }
-
-  if (state.phase === "error") {
-    return (
-      <main
-        id="main-content"
-        className="state-page staff-state-page staff-state-page--curation staff-state-page--error"
-      >
-        <div className="error-state staff-state-panel" role="alert">
-          <p className="eyebrow">Account unavailable</p>
-          <h1>We couldn’t check access.</h1>
-          <p>Try checking your account again, or return to the recipe collection.</p>
-          <div className="button-row">
-            <button
-              className="button button--primary"
-              type="button"
-              onClick={() => void refreshSession()}
-            >
-              Try again
-            </button>
-            <Link className="button button--secondary" href="/recipes">
-              Browse recipes
-            </Link>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  if (
-    authorizationLost ||
-    state.session.status !== "authenticated" ||
-    !state.session.capabilities?.review_ingredient_requests
-  ) {
-    return unavailablePage();
-  }
-
-  return <AuthorizedReviewWorkspace onAuthorizationLost={handleAuthorizationLost} />;
+  return (
+    <StaffWorkspaceAccess
+      capability="review_ingredient_requests"
+      loadingLabel="Checking review access…"
+      variant="curation"
+    >
+      {(onAuthorizationLost) => (
+        <AuthorizedReviewWorkspace onAuthorizationLost={onAuthorizationLost} />
+      )}
+    </StaffWorkspaceAccess>
+  );
 }
 
 function AuthorizedReviewWorkspace({
@@ -109,180 +73,71 @@ function AuthorizedReviewWorkspace({
 }: {
   onAuthorizationLost: () => void;
 }) {
-  const [requestStatus, setRequestStatus] =
-    useState<IngredientCatalogRequestStatus>("pending");
-  const [pageNumber, setPageNumber] = useState(1);
-  const [queue, setQueue] = useState<IngredientCatalogReviewPage | null>(null);
-  const [queueError, setQueueError] = useState("");
-  const [queueLoading, setQueueLoading] = useState(true);
-  const [queueReload, setQueueReload] = useState(0);
-  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
-  const selectedRequestIdRef = useRef<string | null>(null);
-  const [detail, setDetail] = useState<IngredientCatalogReviewDetail | null>(null);
-  const [detailError, setDetailError] = useState("");
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [workspaceStatus, setWorkspaceStatus] = useState("");
   const workspaceStatusRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void browseIngredientCatalogReviewRequests({
-      status: requestStatus,
-      page: pageNumber,
-      pageSize: 20,
-      signal: controller.signal,
-    })
-      .then((result) => {
-        setQueue(result);
-        const current = selectedRequestIdRef.current;
-        const next =
-          current && result.items.some((item) => item.id === current)
-            ? current
-            : (result.items[0]?.id ?? null);
-        if (next !== current) {
-          selectRequest(next);
-        }
-      })
-      .catch((reason: unknown) => {
-        if (isAbortError(reason)) {
-          return;
-        }
-        setQueue(null);
-        setSelectedRequestId(null);
-        if (reason instanceof IngredientCatalogApiError && reason.status === 403) {
-          onAuthorizationLost();
-          return;
-        }
-        setQueueError("The ingredient review queue could not be loaded. Please try again.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setQueueLoading(false);
-        }
-      });
-    return () => controller.abort();
-  }, [onAuthorizationLost, pageNumber, queueReload, requestStatus]);
-
-  const loadDetail = useCallback(
-    async (requestId: string, signal?: AbortSignal) => {
-      try {
-        const result = await fetchIngredientCatalogReviewDetail(requestId, signal);
-        setDetail(result);
-        setDetailError("");
-      } catch (reason) {
-        if (isAbortError(reason)) {
-          return;
-        }
-        if (reason instanceof IngredientCatalogApiError && reason.status === 403) {
-          onAuthorizationLost();
-          return;
-        }
-        setDetailError("This ingredient request could not be loaded. Please try again.");
-      }
-    },
-    [onAuthorizationLost],
-  );
-
-  useEffect(() => {
-    if (!selectedRequestId) {
-      return;
-    }
-    const controller = new AbortController();
-    void fetchIngredientCatalogReviewDetail(selectedRequestId, controller.signal)
-      .then((result) => {
-        setDetail(result);
-        setDetailError("");
-      })
-      .catch((reason: unknown) => {
-        if (isAbortError(reason)) {
-          return;
-        }
-        if (reason instanceof IngredientCatalogApiError && reason.status === 403) {
-          onAuthorizationLost();
-          return;
-        }
-        setDetailError("This ingredient request could not be loaded. Please try again.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setDetailLoading(false);
-        }
-      });
-    return () => controller.abort();
-  }, [onAuthorizationLost, selectedRequestId]);
-
-  async function refreshDetail() {
-    if (!selectedRequestId) {
-      return;
-    }
-    setDetailLoading(true);
-    await loadDetail(selectedRequestId);
-    setDetailLoading(false);
-  }
-
-  function selectRequest(requestId: string | null) {
-    if (selectedRequestIdRef.current === requestId) {
-      return;
-    }
-    selectedRequestIdRef.current = requestId;
-    setSelectedRequestId(requestId);
-    setDetail(null);
-    setDetailError("");
-    setDetailLoading(requestId !== null);
-  }
-
-  function reloadQueue() {
-    setQueueLoading(true);
-    setQueueError("");
-    setQueueReload((value) => value + 1);
-  }
-
-  function changePage(nextPage: number) {
-    setQueueLoading(true);
-    setQueueError("");
-    setPageNumber(nextPage);
-  }
-
-  function changeStatus(nextStatus: IngredientCatalogRequestStatus) {
-    if (nextStatus === requestStatus) {
-      return;
-    }
-    setRequestStatus(nextStatus);
-    setPageNumber(1);
-    setQueueLoading(true);
-    setQueueError("");
-    setQueue(null);
-    selectRequest(null);
-    setWorkspaceStatus("");
-  }
+  const {
+    changePage,
+    changeStatus,
+    detail,
+    detailError,
+    detailLoading,
+    queue,
+    queueError,
+    queueIsEmpty,
+    queueLoading,
+    recordReviewed,
+    refreshDetail,
+    reloadQueue,
+    requestStatus,
+    selectedRequestId,
+    selectRequest,
+    workspaceStatus,
+  } = useIngredientRequestReviewWorkspace(onAuthorizationLost);
 
   function handleReviewed(updated: IngredientCatalogReviewItem) {
-    setWorkspaceStatus(
-      `${updated.proposed_name} is now ${STATUS_LABELS[updated.status].toLocaleLowerCase()}.`,
-    );
-    setDetail((current) => (current?.id === updated.id ? { ...current, ...updated } : current));
-    reloadQueue();
+    recordReviewed(updated);
     window.setTimeout(() => workspaceStatusRef.current?.focus(), 0);
   }
 
   return (
-    <main
-      id="main-content"
-      className="page-shell staff-workspace staff-workspace--curation curation-page"
+    <StaffWorkspaceShell
+      className="curation-page"
+      description="Review missing ingredients, compare possible matches, and record one catalog decision."
+      headerClassName="page-intro curation-page__intro"
+      title="Ingredient requests"
+      variant="curation"
     >
-      <header className="page-intro staff-workspace__header curation-page__intro">
-        <p className="eyebrow">Catalog curation</p>
-        <h1>Review ingredient requests.</h1>
-        <p>
-          Make one accountable decision for each request. Candidate matches are suggestions only;
-          they never establish ingredient identity automatically.
-        </p>
-      </header>
 
-      <IngredientRequestStatusFilters
-        requestStatus={requestStatus}
-        onChangeStatus={changeStatus}
-      />
+      <div className="staff-workspace__tab-shell">
+        <IngredientRequestStatusFilters
+          count={queue && !queueLoading ? queue.total : null}
+          requestStatus={requestStatus}
+          onChangeStatus={changeStatus}
+        />
+        <WorkspacePanelHeader
+          description={REQUEST_STATUS_PANEL_COPY[requestStatus].description}
+          meta={
+            queue && !queueLoading ? (
+              <span aria-live="polite">
+                {queue.total} request{queue.total === 1 ? "" : "s"}
+              </span>
+            ) : null
+          }
+          title={REQUEST_STATUS_PANEL_COPY[requestStatus].title}
+        />
+        {queueIsEmpty ? (
+          <WorkspaceEmptyState
+            action={
+              <button className="button button--primary" type="button" onClick={reloadQueue}>
+                Refresh requests
+              </button>
+            }
+            description={REQUEST_STATUS_PANEL_COPY[requestStatus].emptyDescription}
+            headingId={`empty-curation-${requestStatus}`}
+            headingLevel={3}
+            title={REQUEST_STATUS_PANEL_COPY[requestStatus].emptyTitle}
+          />
+        ) : null}
+      </div>
 
       {workspaceStatus ? (
         <div
@@ -297,21 +152,24 @@ function AuthorizedReviewWorkspace({
         </div>
       ) : null}
 
-      <div className="staff-workspace__layout curation-workspace">
-        <IngredientRequestReviewQueue
-          queue={queue}
-          queueError={queueError}
-          queueLoading={queueLoading}
-          requestStatus={requestStatus}
-          selectedRequestId={selectedRequestId}
-          onChangePage={changePage}
-          onReloadQueue={reloadQueue}
-          onSelectRequest={selectRequest}
-        />
-
-        <section
-          className="staff-panel-surface staff-workspace__detail curation-detail"
-          aria-labelledby="curation-detail-heading"
+      {!queueIsEmpty ? (
+        <StaffWorkspaceSplitPanel
+          className="curation-workspace"
+          detailClassName="curation-detail"
+          detailHeadingId="curation-detail-heading"
+          queue={
+            <IngredientRequestReviewQueue
+              key={requestStatus}
+              queue={queue}
+              queueError={queueError}
+              queueLoading={queueLoading}
+              requestStatus={requestStatus}
+              selectedRequestId={selectedRequestId}
+              onChangePage={changePage}
+              onReloadQueue={reloadQueue}
+              onSelectRequest={selectRequest}
+            />
+          }
         >
           {!selectedRequestId && !queueLoading ? (
             <div className="curation-panel-state">
@@ -320,25 +178,36 @@ function AuthorizedReviewWorkspace({
             </div>
           ) : null}
           {detailLoading ? (
-            <div className="curation-panel-state" role="status">
-              Loading request details…
-            </div>
+            <>
+              {!detail ? (
+                <h2 className="visually-hidden" id="curation-detail-heading">
+                  Request details
+                </h2>
+              ) : null}
+              <WorkspaceLoadingState
+                className="curation-panel-state"
+                count={1}
+                label="Loading request details…"
+                layout="panel"
+                refreshing={Boolean(detail)}
+              />
+            </>
           ) : null}
           {detailError ? (
-            <div
-              className="staff-workspace__notice staff-workspace__notice--error curation-panel-state"
-              role="alert"
-            >
-              <h2 id="curation-detail-heading">Request unavailable</h2>
-              <p>{detailError}</p>
-              <button
+            <WorkspaceErrorState
+              action={<button
                 className="button button--secondary"
                 type="button"
                 onClick={() => void refreshDetail()}
               >
                 Try again
-              </button>
-            </div>
+              </button>}
+              className="staff-workspace__notice staff-workspace__notice--error curation-panel-state"
+              headingId="curation-detail-heading"
+              headingLevel={2}
+              message={detailError}
+              title="Request unavailable"
+            />
           ) : null}
           {detail ? (
             <IngredientRequestReviewDetail
@@ -349,8 +218,8 @@ function AuthorizedReviewWorkspace({
               onReviewed={handleReviewed}
             />
           ) : null}
-        </section>
-      </div>
-    </main>
+        </StaffWorkspaceSplitPanel>
+      ) : null}
+    </StaffWorkspaceShell>
   );
 }

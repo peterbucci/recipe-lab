@@ -1,0 +1,189 @@
+@layer patterns {
+
+/* Authoritative shared tab-menu pattern. Feature aliases may control only context outside it. */
+.workspace-tab-menu {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--surface);
+  box-shadow: none;
+  width: 100%;
+  min-width: 0;
+  min-height: 3.75rem;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  display: flex;
+  overflow: hidden;
+}
+
+.workspace-tab-menu--items-only,
+.workspace-tab-menu__items {
+  scrollbar-width: thin;
+  min-width: 0;
+  align-items: center;
+  gap: 0.2rem;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.workspace-tab-menu--items-only {
+  justify-content: flex-start;
+}
+
+.workspace-tab-menu__item {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-control);
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.25rem;
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 750;
+  line-height: 1.2;
+  display: inline-flex;
+  position: static;
+}
+
+.workspace-tab-menu__item::after {
+  content: none;
+}
+
+.workspace-tab-menu__item:hover {
+  border: 0;
+  background: var(--surface-control-hover);
+  color: var(--leaf);
+}
+
+.workspace-tab-menu__item:is(
+    [aria-current="page"],
+    [aria-pressed="true"],
+    [aria-selected="true"]
+  ) {
+  border: 0;
+  background: var(--leaf-soft);
+  color: var(--leaf);
+}
+
+.workspace-tab-menu__count {
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-control-muted);
+  color: var(--text-control-muted);
+  place-items: center;
+  min-width: 1.25rem;
+  min-height: 0;
+  height: 1.2rem;
+  padding: 0 0.3rem;
+  font-size: 0.62rem;
+  font-weight: 750;
+  line-height: 1;
+  display: grid;
+}
+
+.workspace-tab-menu__item:is(
+    [aria-current="page"],
+    [aria-pressed="true"],
+    [aria-selected="true"]
+  )
+  .workspace-tab-menu__count {
+  background: var(--surface);
+  color: var(--leaf);
+}
+
+.workspace-tab-menu__search {
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  flex: 0 0 14.5rem;
+  align-items: center;
+  gap: 0.45rem;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  height: 2.25rem;
+  margin: 0;
+  padding: 0 0.65rem;
+  display: flex;
+}
+
+.workspace-tab-menu__search:focus-within {
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 0.18rem var(--focus-halo);
+}
+
+.workspace-tab-menu__search svg {
+  stroke: currentColor;
+  stroke-width: 1.7px;
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+}
+
+.workspace-tab-menu__search input {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 43.75rem) {
+  .workspace-tab-menu:not(.workspace-tab-menu--items-only) {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 0.7rem 0.75rem;
+  }
+
+  .workspace-tab-menu--items-only {
+    padding-inline: 0.75rem;
+  }
+
+  .workspace-tab-menu__items,
+  .workspace-tab-menu__search {
+    width: 100%;
+  }
+
+  .workspace-tab-menu__search {
+    flex-basis: auto;
+  }
+}
+
+@media (forced-colors: active) {
+  .workspace-tab-menu,
+  .workspace-tab-menu__search {
+    border-color: canvastext;
+    background: canvas;
+    color: canvastext;
+  }
+
+  .workspace-tab-menu__item:is(
+      [aria-current="page"],
+      [aria-pressed="true"],
+      [aria-selected="true"]
+    ),
+  .workspace-tab-menu__count {
+    border: 1px solid canvastext;
+    background: canvas;
+    color: canvastext;
+  }
+}
+
+}

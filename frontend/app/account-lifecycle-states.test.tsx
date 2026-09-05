@@ -16,10 +16,12 @@ describe("account lifecycle route states", () => {
       "account-access-page",
       "account-access-page--callback",
     );
-    expect(screen.getByRole("status")).toHaveClass(
+    expect(screen.getByRole("status").closest(".auth-gate-loading")).toHaveClass(
       "account-access-state",
       "account-access-state--loading",
     );
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Finishing sign-in…");
 
     unmount();
     render(<AuthCallbackError />);
@@ -35,30 +37,37 @@ describe("account lifecycle route states", () => {
   });
 
   it("keeps onboarding loading and retry states visually scoped", () => {
-    const reset = vi.fn();
+    const retry = vi.fn();
     const { unmount } = render(<OnboardingLoading />);
 
     expect(screen.getByRole("main")).toHaveClass(
       "account-access-page",
       "account-access-page--onboarding",
     );
-    expect(screen.getByRole("status")).toHaveClass("account-access-state--loading");
+    expect(screen.getByRole("status").closest(".auth-gate-loading")).toHaveClass(
+      "account-access-state--loading",
+    );
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Opening account setup…");
 
     unmount();
-    render(<OnboardingError reset={reset} />);
+    render(<OnboardingError retry={retry} />);
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
     expect(screen.getByRole("alert")).toHaveClass("account-access-state--error");
-    expect(reset).toHaveBeenCalledOnce();
+    expect(retry).toHaveBeenCalledOnce();
   });
 
   it("separates account settings loading from the signed-out deletion confirmation", () => {
     const { unmount } = render(<AccountSettingsLoading />);
 
     expect(screen.getByRole("main")).toHaveClass(
+      "page-loading--settings",
       "account-settings-page",
       "account-settings-page--loading",
     );
+    expect(screen.getByText("Settings")).toBeVisible();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
     expect(screen.getByRole("status")).toHaveTextContent("Loading account settings");
 
     unmount();

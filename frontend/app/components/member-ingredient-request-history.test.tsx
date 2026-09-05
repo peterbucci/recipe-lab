@@ -10,6 +10,7 @@ import {
   fetchMyIngredientRequest,
   IngredientCatalogApiError,
 } from "../../lib/ingredient-catalog-api";
+import { deferred } from "../../test/deferred";
 import { MemberIngredientRequestHistory } from "./member-ingredient-request-history";
 
 const mocks = vi.hoisted(() => ({
@@ -100,16 +101,6 @@ function requestPage(
   };
 }
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  return { promise, reject, resolve };
-}
-
 beforeEach(() => {
   mocks.browseMyIngredientRequests.mockReset();
   mocks.fetchMyIngredientRequest.mockReset();
@@ -117,16 +108,48 @@ beforeEach(() => {
 });
 
 describe("MemberIngredientRequestHistory", () => {
+  it("uses the shared row loader for the initial request history", () => {
+    const initial = deferred<MemberIngredientRequestPage>();
+    mocks.browseMyIngredientRequests.mockReturnValue(initial.promise);
+
+    render(<MemberIngredientRequestHistory idPrefix="history" />);
+
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Loading your ingredient requests…");
+    expect(status.closest(".section-loading--rows")).not.toBeNull();
+  });
+
   it("shows every member status and terminal detail without exposing page-level selection", async () => {
     render(<MemberIngredientRequestHistory idPrefix="history" />);
 
     const region = await screen.findByRole("region", { name: "My ingredient requests" });
     expect(region).toHaveClass("member-request-history--standalone");
     expect(region).not.toHaveClass("member-request-history--picker");
-    expect(within(region).getByRole("combobox", { name: "Request status" })).toHaveValue("");
+    const statusTabs = within(region).getByRole("navigation", {
+      name: "Ingredient request status",
+    });
+    expect(within(statusTabs).getByRole("button", { name: "All" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const allRequestsHeader = within(region)
+      .getByRole("heading", { level: 2, name: "All requests" })
+      .closest("header");
+    expect(allRequestsHeader).toHaveClass("workspace-panel-header");
+    expect(allRequestsHeader).toHaveTextContent(
+      "Review every ingredient request you’ve submitted and its latest status.",
+    );
+    expect(allRequestsHeader).toHaveTextContent("4 requests");
+    for (const label of ["Pending", "Approved", "Matched", "Rejected"]) {
+      expect(within(statusTabs).getByRole("button", { name: label })).toBeVisible();
+    }
     expect(
       within(region).getByRole("searchbox", { name: "Search my ingredient requests" }),
     ).toBeVisible();
+    expect(within(region).getByText("Ingredient request")).toBeVisible();
+    expect(within(region).getByText("Status")).toBeVisible();
+    expect(within(region).getByText("Requested")).toBeVisible();
+    expect(within(region).getByText("Resolution")).toBeVisible();
 
     for (const name of [
       "Unreviewed herb",
@@ -145,19 +168,28 @@ describe("MemberIngredientRequestHistory", () => {
     expect(within(approvedCard).getByText("Added under its common catalog name.")).toBeVisible();
     expect(within(approvedCard).getByText("Pitaya", { selector: "strong" })).toBeVisible();
     expect(
-      approvedCard.querySelector('time[datetime="2026-08-24T19:00:00Z"]'),
+      approvedCard.querySelector('time[datetime="2026-08-24T18:00:00Z"]'),
     ).not.toBeNull();
 
     const pendingCard = within(region).getByRole("article", {
       name: "Ingredient request: Unreviewed herb",
     });
-    expect(within(pendingCard).getByText(/proposed text is not a catalog ingredient/i)).toBeVisible();
+    expect(within(pendingCard).getByText("Waiting for curator review.")).toBeVisible();
     const rejectedCard = within(region).getByRole("article", {
       name: "Ingredient request: Ambiguous powder",
     });
-    expect(within(rejectedCard).getByText(/cannot be selected in a recipe/i)).toBeVisible();
+    expect(within(rejectedCard).getByText("Not added")).toBeVisible();
+    expect(
+      within(rejectedCard).getByText("Not enough information to identify it safely."),
+    ).toBeVisible();
+    const duplicateCard = within(region).getByRole("article", {
+      name: "Ingredient request: Pecan nut request text",
+    });
+    expect(within(duplicateCard).getByText("Matched")).toBeVisible();
+    expect(
+      within(duplicateCard).getByText("Your request matched an existing ingredient"),
+    ).toBeVisible();
     expect(within(region).queryByRole("button", { name: /^Use / })).not.toBeInTheDocument();
-    expect(within(region).getAllByText(/available from an ingredient picker/i)).toHaveLength(2);
   });
 
   it("sends status, search, and paging to the complete member-history endpoint", async () => {
@@ -175,20 +207,23 @@ describe("MemberIngredientRequestHistory", () => {
       name: "Ingredient request: Dragon fruit request text",
     });
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Request status" }), {
-      target: { value: "approved" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Approved" }));
     await waitFor(() =>
       expect(browseMyIngredientRequests).toHaveBeenLastCalledWith(
         expect.objectContaining({ status: "approved", page: 1, query: "" }),
       ),
     );
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Search requests" })).toBeEnabled(),
+    const approvedHeader = screen
+      .getByRole("heading", { level: 2, name: "Approved requests" })
+      .closest("header");
+    expect(approvedHeader).toHaveClass("workspace-panel-header");
+    expect(approvedHeader).toHaveTextContent(
+      "Requests that a curator added to the catalog.",
     );
+    expect(approvedHeader).toHaveTextContent("11 requests");
     const search = screen.getByRole("searchbox", { name: "Search my ingredient requests" });
     fireEvent.change(search, { target: { value: "  dragon fruit  " } });
-    fireEvent.click(screen.getByRole("button", { name: "Search requests" }));
+    fireEvent.submit(search.closest("form")!);
 
     await waitFor(() =>
       expect(browseMyIngredientRequests).toHaveBeenLastCalledWith(
@@ -222,9 +257,9 @@ describe("MemberIngredientRequestHistory", () => {
 
     const region = await screen.findByRole("region", { name: "My ingredient requests" });
     await waitFor(() => expect(region).toHaveAttribute("aria-busy", "false"));
-    const status = screen.getByRole("combobox", { name: "Request status" });
+    const status = screen.getByRole("button", { name: "Approved" });
     status.focus();
-    fireEvent.change(status, { target: { value: "approved" } });
+    fireEvent.click(status);
     expect(status).toHaveFocus();
     expect(status).toBeEnabled();
     expect(region).toHaveAttribute("aria-busy", "true");
@@ -238,7 +273,7 @@ describe("MemberIngredientRequestHistory", () => {
     const search = screen.getByRole("searchbox", { name: "Search my ingredient requests" });
     search.focus();
     fireEvent.change(search, { target: { value: "pitaya" } });
-    fireEvent.keyDown(search, { key: "Enter" });
+    fireEvent.submit(search.closest("form")!);
     expect(search).toHaveFocus();
     expect(search).toBeEnabled();
     await act(async () => {
@@ -390,18 +425,103 @@ describe("MemberIngredientRequestHistory", () => {
   });
 
   it("recovers from a list-service error and then renders the empty state", async () => {
+    const onRequestIngredient = vi.fn();
     mocks.browseMyIngredientRequests
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce(requestPage([]));
-    render(<MemberIngredientRequestHistory idPrefix="history" />);
+    render(
+      <MemberIngredientRequestHistory
+        idPrefix="history"
+        onRequestIngredient={onRequestIngredient}
+      />,
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Your ingredient requests could not be loaded. Please try again.",
     );
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
-    expect(await screen.findByRole("heading", { name: "No matching requests" })).toBeVisible();
-    expect(screen.getByText(/requests you submit from an ingredient picker/i)).toBeVisible();
+    const emptyHeading = await screen.findByRole("heading", {
+      level: 3,
+      name: "You have no ingredient requests yet.",
+    });
+    const emptyState = emptyHeading.closest("section");
+
+    expect(emptyState).toHaveClass("empty-state", "workspace-empty-state");
+    expect(within(emptyState!).getByText("Nothing here yet")).toHaveClass(
+      "eyebrow",
+      "workspace-empty-state__eyebrow",
+    );
+    expect(
+      within(emptyState!).getByText(
+        "Request an ingredient and its review status will appear here.",
+      ),
+    ).toBeVisible();
+    fireEvent.click(
+      within(emptyState!).getByRole("button", { name: "Request an ingredient" }),
+    );
+    expect(onRequestIngredient).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the shared empty state for empty status filters and searches", async () => {
+    mocks.browseMyIngredientRequests.mockResolvedValue(requestPage([]));
+    render(<MemberIngredientRequestHistory idPrefix="history" />);
+
+    await screen.findByRole("heading", {
+      level: 3,
+      name: "You have no ingredient requests yet.",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Rejected" }));
+    await waitFor(() =>
+      expect(mocks.browseMyIngredientRequests).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: "rejected", page: 1 }),
+      ),
+    );
+
+    const filteredHeading = await screen.findByRole("heading", {
+      level: 3,
+      name: "You have no rejected requests.",
+    });
+    const filteredEmptyState = filteredHeading.closest("section");
+    expect(filteredEmptyState).toHaveClass("empty-state", "workspace-empty-state");
+    expect(
+      within(filteredEmptyState!).getByText(
+        "Requests will appear here if a curator decides not to add them.",
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(
+      within(filteredEmptyState!).getByRole("button", { name: "View all requests" }),
+    );
+    await screen.findByRole("heading", {
+      level: 3,
+      name: "You have no ingredient requests yet.",
+    });
+
+    const search = screen.getByRole("searchbox", {
+      name: "Search my ingredient requests",
+    });
+    fireEvent.change(search, { target: { value: "saffron" } });
+    fireEvent.submit(search.closest("form")!);
+
+    const searchHeading = await screen.findByRole("heading", {
+      level: 3,
+      name: "No requests match your search.",
+    });
+    const searchEmptyState = searchHeading.closest("section");
+    expect(searchEmptyState).toHaveClass("empty-state", "workspace-empty-state");
+    expect(within(searchEmptyState!).getByText("No matches")).toHaveClass(
+      "workspace-empty-state__eyebrow",
+    );
+    expect(
+      within(searchEmptyState!).getByText(
+        "Try a different search term or clear the search.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(searchEmptyState!).getByRole("button", { name: "Clear search" }),
+    ).toBeVisible();
   });
 
   it("disables resolution actions while refreshed list data is pending", async () => {
@@ -422,6 +542,11 @@ describe("MemberIngredientRequestHistory", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Refresh my requests" }));
     expect(useButton).toBeDisabled();
+    expect(
+      screen
+        .getByText("Updating your ingredient requests…")
+        .closest(".section-loading--refreshing"),
+    ).not.toBeNull();
 
     await act(async () => {
       refresh.resolve(requestPage());

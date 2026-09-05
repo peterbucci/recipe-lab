@@ -5,6 +5,16 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app.core.domain_errors import (
+    DomainConflictError,
+    DomainError,
+    DomainForbiddenError,
+    DomainNotFoundError,
+    DomainPreconditionFailedError,
+    DomainRateLimitedError,
+    DomainUnavailableError,
+    DomainValidationError,
+)
 from app.core.observability import (
     CORRELATION_ID_HEADER,
     correlation_id_from_scope,
@@ -74,6 +84,43 @@ async def api_error_handler(request: Request, exception: Exception) -> JSONRespo
     )
 
 
+_DOMAIN_ERROR_STATUS_CODES: tuple[tuple[type[DomainError], int], ...] = (
+    (DomainNotFoundError, 404),
+    (DomainForbiddenError, 403),
+    (DomainConflictError, 409),
+    (DomainPreconditionFailedError, 412),
+    (DomainValidationError, 422),
+    (DomainRateLimitedError, 429),
+    (DomainUnavailableError, 503),
+)
+
+
+def _domain_error_status_code(exception: DomainError) -> int:
+    for error_type, status_code in _DOMAIN_ERROR_STATUS_CODES:
+        if isinstance(exception, error_type):
+            return status_code
+    raise TypeError(f"Unsupported domain error type: {type(exception).__name__}")
+
+
+async def domain_error_handler(request: Request, exception: Exception) -> JSONResponse:
+    if not isinstance(exception, DomainError):
+        raise exception
+    status_code = _domain_error_status_code(exception)
+    correlation_id = correlation_id_from_scope(request.scope)
+    if status_code >= 500:
+        emit_operational_failure(
+            request_failure_event(request.scope),
+            correlation_id=correlation_id,
+        )
+    return _json_error(
+        status_code=status_code,
+        code=exception.code,
+        message=exception.response_message,
+        headers=exception.headers,
+        correlation_id=correlation_id,
+    )
+
+
 def _validation_issue(error: dict[str, Any]) -> ValidationIssue:
     raw_location = error.get("loc", ())
     location = [item if isinstance(item, (str, int)) else str(item) for item in raw_location]
@@ -122,4 +169,5 @@ async def request_validation_error_handler(
 
 def register_error_handlers(application: FastAPI) -> None:
     application.add_exception_handler(ApiError, api_error_handler)
+    application.add_exception_handler(DomainError, domain_error_handler)
     application.add_exception_handler(RequestValidationError, request_validation_error_handler)

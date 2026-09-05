@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import SignInPage from "./page";
@@ -16,13 +16,25 @@ describe("SignInPage", () => {
       "account-access-page",
       "account-access-page--sign-in",
     );
-    expect(screen.getByRole("heading", { name: "Sign in to Recipe Lab" }).closest("section"))
-      .toHaveClass("account-access-card", "account-access-card--sign-in");
-    expect(screen.getByText(/save and rate recipes/i)).toBeVisible();
-    expect(screen.getByText(/create your own versions/i)).toBeVisible();
+    const shell = screen
+      .getByRole("heading", { name: "Sign in to Recipe Lab" })
+      .closest("section");
+    expect(shell).toHaveClass("account-access-card", "account-access-card--sign-in");
+    expect(screen.getByRole("complementary", { name: "Why sign in" })).toBeVisible();
+    expect(screen.getByText("Your recipes, saved for later.")).toBeVisible();
+    const benefits = screen.getByRole("list", { name: "Account benefits" });
+    expect(within(benefits).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(benefits).getByText("Save recipes")).toBeVisible();
+    expect(within(benefits).getByText("Make your own versions")).toBeVisible();
+    expect(within(benefits).getByText("Keep private drafts")).toBeVisible();
+    expect(
+      screen.getByText(/doesn't collect your password on this page/i),
+    ).toBeVisible();
     expect(screen.queryByText(/recommend/i)).toBeNull();
     expect(screen.queryByText(/demo/i)).toBeNull();
-    expect(screen.getByRole("link", { name: "Continue to sign in" })).toHaveAttribute(
+    const continueLink = screen.getByRole("link", { name: "Continue to sign in" });
+    expect(continueLink).toHaveTextContent("Continue to secure sign in");
+    expect(continueLink).toHaveAttribute(
       "href",
       "/api/auth/login?return_to=%2Frecipes%3Fq%3Dcarrot",
     );

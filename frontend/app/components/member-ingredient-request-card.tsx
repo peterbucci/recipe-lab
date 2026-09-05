@@ -1,14 +1,13 @@
 import {
-  type IngredientCatalogRequestStatus,
   type MemberIngredientRequest,
 } from "../../lib/ingredient-catalog-api";
-
-const STATUS_LABELS: Record<IngredientCatalogRequestStatus, string> = {
-  pending: "Pending",
-  approved: "Approved",
-  rejected: "Rejected",
-  duplicate: "Duplicate",
-};
+import {
+  formatIngredientRequestDate,
+  formatIngredientRequestTime,
+  ingredientRequestMemberStatusLabel,
+  INGREDIENT_REQUEST_STATUS_LABELS,
+} from "../../lib/ingredient-request-presentation";
+import { LoadingButton } from "./loading-ui";
 
 interface MemberIngredientRequestCardProps {
   contextLabel?: string;
@@ -16,18 +15,8 @@ interface MemberIngredientRequestCardProps {
   request: MemberIngredientRequest;
   selectingRequestId: string | null;
   selectionEnabled: boolean;
+  standalone: boolean;
   onSelectResolution: (request: MemberIngredientRequest) => Promise<void>;
-}
-
-function formatRequestTime(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(parsed);
 }
 
 function requestGuidance(request: MemberIngredientRequest): string {
@@ -43,12 +32,55 @@ function requestGuidance(request: MemberIngredientRequest): string {
   return "A curator added this ingredient to the catalog.";
 }
 
+function StandaloneRequestResolution({ request }: { request: MemberIngredientRequest }) {
+  if (request.status === "pending") {
+    return <span className="member-request-card__pending-note">Waiting for curator review.</span>;
+  }
+
+  if (request.status === "rejected") {
+    return (
+      <>
+        <strong>Not added</strong>
+        <small>
+          {request.decision_reason ??
+            "This request did not include enough information for a catalog ingredient."}
+        </small>
+      </>
+    );
+  }
+
+  if (!request.resolved_ingredient) {
+    return (
+      <>
+        <strong>{request.status === "approved" ? "Approved" : "Matched"}</strong>
+        <small>{request.decision_reason ?? requestGuidance(request)}</small>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <strong>{request.resolved_ingredient.canonical_name}</strong>
+      <small>
+        {request.status === "duplicate"
+          ? "Your request matched an existing ingredient"
+          : "Added to the catalog"}
+      </small>
+      {request.resolved_ingredient.aliases.length > 0 ? (
+        <small>Also known as: {request.resolved_ingredient.aliases.join(", ")}</small>
+      ) : null}
+      {request.decision_reason ? <small>{request.decision_reason}</small> : null}
+    </>
+  );
+}
+
 export function MemberIngredientRequestCard({
   contextLabel,
   loading,
   request,
   selectingRequestId,
   selectionEnabled,
+  standalone,
   onSelectResolution,
 }: MemberIngredientRequestCardProps) {
   const resolved = request.resolved_ingredient;
@@ -56,6 +88,29 @@ export function MemberIngredientRequestCard({
     selectionEnabled &&
     resolved !== null &&
     (request.status === "approved" || request.status === "duplicate");
+
+  if (standalone) {
+    return (
+      <article
+        className="member-request-card member-request-card--row"
+        aria-label={`Ingredient request: ${request.proposed_name}`}
+      >
+        <div className="member-request-card__request">
+          <h3>{request.proposed_name}</h3>
+          {request.context ? <p>Context: {request.context}</p> : null}
+        </div>
+        <span className={`curation-status curation-status--${request.status}`}>
+          {ingredientRequestMemberStatusLabel(request.status)}
+        </span>
+        <time className="member-request-card__requested" dateTime={request.created_at}>
+          {formatIngredientRequestDate(request.created_at)}
+        </time>
+        <div className="member-request-card__resolution">
+          <StandaloneRequestResolution request={request} />
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article
@@ -65,25 +120,29 @@ export function MemberIngredientRequestCard({
       <header className="member-request-card__header">
         <h3>{request.proposed_name}</h3>
         <span className={`curation-status curation-status--${request.status}`}>
-          {STATUS_LABELS[request.status]}
+          {INGREDIENT_REQUEST_STATUS_LABELS[request.status]}
         </span>
       </header>
       <dl className="member-request-card__facts">
         <div>
           <dt>Status</dt>
-          <dd>{STATUS_LABELS[request.status]}</dd>
+          <dd>{INGREDIENT_REQUEST_STATUS_LABELS[request.status]}</dd>
         </div>
         <div>
           <dt>Requested</dt>
           <dd>
-            <time dateTime={request.created_at}>{formatRequestTime(request.created_at)}</time>
+            <time dateTime={request.created_at}>
+              {formatIngredientRequestTime(request.created_at)}
+            </time>
           </dd>
         </div>
         {request.reviewed_at ? (
           <div>
             <dt>Reviewed</dt>
             <dd>
-              <time dateTime={request.reviewed_at}>{formatRequestTime(request.reviewed_at)}</time>
+              <time dateTime={request.reviewed_at}>
+                {formatIngredientRequestTime(request.reviewed_at)}
+              </time>
             </dd>
           </div>
         ) : null}
@@ -113,16 +172,19 @@ export function MemberIngredientRequestCard({
       </dl>
       <p className="member-request-card__guidance">{requestGuidance(request)}</p>
       {selectable && resolved && contextLabel ? (
-        <button
+        <LoadingButton
           className="button button--secondary"
           type="button"
-          disabled={loading || selectingRequestId !== null}
+          disabled={
+            loading ||
+            (selectingRequestId !== null && selectingRequestId !== request.id)
+          }
+          pending={selectingRequestId === request.id}
+          pendingLabel={`Confirming ${resolved.canonical_name}…`}
           onClick={() => void onSelectResolution(request)}
         >
-          {selectingRequestId === request.id
-            ? `Confirming ${resolved.canonical_name}…`
-            : `Use ${resolved.canonical_name} for ${contextLabel}`}
-        </button>
+          Use {resolved.canonical_name} for {contextLabel}
+        </LoadingButton>
       ) : resolved ? (
         <p className="member-request-card__availability">
           This catalog resolution is available from an ingredient picker while you edit a recipe.

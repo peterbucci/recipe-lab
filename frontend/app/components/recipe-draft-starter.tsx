@@ -4,17 +4,16 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  clearRecipeDraftCreationAttempt,
-  getOrCreateRecipeDraftCreationAttempt,
   recipeDraftCreationIntent,
-  RecipeDraftCreationAttemptError,
 } from "../../lib/recipe-draft-creation-attempt";
 import {
-  createRecipeDraft,
-  RecipeDraftApiError,
-} from "../../lib/recipe-draft-api";
+  recipeDraftEntryErrorMessage,
+  startOrResumeRecipeDraft,
+} from "../../lib/recipe-draft-entry";
 import { useAuthSession } from "./auth-session-provider";
+import { LoadingButton } from "./loading-ui";
 import { MemberRouteGate } from "./member-route-gate";
+import { RecipeDraftLoadingView } from "./recipe-draft-editor";
 
 interface RecipeDraftStarterProps {
   sourceVersionId: string | null;
@@ -23,19 +22,6 @@ interface RecipeDraftStarterProps {
 interface AuthenticatedRecipeDraftStarterProps {
   actorId: string;
   sourceVersionId: string | null;
-}
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function safeCreationError(reason: unknown): string {
-  if (
-    reason instanceof RecipeDraftApiError ||
-    reason instanceof RecipeDraftCreationAttemptError
-  ) {
-    return reason.message;
-  }
-  return "Recipe Lab could not start this private draft. Try again to recover the same draft.";
 }
 
 function AuthenticatedRecipeDraftStarter({
@@ -47,6 +33,7 @@ function AuthenticatedRecipeDraftStarter({
   const pendingRef = useRef(false);
   const retryButtonRef = useRef<HTMLButtonElement>(null);
   const [phase, setPhase] = useState<"loading" | "error">("loading");
+  const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -59,55 +46,18 @@ function AuthenticatedRecipeDraftStarter({
   const start = useCallback(async () => {
     if (pendingRef.current) return;
     pendingRef.current = true;
-    setPhase("loading");
-    setError("");
 
     try {
-      let terminalConflictRecovered = false;
-      while (true) {
-        const attempt = getOrCreateRecipeDraftCreationAttempt(
-          actorId,
-          sourceVersionId,
-        );
-        try {
-          const draft = await createRecipeDraft(
-            sourceVersionId,
-            attempt.idempotency_key,
-          );
-          if (!UUID_PATTERN.test(draft.id)) {
-            throw new RecipeDraftApiError(
-              "Recipe Lab could not confirm the private draft. Try again to recover the same draft.",
-              502,
-              "invalid_recipe_draft_response",
-              [],
-              "unknown",
-            );
-          }
-          if (!mountedRef.current) return;
-
-          clearRecipeDraftCreationAttempt(attempt, sourceVersionId);
-          replace(`/account/recipe-drafts/${encodeURIComponent(draft.id)}`);
-          return;
-        } catch (reason) {
-          const terminalConflict =
-            reason instanceof RecipeDraftApiError &&
-            reason.code === "idempotency_key_conflict";
-          if (!terminalConflict) throw reason;
-
-          // A completed/discarded binding cannot become active again. Retire
-          // that definitive key and make one bounded attempt with a fresh key;
-          // unknown outcomes keep their original key instead.
-          clearRecipeDraftCreationAttempt(attempt, sourceVersionId);
-          if (terminalConflictRecovered || !mountedRef.current) throw reason;
-          terminalConflictRecovered = true;
-        }
-      }
+      const draftId = await startOrResumeRecipeDraft(actorId, sourceVersionId);
+      if (!mountedRef.current) return;
+      replace(`/recipes/drafts/${encodeURIComponent(draftId)}`);
     } catch (reason) {
       if (!mountedRef.current) return;
-      setError(safeCreationError(reason));
+      setError(recipeDraftEntryErrorMessage(reason));
       setPhase("error");
     } finally {
       pendingRef.current = false;
+      if (mountedRef.current) setRetrying(false);
     }
   }, [actorId, replace, sourceVersionId]);
 
@@ -121,6 +71,19 @@ function AuthenticatedRecipeDraftStarter({
     return () => window.clearTimeout(timeout);
   }, [phase]);
 
+  if (phase === "loading") {
+    return (
+      <RecipeDraftLoadingView
+        draftId={sourceVersionId ?? `new-recipe:${actorId}`}
+        status={
+          sourceVersionId === null
+            ? "Preparing a private workspace for your new recipe."
+            : "Copying this recipe into a private workspace. The public recipe stays unchanged."
+        }
+      />
+    );
+  }
+
   const isFork = sourceVersionId !== null;
   const entryKind = isFork ? "fork" : "new";
 
@@ -131,38 +94,28 @@ function AuthenticatedRecipeDraftStarter({
     >
       <section
         className="auth-card draft-starter recipe-authoring-entry__card"
-        aria-busy={phase === "loading"}
         aria-labelledby="draft-starter-title"
       >
         <p className="eyebrow">Private recipe workspace</p>
-        <h1 id="draft-starter-title">
-          {phase === "loading"
-            ? "Opening your private draft…"
-            : "We couldn’t open your private draft"}
-        </h1>
-        {phase === "loading" ? (
-          <p className="lede" role="status">
-            {isFork
-              ? "Copying this recipe into a private workspace. The public recipe stays unchanged."
-              : "Preparing a private workspace for your new recipe."}
-          </p>
-        ) : (
-          <>
-            <p className="form-alert" role="alert">
-              {error}
-            </p>
-            <div className="button-row auth-card__actions">
-              <button
-                ref={retryButtonRef}
-                className="button button--primary"
-                type="button"
-                onClick={() => void start()}
-              >
-                Try again
-              </button>
-            </div>
-          </>
-        )}
+        <h1 id="draft-starter-title">We couldn’t open your private draft</h1>
+        <p className="form-alert" role="alert">
+          {error}
+        </p>
+        <div className="button-row auth-card__actions">
+          <LoadingButton
+            ref={retryButtonRef}
+            className="button button--primary"
+            type="button"
+            pending={retrying}
+            pendingLabel="Opening your private draft…"
+            onClick={() => {
+              setRetrying(true);
+              void start();
+            }}
+          >
+            Try again
+          </LoadingButton>
+        </div>
         <p className="auth-card__fine-print">
           Private by default — this draft will not appear in search, activity,
           or public recipe pages.

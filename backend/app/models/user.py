@@ -38,6 +38,13 @@ class User(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
             name="handle_supported_format",
         ),
         CheckConstraint(
+            "profile_description IS NULL OR ("
+            "char_length(profile_description) <= 500 "
+            "AND profile_description ~ '[^[:space:]]'"
+            ")",
+            name="profile_description_valid",
+        ),
+        CheckConstraint(
             f"account_kind IN {USER_ACCOUNT_KINDS!r}",
             name="account_kind_supported",
         ),
@@ -48,7 +55,8 @@ class User(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
         CheckConstraint(
             "(status = 'deleted' AND account_kind = 'member' "
             "AND email IS NULL AND handle IS NULL "
-            "AND display_name = 'Deleted cook' AND deleted_at IS NOT NULL) OR "
+            "AND display_name = 'Deleted cook' AND profile_description IS NULL "
+            "AND deleted_at IS NOT NULL) OR "
             "((status <> 'deleted' OR account_kind <> 'member') "
             "AND email IS NOT NULL AND deleted_at IS NULL)",
             name="lifecycle_shape_valid",
@@ -58,6 +66,7 @@ class User(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     email: Mapped[str | None] = mapped_column(String(320), nullable=True, index=True)
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
     handle: Mapped[str | None] = mapped_column(String(30), nullable=True, unique=True)
+    profile_description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     account_kind: Mapped[str] = mapped_column(
         String(16),
         nullable=False,

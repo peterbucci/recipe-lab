@@ -22,6 +22,7 @@ interface BrowserRequestBase {
   errorContract: PublicApiErrorContract;
   headers?: HeadersInit;
   responseBody?: "json" | "empty";
+  sessionExpiry?: "local" | "notify";
   signal?: AbortSignal;
   timeoutMs?: number;
 }
@@ -29,11 +30,12 @@ interface BrowserRequestBase {
 interface BrowserQueryRequest extends BrowserRequestBase {
   kind: "query";
   method?: "GET" | "HEAD";
+  retry?: "never" | "transient";
 }
 
 interface BrowserMutationRequest extends BrowserRequestBase {
   csrf: "member";
-  identity: ApiMutationIdentity;
+  identity: ApiMutationIdentity | null;
   kind: "mutation";
   method: "DELETE" | "PATCH" | "POST" | "PUT";
 }
@@ -68,8 +70,13 @@ export async function browserApiRequest(
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
 
   if (options.kind === "mutation") {
-    const identity = assertMutationIdentity(options.identity);
-    headers.set("Idempotency-Key", identity.idempotencyKey);
+    // Only operations whose backend contract is idempotent carry an identity.
+    // Strip a caller-supplied header so identity can never bypass validation.
+    headers.delete("Idempotency-Key");
+    if (options.identity !== null) {
+      const identity = assertMutationIdentity(options.identity);
+      headers.set("Idempotency-Key", identity.idempotencyKey);
+    }
     for (const [name, value] of Object.entries(memberHeaders())) {
       headers.set(name, value);
     }
@@ -90,12 +97,17 @@ export async function browserApiRequest(
         errorContract: options.errorContract,
         kind: options.kind,
         responseBody: options.responseBody,
+        retry: options.kind === "query" ? options.retry : undefined,
         signal: options.signal,
         timeoutMs: options.timeoutMs ?? BROWSER_API_TIMEOUT_MS,
       },
     );
   } catch (error) {
-    if (error instanceof ApiTransportError && error.status === 401) {
+    if (
+      error instanceof ApiTransportError &&
+      error.status === 401 &&
+      options.sessionExpiry !== "local"
+    ) {
       notifySessionExpired();
     }
     throw error;

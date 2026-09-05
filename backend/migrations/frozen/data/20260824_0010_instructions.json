@@ -1,0 +1,639 @@
+{
+  "dataset_id": "recipe-lab-demo-v1",
+  "recipes": [
+    {
+      "instructions": [
+        {
+          "key": "blend",
+          "text": "Blend the oats until finely ground, then add the banana, eggs, milk, baking powder, and cinnamon."
+        },
+        {
+          "key": "rest",
+          "text": "Blend to a smooth batter and let it stand for 5 minutes while a skillet heats over medium heat."
+        },
+        {
+          "key": "cook",
+          "text": "Brush the skillet with oil and cook small rounds until bubbles form, then turn and cook until set."
+        }
+      ],
+      "key": "banana-oat-pancakes-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "blend",
+          "text": "Blend the oats until finely ground, then blend in the banana, eggs, milk, baking powder, and cinnamon."
+        },
+        {
+          "key": "fold",
+          "text": "Rest the batter for 5 minutes, then fold in the blueberries without crushing them."
+        },
+        {
+          "key": "cook",
+          "text": "Brush a medium-hot skillet with oil and cook small rounds on both sides until set."
+        }
+      ],
+      "key": "blueberry-banana-oat-pancakes-v2"
+    },
+    {
+      "instructions": [
+        {
+          "key": "mix",
+          "text": "Stir the oats, milk, yogurt, chia seeds, maple syrup, and cinnamon together until evenly combined."
+        },
+        {
+          "key": "chill",
+          "text": "Fold in half of the diced apple, cover, and refrigerate for at least 6 hours."
+        },
+        {
+          "key": "finish",
+          "text": "Stir before serving and top with the remaining apple."
+        }
+      ],
+      "key": "apple-cinnamon-overnight-oats-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "mix",
+          "text": "Stir the oats, oat milk, yogurt, chia seeds, maple syrup, and cinnamon together."
+        },
+        {
+          "key": "chill",
+          "text": "Fold in half of the apple, cover, and refrigerate for at least 6 hours."
+        },
+        {
+          "key": "finish",
+          "text": "Stir well and spoon the remaining apple over the chilled oats."
+        }
+      ],
+      "key": "oat-milk-apple-overnight-oats-v2"
+    },
+    {
+      "instructions": [
+        {
+          "key": "saute",
+          "text": "Heat the oil in a covered skillet and soften the onion with the paprika and salt."
+        },
+        {
+          "key": "wilt",
+          "text": "Add the tomatoes and spinach and cook until the tomatoes soften and the spinach wilts."
+        },
+        {
+          "key": "set-eggs",
+          "text": "Make four wells, crack in the eggs, cover, and cook until the whites and yolks are fully set."
+        }
+      ],
+      "key": "spinach-tomato-egg-skillet-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "mash",
+          "text": "Mash the garbanzo beans with the tahini, lemon juice, garlic, and olive oil, leaving some texture."
+        },
+        {
+          "key": "toast",
+          "text": "Toast the bread until crisp at the edges."
+        },
+        {
+          "key": "assemble",
+          "text": "Fold the parsley into the chickpea mixture and spoon it over the warm toast."
+        }
+      ],
+      "key": "lemon-chickpea-toast-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "combine",
+          "text": "Mix the oats, peanut butter, maple syrup, chia seeds, and cinnamon into a thick dough."
+        },
+        {
+          "key": "add-apple",
+          "text": "Fold in the diced apple and chill the mixture for 20 minutes."
+        },
+        {
+          "key": "shape",
+          "text": "Roll into twelve bite-size balls and keep chilled until serving."
+        }
+      ],
+      "key": "peanut-butter-apple-oat-bites-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "aromatics",
+          "text": "Cook the onion in a splash of the coconut milk until soft, then stir in the garlic, ginger, and curry powder."
+        },
+        {
+          "key": "simmer",
+          "text": "Add the lentils, remaining coconut milk, tomatoes, and broth and simmer gently until the lentils are tender."
+        },
+        {
+          "key": "finish",
+          "text": "Fold in the spinach and cook just until wilted before serving."
+        }
+      ],
+      "key": "red-lentil-coconut-stew-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "aromatics",
+          "text": "Soften the onion in a splash of coconut milk, then stir in the garlic, ginger, and curry powder."
+        },
+        {
+          "key": "simmer",
+          "text": "Add the lentils, sweet potato, remaining coconut milk, tomatoes, and broth and simmer until both the lentils and potato are tender."
+        },
+        {
+          "key": "finish",
+          "text": "Stir in the spinach and cook until wilted, adding a little water only if the stew is too thick."
+        }
+      ],
+      "key": "sweet-potato-red-lentil-stew-v2"
+    },
+    {
+      "instructions": [
+        {
+          "key": "soften",
+          "text": "Heat the oil in a soup pot and cook the onion, carrot, and celery until softened."
+        },
+        {
+          "key": "simmer",
+          "text": "Stir in the garlic, tomatoes, beans, and broth and simmer for 20 minutes."
+        },
+        {
+          "key": "finish",
+          "text": "Fold in the basil and lightly mash a few beans to give the broth more body."
+        }
+      ],
+      "key": "tomato-white-bean-soup-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "soften",
+          "text": "Heat the oil in a heavy pot and soften the onion and bell pepper."
+        },
+        {
+          "key": "spice",
+          "text": "Stir in the cumin and smoked paprika, then add the sweet potato, tomatoes, beans, and broth."
+        },
+        {
+          "key": "simmer",
+          "text": "Simmer uncovered, stirring occasionally, until the sweet potato is tender and the chili has thickened."
+        }
+      ],
+      "key": "black-bean-sweet-potato-chili-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "start",
+          "text": "Bring the broth, ginger, carrot, celery, and rice to a gentle simmer."
+        },
+        {
+          "key": "cook-chicken",
+          "text": "Add the chicken and simmer until the thickest part reaches 165�F (74�C) on a food thermometer."
+        },
+        {
+          "key": "shred",
+          "text": "Transfer the chicken to a clean board, shred it, and return it to the soup with the soy sauce."
+        },
+        {
+          "key": "finish",
+          "text": "Cook until the rice is tender, then scatter the green onion over each serving."
+        }
+      ],
+      "key": "chicken-ginger-rice-soup-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "brown",
+          "text": "Heat the oil in a soup pot and cook the mushrooms until their moisture evaporates and the edges brown."
+        },
+        {
+          "key": "soften",
+          "text": "Add the onion, carrot, and celery and cook until softened, then stir in the garlic and thyme."
+        },
+        {
+          "key": "simmer",
+          "text": "Add the barley and broth and simmer until the barley is tender and the soup is lightly thickened."
+        }
+      ],
+      "key": "mushroom-barley-soup-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "cook-quinoa",
+          "text": "Cook the quinoa according to its package directions, then spread it out to cool slightly."
+        },
+        {
+          "key": "dress",
+          "text": "Whisk the lemon juice, olive oil, and tahini with a splash of water until pourable."
+        },
+        {
+          "key": "assemble",
+          "text": "Divide the quinoa, chickpeas, cucumber, and tomatoes among bowls and finish with parsley and dressing."
+        }
+      ],
+      "key": "lemon-herb-chickpea-quinoa-bowl-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "prepare-rice",
+          "text": "Cook the brown rice ahead of time and allow it to cool until just warm."
+        },
+        {
+          "key": "dress",
+          "text": "Whisk the lemon juice, olive oil, and tahini with enough water to make a pourable dressing."
+        },
+        {
+          "key": "assemble",
+          "text": "Divide the brown rice, chickpeas, cucumber, and tomatoes among bowls and top with parsley and dressing."
+        }
+      ],
+      "key": "brown-rice-chickpea-bowl-v2"
+    },
+    {
+      "instructions": [
+        {
+          "key": "cook-rice",
+          "text": "Cook the rice according to its package directions and keep it covered off the heat."
+        },
+        {
+          "key": "brown-tofu",
+          "text": "Brown the tofu in a wide skillet, then add the broccoli and carrot with a splash of water and cover until crisp-tender."
+        },
+        {
+          "key": "sauce",
+          "text": "Stir together the soy sauce, sesame oil, rice vinegar, and garlic and toss the mixture through the skillet."
+        },
+        {
+          "key": "serve",
+          "text": "Spoon the tofu and vegetables over rice and scatter with sesame seeds."
+        }
+      ],
+      "key": "sesame-tofu-broccoli-rice-bowl-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "cook-rice",
+          "text": "Cook the rice according to its package directions and keep it covered off the heat."
+        },
+        {
+          "key": "brown-tempeh",
+          "text": "Brown the tempeh strips on both sides in a wide skillet."
+        },
+        {
+          "key": "vegetables",
+          "text": "Add the broccoli and carrot with a splash of water and cover until crisp-tender."
+        },
+        {
+          "key": "finish",
+          "text": "Toss with the soy sauce, sesame oil, rice vinegar, and garlic, then serve over rice with sesame seeds."
+        }
+      ],
+      "key": "sesame-tempeh-broccoli-rice-bowl-v2"
+    },
+    {
+      "instructions": [
+        {
+          "key": "roast",
+          "text": "Toss the courgette, bell pepper, and red onion with half the olive oil and roast until browned at the edges."
+        },
+        {
+          "key": "prepare-couscous",
+          "text": "Prepare the couscous according to its package directions, fluff it, and let it cool slightly."
+        },
+        {
+          "key": "combine",
+          "text": "Fold together the couscous, roasted vegetables, chickpeas, lemon juice, remaining oil, and parsley."
+        }
+      ],
+      "key": "roasted-vegetable-couscous-salad-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "dress",
+          "text": "Whisk the lemon juice and olive oil in a large bowl."
+        },
+        {
+          "key": "combine",
+          "text": "Add the beans, cucumber, tomatoes, red onion, and parsley and toss to coat."
+        },
+        {
+          "key": "finish",
+          "text": "Flake the tuna over the salad and fold gently so some larger pieces remain."
+        }
+      ],
+      "key": "tuna-white-bean-salad-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "roast-beets",
+          "text": "Toss the beets with a little of the olive oil and roast until tender and browned at the edges."
+        },
+        {
+          "key": "cook-lentils",
+          "text": "Simmer the lentils in water until tender but intact, then drain and cool slightly."
+        },
+        {
+          "key": "assemble",
+          "text": "Whisk the remaining oil with the vinegar and toss with the lentils, beets, and rocket; top with feta and walnuts."
+        }
+      ],
+      "key": "lentil-beet-walnut-salad-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "sauce",
+          "text": "Soften the onion in olive oil, stir in the garlic and tomato paste, then add the crushed tomato and simmer until thickened."
+        },
+        {
+          "key": "cook-pasta",
+          "text": "Cook the spaghetti in boiling water until just tender, reserving a little cooking water before draining."
+        },
+        {
+          "key": "combine",
+          "text": "Toss the spaghetti with the sauce and enough reserved water to coat, then fold in the basil and top with Parmesan."
+        }
+      ],
+      "key": "tomato-basil-spaghetti-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "sauce",
+          "text": "Soften the onion in olive oil, stir in the garlic and tomato paste, then add the crushed tomato and simmer until thickened."
+        },
+        {
+          "key": "cook-pasta",
+          "text": "Cook the wholemeal spaghetti according to its package directions, reserving a little cooking water before draining."
+        },
+        {
+          "key": "wilt",
+          "text": "Stir the spinach into the sauce until wilted."
+        },
+        {
+          "key": "combine",
+          "text": "Toss in the pasta with enough reserved water to coat, then add the basil and Parmesan."
+        }
+      ],
+      "key": "whole-wheat-spinach-spaghetti-v2"
+    },
+    {
+      "instructions": [
+        {
+          "key": "brown-mushrooms",
+          "text": "Brown the mushrooms in half the olive oil and transfer them to a plate."
+        },
+        {
+          "key": "sauce",
+          "text": "Use the remaining oil to soften the onion, then add the garlic, tomato paste, and crushed tomato and simmer until thickened."
+        },
+        {
+          "key": "cook-pasta",
+          "text": "Cook the wholemeal spaghetti according to its package directions and reserve a little cooking water."
+        },
+        {
+          "key": "combine",
+          "text": "Wilt the spinach into the sauce, return the mushrooms, and toss with the pasta, basil, Parmesan, and enough cooking water to coat."
+        }
+      ],
+      "key": "mushroom-whole-wheat-spaghetti-v3"
+    },
+    {
+      "instructions": [
+        {
+          "key": "brown",
+          "text": "Melt half the butter in a wide pan and brown the mushrooms, then transfer them to a plate."
+        },
+        {
+          "key": "toast-rice",
+          "text": "Melt the remaining butter, soften the onion, stir in the garlic, and toast the rice for 1 minute."
+        },
+        {
+          "key": "add-broth",
+          "text": "Add the hot broth a ladle at a time, stirring often and waiting for each addition to absorb before adding more."
+        },
+        {
+          "key": "finish",
+          "text": "When the rice is tender and loose, fold in the peas, mushrooms, and Parmesan and serve immediately."
+        }
+      ],
+      "key": "mushroom-pea-risotto-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "start-potatoes",
+          "text": "Heat the oven to 220�C (425�F), toss the potatoes with one-third of the oil, and roast for 15 minutes."
+        },
+        {
+          "key": "season",
+          "text": "Mix the remaining oil with the lemon juice, garlic, and oregano and coat the chicken and broccoli."
+        },
+        {
+          "key": "roast",
+          "text": "Add the chicken and broccoli to the pan and roast until the potatoes are tender and the chicken reaches 165�F (74�C) on a food thermometer."
+        }
+      ],
+      "key": "sheet-pan-lemon-chicken-vegetables-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "start-potatoes",
+          "text": "Heat the oven to 220�C (425�F), toss the potatoes with half the oil, and roast for 20 minutes."
+        },
+        {
+          "key": "add-pan",
+          "text": "Mix the remaining oil with the lemon juice, dill, and garlic and brush it over the salmon and green beans."
+        },
+        {
+          "key": "bake",
+          "text": "Add the salmon and beans to the pan and bake until the salmon reaches 145�F (63�C) on a food thermometer and the vegetables are tender."
+        }
+      ],
+      "key": "baked-dill-salmon-potatoes-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "shape",
+          "text": "Mix the turkey, egg, breadcrumbs, half the Parmesan, and half the garlic and shape into small meatballs."
+        },
+        {
+          "key": "brown",
+          "text": "Brown the meatballs in the oil, then transfer them to a clean plate and soften the onion in the same pan."
+        },
+        {
+          "key": "simmer",
+          "text": "Add the remaining garlic and crushed tomato, return the meatballs, and simmer until their centers reach 165�F (74�C) on a food thermometer."
+        },
+        {
+          "key": "serve",
+          "text": "Cook and drain the spaghetti, toss it with the sauce, and serve with the meatballs and remaining Parmesan."
+        }
+      ],
+      "key": "turkey-meatballs-tomato-spaghetti-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "slaw",
+          "text": "Toss the cabbage with half the lime juice and half the fresh coriander."
+        },
+        {
+          "key": "filling",
+          "text": "Heat the oil in a skillet, soften the onion and bell pepper, then add the beans and warm them through."
+        },
+        {
+          "key": "warm-tortillas",
+          "text": "Warm the tortillas in a dry skillet until flexible."
+        },
+        {
+          "key": "assemble",
+          "text": "Fill each tortilla with the bean mixture, cabbage, avocado, remaining lime juice, and fresh coriander."
+        }
+      ],
+      "key": "black-bean-tacos-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "eggs",
+          "text": "Heat a little neutral oil in a wide skillet, scramble the eggs until just set, and transfer them to a plate."
+        },
+        {
+          "key": "vegetables",
+          "text": "Add the remaining neutral oil and cook the carrot and peas until crisp-tender."
+        },
+        {
+          "key": "fry-rice",
+          "text": "Add the chilled rice and cook, tossing, until hot and separated."
+        },
+        {
+          "key": "finish",
+          "text": "Return the eggs and stir in the soy sauce, sesame oil, and scallion."
+        }
+      ],
+      "key": "vegetable-fried-rice-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "mix",
+          "text": "Mash the chickpeas until mostly broken down, then mix in the onion, garlic, parsley, cumin, flour, and half the olive oil."
+        },
+        {
+          "key": "shape",
+          "text": "Shape into eight patties, brush with the remaining oil, and arrange on a lined baking sheet."
+        },
+        {
+          "key": "bake",
+          "text": "Bake at 220�C (425�F), turning once, until firm and browned on both sides."
+        },
+        {
+          "key": "sauce",
+          "text": "Whisk the tahini and lemon juice with enough water to make a spoonable sauce and serve with the patties."
+        }
+      ],
+      "key": "herbed-chickpea-patties-tahini-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "prepare",
+          "text": "Heat the oven to 180�C (350�F), grease a 20 cm square pan, and line its base."
+        },
+        {
+          "key": "mix-dry",
+          "text": "Whisk the flour, cinnamon, baking powder, and bicarbonate of soda together."
+        },
+        {
+          "key": "combine",
+          "text": "Whisk the sugar, eggs, and oil, fold in the dry ingredients, then fold in the carrots and nuts."
+        },
+        {
+          "key": "bake",
+          "text": "Spread the batter in the pan and bake until the center springs back and a tester comes out clean; cool before slicing."
+        }
+      ],
+      "key": "carrot-walnut-snack-cake-v1"
+    },
+    {
+      "instructions": [
+        {
+          "key": "prepare",
+          "text": "Heat the oven to 180�C (350�F), grease a 20 cm square pan, and line its base."
+        },
+        {
+          "key": "mix-dry",
+          "text": "Whisk the flour, cinnamon, baking powder, and bicarbonate of soda together."
+        },
+        {
+          "key": "combine",
+          "text": "Whisk the sugar, eggs, and oil, fold in the dry ingredients, then fold in the carrots and nuts."
+        },
+        {
+          "key": "bake",
+          "text": "Spread the batter in the pan and bake until the center springs back and a tester comes out clean; cool before slicing."
+        }
+      ],
+      "key": "lower-sugar-pecan-carrot-cake-v2"
+    },
+    {
+      "instructions": [
+        {
+          "key": "prepare",
+          "text": "Heat the oven to 180�C (350�F), grease a 20 cm square pan, and line its base."
+        },
+        {
+          "key": "mix-dry",
+          "text": "Whisk the flour, cinnamon, baking powder, and bicarbonate of soda together."
+        },
+        {
+          "key": "combine",
+          "text": "Whisk the sugar, eggs, oil, and orange zest, fold in the dry ingredients, then fold in the carrots and raisins."
+        },
+        {
+          "key": "bake",
+          "text": "Spread the batter in the pan and bake until the center springs back and a tester comes out clean; cool before slicing."
+        }
+      ],
+      "key": "orange-raisin-carrot-cake-v3"
+    },
+    {
+      "instructions": [
+        {
+          "key": "prepare",
+          "text": "Heat the oven to 190�C (375�F) and line eight wells of a muffin pan."
+        },
+        {
+          "key": "mix",
+          "text": "Whisk the plain flour, oats, sugar, baking powder, and cinnamon; whisk the egg, milk, and oil separately."
+        },
+        {
+          "key": "combine",
+          "text": "Fold the wet mixture into the dry ingredients just until combined, then gently fold in the blueberries."
+        },
+        {
+          "key": "bake",
+          "text": "Divide among the prepared wells and bake until risen and a tester comes out clean; cool on a rack."
+        }
+      ],
+      "key": "blueberry-oat-muffins-v1"
+    }
+  ]
+}

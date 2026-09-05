@@ -29,6 +29,10 @@ const detail: RecipeDraftDetail = {
   title: "",
   description: null,
   servings: null,
+  total_time_minutes: null,
+  active_time_minutes: null,
+  difficulty: null,
+  notes: null,
   categories: [
     { id: CATEGORY_ID, name: "Quick & easy", slug: "quick-easy" },
   ],
@@ -121,6 +125,15 @@ describe("private recipe draft state", () => {
     expect(state.ingredients[0]?.measure.exactValue).toBe("2");
   });
 
+  it("hydrates fixed-scale servings as a human-friendly editor value", () => {
+    const state = hydrateRecipeDraft({
+      ...detail,
+      servings: "6.00",
+    });
+
+    expect(state.servings).toBe("6");
+  });
+
   it("round-trips a complex saved draft without losing structured recipe meaning", () => {
     const gram: CatalogUnit = {
       id: "55555555-5555-4555-8555-555555555551",
@@ -173,6 +186,10 @@ describe("private recipe draft state", () => {
       title: "Garden sage broth",
       description: "A structured draft.",
       servings: "3.5",
+      total_time_minutes: 45,
+      active_time_minutes: 20,
+      difficulty: "medium",
+      notes: "Taste before seasoning.",
       ingredients: [
         {
           id: ROW_ID,
@@ -213,6 +230,7 @@ describe("private recipe draft state", () => {
       instructions: [
         {
           id: instructionId,
+          title: "Simmer the broth",
           display_order: 0,
           text: "Simmer the sage gently.",
           actions: [
@@ -248,6 +266,18 @@ describe("private recipe draft state", () => {
     };
 
     const state = hydrateRecipeDraft(saved);
+    expect(state).toMatchObject({
+      totalTimeMinutes: "45",
+      activeTimeMinutes: "20",
+      difficulty: "medium",
+      notes: "Taste before seasoning.",
+    });
+    expect(state.instructions[0]?.title).toBe("Simmer the broth");
+    expect(state.instructions[0]?.actions[0]?.duration.value.exactValue).toBe("5");
+    expect(state.instructions[0]?.actions[0]?.temperature.value).toMatchObject({
+      rangeMinimum: "175",
+      rangeMaximum: "180",
+    });
     const validation = validateRecipeDraft(
       state,
       saved.revision,
@@ -261,6 +291,10 @@ describe("private recipe draft state", () => {
       title: "Garden sage broth",
       description: "A structured draft.",
       servings: "3.5",
+      total_time_minutes: 45,
+      active_time_minutes: 20,
+      difficulty: "medium",
+      notes: "Taste before seasoning.",
       category_ids: [CATEGORY_ID],
       ingredients: [
         {
@@ -283,16 +317,17 @@ describe("private recipe draft state", () => {
       instructions: [
         {
           ref: instructionId,
+          title: "Simmer the broth",
           text: "Simmer the sage gently.",
           actions: [
             {
               action_type_id: actionType.id,
               ingredient_refs: [ROW_ID],
-              duration: { kind: "exact", value: "5.000", unit_id: minute.id },
+              duration: { kind: "exact", value: "5", unit_id: minute.id },
               temperature: {
                 kind: "range",
-                minimum: "175.0",
-                maximum: "180.0",
+                minimum: "175",
+                maximum: "180",
                 unit_id: celsius.id,
               },
             },
@@ -307,6 +342,10 @@ describe("private recipe draft state", () => {
       title: "",
       description: "",
       servings: "",
+      totalTimeMinutes: "",
+      activeTimeMinutes: "",
+      difficulty: "",
+      notes: "",
       categories: [],
       ingredients: [],
       instructions: [],
@@ -317,6 +356,10 @@ describe("private recipe draft state", () => {
       title: "",
       description: null,
       servings: null,
+      total_time_minutes: null,
+      active_time_minutes: null,
+      difficulty: null,
+      notes: null,
       category_ids: [],
       ingredients: [],
       instructions: [],
@@ -334,6 +377,49 @@ describe("private recipe draft state", () => {
     });
   });
 
+  it("validates cooking times and recipe notes before saving", () => {
+    const state: RecipeDraftEditorState = {
+      title: "Slow soup",
+      description: "",
+      servings: "2",
+      totalTimeMinutes: "30",
+      activeTimeMinutes: "45",
+      difficulty: "hard",
+      notes: "x".repeat(5_001),
+      categories: [],
+      ingredients: [],
+      instructions: [],
+    };
+
+    expect(validateRecipeDraft(state, 1, [], [])).toMatchObject({
+      payload: null,
+      fieldErrors: {
+        activeTimeMinutes: "Active time cannot be longer than total time.",
+        notes: "Notes must be 5,000 characters or fewer.",
+      },
+    });
+
+    expect(
+      validateRecipeDraft(
+        {
+          ...state,
+          totalTimeMinutes: "30.5",
+          activeTimeMinutes: "15",
+          notes: "",
+        },
+        1,
+        [],
+        [],
+      ),
+    ).toMatchObject({
+      payload: null,
+      fieldErrors: {
+        totalTimeMinutes:
+          "Total time must be a positive whole number of minutes.",
+      },
+    });
+  });
+
   it("persists unresolved request identity and rejects incomplete populated rows", () => {
     const ingredient = createDraftIngredientState("ingredient-ref");
     const instruction = createDraftInstructionState("instruction-ref");
@@ -341,6 +427,10 @@ describe("private recipe draft state", () => {
       title: "Soup",
       description: "",
       servings: "2",
+      totalTimeMinutes: "",
+      activeTimeMinutes: "",
+      difficulty: "",
+      notes: "",
       categories: [],
       ingredients: [ingredient],
       instructions: [instruction],
@@ -406,6 +496,10 @@ describe("private recipe draft state", () => {
       title: "Sage recipe",
       description: "A publishable test recipe.",
       servings: "2",
+      totalTimeMinutes: "30",
+      activeTimeMinutes: "15",
+      difficulty: "easy",
+      notes: "Serve warm.",
       categories: detail.categories,
       ingredients: [ingredient],
       instructions: [instruction],
@@ -420,6 +514,10 @@ describe("private recipe draft state", () => {
         revision: 6,
         title: "Sage recipe",
         servings: "2",
+        total_time_minutes: 30,
+        active_time_minutes: 15,
+        difficulty: "easy",
+        notes: "Serve warm.",
         ingredients: [
           { selection: { kind: "catalog", ingredient_id: INGREDIENT_ID } },
         ],
@@ -436,6 +534,11 @@ describe("private recipe draft state", () => {
           type: "value_error",
         },
         {
+          location: ["body", "active_time_minutes"],
+          message: "Active time must fit within total time.",
+          type: "value_error",
+        },
+        {
           location: ["body", "ingredients", 0, "selection", "ingredient_id"],
           message: "This catalog ingredient is no longer available.",
           type: "value_error",
@@ -448,6 +551,7 @@ describe("private recipe draft state", () => {
       ]),
     ).toEqual({
       categories: "This recipe category is no longer available.",
+      activeTimeMinutes: "Active time must fit within total time.",
       "ingredient.ingredient-ref.selection": "This catalog ingredient is no longer available.",
       "instruction.instruction-ref.action.action-ref.type":
         "This cooking action is no longer available.",

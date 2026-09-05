@@ -1,12 +1,18 @@
 "use client";
 
-import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  useRef,
+  useState,
+} from "react";
 
 import {
   IngredientCatalogApiError,
   type MissingIngredientRequest,
   submitMissingIngredientRequest,
 } from "../../lib/ingredient-catalog-api";
+import { LoadingButton } from "./loading-ui";
+import { Dialog } from "./overlay-primitives";
 
 interface MissingIngredientRequestPanelProps {
   disabled?: boolean;
@@ -51,11 +57,6 @@ export function MissingIngredientRequestPanel({
   const [statusMessage, setStatusMessage] = useState("");
   const [pending, setPending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-
-  useEffect(() => {
-    proposedNameRef.current?.focus();
-  }, []);
-
   function clearFieldError(field: keyof RequestFieldErrors) {
     setFormError("");
     setStatusMessage("");
@@ -120,30 +121,40 @@ export function MissingIngredientRequestPanel({
   const nameErrorId = `${idPrefix}-request-name-error`;
   const contextHelpId = `${idPrefix}-request-context-help`;
   const contextErrorId = `${idPrefix}-request-context-error`;
+  const summaryId = `${idPrefix}-request-summary`;
 
   return (
-    <section
-      className="ingredient-request-panel"
-      aria-busy={pending}
-      aria-labelledby={`${idPrefix}-request-heading`}
-    >
-      <div className="ingredient-request-panel__header">
-        <div>
+      <Dialog
+        backdropClassName="ingredient-request-modal__backdrop"
+        id={`${idPrefix}-request-dialog`}
+        className="ingredient-request-panel"
+        aria-busy={pending}
+        aria-labelledby={`${idPrefix}-request-heading`}
+        aria-describedby={summaryId}
+        dismissible={!pending && !disabled}
+        initialFocusRef={proposedNameRef}
+        open
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+      >
+        <div className="ingredient-request-panel__header">
           <h3 id={`${idPrefix}-request-heading`}>Request a missing ingredient</h3>
-          <p>
-            This sends a separate catalog request. It will not add the proposed name to your
-            recipe or make it selectable before review.
-          </p>
+          <button
+            className="ingredient-request-panel__close"
+            type="button"
+            aria-label="Close ingredient request dialog"
+            disabled={pending || disabled}
+            onClick={onClose}
+          >
+            <span aria-hidden="true">×</span>
+          </button>
         </div>
-        <button
-          className="button button--quiet"
-          type="button"
-          disabled={pending || disabled}
-          onClick={onClose}
-        >
-          {submitted ? "Close request" : "Cancel request"}
-        </button>
-      </div>
+
+        <p id={summaryId} className="ingredient-request-panel__summary">
+          This sends a separate catalog request. It will not add the proposed name to your
+          recipe or make it selectable before review.
+        </p>
 
       <div className="recipe-form-field">
         <label htmlFor={`${idPrefix}-request-name`}>Proposed ingredient name</label>
@@ -208,18 +219,26 @@ export function MissingIngredientRequestPanel({
         {statusMessage}
       </p>
 
-      <button
-        className="button button--secondary"
-        type="button"
-        disabled={pending || disabled || submitted}
-        onClick={() => void submitRequest()}
-      >
-        {submitted
-          ? "Request submitted"
-          : pending
-            ? "Submitting request…"
-            : "Submit catalog request"}
-      </button>
-    </section>
+        <div className="ingredient-request-panel__actions">
+          <LoadingButton
+            className="button button--primary"
+            type="button"
+            disabled={disabled || submitted}
+            pending={pending}
+            pendingLabel="Submitting request…"
+            onClick={() => void submitRequest()}
+          >
+            {submitted ? "Request submitted" : "Submit catalog request"}
+          </LoadingButton>
+          <button
+            className="button button--secondary"
+            type="button"
+            disabled={pending || disabled}
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+        </div>
+      </Dialog>
   );
 }

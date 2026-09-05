@@ -30,6 +30,7 @@ from app.models import (
     RecipeSave,
     RecipeVersionPublication,
     User,
+    UserFollow,
     UserSession,
 )
 
@@ -158,6 +159,10 @@ def purge_member_private_data(
             title="",
             description=None,
             servings=None,
+            total_time_minutes=None,
+            active_time_minutes=None,
+            difficulty=None,
+            notes=None,
             updated_at=deleted_at,
         )
         .execution_options(**execution_options)
@@ -223,6 +228,11 @@ def purge_member_private_data(
         session.execute(
             delete(model).where(model.user_id == user_id).execution_options(**execution_options)
         )
+    session.execute(
+        delete(UserFollow)
+        .where((UserFollow.follower_user_id == user_id) | (UserFollow.followed_user_id == user_id))
+        .execution_options(**execution_options)
+    )
     session.execute(
         update(RecipeReport)
         .where(RecipeReport.reporter_user_id == user_id)

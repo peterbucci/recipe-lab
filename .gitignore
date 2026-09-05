@@ -6,6 +6,7 @@ recipe-lab-acceptance-sessions.json
 # Python
 __pycache__/
 *.py[cod]
+.mypy_cache/
 .pytest_cache/
 .ruff_cache/
 .venv/
@@ -27,6 +28,9 @@ frontend/next-env.d.ts
 # Local offline-evaluation data and reports
 ml/snapshots/
 ml/reports/
+
+# Disposable local review screenshots and other generated evidence
+/artifacts/
 
 # Editors and operating systems
 .idea/

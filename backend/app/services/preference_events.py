@@ -4,14 +4,17 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.idempotency import IdempotencyConflictError, require_same_request
 from app.models import PreferenceEvent
 from app.repositories.preference_events import add_preference_event, get_preference_event
 
 type PreferenceEventType = Literal["view", "save", "rating", "fork"]
 
 
-class IdempotencyKeyConflictError(ValueError):
+class IdempotencyKeyConflictError(IdempotencyConflictError):
     """Raised when an action ID has already been used for different semantics."""
+
+    public_message = "The Idempotency-Key conflicts with an earlier action in this operation."
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,7 +35,6 @@ def _matches_intent(event: PreferenceEvent, intent: PreferenceEventIntent) -> bo
         and event.event_type == intent.event_type
         and event.saved_value == intent.saved_value
         and event.rating_value == intent.rating_value
-        and event.request_fingerprint == intent.request_fingerprint
     )
     if not same_base_fields:
         return False
@@ -58,6 +60,11 @@ def find_preference_event_replay(
         return None
     if not _matches_intent(event, intent):
         raise IdempotencyKeyConflictError
+    require_same_request(
+        event.request_fingerprint,
+        intent.request_fingerprint,
+        conflict_error=IdempotencyKeyConflictError,
+    )
     return event
 
 

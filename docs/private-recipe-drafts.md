@@ -124,6 +124,25 @@ This isolation is deliberate defense in depth. Public adapters use the shared
 occupies `recipe_versions` at all. The publication adapter therefore cannot leak
 a draft merely because another public query mishandles a visibility filter.
 
+## Recipe document materialization
+
+Draft creation, complete draft replacement, and immutable publication share one
+typed `RecipeDocument` content boundary. A public-source adapter preserves the
+source graph's explicit ordering while refreshing the current curated unit
+labels expected by an editable draft. The saved-draft adapter preserves the
+stored labels and canonical measurement inputs used by the publication
+fingerprint. The mutable and immutable materializers preallocate every locally
+referenced UUID and stage each complete graph as a batch, so they do not need an
+insert-and-flush loop for ingredients, instructions, or actions.
+
+Materializers do not flush, commit, or catch database failures. Draft and
+publication services own those transaction boundaries. Replacement first
+removes the instruction/action graph, then the independent ingredient and
+category rows, before staging the replacement document. Publication stages one
+fresh immutable graph after allocating its lineage and version identity. A
+failure at any checkpoint rolls back the entire application transaction and
+cannot expose a partial draft or public version.
+
 ## Editor behavior
 
 The unified editor uses the reviewed ingredient picker, atomic typed quantity
@@ -243,7 +262,7 @@ the review envelope:
   "revision": 4,
   "duplicate_review": {
     "preflight_id": "00000000-0000-4000-8000-000000000000",
-    "policy_version": "recipe-duplicate-preflight-policy-v1",
+    "policy_version": "recipe-duplicate-preflight-policy-v2",
     "result_digest": "<lowercase sha256>",
     "decision": null
   }

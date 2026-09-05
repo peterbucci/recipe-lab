@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
+import { expect, test } from "./acceptance-draft-isolation";
 import { useAcceptanceMember as applyAcceptanceMember } from "./acceptance-session";
 
 const acceptanceEnabled =
@@ -47,8 +48,10 @@ test.describe("recipe reporting and moderation acceptance", () => {
   test("keeps reports private and exercises the separate moderator workflow", async ({
     browser,
     page,
+    sourceDrafts,
   }) => {
     const recipe = await firstPublicRecipe(page);
+    await sourceDrafts.assertFresh("alice", recipe.id);
     const privateDetails = `<img src="x" onerror="window.__rcp31_pwned = true"> RCP31 private report ${crypto.randomUUID().slice(0, 8)}`;
 
     const alice = await applyAcceptanceMember(page, "alice");
@@ -69,6 +72,7 @@ test.describe("recipe reporting and moderation acceptance", () => {
     expect(draftBeforeHiding.status(), await draftBeforeHiding.text()).toBe(201);
     const draftBeforeHidingBody = (await draftBeforeHiding.json()) as { id?: unknown };
     expect(draftBeforeHidingBody.id).toMatch(/^[0-9a-f-]{36}$/i);
+    sourceDrafts.trackExplicit("alice", recipe.id, draftBeforeHidingBody.id as string);
 
     await page.goto(`/recipes/${recipe.id}`);
     await page.getByRole("button", { name: "Report recipe", exact: true }).click();
@@ -111,7 +115,8 @@ test.describe("recipe reporting and moderation acceptance", () => {
     const moderator = await applyAcceptanceMember(page, "moderator");
     await page.goto("/");
     await page.getByLabel("Account menu for Morgan Moderator").click();
-    await page.getByRole("link", { name: "Review recipe reports", exact: true }).click();
+    await page.getByRole("link", { name: "Staff tools", exact: true }).click();
+    await page.getByRole("link", { name: "Open recipe reports", exact: true }).click();
     await expect(page).toHaveURL("/moderation/recipes");
     await expect(page.getByRole("heading", { name: "Recipe reports", level: 1 })).toBeVisible();
     await expect(page.getByRole("heading", { name: recipe.title, level: 2 })).toBeVisible();
@@ -122,7 +127,16 @@ test.describe("recipe reporting and moderation acceptance", () => {
     await expect(page.getByText(moderator.user_id, { exact: true })).toHaveCount(0);
     await expectNoAccessibilityViolations(page);
 
-    await page.getByLabel("Private note (optional)").fill("Hide while the report is reviewed.");
+    const privateNoteDisclosure = page
+      .locator("details")
+      .filter({ hasText: "Private moderator note" });
+    await privateNoteDisclosure
+      .getByText("Private moderator note", { exact: true })
+      .click();
+    await expect(privateNoteDisclosure).toHaveAttribute("open", "");
+    await privateNoteDisclosure
+      .getByLabel("Private note (optional)")
+      .fill("Hide while the report is reviewed.");
     const hideResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
@@ -201,8 +215,15 @@ test.describe("recipe reporting and moderation acceptance", () => {
     await expect(page.getByText(/Case resolved\. The moderation record was updated\./)).toBeVisible();
     await page.getByRole("button", { name: "Resolved", exact: true }).click();
     await expect(page.getByRole("heading", { name: recipe.title, level: 2 })).toBeVisible();
-    await expect(page.getByText("Resolved case", { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Private audit history", level: 3 })).toBeVisible();
+    await expect(page.locator(".moderation-detail__status-pill")).toHaveText("Resolved");
+    const auditHistoryDisclosure = page
+      .locator("details")
+      .filter({ hasText: "Private audit history" });
+    await auditHistoryDisclosure
+      .getByText("Private audit history", { exact: true })
+      .click();
+    await expect(auditHistoryDisclosure).toHaveAttribute("open", "");
+    await expect(auditHistoryDisclosure.getByText("Case resolved", { exact: true })).toBeVisible();
     await expectNoAccessibilityViolations(page);
   });
 });

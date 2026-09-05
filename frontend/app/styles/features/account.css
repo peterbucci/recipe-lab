@@ -1,0 +1,735 @@
+@layer features {
+
+.account-access-page {
+  width: min(75rem, 100% - 3rem);
+  min-height: calc(100dvh - var(--header-height) - 4rem);
+  margin: 0 auto;
+  padding-block: 2rem 3rem;
+}
+.account-access-card,
+.account-deleted-card,
+.account-workspace-page > .auth-card,
+.account-workspace-page.state-page > .loading-state,
+.account-workspace-page.state-page > .error-state {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel-subtle);
+}
+.account-access-card,
+.account-workspace-page > .auth-card {
+  border-top: 0.2rem solid var(--leaf);
+  width: min(100%, 38rem);
+  padding: clamp(1.35rem, 4vw, 2rem);
+}
+.account-access-card h1,
+.account-deleted-card h1 {
+  max-width: 32rem;
+  margin-bottom: 0.75rem;
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 1.02;
+}
+.account-access-card .lede {
+  margin-bottom: 1.1rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.account-access-card .auth-card__actions,
+.account-workspace-page > .auth-card .auth-card__actions {
+  margin-top: 1rem;
+}
+.account-access-card .button,
+.account-workspace-page > .auth-card .button {
+  min-height: 2.65rem;
+}
+.account-access-card .auth-card__fine-print {
+  border-top: 1px solid var(--line);
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  line-height: 1.55;
+}
+.account-access-state {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  align-content: center;
+  min-height: 7rem;
+  margin-top: 1rem;
+  padding: 1rem;
+}
+.account-access-state--error {
+  background: var(--clay-soft);
+  border-color: #ebbbb7;
+}
+.account-access-state--complete {
+  background: var(--leaf-soft);
+  border-color: #c9bee9;
+}
+.account-profile-form {
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.account-profile-form .profile-form__field {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  padding: 0.8rem;
+}
+.account-profile-form .profile-form__field input {
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.account-profile-form .profile-form__field input:hover {
+  border-color: var(--leaf);
+}
+.account-settings-panel--profile {
+  border-color: var(--line);
+  border-top-color: var(--leaf);
+  margin-bottom: 1rem;
+  padding: clamp(1.15rem, 3vw, 1.5rem);
+}
+.account-settings-panel--profile h2 {
+  margin-bottom: 0.4rem;
+}
+.public-profile-settings__form {
+  gap: 0.85rem;
+  max-width: 42rem;
+  margin-top: 1rem;
+  display: grid;
+}
+.public-profile-settings__form .profile-form__field > label {
+  font-size: 0.88rem;
+  font-weight: 750;
+}
+.public-profile-settings__form textarea {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  width: 100%;
+  min-height: 6.5rem;
+  padding: 0.7rem 0.75rem;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+.public-profile-settings__form textarea:hover,
+.public-profile-settings__form textarea:focus-visible {
+  border-color: var(--leaf);
+}
+.public-profile-settings__field-meta {
+  color: var(--muted);
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.75rem;
+  display: flex;
+}
+.public-profile-settings__actions {
+  align-items: center;
+}
+.public-profile-settings__success {
+  color: var(--leaf-dark);
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.account-deleted-page {
+  place-items: center;
+  display: grid;
+}
+.account-deleted-card {
+  border-top: 0.2rem solid var(--leaf);
+  border-bottom: 1px solid var(--line);
+  width: min(100%, 42rem);
+  min-height: 22rem;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+}
+.account-settings-page,
+.account-workspace-page {
+  width: min(75rem, 100% - 3rem);
+  padding-block: 2rem 3rem;
+}
+.account-settings-page > .page-intro,
+.account-workspace-page > .page-intro,
+.account-workspace-page > .member-library__intro {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  max-width: none;
+  box-shadow: var(--shadow-panel-subtle);
+  margin-bottom: 1rem;
+  padding: clamp(1.15rem, 3vw, 1.65rem);
+}
+.account-settings-page > .page-intro h1,
+.account-workspace-page > .page-intro h1,
+.account-workspace-page > .member-library__intro h1 {
+  margin-bottom: 0.45rem;
+  font-size: clamp(1.8rem, 3.5vw, 2.55rem);
+}
+.account-settings-page > .page-intro > p:last-child,
+.account-workspace-page > .page-intro > p:last-child,
+.account-workspace-page > .member-library__intro p:last-child {
+  font-size: 0.84rem;
+}
+.account-settings-panel,
+.member-library__collection,
+.member-request-history--standalone,
+.account-workspace-page > .empty-state,
+.account-workspace-page > .error-state {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel-subtle);
+}
+.account-settings-panel {
+  border-color: #e5b3ae;
+  border-top: 0.2rem solid var(--clay);
+  border-radius: var(--radius);
+  max-width: none;
+  box-shadow: var(--shadow-panel-subtle);
+}
+.account-settings-page--loading {
+  place-items: center;
+  display: grid;
+}
+.account-settings-page--loading > p {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  width: min(100%, 42rem);
+  box-shadow: var(--shadow-panel-subtle);
+  color: var(--muted);
+  text-align: center;
+  margin: 0;
+  padding: 2rem;
+}
+.account-workspace-page .member-library__privacy {
+  border: 1px solid #d7cdf3;
+  border-left: 0.2rem solid var(--leaf);
+  border-radius: var(--radius-sm);
+  max-width: none;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  font-size: 0.77rem;
+}
+.member-library__collection {
+  padding: 1rem;
+}
+.member-library__collection > .section-heading {
+  margin-bottom: 0.85rem;
+}
+.member-library__collection .recipe-grid,
+.account-recipes-page .member-library__grid,
+.account-saved-recipes-page .member-library__grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+.account-workspace-page .member-library__draft-card article {
+  min-height: 19rem;
+  box-shadow: none;
+  border-radius: 0.7rem;
+  padding: 0.9rem;
+}
+.account-workspace-page .member-library__draft-card h3 {
+  margin: 0.85rem 0 0.45rem;
+  font-size: 1.15rem;
+}
+.account-workspace-page .member-library__draft-card p {
+  font-size: 0.76rem;
+}
+.account-workspace-page .member-library__card-meta {
+  font-size: 0.62rem;
+}
+.account-workspace-page > .pagination,
+.member-library__collection + .pagination {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  margin-top: 0.75rem;
+  padding: 0.65rem;
+}
+.account-workspace-page > .empty-state,
+.account-workspace-page > .error-state {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  min-height: 18rem;
+  padding: 1.5rem;
+}
+.member-request-history--standalone {
+  margin-top: 0;
+  padding: 1rem;
+}
+.member-request-history--standalone .member-request-history__header {
+  border-bottom: 1px solid var(--line);
+  align-items: center;
+  padding-bottom: 0.8rem;
+}
+.member-request-history--standalone .member-request-history__header h2 {
+  font-size: 1.2rem;
+}
+.member-request-history--standalone .member-request-history__controls {
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  margin-top: 0.8rem;
+  padding: 0.75rem;
+}
+.member-request-history--standalone .member-request-history__list {
+  gap: 0.65rem;
+}
+.member-request-history--standalone .member-request-card {
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  padding: 0.8rem;
+}
+.member-request-history--standalone .member-request-card__header h3 {
+  font-size: 1rem;
+}
+.account-workspace-page.state-page {
+  min-height: 65vh;
+  box-shadow: none;
+  background: 0 0;
+  border: 0;
+  border-radius: 0;
+  place-items: center;
+  margin: 0 auto;
+  display: grid;
+}
+.account-workspace-page.state-page > .loading-state,
+.account-workspace-page.state-page > .error-state {
+  width: min(100%, 44rem);
+  min-height: 18rem;
+  padding: 1.5rem;
+}
+@media (max-width: 75rem) {
+  .member-library__collection .recipe-grid,
+  .account-recipes-page .member-library__grid,
+  .account-saved-recipes-page .member-library__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 56.25rem) {
+  .account-settings-page > .page-intro,
+  .account-workspace-page > .page-intro,
+  .account-workspace-page > .member-library__intro,
+  .account-settings-panel,
+  .account-workspace-page .member-library__privacy,
+  .member-library__collection,
+  .member-request-history--standalone,
+  .account-workspace-page > .pagination {
+    width: min(100%, 46rem);
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .account-workspace-page > .member-library__intro {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .member-request-history--standalone .member-request-history__header {
+    align-items: flex-start;
+  }
+}
+@media (max-width: 43.75rem) {
+  .account-access-page,
+  .account-settings-page,
+  .account-workspace-page {
+    width: min(75rem, 100% - 2rem);
+    padding-block: 1rem 2rem;
+  }
+  .account-access-card,
+  .account-workspace-page > .auth-card,
+  .account-settings-page > .page-intro,
+  .account-workspace-page > .page-intro,
+  .account-workspace-page > .member-library__intro,
+  .account-settings-panel,
+  .member-library__collection,
+  .member-request-history--standalone {
+    padding: 1rem;
+  }
+  .account-access-card h1,
+  .account-deleted-card h1 {
+    font-size: clamp(1.9rem, 10vw, 2.5rem);
+  }
+  .account-access-card .button-row .button,
+  .account-workspace-page > .auth-card .button-row .button,
+  .account-workspace-page .member-library__intro .button,
+  .account-deleted-card .button {
+    width: auto;
+  }
+  .account-access-card .auth-card__actions,
+  .account-access-card .profile-form__actions,
+  .account-workspace-page > .auth-card .auth-card__actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: center;
+    display: flex;
+  }
+  .member-library__collection .recipe-grid,
+  .account-recipes-page .member-library__grid,
+  .account-saved-recipes-page .member-library__grid,
+  .member-request-history--standalone .member-request-history__list,
+  .member-request-card__facts,
+  .member-request-history--standalone .member-request-history__controls {
+    grid-template-columns: 1fr;
+  }
+  .member-request-history--standalone .member-request-history__search > div {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .account-workspace-page .pagination,
+  .member-request-history--standalone .member-request-history__pagination {
+    gap: 0.45rem;
+  }
+  .account-workspace-page .pagination .button,
+  .member-request-history--standalone
+    .member-request-history__pagination
+    .button {
+    width: auto;
+    min-width: 0;
+    padding-inline: 0.65rem;
+  }
+}
+@media (forced-colors: active) {
+  .account-access-card,
+  .account-deleted-card,
+  .account-workspace-page > .auth-card,
+  .account-access-state,
+  .account-profile-form .profile-form__field,
+  .account-settings-page > .page-intro,
+  .account-workspace-page > .page-intro,
+  .account-workspace-page > .member-library__intro,
+  .account-settings-panel,
+  .account-workspace-page .member-library__privacy,
+  .member-library__collection,
+  .member-request-history--standalone,
+  .account-workspace-page > .empty-state,
+  .account-workspace-page > .error-state,
+  .account-workspace-page.state-page > .loading-state,
+  .account-workspace-page.state-page > .error-state {
+    background: canvas;
+    border-color: canvastext;
+  }
+}
+
+/* Account settings */
+.account-settings-page {
+  --account-settings-danger: #a74848;
+  --account-settings-danger-soft: #fff1f1;
+  width: min(65rem, 100% - 3rem);
+  padding-block: 1.875rem 4.5rem;
+}
+.account-settings-page > .page-intro {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  width: auto;
+  max-width: none;
+  box-shadow: none;
+  margin: 0;
+  padding: 0 0 1.5rem;
+}
+.account-settings-page > .page-intro h1 {
+  max-width: none;
+  margin-bottom: 0.45rem;
+  font-size: clamp(2rem, 4vw, 2.6rem);
+  line-height: 1.05;
+}
+.account-settings-page > .page-intro > p:last-child {
+  max-width: 39rem;
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+.account-settings__shell {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  overflow: hidden;
+}
+.account-settings__panel[hidden] {
+  display: none;
+}
+.account-settings__panel {
+  padding: 0;
+}
+.account-settings__profile-layout {
+  grid-template-columns: minmax(0, 1fr) 15rem;
+  gap: 2.125rem;
+  padding: 1.375rem 1.5rem 1.75rem;
+  display: grid;
+}
+.account-settings-page .public-profile-settings__form {
+  align-content: start;
+  gap: 0.85rem;
+  max-width: none;
+  margin: 0;
+}
+.account-settings-page .account-settings__field > label {
+  color: #4e4d5f;
+  font-size: 0.72rem;
+  font-weight: 760;
+}
+.account-settings-page .public-profile-settings__form textarea {
+  border-color: var(--control-line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  min-height: 7.625rem;
+  padding: 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.account-settings-page .public-profile-settings__form textarea:hover,
+.account-settings-page .public-profile-settings__form textarea:focus-visible {
+  border-color: #b9a7ec;
+}
+.account-settings-page .public-profile-settings__field-meta {
+  margin-top: 0.05rem;
+  font-size: 0.65rem;
+}
+.account-settings-page .public-profile-settings__actions {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.account-settings-page .public-profile-settings__actions .button,
+.account-settings-page .account-deletion__form > .button {
+  min-height: 2.375rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+}
+.account-settings-page .public-profile-settings__success {
+  font-size: 0.72rem;
+}
+.account-settings__profile-preview {
+  align-self: start;
+  border: 1px solid var(--line);
+  border-radius: 0.625rem;
+  background: #faf9fc;
+  padding: 0.9375rem;
+}
+.account-settings__preview-label {
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0 0 0.6875rem;
+  font-size: 0.58rem;
+  font-weight: 800;
+}
+.account-settings__preview-user {
+  grid-template-columns: 4rem minmax(0, 1fr);
+  align-items: flex-start;
+  gap: 0.625rem;
+  display: grid;
+}
+.account-settings__preview-avatar {
+  border-radius: 50%;
+  background: linear-gradient(145deg, #7046e4, #5930cf);
+  color: var(--text-on-accent);
+  flex: none;
+  place-items: center;
+  width: 4rem;
+  height: 4rem;
+  font-size: 1.35rem;
+  font-weight: 820;
+  display: grid;
+}
+.account-settings__preview-identity {
+  min-width: 0;
+  padding-top: 0.125rem;
+}
+.account-settings__preview-identity > strong,
+.account-settings__preview-identity > span {
+  display: block;
+}
+.account-settings__preview-user strong {
+  font-size: 0.82rem;
+}
+.account-settings__preview-identity > span {
+  color: var(--muted);
+  margin-top: 0.125rem;
+  font-size: 0.64rem;
+}
+.account-settings__preview-description {
+  color: var(--muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  margin: 0.375rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+.account-settings__danger-content {
+  max-width: 45rem;
+  padding: 1.375rem 1.5rem 1.75rem;
+}
+.account-settings__danger-heading {
+  align-items: flex-start;
+  gap: 0.6875rem;
+  margin-bottom: 1.0625rem;
+  display: flex;
+}
+.account-settings__danger-icon {
+  border-radius: 0.5625rem;
+  background: var(--account-settings-danger-soft);
+  color: var(--account-settings-danger);
+  flex: none;
+  place-items: center;
+  width: 2.125rem;
+  height: 2.125rem;
+  font-weight: 900;
+  display: grid;
+}
+.account-settings__danger-heading h3 {
+  margin: 0;
+  font-size: 1.0625rem;
+  letter-spacing: -0.02em;
+}
+.account-settings__danger-heading p {
+  color: var(--muted);
+  margin: 0.25rem 0 0;
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+.account-settings-page .account-deletion,
+.account-settings-page .account-settings-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  max-width: none;
+  box-shadow: none;
+  padding: 0;
+}
+.account-settings-page .account-deletion__disclosure {
+  border: 0;
+  border-left: 0.125rem solid #e6aaa7;
+  background: #fff7f7;
+  margin-bottom: 1.0625rem;
+  padding: 0.75rem 0.8125rem;
+}
+.account-settings-page .account-deletion__disclosure p,
+.account-settings-page .account-deletion__reauth p {
+  color: #704d4d;
+  margin-bottom: 0.45rem;
+  font-size: 0.7rem;
+  line-height: 1.55;
+}
+.account-settings-page .account-deletion__disclosure strong {
+  color: #5f3f3f;
+}
+.account-settings-page .account-deletion__disclosure details {
+  margin-top: 0.4375rem;
+}
+.account-settings-page .account-deletion__disclosure summary {
+  color: #765050;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 760;
+}
+.account-settings-page .account-deletion__disclosure ul {
+  margin: 0.4375rem 0 0 1.0625rem;
+  padding: 0;
+}
+.account-settings-page .account-deletion__disclosure li {
+  margin: 0.25rem 0;
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+.account-settings-page .account-deletion__form {
+  gap: 0.9375rem;
+  max-width: 45rem;
+  margin-top: 0;
+}
+.account-settings-page .account-deletion__acknowledgement {
+  gap: 0.5625rem;
+  margin-bottom: 0;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.account-settings-page .account-deletion__acknowledgement input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--account-settings-danger);
+  margin-top: 0.125rem;
+}
+.account-settings-page .account-deletion__form .profile-form__field {
+  max-width: 26.875rem;
+}
+.account-settings-page .account-deletion__form .profile-form__field > span {
+  font-size: 0.72rem;
+}
+.account-settings-page .account-deletion__form .profile-form__field input {
+  min-height: 2.375rem;
+  padding: 0 0.5625rem;
+  font-size: 0.75rem;
+}
+.account-settings-page .account-deletion__form .profile-form__field > p {
+  font-size: 0.65rem;
+}
+.account-settings-page .account-deletion__reauth {
+  border-color: #e6aaa7;
+  border-radius: 0.625rem;
+  background: var(--account-settings-danger-soft);
+  margin-top: 0;
+  padding: 0.875rem;
+}
+.account-settings-page .account-deletion__reauth h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+}
+.account-settings-page .button--danger {
+  border-color: var(--account-settings-danger);
+  background: var(--account-settings-danger);
+}
+.account-settings-page .button--danger:hover {
+  border-color: #903b3b;
+  background: #903b3b;
+}
+.account-settings-page .button--danger:disabled {
+  opacity: 0.45;
+}
+
+@media (max-width: 43.75rem) {
+  .account-settings-page {
+    width: 100%;
+    padding: 1.25rem 0.75rem 2.8125rem;
+  }
+  .account-settings-page > .page-intro {
+    padding: 0 0 1.25rem;
+  }
+  .account-settings-page > .page-intro h1 {
+    font-size: clamp(1.8rem, 9vw, 2.25rem);
+  }
+  .account-settings__shell {
+    border-inline: 0;
+    border-radius: 0;
+    margin-inline: -0.75rem;
+  }
+  .account-settings__profile-layout {
+    grid-template-columns: 1fr;
+    gap: 1.375rem;
+    padding: 1.1875rem 0.75rem 1.5rem;
+  }
+  .account-settings__profile-preview {
+    width: min(100%, 20rem);
+  }
+  .account-settings__danger-content {
+    max-width: none;
+    padding: 1.1875rem 0.75rem 1.5rem;
+  }
+}
+
+@media (forced-colors: active) {
+  .account-settings__shell,
+  .account-settings__profile-preview,
+  .account-settings__danger-icon,
+  .account-settings-page .account-deletion__disclosure,
+  .account-settings-page .account-deletion__reauth {
+    border: 1px solid canvastext;
+    background: canvas;
+  }
+  .account-settings__preview-avatar {
+    border: 1px solid canvastext;
+    background: highlight;
+    color: highlighttext;
+  }
+}
+
+}

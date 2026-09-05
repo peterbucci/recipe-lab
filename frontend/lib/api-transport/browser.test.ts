@@ -66,6 +66,30 @@ describe("same-origin browser API transport", () => {
     expect(headers.get("X-CSRF-Token")).toBe("test-token");
   });
 
+  it("supports CSRF-protected mutations whose API contract has no idempotency key", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ updated: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await browserApiRequest("/api/recipes/one/visibility", {
+      body: JSON.stringify({ state: "author_withdrawn" }),
+      csrf: "member",
+      errorContract: ERROR_CONTRACT,
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": "caller-value-must-not-bypass-validation",
+      },
+      identity: null,
+      kind: "mutation",
+      method: "PUT",
+    });
+
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.get("X-CSRF-Token")).toBe("test-token");
+    expect(headers.has("Idempotency-Key")).toBe(false);
+  });
+
   it.each([
     "https://api.example.test/api/recipes",
     "//api.example.test/api/recipes",
@@ -149,4 +173,29 @@ describe("same-origin browser API transport", () => {
       window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
     },
   );
+
+  it("can keep a scoped 401 local when the calling screen owns recovery", async () => {
+    const expired = vi.fn();
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json(
+          { error: { code: "authentication_required" } },
+          { status: 401 },
+        ),
+      ),
+    );
+
+    await expect(
+      browserApiRequest("/api/ingredient-requests/mine", {
+        errorContract: ERROR_CONTRACT,
+        kind: "query",
+        retry: "never",
+        sessionExpiry: "local",
+      }),
+    ).rejects.toMatchObject({ status: 401 });
+    expect(expired).not.toHaveBeenCalled();
+    window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
+  });
 });

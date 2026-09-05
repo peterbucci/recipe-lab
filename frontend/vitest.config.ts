@@ -7,5 +7,8 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     include: ["**/*.test.{mjs,ts,tsx}"],
+    // A bounded jsdom pool avoids resource-contention timeouts on high-core
+    // developer and CI hosts while retaining file-level parallelism.
+    maxWorkers: 4,
   },
 });

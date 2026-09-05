@@ -1,6 +1,12 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   catalogActionTypeSummary,
@@ -80,6 +86,20 @@ const occurrences: IngredientOccurrenceOption[] = [
   },
 ];
 
+function elementBounds(top: number, bottom: number): DOMRect {
+  return {
+    bottom,
+    height: bottom - top,
+    left: 0,
+    right: 320,
+    top,
+    width: 320,
+    x: 0,
+    y: top,
+    toJSON: () => ({}),
+  };
+}
+
 function action(key: string, typeIndex: number): StructuredActionDraft {
   const draft = createStructuredActionDraft(key);
   draft.actionType = catalogActionTypeSummary(actionTypes[typeIndex]);
@@ -111,7 +131,12 @@ function Harness({
 }
 
 describe("StructuredActionEditor", () => {
-  it("keeps the written step primary and summarizes existing author-added details", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps existing cooking details compact until their floating editor is opened", async () => {
     const mix = action("mix-action", 0);
     mix.ingredientKeys = ["first-tomato"];
     mix.duration = {
@@ -127,72 +152,154 @@ describe("StructuredActionEditor", () => {
     };
     render(<Harness initial={[mix]} />);
 
-    const disclosure = screen.getByRole("button", {
-      name: "Edit cooking details for Step 1",
+    const detail = screen.getByRole("button", {
+      name: "Edit cooking detail 1 for Step 1",
     });
-    expect(disclosure).toHaveAttribute("aria-expanded", "false");
-    expect(disclosure).toHaveTextContent("mix · Tomato, 1 cup · 5 minutes");
-    expect(disclosure).toHaveAccessibleDescription("mix · Tomato, 1 cup · 5 minutes");
-    expect(screen.queryByRole("group", { name: "Author-added cooking details" })).toBeNull();
-
-    fireEvent.click(disclosure);
-    expect(disclosure).toHaveAttribute("aria-expanded", "true");
+    expect(detail).toHaveAttribute("aria-expanded", "false");
+    expect(detail).toHaveTextContent("Mix");
+    expect(detail).toHaveTextContent("Tomato, 1 cup · 5 minutes");
     expect(
-      screen.getByRole("group", { name: "Author-added cooking details" }),
-    ).toHaveAccessibleDescription(/does not infer them/i);
+      screen.queryByRole("combobox", { name: "Cooking action" }),
+    ).toBeNull();
+
+    fireEvent.click(detail);
+    expect(detail).toHaveAttribute("aria-expanded", "true");
+    const editor = screen.getByRole("dialog", {
+      name: "Cooking detail 1 for Step 1",
+    });
+    expect(editor).toHaveAttribute("data-placement", "below");
+    expect(editor).toHaveTextContent(/cooking breakdown/i);
+    await waitFor(() =>
+      expect(
+        within(editor).getByRole("combobox", { name: "Cooking action" }),
+      ).toHaveFocus(),
+    );
   });
 
-  it("offers optional cooking details without creating an action until asked", async () => {
+  it("adds an optional cooking detail from the text control and focuses its catalog action", async () => {
     render(<Harness initial={[]} />);
 
-    const disclosure = screen.getByRole("button", {
-      name: "Add cooking details for Step 1",
-    });
-    expect(disclosure).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("button", { name: "Add cooking action" })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add cooking detail to Step 1" }),
+    );
 
-    fireEvent.click(disclosure);
-    fireEvent.click(screen.getByRole("button", { name: "Add cooking action" }));
-    expect(screen.getByRole("group", { name: "Action 1" })).toBeVisible();
+    const editor = screen.getByRole("dialog", {
+      name: "Cooking detail 1 for Step 1",
+    });
+    const actionType = within(editor).getByRole("combobox", {
+      name: "Cooking action",
+    });
+    expect(
+      within(actionType).getByRole("option", { name: "mix" }),
+    ).toBeVisible();
+    expect(
+      within(actionType).getByRole("option", { name: "bake" }),
+    ).toBeVisible();
+    await waitFor(() => expect(actionType).toHaveFocus());
+  });
+
+  it("flips the floating editor above when it would leave the bottom of the viewport", async () => {
+    vi.stubGlobal("innerHeight", 600);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        if (this.classList.contains("cooking-details__trigger")) {
+          return elementBounds(520, 560);
+        }
+        if (this.classList.contains("cooking-details__popover")) {
+          return elementBounds(566, 866);
+        }
+        return elementBounds(0, 0);
+      },
+    );
+    render(<Harness />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Edit cooking detail 1 for Step 1",
+      }),
+    );
+
+    const editor = screen.getByRole("dialog", {
+      name: "Cooking detail 1 for Step 1",
+    });
     await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: "Cooking action" })).toHaveFocus(),
+      expect(editor).toHaveAttribute("data-placement", "above"),
+    );
+    expect(editor.style.getPropertyValue("--floating-panel-max-height")).toBe(
+      "498px",
     );
   });
 
-  it("keeps ordered actions keyboard reachable through boundary moves and removal", async () => {
-    render(<Harness initial={[action("mix-action", 0), action("bake-action", 1)]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit cooking details for Step 1" }));
-
-    let actionSelects = screen.getAllByRole("combobox", { name: "Cooking action" });
-    expect(actionSelects.map((select) => (select as HTMLSelectElement).value)).toEqual([
-      MIX_ID,
-      BAKE_ID,
-    ]);
-
-    fireEvent.click(screen.getByRole("button", { name: "Move down action 1" }));
-    actionSelects = screen.getAllByRole("combobox", { name: "Cooking action" });
-    expect(actionSelects.map((select) => (select as HTMLSelectElement).value)).toEqual([
-      BAKE_ID,
-      MIX_ID,
-    ]);
-    await waitFor(() => expect(actionSelects[1]).toHaveFocus());
-    expect(screen.getByRole("button", { name: "Move down action 2" })).toBeDisabled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Move up action 2" }));
-    actionSelects = screen.getAllByRole("combobox", { name: "Cooking action" });
-    await waitFor(() => expect(actionSelects[0]).toHaveFocus());
-    expect(screen.getByRole("button", { name: "Move up action 1" })).toBeDisabled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Remove action 1" }));
-    await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: "Cooking action" })).toHaveFocus(),
+  it("reorders and removes compact details through the shared icon controls", async () => {
+    render(
+      <Harness initial={[action("mix-action", 0), action("bake-action", 1)]} />,
     );
-    expect(screen.getAllByRole("group", { name: /^Action \d+$/ })).toHaveLength(1);
+
+    expect(
+      screen.getByRole("button", { name: "Move cooking detail 1 up" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Move cooking detail 2 down" }),
+    ).toBeDisabled();
+    expect(
+      screen
+        .getAllByRole("button", { name: /Edit cooking detail \d for Step 1/ })
+        .map((button) => button.textContent),
+    ).toEqual([
+      expect.stringContaining("Mix"),
+      expect.stringContaining("Bake"),
+    ]);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Move cooking detail 1 down" }),
+    );
+    expect(
+      screen
+        .getAllByRole("button", { name: /Edit cooking detail \d for Step 1/ })
+        .map((button) => button.textContent),
+    ).toEqual([
+      expect.stringContaining("Bake"),
+      expect.stringContaining("Mix"),
+    ]);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Move cooking detail 2 up" }),
+    );
+    expect(
+      screen
+        .getAllByRole("button", { name: /Edit cooking detail \d for Step 1/ })
+        .map((button) => button.textContent),
+    ).toEqual([
+      expect.stringContaining("Mix"),
+      expect.stringContaining("Bake"),
+    ]);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove cooking detail 1" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", {
+          name: "Edit cooking detail 1 for Step 1",
+        }),
+      ).toHaveFocus(),
+    );
+    expect(
+      screen.getAllByRole("button", {
+        name: /Edit cooking detail \d for Step 1/,
+      }),
+    ).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "Edit cooking detail 1 for Step 1" }),
+    ).toHaveTextContent("Bake");
   });
 
   it("selects distinct repeated ingredient occurrences and adds a focused action", async () => {
     render(<Harness />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit cooking details for Step 1" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit cooking detail 1 for Step 1" }),
+    );
 
     const firstTomato = screen.getByRole("checkbox", {
       name: "Ingredient 1: Tomato, 1 cup",
@@ -205,56 +312,98 @@ describe("StructuredActionEditor", () => {
     expect(firstTomato).toBeChecked();
     expect(secondTomato).toBeChecked();
 
-    fireEvent.click(screen.getByRole("button", { name: "Add cooking action" }));
-    const selects = screen.getAllByRole("combobox", { name: "Cooking action" });
-    expect(selects).toHaveLength(2);
-    await waitFor(() => expect(selects[1]).toHaveFocus());
-    fireEvent.change(selects[1], { target: { value: BAKE_ID } });
-    expect(selects[1]).toHaveValue(BAKE_ID);
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add cooking detail to Step 1" }),
+    );
+    const secondEditor = screen.getByRole("dialog", {
+      name: "Cooking detail 2 for Step 1",
+    });
+    const secondSelect = within(secondEditor).getByRole("combobox", {
+      name: "Cooking action",
+    });
+    await waitFor(() => expect(secondSelect).toHaveFocus());
+    fireEvent.change(secondSelect, { target: { value: BAKE_ID } });
+    expect(secondSelect).toHaveValue(BAKE_ID);
   });
 
-  it("preserves raw duration and temperature values while optional controls are hidden", () => {
+  it("preserves raw measures across Done and Escape while keeping them compact when closed", async () => {
     render(<Harness />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit cooking details for Step 1" }));
+    const detail = screen.getByRole("button", {
+      name: "Edit cooking detail 1 for Step 1",
+    });
+    fireEvent.click(detail);
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Include duration" }));
-    const duration = screen.getByRole("group", { name: "Duration for Action 1: mix" });
-    fireEvent.change(within(duration).getByRole("textbox", { name: "Duration" }), {
-      target: { value: "05.000" },
+    const duration = screen.getByRole("group", {
+      name: "Duration for Cooking detail 1: mix",
     });
+    fireEvent.change(
+      within(duration).getByRole("textbox", { name: "Duration" }),
+      {
+        target: { value: "05.000" },
+      },
+    );
     fireEvent.change(within(duration).getByRole("combobox", { name: "Unit" }), {
       target: { value: MINUTE_ID },
     });
-    const disclosure = screen.getByRole("button", {
-      name: "Edit cooking details for Step 1",
-    });
-    fireEvent.click(disclosure);
-    expect(screen.queryByRole("group", { name: "Duration for Action 1: mix" })).toBeNull();
-    expect(disclosure).toHaveTextContent("mix · 5 minutes");
-    fireEvent.click(disclosure);
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(
-      within(screen.getByRole("group", { name: "Duration for Action 1: mix" })).getByRole(
-        "textbox",
-        { name: "Duration" },
-      ),
+      screen.queryByRole("group", {
+        name: "Duration for Cooking detail 1: mix",
+      }),
+    ).toBeNull();
+    expect(detail).toHaveTextContent("5 minutes");
+    expect(detail).toHaveFocus();
+
+    fireEvent.click(detail);
+    expect(
+      within(
+        screen.getByRole("group", {
+          name: "Duration for Cooking detail 1: mix",
+        }),
+      ).getByRole("textbox", { name: "Duration" }),
     ).toHaveValue("05.000");
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Include duration" }));
-    expect(screen.queryByRole("group", { name: "Duration for Action 1: mix" })).toBeNull();
+    expect(
+      screen.queryByRole("group", {
+        name: "Duration for Cooking detail 1: mix",
+      }),
+    ).toBeNull();
     fireEvent.click(screen.getByRole("checkbox", { name: "Include duration" }));
     expect(
-      within(screen.getByRole("group", { name: "Duration for Action 1: mix" })).getByRole(
-        "textbox",
-        { name: "Duration" },
-      ),
+      within(
+        screen.getByRole("group", {
+          name: "Duration for Cooking detail 1: mix",
+        }),
+      ).getByRole("textbox", { name: "Duration" }),
     ).toHaveValue("05.000");
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Include temperature" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Include temperature" }),
+    );
     const temperature = screen.getByRole("group", {
-      name: "Temperature for Action 1: mix",
+      name: "Temperature for Cooking detail 1: mix",
     });
-    expect(within(temperature).queryByRole("option", { name: /minute/i })).toBeNull();
-    expect(within(temperature).getByRole("option", { name: /celsius/i })).toBeInTheDocument();
+    expect(
+      within(temperature).queryByRole("option", { name: /minute/i }),
+    ).toBeNull();
+    expect(
+      within(temperature).getByRole("option", { name: /celsius/i }),
+    ).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(detail).toHaveFocus());
+    fireEvent.click(detail);
+    expect(
+      within(
+        screen.getByRole("group", {
+          name: "Duration for Cooking detail 1: mix",
+        }),
+      ).getByRole("textbox", { name: "Duration" }),
+    ).toHaveValue("05.000");
   });
 
   it("renders inherited inactive types and removed inputs without silently dropping either", () => {
@@ -274,11 +423,15 @@ describe("StructuredActionEditor", () => {
         )}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Edit cooking details for Step 1" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit cooking detail 1 for Step 1" }),
+    );
 
     const actionType = screen.getByRole("combobox", { name: "Cooking action" });
     expect(actionType).toHaveValue(RETIRED_ID);
-    expect(within(actionType).getByRole("option", { name: /retired.*unavailable/i })).toBeDisabled();
+    expect(
+      within(actionType).getByRole("option", { name: /retired.*unavailable/i }),
+    ).toBeDisabled();
     expect(
       screen.getByRole("checkbox", {
         name: "Ingredient 1: Tomato, 1 cup — marked for removal",
@@ -301,32 +454,37 @@ describe("StructuredActionEditor", () => {
         initial={[draft]}
         errors={{
           actions: "Add at least one action.",
-          [structuredActionFieldKey(draft.key, "type")]: "Choose a supported action.",
-          [structuredActionFieldKey(draft.key, "inputs")]: "Restore this ingredient.",
+          [structuredActionFieldKey(draft.key, "type")]:
+            "Choose a supported action.",
+          [structuredActionFieldKey(draft.key, "inputs")]:
+            "Restore this ingredient.",
           [structuredActionFieldKey(draft.key, "duration", "amount")]:
             "Enter a duration.",
         }}
       />,
     );
 
-    expect(
-      screen.getByRole("group", { name: "Author-added cooking details" }),
-    ).toHaveAccessibleDescription(/Add at least one action\./);
-    const disclosure = screen.getByRole("button", {
-      name: "Edit cooking details for Step 1",
+    expect(screen.getByText("Add at least one action.")).toBeVisible();
+    const detail = screen.getByRole("button", {
+      name: "Edit cooking detail 1 for Step 1",
     });
-    expect(disclosure).toHaveAttribute("aria-expanded", "true");
-    expect(disclosure).toHaveAccessibleDescription(/Needs attention/);
+    expect(detail).toHaveAttribute("aria-expanded", "true");
+    expect(detail).toHaveAccessibleDescription(
+      "This cooking detail needs attention.",
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Cooking detail 1 for Step 1" }),
+    ).toBeVisible();
 
-    expect(screen.getByRole("combobox", { name: "Cooking action" })).toHaveAccessibleDescription(
-      "Choose a supported action.",
-    );
-    expect(screen.getByRole("group", { name: "Ingredient inputs" })).toHaveAccessibleDescription(
-      "Restore this ingredient.",
-    );
+    expect(
+      screen.getByRole("combobox", { name: "Cooking action" }),
+    ).toHaveAccessibleDescription("Choose a supported action.");
+    expect(
+      screen.getByRole("group", { name: "Ingredient inputs" }),
+    ).toHaveAccessibleDescription("Restore this ingredient.");
     fireEvent.click(screen.getByRole("checkbox", { name: "Include duration" }));
-    expect(screen.getByRole("textbox", { name: "Duration" })).toHaveAccessibleDescription(
-      "Enter a duration.",
-    );
+    expect(
+      screen.getByRole("textbox", { name: "Duration" }),
+    ).toHaveAccessibleDescription("Enter a duration.");
   });
 });

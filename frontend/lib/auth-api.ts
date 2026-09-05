@@ -1,13 +1,35 @@
-export interface AccountUser {
-  id: string;
-  handle: string | null;
-  display_name: string;
-}
+import type { operations } from "./api-contracts/generated";
+import {
+  ApiTransportError,
+  executeJsonApiRequest,
+  normalizeApiPath,
+  type ApiJsonResponse,
+  type ApiValidationIssue,
+  type PublicApiErrorContract,
+} from "./api-transport/core";
 
-export interface AccountCapabilities {
-  moderate_recipe_reports: boolean;
-  review_ingredient_requests: boolean;
-}
+export type { ApiValidationIssue } from "./api-transport/core";
+
+type AccountSessionOperation =
+  operations["account_session_api_auth_session_get"];
+type AccountSessionResponseContract =
+  AccountSessionOperation["responses"][200]["content"]["application/json"];
+type MemberSessionContract = Extract<
+  AccountSessionResponseContract,
+  { readonly user: unknown }
+>;
+type AccountProfileOperation =
+  operations["update_account_profile_api_auth_session_profile_patch"];
+type AccountDeletionOperation =
+  operations["delete_account_api_auth_account_delete"];
+
+export type AccountUser = Omit<MemberSessionContract["user"], "handle"> & {
+  handle: string | null;
+};
+
+export type AccountCapabilities = NonNullable<
+  MemberSessionContract["capabilities"]
+>;
 
 export interface AnonymousAuthSession {
   status: "anonymous";
@@ -28,24 +50,10 @@ export interface AuthenticatedAuthSession {
 export type AuthSession =
   AnonymousAuthSession | OnboardingAuthSession | AuthenticatedAuthSession;
 
-export interface AccountProfileInput {
-  handle: string;
-  display_name: string;
-}
-
-export interface ApiValidationIssue {
-  location: Array<string | number>;
-  message: string;
-  type: string;
-}
-
-interface ApiErrorPayload {
-  error?: {
-    code?: unknown;
-    message?: unknown;
-    issues?: unknown;
-  };
-}
+export type AccountProfileInput =
+  AccountProfileOperation["requestBody"]["content"]["application/json"];
+type AccountDeletionInput =
+  AccountDeletionOperation["requestBody"]["content"]["application/json"];
 
 export class AuthApiError extends Error {
   readonly status: number;
@@ -83,7 +91,10 @@ function parseUser(value: unknown): AccountUser | null {
   if (
     typeof value.id !== "string" ||
     typeof value.display_name !== "string" ||
-    (value.handle !== null && typeof value.handle !== "string")
+    (value.handle !== null && typeof value.handle !== "string") ||
+    (value.description !== undefined &&
+      value.description !== null &&
+      (typeof value.description !== "string" || value.description.length > 500))
   ) {
     return null;
   }
@@ -92,6 +103,9 @@ function parseUser(value: unknown): AccountUser | null {
     id: value.id,
     display_name: value.display_name,
     handle: value.handle,
+    ...(value.description !== undefined
+      ? { description: value.description as string | null }
+      : {}),
   };
 }
 
@@ -174,13 +188,15 @@ const KNOWN_AUTH_ERROR_CODES = new Set([
   "validation_error",
 ]);
 
-type ProfileValidationField = "display_name" | "handle";
+const AUTH_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "auth_api_error",
+  knownCodes: KNOWN_AUTH_ERROR_CODES,
+  parseIssues: parseValidationIssues,
+};
 
-function safeAuthErrorCode(value: unknown): string {
-  return typeof value === "string" && KNOWN_AUTH_ERROR_CODES.has(value)
-    ? value
-    : "auth_api_error";
-}
+const AUTH_API_TIMEOUT_MS = 15_000;
+
+type ProfileValidationField = "description" | "display_name" | "handle";
 
 function safeProfileIssueLocation(
   value: unknown,
@@ -189,7 +205,9 @@ function safeProfileIssueLocation(
     !Array.isArray(value) ||
     value.length !== 2 ||
     value[0] !== "body" ||
-    (value[1] !== "handle" && value[1] !== "display_name")
+    (value[1] !== "handle" &&
+      value[1] !== "display_name" &&
+      value[1] !== "description")
   ) {
     return null;
   }
@@ -197,8 +215,11 @@ function safeProfileIssueLocation(
 }
 
 function safeProfileIssueMessage(field: ProfileValidationField): string {
-  return field === "handle"
-    ? "Use a handle with 3–30 lowercase letters, numbers, underscores, or hyphens."
+  if (field === "handle") {
+    return "Use a handle with 3–30 lowercase letters, numbers, underscores, or hyphens.";
+  }
+  return field === "description"
+    ? "Keep your profile description to 500 visible characters or fewer."
     : "Enter a display name with 1–120 visible characters.";
 }
 
@@ -252,68 +273,93 @@ function safeAuthErrorMessage(status: number, code: string): string {
   return "Recipe Lab could not update your account.";
 }
 
-function isErrorPayload(value: unknown): value is ApiErrorPayload {
-  return isRecord(value) && "error" in value;
-}
-
-async function apiError(response: Response): Promise<AuthApiError> {
-  let code = "auth_api_error";
-  let issues: ApiValidationIssue[] = [];
-
-  try {
-    const payload: unknown = await response.json();
-    if (isErrorPayload(payload) && isRecord(payload.error)) {
-      code = safeAuthErrorCode(payload.error.code);
-      if (code === "validation_error")
-        issues = parseValidationIssues(payload.error.issues);
-    }
-  } catch {
-    // Keep the stable fallback instead of exposing an upstream response body.
-  }
-
-  return new AuthApiError(
-    safeAuthErrorMessage(response.status, code),
-    response.status,
-    code,
-    issues,
-  );
-}
-
 export function notifySessionExpired() {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT));
   }
 }
 
-async function authFetch(path: string, init: RequestInit): Promise<Response> {
-  const response = await fetch(path, {
-    ...init,
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: {
-      Accept: "application/json",
-      ...init.headers,
-    },
-  });
+interface AuthRequestOptions {
+  body?: BodyInit | null;
+  headers?: Record<string, string>;
+  kind: "mutation" | "query";
+  method: "DELETE" | "GET" | "PATCH" | "POST";
+  responseBody?: "empty" | "json";
+  signal?: AbortSignal;
+}
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      notifySessionExpired();
-    }
-    throw await apiError(response);
+function fromTransportError(error: ApiTransportError): AuthApiError {
+  if (error.reason === "invalid_response") {
+    return new AuthApiError(
+      "Recipe Lab received an invalid account response.",
+      502,
+      "invalid_auth_response",
+    );
   }
+  return new AuthApiError(
+    safeAuthErrorMessage(error.status, error.code),
+    error.status,
+    error.code,
+    error.code === "validation_error" ? error.issues : [],
+  );
+}
 
-  return response;
+async function authRequest(
+  path: string,
+  options: AuthRequestOptions,
+): Promise<ApiJsonResponse> {
+  const headers = { Accept: "application/json", ...options.headers };
+
+  try {
+    return await executeJsonApiRequest(
+      normalizeApiPath(path),
+      {
+        body: options.body,
+        cache: "no-store",
+        credentials: "same-origin",
+        headers,
+        method: options.method,
+        redirect: "error",
+      },
+      {
+        errorContract: AUTH_ERROR_CONTRACT,
+        kind: options.kind,
+        responseBody: options.responseBody,
+        retry: "never",
+        signal: options.signal,
+        timeoutMs: AUTH_API_TIMEOUT_MS,
+      },
+    );
+  } catch (error) {
+    if (error instanceof ApiTransportError) {
+      if (
+        (error.reason === "aborted" || error.reason === "not_sent") &&
+        options.signal?.aborted
+      ) {
+        throw (
+          options.signal.reason ??
+          new DOMException("The request was aborted.", "AbortError")
+        );
+      }
+      if (error.reason === "network" || error.reason === "timeout") {
+        throw error;
+      }
+      if (error.status === 401) notifySessionExpired();
+      throw fromTransportError(error);
+    }
+    throw error;
+  }
 }
 
 export async function fetchAuthSession(
   signal?: AbortSignal,
 ): Promise<AuthSession> {
-  const response = await authFetch("/api/auth/session", {
+  const response = await authRequest("/api/auth/session", {
+    kind: "query",
     method: "GET",
     signal,
   });
-  return parseAuthSession(await response.json());
+  return parseAuthSession(response.data);
 }
 
 export function readCookie(name: string, cookieHeader?: string): string | null {
@@ -354,15 +400,17 @@ export function memberMutationHeaders(): Record<string, string> {
 export async function updateAccountProfile(
   profile: AccountProfileInput,
 ): Promise<AuthenticatedAuthSession> {
-  const response = await authFetch("/api/auth/session/profile", {
+  const body = profile satisfies AccountProfileInput;
+  const response = await authRequest("/api/auth/session/profile", {
+    kind: "mutation",
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
       ...memberMutationHeaders(),
     },
-    body: JSON.stringify(profile),
+    body: JSON.stringify(body),
   });
-  const session = parseAuthSession(await response.json());
+  const session = parseAuthSession(response.data);
 
   if (session.status !== "authenticated") {
     throw new AuthApiError(
@@ -376,20 +424,25 @@ export async function updateAccountProfile(
 }
 
 export async function signOut(): Promise<void> {
-  await authFetch("/api/auth/logout", {
+  await authRequest("/api/auth/logout", {
+    kind: "mutation",
     method: "POST",
     headers: memberMutationHeaders(),
+    responseBody: "empty",
   });
 }
 
 export async function deleteAccount(confirmation: string): Promise<void> {
-  await authFetch("/api/auth/account", {
+  const body = { confirmation } satisfies AccountDeletionInput;
+  await authRequest("/api/auth/account", {
+    kind: "mutation",
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
       ...memberMutationHeaders(),
     },
-    body: JSON.stringify({ confirmation }),
+    body: JSON.stringify(body),
+    responseBody: "empty",
   });
 }
 

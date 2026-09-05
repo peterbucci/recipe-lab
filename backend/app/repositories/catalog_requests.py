@@ -6,6 +6,7 @@ from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.catalog_names import normalize_catalog_name
+from app.db.query import LIKE_ESCAPE, literal_contains_pattern
 from app.models import (
     CatalogCurator,
     Ingredient,
@@ -86,13 +87,13 @@ def browse_catalog_requests(
     if reviewed_only:
         filters.append(IngredientCatalogRequest.reviewed_at.is_not(None))
     if search is not None:
-        literal_pattern = f"%{_escape_like(search)}%"
-        normalized_pattern = f"%{_escape_like(normalize_catalog_name(search))}%"
+        literal_pattern = literal_contains_pattern(search)
+        normalized_pattern = literal_contains_pattern(normalize_catalog_name(search))
         resolved_alias_match = (
             select(IngredientAlias.id)
             .where(
                 IngredientAlias.ingredient_id == Ingredient.id,
-                IngredientAlias.alias.ilike(literal_pattern, escape="\\"),
+                IngredientAlias.alias.ilike(literal_pattern, escape=LIKE_ESCAPE),
             )
             .exists()
         )
@@ -101,17 +102,20 @@ def browse_catalog_requests(
             .where(
                 Ingredient.id == IngredientCatalogRequest.resolved_ingredient_id,
                 or_(
-                    Ingredient.canonical_name.ilike(literal_pattern, escape="\\"),
+                    Ingredient.canonical_name.ilike(literal_pattern, escape=LIKE_ESCAPE),
                     resolved_alias_match,
                 ),
             )
             .exists()
         )
         search_matches = [
-            IngredientCatalogRequest.proposed_name.ilike(literal_pattern, escape="\\"),
+            IngredientCatalogRequest.proposed_name.ilike(
+                literal_pattern,
+                escape=LIKE_ESCAPE,
+            ),
             IngredientCatalogRequest.normalized_name.ilike(
                 normalized_pattern,
-                escape="\\",
+                escape=LIKE_ESCAPE,
             ),
             resolved_ingredient_match,
         ]
@@ -121,14 +125,14 @@ def browse_catalog_requests(
             ).table_valued("value")
             approved_alias_match = (
                 select(approved_alias.c.value)
-                .where(approved_alias.c.value.ilike(literal_pattern, escape="\\"))
+                .where(approved_alias.c.value.ilike(literal_pattern, escape=LIKE_ESCAPE))
                 .exists()
             )
             search_matches.extend(
                 (
                     IngredientCatalogRequest.approved_canonical_name.ilike(
                         literal_pattern,
-                        escape="\\",
+                        escape=LIKE_ESCAPE,
                     ),
                     approved_alias_match,
                 )
@@ -173,13 +177,13 @@ def find_catalog_request_candidates(
 ) -> list[IngredientCatalogRequest]:
     """Return bounded advisory pending/approved request candidates."""
 
-    patterns = [f"%{_escape_like(term)}%" for term in search_terms if term]
+    patterns = [literal_contains_pattern(term) for term in search_terms if term]
     if not patterns:
         return []
     matches = [
         or_(
-            IngredientCatalogRequest.proposed_name.ilike(pattern, escape="\\"),
-            IngredientCatalogRequest.normalized_name.ilike(pattern, escape="\\"),
+            IngredientCatalogRequest.proposed_name.ilike(pattern, escape=LIKE_ESCAPE),
+            IngredientCatalogRequest.normalized_name.ilike(pattern, escape=LIKE_ESCAPE),
         )
         for pattern in patterns
     ]
@@ -198,10 +202,6 @@ def find_catalog_request_candidates(
         .limit(limit)
     )
     return list(session.scalars(statement))
-
-
-def _escape_like(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def append_catalog_audit_event(

@@ -27,7 +27,6 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
         className="auth-card account-access-card account-access-card--onboarding"
         aria-labelledby="onboarding-title"
       >
-        <p className="eyebrow">One last step</p>
         <h1 id="onboarding-title">Finish account setup</h1>
         <p className="lede">
           Choose a name for your account and reserve a unique account handle. Your saves,

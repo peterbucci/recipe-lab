@@ -63,6 +63,15 @@ DraftDescription = Annotated[
         pattern=r"^[^\x00]*$",
     ),
 ]
+DraftNotes = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=5_000,
+        pattern=r"^[^\x00]*$",
+    ),
+]
 DraftDisplayName = Annotated[
     str,
     StringConstraints(
@@ -90,11 +99,22 @@ DraftInstructionText = Annotated[
         pattern=r"^[^\x00]*$",
     ),
 ]
+DraftInstructionTitle = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=200,
+        pattern=r"^[^\x00]*$",
+    ),
+]
 DraftServings = Annotated[
     Decimal,
     BeforeValidator(_reject_boolean_decimal),
     Field(gt=0, max_digits=8, decimal_places=2),
 ]
+DraftTimeMinutes = Annotated[int, Field(gt=0, le=525_600)]
+RecipeDifficulty = Literal["easy", "medium", "hard"]
 
 
 class RecipeDraftSchema(BaseModel):
@@ -144,6 +164,7 @@ class RecipeDraftActionInput(RecipeDraftSchema):
 
 class RecipeDraftInstructionInput(RecipeDraftSchema):
     ref: DraftReference
+    title: DraftInstructionTitle | None = None
     text: DraftInstructionText
     actions: list[RecipeDraftActionInput] = Field(default_factory=list, max_length=50)
 
@@ -153,6 +174,10 @@ class RecipeDraftUpdateRequest(RecipeDraftSchema):
     title: DraftTitle
     description: DraftDescription | None = None
     servings: DraftServings | None = None
+    total_time_minutes: DraftTimeMinutes | None = None
+    active_time_minutes: DraftTimeMinutes | None = None
+    difficulty: RecipeDifficulty | None = None
+    notes: DraftNotes | None = None
     category_ids: list[UUID] = Field(
         default_factory=list,
         max_length=MAX_RECIPE_CATEGORIES,
@@ -163,6 +188,12 @@ class RecipeDraftUpdateRequest(RecipeDraftSchema):
 
     @model_validator(mode="after")
     def validate_document_references_and_capacity(self) -> Self:
+        if (
+            self.total_time_minutes is not None
+            and self.active_time_minutes is not None
+            and self.active_time_minutes > self.total_time_minutes
+        ):
+            raise ValueError("active_time_minutes cannot be greater than total_time_minutes")
         if len(self.category_ids) != len(set(self.category_ids)):
             raise ValueError("category_ids values must be unique within a draft")
         for ingredient in self.ingredients:
@@ -243,6 +274,7 @@ class RecipeDraftActionResponse(RecipeDraftSchema):
 
 class RecipeDraftInstructionResponse(RecipeDraftSchema):
     id: UUID
+    title: str | None = Field(min_length=1, max_length=200)
     text: str = Field(min_length=1, max_length=5_000)
     actions: list[RecipeDraftActionResponse]
     display_order: int = Field(ge=0)
@@ -268,6 +300,10 @@ class RecipeDraftDetailResponse(RecipeDraftSchema):
     title: str = Field(max_length=200)
     description: str | None
     servings: DraftServings | None
+    total_time_minutes: DraftTimeMinutes | None
+    active_time_minutes: DraftTimeMinutes | None
+    difficulty: RecipeDifficulty | None
+    notes: str | None = Field(max_length=5_000)
     categories: list[RecipeCategorySummary]
     ingredients: list[RecipeDraftIngredientResponse]
     instructions: list[RecipeDraftInstructionResponse]

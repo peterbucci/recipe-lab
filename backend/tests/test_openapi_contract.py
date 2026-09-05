@@ -29,10 +29,11 @@ from app.openapi_contract import (
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPOSITORY_ROOT / "backend"
 EXPECTED_CLASSIFICATION_COUNTS = {
-    "active_consumer": 34,
+    "active_consumer": 44,
     "research_experimental": 2,
     "staff_internal": 8,
 }
+EXPECTED_REACHABILITY_COUNTS = {"active": 44, "internal": 10}
 
 
 def _operations(document: dict[str, object]) -> list[dict[str, object]]:
@@ -79,12 +80,16 @@ def test_registry_freezes_every_operation_with_stable_unique_metadata() -> None:
     document = create_app().openapi()
     operations = _operations(document)
 
-    assert len(OPERATION_CONTRACTS) == 44
-    assert len(operations) == 44
-    assert len({operation["operationId"] for operation in operations}) == 44
+    assert len(OPERATION_CONTRACTS) == 54
+    assert len(operations) == 54
+    assert len({operation["operationId"] for operation in operations}) == 54
     assert (
         Counter(operation["x-recipe-lab-classification"] for operation in operations)
         == EXPECTED_CLASSIFICATION_COUNTS
+    )
+    assert (
+        Counter(operation["x-recipe-lab-reachability"] for operation in operations)
+        == EXPECTED_REACHABILITY_COUNTS
     )
     assert document["x-recipe-lab-external-consumer-status"] == EXTERNAL_CONSUMER_STATUS
 
@@ -132,6 +137,7 @@ def test_framework_routes_are_separately_inventoried_and_reachable() -> None:
         {
             **item,
             "classification": "staff_internal",
+            "reachability": "internal",
             "consumer_evidence": ["docs/api-contracts.md"],
             "external_consumer_status": EXTERNAL_CONSUMER_STATUS,
         }

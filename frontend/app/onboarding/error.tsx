@@ -1,6 +1,6 @@
 "use client";
 
-export default function OnboardingError({ reset }: { reset: () => void }) {
+export default function OnboardingError({ retry }: { retry: () => void }) {
   return (
     <main
       id="main-content"
@@ -12,7 +12,7 @@ export default function OnboardingError({ reset }: { reset: () => void }) {
       >
         <strong>We couldn’t open account setup.</strong>
         <p>Your recipe browsing is unaffected. Try opening this step again.</p>
-        <button className="button button--secondary" type="button" onClick={reset}>
+        <button className="button button--secondary" type="button" onClick={retry}>
           Try again
         </button>
       </div>

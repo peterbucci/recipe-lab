@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, Header, Query, Response, status
 
+from app.api.cache import apply_private_no_store
 from app.api.dependencies import (
     CsrfProtectedSessionDependency,
     RequiredAuthenticatedSessionDependency,
@@ -10,6 +11,8 @@ from app.api.dependencies import (
 )
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor
+from app.core.domain_errors import DomainError
+from app.pagination import PageParams
 from app.repositories.recipe_drafts import browse_owned_recipe_drafts, get_owned_recipe_draft
 from app.schemas.errors import ErrorResponse
 from app.schemas.recipe_drafts import (
@@ -20,9 +23,6 @@ from app.schemas.recipe_drafts import (
     RecipeDraftUpdateRequest,
 )
 from app.services.recipe_drafts import (
-    InvalidRecipeDraftError,
-    RecipeDraftCreationIdempotencyConflictError,
-    RecipeDraftRevisionConflictError,
     create_recipe_draft,
     discard_recipe_draft,
     recipe_draft_detail_response,
@@ -68,24 +68,11 @@ DRAFT_CREATE_RESPONSES: dict[int | str, dict[str, object]] = {
 }
 
 
-def _private_no_store(response: Response) -> None:
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
-
-
 def _draft_not_found(draft_id: UUID) -> ApiError:
     return ApiError(
         status_code=404,
         code="recipe_draft_not_found",
         message=f"Recipe draft {draft_id} was not found.",
-    )
-
-
-def _revision_conflict() -> ApiError:
-    return ApiError(
-        status_code=409,
-        code="recipe_draft_revision_conflict",
-        message="This draft has a newer saved revision. Reload it before trying again.",
     )
 
 
@@ -116,13 +103,9 @@ def create_private_recipe_draft(
             creation_action_id=creation_action_id,
             source_version_id=payload.source_version_id,
         )
-    except RecipeDraftCreationIdempotencyConflictError as error:
+    except DomainError:
         session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="idempotency_key_conflict",
-            message="The Idempotency-Key conflicts with an earlier draft creation intent.",
-        ) from error
+        raise
     if draft is None:
         session.rollback()
         raise ApiError(
@@ -144,7 +127,7 @@ def create_private_recipe_draft(
     result = recipe_draft_detail_response(stored)
     session.commit()
     response.headers["Location"] = f"/api/recipe-drafts/{draft_id}"
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result
 
 
@@ -158,14 +141,24 @@ def my_private_recipe_drafts(
     response: Response,
     session: SessionDependency,
     authenticated: RequiredAuthenticatedSessionDependency,
+    source_version_id: Annotated[
+        UUID | None,
+        Query(
+            description=(
+                "Return only active drafts copied from this exact immutable recipe version."
+            )
+        ),
+    ] = None,
     page: Annotated[int, Query(ge=1, le=1_000_000)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> RecipeDraftPageResponse:
     actor_id = lock_active_member_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
     stored = browse_owned_recipe_drafts(
         session,
         author_user_id=actor_id,
-        offset=(page - 1) * page_size,
+        source_version_id=source_version_id,
+        offset=pagination.offset,
         limit=page_size,
     )
     result = RecipeDraftPageResponse(
@@ -186,10 +179,10 @@ def my_private_recipe_drafts(
         page=page,
         page_size=page_size,
         total=stored.total,
-        total_pages=(stored.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(stored.total),
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result
 
 
@@ -216,7 +209,7 @@ def private_recipe_draft_detail(
         raise _draft_not_found(draft_id)
     result = recipe_draft_detail_response(draft)
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result
 
 
@@ -246,16 +239,9 @@ def save_private_recipe_draft(
             draft_id=draft_id,
             payload=payload,
         )
-    except RecipeDraftRevisionConflictError as error:
+    except DomainError:
         session.rollback()
-        raise _revision_conflict() from error
-    except InvalidRecipeDraftError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=422,
-            code="invalid_recipe_draft",
-            message=str(error),
-        ) from error
+        raise
 
     if draft is None:
         session.rollback()
@@ -272,7 +258,7 @@ def save_private_recipe_draft(
         raise RuntimeError("The saved private draft could not be reloaded.")
     result = recipe_draft_detail_response(stored)
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result
 
 
@@ -301,13 +287,13 @@ def delete_private_recipe_draft(
             draft_id=draft_id,
             expected_revision=revision,
         )
-    except RecipeDraftRevisionConflictError as error:
+    except DomainError:
         session.rollback()
-        raise _revision_conflict() from error
+        raise
     if not discarded:
         session.rollback()
         raise _draft_not_found(draft_id)
     session.commit()
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
-    _private_no_store(response)
+    apply_private_no_store(response)
     return response

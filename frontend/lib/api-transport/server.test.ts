@@ -107,6 +107,23 @@ describe("internal server API transport", () => {
     expect(headers.has("X-CSRF-Token")).toBe(false);
   });
 
+  it("preserves a feature's explicit one-attempt query policy", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({}, { status: 503 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      serverApiRequest("/api/recipes/one", {
+        environment: { RECIPE_API_URL: "https://api.example.test" },
+        errorContract: ERROR_CONTRACT,
+        kind: "query",
+        retry: "never",
+      }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it.each(["Cookie", "X-CSRF-Token"])(
     "rejects the browser-only %s header before dispatch",
     async (name) => {

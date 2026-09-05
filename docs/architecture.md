@@ -35,13 +35,22 @@ as either definitely rejected or outcome unknown; timeout, abort after dispatch,
 network failure, upstream 5xx, and an unreadable success receipt are never
 blindly retried.
 
-Recipe reporting is the first bounded consumer. Its existing module remains the
-compatibility facade and retains the strict receipt validator that rejects any
-reporter identity or additive private field. A manual retry of an unknown result
-reuses the same idempotency key for the same normalized intent, while changed
-intent rotates the key. Other feature clients stay on their characterized paths
-until later migration stories. The hardened streaming `/api` route remains a
-separate security proxy; the shared JSON transport does not replace or wrap it.
+Production feature clients use this transport while retaining feature-owned
+domain models, strict response parsers, and public error copy. Generated OpenAPI
+operation types anchor represented request and response wires; they do not
+replace runtime validation or create a universal SDK. Queries that historically
+made one attempt opt out of transient retry, and screens that intentionally own
+authentication recovery can keep a scoped 401 local. Mutations carry CSRF and,
+where the operation has durable retry semantics, a validated idempotency
+identity. The hardened streaming `/api` route remains a separate security proxy;
+the shared JSON transport does not replace or wrap it.
+
+Raw `fetch` is limited by lint to two reviewed production boundaries. The shared
+transport core owns JSON dispatch, deadlines, cancellation, retry, and safe
+error parsing. `frontend/server/api-proxy.ts` owns the streaming upstream fetch,
+header filtering, body limits, and redirect controls required by the same-origin
+security proxy. Test fixtures, end-to-end browser setup, and the container health
+probe are infrastructure callers rather than application feature clients.
 
 Each event-producing browser action generates an opaque UUID and retains it
 while retrying the same desired save state, rating value, or validated fork
@@ -86,27 +95,46 @@ visualization remain outside the frontend MVP.
 
 #### Global styling foundation
 
-The root layout imports `frontend/app/globals.css` once. That stylesheet's
-source order is intentional, so additional global CSS entry points or imports
-must not be introduced casually.
+The root layout imports `frontend/app/globals.css` once. That file is the
+complete stylesheet manifest and declares the stable cascade order: `tokens`,
+`base`, `shell`, `primitives`, `features`, then `patterns`. The `shell` layer
+keeps the site-wide header and authentication chrome in their historical
+position before general primitives. Every imported stylesheet wraps its rules
+in its owned layer. Feature import order remains observable, while the final
+pattern layer is reserved for authoritative shared components whose appearance
+must stay consistent across feature aliases.
 
 Shared styling primitives are low-specificity, opt-in classes for declarations
-that are already identical in multiple features. A feature adopts a primitive
-without removing its existing declarations; incremental cleanup happens only
-after desktop and phone evidence confirms that the primitive preserves the
-affected surfaces. A primitive may expand only when at least two consumers
-share the same declarations and their relevant tests or visual baselines cover
-the change.
+that are already identical in multiple features. Patterns are similarly shared
+but authoritative: a feature may control the surrounding layout without
+restyling the pattern itself. A primitive or pattern may expand only when at
+least two consumers share the declarations and focused component or visual
+coverage protects the change.
 
-Cascade layers are deliberately deferred. Introducing `@layer`, moving broad
-selector groups, or changing cascade order requires a separate evidence-backed
-story after the incremental migration, because those changes can alter pixels
-outside the feature being edited.
+`npm run styles:contracts:check` verifies the manifest, one-layer-per-file
+ownership, complete import coverage, and the shared-pattern specificity
+boundary. Moving a rule between layers remains a visual change and requires
+desktop and phone evidence even when its declaration text is unchanged.
 
 ### API
 
 FastAPI owns validation, application rules, persistence boundaries, and the
 public HTTP contract. Pydantic schemas should not double as SQLAlchemy models.
+Core, model, policy, repository, and service modules are transport-independent:
+they must not import FastAPI or `app.api`. The read-only
+`scripts/verify_architecture.py` check enforces that dependency direction in CI
+so expected domain outcomes reach the API only through the shared error mapper.
+Durable action workflows use the typed primitives in `app.core.idempotency` for
+versioned canonical request fingerprints and replay matching. Feature-specific
+conflict classes retain useful public copy, but share one stable domain error
+code and cannot silently redefine the fingerprint metadata fields.
+
+Environment variables retain their stable flat names, while application code
+consumes immutable settings views grouped by database, HTTP, session, OIDC, and
+abuse-control concerns. This keeps deployment compatibility at the environment
+boundary without passing an undifferentiated configuration object through each
+subsystem. Tests may still override the flat source fields; each grouped view is
+recreated from the current validated values.
 
 The deterministic OpenAPI rendering is committed at `backend/openapi.json` and
 checked in CI. Every operation retains a stable, unique operation ID, one of the
@@ -119,10 +147,10 @@ not exist. The baseline adds no runtime path, database query, or migration. See
 review.
 
 The frontend commits one generated TypeScript view of that OpenAPI snapshot.
-Generated request and response types remove duplicate handwritten shapes, but
-they do not make network requests or replace runtime validation. The recipe
-report client is the first migrated consumer. The shared transport continues to
-own routing, session and CSRF handling, idempotency, cancellation, and recovery.
+Generated request and response types anchor feature-owned wire boundaries, but
+they do not make network requests or replace runtime validation. The shared
+transport owns routing, session and CSRF handling, idempotency, cancellation,
+and recovery across production feature clients.
 
 Recipe reads expose immutable version snapshots. Browse uses bounded
 page-based pagination, literal title/description search, and filters supported
@@ -130,6 +158,16 @@ directly by current relational data. Its deterministic title/version/ID order
 prevents records from moving between unchanged pages. Ingredient membership is
 tested with `EXISTS` so matching rows cannot duplicate recipes or inflate the
 count.
+
+Migration `20260902_0030` keeps those public browse semantics while indexing
+their growth paths. PostgreSQL's `pg_trgm` extension backs GIN indexes for the
+existing literal title and description substring search; the migration does
+not replace it with token search or fuzzy ranking. Stable publication-newest
+and moderation-queue indexes match their timestamp and UUID tie-breaks.
+Recommendation profile and interaction-exclusion reads use dedicated member
+and recipe composite indexes. Downgrade removes every Recipe Lab index but
+intentionally leaves the cluster-scoped `pg_trgm` extension installed because
+another schema may share it.
 
 Detail reads eager-load the scalar parent and select-load ordered ingredients,
 their curated measurement units, instructions, nested structured actions,
@@ -242,9 +280,11 @@ support, applies the documented Bayesian and candidate-wide normalization rules,
 and optionally adds a bounded canonical-ingredient Jaccard match against positive
 history belonging only to the signed-in member. Both request types use aggregate
 activity for publicly readable recipes; signed-out requests load no
-account-specific history and use the deterministic global ranking. It excludes
-the current member's exact interacted
-versions, rounds scores to six decimal places, and
+account-specific history and use the deterministic global ranking. The
+`baseline-v1-shortlist-v1` retrieval policy bounds detailed in-memory scoring
+with database-ranked global and member-ingredient-overlap lanes while retaining
+catalog-wide normalization maxima. It excludes the current member's exact
+interacted versions in the database, rounds scores to six decimal places, and
 uses fixed component/title/version/ID tie-breaks. The response exposes a recipe
 summary, score, components, and short reason, never raw events or user
 identifiers. The full formula is recorded in
@@ -379,15 +419,21 @@ the maintained publication adapter loads one saved original or source-backed
 draft revision. No temporary recipe row is inserted. Fork publication takes the
 lineage lock only inside the final transaction and
 verifies that the stored fingerprint is byte-identical to the prepared draft
-fingerprint before commit. `recipe-duplicate-preflight-policy-v1` pins candidate
+fingerprint before commit. `recipe-duplicate-preflight-policy-v2` pins candidate
 selection, public visibility, ordering, work limits, direct-parent semantics,
 and the exact `duplicate-candidate-similarity-v1` scorer parameters. Exact
-digest candidates are confirmed against canonical JSON, while non-exact public
+digest candidates are retrieved first and confirmed against canonical JSON.
+Remaining fixed comparison capacity comes from a deterministic public shortlist
+ordered by distinct shared canonical ingredient IDs and recipe UUID; those
 candidates are scored from curated ingredient multisets, one-scale normalized
 quantities, and ordered structured actions. The response is capped at five
 candidates and three fixed reasons per candidate. Current browse, detail,
 replay, publication, and candidate reads share an explicit public-read
 predicate so future draft visibility cannot be filtered only after scoring.
+The shortlist join is backed by the non-unique covering
+`recipe_version_ingredients (ingredient_id, recipe_version_id)` index, while
+the existing `(algorithm_version, digest)` fingerprint index remains the exact
+lookup path.
 
 `recipe_duplicate_preflights`, `recipe_duplicate_candidates`, and
 `recipe_duplicate_decisions` retain only bounded versioned evidence and the
@@ -410,6 +456,18 @@ keys. A catalog ingredient slot has a curated identity and typed measure; an
 unresolved slot instead has an owner-scoped ingredient-request reference and no
 canonical identity. This permits incomplete private work without weakening any
 published-snapshot constraint.
+
+A frozen `RecipeDocument` is the single content boundary between loaded or
+validated recipe data and the mutable draft or immutable version storage
+graphs. Its adapters preserve explicit category, ingredient, instruction,
+action, and action-input ordering. Copying a public version into a new editable
+draft refreshes only the deliberately current curated unit display labels;
+adapting a saved draft for publication retains its stored display snapshots and
+canonical fingerprint inputs exactly. Both materializers allocate local UUIDs,
+remap document references, and stage complete child graphs without flushing or
+committing. The draft and publication application services remain transaction
+owners: they order destructive replacement flushes, define publication
+checkpoints, and own rollback and commit.
 
 Creation evidence is stored on the draft row. A unique member/action binding
 and server-computed fingerprint distinguish a blank intent from each exact
@@ -440,8 +498,9 @@ rechecks the exact source through the shared public predicate, locks its
 lineage, allocates the next lineage-wide version number, and creates a direct
 child without changing the source or lineage creator.
 
-The transaction also creates fresh ordered child rows, a fresh fingerprint, the
-publication receipt, and terminal draft status. A fork additionally creates
+The transaction also stages the complete immutable child graph as one recipe
+document write phase, then creates a fresh fingerprint, the publication
+receipt, and terminal draft status. A fork additionally creates
 exactly one preference event from its direct source to the child. The child
 version, receipt, and event all attribute the operation to the authenticated
 publisher; lineage creation does not grant rights over another author's

@@ -1,5 +1,6 @@
 import { type RefObject, useEffect, useRef, useState } from "react";
 
+import { isAbortError } from "../../lib/abort-error";
 import { createIdempotencyKey } from "../../lib/idempotency-key";
 import {
   browseRecipeModerationCases,
@@ -41,19 +42,6 @@ export interface RecipeModerationWorkspaceState {
   reloadDetail: () => void;
   reloadQueue: () => void;
   selectCase: (recipeVersionId: string | null) => void;
-}
-
-function isAbortError(reason: unknown): boolean {
-  return reason instanceof DOMException && reason.name === "AbortError";
-}
-
-export function formatModerationTime(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf())) return value;
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(parsed);
 }
 
 export function useRecipeModerationWorkspace({

@@ -16,9 +16,9 @@
       {"key": "oil", "ingredient": "neutral-oil", "name": "Neutral oil", "quantity": "1", "unit": "tbsp"}
     ],
     "instructions": [
-      {"key": "blend", "text": "Blend the oats until finely ground, then add the banana, eggs, milk, baking powder, and cinnamon."},
-      {"key": "rest", "text": "Blend to a smooth batter and let it stand for 5 minutes while a skillet heats over medium heat."},
-      {"key": "cook", "text": "Brush the skillet with oil and cook small rounds until bubbles form, then turn and cook until set."}
+      {"key": "blend", "title": "Make the batter", "text": "Blend the oats until finely ground, then add the banana, eggs, milk, baking powder, and cinnamon."},
+      {"key": "rest", "title": "Rest the batter and heat the skillet", "text": "Blend to a smooth batter and let it stand for 5 minutes while a skillet heats over medium heat."},
+      {"key": "cook", "title": "Cook the pancakes", "text": "Brush the skillet with oil and cook small rounds until bubbles form, then turn and cook until set."}
     ]
   },
   {
@@ -40,9 +40,9 @@
       {"key": "oil", "ingredient": "neutral-oil", "name": "Neutral oil", "quantity": "1", "unit": "tbsp"}
     ],
     "instructions": [
-      {"key": "blend", "text": "Blend the oats until finely ground, then blend in the banana, eggs, milk, baking powder, and cinnamon."},
-      {"key": "fold", "text": "Rest the batter for 5 minutes, then fold in the blueberries without crushing them."},
-      {"key": "cook", "text": "Brush a medium-hot skillet with oil and cook small rounds on both sides until set."}
+      {"key": "blend", "title": "Make the batter", "text": "Blend the oats until finely ground, then blend in the banana, eggs, milk, baking powder, and cinnamon."},
+      {"key": "fold", "title": "Rest and fold in the blueberries", "text": "Rest the batter for 5 minutes, then fold in the blueberries without crushing them."},
+      {"key": "cook", "title": "Cook the pancakes", "text": "Brush a medium-hot skillet with oil and cook small rounds on both sides until set."}
     ]
   },
   {

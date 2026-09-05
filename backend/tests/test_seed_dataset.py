@@ -322,6 +322,36 @@ def test_action_catalog_has_explicit_complete_reviewed_instruction_mappings(
                 assert len(action.inputs) == len(set(action.inputs))
 
 
+def test_instruction_titles_are_limited_to_the_reviewed_demo_steps(
+    seed_catalog: SeedCatalog,
+) -> None:
+    expected = {
+        ("banana-oat-pancakes-v1", "blend"): "Make the batter",
+        ("banana-oat-pancakes-v1", "rest"): ("Rest the batter and heat the skillet"),
+        ("banana-oat-pancakes-v1", "cook"): "Cook the pancakes",
+        ("blueberry-banana-oat-pancakes-v2", "blend"): "Make the batter",
+        ("blueberry-banana-oat-pancakes-v2", "fold"): ("Rest and fold in the blueberries"),
+        ("blueberry-banana-oat-pancakes-v2", "cook"): "Cook the pancakes",
+    }
+    actual = {
+        (recipe.key, instruction.key): instruction.title
+        for recipe in seed_catalog.recipes
+        for instruction in recipe.instructions
+        if instruction.title is not None
+    }
+
+    assert actual == expected
+    assert sum(len(recipe.instructions) for recipe in seed_catalog.recipes) == 116
+    assert (
+        sum(
+            instruction.title is None
+            for recipe in seed_catalog.recipes
+            for instruction in recipe.instructions
+        )
+        == 110
+    )
+
+
 def test_recipe_graph_has_branching_depth_and_the_carrot_cake_demo(
     seed_catalog: SeedCatalog,
 ) -> None:
@@ -649,4 +679,40 @@ def test_catalog_rejects_decimal_precision_the_database_cannot_preserve(
     target[field] = value
 
     with pytest.raises(ValidationError):
+        SeedCatalog.model_validate(raw_catalog)
+
+
+def test_recipe_seed_accepts_optional_reviewed_cooking_metadata(
+    seed_catalog: SeedCatalog,
+) -> None:
+    raw_catalog = _raw_catalog(seed_catalog)
+    first_recipe = _record_list(raw_catalog, "recipes")[0]
+    first_recipe.update(
+        {
+            "total_time_minutes": 45,
+            "active_time_minutes": 20,
+            "difficulty": "medium",
+            "notes": "Rest before serving.",
+        }
+    )
+
+    parsed = SeedCatalog.model_validate(raw_catalog).recipes[0]
+
+    assert parsed.total_time_minutes == 45
+    assert parsed.active_time_minutes == 20
+    assert parsed.difficulty == "medium"
+    assert parsed.notes == "Rest before serving."
+
+
+def test_recipe_seed_rejects_active_time_longer_than_total_time(
+    seed_catalog: SeedCatalog,
+) -> None:
+    raw_catalog = _raw_catalog(seed_catalog)
+    first_recipe = _record_list(raw_catalog, "recipes")[0]
+    first_recipe.update({"total_time_minutes": 20, "active_time_minutes": 25})
+
+    with pytest.raises(
+        ValidationError,
+        match="active_time_minutes must not exceed total_time_minutes",
+    ):
         SeedCatalog.model_validate(raw_catalog)

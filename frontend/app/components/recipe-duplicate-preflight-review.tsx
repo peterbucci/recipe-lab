@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef } from "react";
+import { type ReactNode, useEffect, useId, useRef } from "react";
 
 import type {
   RecipeDuplicateDecision,
   RecipeDuplicatePreflight,
 } from "../../lib/recipe-duplicate-api";
+import { LoadingButton } from "./loading-ui";
 
 interface RecipeDuplicatePreflightReviewProps {
   result: RecipeDuplicatePreflight;
@@ -15,6 +16,7 @@ interface RecipeDuplicatePreflightReviewProps {
   acknowledged: boolean;
   decisionFailure: RecipeDuplicateDecision | null;
   pendingDecision: "continue" | "revise" | null;
+  confirmationSlot?: ReactNode;
   onAcknowledgedChange: (acknowledged: boolean) => void;
   onContinue: () => void;
   onRevise: () => void;
@@ -63,6 +65,7 @@ export function RecipeDuplicatePreflightReview({
   acknowledged,
   decisionFailure,
   pendingDecision,
+  confirmationSlot,
   onAcknowledgedChange,
   onContinue,
   onRevise,
@@ -77,6 +80,7 @@ export function RecipeDuplicatePreflightReview({
   const pending = pendingDecision !== null;
   const publishing = mode === "publication";
   const publishingFork = publishing && publicationKind === "fork";
+  const publicationSubject = publishingFork ? "version" : "recipe";
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -89,10 +93,35 @@ export function RecipeDuplicatePreflightReview({
   }, [decisionFailure]);
 
   const heading = result.same_lineage_no_change
-    ? "Your version matches the recipe it is based on"
+    ? publishing
+      ? "This version is very close to its source"
+      : "Your version matches the recipe it is based on"
     : result.classification === "exact_duplicate"
-      ? "Review a very similar recipe"
-      : "Review similar recipes";
+      ? publishing
+        ? `This ${publicationSubject} is very close to another public recipe`
+        : "Review a very similar recipe"
+      : publishing
+        ? `This ${publicationSubject} is similar to another public recipe`
+        : "Review similar recipes";
+  const publicationReasons = Array.from(
+    new Map(
+      result.candidates.flatMap((candidate) =>
+        candidate.reasons.map((reason) => [
+          reason.code,
+          { code: reason.code, copy: reasonCopy(reason.code) },
+        ] as const),
+      ),
+    ).values(),
+  );
+  const compactReasons =
+    result.same_lineage_no_change && publicationReasons.length === 0
+      ? [
+          {
+            code: "same_lineage_no_change",
+            copy: "The ingredients, amounts, and cooking actions match its source.",
+          },
+        ]
+      : publicationReasons;
 
   return (
     <section
@@ -101,40 +130,80 @@ export function RecipeDuplicatePreflightReview({
       aria-labelledby={headingId}
       aria-busy={pending}
     >
-      <div className="duplicate-preflight-review__intro">
-        <p className="eyebrow">Similar recipes</p>
-        <h2 ref={headingRef} id={headingId} tabIndex={-1}>
-          {heading}
-        </h2>
-        {publishingFork && result.same_lineage_no_change ? (
-          <p>
-            Recipe Lab compared this saved draft with the recipe it is based on. Publishing still
-            creates a separate version and never changes or merges the starting recipe. This
-            structural match is only a guide; it cannot show your intent or predict how the recipe
-            will turn out.
-          </p>
-        ) : (
-          <p>
-            Recipe Lab found similarities in the saved ingredients, amounts, and cooking actions.
-            This comparison is only a guide. It cannot show who created an idea, explain an
-            author&apos;s intent, or predict how either recipe will turn out. It does not merge recipes
-            or prevent you from making
-            {publishingFork
-              ? " your version public."
-              : publishing
-                ? " your recipe public."
-                : " your version."}
-          </p>
-        )}
-      </div>
+      {publishing ? (
+        <div className="duplicate-preflight-review__compact-summary">
+          <div className="duplicate-preflight-review__compact-top">
+            <span
+              className="duplicate-preflight-review__compact-icon"
+              aria-hidden="true"
+            >
+              !
+            </span>
+            <div>
+              <h2 ref={headingRef} id={headingId} tabIndex={-1}>
+                {heading}
+              </h2>
+              <p>
+                {result.same_lineage_no_change
+                  ? "You can still publish it as a separate version if that’s intentional."
+                  : `You can still publish this ${publicationSubject} separately if that’s intentional.`}
+              </p>
+              {result.candidates.length > 0 ? (
+                <p className="duplicate-preflight-review__compact-links">
+                  {result.same_lineage_no_change ? "Also similar to " : "Similar to "}
+                  {result.candidates.map((candidate, index) => (
+                    <span key={candidate.public_recipe_version_id}>
+                      {index > 0 ? ", " : null}
+                      <Link
+                        href={`/recipes/${candidate.public_recipe_version_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {candidate.title}
+                        <span className="visually-hidden"> (opens in a new tab)</span>
+                      </Link>
+                    </span>
+                  ))}
+                  .
+                </p>
+              ) : null}
+            </div>
+          </div>
+          {compactReasons.length > 0 ? (
+            <details className="duplicate-preflight-review__compact-details">
+              <summary>Why is Recipe Lab showing this?</summary>
+              <ul>
+                {compactReasons.map((reason) => (
+                  <li key={reason.code}>{reason.copy}</li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+        </div>
+      ) : (
+        <>
+          <div className="duplicate-preflight-review__intro">
+            <p className="eyebrow">Similar recipes</p>
+            <h2 ref={headingRef} id={headingId} tabIndex={-1}>
+              {heading}
+            </h2>
+            <p>
+              Recipe Lab found similarities in the saved ingredients, amounts, and cooking
+              actions. This comparison is only a guide. It cannot show who created an idea,
+              explain an author&apos;s intent, or predict how either recipe will turn out. It does
+              not merge recipes or prevent you from making your version.
+            </p>
+          </div>
 
-      {result.warnings.map((warning) => (
-        <p className="duplicate-preflight-review__warning" key={warning.code}>
-          Your version matches the recipe it is based on.
-        </p>
-      ))}
+          {result.warnings.map((warning) => (
+            <p className="duplicate-preflight-review__warning" key={warning.code}>
+              Your version matches the recipe it is based on.
+            </p>
+          ))}
+        </>
+      )}
 
-      {result.candidates.length > 0 ? (
+      {!publishing && result.candidates.length > 0 ? (
         <ol
           className="duplicate-preflight-candidates duplicate-preflight-review__candidates"
           aria-label="Public recipe matches"
@@ -164,6 +233,8 @@ export function RecipeDuplicatePreflightReview({
         </ol>
       ) : null}
 
+      {confirmationSlot}
+
       <div className="duplicate-preflight-review__decision">
         {decisionFailure === null ? (
           <>
@@ -177,51 +248,55 @@ export function RecipeDuplicatePreflightReview({
               />
               <span>
                 {publishing
-                    ? publishingFork
+                  ? publishingFork
                     ? result.same_lineage_no_change
-                      ? "I understand that my version matches the recipe it is based on and want to publish it anyway."
+                      ? "I understand this version closely matches its source and want to publish it separately."
                       : "I reviewed these similar recipes and want to publish my version anyway."
                     : "I reviewed these similar recipes and want to publish my recipe anyway."
                   : "I reviewed these similar recipes and want to create my version anyway."}
               </span>
             </label>
             <div className="duplicate-preflight-review__actions">
-              <button
+              <LoadingButton
                 className="button button--primary"
                 type="button"
-                disabled={!acknowledged || pending}
-                onClick={onContinue}
-              >
-                {pendingDecision === "continue"
-                  ? publishing
+                disabled={!acknowledged || pendingDecision === "revise"}
+                pending={pendingDecision === "continue"}
+                pendingLabel={
+                  publishing
                     ? publishingFork
                       ? "Publishing your version…"
                       : "Publishing your recipe…"
                     : "Recording your choice…"
-                  : publishing
-                    ? publishingFork
-                      ? "Publish version anyway"
-                      : "Publish recipe anyway"
-                    : "Create my version anyway"}
-              </button>
-              <button
+                }
+                onClick={onContinue}
+              >
+                {publishing
+                  ? publishingFork
+                    ? "Publish version"
+                    : "Publish recipe"
+                  : "Create my version anyway"}
+              </LoadingButton>
+              <LoadingButton
                 className="button button--secondary"
                 type="button"
-                disabled={pending}
+                disabled={pendingDecision === "continue"}
+                pending={pendingDecision === "revise"}
+                pendingLabel="Returning to editing…"
                 onClick={onRevise}
               >
-                {pendingDecision === "revise" ? "Returning to editing…" : "Keep editing"}
-              </button>
+                Keep editing
+              </LoadingButton>
             </div>
-            <p role="status" aria-live="polite">
-              {pendingDecision === "continue"
-                ? publishing
-                  ? `Rechecking similar recipes and publishing your ${publishingFork ? "version" : "recipe"}.`
-                  : "Recording your choice before creating the version."
-                : pendingDecision === "revise"
-                  ? "Recording your choice and keeping every draft field."
-                  : "Choose whether to continue or return to editing."}
-            </p>
+            {pendingDecision === null ? (
+              <p
+                className={publishing ? "visually-hidden" : undefined}
+                role="status"
+                aria-live="polite"
+              >
+                Choose whether to continue or return to editing.
+              </p>
+            ) : null}
           </>
         ) : (
           <div className="duplicate-decision-unavailable">
@@ -234,14 +309,15 @@ export function RecipeDuplicatePreflightReview({
               explicitly continue without confirming the review decision.
             </p>
             <div className="duplicate-preflight-review__actions">
-              <button
+              <LoadingButton
                 className="button button--primary"
                 type="button"
-                disabled={pending}
+                pending={pending}
+                pendingLabel="Retrying your review choice…"
                 onClick={onRetryDecision}
               >
-                {pending ? "Retrying your review choice…" : "Retry recording my choice"}
-              </button>
+                Retry recording my choice
+              </LoadingButton>
               <button
                 className="button button--secondary"
                 type="button"
@@ -257,11 +333,11 @@ export function RecipeDuplicatePreflightReview({
                   : "Return to editing without confirming the review decision"}
               </button>
             </div>
-            <p role="status" aria-live="polite">
-              {pending
-                ? "Retrying the same review choice."
-                : "No confirmed response was received for your review decision."}
-            </p>
+            {!pending ? (
+              <p role="status" aria-live="polite">
+                No confirmed response was received for your review decision.
+              </p>
+            ) : null}
           </div>
         )}
       </div>
@@ -301,32 +377,32 @@ export function RecipeDuplicateUnavailable({
         </p>
       </div>
       <div className="duplicate-preflight-review__actions">
-        <button
+        <LoadingButton
           className="button button--primary"
           type="button"
-          disabled={pending}
+          disabled={pendingAction === "create"}
+          pending={pendingAction === "retry"}
+          pendingLabel="Checking similar recipes again…"
           onClick={onRetry}
         >
-          {pendingAction === "retry" ? "Checking similar recipes again…" : "Check similar recipes again"}
-        </button>
-        <button
+          Check similar recipes again
+        </LoadingButton>
+        <LoadingButton
           className="button button--secondary"
           type="button"
-          disabled={pending}
+          disabled={pendingAction === "retry"}
+          pending={pendingAction === "create"}
+          pendingLabel="Creating without checking similar recipes…"
           onClick={onCreateWithoutReview}
         >
-          {pendingAction === "create"
-            ? "Creating without checking similar recipes…"
-            : "Create without checking similar recipes"}
-        </button>
+          Create without checking similar recipes
+        </LoadingButton>
       </div>
-      <p className="duplicate-preflight-unavailable__status" role="status" aria-live="polite">
-        {pendingAction === "retry"
-          ? "Checking for similar recipes again."
-          : pendingAction === "create"
-            ? "Creating your version without a completed similar-recipes check."
-            : "No similar-recipes result is available."}
-      </p>
+      {pendingAction === null ? (
+        <p className="duplicate-preflight-unavailable__status" role="status" aria-live="polite">
+          No similar-recipes result is available.
+        </p>
+      ) : null}
     </section>
   );
 }

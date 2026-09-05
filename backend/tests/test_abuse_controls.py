@@ -14,14 +14,19 @@ from app.core.config import Settings
 from app.main import create_app
 from app.middleware.request_body_limit import RequestBodyLimitMiddleware
 from app.models import AbuseRateLimitBucket, User
+from app.policies.abuse import (
+    RATE_LIMIT_ROUTE_POLICIES,
+    RateLimitPolicy,
+    classify_rate_limited_request,
+    match_rate_limit_route,
+)
 from app.repositories.abuse_limits import (
     EXPIRED_BUCKET_PRUNE_BATCH_SIZE,
     record_rate_limit_attempt,
 )
 from app.services.abuse_limits import (
-    RateLimitPolicy,
+    RateLimitExceededError,
     canonical_network_subject,
-    classify_rate_limited_request,
     client_network_subject,
     enforce_oidc_identity_rate_limit,
     enforce_request_rate_limit,
@@ -86,7 +91,10 @@ def test_networks_are_canonicalized_and_subjects_are_pseudonymous() -> None:
         ("PUT", f"/api/recipes/{uuid4()}/save", "interaction"),
         ("DELETE", f"/api/recipes/{uuid4()}/save", "interaction"),
         ("PUT", f"/api/recipes/{uuid4()}/rating", "interaction"),
+        ("DELETE", f"/api/recipes/{uuid4()}/rating", "interaction"),
         ("POST", f"/api/recipes/{uuid4()}/view", "interaction"),
+        ("PUT", "/api/cooks/member-alpha/follow", "interaction"),
+        ("DELETE", "/api/cooks/member-alpha/follow", "interaction"),
     ],
 )
 def test_protected_actions_have_explicit_policies(
@@ -116,6 +124,51 @@ def test_unrelated_reads_and_removed_variant_route_are_not_counted() -> None:
         )
         is None
     )
+
+
+def test_route_policy_declarations_are_named_unique_and_resolve_configured_limits() -> None:
+    assert [policy.name for policy in RATE_LIMIT_ROUTE_POLICIES] == [
+        "account_auth_entry",
+        "draft_creation",
+        "draft_mutation",
+        "draft_preflight",
+        "publication",
+        "reporting",
+        "interaction",
+    ]
+    assert len({policy.name for policy in RATE_LIMIT_ROUTE_POLICIES}) == len(
+        RATE_LIMIT_ROUTE_POLICIES
+    )
+
+    settings = _settings(
+        abuse_rate_limit_auth_network=101,
+        abuse_rate_limit_draft_account=102,
+        abuse_rate_limit_draft_network=103,
+        abuse_rate_limit_fork_account=104,
+        abuse_rate_limit_fork_network=105,
+        abuse_rate_limit_publication_account=106,
+        abuse_rate_limit_publication_network=107,
+        abuse_rate_limit_report_account=108,
+        abuse_rate_limit_report_network=109,
+        abuse_rate_limit_interaction_account=110,
+        abuse_rate_limit_interaction_network=111,
+    )
+    publication = classify_rate_limited_request(
+        method="post",
+        path=f"/api/recipe-drafts/{uuid4()}/publish/",
+        settings=settings,
+    )
+    assert publication == RateLimitPolicy(
+        operation="publication",
+        account_limit=106,
+        network_limit=107,
+    )
+    declaration = match_rate_limit_route(
+        method="POST",
+        path=f"/api/recipe-drafts/{uuid4()}/publish",
+    )
+    assert declaration is not None
+    assert declaration.name == "publication"
 
 
 def test_production_rejects_the_documented_local_secret() -> None:
@@ -241,7 +294,7 @@ def test_account_and_network_limits_are_durable_before_endpoint_rollback(
         first.rollback()
 
     with Session(bind=migrated_engine) as second:
-        with pytest.raises(ApiError) as caught:
+        with pytest.raises(RateLimitExceededError) as caught:
             enforce_request_rate_limit(
                 second,
                 settings=settings,
@@ -251,7 +304,6 @@ def test_account_and_network_limits_are_durable_before_endpoint_rollback(
                 now=now + timedelta(seconds=1),
             )
 
-    assert caught.value.status_code == 429
     assert caught.value.code == "rate_limit_exceeded"
     assert 1 <= int(caught.value.headers["Retry-After"]) <= 60
 
@@ -293,7 +345,7 @@ def test_oidc_identity_limit_covers_first_account_attempts(migrated_engine: Engi
             subject=subject,
             now=now,
         )
-        with pytest.raises(ApiError) as caught:
+        with pytest.raises(RateLimitExceededError) as caught:
             enforce_oidc_identity_rate_limit(
                 session,
                 settings=settings,
@@ -301,7 +353,7 @@ def test_oidc_identity_limit_covers_first_account_attempts(migrated_engine: Engi
                 subject=subject,
                 now=now + timedelta(seconds=1),
             )
-    assert caught.value.status_code == 429
+    assert caught.value.code == "rate_limit_exceeded"
     with Session(bind=migrated_engine) as cleanup, cleanup.begin():
         cleanup.execute(delete(AbuseRateLimitBucket))
 
@@ -533,7 +585,7 @@ def test_separate_signed_networks_receive_separate_durable_limits(
             )
 
     with Session(bind=migrated_engine) as limited_session:
-        with pytest.raises(ApiError) as caught:
+        with pytest.raises(RateLimitExceededError) as caught:
             enforce_request_rate_limit(
                 limited_session,
                 settings=settings,
@@ -542,6 +594,6 @@ def test_separate_signed_networks_receive_separate_durable_limits(
                 account_user_id=None,
                 now=now + timedelta(seconds=1),
             )
-    assert caught.value.status_code == 429
+    assert caught.value.code == "rate_limit_exceeded"
     with Session(bind=migrated_engine) as cleanup, cleanup.begin():
         cleanup.execute(delete(AbuseRateLimitBucket))

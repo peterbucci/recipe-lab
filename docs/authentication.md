@@ -16,7 +16,7 @@ versions. The account surface adds:
 - `GET /api/auth/session` to read anonymous, onboarding-required, or
   authenticated state;
 - `PATCH /api/auth/session/profile` to finish onboarding or update the account
-  handle and display name; and
+  handle, display name, and optional public profile description; and
 - `POST /api/auth/logout` to revoke the current application session;
 - `GET /api/auth/reauthenticate?return_to=/relative-path` to require a fresh,
   session-bound provider authentication before a sensitive action; and
@@ -25,8 +25,9 @@ versions. The account surface adds:
   private account data while preserving anonymous public recipe topology.
 
 The browser calls these endpoints through the same-origin Next.js `/api`
-proxy. Browser session responses contain only the local user ID, handle, and
-display name plus narrow boolean catalog-review and recipe-moderation
+proxy. Browser session responses contain only the local user ID, handle,
+display name, optional public profile description, and narrow boolean
+catalog-review and recipe-moderation
 capabilities. Those capability flags are derived from live, separate database
 grants and confer no role-management authority. Session responses never contain the private email, OIDC issuer or subject,
 provider tokens, application session token, or token digests.
@@ -60,7 +61,10 @@ system/demo identities and cannot acquire OIDC identities.
 After a valid callback, the backend creates a high-entropy opaque application
 session token. Only its SHA-256 digest is stored. Each session also records an
 immutable `authenticated_at` assurance timestamp; ordinary activity may update
-`last_seen_at` but never makes authentication newer. The token cookie is
+`last_seen_at` but never makes authentication newer. To avoid a database write
+and row lock on every authenticated request, Recipe Lab persists that activity
+only when `AUTH_SESSION_TOUCH_INTERVAL_SECONDS` has elapsed since the previous
+touch (five minutes by default). The token cookie is
 `HttpOnly`, `SameSite=Lax`, restricted to the application path, and `Secure`
 outside explicit local development.
 
@@ -92,6 +96,7 @@ Copy `.env.example` and set the hosted provider values:
 ```dotenv
 APP_ENVIRONMENT=local
 AUTH_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+AUTH_SESSION_TOUCH_INTERVAL_SECONDS=300
 OIDC_ISSUER=https://provider.example.com
 OIDC_CLIENT_ID=recipe-lab-local
 OIDC_CLIENT_SECRET=replace-if-the-provider-requires-one
@@ -108,6 +113,12 @@ belongs in that same store and must not reuse an OIDC, database, or cookie
 secret. When issuer or client ID is absent, the product
 remains browsable but the sign-in start endpoint reports that authentication is
 unavailable.
+
+OIDC discovery metadata and signing keys are cached by one client owned by the
+FastAPI application lifespan. Requests reuse that client instead of rebuilding
+provider state for every login or callback. The application closes its HTTP
+resources during shutdown; provider tokens remain request-local and are never
+added to either cache.
 
 See `.env.example` for session lifetime, scopes, signing algorithms, login
 lifetime, network timeout, and clock-skew settings. Cookie names are a fixed
@@ -136,8 +147,8 @@ public reads and anonymous recommendations do not require the Demo identity to
 exist. The legacy `/api/me` demo route is removed; `/api/auth/session` is the
 only browser identity/session contract.
 
-Deleting an account atomically removes its OIDC mapping, private email and
-handle, every application session, saves, ratings, preference events, private
+Deleting an account atomically removes its OIDC mapping, private email,
+handle, public profile description, every application session, saves, ratings, preference events, private
 draft content, and other unreferenced private workflow evidence. Published
 snapshots and fork relationships are not hard-deleted. Their stable author UUID
 resolves only to an irreversible `Deleted cook` tombstone with no profile link.

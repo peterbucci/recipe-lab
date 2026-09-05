@@ -298,7 +298,7 @@ def test_oidc_login_transaction_is_consumed_once_under_lock(db_session: Session)
         expires_at=now + timedelta(minutes=5),
     )
 
-    consumed_at = datetime.now(UTC)
+    consumed_at = transaction.created_at + timedelta(microseconds=1)
     assert (
         consume_oidc_login_transaction(
             db_session,
@@ -318,6 +318,31 @@ def test_oidc_login_transaction_is_consumed_once_under_lock(db_session: Session)
     )
     prune_oidc_login_transactions(db_session, now=consumed_at)
     assert db_session.get(OIDCLoginTransaction, transaction.id) is None
+
+
+def test_oidc_login_consumption_never_predates_database_creation(
+    db_session: Session,
+) -> None:
+    now = datetime.now(UTC)
+    transaction = create_oidc_login_transaction(
+        db_session,
+        state_digest="0" * 64,
+        nonce="n" * 32,
+        pkce_verifier="v" * 64,
+        return_path="/recipes",
+        expires_at=now + timedelta(minutes=5),
+    )
+
+    application_timestamp = transaction.created_at - timedelta(microseconds=1)
+    assert (
+        consume_oidc_login_transaction(
+            db_session,
+            state_digest=transaction.state_digest,
+            now=application_timestamp,
+        )
+        is transaction
+    )
+    assert transaction.consumed_at == transaction.created_at
 
 
 def test_expired_or_invalid_login_transaction_cannot_be_used(db_session: Session) -> None:

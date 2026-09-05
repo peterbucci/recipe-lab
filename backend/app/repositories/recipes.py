@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Literal
@@ -6,16 +7,24 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, Numeric, cast, exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
+from app.db.query import LIKE_ESCAPE, literal_contains_pattern
 from app.models import (
     RecipeIngredient,
     RecipeInstruction,
     RecipeInstructionAction,
     RecipeInstructionActionMeasure,
     RecipeRating,
+    RecipeSave,
     RecipeStructuralFingerprint,
     RecipeVersion,
     RecipeVersionCategory,
     RecipeVersionPublication,
+)
+from app.policies.recipe_visibility import (
+    publicly_readable_recipe_publication_filter as _publicly_readable_recipe_publication_filter,
+)
+from app.policies.recipe_visibility import (
+    publicly_readable_recipe_version_filter as _publicly_readable_recipe_version_filter,
 )
 from app.repositories.ingredients import resolve_ingredient_name
 
@@ -33,6 +42,13 @@ class RecipeRatingAggregate:
 
 
 @dataclass(frozen=True, slots=True)
+class RecipeCardEngagementAggregate:
+    average_rating: Decimal | None
+    rating_count: int
+    save_count: int
+
+
+@dataclass(frozen=True, slots=True)
 class PublicRecipeDuplicateCandidate:
     """Public recipe identity plus the immutable structure used by preflight."""
 
@@ -41,23 +57,6 @@ class PublicRecipeDuplicateCandidate:
     algorithm_version: str
     digest: str
     canonical_payload: str
-
-
-def publicly_readable_recipe_version_filter() -> ColumnElement[bool]:
-    """Return the shared visibility predicate for public recipe reads.
-
-    Visibility is explicit so an inserted-but-not-published snapshot and a failed
-    publication transaction can never leak through a public adapter.
-    """
-
-    return exists().where(
-        RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
-        RecipeVersionPublication.state == "published",
-    )
-
-
-def _escape_like(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def browse_recipe_versions(
@@ -76,11 +75,14 @@ def browse_recipe_versions(
 
     filters: list[ColumnElement[bool]] = []
     if search is not None:
-        pattern = f"%{_escape_like(search)}%"
+        pattern = literal_contains_pattern(search)
         filters.append(
             or_(
-                RecipeVersion.title.ilike(pattern, escape="\\"),
-                func.coalesce(RecipeVersion.description, "").ilike(pattern, escape="\\"),
+                RecipeVersion.title.ilike(pattern, escape=LIKE_ESCAPE),
+                RecipeVersion.description.ilike(
+                    pattern,
+                    escape=LIKE_ESCAPE,
+                ),
             )
         )
     if lineage_id is not None:
@@ -109,7 +111,7 @@ def browse_recipe_versions(
             )
         )
 
-    filters.append(publicly_readable_recipe_version_filter())
+    filters.append(_publicly_readable_recipe_version_filter())
     total = session.scalar(select(func.count()).select_from(RecipeVersion).where(*filters))
     ordering: tuple[Any, ...]
     if sort == "title":
@@ -124,7 +126,7 @@ def browse_recipe_versions(
             select(RecipeVersionPublication.published_at)
             .where(
                 RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
-                RecipeVersionPublication.state == "published",
+                _publicly_readable_recipe_publication_filter(),
             )
             .correlate(RecipeVersion)
             .scalar_subquery()
@@ -139,7 +141,7 @@ def browse_recipe_versions(
             joinedload(RecipeVersion.author),
             joinedload(RecipeVersion.publication),
             selectinload(
-                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
+                RecipeVersion.parent.and_(_publicly_readable_recipe_version_filter())
             ).joinedload(RecipeVersion.author),
             selectinload(RecipeVersion.categories),
             raiseload("*"),
@@ -170,14 +172,14 @@ def list_public_recipe_versions_in_order(
             joinedload(RecipeVersion.author),
             joinedload(RecipeVersion.publication),
             selectinload(
-                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
+                RecipeVersion.parent.and_(_publicly_readable_recipe_version_filter())
             ).joinedload(RecipeVersion.author),
             selectinload(RecipeVersion.categories),
             raiseload("*"),
         )
         .where(
             RecipeVersion.id.in_(recipe_version_ids),
-            publicly_readable_recipe_version_filter(),
+            _publicly_readable_recipe_version_filter(),
         )
     )
     recipes_by_id = {recipe.id: recipe for recipe in session.scalars(statement)}
@@ -200,10 +202,10 @@ def get_recipe_version(
             joinedload(RecipeVersion.author),
             joinedload(RecipeVersion.publication),
             selectinload(
-                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
+                RecipeVersion.parent.and_(_publicly_readable_recipe_version_filter())
             ).joinedload(RecipeVersion.author),
             selectinload(
-                RecipeVersion.descendants.and_(publicly_readable_recipe_version_filter())
+                RecipeVersion.descendants.and_(_publicly_readable_recipe_version_filter())
             ).joinedload(RecipeVersion.author),
             selectinload(RecipeVersion.categories),
             selectinload(RecipeVersion.ingredients).options(
@@ -223,7 +225,7 @@ def get_recipe_version(
         )
         .where(
             RecipeVersion.id == recipe_version_id,
-            publicly_readable_recipe_version_filter(),
+            _publicly_readable_recipe_version_filter(),
         )
     )
     return session.scalar(statement)
@@ -240,7 +242,7 @@ def browse_public_recipe_versions_by_author(
 
     filters = (
         RecipeVersion.created_by_user_id == author_user_id,
-        publicly_readable_recipe_version_filter(),
+        _publicly_readable_recipe_version_filter(),
     )
     total = session.scalar(select(func.count()).select_from(RecipeVersion).where(*filters)) or 0
     statement = (
@@ -249,7 +251,7 @@ def browse_public_recipe_versions_by_author(
             joinedload(RecipeVersion.author),
             joinedload(RecipeVersion.publication),
             selectinload(
-                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
+                RecipeVersion.parent.and_(_publicly_readable_recipe_version_filter())
             ).joinedload(RecipeVersion.author),
             selectinload(RecipeVersion.categories),
             raiseload("*"),
@@ -266,15 +268,30 @@ def list_public_recipe_duplicate_candidates(
     session: Session,
     *,
     algorithm_version: str,
+    subject_digest: str,
+    subject_canonical_payload: str,
+    subject_ingredient_identities: Sequence[str],
     comparison_limit: int,
+    exact_candidate_limit: int,
     exclude_recipe_version_id: UUID | None = None,
 ) -> list[PublicRecipeDuplicateCandidate]:
-    """Load only public, fingerprinted snapshots for deterministic preflight scoring."""
+    """Load a bounded, deterministic public shortlist for preflight scoring.
+
+    Exact structural matches are selected first through the fingerprint index. If
+    they do not fill the response bound, probable candidates are shortlisted by
+    descending distinct canonical-ingredient overlap and stable UUID tie-break.
+    The caller still applies the complete versioned scorer to every returned row.
+    """
 
     if comparison_limit <= 0:
         raise ValueError("Duplicate candidate comparison limit must be positive.")
+    if exact_candidate_limit <= 0 or exact_candidate_limit > comparison_limit:
+        raise ValueError(
+            "Exact duplicate candidate limit must be positive and no greater "
+            "than the comparison limit."
+        )
 
-    statement = (
+    exact_statement = (
         select(
             RecipeVersion.id,
             RecipeVersion.title,
@@ -287,16 +304,18 @@ def list_public_recipe_duplicate_candidates(
             RecipeStructuralFingerprint.recipe_version_id == RecipeVersion.id,
         )
         .where(
-            publicly_readable_recipe_version_filter(),
+            _publicly_readable_recipe_version_filter(),
             RecipeStructuralFingerprint.algorithm_version == algorithm_version,
+            RecipeStructuralFingerprint.digest == subject_digest,
+            RecipeStructuralFingerprint.canonical_payload == subject_canonical_payload,
         )
         .order_by(RecipeVersion.id)
-        .limit(comparison_limit)
+        .limit(exact_candidate_limit)
     )
     if exclude_recipe_version_id is not None:
-        statement = statement.where(RecipeVersion.id != exclude_recipe_version_id)
+        exact_statement = exact_statement.where(RecipeVersion.id != exclude_recipe_version_id)
 
-    return [
+    exact_candidates = [
         PublicRecipeDuplicateCandidate(
             recipe_version_id=recipe_version_id,
             title=title,
@@ -310,8 +329,89 @@ def list_public_recipe_duplicate_candidates(
             stored_algorithm_version,
             digest,
             canonical_payload,
-        ) in session.execute(statement)
+        ) in session.execute(exact_statement)
     ]
+    if len(exact_candidates) >= exact_candidate_limit:
+        return exact_candidates
+
+    try:
+        subject_ingredient_ids = tuple(
+            sorted({UUID(identity) for identity in subject_ingredient_identities}, key=str)
+        )
+    except (AttributeError, TypeError, ValueError) as error:
+        raise ValueError("Canonical ingredient identities must be UUIDs.") from error
+    if not subject_ingredient_ids:
+        return exact_candidates
+
+    probable_limit = comparison_limit - len(exact_candidates)
+    overlap_count = func.count(func.distinct(RecipeIngredient.ingredient_id)).label(
+        "canonical_ingredient_overlap"
+    )
+    shortlist_statement = (
+        select(
+            RecipeIngredient.recipe_version_id.label("recipe_version_id"),
+            overlap_count,
+        )
+        .select_from(RecipeIngredient)
+        .join(
+            RecipeVersion,
+            RecipeVersion.id == RecipeIngredient.recipe_version_id,
+        )
+        .join(
+            RecipeStructuralFingerprint,
+            RecipeStructuralFingerprint.recipe_version_id == RecipeVersion.id,
+        )
+        .where(
+            RecipeIngredient.ingredient_id.in_(subject_ingredient_ids),
+            _publicly_readable_recipe_version_filter(),
+            RecipeStructuralFingerprint.algorithm_version == algorithm_version,
+        )
+        .group_by(RecipeIngredient.recipe_version_id)
+        .order_by(overlap_count.desc(), RecipeIngredient.recipe_version_id)
+        .limit(probable_limit)
+    )
+    excluded_ids = [candidate.recipe_version_id for candidate in exact_candidates]
+    if exclude_recipe_version_id is not None:
+        shortlist_statement = shortlist_statement.where(
+            RecipeVersion.id != exclude_recipe_version_id
+        )
+    if excluded_ids:
+        shortlist_statement = shortlist_statement.where(RecipeVersion.id.not_in(excluded_ids))
+    shortlist = shortlist_statement.subquery()
+
+    probable_statement = (
+        select(
+            RecipeVersion.id,
+            RecipeVersion.title,
+            RecipeStructuralFingerprint.algorithm_version,
+            RecipeStructuralFingerprint.digest,
+            RecipeStructuralFingerprint.canonical_payload,
+        )
+        .join(shortlist, shortlist.c.recipe_version_id == RecipeVersion.id)
+        .join(
+            RecipeStructuralFingerprint,
+            RecipeStructuralFingerprint.recipe_version_id == RecipeVersion.id,
+        )
+        .where(RecipeStructuralFingerprint.algorithm_version == algorithm_version)
+        .order_by(shortlist.c.canonical_ingredient_overlap.desc(), RecipeVersion.id)
+    )
+    probable_candidates = [
+        PublicRecipeDuplicateCandidate(
+            recipe_version_id=recipe_version_id,
+            title=title,
+            algorithm_version=stored_algorithm_version,
+            digest=digest,
+            canonical_payload=canonical_payload,
+        )
+        for (
+            recipe_version_id,
+            title,
+            stored_algorithm_version,
+            digest,
+            canonical_payload,
+        ) in session.execute(probable_statement)
+    ]
+    return [*exact_candidates, *probable_candidates]
 
 
 def get_public_recipe_version_titles(
@@ -323,7 +423,7 @@ def get_public_recipe_version_titles(
     if not recipe_version_ids:
         return {}
     statement = select(RecipeVersion.id, RecipeVersion.title).where(
-        publicly_readable_recipe_version_filter(),
+        _publicly_readable_recipe_version_filter(),
         RecipeVersion.id.in_(recipe_version_ids),
     )
     return {recipe_version_id: title for recipe_version_id, title in session.execute(statement)}
@@ -341,3 +441,47 @@ def get_recipe_rating_aggregate(
     ).where(RecipeRating.recipe_version_id == recipe_version_id)
     average, count = session.execute(statement).one()
     return RecipeRatingAggregate(average=average, count=count)
+
+
+def get_recipe_card_engagement_aggregates(
+    session: Session,
+    recipe_version_ids: list[UUID],
+) -> dict[UUID, RecipeCardEngagementAggregate]:
+    """Return anonymous card totals in two bounded aggregate queries."""
+
+    if not recipe_version_ids:
+        return {}
+
+    unique_ids = tuple(dict.fromkeys(recipe_version_ids))
+    rating_rows = {
+        recipe_version_id: (average, int(count))
+        for recipe_version_id, average, count in session.execute(
+            select(
+                RecipeRating.recipe_version_id,
+                cast(func.avg(RecipeRating.rating), Numeric(3, 2)),
+                func.count(RecipeRating.user_id),
+            )
+            .where(RecipeRating.recipe_version_id.in_(unique_ids))
+            .group_by(RecipeRating.recipe_version_id)
+        )
+    }
+    save_rows = {
+        recipe_version_id: int(count)
+        for recipe_version_id, count in session.execute(
+            select(
+                RecipeSave.recipe_version_id,
+                func.count(RecipeSave.user_id),
+            )
+            .where(RecipeSave.recipe_version_id.in_(unique_ids))
+            .group_by(RecipeSave.recipe_version_id)
+        )
+    }
+
+    return {
+        recipe_version_id: RecipeCardEngagementAggregate(
+            average_rating=rating_rows.get(recipe_version_id, (None, 0))[0],
+            rating_count=rating_rows.get(recipe_version_id, (None, 0))[1],
+            save_count=save_rows.get(recipe_version_id, 0),
+        )
+        for recipe_version_id in unique_ids
+    }

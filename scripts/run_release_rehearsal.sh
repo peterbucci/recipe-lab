@@ -4,6 +4,7 @@ set -euo pipefail
 umask 077
 
 REPO_ROOT="${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is required}"
+DATABASE_IMAGE="${RCP33G_DATABASE_IMAGE:?RCP33G_DATABASE_IMAGE is required}"
 CURRENT_PHASE="setup"
 section() {
   cd "$REPO_ROOT"
@@ -96,7 +97,7 @@ cleanup() {
     recipe_lab_rcp32_acceptance_restore; do
     docker run --rm --network host \
       -e PGPASSWORD="$PGPASSWORD" \
-      postgres:17-alpine \
+      "$DATABASE_IMAGE" \
       dropdb --host "$PGHOST" --username "$PGUSER" \
         --force --if-exists "$database" \
       > /dev/null 2>&1 || cleanup_result=1
@@ -350,18 +351,18 @@ section 'Rehearse fresh, upgraded, and failed migrations'
   create_database() {
     docker run --rm --network host \
       -e PGPASSWORD="$PGPASSWORD" \
-      postgres:17-alpine \
+      "$DATABASE_IMAGE" \
       dropdb --host "$PGHOST" --username "$PGUSER" \
         --force --if-exists "$1" > /dev/null
     docker run --rm --network host \
       -e PGPASSWORD="$PGPASSWORD" \
-      postgres:17-alpine \
+      "$DATABASE_IMAGE" \
       createdb --host "$PGHOST" --username "$PGUSER" "$1"
   }
   catalog_counts() {
     docker run --rm --network host \
       -e PGPASSWORD="$PGPASSWORD" \
-      postgres:17-alpine \
+      "$DATABASE_IMAGE" \
       psql --host "$PGHOST" --username "$PGUSER" --dbname "$1" \
         --tuples-only --no-align \
         --command "SELECT (SELECT count(*) FROM ingredients), (SELECT count(*) FROM measurement_units), (SELECT count(*) FROM cooking_action_types), (SELECT count(*) FROM recipe_versions);" \
@@ -375,7 +376,7 @@ section 'Rehearse fresh, upgraded, and failed migrations'
   DATABASE_URL="$fresh_url" python -m alembic check
 
   DATABASE_URL="$upgraded_url" python -m alembic upgrade 20260827_0019
-  DATABASE_URL="$upgraded_url" python -m app.seeds load
+  DATABASE_URL="$upgraded_url" python -m tests.release_rehearsal_fixture
   upgraded_before="$(catalog_counts recipe_lab_rcp32_acceptance)"
   DATABASE_URL="$upgraded_url" python -m alembic upgrade head
   DATABASE_URL="$upgraded_url" python -m alembic check
@@ -385,11 +386,11 @@ section 'Rehearse fresh, upgraded, and failed migrations'
 
   create_database recipe_lab_rcp33g_migration_failure
   DATABASE_URL="$failure_url" python -m alembic upgrade 20260827_0019
-  DATABASE_URL="$failure_url" python -m app.seeds load
+  DATABASE_URL="$failure_url" python -m tests.release_rehearsal_fixture
   failure_before="$(catalog_counts recipe_lab_rcp33g_migration_failure)"
   docker run --rm --network host \
     -e PGPASSWORD="$PGPASSWORD" \
-    postgres:17-alpine \
+    "$DATABASE_IMAGE" \
     psql --host "$PGHOST" --username "$PGUSER" \
       --dbname recipe_lab_rcp33g_migration_failure \
       --set ON_ERROR_STOP=1 \
@@ -410,7 +411,7 @@ section 'Rehearse fresh, upgraded, and failed migrations'
   test "$failure_before" = "$failure_after"
   docker run --rm --network host \
     -e PGPASSWORD="$PGPASSWORD" \
-    postgres:17-alpine \
+    "$DATABASE_IMAGE" \
     psql --host "$PGHOST" --username "$PGUSER" \
       --dbname recipe_lab_rcp33g_migration_failure \
       --set ON_ERROR_STOP=1 \
@@ -432,6 +433,8 @@ reload_environment
 
 section 'Start isolated identity and application services'
 cd backend
+# Current demo data is journey setup, after historical data preservation passed.
+python -m app.seeds load
 python -m app.testing.community_release_gate stage-demo-activity \
   > "$RCP33G_PRIVATE_DIR/staged-demo-summary.json"
 nohup python -m app.testing.local_oidc_provider \
@@ -483,6 +486,11 @@ section 'Capture an older backup before account deletion'
       break
     fi
     if ! kill -0 "$browser_pid" 2>/dev/null; then
+      safe_location="$(python "$GITHUB_WORKSPACE/scripts/extract_playwright_failure_location.py" "$RCP33G_PRIVATE_DIR/browser.log")"
+      if [[ "$safe_location" =~ ^[1-9][0-9]*:[1-9][0-9]*$ ]]; then
+        IFS=: read -r failure_line failure_column <<< "$safe_location"
+        echo "::error file=frontend/e2e/rcp32-community-release-gate.spec.ts,line=$failure_line,col=$failure_column::RCP-32 failed at this assertion; private diagnostics were withheld."
+      fi
       echo "The community journey stopped before the backup checkpoint."
       exit 1
     fi
@@ -494,7 +502,7 @@ section 'Capture an older backup before account deletion'
   fi
   docker run --rm --network host \
     -e PGPASSWORD="$PGPASSWORD" \
-    postgres:17-alpine \
+    "$DATABASE_IMAGE" \
     pg_dump --host "$PGHOST" --username "$PGUSER" \
       --dbname recipe_lab_rcp32_acceptance \
       --format custom --no-owner --no-privileges \
@@ -507,6 +515,11 @@ section 'Capture an older backup before account deletion'
   set -e
   rm -f -- "$RCP33G_PRIVATE_DIR/browser.pid"
   if [[ "$browser_result" != "0" ]]; then
+    safe_location="$(python "$GITHUB_WORKSPACE/scripts/extract_playwright_failure_location.py" "$RCP33G_PRIVATE_DIR/browser.log")"
+    if [[ "$safe_location" =~ ^[1-9][0-9]*:[1-9][0-9]*$ ]]; then
+      IFS=: read -r failure_line failure_column <<< "$safe_location"
+      echo "::error file=frontend/e2e/rcp32-community-release-gate.spec.ts,line=$failure_line,col=$failure_column::RCP-32 failed at this assertion; private diagnostics were withheld."
+    fi
     echo "The community journey failed; private diagnostics were withheld."
     exit "$browser_result"
   fi
@@ -521,7 +534,7 @@ section 'Export independently bound deletion evidence'
     > "$RCP33G_PRIVATE_DIR/live-community-summary.json"
   required_covered_through="$(docker run --rm --network host \
     -e PGPASSWORD="$PGPASSWORD" \
-    postgres:17-alpine \
+    "$DATABASE_IMAGE" \
     psql --host "$PGHOST" --username "$PGUSER" \
       --dbname recipe_lab_rcp32_acceptance \
       --tuples-only --no-align \
@@ -533,7 +546,7 @@ section 'Export independently bound deletion evidence'
   ledger_sha256="$(sha256sum "$RCP33G_LEDGER_PATH" | cut -d ' ' -f 1)"
   stale_covered_through="$(docker run --rm --network host \
     -e PGPASSWORD="$PGPASSWORD" \
-    postgres:17-alpine \
+    "$DATABASE_IMAGE" \
     psql --host "$PGHOST" --username "$PGUSER" \
       --dbname recipe_lab_rcp32_acceptance \
       --tuples-only --no-align \
@@ -557,18 +570,18 @@ reload_environment
 section 'Restore older backup and require negative replay failures'
 docker run --rm --network host \
   -e PGPASSWORD="$PGPASSWORD" \
-  postgres:17-alpine \
+  "$DATABASE_IMAGE" \
   dropdb --host "$PGHOST" --username "$PGUSER" \
     --force --if-exists recipe_lab_rcp32_acceptance_restore \
   > /dev/null
 docker run --rm --network host \
   -e PGPASSWORD="$PGPASSWORD" \
-  postgres:17-alpine \
+  "$DATABASE_IMAGE" \
   createdb --host "$PGHOST" --username "$PGUSER" \
     recipe_lab_rcp32_acceptance_restore
 docker run --rm --interactive --network host \
   -e PGPASSWORD="$PGPASSWORD" \
-  postgres:17-alpine \
+  "$DATABASE_IMAGE" \
   pg_restore --host "$PGHOST" --username "$PGUSER" \
     --dbname recipe_lab_rcp32_acceptance_restore \
     --exit-on-error --no-owner --no-privileges \
@@ -591,7 +604,7 @@ assert_bob_active() {
   fi
   bob_status="$(docker run --rm --network host \
     -e PGPASSWORD="$PGPASSWORD" \
-    postgres:17-alpine \
+    "$DATABASE_IMAGE" \
     psql --host "$PGHOST" --username "$PGUSER" \
       --dbname recipe_lab_rcp32_acceptance_restore \
       --tuples-only --no-align \

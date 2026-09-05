@@ -1,52 +1,51 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Literal, cast
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.domain_errors import DomainConflictError, DomainNotFoundError
 from app.models import (
     RECIPE_PUBLICATION_STATE_AUTHOR_WITHDRAWN,
     RECIPE_PUBLICATION_STATE_PUBLISHED,
     RecipeVersionPublication,
+)
+from app.policies.recipe_visibility import (
+    AuthorRecipeVisibilityState as _AuthorRecipeVisibilityState,
+)
+from app.policies.recipe_visibility import (
+    RecipeVisibilityState as _RecipeVisibilityState,
+)
+from app.policies.recipe_visibility import (
+    effective_recipe_visibility_state as _effective_recipe_visibility_state,
 )
 from app.repositories.recipe_publications import (
     get_owned_recipe_publication_for_update,
     lock_recipe_publication_guard,
 )
 
-type AuthorRecipeVisibilityState = Literal["published", "author_withdrawn"]
-type RecipeVisibilityState = Literal[
-    "published",
-    "author_withdrawn",
-    "moderation_hidden",
-]
 
-
-class RecipeVisibilityNotFoundError(LookupError):
+class RecipeVisibilityNotFoundError(DomainNotFoundError):
     """The exact authored publication is absent from the actor's private scope."""
 
+    code = "recipe_not_found"
+    public_message = "The recipe was not found or is not available in your authored recipes."
 
-class RecipeVisibilityModerationConflictError(RuntimeError):
+
+class RecipeVisibilityModerationConflictError(DomainConflictError):
     """An author tried to make moderation-hidden content public."""
+
+    code = "recipe_visibility_managed_by_moderation"
+    public_message = "This recipe cannot be restored by its author."
 
 
 @dataclass(frozen=True, slots=True)
 class RecipeVisibilityResult:
     recipe_version_id: UUID
-    state: RecipeVisibilityState
+    state: _RecipeVisibilityState
     state_changed_at: datetime
     changed: bool
-
-
-def effective_recipe_visibility_state(
-    publication: RecipeVersionPublication,
-) -> RecipeVisibilityState:
-    if publication.moderation_hidden_at is not None:
-        return "moderation_hidden"
-    if publication.author_withdrawn_at is not None:
-        return "author_withdrawn"
-    return "published"
 
 
 def _next_change_time(publication: RecipeVersionPublication) -> datetime:
@@ -59,7 +58,7 @@ def set_authored_recipe_visibility(
     *,
     actor_user_id: UUID,
     recipe_version_id: UUID,
-    desired_state: AuthorRecipeVisibilityState,
+    desired_state: _AuthorRecipeVisibilityState,
 ) -> RecipeVisibilityResult:
     """Apply one author-controlled visibility axis without changing recipe topology.
 
@@ -102,13 +101,13 @@ def set_authored_recipe_visibility(
     if next_author_withdrawn_at == publication.author_withdrawn_at:
         return RecipeVisibilityResult(
             recipe_version_id=publication.recipe_version_id,
-            state=cast(RecipeVisibilityState, publication.state),
+            state=cast(_RecipeVisibilityState, publication.state),
             state_changed_at=publication.state_changed_at,
             changed=False,
         )
 
     publication.author_withdrawn_at = next_author_withdrawn_at
-    effective_state = effective_recipe_visibility_state(publication)
+    effective_state = _effective_recipe_visibility_state(publication)
     publication.state = effective_state
     publication.state_changed_at = changed_at
     publication.state_changed_by_user_id = actor_user_id

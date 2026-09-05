@@ -20,6 +20,7 @@ export const metadata: Metadata = {
 
 interface RecipeComparePageProps {
   params: Promise<{ recipeVersionId: string }>;
+  searchParams?: Promise<{ base_version_id?: string | string[] }>;
 }
 
 function NoParentComparison({ recipeVersionId }: { recipeVersionId: string }) {
@@ -45,15 +46,27 @@ function NoParentComparison({ recipeVersionId }: { recipeVersionId: string }) {
 
 export default async function RecipeComparePage({
   params,
+  searchParams = Promise.resolve({}),
 }: RecipeComparePageProps) {
   const { recipeVersionId } = await params;
+  const requestedBaseVersionId = (await searchParams).base_version_id;
+  const baseVersionId =
+    typeof requestedBaseVersionId === "string"
+      ? requestedBaseVersionId
+      : undefined;
   if (!isRecipeVersionId(recipeVersionId)) {
+    notFound();
+  }
+  if (
+    requestedBaseVersionId !== undefined &&
+    (baseVersionId === undefined || !isRecipeVersionId(baseVersionId))
+  ) {
     notFound();
   }
 
   let diff: RecipeDiff | null;
   try {
-    diff = await fetchRecipeDiff(recipeVersionId);
+    diff = await fetchRecipeDiff(recipeVersionId, baseVersionId);
   } catch (error) {
     if (
       error instanceof RecipeApiError &&
@@ -74,8 +87,14 @@ export default async function RecipeComparePage({
       className="page-shell page-shell--detail recipe-comparison-page"
     >
       <nav className="breadcrumb" aria-label="Breadcrumb">
-        <Link href={`/recipes/${encodeURIComponent(diff.target_version.id)}`}>
-          ← {diff.target_version.title}
+        <Link
+          href={`/recipes/${encodeURIComponent(
+            baseVersionId ? diff.base_version.id : diff.target_version.id,
+          )}`}
+        >
+          ← {baseVersionId
+            ? diff.base_version.title
+            : diff.target_version.title}
         </Link>
       </nav>
       <RecipeDiffView diff={diff} />

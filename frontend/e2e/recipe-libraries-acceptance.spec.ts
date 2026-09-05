@@ -16,12 +16,22 @@ interface DraftResponse {
   revision: number;
 }
 
+interface FollowState {
+  cook_id: string;
+  follower_count: number;
+  following: boolean;
+}
+
 type MyRecipeLibraryView = "drafts" | "published" | "withdrawn";
 
 interface MyRecipePage {
   total: number;
   items: Array<
-    | { kind: "draft"; draft: { id: string; title: string } }
+    | {
+        kind: "draft";
+        draft: { id: string; title: string };
+        source_recipe_title: string | null;
+      }
     | {
         kind: "published";
         recipe: { id: string; title: string };
@@ -154,7 +164,11 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
       expect(aliceDraftsResponse.status(), await aliceDraftsResponse.text()).toBe(200);
       const aliceDrafts = (await aliceDraftsResponse.json()) as MyRecipePage;
       expect(aliceDrafts.items).toContainEqual(
-        expect.objectContaining({ kind: "draft", draft: expect.objectContaining({ id: draft.id, title }) }),
+        expect.objectContaining({
+          kind: "draft",
+          draft: expect.objectContaining({ id: draft.id, title }),
+          source_recipe_title: null,
+        }),
       );
       expect(aliceDrafts.items.every((item) => item.kind === "draft")).toBe(true);
 
@@ -197,7 +211,10 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
       const aliceDraftCard = aliceList.getByRole("article", { name: title, exact: true });
       await expect(aliceDraftCard).toHaveCount(1);
       await expect(aliceDraftHeading).toBeVisible();
-      await expect(aliceDraftCard.getByText("Private draft", { exact: true })).toBeVisible();
+      await expect(aliceDraftCard.getByText("Original", { exact: true })).toBeVisible();
+      await expect(aliceDraftCard.locator(".member-library__draft-origin")).toHaveCount(0);
+      await expect(aliceDraftCard.getByText("Original recipe", { exact: true })).toHaveCount(0);
+      await expect(aliceDraftCard.getByRole("link", { name: "View source" })).toHaveCount(0);
 
       await expectLibraryView(page, "published", alicePublished.total);
       await expect(page.getByText(title, { exact: true })).toHaveCount(0);
@@ -227,20 +244,29 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
       await page.goto("/recipes?q=carrot");
       const catalogAuthor = page.getByRole("link", { name: "Recipe Lab Demo Catalog" }).first();
       await expect(catalogAuthor).toHaveAttribute("href", "/cooks/recipe-lab-catalog");
-      const versionCard = page
-        .getByRole("article")
-        .filter({
-          has: page.locator(".recipe-card__parent"),
-        })
-        .first();
+      const versionCard = page.getByRole("article", {
+        name: "Lower-Sugar Pecan Carrot Cake",
+        exact: true,
+      });
       await expect(versionCard).toBeVisible();
       await expect(page.locator(".version-badge")).toHaveCount(0);
-      const parentAttribution = versionCard.locator(".recipe-card__parent");
+      const parentAttribution = versionCard.locator(
+        ".recipe-card-engagement__lineage",
+      );
       await expect(parentAttribution).toHaveText(
-        /^Based on .+ by Recipe Lab Demo Catalog$/,
+        "Based on Carrot Walnut Snack Cake",
       );
       await expect(
-        parentAttribution.getByRole("link", { name: "Recipe Lab Demo Catalog" }),
+        parentAttribution.getByRole("link", {
+          name: "Carrot Walnut Snack Cake",
+          exact: true,
+        }),
+      ).toHaveAttribute("href", "/recipes/29454eba-3a4e-5380-b48c-c49dc3697b17");
+      await expect(
+        versionCard.getByRole("link", {
+          name: "Recipe Lab Demo Catalog",
+          exact: true,
+        }),
       ).toHaveAttribute("href", "/cooks/recipe-lab-catalog");
       expect(perCardHydrationRequests).toBe(0);
 
@@ -257,8 +283,8 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
 
       await applyAcceptanceMember(page, "alice");
       await page.setViewportSize({ width: 390, height: 844 });
-      await page.goto("/account/saved-recipes");
-      await expect(page.getByRole("heading", { name: "Saved recipes", level: 1 })).toBeVisible();
+      await page.goto("/account/recipes?view=saved");
+      await expect(page.getByRole("heading", { name: "My recipes", level: 1 })).toBeVisible();
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -274,6 +300,101 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
         );
         expect(discarded.status(), await discarded.text()).toBe(204);
       }
+    }
+  });
+
+  test("follows another cook from their profile and updates follower stats", async ({
+    page,
+  }) => {
+    const targetPath = "/api/cooks/acceptance_bob/follow";
+    const aliceHeaders = await csrfHeaders(page, "alice");
+    const reset = await page.request.delete(apiUrl(targetPath), {
+      headers: {
+        ...aliceHeaders,
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+    });
+    expect(reset.status(), await reset.text()).toBe(200);
+    const initial = (await reset.json()) as FollowState;
+    expect(initial.following).toBe(false);
+    const initialAliceStatsResponse = await page.request.get(
+      apiUrl("/api/my/follow-stats"),
+      { headers: { Accept: "application/json" } },
+    );
+    expect(
+      initialAliceStatsResponse.status(),
+      await initialAliceStatsResponse.text(),
+    ).toBe(200);
+    const initialAliceStats = (await initialAliceStatsResponse.json()) as {
+      following_count: number;
+    };
+
+    try {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.goto("/cooks/acceptance_bob");
+      await expect(
+        page.getByRole("heading", { name: "Bob Cook", level: 1 }),
+      ).toBeVisible();
+      const profile = page.getByRole("main");
+      await expect(
+        profile.getByText(
+          `${initial.follower_count} ${
+            initial.follower_count === 1 ? "follower" : "followers"
+          }`,
+          { exact: true },
+        ),
+      ).toBeVisible();
+
+      const followedResponse = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          response.request().method() === "PUT" &&
+          url.pathname === targetPath
+        );
+      });
+      await page
+        .getByRole("button", { name: "Follow Bob Cook", exact: true })
+        .click();
+      expect((await followedResponse).status()).toBe(200);
+      await expect(
+        page.getByRole("button", { name: "Unfollow Bob Cook", exact: true }),
+      ).toBeVisible();
+      await expect(
+        profile.getByText(
+          `${initial.follower_count + 1} ${
+            initial.follower_count + 1 === 1 ? "follower" : "followers"
+          }`,
+          { exact: true },
+        ),
+      ).toBeVisible();
+
+      const aliceStats = await page.request.get(apiUrl("/api/my/follow-stats"), {
+        headers: { Accept: "application/json" },
+      });
+      expect(aliceStats.status(), await aliceStats.text()).toBe(200);
+      expect(
+        ((await aliceStats.json()) as { following_count: number })
+          .following_count,
+      ).toBe(initialAliceStats.following_count + 1);
+
+      await applyAcceptanceMember(page, "bob");
+      await page.goto("/");
+      const followersMetric = page
+        .locator(".member-home-summary__metric")
+        .filter({ has: page.getByText("Followers", { exact: true }) });
+      await expect(followersMetric).toContainText(
+        String(initial.follower_count + 1),
+      );
+      await expectNoAccessibilityViolations(page);
+    } finally {
+      const headers = await csrfHeaders(page, "alice");
+      const cleanup = await page.request.delete(apiUrl(targetPath), {
+        headers: {
+          ...headers,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      });
+      expect(cleanup.status(), await cleanup.text()).toBe(200);
     }
   });
 });

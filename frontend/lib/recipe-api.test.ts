@@ -78,6 +78,7 @@ describe("recipe API client", () => {
     await expect(
       fetchRecipePage({
         isVariant: true,
+        lineageId: "33333333-3333-4333-8333-333333333333",
         page: 2,
         pageSize: 12,
         query: "carrot & pecan",
@@ -87,7 +88,7 @@ describe("recipe API client", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, options] = fetchMock.mock.calls[0];
     expect(String(url)).toBe(
-      "http://api.example.test/api/recipes?page=2&page_size=12&q=carrot+%26+pecan&is_variant=true",
+      "http://api.example.test/api/recipes?page=2&page_size=12&q=carrot+%26+pecan&is_variant=true&lineage_id=33333333-3333-4333-8333-333333333333",
     );
     expect(options).toMatchObject({
       cache: "no-store",
@@ -168,7 +169,11 @@ describe("recipe API client", () => {
         new Response(
           JSON.stringify({
             items: [
-              { id: "category-breakfast", name: "Breakfast", slug: "breakfast" },
+              {
+                id: "category-breakfast",
+                name: "Breakfast",
+                slug: "breakfast",
+              },
             ],
           }),
           { status: 200, headers: { "Content-Type": "application/json" } },
@@ -178,7 +183,9 @@ describe("recipe API client", () => {
 
     await expect(fetchFeaturedRecipes()).resolves.toEqual({ items: [] });
     await expect(fetchRecipeCategories()).resolves.toEqual({
-      items: [{ id: "category-breakfast", name: "Breakfast", slug: "breakfast" }],
+      items: [
+        { id: "category-breakfast", name: "Breakfast", slug: "breakfast" },
+      ],
     });
 
     expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
@@ -218,15 +225,42 @@ describe("recipe API client", () => {
     );
 
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(fetchMock).toHaveBeenCalledWith(
-      new URL(
-        "http://api.example.test/api/recipes/variant%2Fid%3Fdraft%3Dtrue/diff",
-      ),
-      {
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-      },
+    const [target, init] = fetchMock.mock.calls[0];
+    expect(String(target)).toBe(
+      "http://api.example.test/api/recipes/variant%2Fid%3Fdraft%3Dtrue/diff",
     );
+    expect(init).toMatchObject({
+      cache: "no-store",
+      method: "GET",
+      redirect: "error",
+    });
+    expect(new Headers(init?.headers).get("Accept")).toBe("application/json");
+  });
+
+  it("fetches an explicit same-family comparison", async () => {
+    vi.stubEnv("RECIPE_API_URL", "http://api.example.test/");
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(noChangeDiff), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      fetchRecipeDiff("selected-version", "open/page version"),
+    ).resolves.toEqual(noChangeDiff);
+
+    const [target, init] = fetchMock.mock.calls[0];
+    expect(String(target)).toBe(
+      "http://api.example.test/api/recipes/selected-version/diff?base_version_id=open%2Fpage+version",
+    );
+    expect(init).toMatchObject({
+      cache: "no-store",
+      method: "GET",
+      redirect: "error",
+    });
+    expect(new Headers(init?.headers).get("Accept")).toBe("application/json");
   });
 
   it("maps a missing recipe comparison to null", async () => {

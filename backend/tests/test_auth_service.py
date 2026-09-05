@@ -196,6 +196,43 @@ def test_revoked_expired_and_inactive_sessions_do_not_authenticate(
     )
 
 
+def test_session_last_seen_is_written_only_after_the_touch_interval(
+    db_session: Session,
+) -> None:
+    issued_at = datetime.now(UTC)
+    issued = issue_member_session(
+        db_session,
+        settings=auth_settings(),
+        identity=verified_identity(),
+        return_path="/",
+        now=issued_at,
+    )
+
+    within_interval = issued_at + timedelta(minutes=4)
+    authenticated = resolve_authenticated_session(
+        db_session,
+        raw_session_token=issued.session_token,
+        now=within_interval,
+        touch_interval_seconds=5 * 60,
+    )
+
+    assert authenticated is not None
+    stored_session = db_session.get(UserSession, authenticated.session_id)
+    assert stored_session is not None
+    assert stored_session.last_seen_at == issued_at
+
+    after_interval = issued_at + timedelta(minutes=5)
+    authenticated = resolve_authenticated_session(
+        db_session,
+        raw_session_token=issued.session_token,
+        now=after_interval,
+        touch_interval_seconds=5 * 60,
+    )
+
+    assert authenticated is not None
+    assert stored_session.last_seen_at == after_interval
+
+
 def test_onboarding_sets_normalized_profile_without_changing_session(db_session: Session) -> None:
     now = datetime.now(UTC)
     issued = issue_member_session(
@@ -217,8 +254,12 @@ def test_onboarding_sets_normalized_profile_without_changing_session(db_session:
         authenticated=authenticated,
         handle="test-cook",
         display_name="Test Cook",
+        profile_description="Weeknight recipes for busy cooks.",
+        update_profile_description=True,
     )
 
     assert updated.session_id == authenticated.session_id
     assert updated.handle == "test-cook"
     assert updated.display_name == "Test Cook"
+    assert updated.profile_description == "Weeknight recipes for busy cooks."
+    assert issued.user.profile_description == "Weeknight recipes for busy cooks."

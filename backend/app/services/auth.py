@@ -65,6 +65,7 @@ class AuthenticatedSession:
     expires_at: datetime
     handle: str | None
     display_name: str
+    profile_description: str | None
     authenticated_at: datetime | None = None
 
 
@@ -79,6 +80,7 @@ def begin_oidc_login(
     oidc_client: OIDCClient,
     return_path: str,
     now: datetime,
+    force_reauthentication: bool = False,
 ) -> LoginStart:
     safe_return_path = validate_return_path(return_path)
     state = generate_opaque_token()
@@ -88,6 +90,7 @@ def begin_oidc_login(
         state=state,
         nonce=nonce,
         code_challenge=pkce_s256_challenge(verifier),
+        force_reauthentication=force_reauthentication,
     )
     prune_oidc_login_transactions(session, now=now)
     create_oidc_login_transaction(
@@ -96,7 +99,7 @@ def begin_oidc_login(
         nonce=nonce,
         pkce_verifier=verifier,
         return_path=safe_return_path,
-        expires_at=now + timedelta(seconds=settings.oidc_login_ttl_seconds),
+        expires_at=now + timedelta(seconds=settings.oidc.login_ttl_seconds),
     )
     return LoginStart(authorization_url=authorization_url, state=state)
 
@@ -144,7 +147,7 @@ def begin_oidc_reauthentication(
         nonce=nonce,
         pkce_verifier=verifier,
         return_path=safe_return_path,
-        expires_at=now + timedelta(seconds=settings.oidc_login_ttl_seconds),
+        expires_at=now + timedelta(seconds=settings.oidc.login_ttl_seconds),
         purpose=OIDC_LOGIN_PURPOSE_REAUTHENTICATE,
         bound_session_id=bound_session.id,
     )
@@ -213,7 +216,7 @@ def issue_member_session(
 
     raw_session_token = generate_opaque_token()
     raw_csrf_token = generate_opaque_token()
-    expires_at = now + timedelta(seconds=settings.auth_session_ttl_seconds)
+    expires_at = now + timedelta(seconds=settings.session.ttl_seconds)
     create_user_session(
         session,
         user=user,
@@ -238,6 +241,7 @@ def resolve_authenticated_session(
     raw_session_token: str,
     now: datetime,
     touch: bool = True,
+    touch_interval_seconds: int = 0,
 ) -> AuthenticatedSession | None:
     if not raw_session_token or len(raw_session_token) > 512:
         return None
@@ -252,7 +256,10 @@ def resolve_authenticated_session(
         or user.status != USER_STATUS_ACTIVE
     ):
         return None
-    if touch:
+    should_touch = touch and user_session.last_seen_at <= now - timedelta(
+        seconds=max(0, touch_interval_seconds)
+    )
+    if should_touch:
         touch_user_session(session, user_session, last_seen_at=now)
     return AuthenticatedSession(
         session_id=user_session.id,
@@ -261,6 +268,7 @@ def resolve_authenticated_session(
         expires_at=user_session.expires_at,
         handle=user.handle,
         display_name=user.display_name,
+        profile_description=user.profile_description,
         authenticated_at=user_session.authenticated_at,
     )
 
@@ -312,7 +320,7 @@ def issue_reauthenticated_session(
 
     raw_session_token = generate_opaque_token()
     raw_csrf_token = generate_opaque_token()
-    expires_at = now + timedelta(seconds=settings.auth_session_ttl_seconds)
+    expires_at = now + timedelta(seconds=settings.session.ttl_seconds)
     create_user_session(
         session,
         user=user,
@@ -348,6 +356,8 @@ def update_member_profile(
     authenticated: AuthenticatedSession,
     handle: str,
     display_name: str,
+    profile_description: str | None = None,
+    update_profile_description: bool = False,
 ) -> AuthenticatedSession:
     user = session.get(User, authenticated.user_id)
     if (
@@ -362,6 +372,8 @@ def update_member_profile(
         raise HandleUnavailableError("Handle is unavailable.")
     set_user_handle(session, user, handle=handle)
     user.display_name = display_name
+    if update_profile_description:
+        user.profile_description = profile_description
     session.flush()
     return AuthenticatedSession(
         session_id=authenticated.session_id,
@@ -370,5 +382,6 @@ def update_member_profile(
         expires_at=authenticated.expires_at,
         handle=user.handle,
         display_name=user.display_name,
+        profile_description=user.profile_description,
         authenticated_at=authenticated.authenticated_at,
     )

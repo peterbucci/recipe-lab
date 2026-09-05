@@ -1,5 +1,18 @@
-import { memberMutationHeaders, notifySessionExpired } from "./auth-api";
+import type { operations } from "./api-contracts/generated";
+import { browserApiRequest } from "./api-transport/browser";
+import {
+  ApiTransportError,
+  createRequestFingerprint,
+  type PublicApiErrorContract,
+} from "./api-transport/core";
 import { isRecipeVersionId } from "./recipe-api";
+
+type RecipeDuplicateOperation =
+  operations["create_original_draft_duplicate_preflight_api_recipe_drafts__draft_id__duplicate_preflights_post"];
+type RecipeDuplicateInput =
+  RecipeDuplicateOperation["requestBody"]["content"]["application/json"];
+type RecipeDuplicateWire =
+  RecipeDuplicateOperation["responses"][201]["content"]["application/json"];
 
 export type RecipeDuplicateClassification =
   "exact_duplicate" | "probable_duplicate" | "distinct";
@@ -41,12 +54,6 @@ export interface RecipeDuplicatePreflight {
   acknowledgement: RecipeDuplicateAcknowledgement;
 }
 
-interface ApiErrorPayload {
-  error?: {
-    code?: unknown;
-  };
-}
-
 const KNOWN_RECIPE_DUPLICATE_ERROR_CODES = new Set([
   "abuse_protection_unavailable",
   "account_setup_required",
@@ -65,12 +72,10 @@ const KNOWN_RECIPE_DUPLICATE_ERROR_CODES = new Set([
   "validation_error",
 ]);
 
-function knownRecipeDuplicateErrorCode(value: unknown): string {
-  return typeof value === "string" &&
-    KNOWN_RECIPE_DUPLICATE_ERROR_CODES.has(value)
-    ? value
-    : "recipe_duplicate_api_error";
-}
+const RECIPE_DUPLICATE_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "recipe_duplicate_api_error",
+  knownCodes: KNOWN_RECIPE_DUPLICATE_ERROR_CODES,
+};
 
 export class RecipeDuplicateApiError extends Error {
   readonly status: number;
@@ -352,61 +357,57 @@ export function parseRecipeDuplicatePreflight(
   };
 }
 
-function isErrorPayload(value: unknown): value is ApiErrorPayload {
-  return isRecord(value) && "error" in value;
-}
-
-async function duplicateApiError(
-  response: Response,
-): Promise<RecipeDuplicateApiError> {
-  let code = "recipe_duplicate_api_error";
-  try {
-    const payload: unknown = await response.json();
-    if (isErrorPayload(payload) && isRecord(payload.error)) {
-      code = knownRecipeDuplicateErrorCode(payload.error.code);
-    }
-  } catch {
-    // Keep a stable message and never expose an upstream response body.
-  }
+function duplicateApiError(error: ApiTransportError): RecipeDuplicateApiError {
   const message =
-    response.status === 401
+    error.status === 401
       ? "Your session expired. Sign in again to continue."
-      : response.status === 409 && code === "recipe_fork_source_unavailable"
+      : error.status === 409 &&
+          error.code === "recipe_fork_source_unavailable"
         ? "The public source recipe is no longer available. Your private draft is unchanged."
         : "Recipe Lab could not check this version right now. Your draft is still here; please try again.";
-  return new RecipeDuplicateApiError(message, response.status, code);
+  return new RecipeDuplicateApiError(message, error.status, error.code);
 }
 
 async function duplicateMutation(
   path: string,
   body: unknown,
   idempotencyKey: string,
+  signal?: AbortSignal,
 ): Promise<unknown> {
-  const response = await fetch(path, {
-    method: "POST",
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "Idempotency-Key": idempotencyKey,
-      ...memberMutationHeaders(),
-    },
-    body: JSON.stringify(body),
+  const requestFingerprint = await createRequestFingerprint({
+    body_json: JSON.stringify(body),
+    schema: "recipe-duplicate-preflight",
+    version: 1,
   });
-  if (!response.ok) {
-    if (response.status === 401) {
-      notifySessionExpired();
-    }
-    throw await duplicateApiError(response);
-  }
   try {
-    return await response.json();
-  } catch {
+    const response = await browserApiRequest(path, {
+      body: JSON.stringify(body),
+      csrf: "member",
+      errorContract: RECIPE_DUPLICATE_ERROR_CONTRACT,
+      headers: { "Content-Type": "application/json" },
+      identity: { idempotencyKey, requestFingerprint },
+      kind: "mutation",
+      method: "POST",
+      signal,
+    });
+    return response.data;
+  } catch (error) {
+    if (error instanceof ApiTransportError) {
+      if (signal?.aborted) {
+        throw new DOMException("The request was aborted.", "AbortError");
+      }
+      if (error.reason === "invalid_response") {
+        throw new RecipeDuplicateApiError(
+          "Recipe Lab received an invalid similarity review response.",
+          502,
+          "invalid_recipe_duplicate_response",
+        );
+      }
+      throw duplicateApiError(error);
+    }
     throw new RecipeDuplicateApiError(
-      "Recipe Lab received an invalid similarity review response.",
-      502,
-      "invalid_recipe_duplicate_response",
+      "Recipe Lab could not check this version right now. Your draft is still here; please try again.",
+      0,
     );
   }
 }
@@ -415,11 +416,14 @@ export async function createRecipeDraftDuplicatePreflight(
   draftId: string,
   revision: number,
   idempotencyKey: string,
+  signal?: AbortSignal,
 ): Promise<RecipeDuplicatePreflight> {
-  const result = await duplicateMutation(
+  const input: RecipeDuplicateInput = { revision };
+  const result = (await duplicateMutation(
     `/api/recipe-drafts/${encodeURIComponent(draftId)}/duplicate-preflights`,
-    { revision },
+    input,
     idempotencyKey,
-  );
+    signal,
+  )) as RecipeDuplicateWire;
   return parseRecipeDuplicatePreflight(result);
 }

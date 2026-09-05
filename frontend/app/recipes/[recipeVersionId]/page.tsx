@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { fetchRecipe, isRecipeVersionId } from "../../../lib/recipe-api";
-import { RecipeDetailView } from "../../components/recipe-detail-view";
+import {
+  fetchRecipe,
+  fetchRecipePage,
+  isRecipeVersionId,
+  type RecipeCardSummary,
+} from "../../../lib/recipe-api";
+import { RecipeDetailExperience } from "../../components/recipe-detail-experience";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +19,9 @@ interface RecipeDetailPageProps {
   params: Promise<{ recipeVersionId: string }>;
 }
 
-export default async function RecipeDetailPage({ params }: RecipeDetailPageProps) {
+export default async function RecipeDetailPage({
+  params,
+}: RecipeDetailPageProps) {
   const { recipeVersionId } = await params;
   if (!isRecipeVersionId(recipeVersionId)) {
     notFound();
@@ -25,15 +31,23 @@ export default async function RecipeDetailPage({ params }: RecipeDetailPageProps
     notFound();
   }
 
+  let familyVersions: RecipeCardSummary[] = [];
+  try {
+    const familyPage = await fetchRecipePage({
+      lineageId: recipe.lineage_id,
+      pageSize: 100,
+      sort: "title",
+    });
+    familyVersions = [...familyPage.items];
+  } catch {
+    // The detail response still carries enough bounded context for a useful
+    // parent/current/children fallback when the lineage browse is unavailable.
+  }
+
   return (
-    <main
-      id="main-content"
-      className="page-shell page-shell--detail recipe-reading-page"
-    >
-      <nav className="breadcrumb" aria-label="Breadcrumb">
-        <Link href="/recipes">← All recipes</Link>
-      </nav>
-      <RecipeDetailView recipe={recipe} />
-    </main>
+    <RecipeDetailExperience
+      familyVersions={familyVersions}
+      recipe={recipe}
+    />
   );
 }

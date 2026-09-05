@@ -8,8 +8,10 @@ import {
   RecipeVisibilityApiError,
   updateRecipeVisibility,
 } from "../../lib/recipe-visibility-api";
+import { LoadingButton } from "./loading-ui";
 
 interface RecipeVisibilityControlProps {
+  compact?: boolean;
   onChanged: (state: RecipeVisibilityState) => Promise<void> | void;
   recipeTitle: string;
   recipeVersionId: string;
@@ -34,6 +36,7 @@ function visibilityErrorMessage(reason: unknown): string {
 }
 
 export function RecipeVisibilityControl({
+  compact = false,
   onChanged,
   recipeTitle,
   recipeVersionId,
@@ -79,6 +82,7 @@ export function RecipeVisibilityControl({
   }
 
   if (state === "moderation_hidden") {
+    if (compact) return null;
     return (
       <div className="recipe-visibility-control">
         <p>
@@ -92,16 +96,19 @@ export function RecipeVisibilityControl({
   if (state === "author_withdrawn") {
     return (
       <div className="recipe-visibility-control">
-        <p>This recipe is visible only in your recipe library.</p>
-        <button
-          aria-label={`Restore ${recipeTitle}`}
+        {!compact ? (
+          <p>This recipe is visible only in your recipe library.</p>
+        ) : null}
+        <LoadingButton
+          aria-label={pending ? `Restoring ${recipeTitle}…` : `Restore ${recipeTitle}`}
           className="button button--secondary"
           type="button"
-          disabled={pending}
+          pending={pending}
+          pendingLabel="Restoring…"
           onClick={() => void changeVisibility("published")}
         >
-          {pending ? "Restoring…" : "Restore recipe"}
-        </button>
+          {compact ? "Restore to public" : "Restore recipe"}
+        </LoadingButton>
         {error ? (
           <p className="recipe-visibility-control__error" role="alert">
             {error}
@@ -145,16 +152,21 @@ export function RecipeVisibilityControl({
             available and show an unavailable source.
           </p>
           <div className="button-row">
-            <button
+            <LoadingButton
               ref={confirmationButtonRef}
-              aria-label={`Confirm withdrawal of ${recipeTitle}`}
+              aria-label={
+                pending
+                  ? `Withdrawing ${recipeTitle}…`
+                  : `Confirm withdrawal of ${recipeTitle}`
+              }
               className="button button--danger"
               type="button"
-              disabled={pending}
+              pending={pending}
+              pendingLabel="Withdrawing…"
               onClick={() => void changeVisibility("author_withdrawn")}
             >
-              {pending ? "Withdrawing…" : "Confirm withdrawal"}
-            </button>
+              Confirm withdrawal
+            </LoadingButton>
             <button
               aria-label={`Cancel withdrawal of ${recipeTitle}`}
               className="button button--quiet"

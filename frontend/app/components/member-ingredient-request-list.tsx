@@ -3,6 +3,7 @@ import type {
   MemberIngredientRequestPage,
 } from "../../lib/ingredient-catalog-api";
 import { MemberIngredientRequestCard } from "./member-ingredient-request-card";
+import { WorkspacePagination } from "./workspace-pagination";
 
 interface MemberIngredientRequestListProps {
   contextLabel?: string;
@@ -27,11 +28,28 @@ export function MemberIngredientRequestList({
 }: MemberIngredientRequestListProps) {
   return (
     <>
-      <p className="member-request-history__summary" role="status" aria-live="polite">
+      <p
+        className={`member-request-history__summary${selectionEnabled ? "" : " visually-hidden"}`}
+        role="status"
+        aria-live="polite"
+      >
         {requestPage.total} request{requestPage.total === 1 ? "" : "s"}. Page {requestPage.page} of{" "}
         {requestPage.total_pages}.
       </p>
-      <div className="member-request-history__list">
+      {!selectionEnabled ? (
+        <div className="member-request-history__list-head" aria-hidden="true">
+          <span>Ingredient request</span>
+          <span>Status</span>
+          <span>Requested</span>
+          <span>Resolution</span>
+        </div>
+      ) : null}
+      <div
+        className={`member-request-history__list member-request-history__list--${
+          selectionEnabled ? "picker" : "standalone"
+        }`}
+        aria-busy={loading}
+      >
         {requestPage.items.map((request) => (
           <MemberIngredientRequestCard
             key={request.id}
@@ -40,34 +58,20 @@ export function MemberIngredientRequestList({
             request={request}
             selectingRequestId={selectingRequestId}
             selectionEnabled={selectionEnabled}
+            standalone={!selectionEnabled}
             onSelectResolution={onSelectResolution}
           />
         ))}
       </div>
 
-      {requestPage.total_pages > 1 ? (
-        <nav className="member-request-history__pagination" aria-label={`${regionLabel} pages`}>
-          <button
-            className="button button--quiet"
-            type="button"
-            disabled={requestPage.page <= 1}
-            onClick={() => onChangePage(requestPage.page - 1)}
-          >
-            ← Previous
-          </button>
-          <span aria-current="page">
-            Page {requestPage.page} of {requestPage.total_pages}
-          </span>
-          <button
-            className="button button--quiet"
-            type="button"
-            disabled={requestPage.page >= requestPage.total_pages}
-            onClick={() => onChangePage(requestPage.page + 1)}
-          >
-            Next →
-          </button>
-        </nav>
-      ) : null}
+      <WorkspacePagination
+        buttonClassName="button button--quiet"
+        className="member-request-history__pagination"
+        currentPage={requestPage.page}
+        label={`${regionLabel} pages`}
+        onPageChange={onChangePage}
+        totalPages={requestPage.total_pages}
+      />
     </>
   );
 }

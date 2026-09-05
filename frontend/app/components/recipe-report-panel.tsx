@@ -10,6 +10,7 @@ import {
   type RecipeReportReason,
   submitRecipeReport,
 } from "../../lib/recipe-report-api";
+import { LoadingButton } from "./loading-ui";
 
 const REPORT_REASONS: ReadonlyArray<{ value: RecipeReportReason; label: string }> = [
   { value: "spam", label: "Spam or misleading content" },
@@ -109,6 +110,7 @@ export function RecipeReportPanel({ recipeVersionId }: RecipeReportPanelProps) {
         ref={toggleRef}
         className="recipe-report__toggle"
         type="button"
+        aria-label={expanded ? "Close recipe report form" : "Report recipe"}
         aria-expanded={expanded}
         aria-controls={`recipe-report-form-${recipeVersionId}`}
         onClick={() => {
@@ -116,7 +118,7 @@ export function RecipeReportPanel({ recipeVersionId }: RecipeReportPanelProps) {
           setError("");
         }}
       >
-        {expanded ? "Close report form" : "Report recipe"}
+        {expanded ? "Close" : "Report"}
       </button>
       {expanded ? (
         <div id={`recipe-report-form-${recipeVersionId}`} className="recipe-report__body">
@@ -159,7 +161,7 @@ export function RecipeReportPanel({ recipeVersionId }: RecipeReportPanelProps) {
                   ))}
                 </div>
               </fieldset>
-              <div className="form-field">
+              <div className="recipe-form-field">
                 <label htmlFor={`recipe-report-details-${recipeVersionId}`}>
                   Additional details (optional)
                 </label>
@@ -184,9 +186,14 @@ export function RecipeReportPanel({ recipeVersionId }: RecipeReportPanelProps) {
                 </div>
               ) : null}
               <div className="button-row">
-                <button className="button button--primary" type="submit" disabled={pending}>
-                  {pending ? "Submitting report…" : "Submit private report"}
-                </button>
+                <LoadingButton
+                  className="button button--primary"
+                  type="submit"
+                  pending={pending}
+                  pendingLabel="Submitting report…"
+                >
+                  Submit private report
+                </LoadingButton>
                 <button
                   className="button button--quiet"
                   type="button"
@@ -204,11 +211,6 @@ export function RecipeReportPanel({ recipeVersionId }: RecipeReportPanelProps) {
           <p className="recipe-report__rules-link">
             Read the <Link href="/community-rules">community rules</Link>.
           </p>
-          {!submitted && status ? (
-            <p role="status" aria-live="polite">
-              {status}
-            </p>
-          ) : null}
         </div>
       ) : null}
     </section>

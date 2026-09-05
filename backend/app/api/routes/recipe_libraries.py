@@ -2,19 +2,25 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query, Response
 
+from app.api.cache import apply_private_no_store
 from app.api.dependencies import RequiredAuthenticatedSessionDependency, SessionDependency
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor
+from app.models import RecipeVersion
+from app.pagination import PageParams
 from app.repositories.auth import get_user_by_handle
-from app.repositories.recipe_drafts import RecipeDraftBrowseItem
+from app.repositories.member_follows import count_followers
 from app.repositories.recipe_libraries import (
     MyRecipeLibraryView,
     browse_my_recipes,
     browse_my_saved_recipes,
 )
-from app.repositories.recipes import browse_public_recipe_versions_by_author
+from app.repositories.recipes import (
+    RecipeCardEngagementAggregate,
+    browse_public_recipe_versions_by_author,
+    get_recipe_card_engagement_aggregates,
+)
 from app.schemas.errors import ErrorResponse
-from app.schemas.recipe_drafts import RecipeDraftSummaryResponse
 from app.schemas.recipe_libraries import (
     MyPublishedRecipeItem,
     MyRecipeDraftItem,
@@ -23,7 +29,12 @@ from app.schemas.recipe_libraries import (
     SavedRecipeLibraryItem,
     SavedRecipeLibraryResponse,
 )
-from app.services.recipe_responses import public_user_reference, recipe_summary_response
+from app.schemas.recipes import RecipeCardSummary
+from app.services.recipe_responses import (
+    public_user_reference,
+    recipe_draft_summary_response,
+    recipe_summary_response,
+)
 
 router = APIRouter()
 
@@ -42,22 +53,17 @@ MY_RECIPE_LIBRARY_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
 }
 
 
-def _private_no_store(response: Response) -> None:
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
-
-
-def _draft_summary(item: RecipeDraftBrowseItem) -> RecipeDraftSummaryResponse:
-    return RecipeDraftSummaryResponse(
-        id=item.draft.id,
-        source_version_id=item.draft.source_version_id,
-        status="active",
-        revision=item.draft.revision,
-        title=item.draft.title,
-        ingredient_count=item.ingredient_count,
-        instruction_count=item.instruction_count,
-        created_at=item.draft.created_at,
-        updated_at=item.draft.updated_at,
+def _card_summary(
+    recipe: RecipeVersion,
+    engagement: RecipeCardEngagementAggregate,
+) -> RecipeCardSummary:
+    summary = recipe_summary_response(recipe)
+    average_rating = engagement.average_rating
+    return RecipeCardSummary(
+        **summary.model_dump(),
+        average_rating=float(average_rating) if average_rating is not None else None,
+        rating_count=engagement.rating_count,
+        save_count=engagement.save_count,
     )
 
 
@@ -81,6 +87,7 @@ def public_cook_profile(
     page: Annotated[int, Query(ge=1, le=1_000_000)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> PublicCookProfileResponse:
+    pagination = PageParams(page=page, page_size=page_size)
     cook = get_user_by_handle(session, handle)
     if cook is None:
         raise ApiError(
@@ -91,16 +98,22 @@ def public_cook_profile(
     stored = browse_public_recipe_versions_by_author(
         session,
         author_user_id=cook.id,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
+    )
+    engagement = get_recipe_card_engagement_aggregates(
+        session,
+        [recipe.id for recipe in stored.items],
     )
     return PublicCookProfileResponse(
         cook=public_user_reference(cook),
-        items=[recipe_summary_response(recipe) for recipe in stored.items],
+        follower_count=count_followers(session, user_id=cook.id),
+        description=cook.profile_description,
+        items=[_card_summary(recipe, engagement[recipe.id]) for recipe in stored.items],
         page=page,
         page_size=page_size,
         total=stored.total,
-        total_pages=(stored.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(stored.total),
     )
 
 
@@ -124,11 +137,12 @@ def my_recipe_library(
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> MyRecipeLibraryResponse:
     actor_id = lock_active_member_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
     stored = browse_my_recipes(
         session,
         actor_user_id=actor_id,
         view=view,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
     )
     items: list[MyRecipeDraftItem | MyPublishedRecipeItem] = []
@@ -136,7 +150,13 @@ def my_recipe_library(
         if item.kind == "draft":
             if item.draft is None:
                 raise RuntimeError("Draft library entry is missing its draft.")
-            items.append(MyRecipeDraftItem(draft=_draft_summary(item.draft)))
+            items.append(
+                MyRecipeDraftItem(
+                    draft=recipe_draft_summary_response(item.draft),
+                    source_recipe_title=item.draft.source_recipe_title,
+                    description=item.draft.draft.description,
+                )
+            )
         else:
             if item.recipe is None or item.visibility_state is None:
                 raise RuntimeError("Published library entry is missing visibility metadata.")
@@ -151,10 +171,10 @@ def my_recipe_library(
         page=page,
         page_size=page_size,
         total=stored.total,
-        total_pages=(stored.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(stored.total),
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result
 
 
@@ -172,10 +192,11 @@ def my_saved_recipe_library(
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> SavedRecipeLibraryResponse:
     actor_id = lock_active_member_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
     stored = browse_my_saved_recipes(
         session,
         actor_user_id=actor_id,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
     )
     result = SavedRecipeLibraryResponse(
@@ -189,8 +210,8 @@ def my_saved_recipe_library(
         page=page,
         page_size=page_size,
         total=stored.total,
-        total_pages=(stored.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(stored.total),
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result

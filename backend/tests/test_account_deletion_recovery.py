@@ -428,6 +428,14 @@ def test_tombstone_privacy_verification_scans_tables_once_for_the_whole_batch(
     assert scans > 0
 
 
+def test_tombstone_privacy_verification_rejects_a_retained_profile_description() -> None:
+    tombstone = _deleted_user(DELETED_USER_ID)
+    tombstone.profile_description = "Private profile prose must not survive deletion."
+
+    with Session() as session, pytest.raises(DeletionLedgerError):
+        recovery._verify_deleted_members(session, [(tombstone, DELETED_AT)])
+
+
 def test_exclusive_writer_removes_temporary_file_when_publication_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -451,6 +459,8 @@ def test_replay_handles_deletable_deleted_and_absent_members_without_losing_publ
 ) -> None:
     active = _active_user(ACTIVE_USER_ID)
     suspended = _active_user(INVALID_USER_ID, status=USER_STATUS_SUSPENDED)
+    active.profile_description = "Private profile prose that replay must erase."
+    suspended.profile_description = "Suspended profile prose that replay must erase."
     deleted = _deleted_user(DELETED_USER_ID)
     db_session.add_all([active, suspended, deleted])
     db_session.flush()
@@ -499,10 +509,12 @@ def test_replay_handles_deletable_deleted_and_absent_members_without_losing_publ
     assert tombstone.email is None
     assert tombstone.handle is None
     assert tombstone.display_name == "Deleted cook"
+    assert tombstone.profile_description is None
     suspended_tombstone = db_session.get(User, INVALID_USER_ID)
     assert suspended_tombstone is not None
     assert suspended_tombstone.status == USER_STATUS_DELETED
     assert suspended_tombstone.deleted_at == DELETED_AT
+    assert suspended_tombstone.profile_description is None
     assert db_session.get(RecipeDraft, draft_id) is None
     retained = db_session.get(RecipeVersion, version_id)
     assert retained is not None

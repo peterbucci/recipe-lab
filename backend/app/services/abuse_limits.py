@@ -4,120 +4,46 @@ import ipaddress
 import math
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Literal
 from uuid import UUID
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.api.errors import ApiError
 from app.core.config import Settings
+from app.core.domain_errors import DomainRateLimitedError, DomainUnavailableError
 from app.models.abuse import (
     RATE_LIMIT_DIMENSION_ACCOUNT,
     RATE_LIMIT_DIMENSION_IDENTITY,
     RATE_LIMIT_DIMENSION_NETWORK,
 )
+from app.policies.abuse import (
+    RateLimitOperation as RateLimitOperation,
+)
+from app.policies.abuse import (
+    RateLimitPolicy as RateLimitPolicy,
+)
+from app.policies.abuse import (
+    classify_rate_limited_request as classify_rate_limited_request,
+)
 from app.repositories.abuse_limits import record_rate_limit_attempt
-
-RateLimitOperation = Literal[
-    "account_auth",
-    "draft_mutation",
-    "fork_creation",
-    "publication",
-    "recipe_report",
-    "interaction",
-]
-
-_IDENTIFIER_PATH_PART = r"[^/]{1,64}"
-_DRAFT_PATH = re.compile(rf"^/api/recipe-drafts/{_IDENTIFIER_PATH_PART}$")
-_DRAFT_PREFLIGHT_PATH = re.compile(
-    rf"^/api/recipe-drafts/{_IDENTIFIER_PATH_PART}/duplicate-preflights$"
-)
-_PUBLICATION_PATH = re.compile(rf"^/api/recipe-drafts/{_IDENTIFIER_PATH_PART}/publish$")
-_REPORT_PATH = re.compile(rf"^/api/recipes/{_IDENTIFIER_PATH_PART}/reports$")
-_MODERATION_ACTION_PATH = re.compile(
-    rf"^/api/moderation/recipe-reports/{_IDENTIFIER_PATH_PART}/actions$"
-)
-_INTERACTION_PATH = re.compile(rf"^/api/recipes/{_IDENTIFIER_PATH_PART}/(?:view|save|rating)$")
 
 NETWORK_HEADER = "x-recipe-lab-client-network"
 NETWORK_TIMESTAMP_HEADER = "x-recipe-lab-network-timestamp"
 NETWORK_SIGNATURE_HEADER = "x-recipe-lab-network-signature"
 
 
-@dataclass(frozen=True, slots=True)
-class RateLimitPolicy:
-    operation: RateLimitOperation
-    account_limit: int | None
-    network_limit: int
+class RateLimitUnavailableError(DomainUnavailableError):
+    code = "abuse_protection_unavailable"
+    public_message = "This request cannot be completed safely right now. Please try again."
 
 
-class RateLimitUnavailableError(RuntimeError):
-    pass
+class RateLimitExceededError(DomainRateLimitedError):
+    code = "rate_limit_exceeded"
+    public_message = "Too many requests. Please try again later."
 
-
-def classify_rate_limited_request(
-    *,
-    method: str,
-    path: str,
-    settings: Settings,
-) -> RateLimitPolicy | None:
-    normalized_method = method.upper()
-    normalized_path = path.rstrip("/") or "/"
-    if normalized_method == "GET" and normalized_path in {
-        "/api/auth/login",
-        "/api/auth/reauthenticate",
-        "/api/auth/callback",
-    }:
-        return RateLimitPolicy(
-            operation="account_auth",
-            account_limit=None,
-            network_limit=settings.abuse_rate_limit_auth_network,
-        )
-    if normalized_method == "POST" and normalized_path == "/api/recipe-drafts":
-        return RateLimitPolicy(
-            operation="fork_creation",
-            account_limit=settings.abuse_rate_limit_fork_account,
-            network_limit=settings.abuse_rate_limit_fork_network,
-        )
-    if normalized_method in {"PUT", "DELETE"} and _DRAFT_PATH.fullmatch(normalized_path):
-        return RateLimitPolicy(
-            operation="draft_mutation",
-            account_limit=settings.abuse_rate_limit_draft_account,
-            network_limit=settings.abuse_rate_limit_draft_network,
-        )
-    if normalized_method == "POST" and _DRAFT_PREFLIGHT_PATH.fullmatch(normalized_path):
-        return RateLimitPolicy(
-            operation="draft_mutation",
-            account_limit=settings.abuse_rate_limit_draft_account,
-            network_limit=settings.abuse_rate_limit_draft_network,
-        )
-    if normalized_method == "POST" and _PUBLICATION_PATH.fullmatch(normalized_path):
-        return RateLimitPolicy(
-            operation="publication",
-            account_limit=settings.abuse_rate_limit_publication_account,
-            network_limit=settings.abuse_rate_limit_publication_network,
-        )
-    if normalized_method == "POST" and (
-        _REPORT_PATH.fullmatch(normalized_path)
-        or _MODERATION_ACTION_PATH.fullmatch(normalized_path)
-    ):
-        return RateLimitPolicy(
-            operation="recipe_report",
-            account_limit=settings.abuse_rate_limit_report_account,
-            network_limit=settings.abuse_rate_limit_report_network,
-        )
-    if normalized_method in {"POST", "PUT", "DELETE"} and _INTERACTION_PATH.fullmatch(
-        normalized_path
-    ):
-        return RateLimitPolicy(
-            operation="interaction",
-            account_limit=settings.abuse_rate_limit_interaction_account,
-            network_limit=settings.abuse_rate_limit_interaction_network,
-        )
-    return None
+    def __init__(self, *, retry_after_seconds: int) -> None:
+        super().__init__(headers={"Retry-After": str(retry_after_seconds)})
 
 
 def canonical_network_subject(client_host: str | None) -> str:
@@ -166,6 +92,7 @@ def verified_trusted_network_signal(
     path: str,
     now: datetime,
 ) -> str | None:
+    abuse = settings.abuse
     network = headers.get(NETWORK_HEADER)
     raw_timestamp = headers.get(NETWORK_TIMESTAMP_HEADER)
     signature = headers.get(NETWORK_SIGNATURE_HEADER)
@@ -180,10 +107,10 @@ def verified_trusted_network_signal(
         return None
     timestamp = int(raw_timestamp)
     now_timestamp = math.floor(now.astimezone(UTC).timestamp())
-    if abs(now_timestamp - timestamp) > settings.internal_network_signal_ttl_seconds:
+    if abs(now_timestamp - timestamp) > abuse.internal_network_signal_ttl_seconds:
         return None
     expected = trusted_network_signal_signature(
-        secret=settings.internal_network_signal_secret.get_secret_value(),
+        secret=abuse.internal_network_signal_secret.get_secret_value(),
         network=network,
         timestamp=timestamp,
         method=method,
@@ -236,15 +163,6 @@ def _retry_after_seconds(*, now: datetime, expires_at: datetime) -> int:
     return max(1, math.ceil((expires_at - now).total_seconds()))
 
 
-def _rate_limit_error(*, retry_after_seconds: int) -> ApiError:
-    return ApiError(
-        status_code=429,
-        code="rate_limit_exceeded",
-        message="Too many requests. Please try again later.",
-        headers={"Retry-After": str(retry_after_seconds)},
-    )
-
-
 def _record_dimensions(
     session: Session,
     *,
@@ -253,8 +171,9 @@ def _record_dimensions(
     now: datetime,
     dimensions: list[tuple[str, str, UUID | None, int]],
 ) -> None:
-    started_at, expires_at = _window(now, settings.abuse_rate_limit_window_seconds)
-    secret = settings.abuse_rate_limit_secret.get_secret_value()
+    abuse = settings.abuse
+    started_at, expires_at = _window(now, abuse.rate_limit_window_seconds)
+    secret = abuse.rate_limit_secret.get_secret_value()
     exceeded_retry_after: int | None = None
     try:
         for dimension, raw_subject, account_user_id, limit in dimensions:
@@ -284,7 +203,7 @@ def _record_dimensions(
         session.rollback()
         raise RateLimitUnavailableError("Durable abuse protection is unavailable.") from error
     if exceeded_retry_after is not None:
-        raise _rate_limit_error(retry_after_seconds=exceeded_retry_after)
+        raise RateLimitExceededError(retry_after_seconds=exceeded_retry_after)
 
 
 def enforce_request_rate_limit(
@@ -340,15 +259,7 @@ def enforce_oidc_identity_rate_limit(
                 RATE_LIMIT_DIMENSION_IDENTITY,
                 f"{issuer}\x00{subject}",
                 None,
-                settings.abuse_rate_limit_auth_identity,
+                settings.abuse.rate_limit_auth_identity,
             )
         ],
-    )
-
-
-def abuse_protection_unavailable_error() -> ApiError:
-    return ApiError(
-        status_code=503,
-        code="abuse_protection_unavailable",
-        message="This request cannot be completed safely right now. Please try again.",
     )

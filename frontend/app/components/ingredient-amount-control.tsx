@@ -1,6 +1,10 @@
 "use client";
 
-import { type ChangeEvent, useState } from "react";
+import {
+  type ChangeEvent,
+  useRef,
+  useState,
+} from "react";
 
 import {
   catalogUnitSummary,
@@ -14,6 +18,8 @@ import {
   type StructuredMeasureDraft,
   type StructuredMeasureField,
 } from "../../lib/structured-measure";
+import { useFloatingPanelPlacement } from "./use-floating-panel-placement";
+import { Popover, PopoverContent, PopoverTrigger } from "./overlay-primitives";
 
 export interface IngredientAmountControlProps {
   idPrefix: string;
@@ -24,6 +30,7 @@ export interface IngredientAmountControlProps {
   errors?: Partial<Record<StructuredMeasureField, string>>;
   disabled?: boolean;
   describedBy?: string;
+  presentation?: "form" | "popover";
   onChange: (value: StructuredMeasureDraft) => void;
 }
 
@@ -67,9 +74,13 @@ export function IngredientAmountControl({
   errors = {},
   disabled = false,
   describedBy,
+  presentation = "form",
   onChange,
 }: IngredientAmountControlProps) {
   const [moreOpen, setMoreOpen] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const simpleValue = value.mode === "exact";
   const advancedValue = isAdvancedValue(value);
   const panelVisible = advancedValue || moreOpen;
@@ -80,19 +91,34 @@ export function IngredientAmountControl({
       (panelVisible || unit.dimension !== "package"),
   );
   const selectedAvailableUnit = value.unit
-    ? allowedUnits.find((unit) => unit.id === value.unit?.id) ?? null
+    ? (allowedUnits.find((unit) => unit.id === value.unit?.id) ?? null)
     : null;
-  const unavailableUnit = value.unit && !selectedAvailableUnit ? value.unit : null;
-  const groupDescription = [describedBy, errors.mode ? `${idPrefix}-mode-error` : null]
-    .filter(Boolean)
-    .join(" ") || undefined;
+  const unavailableUnit =
+    value.unit && !selectedAvailableUnit ? value.unit : null;
+  const groupDescription =
+    [describedBy, errors.mode ? `${idPrefix}-mode-error` : null]
+      .filter(Boolean)
+      .join(" ") || undefined;
+  const hasErrors = Object.values(errors).some(Boolean);
+  const firstError = Object.values(errors).find(Boolean);
+  const showPopover = presentation === "popover" && popoverOpen;
+  const popoverPlacement = useFloatingPanelPlacement({
+    open: showPopover,
+    panelRef: popoverRef,
+    triggerRef,
+  });
+  const formattedAmount = formatStructuredMeasureDraft(value);
+  const amountTriggerText = formattedAmount.includes("needs attention")
+    ? "Add amount"
+    : formattedAmount;
 
   const update = (changes: Partial<StructuredMeasureDraft>) => {
     onChange({ ...value, ...changes });
   };
 
   const selectedUnit = (event: ChangeEvent<HTMLSelectElement>) =>
-    allowedUnits.find((candidate) => candidate.id === event.target.value) ?? null;
+    allowedUnits.find((candidate) => candidate.id === event.target.value) ??
+    null;
 
   const updateSimpleUnit = (event: ChangeEvent<HTMLSelectElement>) => {
     const unit = selectedUnit(event);
@@ -142,18 +168,13 @@ export function IngredientAmountControl({
     </>
   );
 
-  return (
-    <fieldset
-      className="ingredient-amount"
-      disabled={disabled}
-      aria-label={contextLabel ? `${label} for ${contextLabel}` : label}
-      aria-describedby={groupDescription}
-    >
-      <legend className="visually-hidden">
-        {label}
-        {contextLabel ? ` for ${contextLabel}` : ""}
-      </legend>
+  function closePopover() {
+    setPopoverOpen(false);
+    window.setTimeout(() => triggerRef.current?.focus(), 0);
+  }
 
+  const controls = (
+    <>
       {simpleValue ? (
         <div className="ingredient-amount__primary">
           <div className="recipe-form-field">
@@ -163,13 +184,18 @@ export function IngredientAmountControl({
               value={value.exactValue}
               inputMode="decimal"
               aria-invalid={Boolean(errors.amount)}
-              aria-describedby={errors.amount ? `${idPrefix}-amount-error` : undefined}
+              aria-describedby={
+                errors.amount ? `${idPrefix}-amount-error` : undefined
+              }
               placeholder="2"
               onChange={(event) =>
                 update({ mode: "exact", exactValue: event.target.value })
               }
             />
-            <FieldError id={`${idPrefix}-amount-error`} message={errors.amount} />
+            <FieldError
+              id={`${idPrefix}-amount-error`}
+              message={errors.amount}
+            />
           </div>
           <div className="recipe-form-field">
             <label htmlFor={`${idPrefix}-unit`}>Unit</label>
@@ -194,7 +220,9 @@ export function IngredientAmountControl({
       )}
 
       {advancedValue ? (
-        <p className="ingredient-amount__advanced-heading">More amount options</p>
+        <p className="ingredient-amount__advanced-heading">
+          More amount options
+        </p>
       ) : (
         <button
           className="ingredient-amount__toggle"
@@ -243,9 +271,14 @@ export function IngredientAmountControl({
                   aria-describedby={
                     errors.minimum ? `${idPrefix}-minimum-error` : undefined
                   }
-                  onChange={(event) => update({ rangeMinimum: event.target.value })}
+                  onChange={(event) =>
+                    update({ rangeMinimum: event.target.value })
+                  }
                 />
-                <FieldError id={`${idPrefix}-minimum-error`} message={errors.minimum} />
+                <FieldError
+                  id={`${idPrefix}-minimum-error`}
+                  message={errors.minimum}
+                />
               </div>
               <div className="recipe-form-field">
                 <label htmlFor={`${idPrefix}-maximum`}>Maximum amount</label>
@@ -257,9 +290,14 @@ export function IngredientAmountControl({
                   aria-describedby={
                     errors.maximum ? `${idPrefix}-maximum-error` : undefined
                   }
-                  onChange={(event) => update({ rangeMaximum: event.target.value })}
+                  onChange={(event) =>
+                    update({ rangeMaximum: event.target.value })
+                  }
                 />
-                <FieldError id={`${idPrefix}-maximum-error`} message={errors.maximum} />
+                <FieldError
+                  id={`${idPrefix}-maximum-error`}
+                  message={errors.maximum}
+                />
               </div>
               <div className="recipe-form-field">
                 <label htmlFor={`${idPrefix}-unit-advanced`}>Unit</label>
@@ -272,23 +310,87 @@ export function IngredientAmountControl({
                 >
                   {unitOptions}
                 </select>
-                <FieldError id={`${idPrefix}-unit-error`} message={errors.unit} />
+                <FieldError
+                  id={`${idPrefix}-unit-error`}
+                  message={errors.unit}
+                />
               </div>
             </div>
           ) : null}
 
           {value.packageSizeId ? (
             <p className="ingredient-amount__preserved-note">
-              This recipe includes curated package details. They stay attached unless you change
-              the unit.
+              This recipe includes curated package details. They stay attached
+              unless you change the unit.
             </p>
           ) : null}
           <p className="ingredient-amount__catalog-note">
-            Changing the unit does not recalculate the amount. Recipe Lab never guesses a
-            conversion.
+            Changing the unit does not recalculate the amount. Recipe Lab never
+            guesses a conversion.
           </p>
         </div>
       ) : null}
+    </>
+  );
+
+  return (
+    <fieldset
+      className={`ingredient-amount${
+        presentation === "popover" ? " ingredient-amount--popover" : ""
+      }`}
+      disabled={disabled}
+      aria-label={contextLabel ? `${label} for ${contextLabel}` : label}
+      aria-describedby={groupDescription}
+    >
+      <legend className="visually-hidden">
+        {label}
+        {contextLabel ? ` for ${contextLabel}` : ""}
+      </legend>
+      {presentation === "popover" ? (
+        <Popover open={showPopover} onOpenChange={setPopoverOpen}>
+          <PopoverTrigger
+            ref={triggerRef}
+            contentId={`${idPrefix}-popover`}
+            className="ingredient-amount__trigger"
+            aria-label={`Edit amount${contextLabel ? ` for ${contextLabel.toLowerCase()}` : ""}`}
+            aria-haspopup="dialog"
+            data-invalid={hasErrors || undefined}
+          >
+            {amountTriggerText}
+          </PopoverTrigger>
+          {!showPopover && firstError ? (
+            <p className="ingredient-amount__trigger-error" role="alert">
+              {firstError}
+            </p>
+          ) : null}
+          <PopoverContent
+              ref={popoverRef}
+              id={`${idPrefix}-popover`}
+              className="ingredient-amount__popover"
+              data-placement={popoverPlacement.placement}
+              style={popoverPlacement.style}
+              aria-label={
+                contextLabel
+                  ? `${label} for ${contextLabel.toLowerCase()}`
+                  : label
+              }
+              initialFocus="first"
+            >
+              {controls}
+              <div className="ingredient-amount__popover-actions">
+                <button
+                  className="button button--quiet"
+                  type="button"
+                  onClick={closePopover}
+                >
+                  Done
+                </button>
+              </div>
+          </PopoverContent>
+        </Popover>
+      ) : (
+        controls
+      )}
     </fieldset>
   );
 }

@@ -198,12 +198,11 @@ describe("recipe duplicate API client", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ revision: 7 }),
-        headers: expect.objectContaining({
-          "Idempotency-Key": ACTION_ID,
-          "X-CSRF-Token": "test-csrf-token",
-        }),
       }),
     );
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.get("Idempotency-Key")).toBe(ACTION_ID);
+    expect(headers.get("X-CSRF-Token")).toBe("test-csrf-token");
   });
 
   it("uses a generic failure message and announces an expired session", async () => {

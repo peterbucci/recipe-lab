@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 
-import type { MyRecipeLibraryView } from "../../../lib/recipe-library-api";
 import { MyRecipeLibrary } from "../../components/my-recipe-library";
+import type { MyRecipesHubView } from "../../components/my-recipes-hub";
+import { SavedRecipeLibrary } from "../../components/saved-recipe-library";
 
 export const metadata: Metadata = {
   title: "My recipes",
@@ -19,9 +20,11 @@ function firstValue(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
-function recipeView(value: string | string[] | undefined): MyRecipeLibraryView {
+function recipeView(value: string | string[] | undefined): MyRecipesHubView {
   const candidate = firstValue(value);
-  return candidate === "published" || candidate === "withdrawn" ? candidate : "drafts";
+  return candidate === "published" || candidate === "saved" || candidate === "withdrawn"
+    ? candidate
+    : "drafts";
 }
 
 function pageNumber(value: string | string[] | undefined): number {
@@ -33,5 +36,9 @@ function pageNumber(value: string | string[] | undefined): number {
 
 export default async function MyRecipesPage({ searchParams }: MyRecipesPageProps) {
   const query = await searchParams;
-  return <MyRecipeLibrary pageNumber={pageNumber(query.page)} view={recipeView(query.view)} />;
+  const view = recipeView(query.view);
+  if (view === "saved") {
+    return <SavedRecipeLibrary />;
+  }
+  return <MyRecipeLibrary pageNumber={pageNumber(query.page)} view={view} />;
 }

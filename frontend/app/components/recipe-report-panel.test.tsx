@@ -114,6 +114,7 @@ describe("RecipeReportPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Report recipe" }));
     fireEvent.click(screen.getByRole("radio", { name: "Spam or misleading content" }));
     const details = screen.getByLabelText("Additional details (optional)");
+    expect(details.parentElement).toHaveClass("recipe-form-field");
     fireEvent.change(details, { target: { value: "  Repeated affiliate links  " } });
     fireEvent.click(screen.getByRole("button", { name: "Submit private report" }));
     await screen.findByRole("alert");

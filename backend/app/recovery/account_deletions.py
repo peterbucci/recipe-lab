@@ -331,6 +331,7 @@ def _verify_deleted_members(
             or user.email is not None
             or user.handle is not None
             or user.display_name != DELETED_COOK_DISPLAY_NAME
+            or user.profile_description is not None
             or user.deleted_at is None
             or _utc(user.deleted_at) != _utc(deleted_at)
         ):
@@ -387,6 +388,10 @@ def _verify_deleted_members(
             (RecipeDraft.title != "")
             | RecipeDraft.description.is_not(None)
             | RecipeDraft.servings.is_not(None)
+            | RecipeDraft.total_time_minutes.is_not(None)
+            | RecipeDraft.active_time_minutes.is_not(None)
+            | RecipeDraft.difficulty.is_not(None)
+            | RecipeDraft.notes.is_not(None)
         ),
     ):
         raise _fail()

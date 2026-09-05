@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { AccountSettings } from "../../components/account-settings";
 
 export const metadata: Metadata = {
-  title: "Account settings",
+  title: "Settings",
   description: "Manage your Recipe Lab account.",
 };
 

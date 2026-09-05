@@ -97,9 +97,10 @@ test.describe("ingredient curator acceptance", () => {
     await applyAcceptanceMember(page, "curator");
     await page.goto("/");
     await page.getByLabel("Account menu for Casey Curator").click();
-    await page.getByRole("link", { name: "Review ingredient requests" }).click();
+    await page.getByRole("link", { name: "Staff tools" }).click();
+    await page.getByRole("link", { name: "Open ingredient catalog" }).click();
     await expect(
-      page.getByRole("heading", { name: "Review ingredient requests.", level: 1 }),
+      page.getByRole("heading", { name: "Ingredient requests", level: 1 }),
     ).toBeVisible();
     await expectNoAccessibilityViolations(page);
 
@@ -125,7 +126,7 @@ test.describe("ingredient curator acceptance", () => {
     await page.getByLabel("Approval provenance").fill(
       "RCP-25A.1 isolated real-stack acceptance review.",
     );
-    await page.getByRole("button", { name: "Save approve decision" }).click();
+    await page.getByRole("button", { name: "Approve request" }).click();
     await expect(
       page.getByText(`${approvedName} is now approved.`, { exact: true }),
     ).toBeVisible();
@@ -146,7 +147,7 @@ test.describe("ingredient curator acceptance", () => {
     await page.getByLabel("Decision reason").fill(
       "Rejected because the proposal is not specific enough for the catalog.",
     );
-    await page.getByRole("button", { name: "Save reject decision" }).click();
+    await page.getByRole("button", { name: "Reject request" }).click();
     await expect(
       page.getByText(`${rejectedName} is now rejected.`, { exact: true }),
     ).toBeVisible();
@@ -164,7 +165,7 @@ test.describe("ingredient curator acceptance", () => {
     await page.getByLabel("Decision reason").fill(
       "The approved sapphire herb identity already covers this proposal.",
     );
-    await page.getByRole("button", { name: "Save duplicate decision" }).click();
+    await page.getByRole("button", { name: "Mark as duplicate" }).click();
     await expect(
       page.getByText(`${duplicateName} is now duplicate.`, { exact: true }),
     ).toBeVisible();
@@ -175,7 +176,7 @@ test.describe("ingredient curator acceptance", () => {
     await expect(
       page.getByRole("heading", { name: staleName, level: 2 }),
     ).toBeVisible();
-    const staleCanonical = page.getByLabel("Reviewed canonical name");
+    const staleCanonical = page.getByLabel("Canonical ingredient name");
     const staleReason = page.getByLabel("Decision reason");
     const staleProvenance = page.getByLabel("Approval provenance");
     await staleCanonical.fill("Acceptance reviewed stale herb");
@@ -192,7 +193,7 @@ test.describe("ingredient curator acceptance", () => {
       },
     );
     expect(outOfBandReview.status(), await outOfBandReview.text()).toBe(200);
-    await page.getByRole("button", { name: "Save approve decision" }).click();
+    await page.getByRole("button", { name: "Approve request" }).click();
     await expect(
       page.getByText(/changed while you were reviewing it.*entered review is still here/i),
     ).toBeVisible();
@@ -233,7 +234,7 @@ test.describe("ingredient curator acceptance", () => {
     await page.goto("/");
     await page.getByLabel("Account menu for Bob Cook").click();
     await expect(
-      page.getByRole("link", { name: "Review ingredient requests" }),
+      page.getByRole("link", { name: "Staff tools" }),
     ).toHaveCount(0);
 
     const curatorReads: string[] = [];
@@ -259,7 +260,7 @@ test.describe("ingredient curator acceptance", () => {
     await page.context().clearCookies();
     await page.goto("/");
     await expect(
-      page.getByRole("link", { name: "Review ingredient requests" }),
+      page.getByRole("link", { name: "Staff tools" }),
     ).toHaveCount(0);
 
     const anonymousCuratorReads: string[] = [];

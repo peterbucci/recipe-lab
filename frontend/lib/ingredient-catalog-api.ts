@@ -1,22 +1,52 @@
 import {
   type ApiValidationIssue,
-  memberMutationHeaders,
-  notifySessionExpired,
 } from "./auth-api";
+import type { operations } from "./api-contracts/generated";
+import { browserApiRequest } from "./api-transport/browser";
+import {
+  ApiTransportError,
+  type PublicApiErrorContract,
+} from "./api-transport/core";
 
-export interface CatalogIngredient {
-  id: string;
-  canonical_name: string;
-  aliases: string[];
-}
+type IngredientCatalogOperation =
+  operations["ingredient_catalog_api_ingredients_get"];
+type IngredientCatalogResponse =
+  IngredientCatalogOperation["responses"][200]["content"]["application/json"];
+type IngredientCatalogContract = IngredientCatalogResponse["items"][number];
+type IngredientCatalogQuery = NonNullable<
+  IngredientCatalogOperation["parameters"]["query"]
+>;
+type CreateIngredientRequestOperation =
+  operations["create_ingredient_request_api_ingredient_requests_post"];
+type CreateIngredientRequestInput =
+  CreateIngredientRequestOperation["requestBody"]["content"]["application/json"];
+type CreateIngredientRequestWire =
+  CreateIngredientRequestOperation["responses"][201]["content"]["application/json"];
+type MyIngredientRequestsWire =
+  operations["my_ingredient_requests_api_ingredient_requests_mine_get"]["responses"][200]["content"]["application/json"];
+type IngredientRequestDetailWire =
+  operations["ingredient_request_detail_api_ingredient_requests__request_id__get"]["responses"][200]["content"]["application/json"];
+type IngredientReviewQueueWire =
+  operations["review_queue_api_ingredient_requests_get"]["responses"][200]["content"]["application/json"];
+type IngredientReviewDetailWire =
+  operations["review_request_detail_api_ingredient_requests__request_id__review_get"]["responses"][200]["content"]["application/json"];
+type IngredientReviewOperation =
+  operations["review_ingredient_request_api_ingredient_requests__request_id__review_post"];
+type IngredientReviewInputWire =
+  IngredientReviewOperation["requestBody"]["content"]["application/json"];
+type IngredientReviewItemWire =
+  IngredientReviewOperation["responses"][200]["content"]["application/json"];
+type Mutable<T> = { -readonly [Key in keyof T]: T[Key] };
 
-export interface CatalogIngredientPage {
-  items: CatalogIngredient[];
-  page: number;
-  page_size: number;
-  total: number;
-  total_pages: number;
-}
+export type CatalogIngredient = Omit<
+  Mutable<IngredientCatalogContract>,
+  "aliases"
+> & { aliases: string[] };
+
+export type CatalogIngredientPage = Omit<
+  Mutable<IngredientCatalogResponse>,
+  "items"
+> & { items: CatalogIngredient[] };
 
 export interface CatalogIngredientSelection {
   ingredientId: string;
@@ -117,14 +147,6 @@ export type IngredientCatalogReviewInput =
 export interface MissingIngredientRequestInput {
   proposed_name: string;
   context: string | null;
-}
-
-interface ApiErrorPayload {
-  error?: {
-    code?: unknown;
-    message?: unknown;
-    issues?: unknown;
-  };
 }
 
 export class IngredientCatalogApiError extends Error {
@@ -509,10 +531,6 @@ function parseReviewDetail(value: unknown): IngredientCatalogReviewDetail {
   };
 }
 
-function isErrorPayload(value: unknown): value is ApiErrorPayload {
-  return isRecord(value) && "error" in value;
-}
-
 const KNOWN_CATALOG_SEARCH_ERROR_CODES = new Set([
   "abuse_protection_unavailable",
   "catalog_search_unavailable",
@@ -521,160 +539,114 @@ const KNOWN_CATALOG_SEARCH_ERROR_CODES = new Set([
   "validation_error",
 ]);
 
+const CATALOG_SEARCH_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "ingredient_catalog_api_error",
+  knownCodes: KNOWN_CATALOG_SEARCH_ERROR_CODES,
+};
+
 const KNOWN_MEMBER_INGREDIENT_ERROR_CODES = new Set([
   "abuse_protection_unavailable",
   "account_setup_required",
   "authentication_required",
+  "catalog_curator_required",
+  "ingredient_catalog_conflict",
   "ingredient_request_conflict",
   "ingredient_request_not_found",
+  "ingredient_request_already_reviewed",
   "invalid_csrf",
   "invalid_identifier",
   "rate_limit_exceeded",
   "validation_error",
 ]);
 
-function knownIngredientErrorCode(
-  value: unknown,
-  allowed: ReadonlySet<string>,
-): string {
-  return typeof value === "string" && allowed.has(value)
-    ? value
-    : "ingredient_catalog_api_error";
-}
-
-async function apiError(
-  response: Response,
-  fallback: string,
-): Promise<IngredientCatalogApiError> {
-  let message = fallback;
-  let code = "ingredient_catalog_api_error";
-  let issues: ApiValidationIssue[] = [];
-
-  try {
-    const payload: unknown = await response.json();
-    if (isErrorPayload(payload) && isRecord(payload.error)) {
-      if (typeof payload.error.message === "string") {
-        message = payload.error.message;
-      }
-      if (typeof payload.error.code === "string") {
-        code = payload.error.code;
-      }
-      if (Array.isArray(payload.error.issues)) {
-        issues = payload.error.issues.flatMap((issue) => {
-          if (
-            !isRecord(issue) ||
-            !Array.isArray(issue.location) ||
-            !issue.location.every(
-              (part) => typeof part === "string" || typeof part === "number",
-            ) ||
-            typeof issue.message !== "string" ||
-            typeof issue.type !== "string"
-          ) {
-            return [];
-          }
-          return [
-            {
-              location: issue.location as Array<string | number>,
-              message: issue.message,
-              type: issue.type,
-            },
-          ];
-        });
-      }
-    }
-  } catch {
-    // Keep the stable user-facing fallback when the upstream body is not JSON.
-  }
-
-  return new IngredientCatalogApiError(message, response.status, code, issues);
-}
-
-async function catalogSearchError(
-  response: Response,
-): Promise<IngredientCatalogApiError> {
-  let code = "ingredient_catalog_api_error";
-  try {
-    const payload: unknown = await response.json();
-    if (isErrorPayload(payload) && isRecord(payload.error)) {
-      code = knownIngredientErrorCode(
-        payload.error.code,
-        KNOWN_CATALOG_SEARCH_ERROR_CODES,
-      );
-    }
-  } catch {
-    // Keep the stable cook-facing fallback and never expose the response body.
+function catalogSearchError(error: ApiTransportError): IngredientCatalogApiError {
+  if (error.reason === "invalid_response") {
+    return new IngredientCatalogApiError(
+      "Recipe Lab received an invalid ingredient catalog response.",
+      502,
+      "invalid_ingredient_catalog_response",
+    );
   }
   const message =
-    response.status === 429
+    error.status === 429
       ? "The ingredient catalog is receiving too many searches. Please wait and try again."
       : "The ingredient catalog could not be searched. Please try again.";
-  return new IngredientCatalogApiError(message, response.status, code);
+  return new IngredientCatalogApiError(message, error.status, error.code);
 }
 
-async function memberIngredientError(
-  response: Response,
+function parseIngredientIssues(value: unknown): ApiValidationIssue[] {
+  if (!Array.isArray(value) || value.length > 20) return [];
+  return value.flatMap((issue) => {
+    if (!isRecord(issue) || !Array.isArray(issue.location)) return [];
+    const location = issue.location;
+    const safeLocation = location.every(
+      (part) =>
+        (typeof part === "string" &&
+          [
+            "body",
+            "proposed_name",
+            "context",
+            "decision",
+            "canonical_name",
+            "aliases",
+            "reason",
+            "provenance",
+            "ingredient_id",
+            "request_id",
+          ].includes(part)) ||
+        (typeof part === "number" &&
+          Number.isInteger(part) &&
+          part >= 0 &&
+          part <= 20),
+    );
+    if (!safeLocation) return [];
+    const field = location.at(-1);
+    return [
+      {
+        location: location as Array<string | number>,
+        message:
+          field === "proposed_name"
+            ? "Review the proposed ingredient name."
+            : field === "context"
+              ? "Review the ingredient context."
+              : "Review this field and try again.",
+        type: "validation_error",
+      },
+    ];
+  });
+}
+
+const INGREDIENT_REQUEST_ERROR_CONTRACT: PublicApiErrorContract = {
+  fallbackCode: "ingredient_catalog_api_error",
+  knownCodes: KNOWN_MEMBER_INGREDIENT_ERROR_CODES,
+  parseIssues: parseIngredientIssues,
+};
+
+function ingredientRequestError(
+  error: ApiTransportError,
   fallback: string,
-): Promise<IngredientCatalogApiError> {
-  let code = "ingredient_catalog_api_error";
-  let issues: ApiValidationIssue[] = [];
-  try {
-    const payload: unknown = await response.json();
-    if (isErrorPayload(payload) && isRecord(payload.error)) {
-      code = knownIngredientErrorCode(
-        payload.error.code,
-        KNOWN_MEMBER_INGREDIENT_ERROR_CODES,
-      );
-      if (
-        Array.isArray(payload.error.issues) &&
-        payload.error.issues.length <= 20
-      ) {
-        issues = payload.error.issues.flatMap((issue) => {
-          if (!isRecord(issue) || !Array.isArray(issue.location)) return [];
-          const location = issue.location;
-          const safeLocation = location.every(
-            (part) =>
-              (typeof part === "string" &&
-                ["body", "proposed_name", "context"].includes(part)) ||
-              (typeof part === "number" &&
-                Number.isInteger(part) &&
-                part >= 0 &&
-                part <= 20),
-          );
-          if (!safeLocation) return [];
-          const field = location.at(-1);
-          return [
-            {
-              location: location as Array<string | number>,
-              message:
-                field === "proposed_name"
-                  ? "Review the proposed ingredient name."
-                  : field === "context"
-                    ? "Review the ingredient context."
-                    : "Review this field and try again.",
-              type: "validation_error",
-            },
-          ];
-        });
-      }
-    }
-  } catch {
-    // Keep the stable member-facing fallback and never expose the response body.
-  }
+): IngredientCatalogApiError {
+  const code = error.code;
   const message =
-    response.status === 401
+    error.status === 401
       ? "Your session expired. Sign in again to continue."
-      : response.status === 404
+      : error.status === 404
         ? "This ingredient request is no longer available."
-        : response.status === 409 && code === "ingredient_request_conflict"
+        : error.status === 409 && code === "ingredient_request_conflict"
           ? "That ingredient is already approved or has a pending request."
-          : response.status === 409
+          : error.status === 409
             ? "This ingredient request changed. Refresh it before trying again."
-            : response.status === 422
+            : error.status === 422
               ? "Review the ingredient request fields and try again."
-              : response.status === 429
+              : error.status === 429
                 ? "Too many ingredient requests were made. Please wait and try again."
                 : fallback;
-  return new IngredientCatalogApiError(message, response.status, code, issues);
+  return new IngredientCatalogApiError(
+    message,
+    error.status,
+    code,
+    error.issues,
+  );
 }
 
 export async function searchCatalogIngredients({
@@ -693,47 +665,59 @@ export async function searchCatalogIngredients({
     page_size: String(pageSize),
   });
   const normalizedQuery = query.trim();
-  if (normalizedQuery) {
-    search.set("q", normalizedQuery);
+  const queryContract = {
+    page,
+    page_size: pageSize,
+    ...(normalizedQuery ? { q: normalizedQuery } : {}),
+  } satisfies IngredientCatalogQuery;
+  if (queryContract.q) {
+    search.set("q", queryContract.q);
   }
 
-  const response = await fetch(`/api/ingredients?${search.toString()}`, {
-    method: "GET",
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-    signal,
-  });
-  if (!response.ok) {
-    throw await catalogSearchError(response);
+  try {
+    const response = await browserApiRequest(
+      `/api/ingredients?${search.toString()}`,
+      {
+        errorContract: CATALOG_SEARCH_ERROR_CONTRACT,
+        kind: "query",
+        signal,
+      },
+    );
+    return parseCatalogPage(response.data);
+  } catch (error) {
+    if (error instanceof IngredientCatalogApiError) throw error;
+    if (error instanceof ApiTransportError) throw catalogSearchError(error);
+    throw error;
   }
-  return parseCatalogPage(await response.json());
 }
 
 export async function submitMissingIngredientRequest(
   input: MissingIngredientRequestInput,
 ): Promise<MissingIngredientRequest> {
-  const response = await fetch("/api/ingredient-requests", {
-    method: "POST",
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...memberMutationHeaders(),
-    },
-    body: JSON.stringify(input),
-  });
-  if (!response.ok) {
-    if (response.status === 401) {
-      notifySessionExpired();
-    }
-    throw await memberIngredientError(
-      response,
-      "The ingredient request could not be submitted. Please try again.",
+  try {
+    const wireInput: CreateIngredientRequestInput = input;
+    const response = await browserApiRequest("/api/ingredient-requests", {
+      body: JSON.stringify(wireInput),
+      csrf: "member",
+      errorContract: INGREDIENT_REQUEST_ERROR_CONTRACT,
+      headers: { "Content-Type": "application/json" },
+      identity: null,
+      kind: "mutation",
+      method: "POST",
+    });
+    return parseMissingIngredientRequest(
+      response.data as CreateIngredientRequestWire,
     );
+  } catch (error) {
+    if (error instanceof IngredientCatalogApiError) throw error;
+    if (error instanceof ApiTransportError) {
+      throw ingredientRequestError(
+        error,
+        "The ingredient request could not be submitted. Please try again.",
+      );
+    }
+    throw error;
   }
-  return parseMissingIngredientRequest(await response.json());
 }
 
 export async function browseMyIngredientRequests({
@@ -766,46 +750,66 @@ export async function browseMyIngredientRequests({
     search.set("q", normalizedQuery);
   }
 
-  const response = await fetch(
-    `/api/ingredient-requests/mine?${search.toString()}`,
-    {
-      method: "GET",
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-      signal,
-    },
-  );
-  if (!response.ok) {
-    throw await memberIngredientError(
-      response,
-      "Your ingredient requests could not be loaded. Please try again.",
+  try {
+    const response = await browserApiRequest(
+      `/api/ingredient-requests/mine?${search.toString()}`,
+      {
+        errorContract: INGREDIENT_REQUEST_ERROR_CONTRACT,
+        kind: "query",
+        retry: "never",
+        sessionExpiry: "local",
+        signal,
+      },
     );
+    return parseMemberIngredientRequestPage(
+      response.data as MyIngredientRequestsWire,
+    );
+  } catch (error) {
+    if (error instanceof IngredientCatalogApiError) throw error;
+    if (error instanceof ApiTransportError) {
+      if (signal?.aborted) {
+        throw new DOMException("The request was aborted.", "AbortError");
+      }
+      throw ingredientRequestError(
+        error,
+        "Your ingredient requests could not be loaded. Please try again.",
+      );
+    }
+    throw error;
   }
-  return parseMemberIngredientRequestPage(await response.json());
 }
 
 export async function fetchMyIngredientRequest(
   requestId: string,
   signal?: AbortSignal,
 ): Promise<MemberIngredientRequest> {
-  const response = await fetch(
-    `/api/ingredient-requests/${encodeURIComponent(requestId)}`,
-    {
-      method: "GET",
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-      signal,
-    },
-  );
-  if (!response.ok) {
-    throw await memberIngredientError(
-      response,
-      "The ingredient request could not be loaded. Please try again.",
+  try {
+    const response = await browserApiRequest(
+      `/api/ingredient-requests/${encodeURIComponent(requestId)}`,
+      {
+        errorContract: INGREDIENT_REQUEST_ERROR_CONTRACT,
+        kind: "query",
+        retry: "never",
+        sessionExpiry: "local",
+        signal,
+      },
     );
+    return parseMemberIngredientRequest(
+      response.data as IngredientRequestDetailWire,
+    );
+  } catch (error) {
+    if (error instanceof IngredientCatalogApiError) throw error;
+    if (error instanceof ApiTransportError) {
+      if (signal?.aborted) {
+        throw new DOMException("The request was aborted.", "AbortError");
+      }
+      throw ingredientRequestError(
+        error,
+        "The ingredient request could not be loaded. Please try again.",
+      );
+    }
+    throw error;
   }
-  return parseMemberIngredientRequest(await response.json());
 }
 
 export async function browseIngredientCatalogReviewRequests({
@@ -830,79 +834,91 @@ export async function browseIngredientCatalogReviewRequests({
   if (normalizedQuery) {
     search.set("q", normalizedQuery);
   }
-  const response = await fetch(
-    `/api/ingredient-requests?${search.toString()}`,
-    {
-      method: "GET",
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-      signal,
-    },
-  );
-  if (!response.ok) {
-    if (response.status === 401) {
-      notifySessionExpired();
-    }
-    throw await apiError(
-      response,
-      "The ingredient review queue could not be loaded.",
+  try {
+    const response = await browserApiRequest(
+      `/api/ingredient-requests?${search.toString()}`,
+      {
+        errorContract: INGREDIENT_REQUEST_ERROR_CONTRACT,
+        kind: "query",
+        retry: "never",
+        signal,
+      },
     );
+    return parseReviewPage(response.data as IngredientReviewQueueWire);
+  } catch (error) {
+    if (error instanceof IngredientCatalogApiError) throw error;
+    if (error instanceof ApiTransportError) {
+      if (signal?.aborted) {
+        throw new DOMException("The request was aborted.", "AbortError");
+      }
+      throw ingredientRequestError(
+        error,
+        "The ingredient review queue could not be loaded.",
+      );
+    }
+    throw error;
   }
-  return parseReviewPage(await response.json());
 }
 
 export async function fetchIngredientCatalogReviewDetail(
   requestId: string,
   signal?: AbortSignal,
 ): Promise<IngredientCatalogReviewDetail> {
-  const response = await fetch(
-    `/api/ingredient-requests/${encodeURIComponent(requestId)}/review`,
-    {
-      method: "GET",
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-      signal,
-    },
-  );
-  if (!response.ok) {
-    if (response.status === 401) {
-      notifySessionExpired();
-    }
-    throw await apiError(
-      response,
-      "The ingredient request could not be loaded.",
+  try {
+    const response = await browserApiRequest(
+      `/api/ingredient-requests/${encodeURIComponent(requestId)}/review`,
+      {
+        errorContract: INGREDIENT_REQUEST_ERROR_CONTRACT,
+        kind: "query",
+        retry: "never",
+        signal,
+      },
     );
+    return parseReviewDetail(response.data as IngredientReviewDetailWire);
+  } catch (error) {
+    if (error instanceof IngredientCatalogApiError) throw error;
+    if (error instanceof ApiTransportError) {
+      if (signal?.aborted) {
+        throw new DOMException("The request was aborted.", "AbortError");
+      }
+      throw ingredientRequestError(
+        error,
+        "The ingredient request could not be loaded.",
+      );
+    }
+    throw error;
   }
-  return parseReviewDetail(await response.json());
 }
 
 export async function reviewIngredientCatalogRequest(
   requestId: string,
   input: IngredientCatalogReviewInput,
 ): Promise<IngredientCatalogReviewItem> {
-  const response = await fetch(
-    `/api/ingredient-requests/${encodeURIComponent(requestId)}/review`,
-    {
-      method: "POST",
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        ...memberMutationHeaders(),
+  try {
+    const wireInput: IngredientReviewInputWire = input;
+    const response = await browserApiRequest(
+      `/api/ingredient-requests/${encodeURIComponent(requestId)}/review`,
+      {
+        body: JSON.stringify(wireInput),
+        csrf: "member",
+        errorContract: INGREDIENT_REQUEST_ERROR_CONTRACT,
+        headers: { "Content-Type": "application/json" },
+        identity: null,
+        kind: "mutation",
+        method: "POST",
       },
-      body: JSON.stringify(input),
-    },
-  );
-  if (!response.ok) {
-    if (response.status === 401) {
-      notifySessionExpired();
+    );
+    return parseReviewItem(response.data as IngredientReviewItemWire);
+  } catch (error) {
+    if (error instanceof IngredientCatalogApiError) throw error;
+    if (error instanceof ApiTransportError) {
+      throw ingredientRequestError(
+        error,
+        "The ingredient review could not be saved.",
+      );
     }
-    throw await apiError(response, "The ingredient review could not be saved.");
+    throw error;
   }
-  return parseReviewItem(await response.json());
 }
 
 export function selectionForCatalogIngredient(

@@ -1,0 +1,52 @@
+@layer features {
+
+.system-state-page,
+.staff-state-page {
+  place-items: center;
+  min-height: 70vh;
+  display: grid;
+}
+.system-state-panel,
+.staff-state-panel {
+  border: 1px solid var(--line);
+  border-top: 0.2rem solid var(--leaf);
+  border-radius: var(--radius);
+  background: var(--surface);
+  width: min(100%, 44rem);
+  min-height: 18rem;
+  box-shadow: var(--shadow-panel-subtle);
+  padding: clamp(1.25rem, 4vw, 2rem);
+}
+.staff-state-page--curation .staff-state-panel {
+  border-top-color: var(--mustard);
+}
+.staff-state-page--moderation .staff-state-panel,
+.staff-state-page--error .staff-state-panel {
+  border-top-color: var(--clay);
+}
+@media (max-width: 43.75rem) {
+  .system-state-page,
+  .staff-state-page {
+    width: min(76rem, 100% - 2rem);
+    padding-block: 1rem 2rem;
+  }
+  .system-state-panel,
+  .staff-state-panel {
+    padding: 1rem;
+  }
+  .system-state-panel .button-row,
+  .staff-state-panel .button-row {
+    flex-wrap: wrap;
+    width: auto;
+    display: flex;
+  }
+}
+@media (forced-colors: active) {
+  .system-state-panel,
+  .staff-state-panel {
+    background: canvas;
+    border-color: canvastext;
+  }
+}
+
+}

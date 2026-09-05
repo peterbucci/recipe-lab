@@ -5,6 +5,7 @@ from fastapi import APIRouter, Body, Query, Response, status
 from pydantic import StringConstraints
 from sqlalchemy.exc import IntegrityError
 
+from app.api.cache import apply_private_no_store
 from app.api.dependencies import (
     CsrfProtectedSessionDependency,
     RequiredAuthenticatedSessionDependency,
@@ -13,6 +14,7 @@ from app.api.dependencies import (
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor, lock_catalog_curator_actor
 from app.models import Ingredient, IngredientCatalogRequest
+from app.pagination import PageParams
 from app.repositories.catalog_requests import (
     browse_catalog_requests,
     find_catalog_request_candidates,
@@ -85,11 +87,6 @@ INGREDIENT_REQUEST_CREATE_RESPONSES: dict[int | str, dict[str, object]] = {
 }
 
 
-def _private_no_store(response: Response) -> None:
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
-
-
 def _catalog_item(item: Ingredient) -> IngredientCatalogItem:
     return IngredientCatalogItem(
         id=item.id,
@@ -131,10 +128,11 @@ def ingredient_catalog(
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     q: Annotated[SearchTerm | None, Query()] = None,
 ) -> IngredientCatalogPage:
+    pagination = PageParams(page=page, page_size=page_size)
     result = browse_ingredients(
         session,
         search=q,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
     )
     return IngredientCatalogPage(
@@ -142,7 +140,7 @@ def ingredient_catalog(
         page=page,
         page_size=page_size,
         total=result.total,
-        total_pages=(result.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(result.total),
     )
 
 
@@ -188,7 +186,7 @@ def create_ingredient_request(
         ) from error
 
     response.headers["Location"] = f"/api/ingredient-requests/{result.id}"
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result
 
 
@@ -216,12 +214,13 @@ def my_ingredient_requests(
     q: Annotated[SearchTerm | None, Query()] = None,
 ) -> IngredientCatalogRequestPage:
     actor_id = lock_active_member_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
     result = browse_catalog_requests(
         session,
         requester_user_id=actor_id,
         status=request_status,
         search=q,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
         include_resolved_ingredient=True,
         include_approval_snapshot_matches=False,
@@ -232,10 +231,10 @@ def my_ingredient_requests(
         page=page,
         page_size=page_size,
         total=result.total,
-        total_pages=(result.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(result.total),
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return page_response
 
 
@@ -268,7 +267,7 @@ def ingredient_request_detail(
         )
     result = _member_request_response(request)
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result
 
 
@@ -288,12 +287,13 @@ def review_queue(
     q: Annotated[SearchTerm | None, Query()] = None,
 ) -> IngredientCatalogReviewPage:
     lock_catalog_curator_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
     result = browse_catalog_requests(
         session,
         requester_user_id=None,
         status=request_status,
         search=q,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
         include_approval_snapshot_matches=True,
     )
@@ -304,10 +304,10 @@ def review_queue(
         page=page,
         page_size=page_size,
         total=result.total,
-        total_pages=(result.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(result.total),
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return page_response
 
 
@@ -364,7 +364,7 @@ def review_request_detail(
         ],
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return detail
 
 
@@ -427,5 +427,5 @@ def review_ingredient_request(
             message="The reviewed catalog names conflict with a concurrent catalog change.",
         ) from error
 
-    _private_no_store(response)
+    apply_private_no_store(response)
     return result

@@ -10,7 +10,6 @@ export default function CommunityRulesPage() {
   return (
     <main id="main-content" className="page-shell policy-page public-policy-page">
       <header className="policy-page__header">
-        <p className="eyebrow">Recipe Lab community</p>
         <h1>Community rules</h1>
         <p>
           Recipe Lab is a place to share useful recipes, learn from other cooks, and keep clear
@@ -61,9 +60,6 @@ export default function CommunityRulesPage() {
       <div className="button-row policy-page__actions">
         <Link className="button button--primary" href="/recipes">
           Explore recipes
-        </Link>
-        <Link className="button button--secondary" href="/#how-it-works">
-          See how Recipe Lab works
         </Link>
       </div>
     </main>

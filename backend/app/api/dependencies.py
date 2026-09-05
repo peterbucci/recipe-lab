@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import Depends, Header, Request
 from sqlalchemy.orm import Session
@@ -29,9 +29,10 @@ SessionDependency = Annotated[Session, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
 
 
-def get_oidc_client(settings: SettingsDependency) -> Iterator[OIDCClient]:
-    with OIDCClient(settings) as client:
-        yield client
+def get_oidc_client(request: Request) -> OIDCClient:
+    """Return the application-owned client so provider caches persist."""
+
+    return cast(OIDCClient, request.app.state.resources.oidc_client)
 
 
 OIDCClientDependency = Annotated[OIDCClient, Depends(get_oidc_client)]
@@ -49,6 +50,7 @@ def get_optional_authenticated_session(
         session,
         raw_session_token=raw_session_token,
         now=utc_now(),
+        touch_interval_seconds=settings.session.touch_interval_seconds,
     )
 
 
@@ -131,7 +133,7 @@ def _validate_csrf(
     allowed_origins: set[str] = set()
     try:
         normalized_origin = normalize_origin(origin) if origin is not None else None
-        allowed_origins = {normalize_origin(value) for value in settings.auth_allowed_origin_list}
+        allowed_origins = {normalize_origin(value) for value in settings.session.allowed_origins}
     except ValueError:
         normalized_origin = None
 

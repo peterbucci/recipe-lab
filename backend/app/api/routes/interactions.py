@@ -4,14 +4,19 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Header, Response, status
 from sqlalchemy.orm import Session
 
+from app.api.cache import private_no_store_headers
 from app.api.dependencies import CsrfProtectedSessionDependency, SessionDependency
-from app.api.errors import ApiError
 from app.api.member_context import (
     ensure_recipe_exists,
     lock_active_member_actor,
     recipe_viewer_state_response,
 )
-from app.repositories.interactions import rate_recipe, save_recipe, unsave_recipe
+from app.repositories.interactions import (
+    rate_recipe,
+    save_recipe,
+    unrate_recipe,
+    unsave_recipe,
+)
 from app.schemas.errors import ErrorResponse
 from app.schemas.interactions import (
     EmptyInteractionRequest,
@@ -19,7 +24,6 @@ from app.schemas.interactions import (
     RecipeViewerStateResponse,
 )
 from app.services.preference_events import (
-    IdempotencyKeyConflictError,
     PreferenceEventIntent,
     find_preference_event_replay,
     record_preference_event,
@@ -61,22 +65,11 @@ INTERACTION_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
 }
 
 
-def _private_no_store_headers() -> dict[str, str]:
-    return {"Cache-Control": "private, no-store", "Vary": "Cookie"}
-
-
 def _is_replay_or_error(
     session: Session,
     intent: PreferenceEventIntent,
 ) -> bool:
-    try:
-        return find_preference_event_replay(session, intent) is not None
-    except IdempotencyKeyConflictError as error:
-        raise ApiError(
-            status_code=409,
-            code="idempotency_key_conflict",
-            message="The Idempotency-Key conflicts with an earlier action in this operation.",
-        ) from error
+    return find_preference_event_replay(session, intent) is not None
 
 
 @router.post(
@@ -107,7 +100,7 @@ def record_recipe_view_for_current_user(
     session.commit()
     return Response(
         status_code=status.HTTP_204_NO_CONTENT,
-        headers=_private_no_store_headers(),
+        headers=private_no_store_headers(),
     )
 
 
@@ -125,7 +118,7 @@ def save_recipe_for_current_user(
     authenticated: CsrfProtectedSessionDependency,
     _payload: Annotated[EmptyInteractionRequest | None, Body()] = None,
 ) -> RecipeViewerStateResponse:
-    response.headers.update(_private_no_store_headers())
+    response.headers.update(private_no_store_headers())
     actor_id = lock_active_member_actor(session, authenticated)
     intent = PreferenceEventIntent(
         action_id=action_id,
@@ -166,7 +159,7 @@ def unsave_recipe_for_current_user(
     authenticated: CsrfProtectedSessionDependency,
     _payload: Annotated[EmptyInteractionRequest | None, Body()] = None,
 ) -> RecipeViewerStateResponse:
-    response.headers.update(_private_no_store_headers())
+    response.headers.update(private_no_store_headers())
     actor_id = lock_active_member_actor(session, authenticated)
     intent = PreferenceEventIntent(
         action_id=action_id,
@@ -207,7 +200,7 @@ def rate_recipe_for_current_user(
     session: SessionDependency,
     authenticated: CsrfProtectedSessionDependency,
 ) -> RecipeViewerStateResponse:
-    response.headers.update(_private_no_store_headers())
+    response.headers.update(private_no_store_headers())
     actor_id = lock_active_member_actor(session, authenticated)
     intent = PreferenceEventIntent(
         action_id=action_id,
@@ -224,6 +217,47 @@ def rate_recipe_for_current_user(
             user_id=actor_id,
             recipe_version_id=recipe_version_id,
             rating=payload.rating,
+        )
+        record_preference_event(session, intent)
+    viewer_state = recipe_viewer_state_response(
+        session,
+        user_id=actor_id,
+        recipe_version_id=recipe_version_id,
+    )
+    session.commit()
+    return viewer_state
+
+
+@router.delete(
+    "/{recipe_version_id}/rating",
+    response_model=RecipeViewerStateResponse,
+    responses=INTERACTION_ERROR_RESPONSES,
+    summary="Remove the signed-in member's recipe rating",
+)
+def unrate_recipe_for_current_user(
+    recipe_version_id: UUID,
+    action_id: ActionIdHeader,
+    response: Response,
+    session: SessionDependency,
+    authenticated: CsrfProtectedSessionDependency,
+    _payload: Annotated[EmptyInteractionRequest | None, Body()] = None,
+) -> RecipeViewerStateResponse:
+    response.headers.update(private_no_store_headers())
+    actor_id = lock_active_member_actor(session, authenticated)
+    intent = PreferenceEventIntent(
+        action_id=action_id,
+        user_id=actor_id,
+        recipe_version_id=recipe_version_id,
+        event_type="rating",
+        rating_value=None,
+    )
+    replay = _is_replay_or_error(session, intent)
+    ensure_recipe_exists(session, recipe_version_id)
+    if not replay:
+        unrate_recipe(
+            session,
+            user_id=actor_id,
+            recipe_version_id=recipe_version_id,
         )
         record_preference_event(session, intent)
     viewer_state = recipe_viewer_state_response(

@@ -17,10 +17,9 @@ from .adoption import (
 from .dataset import (
     EvaluationSnapshot,
     canonical_json,
-    parse_snapshot_json,
-    snapshot_to_json,
+    validate_snapshot,
 )
-from .metrics import MetricsAtK, calculate_metrics, quantize_metric
+from .metrics import MetricsAtK, calculate_metrics, prepare_metric_context, quantize_metric
 from .models.baseline_v1 import BaselineV1Model
 from .models.collaborative_v1 import (
     COLLABORATIVE_ARTIFACT_SCHEMA_VERSION,
@@ -33,13 +32,13 @@ from .models.hybrid_v1 import HYBRID_MODEL_ID, HybridV1Model
 from .protocol import (
     EvaluationModel,
     FittedCollaborativeArtifactProvider,
-    FittedEvaluationModel,
+    FittedRankingModel,
     JsonScalar,
     ModelMetadata,
     ModelTrainingData,
     derive_model_seed,
 )
-from .readiness import assess_readiness
+from .readiness import DEFAULT_READINESS_THRESHOLDS, assess_validated_readiness
 from .report import (
     PROTOCOL_VERSION,
     REPORT_SCHEMA_VERSION,
@@ -95,7 +94,7 @@ class _ValidatedEvaluationModel:
     metadata: ModelMetadata
     delegate: EvaluationModel
 
-    def fit(self, training: ModelTrainingData, *, seed: int) -> FittedEvaluationModel:
+    def fit(self, training: ModelTrainingData, *, seed: int) -> FittedRankingModel:
         return self.delegate.fit(training, seed=seed)
 
 
@@ -269,6 +268,10 @@ def _rank_model(
         )
     except Exception as error:
         raise EvaluationError(f"model {model.metadata.model_id!r} failed during fit") from error
+    if not isinstance(fitted, FittedRankingModel):
+        raise EvaluationError(
+            f"model {model.metadata.model_id!r} did not return a fitted ranking model"
+        )
     try:
         raw_fitted_metadata = fitted.metadata
         if not isinstance(raw_fitted_metadata, ModelMetadata):
@@ -467,12 +470,15 @@ def evaluate(
     """Evaluate every supplied approach and the mandatory production baseline."""
 
     resolved_config = config or EvaluationConfig()
-    normalized_snapshot = parse_snapshot_json(snapshot_to_json(snapshot))
+    normalized_snapshot = validate_snapshot(snapshot)
     split = split_snapshot(normalized_snapshot)
     evaluation_models = _models_with_baseline(models)
     evaluation_model_ids = {model.metadata.model_id for model in evaluation_models}
     if evaluation_model_ids & {COLLABORATIVE_MODEL_ID, HYBRID_CANDIDATE_MODEL_ID}:
-        readiness = assess_readiness(normalized_snapshot)
+        readiness = assess_validated_readiness(
+            normalized_snapshot,
+            DEFAULT_READINESS_THRESHOLDS,
+        )
         if readiness.status != "ready":
             reasons = ", ".join(readiness.reason_codes)
             raise EvaluationError(f"collaborative readiness failed: {reasons}")
@@ -486,6 +492,7 @@ def evaluate(
     metrics_by_model: dict[str, tuple[MetricsAtK, ...]] = {}
     seeds_by_model: dict[str, int] = {}
     artifacts_by_model: dict[str, dict[str, JsonScalar] | None] = {}
+    metric_context = prepare_metric_context(split.training_events)
     for model in evaluation_models:
         rankings, model_seed, artifact = _rank_model(
             model,
@@ -500,6 +507,7 @@ def evaluate(
                 cases=split.cases,
                 rankings=rankings,
                 training_events=split.training_events,
+                context=metric_context,
             )
             for k in resolved_config.ks
         )

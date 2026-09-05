@@ -14,33 +14,37 @@ import RecipeBrowseLoading from "./loading";
 describe("recipe route states", () => {
   it("announces browse and detail loading states", () => {
     const { rerender } = render(<RecipeBrowseLoading />);
-    expect(
-      screen.getByRole("heading", { name: "Find something to cook", level: 1 }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("region", { name: "Recipes" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(/loading recipes/i);
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Loading the recipe list.",
+    expect(screen.getByText("All recipes")).toBeVisible();
+    expect(screen.getByRole("main")).toHaveClass(
+      "page-loading--catalog",
+      "page-shell--catalog",
     );
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading recipes…");
+    expect(document.querySelector(".loading-state__pulse")).toBeNull();
 
     rerender(<RecipeDetailLoading />);
-    expect(screen.getByRole("status")).toHaveTextContent(/loading recipe/i);
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Loading ingredients and instructions.",
+    expect(screen.getByRole("main")).toHaveClass(
+      "page-loading--recipe",
+      "recipe-reading-page",
     );
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading recipe…");
 
     rerender(<RecipeCompareLoading />);
-    expect(screen.getByRole("status")).toHaveTextContent(/loading comparison/i);
+    expect(screen.getByRole("main")).toHaveClass(
+      "page-loading--comparison",
+      "recipe-comparison-page",
+    );
+    expect(screen.getAllByRole("status")).toHaveLength(1);
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Checking what changed in the ingredients and cooking steps.",
+      "Loading recipe comparison…",
     );
   });
 
   it("offers a retry for service errors", () => {
-    const reset = vi.fn();
-    render(<RecipeError error={new Error("upstream detail")} reset={reset} />);
+    const retry = vi.fn();
+    render(<RecipeError error={new Error("upstream detail")} retry={retry} />);
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       /couldn’t load the recipes/i,
@@ -52,7 +56,7 @@ describe("recipe route states", () => {
       }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
-    expect(reset).toHaveBeenCalledOnce();
+    expect(retry).toHaveBeenCalledOnce();
     expect(screen.queryByText(/upstream detail/i)).not.toBeInTheDocument();
   });
 
@@ -65,9 +69,10 @@ describe("recipe route states", () => {
       />,
     );
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      /couldn’t load this recipe/i,
-    );
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveClass("blocking-error-state");
+    expect(alert).toHaveTextContent("Something went wrong");
+    expect(alert).toHaveTextContent(/couldn’t load this recipe/i);
     expect(screen.getByText(/temporarily unavailable/i)).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /browse recipes/i }),
@@ -147,6 +152,7 @@ describe("recipe route states", () => {
     expect(
       screen.getByRole("heading", { name: "We couldn’t find that page." }),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Page not found")).not.toBeInTheDocument();
     expect(
       screen
         .getByRole("heading", { name: "We couldn’t find that page." })

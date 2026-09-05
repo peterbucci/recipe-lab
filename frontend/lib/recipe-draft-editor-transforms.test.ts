@@ -22,6 +22,10 @@ function editorState(): RecipeDraftEditorState {
     title: "Bread",
     description: "A test draft",
     servings: "4",
+    totalTimeMinutes: "45",
+    activeTimeMinutes: "20",
+    difficulty: "easy",
+    notes: "Best served warm.",
     categories: [
       {
         id: "11111111-1111-4111-8111-111111111111",

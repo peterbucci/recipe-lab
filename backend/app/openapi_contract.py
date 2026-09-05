@@ -18,6 +18,7 @@ Classification = Literal[
     "research_experimental",
     "retired",
 ]
+Reachability = Literal["active", "internal", "compatibility-only", "retired"]
 
 HTTP_METHODS = frozenset({"delete", "get", "head", "options", "patch", "post", "put", "trace"})
 EXTERNAL_CONSUMER_STATUS = "unknown_pending"
@@ -30,6 +31,16 @@ class OperationContract:
     classification: Classification
     consumer_evidence: tuple[str, ...]
     successor_operation_ids: tuple[str, ...] = ()
+
+    @property
+    def reachability(self) -> Reachability:
+        """Map the detailed consumer class onto the repository-wide lifecycle class."""
+
+        if self.classification == "active_consumer":
+            return "active"
+        if self.classification in {"staff_internal", "research_experimental"}:
+            return "internal"
+        return "retired"
 
 
 class FrameworkRouteContract(TypedDict):
@@ -99,6 +110,21 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
         "public_cook_profile_api_cooks__handle__get",
         "active_consumer",
         "frontend/lib/recipe-library-api.ts",
+    ),
+    ("DELETE", "/api/cooks/{handle}/follow"): _operation(
+        "unfollow_cook_api_cooks__handle__follow_delete",
+        "active_consumer",
+        "frontend/lib/member-follow-api.ts",
+    ),
+    ("GET", "/api/cooks/{handle}/follow"): _operation(
+        "cook_follow_state_api_cooks__handle__follow_get",
+        "active_consumer",
+        "frontend/lib/member-follow-api.ts",
+    ),
+    ("PUT", "/api/cooks/{handle}/follow"): _operation(
+        "follow_cook_api_cooks__handle__follow_put",
+        "active_consumer",
+        "frontend/lib/member-follow-api.ts",
     ),
     ("GET", "/api/health"): _operation(
         "health_check_api_health_get",
@@ -176,6 +202,31 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
         "active_consumer",
         "frontend/lib/recipe-library-api.ts",
     ),
+    ("GET", "/api/my/activity"): _operation(
+        "my_member_activity_api_my_activity_get",
+        "active_consumer",
+        "frontend/lib/member-activity-api.ts",
+    ),
+    ("GET", "/api/my/dashboard"): _operation(
+        "my_member_dashboard_api_my_dashboard_get",
+        "active_consumer",
+        "frontend/lib/member-activity-api.ts",
+    ),
+    ("GET", "/api/my/follow-stats"): _operation(
+        "my_follow_stats_api_my_follow_stats_get",
+        "active_consumer",
+        "frontend/lib/member-follow-api.ts",
+    ),
+    ("GET", "/api/my/followers"): _operation(
+        "my_followers_api_my_followers_get",
+        "active_consumer",
+        "frontend/lib/member-follow-api.ts",
+    ),
+    ("GET", "/api/my/community-activity"): _operation(
+        "my_community_activity_api_my_community_activity_get",
+        "active_consumer",
+        "frontend/lib/member-follow-api.ts",
+    ),
     ("GET", "/api/my/saved-recipes"): _operation(
         "my_saved_recipe_library_api_my_saved_recipes_get",
         "active_consumer",
@@ -236,6 +287,11 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
         "active_consumer",
         "frontend/lib/recipe-api.ts",
     ),
+    ("GET", "/api/recipes/viewer-states"): _operation(
+        "recipe_viewer_states_for_current_user_api_recipes_viewer_states_get",
+        "active_consumer",
+        "frontend/lib/interaction-api.ts",
+    ),
     ("GET", "/api/recipes/{recipe_version_id}"): _operation(
         "recipe_detail_api_recipes__recipe_version_id__get",
         "active_consumer",
@@ -248,6 +304,11 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ),
     ("PUT", "/api/recipes/{recipe_version_id}/rating"): _operation(
         "rate_recipe_for_current_user_api_recipes__recipe_version_id__rating_put",
+        "active_consumer",
+        "frontend/lib/interaction-api.ts",
+    ),
+    ("DELETE", "/api/recipes/{recipe_version_id}/rating"): _operation(
+        "unrate_recipe_for_current_user_api_recipes__recipe_version_id__rating_delete",
         "active_consumer",
         "frontend/lib/interaction-api.ts",
     ),
@@ -393,6 +454,7 @@ def apply_contract_metadata(document: dict[str, Any]) -> dict[str, Any]:
         operation = cast(dict[str, Any], document["paths"][path][method.lower()])
         operation["operationId"] = contract.operation_id
         operation["x-recipe-lab-classification"] = contract.classification
+        operation["x-recipe-lab-reachability"] = contract.reachability
         operation["x-recipe-lab-consumer-evidence"] = list(contract.consumer_evidence)
         operation["x-recipe-lab-external-consumer-status"] = EXTERNAL_CONSUMER_STATUS
         if contract.successor_operation_ids:
@@ -405,6 +467,7 @@ def apply_contract_metadata(document: dict[str, Any]) -> dict[str, Any]:
         {
             **route,
             "classification": "staff_internal",
+            "reachability": "internal",
             "consumer_evidence": ["docs/api-contracts.md"],
             "external_consumer_status": EXTERNAL_CONSUMER_STATUS,
         }

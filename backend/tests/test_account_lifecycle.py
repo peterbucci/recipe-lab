@@ -39,6 +39,7 @@ from app.models import (
     RecipeVersionCategory,
     RecipeVersionPublication,
     User,
+    UserFollow,
     UserSession,
 )
 from app.repositories.account_lifecycle import (
@@ -95,7 +96,27 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
         now=now,
     )
     issued.user.handle = "delete-me"
+    issued.user.profile_description = "Private profile prose that must be erased."
     deleting_user_id = issued.user.id
+    other_user = User(
+        email="other-member@example.test",
+        display_name="Other Member",
+        handle="other-member",
+    )
+    db_session.add(other_user)
+    db_session.flush()
+    db_session.add_all(
+        [
+            UserFollow(
+                follower_user_id=deleting_user_id,
+                followed_user_id=other_user.id,
+            ),
+            UserFollow(
+                follower_user_id=other_user.id,
+                followed_user_id=deleting_user_id,
+            ),
+        ]
+    )
 
     lineage = RecipeLineage(created_by_user_id=deleting_user_id)
     db_session.add(lineage)
@@ -362,9 +383,11 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
     assert tombstone.email is None
     assert tombstone.handle is None
     assert tombstone.display_name == "Deleted cook"
+    assert tombstone.profile_description is None
     assert db_session.scalar(select(func.count()).select_from(OIDCIdentity)) == 0
     assert db_session.scalar(select(func.count()).select_from(UserSession)) == 0
     assert db_session.scalar(select(func.count()).select_from(RecipeSave)) == 0
+    assert db_session.scalar(select(func.count()).select_from(UserFollow)) == 0
     assert db_session.scalar(select(func.count()).select_from(RecipeRating)) == 0
     assert db_session.scalar(select(func.count()).select_from(PreferenceEvent)) == 0
     assert db_session.scalar(select(func.count()).select_from(CatalogCurator)) == 0

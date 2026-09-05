@@ -91,6 +91,12 @@ class RecipeModerationCase(UpdatedAtMixin, Base):
         ),
         CheckConstraint("reporter_count >= 1", name="reporter_count_positive"),
         Index("ix_recipe_moderation_cases_status_updated", "status", "updated_at"),
+        Index(
+            "ix_recipe_moderation_cases_status_reported",
+            "status",
+            text("last_reported_at DESC"),
+            "recipe_version_id",
+        ),
     )
 
     recipe_version_id: Mapped[UUID] = mapped_column(

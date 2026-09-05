@@ -1,8 +1,7 @@
 import {
   type ApiValidationIssue,
-  memberMutationHeaders,
-  notifySessionExpired,
 } from "./auth-api";
+import type { operations } from "./api-contracts/generated";
 import { browserApiRequest } from "./api-transport/browser";
 import {
   ApiTransportError,
@@ -25,7 +24,25 @@ import type {
   VariantMeasureInput,
 } from "./structured-measure";
 
+type RecipeDraftPageWire =
+  operations["my_private_recipe_drafts_api_recipe_drafts_get"]["responses"][200]["content"]["application/json"];
+type RecipeDraftCreateOperation =
+  operations["create_private_recipe_draft_api_recipe_drafts_post"];
+type RecipeDraftCreateWireInput =
+  RecipeDraftCreateOperation["requestBody"]["content"]["application/json"];
+type RecipeDraftCreateWire =
+  RecipeDraftCreateOperation["responses"][201]["content"]["application/json"];
+type RecipeDraftDetailWire =
+  operations["private_recipe_draft_detail_api_recipe_drafts__draft_id__get"]["responses"][200]["content"]["application/json"];
+type RecipeDraftUpdateWire =
+  operations["save_private_recipe_draft_api_recipe_drafts__draft_id__put"]["responses"][200]["content"]["application/json"];
+type RecipeDraftUpdateWireInput =
+  operations["save_private_recipe_draft_api_recipe_drafts__draft_id__put"]["requestBody"]["content"]["application/json"];
+type RecipeDraftDeleteQuery =
+  operations["delete_private_recipe_draft_api_recipe_drafts__draft_id__delete"]["parameters"]["query"];
+
 export type RecipeDraftStatus = "active";
+export type RecipeDifficulty = "easy" | "medium" | "hard";
 
 export interface RecipeDraftListItem {
   id: string;
@@ -83,6 +100,7 @@ export interface RecipeDraftAction {
 export interface RecipeDraftInstruction {
   id: string;
   display_order: number;
+  title: string | null;
   text: string;
   actions: RecipeDraftAction[];
 }
@@ -95,6 +113,10 @@ export interface RecipeDraftDetail {
   title: string;
   description: string | null;
   servings: string | null;
+  total_time_minutes: number | null;
+  active_time_minutes: number | null;
+  difficulty: RecipeDifficulty | null;
+  notes: string | null;
   categories: RecipeCategory[];
   ingredients: RecipeDraftIngredient[];
   instructions: RecipeDraftInstruction[];
@@ -132,6 +154,7 @@ export interface RecipeDraftActionInput {
 
 export interface RecipeDraftInstructionInput {
   ref: string;
+  title: string | null;
   text: string;
   actions: RecipeDraftActionInput[];
 }
@@ -141,13 +164,13 @@ export interface RecipeDraftUpdateRequest {
   title: string;
   description: string | null;
   servings: string | null;
+  total_time_minutes: number | null;
+  active_time_minutes: number | null;
+  difficulty: RecipeDifficulty | null;
+  notes: string | null;
   category_ids: string[];
   ingredients: RecipeDraftIngredientInput[];
   instructions: RecipeDraftInstructionInput[];
-}
-
-interface ApiErrorPayload {
-  error?: { code?: unknown; message?: unknown; issues?: unknown };
 }
 
 const KNOWN_RECIPE_DRAFT_ERROR_CODES = new Set([
@@ -164,12 +187,6 @@ const KNOWN_RECIPE_DRAFT_ERROR_CODES = new Set([
   "recipe_source_not_found",
   "validation_error",
 ]);
-
-function knownRecipeDraftErrorCode(value: unknown): string {
-  return typeof value === "string" && KNOWN_RECIPE_DRAFT_ERROR_CODES.has(value)
-    ? value
-    : "recipe_draft_api_error";
-}
 
 export class RecipeDraftApiError extends Error {
   readonly status: number;
@@ -432,6 +449,9 @@ function parseInstruction(value: unknown): RecipeDraftInstruction | null {
     !isUuid(value.id) ||
     !Number.isInteger(value.display_order) ||
     (value.display_order as number) < 0 ||
+    (value.title !== undefined &&
+      value.title !== null &&
+      !boundedText(value.title, 200)) ||
     !boundedText(value.text, 5_000) ||
     !Array.isArray(value.actions)
   ) {
@@ -444,6 +464,10 @@ function parseInstruction(value: unknown): RecipeDraftInstruction | null {
   return {
     id: value.id,
     display_order: value.display_order as number,
+    title:
+      value.title === undefined || value.title === null
+        ? null
+        : (value.title as string),
     text: value.text,
     actions: actions as RecipeDraftAction[],
   };
@@ -451,6 +475,26 @@ function parseInstruction(value: unknown): RecipeDraftInstruction | null {
 
 function ordered<T extends { display_order: number }>(items: T[]): boolean {
   return items.every((item, index) => item.display_order === index);
+}
+
+function optionalRecipeTime(value: unknown): value is number | null {
+  return (
+    value === null ||
+    (Number.isInteger(value) &&
+      (value as number) > 0 &&
+      (value as number) <= 525_600)
+  );
+}
+
+function optionalRecipeDifficulty(
+  value: unknown,
+): value is RecipeDifficulty | null {
+  return (
+    value === null ||
+    value === "easy" ||
+    value === "medium" ||
+    value === "hard"
+  );
 }
 
 export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
@@ -464,6 +508,13 @@ export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
     !boundedText(value.title, 200, true) ||
     (value.description !== null && !boundedText(value.description, 2_000)) ||
     (value.servings !== null && !boundedText(value.servings, 64)) ||
+    !optionalRecipeTime(value.total_time_minutes) ||
+    !optionalRecipeTime(value.active_time_minutes) ||
+    (typeof value.total_time_minutes === "number" &&
+      typeof value.active_time_minutes === "number" &&
+      value.active_time_minutes > value.total_time_minutes) ||
+    !optionalRecipeDifficulty(value.difficulty) ||
+    (value.notes !== null && !boundedText(value.notes, 5_000)) ||
     !Array.isArray(value.categories) ||
     !Array.isArray(value.ingredients) ||
     !Array.isArray(value.instructions) ||
@@ -510,6 +561,10 @@ export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
     title: value.title,
     description: value.description as string | null,
     servings: value.servings as string | null,
+    total_time_minutes: value.total_time_minutes as number | null,
+    active_time_minutes: value.active_time_minutes as number | null,
+    difficulty: value.difficulty as RecipeDifficulty | null,
+    notes: value.notes as string | null,
     categories,
     ingredients: ingredients as RecipeDraftIngredient[],
     instructions: instructions as RecipeDraftInstruction[],
@@ -518,7 +573,9 @@ export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
   };
 }
 
-function parseListItem(value: unknown): RecipeDraftListItem | null {
+export function parseRecipeDraftListItem(
+  value: unknown,
+): RecipeDraftListItem | null {
   if (
     !isRecord(value) ||
     !isUuid(value.id) ||
@@ -550,7 +607,7 @@ export function parseRecipeDraftPage(value: unknown): RecipeDraftPage {
   ) {
     throw invalidResponse();
   }
-  const items = value.items.map(parseListItem);
+  const items = value.items.map(parseRecipeDraftListItem);
   if (
     items.some((item) => item === null) ||
     (value.page as number) < 1 ||
@@ -733,50 +790,31 @@ function draftErrorMessage(status: number, code: string): string {
   return "Recipe Lab could not complete this private draft request. Please try again.";
 }
 
-async function apiError(response: Response): Promise<RecipeDraftApiError> {
-  let code = "recipe_draft_api_error";
-  let issues: ApiValidationIssue[] = [];
-  try {
-    const payload: unknown = await response.json();
-    if (isRecord(payload) && isRecord((payload as ApiErrorPayload).error)) {
-      const error = (payload as ApiErrorPayload).error!;
-      code = knownRecipeDraftErrorCode(error.code);
-      issues = parseIssues(error.issues);
-    }
-  } catch {
-    // Keep the stable private-draft fallback.
-  }
+function fromDraftTransportError(error: ApiTransportError): RecipeDraftApiError {
+  if (error.reason === "invalid_response") return invalidResponse();
   return new RecipeDraftApiError(
-    draftErrorMessage(response.status, code),
-    response.status,
-    code,
-    issues,
+    draftErrorMessage(error.status, error.code),
+    error.status,
+    error.code,
+    error.issues,
+    error.outcome,
+    error.authenticationRecovery,
+    error.retryAfterSeconds,
   );
 }
 
-async function draftFetch(
-  path: string,
-  init: RequestInit = {},
-): Promise<Response> {
-  const response = await fetch(path, {
-    ...init,
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: { Accept: "application/json", ...init.headers },
-  });
-  if (!response.ok) {
-    if (response.status === 401) notifySessionExpired();
-    throw await apiError(response);
+function rethrowDraftTransportError(
+  error: unknown,
+  signal?: AbortSignal,
+): never {
+  if (error instanceof RecipeDraftApiError) throw error;
+  if (error instanceof ApiTransportError) {
+    if (signal?.aborted) {
+      throw new DOMException("The request was aborted.", "AbortError");
+    }
+    throw fromDraftTransportError(error);
   }
-  return response;
-}
-
-function mutationHeaders(idempotencyKey: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    "Idempotency-Key": idempotencyKey,
-    ...memberMutationHeaders(),
-  };
+  throw error;
 }
 
 export async function createRecipeDraft(
@@ -809,8 +847,11 @@ export async function createRecipeDraft(
   }
 
   try {
+    const input: RecipeDraftCreateWireInput = {
+      source_version_id: normalizedSourceVersionId,
+    };
     const response = await browserApiRequest("/api/recipe-drafts", {
-      body: JSON.stringify({ source_version_id: normalizedSourceVersionId }),
+      body: JSON.stringify(input),
       csrf: "member",
       errorContract: RECIPE_DRAFT_ERROR_CONTRACT,
       headers: { "Content-Type": "application/json" },
@@ -819,7 +860,7 @@ export async function createRecipeDraft(
       method: "POST",
     });
     try {
-      const draft = parseRecipeDraftDetail(response.data);
+      const draft = parseRecipeDraftDetail(response.data as RecipeDraftCreateWire);
       if (draft.source_version_id !== normalizedSourceVersionId) {
         throw invalidResponse();
       }
@@ -854,49 +895,115 @@ export async function createRecipeDraft(
 export async function browseRecipeDrafts({
   page = 1,
   pageSize = 20,
+  sourceVersionId,
   signal,
 }: {
   page?: number;
   pageSize?: number;
+  sourceVersionId?: string;
   signal?: AbortSignal;
 } = {}): Promise<RecipeDraftPage> {
   const query = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
   });
-  const response = await draftFetch(`/api/recipe-drafts?${query.toString()}`, {
+  if (sourceVersionId !== undefined) {
+    query.set("source_version_id", sourceVersionId.toLowerCase());
+  }
+  try {
+    const response = await browserApiRequest(
+      `/api/recipe-drafts?${query.toString()}`,
+      {
+        errorContract: RECIPE_DRAFT_ERROR_CONTRACT,
+        kind: "query",
+        retry: "never",
+        signal,
+      },
+    );
+    return parseRecipeDraftPage(response.data as RecipeDraftPageWire);
+  } catch (error) {
+    return rethrowDraftTransportError(error, signal);
+  }
+}
+
+export async function findActiveRecipeDraftForSource(
+  sourceVersionId: string,
+  signal?: AbortSignal,
+): Promise<RecipeDraftListItem | null> {
+  if (!isUuid(sourceVersionId)) {
+    throw new RecipeDraftApiError(
+      "Recipe Lab could not identify the recipe you want to continue.",
+      0,
+      "invalid_identifier",
+    );
+  }
+  const normalizedSourceVersionId = sourceVersionId.toLowerCase();
+  const page = await browseRecipeDrafts({
+    pageSize: 1,
+    sourceVersionId: normalizedSourceVersionId,
     signal,
   });
-  return parseRecipeDraftPage(await response.json());
+  const draft = page.items[0] ?? null;
+  if (
+    draft !== null &&
+    draft.source_version_id?.toLowerCase() !== normalizedSourceVersionId
+  ) {
+    throw invalidResponse();
+  }
+  return draft;
 }
 
 export async function fetchRecipeDraft(
   draftId: string,
   signal?: AbortSignal,
 ): Promise<RecipeDraftDetail> {
-  const response = await draftFetch(
-    `/api/recipe-drafts/${encodeURIComponent(draftId)}`,
-    {
-      signal,
-    },
-  );
-  return parseRecipeDraftDetail(await response.json());
+  try {
+    const response = await browserApiRequest(
+      `/api/recipe-drafts/${encodeURIComponent(draftId)}`,
+      {
+        errorContract: RECIPE_DRAFT_ERROR_CONTRACT,
+        kind: "query",
+        retry: "never",
+        signal,
+      },
+    );
+    return parseRecipeDraftDetail(response.data as RecipeDraftDetailWire);
+  } catch (error) {
+    return rethrowDraftTransportError(error, signal);
+  }
 }
 
 export async function updateRecipeDraft(
   draftId: string,
   payload: RecipeDraftUpdateRequest,
   idempotencyKey: string,
+  signal?: AbortSignal,
 ): Promise<RecipeDraftDetail> {
-  const response = await draftFetch(
-    `/api/recipe-drafts/${encodeURIComponent(draftId)}`,
-    {
-      method: "PUT",
-      headers: mutationHeaders(idempotencyKey),
-      body: JSON.stringify(payload),
-    },
-  );
-  return parseRecipeDraftDetail(await response.json());
+  try {
+    const wireInput: RecipeDraftUpdateWireInput = payload;
+    const requestFingerprint = await createRequestFingerprint({
+      draft_id: draftId.toLowerCase(),
+      payload_json: JSON.stringify(wireInput),
+      schema: "recipe-draft-update",
+      version: 1,
+    });
+    const response = await browserApiRequest(
+      `/api/recipe-drafts/${encodeURIComponent(draftId)}`,
+      {
+        body: JSON.stringify(wireInput),
+        csrf: "member",
+        errorContract: RECIPE_DRAFT_ERROR_CONTRACT,
+        headers: { "Content-Type": "application/json" },
+        identity: { idempotencyKey, requestFingerprint },
+        kind: "mutation",
+        method: "PUT",
+        signal,
+      },
+    );
+    return parseRecipeDraftDetail(response.data as RecipeDraftUpdateWire);
+  } catch (error) {
+    return rethrowDraftTransportError(error, signal);
+  }
 }
 
 export async function discardRecipeDraft(
@@ -904,9 +1011,27 @@ export async function discardRecipeDraft(
   revision: number,
   idempotencyKey: string,
 ): Promise<void> {
-  const query = new URLSearchParams({ revision: String(revision) });
-  await draftFetch(
-    `/api/recipe-drafts/${encodeURIComponent(draftId)}?${query.toString()}`,
-    { method: "DELETE", headers: mutationHeaders(idempotencyKey) },
-  );
+  const wireQuery: RecipeDraftDeleteQuery = { revision };
+  const query = new URLSearchParams({ revision: String(wireQuery.revision) });
+  try {
+    const requestFingerprint = await createRequestFingerprint({
+      draft_id: draftId.toLowerCase(),
+      revision,
+      schema: "recipe-draft-discard",
+      version: 1,
+    });
+    await browserApiRequest(
+      `/api/recipe-drafts/${encodeURIComponent(draftId)}?${query.toString()}`,
+      {
+        csrf: "member",
+        errorContract: RECIPE_DRAFT_ERROR_CONTRACT,
+        identity: { idempotencyKey, requestFingerprint },
+        kind: "mutation",
+        method: "DELETE",
+        responseBody: "empty",
+      },
+    );
+  } catch (error) {
+    return rethrowDraftTransportError(error);
+  }
 }

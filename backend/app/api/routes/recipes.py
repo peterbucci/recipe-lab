@@ -1,33 +1,44 @@
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Response
 from pydantic import StringConstraints
 from sqlalchemy.orm import Session
 
+from app.api.cache import apply_private_no_store
 from app.api.dependencies import (
     OptionalAuthenticatedSessionDependency,
+    RequiredAuthenticatedSessionDependency,
     SessionDependency,
 )
 from app.api.errors import ApiError
-from app.api.member_context import recipe_viewer_state_response
+from app.api.member_context import lock_active_member_actor, recipe_viewer_state_response
 from app.homepage_content import FEATURED_RECIPE_VERSION_IDS
 from app.models import RecipeIngredient, RecipeInstruction, RecipeVersion
+from app.pagination import PageParams
+from app.repositories.interactions import get_recipe_viewer_states
 from app.repositories.recipe_diffs import (
     get_direct_substitution_pairs,
     get_recipe_version_diff_identity,
     get_recipe_versions_for_diff,
 )
 from app.repositories.recipes import (
+    RecipeCardEngagementAggregate,
     browse_recipe_versions,
-    get_recipe_rating_aggregate,
+    get_recipe_card_engagement_aggregates,
     get_recipe_version,
     list_public_recipe_versions_in_order,
 )
 from app.schemas.errors import ErrorResponse
+from app.schemas.interactions import (
+    RecipeViewerStateListResponse,
+    RecipeViewerStateResponse,
+)
 from app.schemas.recipe_diffs import RecipeDiffResponse
 from app.schemas.recipes import (
     FeaturedRecipeListResponse,
+    FeaturedRecipeSummary,
+    RecipeCardSummary,
     RecipeDetailResponse,
     RecipeIngredientResponse,
     RecipeInstructionResponse,
@@ -107,6 +118,32 @@ def _reference(version: RecipeVersion) -> RecipeVersionReference:
     return recipe_version_reference(version)
 
 
+def _featured_summary(
+    version: RecipeVersion,
+    engagement: RecipeCardEngagementAggregate,
+) -> FeaturedRecipeSummary:
+    average_rating = engagement.average_rating
+    return FeaturedRecipeSummary(
+        **_summary(version).model_dump(),
+        average_rating=float(average_rating) if average_rating is not None else None,
+        rating_count=engagement.rating_count,
+        save_count=engagement.save_count,
+    )
+
+
+def _card_summary(
+    version: RecipeVersion,
+    engagement: RecipeCardEngagementAggregate,
+) -> RecipeCardSummary:
+    average_rating = engagement.average_rating
+    return RecipeCardSummary(
+        **_summary(version).model_dump(),
+        average_rating=float(average_rating) if average_rating is not None else None,
+        rating_count=engagement.rating_count,
+        save_count=engagement.save_count,
+    )
+
+
 def _ingredient(item: RecipeIngredient) -> RecipeIngredientResponse:
     return RecipeIngredientResponse(
         id=item.id,
@@ -128,6 +165,7 @@ def _ingredient(item: RecipeIngredient) -> RecipeIngredientResponse:
 def _instruction(item: RecipeInstruction) -> RecipeInstructionResponse:
     return RecipeInstructionResponse(
         id=item.id,
+        title=item.title,
         text=item.instruction,
         display_order=item.display_order,
         actions=[serialize_instruction_action(action) for action in item.actions],
@@ -140,11 +178,18 @@ def _detail_response(
     version: RecipeVersion,
     viewer_user_id: UUID | None,
 ) -> RecipeDetailResponse:
-    rating = get_recipe_rating_aggregate(session, version.id)
+    engagement = get_recipe_card_engagement_aggregates(session, [version.id])[version.id]
     return RecipeDetailResponse(
         **_summary(version).model_dump(),
-        average_rating=float(rating.average) if rating.average is not None else None,
-        rating_count=rating.count,
+        total_time_minutes=version.total_time_minutes,
+        active_time_minutes=version.active_time_minutes,
+        difficulty=cast(Literal["easy", "medium", "hard"] | None, version.difficulty),
+        notes=version.notes,
+        average_rating=(
+            float(engagement.average_rating) if engagement.average_rating is not None else None
+        ),
+        rating_count=engagement.rating_count,
+        save_count=engagement.save_count,
         viewer_state=(
             recipe_viewer_state_response(
                 session,
@@ -206,6 +251,7 @@ def browse_recipes(
         ),
     ] = "title",
 ) -> RecipePageResponse:
+    pagination = PageParams(page=page, page_size=page_size)
     result = browse_recipe_versions(
         session,
         search=q,
@@ -214,15 +260,19 @@ def browse_recipes(
         is_variant=is_variant,
         category_slug=category,
         sort=sort,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
     )
+    engagement = get_recipe_card_engagement_aggregates(
+        session,
+        [item.id for item in result.items],
+    )
     return RecipePageResponse(
-        items=[_summary(item) for item in result.items],
+        items=[_card_summary(item, engagement[item.id]) for item in result.items],
         page=page,
         page_size=page_size,
         total=result.total,
-        total_pages=(result.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(result.total),
     )
 
 
@@ -241,7 +291,59 @@ def featured_recipes(session: SessionDependency) -> FeaturedRecipeListResponse:
         session,
         FEATURED_RECIPE_VERSION_IDS,
     )
-    return FeaturedRecipeListResponse(items=[_summary(item) for item in recipes])
+    engagement = get_recipe_card_engagement_aggregates(
+        session,
+        [recipe.id for recipe in recipes],
+    )
+    return FeaturedRecipeListResponse(
+        items=[_featured_summary(item, engagement[item.id]) for item in recipes]
+    )
+
+
+@router.get(
+    "/viewer-states",
+    response_model=RecipeViewerStateListResponse,
+    responses={
+        401: {
+            "model": ErrorResponse,
+            "description": "A valid member session is required.",
+        },
+        403: {
+            "model": ErrorResponse,
+            "description": "Account setup is incomplete.",
+        },
+        **VALIDATION_ERROR_RESPONSE,
+    },
+    summary="Load my saved and rating state for visible recipe cards",
+)
+def recipe_viewer_states_for_current_user(
+    response: Response,
+    session: SessionDependency,
+    authenticated: RequiredAuthenticatedSessionDependency,
+    recipe_version_ids: Annotated[
+        list[UUID],
+        Query(alias="recipe_version_id", min_length=1, max_length=100),
+    ],
+) -> RecipeViewerStateListResponse:
+    actor_id = lock_active_member_actor(session, authenticated)
+    states = get_recipe_viewer_states(
+        session,
+        user_id=actor_id,
+        recipe_version_ids=recipe_version_ids,
+    )
+    result = RecipeViewerStateListResponse(
+        items=[
+            RecipeViewerStateResponse(
+                recipe_version_id=recipe_version_id,
+                saved=state.saved,
+                rating=state.rating,
+            )
+            for recipe_version_id, state in states.items()
+        ]
+    )
+    session.commit()
+    apply_private_no_store(response)
+    return result
 
 
 @router.get(
@@ -256,8 +358,7 @@ def recipe_detail(
     session: SessionDependency,
     authenticated: OptionalAuthenticatedSessionDependency,
 ) -> RecipeDetailResponse:
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
+    apply_private_no_store(response)
     version = get_recipe_version(session, recipe_version_id)
     if version is None:
         raise ApiError(

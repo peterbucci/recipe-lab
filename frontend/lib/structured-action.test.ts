@@ -279,6 +279,7 @@ describe("structured action domain", () => {
     };
     const map = new Map<string, string>();
     const drafts = hydrateStructuredActionDrafts([original], map);
+    expect(drafts[0].duration.value.exactValue).toBe("5");
     drafts[0].duration.value.exactValue = "05.0";
     drafts[0].temperature.value.exactValue = "999";
 

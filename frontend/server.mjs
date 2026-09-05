@@ -62,11 +62,22 @@ export function handleHealthCheck(request, response, path) {
 async function main() {
   const dev = process.argv.includes("--dev");
   process.env.NODE_ENV = dev ? "development" : "production";
+  if (dev) {
+    // Next's Turbopack workers must inherit this before Next is imported.
+    process.env.__NEXT_DEV_SERVER = "1";
+  } else {
+    delete process.env.__NEXT_DEV_SERVER;
+  }
   loadEnvConfig(process.cwd(), dev);
   const hostname = argumentValue("--hostname") ?? "0.0.0.0";
-  const port = Number.parseInt(argumentValue("--port") ?? process.env.PORT ?? "3000", 10);
+  const port = Number.parseInt(
+    argumentValue("--port") ?? process.env.PORT ?? "3000",
+    10,
+  );
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error("The frontend port must be an integer between 1 and 65535.");
+    throw new Error(
+      "The frontend port must be an integer between 1 and 65535.",
+    );
   }
   const configuration = runtimeConfiguration(process.env, { development: dev });
   process.env.APP_ENVIRONMENT = configuration.appEnvironment;
@@ -78,7 +89,8 @@ async function main() {
   await app.prepare();
 
   createServer((request, response) => {
-    const path = new URL(request.url ?? "/", "http://recipe-lab.internal").pathname;
+    const path = new URL(request.url ?? "/", "http://recipe-lab.internal")
+      .pathname;
     if (handleHealthCheck(request, response, path)) {
       return;
     }
@@ -100,6 +112,9 @@ async function main() {
   }).listen(port, hostname);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   await main();
 }

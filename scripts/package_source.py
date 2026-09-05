@@ -12,23 +12,22 @@ import hashlib
 import json
 import math
 import os
-from pathlib import Path, PurePosixPath
 import re
 import stat
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass, replace
 import unicodedata
 import zipfile
-
+from dataclasses import dataclass, replace
+from pathlib import Path, PurePosixPath
 
 TOOL_NAME = "recipe-lab-safe-source-export"
-TOOL_VERSION = "1.1.0"
+TOOL_VERSION = "1.2.0"
 SCANNER_NAME = "recipe-lab-source-secret-scan"
 SCANNER_VERSION = "2"
 MANIFEST_SCHEMA_VERSION = 1
-POLICY_VERSION = 3
+POLICY_VERSION = 5
 FIXED_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 MAX_REPORTED_FINDINGS = 20
 
@@ -66,6 +65,7 @@ EXPORT_POLICY = PackagingPolicy(
         {
             ".dockerignore",
             ".env.example",
+            ".gitattributes",
             ".gitignore",
             "README.md",
             "compose.yaml",
@@ -94,7 +94,7 @@ EXPORT_POLICY = PackagingPolicy(
         }
     ),
     allowed_special_basenames=frozenset(
-        {".dockerignore", ".env.example", ".gitignore", "Dockerfile"}
+        {".dockerignore", ".env.example", ".gitattributes", ".gitignore", "Dockerfile"}
     ),
     # Opaque files cannot receive a meaningful text secret scan. Keep their Git
     # object IDs explicit so any content change requires a policy review.
@@ -125,35 +125,71 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-access-intermediate-normal.png",
-            "9c85b67a3eeb55d03299a81105d46d0122214656",
+            "9e4e3497680a1f17d4fdee862c6f5e1622fcaf02",
         ),
         (
-            "frontend/baselines/baseline-desktop-chromium/authoring-entry-desktop-normal.png",
-            "0ad6eae0cdba4635d379c2d23566d7e6a2ed7629",
+            "frontend/baselines/baseline-desktop-chromium/account-activity-no-matches.png",
+            "dc5d91e1dfc5f73606c02b854a10de92e2c033ed",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/account-activity-normal-intermediate.png",
+            "57dc3be36872ecd466f46ef27834e784ea773e23",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/account-activity-normal.png",
+            "74f8603ac6b7c37b38551614a77ed4ba7ce50fde",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/account-activity-saved-filtered.png",
+            "58e3b1fe02f52f2334fb0940b1698d8f51c5f666",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/account-settings-danger-intermediate-normal.png",
+            "4ab1129014b096d0a91ce9212f7659c1faf7d08c",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/account-settings-danger-normal.png",
+            "f58a5ed205299fbf596b937e6eaa55a6d8a50ed1",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/account-settings-profile-intermediate-normal.png",
+            "37e1357a155d405b446323cb1443249024a37236",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/account-settings-profile-normal.png",
+            "eee2d09ae51472481ee6ed95b2e7ec28b1e683cf",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/auth-callback-error-intermediate.png",
-            "853683bac0ec4b76388b4a99aff017f14e77048b",
+            "a563b734841daf3278e97551e81190ed156c5fea",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/authoring-entry-desktop-normal.png",
+            "05700e82963db19f69f5efd776f8895bc944e6de",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/catalog-empty.png",
-            "4c10216e9925230d142d5c58934a5268eb130ff2",
+            "8f2eca5f683f9d200cce415b820730629ce204ed",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/catalog-intermediate-normal.png",
-            "1b9a0f0ec1be4e5e0352dc4e2686c52637f13e23",
+            "04ab974181c3d5206ae17635817676e9be7f6c71",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/catalog-normal.png",
-            "80c611ea547669318901949bdcbc96b545646e10",
+            "7c054d10ea026f2e1dc01fbd93607cd9f7915464",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/community-rules-normal.png",
-            "0367a142941b3062b5b8b45b9f38194c39814e72",
+            "a89148d154d4b0ffbdd55f640d0745207fa74f79",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/cook-profile-normal.png",
-            "46526819f6e99447fbc4750973fba170e6214935",
+            "199dd9858ef1dcc911b6ca8d5a2e85dbf9ab9a7d",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/cook-profile-sparse-owner.png",
+            "510d3e1069f7adef581ac050726266ad3f80fe5d",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-discard-confirmation.png",
@@ -161,191 +197,259 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-editor-intermediate-normal.png",
-            "da3c8fb08275052927be147265bf366cc0026738",
+            "3969d81d3dcc9baeb2267df999a33342c40f7dce",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-editor-validation.png",
-            "e30ab43f5a473f4923075c5882efc0487a395872",
+            "2403b22ea22df7e61bc3dbbdaeaf1a0db7b4c7f7",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/draft-fork-header-normal.png",
+            "e1aa306f2765b3aac72c6e4aeb41606f542adaf2",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-ingredient-editor-normal.png",
-            "3947dd0040d460aa4f7d852f3bcc3e0be6404d2b",
+            "ca254176e534dc2fbbb5e741561c4caa74e31b1d",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-instruction-editor-expanded.png",
-            "44491accae1a0f53484d4f12f54ebe50082cc760",
+            "63776a104245cd2d263fd45eba5c2cfa01c67479",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-instruction-editor-normal.png",
-            "22fd01f6dbc589f7a9da1c86de3c9b855ec2aa2c",
+            "cf8017a73dc40be9e71d561a1d4129f4c3b59822",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/draft-publish-dialog.png",
+            "27e843b4feabb9a5f9e60ef8aded819fe12e04d9",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-similarity-publication-review.png",
-            "24e8bfb1d7fc68602f5938fdc28aa9e25f4c9fb9",
+            "0eb9817328d9453ba1073b86e37734ce2a87de3f",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-account-navigation.png",
-            "501a1f6f8a600df34c6fb8edf86e6a432d0aa1b4",
+            "d77650b710292c5d4226645358b41e54a1099ff1",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-intermediate-normal.png",
-            "30c25f06e359bb48672b2e584059f4ac56b1efd4",
+            "36c77dea82e9eced65d439a9473d9b3ba6f201a4",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-normal.png",
-            "e30b30191b0bc52e2de9cc6a1eaab2eb62407031",
+            "71492cf2a354b687dc36d9cd2495e7bd7464963d",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/ingredient-request-staff-review-intermediate.png",
-            "45b83d25dbe38809fca85f9124e4f10e49df7853",
+            "e7d54f3bea80b511906a75d82ebf874141ddf3f2",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/ingredient-request-staff-review.png",
-            "8896567067ee403c5f558f87515352ff926b1829",
+            "1c356c9b85b657cb19afad48fcbf0cbc7bfda71d",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/my-ingredient-requests-intermediate.png",
+            "eec9ef7921eedca6789250b9257d5ef597ed5165",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/my-ingredient-requests.png",
+            "7ebb1e806cce1d42e9520e8086a2c0060840a18f",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/my-recipes-intermediate-normal.png",
-            "ebfa85242a24fd4518d66c9f18a0951377bc9e0d",
+            "01fdcf8535f867f13e1a485d7557375a711212a5",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/my-recipes-normal.png",
-            "5c007c7a0665a07a117df640ceb2c1792bd8a801",
+            "9dfc3f31113f77f1a6895c7a5214e5180dc9ecb3",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/onboarding-form-normal.png",
-            "1754807e6e45e64cd8e957a4daba61a41d688e1b",
+            "7e2191d05f5330289e7e134fc17a7c9e1970427c",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-expired-session.png",
-            "4e27c544ad260a091c7f135818942b2b4dedbf2f",
+            "b5a0a03a1d72bcbabfdc8d2e81c4adbdcac78f9a",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-failure.png",
-            "9402168e83c98cccdd1dc8558e7b6e8b2fbaf646",
+            "e070200697be71ca302cd37841b3cc58d6c8c082",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/private-workspace-loading.png",
-            "f2fe23aac4726bd13c1c5a9356c94e4d0f71e11f",
+            "fedaff7547cee8b3550a7ca3efd7eccba2aed9db",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-comparison-intermediate-normal.png",
-            "79f8928c9549755b6d2e81bcad210bbd02dfeb3b",
+            "79ea4e9966f7f2f792876422b9fc9b9da6bba8fc",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-comparison-normal.png",
-            "ffa056f083f7f4fa315461259847c8dfd8fce7b2",
+            "58cbe5dcac95a70ff8cae00f19b788f50286d432",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-error.png",
-            "e8fb64d94bf661050c38e90136782a3cdb34b19e",
+            "63b20f2280db505395285faf53914e00c0469a88",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-history.png",
-            "70e872d6cdf700ad19621f10f0890959bf99bb8a",
+            "826825701ed4b798d8cdef7ab9eb2412e2c106b7",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-intermediate-normal.png",
-            "5e7bf35cef753dcfdb7d4077686eee305c9904ba",
+            "60934ecb909def77d79a2e0de72f6d16fc48fb82",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-normal.png",
-            "2fee63182a989b93cb263633abf3ea69a2eee7d0",
+            "e684823242f40956c95d4fa87e94e128372d2509",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-unavailable.png",
-            "03c7de2ed117ac2cf9e340e896df5c94113f805a",
+            "d42c81a5657dfb4f503b39a9b2442df238a8a1f6",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-instructions-normal.png",
-            "dea37f1a93203a12a0fa9a1af17efe245a7e5608",
+            "debef8ede82acb1b2ff717a436a10bf2f989b83f",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-moderation-staff-review-intermediate.png",
-            "5d945e046955041e01df15f27a61622c35b11130",
+            "c4728b3e23871ed8b176ccf7c4f92ddfe63fc5bc",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-moderation-staff-review.png",
-            "68919f6539fd98d2a9ec2fbec54289076da7b4d3",
+            "c982fac45487f76e727cd84a2952ab78486f70d1",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/staff-tools-moderator-selected-intermediate.png",
+            "cca642dd9bf6360f78ef1f30e0638ccc7aa8461f",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/staff-tools-moderator-selected.png",
+            "6e009f3bc64f6785bfa5a0a8c308c9c9e982213b",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/staff-tools-normal-intermediate.png",
+            "57d46f0c8ff843171e1e73aaddec6876dfe8dc20",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/staff-tools-normal.png",
+            "88a83e86c893894e5bbc055c6a20300f5ca01d56",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/stale-curation-decision.png",
-            "c200612cf3ca0ea7b14d4433ad6b46d60fc1e47e",
+            "a67f276b34f95952dad83defbf107a634eb25528",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/account-activity-normal.png",
+            "03efd6a5c71146ae3f7a4e169e33ce3fa9fbc003",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/account-activity-requests-filtered.png",
+            "0c8a8ca278830a3ce2e52052c5eddf7afc858e32",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/account-settings-danger-normal.png",
+            "e6a4e9f45ca0f9d9e05a06d75b98192120918772",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/account-settings-profile-normal.png",
+            "41c96b76b2c3c6dabd207d2c510cd5cbafe9369c",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/catalog-normal.png",
-            "2c84c1caad5456c4e92c0b3acd9eea17dfab001e",
+            "48966c5d24d065445a18e341e1149876d519bfd3",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/community-rules-normal.png",
-            "900f22cb1c9e79a52cc6a6aadf7ec7030bc1ef00",
+            "b8b9e600f9585960a3e9a5b651d3f40a9330f97a",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/cook-profile-normal.png",
-            "4f99775566ba775fbd3ed4c66fbea21d7a872656",
+            "76ccf9f5cf2c371b1d7f6287abd7a9272b8ef485",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/cook-profile-sparse-owner.png",
+            "d7bcf223f9fbe78b0ba0abcea56e261aff666f5b",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-editor-validation.png",
-            "19719c2c398f0cc97b297e7b86bbac46fa666a14",
+            "397590b85f63dd3cf4e0891b9e384586b0ff667b",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/draft-fork-header-normal.png",
+            "c3483e8b6d26f5ac582de8bcd583f9cf0b3e90b5",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-ingredient-editor-normal.png",
-            "42a910b4939907668fa41f2d55f400eeda24b60b",
+            "b2febf42305aeba4c712eb50d022fa8be6237a21",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-instruction-editor-expanded.png",
-            "d833038407dcdfd53598e1c53a4463ecd8b27bc8",
+            "7a3be1a0934b4a66d1ac077554cff35100e20289",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-instruction-editor-normal.png",
-            "25587cf2fc3415b926363d54279d6021c5d0e3cc",
+            "fb020bfac79d46c34b93468fdf86ee21b1ea6502",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-similarity-publication-review.png",
-            "c5fa64d5913adee0b3f8faa088852c67c92c8344",
+            "83a813425be7662682fb130d7594297ce8158f93",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-unresolved-ingredient-validation.png",
-            "7abdac7433d5882218a8801bee1cf955e2650a17",
+            "8a435b78407f677622b750cc07a7a57b91fc5d61",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/global-not-found.png",
-            "43f02a1e9e5da1803597a7a8ff1b46ad633b5e48",
+            "619208dabfdfef86161cd5227ad9468fc2641240",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-account-navigation.png",
-            "84f935932c50e76f06b0e7ee816c5158e47f150d",
+            "f91db2e4986a3d6d8e9adffa2d0609734490985a",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-normal.png",
-            "049eaa2fe10dbafe9a159c177915be99e0854bcf",
+            "051768839f71b928c1d7164254e58537ca1370d5",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/ingredient-request-staff-review.png",
-            "b2ad02af0316a57e799a248f220c6e4432826c72",
+            "4353def006134547b83c9e981b63bfd7750d6e4f",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/my-ingredient-requests.png",
+            "28ebc715dfeb3cde1e04bfa1955e200eb232740a",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/my-recipes-normal.png",
-            "ef25b8c3e413c0fae0de860645366c098085ca38",
+            "b276779cbf356bcf2a1231759eebed56660a23d0",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-comparison-normal.png",
-            "8ab33df9b667b5b7c4b52e15bb1630f0b442c316",
+            "c3af05796ae41ae04a2ad2afbf5bbcfe83113d63",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-detail-history.png",
-            "6ab45cc014ac94a5912c9f2f9011f711bcc0b971",
+            "69102db266da23bfc83a882a3e29cbb29bbf9623",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-detail-normal.png",
-            "4081b01b27990985334120a1a196a812a9947a5b",
+            "c55ba519162cc02cee8edaf34e69d3d29c80a492",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-instructions-normal.png",
-            "6577bc3ef2cd72fc3e8415433c35c41a04b93911",
+            "e1575f20c67ad3a9b995b30e1b47ffa36812dab7",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-moderation-staff-review.png",
-            "af1c56a128dfb5356eefd8aaba59a40706da1c8c",
+            "8982e5b3f18a85e47d11d65f500e208a47166855",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/staff-tools-moderator-selected.png",
+            "8c6de385e0dacbef2941d4fd4afe8b6a4a358a29",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/staff-tools-normal.png",
+            "7c8c365fe39345e03e464ffccadf4044e074c85f",
         ),
     ),
 )
@@ -504,9 +608,7 @@ class SecretFinding:
 HIGH_CONFIDENCE_SECRET_RULES: tuple[tuple[str, re.Pattern[bytes]], ...] = (
     (
         "private-key",
-        re.compile(
-            rb"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY(?: BLOCK)?-----"
-        ),
+        re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY(?: BLOCK)?-----"),
     ),
     (
         "aws-access-key-id",
@@ -539,9 +641,7 @@ GENERIC_UNQUOTED_CREDENTIAL_ASSIGNMENT = re.compile(
     rb"\s*(?P<operator>=|:)\s*(?P<value>[A-Za-z0-9_./+=%-]{16,})"
     rb"(?=\s*(?:$|[,;}#]))"
 )
-CREDENTIAL_URI_COMPONENT = (
-    rb"(?:\$\{[A-Za-z_][A-Za-z0-9_]*(?::-[^{}\s/@]*)?\}|[^\s/:@]+)"
-)
+CREDENTIAL_URI_COMPONENT = rb"(?:\$\{[A-Za-z_][A-Za-z0-9_]*(?::-[^{}\s/@]*)?\}|[^\s/:@]+)"
 CREDENTIAL_URI = re.compile(
     rb"(?i)(?:postgres(?:ql)?(?:\+[a-z0-9_-]+)?|mysql|mariadb|redis|"
     rb"mongodb(?:\+srv)?|amqp|amqps)://"
@@ -608,8 +708,7 @@ def _run_git(repository: Path, *arguments: str) -> bytes:
         cwd=repository,
         env=environment,
         check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if result.returncode != 0:
         raise PackagingError("Git could not resolve or read the requested revision.")
@@ -621,9 +720,7 @@ def _repository_root(repository: Path) -> Path:
     try:
         return Path(os.fsdecode(raw_root.rstrip(b"\r\n"))).resolve(strict=True)
     except (OSError, UnicodeError) as error:
-        raise PackagingError(
-            "The Git repository root is not a safe local path."
-        ) from error
+        raise PackagingError("The Git repository root is not a safe local path.") from error
 
 
 def _resolve_commit(repository: Path, revision: str) -> str:
@@ -675,9 +772,7 @@ def _prepare_output(repository: Path, output: Path) -> tuple[Path, Path]:
     resolved_output = output.expanduser().resolve(strict=False)
     manifest = resolved_output.with_name(f"{resolved_output.name}.manifest.json")
     if _is_inside(resolved_output, repository) or _is_inside(manifest, repository):
-        raise PackagingError(
-            "The archive and manifest must be written outside the repository."
-        )
+        raise PackagingError("The archive and manifest must be written outside the repository.")
     for destination in (resolved_output, manifest):
         if destination.exists() or destination.is_symlink():
             raise PackagingError(
@@ -721,9 +816,7 @@ def _validate_source_path(path: str, policy: PackagingPolicy) -> str:
         if not reviewed_root_file:
             raise PackagingError(f"Root file is not in the export allowlist: {path!r}.")
     elif top_level not in policy.allowed_top_level_directories:
-        raise PackagingError(
-            f"Top-level path is not in the export allowlist: {path!r}."
-        )
+        raise PackagingError(f"Top-level path is not in the export allowlist: {path!r}.")
 
     basename = pure_path.name
     folded_basename = basename.casefold()
@@ -731,9 +824,7 @@ def _validate_source_path(path: str, policy: PackagingPolicy) -> str:
     if basename.startswith(".env") and path != ".env.example":
         raise PackagingError(f"Environment file is not exportable: {path!r}.")
     if folded_basename in DENIED_FILENAMES or suffix in DENIED_SUFFIXES:
-        raise PackagingError(
-            f"Sensitive or generated file is not exportable: {path!r}."
-        )
+        raise PackagingError(f"Sensitive or generated file is not exportable: {path!r}.")
     if (
         not reviewed_root_file
         and basename not in policy.allowed_special_basenames
@@ -743,9 +834,7 @@ def _validate_source_path(path: str, policy: PackagingPolicy) -> str:
     return path
 
 
-def _list_tree(
-    repository: Path, commit_sha: str, policy: PackagingPolicy
-) -> list[TreeEntry]:
+def _list_tree(repository: Path, commit_sha: str, policy: PackagingPolicy) -> list[TreeEntry]:
     raw_tree = _run_git(
         repository,
         "ls-tree",
@@ -757,9 +846,7 @@ def _list_tree(
     )
     records = [record for record in raw_tree.split(b"\0") if record]
     if len(records) > policy.max_entries:
-        raise PackagingError(
-            "The selected revision exceeds the configured entry-count limit."
-        )
+        raise PackagingError("The selected revision exceeds the configured entry-count limit.")
 
     entries: list[TreeEntry] = []
     seen: set[str] = set()
@@ -775,37 +862,21 @@ def _list_tree(
             object_id = object_id_raw.decode("ascii")
             size_text = size_raw.decode("ascii")
         except (UnicodeDecodeError, ValueError) as error:
-            raise PackagingError(
-                "Git returned an unsafe or malformed tree entry."
-            ) from error
+            raise PackagingError("Git returned an unsafe or malformed tree entry.") from error
 
         _validate_source_path(path, policy)
-        if (
-            len(_archive_member_path(commit_sha, path).encode("utf-8"))
-            > policy.max_path_bytes
-        ):
-            raise PackagingError(
-                f"Archive path exceeds the configured limit: {path!r}."
-            )
+        if len(_archive_member_path(commit_sha, path).encode("utf-8")) > policy.max_path_bytes:
+            raise PackagingError(f"Archive path exceeds the configured limit: {path!r}.")
         if mode_text not in {"100644", "100755"} or object_type != "blob":
-            raise PackagingError(
-                f"Only regular tracked files may be exported: {path!r}."
-            )
-        if (
-            re.fullmatch(r"[0-9a-f]{40,64}", object_id) is None
-            or not size_text.isdecimal()
-        ):
+            raise PackagingError(f"Only regular tracked files may be exported: {path!r}.")
+        if re.fullmatch(r"[0-9a-f]{40,64}", object_id) is None or not size_text.isdecimal():
             raise PackagingError(f"Git returned invalid metadata for: {path!r}.")
         size = int(size_text)
         if size > policy.max_file_bytes:
-            raise PackagingError(
-                f"Source file exceeds the configured size limit: {path!r}."
-            )
+            raise PackagingError(f"Source file exceeds the configured size limit: {path!r}.")
         total_size += size
         if total_size > policy.max_uncompressed_bytes:
-            raise PackagingError(
-                "The selected revision exceeds the uncompressed-size limit."
-            )
+            raise PackagingError("The selected revision exceeds the uncompressed-size limit.")
 
         portable_key = unicodedata.normalize("NFC", path).casefold()
         if path in seen or portable_key in seen_portable:
@@ -852,6 +923,58 @@ def _reviewed_opaque_objects(policy: PackagingPolicy) -> dict[str, str]:
             raise PackagingError(f"Invalid opaque-file Git object ID: {path!r}.")
         opaque_objects[path] = object_id
     return opaque_objects
+
+
+def audit_opaque_policy(
+    repository: Path,
+    revision: str,
+    *,
+    policy: PackagingPolicy = EXPORT_POLICY,
+) -> dict[str, object]:
+    """Compare tracked PNG objects at one commit with the reviewed policy."""
+
+    root = _repository_root(repository.resolve(strict=True))
+    commit_sha = _resolve_commit(root, revision)
+    tree_entries = _list_tree(root, commit_sha, policy)
+    tracked_objects = {
+        entry.path: entry.object_id for entry in tree_entries if entry.path.endswith(".png")
+    }
+    reviewed_objects = _reviewed_opaque_objects(policy)
+
+    missing = [
+        {"path": path, "actual_object_id": tracked_objects[path]}
+        for path in sorted(tracked_objects.keys() - reviewed_objects.keys())
+    ]
+    mismatched = [
+        {
+            "path": path,
+            "reviewed_object_id": reviewed_objects[path],
+            "actual_object_id": tracked_objects[path],
+        }
+        for path in sorted(tracked_objects.keys() & reviewed_objects.keys())
+        if tracked_objects[path] != reviewed_objects[path]
+    ]
+    stale = [
+        {"path": path, "reviewed_object_id": reviewed_objects[path]}
+        for path in sorted(reviewed_objects.keys() - tracked_objects.keys())
+    ]
+    in_sync = not missing and not mismatched and not stale
+
+    return {
+        "commit_sha": commit_sha,
+        "counts": {
+            "tracked_pngs": len(tracked_objects),
+            "reviewed_entries": len(reviewed_objects),
+            "missing": len(missing),
+            "mismatched": len(mismatched),
+            "stale": len(stale),
+        },
+        "mismatched": mismatched,
+        "missing": missing,
+        "policy_version": POLICY_VERSION,
+        "result": "passed" if in_sync else "drift",
+        "stale": stale,
+    }
 
 
 def _read_sources(
@@ -902,9 +1025,7 @@ def _shannon_entropy(value: bytes) -> float:
         return 0.0
     counts = {byte: value.count(byte) for byte in set(value)}
     length = len(value)
-    return -sum(
-        (count / length) * math.log2(count / length) for count in counts.values()
-    )
+    return -sum((count / length) * math.log2(count / length) for count in counts.values())
 
 
 def _looks_like_placeholder(value: bytes) -> bool:
@@ -913,10 +1034,7 @@ def _looks_like_placeholder(value: bytes) -> bool:
         return True
     if any(pattern.fullmatch(value) for pattern in PLACEHOLDER_REFERENCE_PATTERNS):
         return True
-    if (
-        len(set(value)) < GENERIC_MIN_UNIQUE_BYTES
-        or _shannon_entropy(value) < GENERIC_MIN_ENTROPY
-    ):
+    if len(set(value)) < GENERIC_MIN_UNIQUE_BYTES or _shannon_entropy(value) < GENERIC_MIN_ENTROPY:
         return True
     if HEX_CREDENTIAL.fullmatch(value):
         return False
@@ -924,8 +1042,7 @@ def _looks_like_placeholder(value: bytes) -> bool:
     has_upper = any(65 <= byte <= 90 for byte in value)
     has_digit = any(48 <= byte <= 57 for byte in value)
     has_symbol = any(
-        not (48 <= byte <= 57 or 65 <= byte <= 90 or 97 <= byte <= 122)
-        for byte in value
+        not (48 <= byte <= 57 or 65 <= byte <= 90 or 97 <= byte <= 122) for byte in value
     )
     if (
         len(value) >= GENERIC_ALPHANUMERIC_MIN_LENGTH
@@ -937,10 +1054,7 @@ def _looks_like_placeholder(value: bytes) -> bool:
         )
     ):
         return False
-    return (
-        sum((has_lower, has_upper, has_digit, has_symbol))
-        < GENERIC_MIN_CHARACTER_CLASSES
-    )
+    return sum((has_lower, has_upper, has_digit, has_symbol)) < GENERIC_MIN_CHARACTER_CLASSES
 
 
 def _is_credential_key(raw_key: bytes) -> bool:
@@ -994,8 +1108,7 @@ def _scan_entries(entries: list[SourceEntry]) -> list[SecretFinding]:
                     if (
                         pattern is GENERIC_UNQUOTED_CREDENTIAL_ASSIGNMENT
                         and credential_match.group("operator") == b":"
-                        and PurePosixPath(entry.path).suffix
-                        in TYPE_ANNOTATION_EXTENSIONS
+                        and PurePosixPath(entry.path).suffix in TYPE_ANNOTATION_EXTENSIONS
                         and line.rstrip().endswith(TYPE_ANNOTATION_TERMINATORS)
                         and TYPE_ANNOTATION_VALUE.fullmatch(value)
                     ):
@@ -1017,9 +1130,7 @@ def _require_secret_scan(entries: list[SourceEntry], phase: str) -> None:
     try:
         findings = _scan_entries(entries)
     except Exception as error:
-        raise PackagingError(
-            f"The {phase} secret scan could not be completed."
-        ) from error
+        raise PackagingError(f"The {phase} secret scan could not be completed.") from error
     if findings:
         redacted_locations = ", ".join(
             f"{finding.rule} at {finding.path}:{finding.line}" for finding in findings
@@ -1067,8 +1178,7 @@ def _verify_completed_archive(
         raise PackagingError("The completed archive exceeds the compressed-size limit.")
 
     expected_by_member = {
-        _archive_member_path(commit_sha, entry.path): entry
-        for entry in expected_entries
+        _archive_member_path(commit_sha, entry.path): entry for entry in expected_entries
     }
     verified: list[SourceEntry] = []
     seen: set[str] = set()
@@ -1079,13 +1189,8 @@ def _verify_completed_archive(
             if archive.comment:
                 raise PackagingError("The completed archive has an unexpected comment.")
             members = archive.infolist()
-            if (
-                len(members) != len(expected_entries)
-                or len(members) > policy.max_entries
-            ):
-                raise PackagingError(
-                    "The completed archive has an unexpected entry count."
-                )
+            if len(members) != len(expected_entries) or len(members) > policy.max_entries:
+                raise PackagingError("The completed archive has an unexpected entry count.")
             for member in members:
                 if member.flag_bits & 0x1:
                     raise PackagingError("Encrypted archive members are not allowed.")
@@ -1102,41 +1207,26 @@ def _verify_completed_archive(
                         "The completed archive contains non-deterministic metadata."
                     )
                 if member.filename in seen:
-                    raise PackagingError(
-                        "The completed archive contains a duplicate path."
-                    )
+                    raise PackagingError("The completed archive contains a duplicate path.")
                 portable_key = unicodedata.normalize("NFC", member.filename).casefold()
                 if portable_key in seen_portable:
-                    raise PackagingError(
-                        "The completed archive contains a path collision."
-                    )
+                    raise PackagingError("The completed archive contains a path collision.")
                 seen.add(member.filename)
                 seen_portable.add(portable_key)
 
                 expected = expected_by_member.get(member.filename)
                 if expected is None:
-                    raise PackagingError(
-                        "The completed archive contains an unexpected path."
-                    )
+                    raise PackagingError("The completed archive contains an unexpected path.")
                 if len(member.filename.encode("utf-8")) > policy.max_path_bytes:
-                    raise PackagingError(
-                        "The completed archive contains an overlong path."
-                    )
+                    raise PackagingError("The completed archive contains an overlong path.")
                 member_mode = (member.external_attr >> 16) & 0xFFFF
                 if not stat.S_ISREG(member_mode) or member_mode & 0o777 not in {
                     0o644,
                     0o755,
                 }:
-                    raise PackagingError(
-                        "The completed archive contains a non-regular entry."
-                    )
-                if (
-                    member.file_size != expected.size
-                    or member.file_size > policy.max_file_bytes
-                ):
-                    raise PackagingError(
-                        "The completed archive contains an invalid file size."
-                    )
+                    raise PackagingError("The completed archive contains a non-regular entry.")
+                if member.file_size != expected.size or member.file_size > policy.max_file_bytes:
+                    raise PackagingError("The completed archive contains an invalid file size.")
                 total_size += member.file_size
                 if total_size > policy.max_uncompressed_bytes:
                     raise PackagingError(
@@ -1144,16 +1234,10 @@ def _verify_completed_archive(
                     )
                 data = archive.read(member)
                 if hashlib.sha256(data).hexdigest() != expected.sha256:
-                    raise PackagingError(
-                        "The completed archive failed its content hash check."
-                    )
-                verified.append(
-                    replace(expected, data=data, compressed_size=member.compress_size)
-                )
+                    raise PackagingError("The completed archive failed its content hash check.")
+                verified.append(replace(expected, data=data, compressed_size=member.compress_size))
             if set(expected_by_member) != seen:
-                raise PackagingError(
-                    "The completed archive is missing an expected path."
-                )
+                raise PackagingError("The completed archive is missing an expected path.")
     except (OSError, zipfile.BadZipFile, RuntimeError) as error:
         if isinstance(error, PackagingError):
             raise
@@ -1200,18 +1284,13 @@ def _manifest(
         "windows_reserved_names": sorted(WINDOWS_RESERVED_NAMES),
     }
     policy_sha256 = hashlib.sha256(
-        json.dumps(
-            policy_fingerprint_input, separators=(",", ":"), sort_keys=True
-        ).encode("utf-8")
+        json.dumps(policy_fingerprint_input, separators=(",", ":"), sort_keys=True).encode("utf-8")
     ).hexdigest()
     scanner_fingerprint_input = {
         "credential_key_pairs": [
-            sorted(part.decode("ascii") for part in pair)
-            for pair in CREDENTIAL_KEY_PAIRS
+            sorted(part.decode("ascii") for part in pair) for pair in CREDENTIAL_KEY_PAIRS
         ],
-        "credential_key_tokens": sorted(
-            token.decode("ascii") for token in CREDENTIAL_KEY_TOKENS
-        ),
+        "credential_key_tokens": sorted(token.decode("ascii") for token in CREDENTIAL_KEY_TOKENS),
         "credential_key_tokenization": {
             "flags": CREDENTIAL_KEY_SEPARATOR.flags,
             "pattern": CREDENTIAL_KEY_SEPARATOR.pattern.decode("ascii"),
@@ -1227,9 +1306,7 @@ def _manifest(
             },
             {
                 "flags": GENERIC_UNQUOTED_CREDENTIAL_ASSIGNMENT.flags,
-                "pattern": GENERIC_UNQUOTED_CREDENTIAL_ASSIGNMENT.pattern.decode(
-                    "ascii"
-                ),
+                "pattern": GENERIC_UNQUOTED_CREDENTIAL_ASSIGNMENT.pattern.decode("ascii"),
             },
         ],
         "high_confidence_rules": [
@@ -1283,9 +1360,7 @@ def _manifest(
         },
     }
     scanner_sha256 = hashlib.sha256(
-        json.dumps(
-            scanner_fingerprint_input, separators=(",", ":"), sort_keys=True
-        ).encode("utf-8")
+        json.dumps(scanner_fingerprint_input, separators=(",", ":"), sort_keys=True).encode("utf-8")
     ).hexdigest()
     return {
         "archive": {
@@ -1371,9 +1446,7 @@ def package_source(
             resolved_output.parent, resolved_output.name, ".archive.tmp"
         )
         _write_archive(temporary_archive, commit_sha, sources)
-        verified_sources = _verify_completed_archive(
-            temporary_archive, commit_sha, sources, policy
-        )
+        verified_sources = _verify_completed_archive(temporary_archive, commit_sha, sources, policy)
         _require_secret_scan(verified_sources, "completed-archive")
         report = _manifest(commit_sha, temporary_archive, verified_sources, policy)
 
@@ -1406,9 +1479,7 @@ def package_source(
             temporary_manifest.unlink()
             temporary_manifest = None
         except OSError as error:
-            raise PackagingError(
-                "The verified outputs could not be published safely."
-            ) from error
+            raise PackagingError("The verified outputs could not be published safely.") from error
         return report
     except BaseException as error:
         cleanup_failed = False
@@ -1450,27 +1521,48 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output",
-        required=True,
         type=Path,
-        help="New .zip path outside the repository; no existing file is overwritten.",
+        help=(
+            "New .zip path outside the repository; required for packaging and "
+            "not accepted for an opaque-policy audit."
+        ),
+    )
+    parser.add_argument(
+        "--audit-opaque-policy",
+        action="store_true",
+        help=(
+            "Read the selected commit and report missing, mismatched, and stale "
+            "reviewed PNG entries without changing the policy."
+        ),
     )
     return parser
 
 
 def main(arguments: list[str] | None = None) -> int:
-    options = _parser().parse_args(arguments)
+    parser = _parser()
+    options = parser.parse_args(arguments)
+    if options.audit_opaque_policy and options.output is not None:
+        parser.error("--output cannot be used with --audit-opaque-policy")
+    if not options.audit_opaque_policy and options.output is None:
+        parser.error("--output is required unless --audit-opaque-policy is used")
+    operation = "Opaque policy audit" if options.audit_opaque_policy else "Safe source export"
     try:
-        report = package_source(Path.cwd(), options.revision, options.output)
+        if options.audit_opaque_policy:
+            report = audit_opaque_policy(Path.cwd(), options.revision)
+        else:
+            report = package_source(Path.cwd(), options.revision, options.output)
     except PackagingError as error:
-        print(f"Safe source export failed: {error}", file=sys.stderr)
+        print(f"{operation} failed: {error}", file=sys.stderr)
         return 1
     except Exception:
         print(
-            "Safe source export failed because an internal check could not be completed.",
+            f"{operation} failed because an internal check could not be completed.",
             file=sys.stderr,
         )
         return 1
     print(json.dumps(report, indent=2, sort_keys=True))
+    if options.audit_opaque_policy and report["result"] != "passed":
+        return 1
     return 0
 
 

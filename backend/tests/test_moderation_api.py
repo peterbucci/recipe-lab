@@ -14,9 +14,7 @@ from sqlalchemy import Engine, delete, func, select, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_session
 from app.core.security import AUTH_SESSION_COOKIE_NAME
-from app.main import create_app
 from app.models import (
     USER_STATUS_SUSPENDED,
     CatalogCurator,
@@ -30,6 +28,7 @@ from app.models import (
     User,
 )
 from app.schemas.recipe_publications import RecipeOriginalPublicationRequest
+from tests.application import application_with_database
 from tests.conftest import make_alembic_config
 from tests.member_session import (
     MemberCredentials,
@@ -213,14 +212,10 @@ def moderation_api(empty_postgres_engine: Engine) -> Iterator[ModerationApi]:
             published=False,
         )
 
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        with Session(bind=empty_postgres_engine, expire_on_commit=False) as session:
-            yield session
-
-    application.dependency_overrides[get_session] = override_session
-    try:
+    with application_with_database(
+        empty_postgres_engine,
+        expire_on_commit=False,
+    ) as application:
         with (
             TestClient(application) as anonymous,
             TestClient(application) as author,
@@ -255,8 +250,6 @@ def moderation_api(empty_postgres_engine: Engine) -> Iterator[ModerationApi]:
                 incomplete=incomplete,
                 reporter_a_credentials=credentials["reporter_a"],
             )
-    finally:
-        application.dependency_overrides.clear()
 
 
 def _report(

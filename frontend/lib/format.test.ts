@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDecimal, formatIngredientMeasure, formatServings } from "./format";
+import {
+  formatDecimal,
+  formatIngredientMeasure,
+  formatRecipeDifficulty,
+  formatRecipeDuration,
+  formatServings,
+} from "./format";
 
 describe("recipe value formatting", () => {
   it("removes only insignificant fractional zeroes", () => {
@@ -40,5 +46,15 @@ describe("recipe value formatting", () => {
         display: "1–2",
       }),
     ).toBe("1–2");
+  });
+
+  it("formats recipe timing and difficulty metadata for display", () => {
+    expect(formatRecipeDuration(25)).toBe("25 min");
+    expect(formatRecipeDuration(60)).toBe("1 hr");
+    expect(formatRecipeDuration(445)).toBe("7 hr 25 min");
+    expect(formatRecipeDuration(null)).toBe("Not provided");
+    expect(formatRecipeDifficulty("easy")).toBe("Easy");
+    expect(formatRecipeDifficulty("medium")).toBe("Medium");
+    expect(formatRecipeDifficulty(null)).toBe("Not provided");
   });
 });

@@ -2,13 +2,19 @@
 .env
 .env.*
 .git
+.idea
 .next
+.vscode
 node_modules
+baselines
 coverage
 e2e
+performance
 playwright-report
+scripts
 test-results
 *.tsbuildinfo
+*.log
 **/*.test.ts
 **/*.test.tsx
 AGENTS.md
@@ -20,3 +26,6 @@ playwright.config*.ts
 vitest.config.ts
 vitest.setup.ts
 npm-debug.log*
+next-env.d.ts
+.DS_Store
+Thumbs.db

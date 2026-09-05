@@ -2,19 +2,24 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session, aliased, contains_eager, selectinload
+from sqlalchemy.orm import Session, aliased, contains_eager, joinedload, selectinload
 
-from app.models import Ingredient, IngredientAlias, IngredientSubstitution
+from app.catalog_names import catalog_name_digest, normalize_catalog_name
+from app.db.query import LIKE_ESCAPE, literal_contains_pattern
+from app.models import (
+    INGREDIENT_CATALOG_NAME_ALIAS,
+    INGREDIENT_CATALOG_NAME_CANONICAL,
+    Ingredient,
+    IngredientAlias,
+    IngredientCatalogName,
+    IngredientSubstitution,
+)
 
 
 @dataclass(frozen=True, slots=True)
 class IngredientCatalogBrowseResult:
     items: list[Ingredient]
     total: int
-
-
-def _escape_like(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def browse_ingredients(
@@ -28,18 +33,18 @@ def browse_ingredients(
 
     filters = []
     if search is not None:
-        pattern = f"%{_escape_like(search)}%"
+        pattern = literal_contains_pattern(search)
         alias_matches = (
             select(IngredientAlias.id)
             .where(
                 IngredientAlias.ingredient_id == Ingredient.id,
-                IngredientAlias.alias.ilike(pattern, escape="\\"),
+                IngredientAlias.alias.ilike(pattern, escape=LIKE_ESCAPE),
             )
             .exists()
         )
         filters.append(
             or_(
-                Ingredient.canonical_name.ilike(pattern, escape="\\"),
+                Ingredient.canonical_name.ilike(pattern, escape=LIKE_ESCAPE),
                 alias_matches,
             )
         )
@@ -72,18 +77,18 @@ def find_ingredient_candidates(
     for term in search_terms:
         if not term:
             continue
-        pattern = f"%{_escape_like(term)}%"
+        pattern = literal_contains_pattern(term)
         alias_matches = (
             select(IngredientAlias.id)
             .where(
                 IngredientAlias.ingredient_id == Ingredient.id,
-                IngredientAlias.alias.ilike(pattern, escape="\\"),
+                IngredientAlias.alias.ilike(pattern, escape=LIKE_ESCAPE),
             )
             .exists()
         )
         matches.append(
             or_(
-                Ingredient.canonical_name.ilike(pattern, escape="\\"),
+                Ingredient.canonical_name.ilike(pattern, escape=LIKE_ESCAPE),
                 alias_matches,
             )
         )
@@ -113,47 +118,61 @@ def get_ingredient(session: Session, ingredient_id: UUID) -> Ingredient | None:
     return session.scalar(statement)
 
 
-def list_catalog_labels(session: Session) -> list[str]:
-    """Return trusted labels for low-frequency normalized candidate checks."""
+def find_catalog_name(
+    session: Session,
+    *,
+    normalized_name: str,
+    normalized_name_digest: str,
+    include_owner: bool = False,
+) -> IngredientCatalogName | None:
+    """Resolve one normalized key through the shared indexed namespace."""
 
-    canonical_names = session.scalars(select(Ingredient.canonical_name)).all()
-    aliases = session.scalars(select(IngredientAlias.alias)).all()
-    return [*canonical_names, *aliases]
+    statement = select(IngredientCatalogName).where(
+        IngredientCatalogName.normalized_name_digest == normalized_name_digest,
+        IngredientCatalogName.normalized_name == normalized_name,
+    )
+    if include_owner:
+        statement = statement.options(
+            joinedload(IngredientCatalogName.canonical_ingredient),
+            joinedload(IngredientCatalogName.ingredient_alias).joinedload(
+                IngredientAlias.ingredient
+            ),
+        )
+    return session.scalar(statement)
 
 
 def curated_display_label(ingredient: Ingredient, raw_label: str) -> str | None:
     """Return the stored catalog spelling when a label belongs to this identity."""
 
-    normalized_label = raw_label.strip().lower()
-    if ingredient.canonical_name.strip().lower() == normalized_label:
+    normalized_label = normalize_catalog_name(raw_label)
+    if normalize_catalog_name(ingredient.canonical_name) == normalized_label:
         return ingredient.canonical_name
     for alias in ingredient.aliases:
-        if alias.alias.strip().lower() == normalized_label:
+        if normalize_catalog_name(alias.alias) == normalized_label:
             return alias.alias
     return None
 
 
 def resolve_ingredient_name(session: Session, raw_name: str) -> Ingredient | None:
-    """Resolve an exact name, giving canonical names precedence over aliases."""
+    """Resolve one exact normalized name from the collision-free namespace."""
 
-    trimmed_name = raw_name.strip()
-    if not trimmed_name:
+    normalized_name = normalize_catalog_name(raw_name)
+    if not normalized_name:
         raise ValueError("ingredient name must not be blank")
-
-    normalized_input = func.lower(trimmed_name)
-    canonical_statement = select(Ingredient).where(
-        func.lower(func.btrim(Ingredient.canonical_name)) == normalized_input
+    catalog_name = find_catalog_name(
+        session,
+        normalized_name=normalized_name,
+        normalized_name_digest=catalog_name_digest(normalized_name),
+        include_owner=True,
     )
-    canonical_match = session.scalars(canonical_statement).one_or_none()
-    if canonical_match is not None:
-        return canonical_match
-
-    alias_statement = (
-        select(Ingredient)
-        .join(IngredientAlias)
-        .where(func.lower(func.btrim(IngredientAlias.alias)) == normalized_input)
-    )
-    return session.scalars(alias_statement).one_or_none()
+    if catalog_name is None:
+        return None
+    if catalog_name.name_kind == INGREDIENT_CATALOG_NAME_CANONICAL:
+        return catalog_name.canonical_ingredient
+    if catalog_name.name_kind == INGREDIENT_CATALOG_NAME_ALIAS:
+        ingredient_alias = catalog_name.ingredient_alias
+        return ingredient_alias.ingredient if ingredient_alias is not None else None
+    raise RuntimeError(f"Unsupported ingredient catalog name kind {catalog_name.name_kind!r}.")
 
 
 def list_direct_substitutions(

@@ -16,6 +16,8 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.domain_errors import DomainConflictError, DomainUnavailableError
+from app.core.idempotency import IdempotencyConflictError, require_same_request
 from app.models import (
     RECIPE_DUPLICATE_DISTINCT,
     RECIPE_DUPLICATE_EXACT,
@@ -65,6 +67,7 @@ from app.services.recipe_duplicate_scoring import (
     RecipeDuplicateScoringCapacityError,
     UnsupportedRecipeStructureVersionError,
     estimate_recipe_duplicate_pair_work,
+    get_recipe_duplicate_canonical_ingredient_identities,
     get_recipe_duplicate_scoring_shape,
     recipe_duplicate_fingerprints_are_exact,
     score_recipe_duplicate_candidates,
@@ -74,7 +77,7 @@ from app.services.recipe_fingerprints import (
     StructuralFingerprint,
 )
 
-RECIPE_DUPLICATE_POLICY_VERSION = "recipe-duplicate-preflight-policy-v1"
+RECIPE_DUPLICATE_POLICY_VERSION = "recipe-duplicate-preflight-policy-v2"
 RECIPE_DUPLICATE_RESULT_SCHEMA = "recipe-lab.recipe-duplicate-preflight-result"
 RECIPE_DUPLICATE_RESULT_VERSION = 1
 MAX_PUBLIC_DUPLICATE_CANDIDATES = 5
@@ -86,6 +89,25 @@ SAME_LINEAGE_NO_CHANGE_MESSAGE = (
 
 _POLICY_PARAMETER_PAYLOAD: dict[str, object] = {
     "candidate_selection": {
+        "discovery": {
+            "exact_lookup": {
+                "confirmation": "same_algorithm_digest_and_canonical_payload",
+                "maximum_candidates": MAX_PUBLIC_DUPLICATE_CANDIDATES,
+                "ranking": ["ascending_public_recipe_version_uuid"],
+            },
+            "probable_shortlist": {
+                "eligibility": "at_least_one_shared_canonical_ingredient_identity",
+                "maximum_total_public_comparisons_including_exact": (
+                    MAX_PUBLIC_DUPLICATE_COMPARISONS
+                ),
+                "overlap_metric": "count_distinct_shared_canonical_ingredient_identities",
+                "ranking": [
+                    "descending_canonical_ingredient_overlap",
+                    "ascending_public_recipe_version_uuid",
+                ],
+                "remaining_budget": "comparison_limit_minus_exact_candidates",
+            },
+        },
         "maximum_candidates": MAX_PUBLIC_DUPLICATE_CANDIDATES,
         "ranking": [
             "exact_classification_first",
@@ -170,20 +192,38 @@ class RecipeDuplicatePreflightUnavailableError(LookupError):
     """Raised when a source recipe is not publicly readable."""
 
 
-class RecipeDuplicatePreflightStaleError(RuntimeError):
+class RecipeDuplicatePreflightStaleError(DomainConflictError):
     """Raised generically for stale acknowledgement or unavailable result evidence."""
 
+    code = "duplicate_preflight_stale"
+    public_message = "The duplicate preflight is no longer current. Run it again."
 
-class RecipeDuplicateDecisionNotRequiredError(RuntimeError):
+
+class RecipeDuplicatePreflightIdempotencyConflictError(IdempotencyConflictError):
+    """Raised when one preflight action identifier represents different evidence."""
+
+    public_message = "The Idempotency-Key conflicts with an earlier duplicate preflight."
+
+
+class RecipeDuplicateDecisionNotRequiredError(DomainConflictError):
     """Raised when a distinct result has no advisory acknowledgement to record."""
 
+    code = "duplicate_decision_not_required"
+    public_message = "A distinct result does not accept a duplicate decision."
 
-class RecipeDuplicateDecisionRequiredError(RuntimeError):
+
+class RecipeDuplicateDecisionRequiredError(DomainConflictError):
     """Raised when duplicate candidates were not explicitly accepted."""
 
+    code = "duplicate_decision_required"
+    public_message = "Duplicate candidates require an explicit continue decision."
 
-class RecipeDuplicatePreflightCapacityError(RuntimeError):
+
+class RecipeDuplicatePreflightCapacityError(DomainUnavailableError):
     """Raised generically when fixed duplicate-scoring work limits are exceeded."""
+
+    code = "duplicate_preflight_unavailable"
+    public_message = "Duplicate preflight is temporarily unavailable. Please try again later."
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,6 +264,29 @@ def _score_text(score_basis_points: int) -> str:
     return f"{integer}.{fractional * 100:06d}"
 
 
+def load_public_duplicate_candidates(
+    session: Session,
+    *,
+    subject: StructuralFingerprint,
+    subject_input: DuplicateCandidateFingerprint,
+    source_version_id: UUID | None,
+) -> list[PublicRecipeDuplicateCandidate]:
+    """Apply the service's fixed shortlist policy at the repository boundary."""
+
+    return list_public_recipe_duplicate_candidates(
+        session,
+        algorithm_version=subject.algorithm_version,
+        subject_digest=subject.digest,
+        subject_canonical_payload=subject.canonical_json,
+        subject_ingredient_identities=(
+            get_recipe_duplicate_canonical_ingredient_identities(subject_input)
+        ),
+        comparison_limit=MAX_PUBLIC_DUPLICATE_COMPARISONS,
+        exact_candidate_limit=MAX_PUBLIC_DUPLICATE_CANDIDATES,
+        exclude_recipe_version_id=source_version_id,
+    )
+
+
 def _rank_candidates(
     session: Session,
     *,
@@ -243,11 +306,11 @@ def _rank_candidates(
     try:
         subject_input = DuplicateCandidateFingerprint.from_structural_fingerprint(subject)
         subject_shape = get_recipe_duplicate_scoring_shape(subject_input)
-        public_candidates = list_public_recipe_duplicate_candidates(
+        public_candidates = load_public_duplicate_candidates(
             session,
-            algorithm_version=subject.algorithm_version,
-            comparison_limit=MAX_PUBLIC_DUPLICATE_COMPARISONS + 1,
-            exclude_recipe_version_id=source_version_id,
+            subject=subject,
+            subject_input=subject_input,
+            source_version_id=source_version_id,
         )
         if len(public_candidates) > MAX_PUBLIC_DUPLICATE_COMPARISONS:
             raise RecipeDuplicatePreflightCapacityError(
@@ -482,15 +545,18 @@ def _replay_recipe_duplicate_preflight(
         action_id=action_id,
     )
     if replay is not None:
-        if replay.request_fingerprint != request_fingerprint or (
-            subject_fingerprint is not None
-            and (
-                replay.source_version_id != source_version_id
-                or replay.subject_fingerprint_algorithm != subject_fingerprint.algorithm_version
-                or replay.subject_fingerprint_digest != subject_fingerprint.digest
-            )
+        require_same_request(
+            replay.request_fingerprint,
+            request_fingerprint,
+            conflict_error=RecipeDuplicatePreflightIdempotencyConflictError,
+            detail="The preflight action identifier is already bound to another request.",
+        )
+        if subject_fingerprint is not None and (
+            replay.source_version_id != source_version_id
+            or replay.subject_fingerprint_algorithm != subject_fingerprint.algorithm_version
+            or replay.subject_fingerprint_digest != subject_fingerprint.digest
         ):
-            raise RecipeDuplicateStorageConflictError(
+            raise RecipeDuplicatePreflightIdempotencyConflictError(
                 "The preflight action identifier is already bound to another request."
             )
         return RecipeDuplicatePreflightServiceResult(
@@ -552,32 +618,35 @@ def run_structural_recipe_duplicate_preflight(
             candidates=candidate_document,
         )
     )
-    stored: RecipeDuplicatePreflightStoreResult = store_recipe_duplicate_preflight(
-        session,
-        actor_user_id=actor_user_id,
-        action_id=action_id,
-        request_fingerprint=request_fingerprint,
-        source_version_id=source_version_id,
-        subject_fingerprint_algorithm=subject_fingerprint.algorithm_version,
-        subject_fingerprint_digest=subject_fingerprint.digest,
-        policy_version=RECIPE_DUPLICATE_POLICY_VERSION,
-        classification=classification,
-        same_parent_no_change=same_parent_no_change,
-        result_digest=result_digest,
-        candidates=[
-            RecipeDuplicateCandidateWrite(
-                public_recipe_version_id=candidate.recipe_version_id,
-                rank=rank,
-                classification=candidate.classification,
-                score_basis_points=candidate.score_basis_points,
-                reason_codes=tuple(reason.code for reason in candidate.reasons),
-                fingerprint_algorithm_version=subject_fingerprint.algorithm_version,
-                policy_version=RECIPE_DUPLICATE_POLICY_VERSION,
-                exact_payload_confirmed=candidate.exact_payload_confirmed,
-            )
-            for rank, candidate in enumerate(candidates, start=1)
-        ],
-    )
+    try:
+        stored: RecipeDuplicatePreflightStoreResult = store_recipe_duplicate_preflight(
+            session,
+            actor_user_id=actor_user_id,
+            action_id=action_id,
+            request_fingerprint=request_fingerprint,
+            source_version_id=source_version_id,
+            subject_fingerprint_algorithm=subject_fingerprint.algorithm_version,
+            subject_fingerprint_digest=subject_fingerprint.digest,
+            policy_version=RECIPE_DUPLICATE_POLICY_VERSION,
+            classification=classification,
+            same_parent_no_change=same_parent_no_change,
+            result_digest=result_digest,
+            candidates=[
+                RecipeDuplicateCandidateWrite(
+                    public_recipe_version_id=candidate.recipe_version_id,
+                    rank=rank,
+                    classification=candidate.classification,
+                    score_basis_points=candidate.score_basis_points,
+                    reason_codes=tuple(reason.code for reason in candidate.reasons),
+                    fingerprint_algorithm_version=subject_fingerprint.algorithm_version,
+                    policy_version=RECIPE_DUPLICATE_POLICY_VERSION,
+                    exact_payload_confirmed=candidate.exact_payload_confirmed,
+                )
+                for rank, candidate in enumerate(candidates, start=1)
+            ],
+        )
+    except RecipeDuplicateStorageConflictError as error:
+        raise RecipeDuplicatePreflightIdempotencyConflictError(str(error)) from error
     return RecipeDuplicatePreflightServiceResult(
         response=_response_from_stored(session, stored.preflight),
         state=stored.state,

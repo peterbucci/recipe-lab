@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Header, Query, Response, status
 from sqlalchemy.exc import IntegrityError
 
+from app.api.cache import apply_private_no_store
 from app.api.dependencies import (
     CsrfProtectedSessionDependency,
     RequiredAuthenticatedSessionDependency,
@@ -11,6 +12,8 @@ from app.api.dependencies import (
 )
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor, lock_recipe_moderator_actor
+from app.core.domain_errors import DomainError
+from app.pagination import PageParams
 from app.repositories.moderation import (
     ModerationCaseQueueItem,
     browse_moderation_cases,
@@ -39,11 +42,6 @@ from app.schemas.moderation import (
 )
 from app.schemas.users import PublicUserReference
 from app.services.moderation import (
-    DuplicateRecipeReportError,
-    ModerationActionConflictError,
-    ModerationCaseNotFoundError,
-    ModerationIdempotencyConflictError,
-    RecipeReportNotFoundError,
     moderate_recipe_case,
     submit_recipe_report,
 )
@@ -86,11 +84,6 @@ REPORT_RECIPE_RESPONSES: dict[int | str, dict[str, object]] = {
         )
     },
 }
-
-
-def _private_no_store(response: Response) -> None:
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "Cookie"
 
 
 def _case_summary(item: ModerationCaseQueueItem) -> RecipeModerationCaseSummary:
@@ -136,27 +129,9 @@ def report_recipe(
             action_id=action_id,
         )
         session.commit()
-    except RecipeReportNotFoundError as error:
+    except DomainError:
         session.rollback()
-        raise ApiError(
-            status_code=404,
-            code="recipe_not_found",
-            message="The recipe was not found or is not publicly available.",
-        ) from error
-    except DuplicateRecipeReportError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="recipe_already_reported",
-            message="You already reported this recipe.",
-        ) from error
-    except ModerationIdempotencyConflictError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="idempotency_key_conflict",
-            message="The Idempotency-Key conflicts with an earlier report.",
-        ) from error
+        raise
     except IntegrityError as error:
         session.rollback()
         raise ApiError(
@@ -167,7 +142,7 @@ def report_recipe(
 
     if result.state == "reused":
         response.status_code = status.HTTP_200_OK
-    _private_no_store(response)
+    apply_private_no_store(response)
     return RecipeReportReceipt(
         id=result.report.id,
         recipe_version_id=result.report.recipe_version_id,
@@ -190,10 +165,11 @@ def moderation_queue(
     case_status: Annotated[ModerationCaseStatus | None, Query(alias="status")] = None,
 ) -> RecipeModerationCasePage:
     lock_recipe_moderator_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
     result = browse_moderation_cases(
         session,
         status=case_status,
-        offset=(page - 1) * page_size,
+        offset=pagination.offset,
         limit=page_size,
     )
     page_response = RecipeModerationCasePage(
@@ -201,10 +177,10 @@ def moderation_queue(
         page=page,
         page_size=page_size,
         total=result.total,
-        total_pages=(result.total + page_size - 1) // page_size,
+        total_pages=pagination.total_pages(result.total),
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return page_response
 
 
@@ -269,7 +245,7 @@ def moderation_case_detail(
         history_truncated=history_total > len(history),
     )
     session.commit()
-    _private_no_store(response)
+    apply_private_no_store(response)
     return detail
 
 
@@ -297,27 +273,9 @@ def moderate_recipe(
             action_id=action_id,
         )
         session.commit()
-    except ModerationCaseNotFoundError as error:
+    except DomainError:
         session.rollback()
-        raise ApiError(
-            status_code=404,
-            code="moderation_case_not_found",
-            message="The moderation case was not found.",
-        ) from error
-    except ModerationActionConflictError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="moderation_action_conflict",
-            message=str(error),
-        ) from error
-    except ModerationIdempotencyConflictError as error:
-        session.rollback()
-        raise ApiError(
-            status_code=409,
-            code="idempotency_key_conflict",
-            message="The Idempotency-Key conflicts with an earlier moderation action.",
-        ) from error
+        raise
     except IntegrityError as error:
         session.rollback()
         raise ApiError(
@@ -326,7 +284,7 @@ def moderate_recipe(
             message="The moderation case changed concurrently. Refresh and try again.",
         ) from error
 
-    _private_no_store(response)
+    apply_private_no_store(response)
     return RecipeModerationActionResponse(
         recipe_version_id=result.event.recipe_version_id,
         action=cast(ModerationAction, result.event.action),

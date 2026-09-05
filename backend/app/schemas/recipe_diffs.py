@@ -10,8 +10,16 @@ from app.schemas.recipes import (
     RecipeVersionReference,
 )
 
-type RecipeFieldName = Literal["title", "description", "servings"]
-type RecipeFieldValue = str | Decimal | None
+type RecipeFieldName = Literal[
+    "title",
+    "description",
+    "servings",
+    "total_time_minutes",
+    "active_time_minutes",
+    "difficulty",
+    "notes",
+]
+type RecipeFieldValue = str | Decimal | int | None
 type RecipeIngredientChangedField = Literal[
     "ingredient",
     "display_name",
@@ -19,6 +27,7 @@ type RecipeIngredientChangedField = Literal[
     "preparation_notes",
 ]
 type RecipeInstructionChangedField = Literal[
+    "title",
     "text",
     "actions",
     "inputs",

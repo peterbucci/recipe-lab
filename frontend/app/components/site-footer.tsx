@@ -1,3 +1,5 @@
+import { FlaskConical } from "lucide-react";
+
 import { GuardedLink } from "./navigation-blocker-provider";
 
 const COPYRIGHT_YEAR = 2026;
@@ -23,10 +25,13 @@ export function SiteFooter() {
           href="/"
           aria-label="Recipe Lab home"
         >
+          <span className="brand__mark" aria-hidden="true">
+            <FlaskConical focusable="false" />
+          </span>
           <strong>Recipe Lab</strong>
         </GuardedLink>
         <p className="site-footer__tagline">
-          Cook from a recipe, publish your version, and keep its history connected.
+          Try it. Change it. Make it yours.
         </p>
       </div>
 
@@ -36,9 +41,7 @@ export function SiteFooter() {
           <GuardedLink className="site-footer__link" href="/recipes">
             Recipes
           </GuardedLink>
-          <GuardedLink className="site-footer__link" href="/#how-it-works">
-            How it works
-          </GuardedLink>
+          <FutureDestination>How it works</FutureDestination>
           <FutureDestination>Categories</FutureDestination>
         </section>
         <section aria-labelledby="footer-support-heading">

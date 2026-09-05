@@ -17,6 +17,8 @@ import {
   type AuthSession,
   fetchAuthSession,
 } from "../../lib/auth-api";
+import { isAbortError } from "../../lib/abort-error";
+import { LoadingButton } from "./loading-ui";
 
 export type AuthSessionState =
   | { phase: "loading" }
@@ -112,7 +114,7 @@ export function AuthSessionProvider({
     void fetchAuthSession(controller.signal)
       .then(replaceSession)
       .catch((reason: unknown) => {
-        if (!(reason instanceof DOMException && reason.name === "AbortError")) {
+        if (!isAbortError(reason)) {
           setState({ phase: "error" });
         }
       });
@@ -188,7 +190,6 @@ export function SessionRecoveryNotice() {
     }
     checkingRef.current = true;
     setChecking(true);
-    setMessage("Checking whether sign-in finished…");
     const result = await recoverSession();
     checkingRef.current = false;
     setChecking(false);
@@ -293,14 +294,15 @@ export function SessionRecoveryNotice() {
           </a>
           {sameTabSignIn ? null : (
             <>
-              <button
+              <LoadingButton
                 className="button button--secondary"
                 type="button"
-                disabled={checking}
+                pending={checking}
+                pendingLabel="Checking sign-in…"
                 onClick={() => void checkRecovery()}
               >
-                {checking ? "Checking sign-in…" : "Check sign-in"}
-              </button>
+                Check sign-in
+              </LoadingButton>
               <button
                 className="button button--quiet"
                 type="button"

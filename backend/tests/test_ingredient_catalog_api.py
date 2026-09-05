@@ -14,19 +14,19 @@ from sqlalchemy import Engine, delete, func, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_session
 from app.core.security import AUTH_CSRF_COOKIE_NAME, AUTH_SESSION_COOKIE_NAME
-from app.main import create_app
 from app.models import (
     CatalogCurator,
     Ingredient,
     IngredientAlias,
     IngredientCatalogAuditEvent,
+    IngredientCatalogName,
     IngredientCatalogRequest,
 )
 from app.schemas.ingredient_catalog import MemberIngredientCatalogRequestResponse
 from app.seeds import load_bundled_catalog, seed_catalog
 from app.seeds.identifiers import seed_uuid
+from tests.application import application_with_database
 from tests.conftest import make_alembic_config
 from tests.member_session import (
     MemberCredentials,
@@ -103,14 +103,10 @@ def catalog_api(empty_postgres_engine: Engine) -> Iterator[CatalogApi]:
             ]
         )
 
-    application = create_app()
-
-    def override_session() -> Iterator[Session]:
-        with Session(bind=empty_postgres_engine, expire_on_commit=False) as session:
-            yield session
-
-    application.dependency_overrides[get_session] = override_session
-    try:
+    with application_with_database(
+        empty_postgres_engine,
+        expire_on_commit=False,
+    ) as application:
         with (
             TestClient(application) as anonymous_client,
             TestClient(application) as member_client,
@@ -135,8 +131,6 @@ def catalog_api(empty_postgres_engine: Engine) -> Iterator[CatalogApi]:
                 member_credentials=member,
                 engine=empty_postgres_engine,
             )
-    finally:
-        application.dependency_overrides.clear()
 
 
 def _json_object(value: object) -> dict[str, Any]:
@@ -505,6 +499,17 @@ def test_concurrent_approvals_serialize_one_catalog_identity_and_one_conflict(
         assert len(aliases) == 1
         assert aliases[0].ingredient_id == ingredients[0].id
         assert approved[0].resolved_ingredient_id == ingredients[0].id
+        namespace_rows = list(
+            session.scalars(
+                select(IngredientCatalogName).where(
+                    IngredientCatalogName.normalized_name.in_(["parallel kale", "parallel greens"])
+                )
+            )
+        )
+        assert {row.name_kind for row in namespace_rows} == {"canonical", "alias"}
+        assert {
+            row.canonical_ingredient_id or row.ingredient_alias_id for row in namespace_rows
+        } == {ingredients[0].id, aliases[0].id}
 
         events = list(
             session.scalars(

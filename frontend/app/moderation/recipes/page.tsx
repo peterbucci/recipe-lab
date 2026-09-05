@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { RecipeModerationWorkspace } from "../../components/recipe-moderation-workspace";
 
 export const metadata: Metadata = {
-  title: "Review recipe reports",
+  title: "Recipe reports",
   description: "Review private, de-identified reports about Recipe Lab recipes.",
 };
 

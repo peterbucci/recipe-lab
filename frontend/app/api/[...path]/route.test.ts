@@ -9,6 +9,7 @@ import {
   NETWORK_TIMESTAMP_HEADER,
 } from "../../../server/trusted-network-signal.mjs";
 
+import * as routeModule from "./route";
 import { GET, PATCH } from "./route";
 
 const CORRELATION_ID_PATTERN =
@@ -47,6 +48,20 @@ function captureOperationalErrors() {
 }
 
 describe("same-origin API boundary", () => {
+  it("exports only Next-supported route handlers and segment configuration", () => {
+    expect(Object.keys(routeModule).sort()).toEqual([
+      "DELETE",
+      "GET",
+      "HEAD",
+      "OPTIONS",
+      "PATCH",
+      "POST",
+      "PUT",
+      "dynamic",
+      "runtime",
+    ]);
+  });
+
   it("forwards path, query, cookies, and manual redirects to the private backend", async () => {
     vi.stubEnv("RECIPE_API_URL", "http://recipe-api.internal:8000/");
     const upstreamCorrelationId = "5a7fd15f-5f6c-4a26-a35a-c12c5647cdea";
