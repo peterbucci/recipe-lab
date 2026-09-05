@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
+import { expect, test } from "./acceptance-draft-isolation";
 import { useAcceptanceMember } from "./acceptance-session";
 
 const recipePathPattern = /^\/recipes\/([^/]+)$/;
@@ -59,6 +60,7 @@ test.describe("MVP acceptance", () => {
 
   test("browses, saves, creates, and resumes a private fork draft using the real stack", async ({
     page,
+    sourceDrafts,
   }) => {
     const draftTitle = "MVP Private Pecan Carrot Draft";
     await useAcceptanceMember(page, "alice");
@@ -75,6 +77,7 @@ test.describe("MVP acceptance", () => {
       page.getByRole("heading", { name: "Carrot Walnut Snack Cake", level: 1 }),
     ).toBeVisible();
     const sourceRecipeVersionId = recipeVersionId(page);
+    await sourceDrafts.assertFresh("alice", sourceRecipeVersionId);
 
     const saveButton = page.getByRole("button", {
       name: "Save recipe",

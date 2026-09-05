@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
+import { expect, test, type SourceDraftScope } from "./acceptance-draft-isolation";
 import { useAcceptanceMember } from "./acceptance-session";
 
 async function confirmPublicationRequirements(page: Page): Promise<void> {
@@ -39,7 +40,7 @@ async function publicRecipeVersionId(
   return match[1];
 }
 
-async function openCarrotFork(page: Page): Promise<string> {
+async function openCarrotFork(page: Page, sourceDrafts: SourceDraftScope): Promise<string> {
   await page.goto("/recipes?q=carrot");
   const rootRecipeCard = page
     .getByRole("article", {
@@ -54,6 +55,7 @@ async function openCarrotFork(page: Page): Promise<string> {
   const sourceRecipeUrl = page.url();
   const sourceVersionId = new URL(sourceRecipeUrl).pathname.split("/").at(-1);
   if (!sourceVersionId) throw new Error("Could not resolve the source recipe.");
+  await sourceDrafts.assertFresh("alice", sourceVersionId);
   await page
     .getByRole("button", { name: "Make your own version", exact: true })
     .click();
@@ -133,9 +135,10 @@ test.describe("recipe duplicate preflight acceptance", () => {
   );
   test("reviews and acknowledges a direct-parent structural match before publishing", async ({
     page,
+    sourceDrafts,
   }) => {
     await useAcceptanceMember(page, "alice");
-    const draftId = await openCarrotFork(page);
+    const draftId = await openCarrotFork(page, sourceDrafts);
 
     const preflightResponse = page.waitForResponse(
       (response) =>
@@ -230,6 +233,7 @@ test.describe("recipe duplicate preflight acceptance", () => {
 
   test("shows a probable public candidate and preserves navigation to its recipe", async ({
     page,
+    sourceDrafts,
   }) => {
     await useAcceptanceMember(page, "alice");
     const candidateId = await publicRecipeVersionId(
@@ -237,7 +241,7 @@ test.describe("recipe duplicate preflight acceptance", () => {
       PUBLIC_CANDIDATE_TITLE,
       "pecan carrot",
     );
-    await openCarrotFork(page);
+    await openCarrotFork(page, sourceDrafts);
     await page.route(
       "**/api/recipe-drafts/*/duplicate-preflights",
       async (route) => {
@@ -292,9 +296,10 @@ test.describe("recipe duplicate preflight acceptance", () => {
 
   test("retries an unavailable similarity check without losing the draft", async ({
     page,
+    sourceDrafts,
   }) => {
     await useAcceptanceMember(page, "alice");
-    const draftId = await openCarrotFork(page);
+    const draftId = await openCarrotFork(page, sourceDrafts);
     const title = page.getByLabel("Title", { exact: true });
     await title.fill("Keep this unavailable-review draft");
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
@@ -366,6 +371,7 @@ test.describe("recipe duplicate preflight acceptance", () => {
 
   test("preserves a fork draft when its source becomes unavailable during publication", async ({
     page,
+    sourceDrafts,
   }) => {
     await useAcceptanceMember(page, "alice");
     const candidateId = await publicRecipeVersionId(
@@ -373,7 +379,7 @@ test.describe("recipe duplicate preflight acceptance", () => {
       PUBLIC_CANDIDATE_TITLE,
       "pecan carrot",
     );
-    await openCarrotFork(page);
+    await openCarrotFork(page, sourceDrafts);
     await page.route(
       "**/api/recipe-drafts/*/duplicate-preflights",
       async (route) => {

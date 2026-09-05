@@ -1,11 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
-import {
-  expect,
-  test,
-  type APIResponse,
-  type Locator,
-  type Page,
-} from "@playwright/test";
+import type { APIResponse, Locator, Page } from "@playwright/test";
+
+import { expect, test } from "./acceptance-draft-isolation";
 
 import {
   type MemberName,
@@ -434,6 +430,7 @@ test.describe("member ingredient-request acceptance", () => {
 
   test("keeps request states in one picker and uses only trusted resolutions", async ({
     page,
+    sourceDrafts,
   }) => {
     test.setTimeout(45_000);
     const runId = Date.now().toString(36);
@@ -454,6 +451,8 @@ test.describe("member ingredient-request acceptance", () => {
       .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
       .click();
     const sourceRecipeUrl = page.url();
+    const sourceId = new URL(sourceRecipeUrl).pathname.split("/").at(-1)!;
+    await sourceDrafts.assertFresh("alice", sourceId);
     const createdDraft = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&

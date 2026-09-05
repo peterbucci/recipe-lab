@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
+import { expect, test } from "./acceptance-draft-isolation";
 import { useAcceptanceMember } from "./acceptance-session";
 
 async function confirmPublicationRequirements(page: Page): Promise<void> {
@@ -43,6 +44,7 @@ test.describe("structured cooking action acceptance", () => {
 
   test("edits, validates, orders, saves, and resumes structured actions in a fork draft", async ({
     page,
+    sourceDrafts,
   }) => {
     const draftTitle = "Structured Action Carrot Draft";
     const stepTitle = "Prepare the cake pan";
@@ -62,6 +64,8 @@ test.describe("structured cooking action acceptance", () => {
       .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
       .click();
     const sourceRecipeUrl = page.url();
+    const sourceId = new URL(sourceRecipeUrl).pathname.split("/").at(-1)!;
+    await sourceDrafts.assertFresh("alice", sourceId);
     await page
       .getByRole("button", { name: "Make your own version", exact: true })
       .click();
@@ -450,7 +454,6 @@ test.describe("structured cooking action acceptance", () => {
       name: "Compare with Carrot Walnut Snack Cake →",
       exact: true,
     });
-    const sourceId = new URL(sourceRecipeUrl).pathname.split("/").at(-1)!;
     const comparisonPath =
       `/recipes/${published.recipe_version_id}/compare?base_version_id=${sourceId}`;
     await expect(compare).toHaveAttribute("href", comparisonPath);
