@@ -1,27 +1,26 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import ts from "typescript";
-import { describe, expect, it } from "vitest";
 
-const FRONTEND_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const REPOSITORY_ROOT = resolve(FRONTEND_ROOT, "..");
-const APP_ROOT = resolve(FRONTEND_ROOT, "app");
+export const FRONTEND_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+export const REPOSITORY_ROOT = resolve(FRONTEND_ROOT, "..");
+export const APP_ROOT = resolve(FRONTEND_ROOT, "app");
 
-type RuleId =
+export type RuleId =
   | "consumer-recommendation-language"
   | "future-personalization-claim"
   | "internal-recipe-language"
   | "catalog-internals"
   | "staff-identifiers";
 
-interface CopyFragment {
+export interface CopyFragment {
   line: number;
   text: string;
 }
 
-interface Violation extends CopyFragment {
+export interface Violation extends CopyFragment {
   file: string;
   rule: RuleId;
 }
@@ -114,7 +113,7 @@ const RULES: ReadonlyArray<{ id: RuleId; pattern: RegExp }> = [
 // These modules are access-controlled staff surfaces. Exceptions are per rule:
 // no staff page is allowed to make consumer recommendation claims or to use
 // internal recipe-version language merely because it is staff-only.
-const STAFF_DIAGNOSTIC_EXCEPTIONS: Readonly<
+export const STAFF_DIAGNOSTIC_EXCEPTIONS: Readonly<
   Record<string, ReadonlySet<RuleId>>
 > = {
   "app/catalog/ingredient-requests/loading.tsx": new Set([
@@ -138,11 +137,11 @@ const STAFF_DIAGNOSTIC_EXCEPTIONS: Readonly<
   "app/moderation/recipes/page.tsx": new Set(["staff-identifiers"]),
 };
 
-function repositoryPath(path: string): string {
+export function repositoryPath(path: string): string {
   return relative(FRONTEND_ROOT, path).split(sep).join("/");
 }
 
-function ordinaryUiFiles(directory = APP_ROOT): string[] {
+export function ordinaryUiFiles(directory = APP_ROOT): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = resolve(directory, entry.name);
     if (entry.isDirectory()) return ordinaryUiFiles(path);
@@ -161,7 +160,7 @@ function normalizedText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-function collectPublicCopy(
+export function collectPublicCopy(
   source: string,
   fileName = "surface.tsx",
 ): CopyFragment[] {
@@ -472,7 +471,7 @@ function collectPublicCopy(
   return fragments;
 }
 
-function findViolations(file: string, source: string): Violation[] {
+export function findViolations(file: string, source: string): Violation[] {
   const allowed = STAFF_DIAGNOSTIC_EXCEPTIONS[file] ?? new Set<RuleId>();
   return collectPublicCopy(source, file).flatMap((fragment) =>
     RULES.flatMap((rule) =>
@@ -483,259 +482,9 @@ function findViolations(file: string, source: string): Violation[] {
   );
 }
 
-function formatViolations(violations: readonly Violation[]): string {
+export function formatViolations(violations: readonly Violation[]): string {
   return violations
     .map(({ file, line, rule, text }) => `${file}:${line} [${rule}] ${text}`)
     .join("\n");
 }
 
-describe("public product language policy", () => {
-  it("keeps public positioning limited to the shipped cook experience", () => {
-    const read = (path: string) =>
-      readFileSync(resolve(REPOSITORY_ROOT, path), "utf8").replace(
-        /\r\n/g,
-        "\n",
-      );
-    const readme = read("README.md");
-
-    expect(readme).toMatch(
-      /Find recipes,[\s\S]{0,120}make your own version,[\s\S]{0,120}follow recipe\s+history\./,
-    );
-    expect(readme).toMatch(
-      /Research-preview engineering capabilities,[\s\S]{0,120}not consumer product\s+surfaces/,
-    );
-    expect(readme).toMatch(
-      /\[product language and recommendation boundary\]\(docs\/product-language\.md\)/,
-    );
-
-    const publicReadme = readme.split("### Research preview:", 1)[0];
-    const positioningSources = [
-      "frontend/app/layout.tsx",
-      "frontend/app/onboarding/page.tsx",
-      "frontend/app/page.tsx",
-      "frontend/app/sign-in/page.tsx",
-    ].map((path) => read(path));
-    positioningSources.unshift(publicReadme);
-    const unsupportedClaims =
-      /remember(?:s|ed)? what worked|learned substitutions?|personal intelligence|outcome[- ]based recommendations?|picked for you|tailored to your cooking|get recommendations shaped by your activity/i;
-
-    for (const source of positioningSources)
-      expect(source).not.toMatch(unsupportedClaims);
-  });
-
-  it("uses the preferred relationship and similarity labels", () => {
-    const home = [
-      readFileSync(resolve(APP_ROOT, "page.tsx"), "utf8"),
-      readFileSync(
-        resolve(APP_ROOT, "components/home-public-discovery.tsx"),
-        "utf8",
-      ),
-    ].join("\n");
-    const detail = [
-      readFileSync(
-        resolve(APP_ROOT, "components/recipe-detail-view.tsx"),
-        "utf8",
-      ),
-      readFileSync(
-        resolve(APP_ROOT, "components/recipe-family-navigator.tsx"),
-        "utf8",
-      ),
-    ].join("\n");
-    const similarity = readFileSync(
-      resolve(APP_ROOT, "components/recipe-duplicate-preflight-review.tsx"),
-      "utf8",
-    );
-
-    expect(home).toContain("Featured recipes");
-    expect(detail).toContain("Based on");
-    expect(detail).toContain("Recipe family");
-    expect(similarity).toContain("Your version");
-    expect(similarity).toContain("Similar recipes");
-  });
-
-  it("inventories ordinary UI automatically and keeps exceptions narrow", () => {
-    const files = ordinaryUiFiles();
-    const inventory = new Set(files.map(repositoryPath));
-    for (const exception of Object.keys(STAFF_DIAGNOSTIC_EXCEPTIONS)) {
-      expect(
-        inventory,
-        `${exception} must remain an explicit, existing UI module`,
-      ).toContain(exception);
-    }
-
-    const violations = files.flatMap((path) => {
-      const file = repositoryPath(path);
-      return findViolations(file, readFileSync(path, "utf8"));
-    });
-    expect(formatViolations(violations)).toBe("");
-  });
-
-  it("catches prohibited copy without confusing code identifiers for copy", () => {
-    const ordinary = findViolations(
-      "app/components/example.tsx",
-      `
-        const forkHref = "/recipes/example/fork";
-        const fingerprint = "internal-retry-key";
-        export function Example() {
-          return <p>Get recommendations shaped by your activity from this immutable snapshot.</p>;
-        }
-      `,
-    );
-    expect(ordinary.map(({ rule }) => rule)).toEqual([
-      "consumer-recommendation-language",
-      "internal-recipe-language",
-    ]);
-
-    const staff = findViolations(
-      "app/components/ingredient-request-decision-form.tsx",
-      `export function Staff() {
-        return <><p>Canonical identity</p><p>Get recommendations shaped by your activity.</p></>;
-      }`,
-    );
-    expect(staff.map(({ rule }) => rule)).toEqual([
-      "consumer-recommendation-language",
-    ]);
-  });
-
-  it("checks UUID-shaped copy and statically initialized rendered aliases", () => {
-    const visibleUuid = "99999999-9999-4999-8999-999999999999";
-    const hiddenUuid = "88888888-8888-4888-8888-888888888888";
-    const violations = findViolations(
-      "app/components/example.tsx",
-      `
-        const forkHref = "/recipes/example/fork";
-        const hiddenRecipeId = "${hiddenUuid}";
-        export function Example() {
-          const cta = "Fork this recipe";
-          const visibleRecipeReference = "${visibleUuid}";
-          return <>{forkHref ? <span>Ready</span> : null}<button>{cta}</button><p>{visibleRecipeReference}</p></>;
-        }
-      `,
-    );
-
-    expect(violations.map(({ rule }) => rule)).toEqual([
-      "internal-recipe-language",
-      "staff-identifiers",
-    ]);
-    expect(violations.map(({ text }) => text)).toEqual([
-      "Fork this recipe",
-      visibleUuid,
-    ]);
-    expect(formatViolations(violations)).not.toContain(hiddenUuid);
-    expect(formatViolations(violations)).not.toContain("/recipes/example/fork");
-  });
-
-  it("checks custom copy props and static metadata objects", () => {
-    const violations = findViolations(
-      "app/components/example.tsx",
-      `
-        export const metadata = {
-          title: "Immutable snapshot",
-          description: "Get recommendations shaped by your activity",
-        };
-        export function Example() {
-          return <Panel eyebrow="Canonical identity" primaryActionLabel="Case identifier" />;
-        }
-      `,
-    );
-
-    expect(violations.map(({ rule }) => rule)).toEqual([
-      "internal-recipe-language",
-      "consumer-recommendation-language",
-      "catalog-internals",
-      "staff-identifiers",
-    ]);
-  });
-
-  it("follows static copy returned by rendered helpers and metadata helpers", () => {
-    const violations = findViolations(
-      "app/components/example.tsx",
-      `
-        function relationshipGuidance(usePrimary: boolean) {
-          if (usePrimary) return "Immutable snapshot";
-          return secondaryGuidance();
-        }
-        function secondaryGuidance() {
-          return "Canonical identity";
-        }
-        function buildMetadata() {
-          return { description: "Recommendations picked for you" };
-        }
-        export function generateMetadata() {
-          return buildMetadata();
-        }
-        export function Example() {
-          return <p>{relationshipGuidance(true)}</p>;
-        }
-      `,
-    );
-
-    expect(violations.map(({ rule }) => rule)).toEqual([
-      "internal-recipe-language",
-      "consumer-recommendation-language",
-      "future-personalization-claim",
-      "catalog-internals",
-    ]);
-  });
-
-  it("checks camel-case copy variables, plural copy maps, and setters", () => {
-    const violations = findViolations(
-      "app/components/example.tsx",
-      `
-        export function Example() {
-          const emptyStateEyebrow = "Immutable snapshot";
-          const statusLabels = { fallback: "Case identifier" };
-          setPublicationStatusMessage("Canonical identity selected");
-          return <p>{emptyStateEyebrow}{statusLabels.fallback}</p>;
-        }
-      `,
-    );
-
-    expect(violations.map(({ rule }) => rule)).toEqual([
-      "internal-recipe-language",
-      "staff-identifiers",
-      "catalog-internals",
-    ]);
-  });
-
-  it("leaves dynamic values to rendered tests but checks their static copy frame", () => {
-    const dynamicOnly = findViolations(
-      "app/components/example.tsx",
-      `
-        export function Example({ recipeId, policyVersion }) {
-          return <Panel label={recipeId} eyebrow={policyVersion} />;
-        }
-      `,
-    );
-    expect(dynamicOnly).toEqual([]);
-
-    const runtimeAlias = findViolations(
-      "app/components/example.tsx",
-      `
-        export function Example() {
-          const cta = loadRuntimeCopy();
-          return <p>{cta}</p>;
-        }
-      `,
-    );
-    expect(runtimeAlias).toEqual([]);
-
-    const staticFrame = findViolations(
-      "app/components/example.tsx",
-      `
-        export function Example({ recipeId, policyVersion }) {
-          return (
-            <Panel
-              label={\`Case identifier \${recipeId}\`}
-              message={\`Policy version \${policyVersion}\`}
-            />
-          );
-        }
-      `,
-    );
-    expect(staticFrame.map(({ rule }) => rule)).toEqual([
-      "staff-identifiers",
-      "catalog-internals",
-    ]);
-  });
-});
