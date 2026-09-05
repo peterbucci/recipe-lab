@@ -731,7 +731,7 @@ test.describe("RCP-32 two-user community release gate", () => {
           alice.getByLabel("Description", { exact: true }),
         ).toHaveValue(rootDescription);
         await expect(alice.getByLabel("Makes", { exact: true })).toHaveValue(
-          "4.00",
+          "4",
         );
         const persistedPendingIngredient = alice.getByRole("group", {
           name: "Ingredient 1",
@@ -888,7 +888,7 @@ test.describe("RCP-32 two-user community release gate", () => {
           alice.getByLabel("Description", { exact: true }),
         ).toHaveValue(rootDescription);
         await expect(alice.getByLabel("Makes", { exact: true })).toHaveValue(
-          "4.00",
+          "4",
         );
 
         await ingredient
@@ -969,7 +969,7 @@ test.describe("RCP-32 two-user community release gate", () => {
           alice.getByLabel("Description", { exact: true }),
         ).toHaveValue(rootDescription);
         await expect(alice.getByLabel("Makes", { exact: true })).toHaveValue(
-          "4.00",
+          "4",
         );
         const persistedIngredient = alice
           .getByRole("group", { name: "Ingredient 1", exact: true })
@@ -1263,7 +1263,7 @@ test.describe("RCP-32 two-user community release gate", () => {
             name: "Duration",
             exact: true,
           }),
-        ).toHaveValue("20.000000");
+        ).toHaveValue("20");
         await resumedAction
           .getByRole("button", { name: "Done", exact: true })
           .click();
