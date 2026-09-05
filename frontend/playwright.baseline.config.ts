@@ -7,6 +7,7 @@ export const BASELINE_PLAYWRIGHT_VERSION = "1.62.1";
 export const BASELINE_CHROMIUM_VERSION = "151.0.7922.34";
 export const BASELINE_OUTPUT_DIRECTORY = "test-results/baseline/artifacts";
 export const BASELINE_RESULTS_FILE = "test-results/baseline/results.json";
+export const BASELINE_TEST_MATCH = "**/*-baseline.spec.ts";
 export const BASELINE_SNAPSHOT_TEMPLATE =
   "{testDir}/../../baselines/{projectName}/{arg}{ext}";
 
@@ -62,7 +63,7 @@ const publicNetworkSignal = "baseline-baseline-baseline-baseline";
 
 export default defineConfig({
   testDir: "./e2e/visual",
-  testMatch: "visual-baseline.spec.ts",
+  testMatch: BASELINE_TEST_MATCH,
   fullyParallel: false,
   forbidOnly: true,
   retries: 0,

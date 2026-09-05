@@ -229,9 +229,11 @@ usability review.
 ## Sanitized fixture and artifact boundary
 
 `frontend/e2e/visual/visual-baseline-fixture.mjs` serves only the reviewed synthetic
-responses consumed by `frontend/e2e/visual/visual-baseline.spec.ts`. The suite must not
-read an acceptance-session fixture, start the RCP-32 identity provider, connect
-to PostgreSQL, reuse a signed-in browser profile, or contact an external host.
+responses consumed by the behavior/page-family `*-baseline.spec.ts` files under
+`frontend/e2e/visual`. Their shared deterministic and privacy controls live in
+`visual-baseline-support.ts`. The suite must not read an acceptance-session fixture,
+start the RCP-32 identity provider, connect to PostgreSQL, reuse a signed-in browser
+profile, or contact an external host.
 It contains no real name, handle, email, free-form report, recipe, cookie,
 authorization value, CSRF token, OIDC value, or production identifier. Adding
 a fixture field or request route requires privacy review before a golden is

@@ -16,6 +16,7 @@ import baselineConfig, {
   BASELINE_PROJECTS,
   BASELINE_RESULTS_FILE,
   BASELINE_SNAPSHOT_TEMPLATE,
+  BASELINE_TEST_MATCH,
 } from "../../playwright.baseline.config";
 
 const moduleRequire = createRequire(import.meta.url);
@@ -55,10 +56,11 @@ describe("deterministic browser baseline configuration", () => {
 
     expect(BASELINE_OUTPUT_DIRECTORY).toMatch(/^test-results\//);
     expect(BASELINE_RESULTS_FILE).toMatch(/^test-results\/.*\.json$/);
+    expect(BASELINE_TEST_MATCH).toBe("**/*-baseline.spec.ts");
     expect(BASELINE_SNAPSHOT_TEMPLATE).toContain("/baselines/");
     expect(BASELINE_SNAPSHOT_TEMPLATE).toContain("{projectName}");
     expect(baselineConfig.testDir).toBe("./e2e/visual");
-    expect(baselineConfig.testMatch).toBe("visual-baseline.spec.ts");
+    expect(baselineConfig.testMatch).toBe(BASELINE_TEST_MATCH);
     expect(baselineConfig.fullyParallel).toBe(false);
     expect(baselineConfig.forbidOnly).toBe(true);
     expect(baselineConfig.retries).toBe(0);
