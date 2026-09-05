@@ -489,7 +489,7 @@ section 'Capture an older backup before account deletion'
       safe_location="$(python "$GITHUB_WORKSPACE/scripts/extract_playwright_failure_location.py" "$RCP33G_PRIVATE_DIR/browser.log")"
       if [[ "$safe_location" =~ ^[1-9][0-9]*:[1-9][0-9]*$ ]]; then
         IFS=: read -r failure_line failure_column <<< "$safe_location"
-        echo "::error file=frontend/e2e/release/rcp32-community-release-gate.spec.ts,line=$failure_line,col=$failure_column::RCP-32 failed at this assertion; private diagnostics were withheld."
+        echo "::error file=frontend/e2e/release/community-release-gate.spec.ts,line=$failure_line,col=$failure_column::RCP-32 failed at this assertion; private diagnostics were withheld."
       fi
       echo "The community journey stopped before the backup checkpoint."
       exit 1
@@ -518,7 +518,7 @@ section 'Capture an older backup before account deletion'
     safe_location="$(python "$GITHUB_WORKSPACE/scripts/extract_playwright_failure_location.py" "$RCP33G_PRIVATE_DIR/browser.log")"
     if [[ "$safe_location" =~ ^[1-9][0-9]*:[1-9][0-9]*$ ]]; then
       IFS=: read -r failure_line failure_column <<< "$safe_location"
-      echo "::error file=frontend/e2e/release/rcp32-community-release-gate.spec.ts,line=$failure_line,col=$failure_column::RCP-32 failed at this assertion; private diagnostics were withheld."
+      echo "::error file=frontend/e2e/release/community-release-gate.spec.ts,line=$failure_line,col=$failure_column::RCP-32 failed at this assertion; private diagnostics were withheld."
     fi
     echo "The community journey failed; private diagnostics were withheld."
     exit "$browser_result"

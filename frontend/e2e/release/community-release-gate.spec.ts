@@ -22,14 +22,14 @@ import {
   readRcp32Session,
   signInExistingRcp32Identity,
   type Rcp32Identity,
-} from "./rcp32-oidc";
+} from "./community-release-oidc";
 import {
   assertRcp32AcceptanceDatabase,
   grantCatalogCurator,
   grantCommunityModerator,
   revokeCatalogCurator,
   revokeCommunityModerator,
-} from "./rcp32-operator";
+} from "./community-release-operator";
 
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 const uuidPattern =

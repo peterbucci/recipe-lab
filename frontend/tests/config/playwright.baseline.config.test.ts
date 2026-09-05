@@ -27,7 +27,7 @@ describe("RCP-34B deterministic browser baseline configuration", () => {
       "{testDir}/../../baselines/{projectName}/{arg}{ext}",
     );
     expect(baselineConfig.testDir).toBe("./e2e/visual");
-    expect(baselineConfig.testMatch).toBe("rcp34b-baseline.spec.ts");
+    expect(baselineConfig.testMatch).toBe("visual-baseline.spec.ts");
     expect(baselineConfig.fullyParallel).toBe(false);
     expect(baselineConfig.forbidOnly).toBe(true);
     expect(baselineConfig.retries).toBe(0);
@@ -58,7 +58,7 @@ describe("RCP-34B deterministic browser baseline configuration", () => {
     });
     expect(baselineConfig.reporter).toEqual([
       ["line"],
-      ["./e2e/visual/rcp34b-baseline-reporter.mjs", { outputFile: BASELINE_RESULTS_FILE }],
+      ["./e2e/visual/visual-baseline-reporter.mjs", { outputFile: BASELINE_RESULTS_FILE }],
     ]);
   });
 
@@ -88,7 +88,7 @@ describe("RCP-34B deterministic browser baseline configuration", () => {
   it("starts only non-reused loopback fixture and production frontend servers", () => {
     expect(baselineConfig.webServer).toEqual([
       expect.objectContaining({
-        command: "node e2e/visual/rcp34b-baseline-fixture.mjs",
+        command: "node e2e/visual/visual-baseline-fixture.mjs",
         reuseExistingServer: false,
         url: `${BASELINE_FIXTURE_ORIGIN}/__baseline__/health`,
         env: expect.objectContaining({

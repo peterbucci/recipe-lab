@@ -22,7 +22,7 @@ import {
   RCP46F_STAFF_VIEWPORTS,
   type Rcp46fStaffMatrixCase,
   type Rcp46fStaffRole,
-} from "./rcp46f-staff-certification-matrix";
+} from "./staff-certification-matrix";
 
 const DESKTOP_PROJECT = "baseline-desktop-chromium";
 const PHONE_PROJECT = "baseline-phone-chromium";

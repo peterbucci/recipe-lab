@@ -8,7 +8,7 @@ from pathlib import Path
 
 _STACK_LOCATION = re.compile(
     r"(?m)^\s*at\s+[^\r\n]*[/\\]frontend[/\\]e2e[/\\]release[/\\]"
-    r"rcp32-community-release-gate\.spec\.ts:"
+    r"community-release-gate\.spec\.ts:"
     r"(?P<line>[1-9][0-9]{0,4}):(?P<column>[1-9][0-9]{0,3})\)?\s*$"
 )
 

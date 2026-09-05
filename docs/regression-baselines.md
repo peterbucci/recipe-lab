@@ -190,7 +190,7 @@ same change; deleting a module must remove its inventory entry.
 ### RCP-46F staff route and state inventory
 
 The executable inventory is
-`frontend/e2e/visual/rcp46f-staff-certification-matrix.ts`; its focused unit contract
+`frontend/e2e/visual/staff-certification-matrix.ts`; its focused unit contract
 keeps the two routes, two capabilities, three widths, and nine matrix cases
 explicit. The deterministic browser suite runs every case at 1440 by 900, 820
 by 1000, and 390 by 844 CSS pixels without creating a screenshot for every
@@ -228,8 +228,8 @@ usability review.
 
 ## Sanitized fixture and artifact boundary
 
-`frontend/e2e/visual/rcp34b-baseline-fixture.mjs` serves only the reviewed synthetic
-responses consumed by `frontend/e2e/visual/rcp34b-baseline.spec.ts`. The suite must not
+`frontend/e2e/visual/visual-baseline-fixture.mjs` serves only the reviewed synthetic
+responses consumed by `frontend/e2e/visual/visual-baseline.spec.ts`. The suite must not
 read an acceptance-session fixture, start the RCP-32 identity provider, connect
 to PostgreSQL, reuse a signed-in browser profile, or contact an external host.
 It contains no real name, handle, email, free-form report, recipe, cookie,

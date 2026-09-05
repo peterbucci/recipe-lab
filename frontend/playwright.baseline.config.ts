@@ -62,7 +62,7 @@ const publicNetworkSignal = "baseline-baseline-baseline-baseline";
 
 export default defineConfig({
   testDir: "./e2e/visual",
-  testMatch: "rcp34b-baseline.spec.ts",
+  testMatch: "visual-baseline.spec.ts",
   fullyParallel: false,
   forbidOnly: true,
   retries: 0,
@@ -83,7 +83,7 @@ export default defineConfig({
   preserveOutput: "failures-only",
   reporter: [
     ["line"],
-    ["./e2e/visual/rcp34b-baseline-reporter.mjs", { outputFile: BASELINE_RESULTS_FILE }],
+    ["./e2e/visual/visual-baseline-reporter.mjs", { outputFile: BASELINE_RESULTS_FILE }],
   ],
   snapshotPathTemplate: BASELINE_SNAPSHOT_TEMPLATE,
   updateSnapshots: "none",
@@ -95,7 +95,7 @@ export default defineConfig({
   projects: BASELINE_PROJECTS,
   webServer: [
     {
-      command: "node e2e/visual/rcp34b-baseline-fixture.mjs",
+      command: "node e2e/visual/visual-baseline-fixture.mjs",
       url: `${BASELINE_FIXTURE_ORIGIN}/__baseline__/health`,
       reuseExistingServer: false,
       timeout: 30_000,
