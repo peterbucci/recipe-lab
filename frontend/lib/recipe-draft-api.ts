@@ -9,7 +9,7 @@ import {
   type PublicApiErrorContract,
 } from "../shared/api/core";
 import type { CatalogActionTypeSummary } from "./cooking-action-model";
-import type { CatalogIngredient } from "./ingredient-catalog-api";
+import type { CatalogIngredient } from "../features/ingredients/ingredient-model";
 import type { CatalogUnitSummary } from "./measurement-unit-model";
 import type { RecipeCategory } from "./recipe-api";
 import {

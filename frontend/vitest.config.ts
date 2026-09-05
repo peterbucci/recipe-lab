@@ -18,7 +18,9 @@ export const NODE_TEST_INCLUDE = [
 export const JSDOM_LIBRARY_TEST_INCLUDE = [
   "shared/api/browser.test.ts",
   "lib/auth-api.test.ts",
-  "lib/ingredient-catalog-api.test.ts",
+  "features/ingredients/catalog/ingredient-catalog-api.test.ts",
+  "features/ingredients/requests/ingredient-request-api.test.ts",
+  "features/ingredients/review/ingredient-request-review-api.test.ts",
   "lib/interaction-api.test.ts",
   "lib/member-activity-api.test.ts",
   "lib/member-follow-api.test.ts",

@@ -3,7 +3,7 @@ import type { CatalogActionType } from "./cooking-action-model";
 import type {
   CatalogIngredientSelection,
   MissingIngredientRequest,
-} from "./ingredient-catalog-api";
+} from "../features/ingredients/ingredient-model";
 import type { CatalogUnit } from "./measurement-unit-model";
 import { formatDecimal } from "./format";
 import type { RecipeCategory } from "./recipe-api";

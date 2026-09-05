@@ -165,6 +165,13 @@ their route wrapper composes the app-owned gate, while the domain-neutral
 queue/detail workspace frame lives in `shared/ui`. The existing stylesheet
 cascade remains in place, so this ownership move does not reorder visual rules.
 
+RCP-49E keeps the member and curator route entry points under `app`, where
+route-private wrappers compose the application-owned access gates with the
+ingredient workspaces. Ingredient clients are separated by catalog search,
+member requests, and curator review under `features/ingredients`; their common
+model, parsers, and public error boundary remain feature-owned. The existing
+stylesheet cascade and import order stay unchanged during this ownership move.
+
 Each story is implemented on its own topic branch, verified, and merged into
 `refactor/frontend-architecture`. That integration branch remains separate from
 `main` until review.

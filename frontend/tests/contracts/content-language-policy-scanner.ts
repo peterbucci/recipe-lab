@@ -124,10 +124,10 @@ export const STAFF_DIAGNOSTIC_EXCEPTIONS: Readonly<
     "catalog-internals",
     "staff-identifiers",
   ]),
-  "app/components/ingredient-request-decision-form.tsx": new Set([
+  "features/ingredients/review/ingredient-request-decision-form.tsx": new Set([
     "catalog-internals",
   ]),
-  "app/components/ingredient-request-review-detail.tsx": new Set([
+  "features/ingredients/review/ingredient-request-review-detail.tsx": new Set([
     "staff-identifiers",
   ]),
   "features/moderation/review/recipe-moderation-workspace.tsx": new Set([

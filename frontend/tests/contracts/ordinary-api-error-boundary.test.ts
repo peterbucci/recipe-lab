@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CSRF_COOKIE_NAME } from "../../shared/api/browser-session";
-import {
-  searchCatalogIngredients,
-  submitMissingIngredientRequest,
-} from "../../lib/ingredient-catalog-api";
+import { searchCatalogIngredients } from "../../features/ingredients/catalog/ingredient-catalog-api";
+import { submitMissingIngredientRequest } from "../../features/ingredients/requests/ingredient-request-api";
 import { createRecipeDraft } from "../../lib/recipe-draft-api";
 import { createRecipeDraftDuplicatePreflight } from "../../lib/recipe-duplicate-api";
 import { fetchMyRecipeLibrary } from "../../lib/recipe-library-api";
