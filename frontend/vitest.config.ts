@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, defineProject } from "vitest/config";
 
 export const NODE_TEST_INCLUDE = [
+  "features/**/*.test.ts",
   "lib/**/*.test.ts",
   "shared/api/**/*.test.ts",
   "performance/**/*.test.ts",
@@ -11,8 +12,9 @@ export const NODE_TEST_INCLUDE = [
   "tests/{config,contracts}/**/*.test.{mjs,ts}",
 ] as const;
 
-// These colocated library tests deliberately exercise cookies, session storage,
-// browser events, or the browser transport. All other lib tests stay in Node.
+// These colocated tests deliberately exercise cookies, session storage,
+// browser events, or the browser transport. All other TypeScript tests in
+// feature, lib, and shared/api owners stay in Node.
 export const JSDOM_LIBRARY_TEST_INCLUDE = [
   "shared/api/browser.test.ts",
   "lib/auth-api.test.ts",
@@ -29,14 +31,15 @@ export const JSDOM_LIBRARY_TEST_INCLUDE = [
   "lib/recipe-duplicate-api.test.ts",
   "lib/recipe-family-client-api.test.ts",
   "lib/recipe-library-api.test.ts",
-  "lib/recipe-moderation-api.test.ts",
+  "features/moderation/review/recipe-moderation-api.test.ts",
   "lib/recipe-publication-api.test.ts",
-  "lib/recipe-report-api.test.ts",
+  "features/moderation/reporting/recipe-report-api.test.ts",
   "lib/recipe-visibility-api.test.ts",
 ] as const;
 
 export const JSDOM_TEST_INCLUDE = [
   "app/**/*.test.{ts,tsx}",
+  "features/**/*.test.tsx",
   "shared/{ui,navigation}/**/*.test.{ts,tsx}",
   "shell/**/*.test.{ts,tsx}",
   ...JSDOM_LIBRARY_TEST_INCLUDE,

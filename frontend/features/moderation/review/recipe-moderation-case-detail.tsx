@@ -6,13 +6,13 @@ import {
   type RecipeModerationAction,
   type RecipeModerationCaseDetail as RecipeModerationCaseDetailData,
   type RecipeModerationVisibility,
-} from "../../lib/recipe-moderation-api";
-import type { RecipeReportReason } from "../../lib/recipe-report-api";
+} from "./recipe-moderation-api";
+import type { RecipeReportReason } from "../reporting/recipe-report-api";
 import {
   formatModerationTime,
   RECIPE_MODERATION_STATUS_LABELS,
-} from "../../lib/recipe-moderation-presentation";
-import { LoadingButton } from "../../shared/ui/loading-ui";
+} from "./recipe-moderation-presentation";
+import { LoadingButton } from "../../../shared/ui/loading-ui";
 
 const REASON_LABELS: Record<RecipeReportReason, string> = {
   spam: "Spam or misleading content",

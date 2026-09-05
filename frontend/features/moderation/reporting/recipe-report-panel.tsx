@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { type FormEvent, useRef, useState } from "react";
 
-import { createIdempotencyKey } from "../../shared/api/idempotency-key";
+import { createIdempotencyKey } from "../../../shared/api/idempotency-key";
 import {
   RECIPE_REPORT_DETAILS_MAX_LENGTH,
   RecipeReportApiError,
   type RecipeReportReason,
   submitRecipeReport,
-} from "../../lib/recipe-report-api";
-import { LoadingButton } from "../../shared/ui/loading-ui";
+} from "./recipe-report-api";
+import { LoadingButton } from "../../../shared/ui/loading-ui";
 
 const REPORT_REASONS: ReadonlyArray<{ value: RecipeReportReason; label: string }> = [
   { value: "spam", label: "Spam or misleading content" },

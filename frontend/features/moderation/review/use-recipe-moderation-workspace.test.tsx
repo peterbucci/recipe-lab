@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   RecipeModerationCaseDetail,
   RecipeModerationCasePage,
-} from "../../lib/recipe-moderation-api";
-import { RecipeModerationApiError } from "../../lib/recipe-moderation-api";
-import { deferred } from "../../tests/support/deferred";
+} from "./recipe-moderation-api";
+import { RecipeModerationApiError } from "./recipe-moderation-api";
+import { deferred } from "../../../tests/support/deferred";
 import {
   NOW,
   RECIPE_ID,
@@ -15,7 +15,7 @@ import {
   moderationPage,
   moderationSummary,
   secondModerationSummary,
-} from "../../tests/support/recipe-moderation";
+} from "./recipe-moderation-test-support";
 import { useRecipeModerationWorkspace } from "./use-recipe-moderation-workspace";
 
 const mocks = vi.hoisted(() => ({
@@ -25,9 +25,9 @@ const mocks = vi.hoisted(() => ({
   moderate: vi.fn(),
 }));
 
-vi.mock("../../shared/api/idempotency-key", () => ({ createIdempotencyKey: mocks.key }));
-vi.mock("../../lib/recipe-moderation-api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../lib/recipe-moderation-api")>();
+vi.mock("../../../shared/api/idempotency-key", () => ({ createIdempotencyKey: mocks.key }));
+vi.mock("./recipe-moderation-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./recipe-moderation-api")>();
   return {
     ...actual,
     browseRecipeModerationCases: mocks.browse,

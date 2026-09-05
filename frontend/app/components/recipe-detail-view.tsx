@@ -17,7 +17,7 @@ import { RecipeDetailTabs } from "./recipe-detail-tabs";
 import { RecipeFamilyNavigator } from "./recipe-family-navigator";
 import { RecipeInstructionsPanel } from "./recipe-instructions-panel";
 import { RecipeMemberActions } from "./recipe-member-actions";
-import { RecipeReportAccess } from "./recipe-report-access";
+import { RecipeReportAccess } from "../../features/moderation/reporting/recipe-report-access";
 
 interface RecipeDetailViewProps {
   familyVersions?: RecipeCardSummary[];

@@ -1,17 +1,15 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RecipeModerationApiError } from "../../lib/recipe-moderation-api";
+import { RecipeModerationApiError } from "./recipe-moderation-api";
 import {
-  MODERATOR_ID,
   NOW,
   RECIPE_ID,
   SECOND_RECIPE_ID,
   moderationDetail,
   moderationSummary as summary,
   secondModerationSummary as secondSummary,
-} from "../../tests/support/recipe-moderation";
-import { AuthSessionProvider } from "./auth-session-provider";
+} from "./recipe-moderation-test-support";
 import { RecipeModerationWorkspace } from "./recipe-moderation-workspace";
 
 const mocks = vi.hoisted(() => ({
@@ -21,9 +19,9 @@ const mocks = vi.hoisted(() => ({
   key: vi.fn(),
 }));
 
-vi.mock("../../shared/api/idempotency-key", () => ({ createIdempotencyKey: mocks.key }));
-vi.mock("../../lib/recipe-moderation-api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../lib/recipe-moderation-api")>();
+vi.mock("../../../shared/api/idempotency-key", () => ({ createIdempotencyKey: mocks.key }));
+vi.mock("./recipe-moderation-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./recipe-moderation-api")>();
   return {
     ...actual,
     browseRecipeModerationCases: mocks.browse,
@@ -35,17 +33,7 @@ vi.mock("../../lib/recipe-moderation-api", async (importOriginal) => {
 const detail = moderationDetail();
 
 function renderAuthorizedWorkspace() {
-  return render(
-    <AuthSessionProvider
-      initialSession={{
-        status: "authenticated",
-        user: { id: MODERATOR_ID, handle: "morgan", display_name: "Morgan Moderator" },
-        capabilities: { review_ingredient_requests: false, moderate_recipe_reports: true },
-      }}
-    >
-      <RecipeModerationWorkspace />
-    </AuthSessionProvider>,
-  );
+  return render(<RecipeModerationWorkspace onAuthorizationLost={vi.fn()} />);
 }
 
 function openDisclosure(label: string): HTMLDetailsElement {
@@ -85,31 +73,6 @@ describe("RecipeModerationWorkspace", () => {
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent("Loading recipe-report cases…");
     expect(status.closest(".section-loading--rows")).not.toBeNull();
-  });
-
-  it("does not reveal the workspace to ordinary members", () => {
-    render(
-      <AuthSessionProvider
-        initialSession={{
-          status: "authenticated",
-          user: { id: "member-id", handle: "member", display_name: "Member" },
-          capabilities: { review_ingredient_requests: false, moderate_recipe_reports: false },
-        }}
-      >
-        <RecipeModerationWorkspace />
-      </AuthSessionProvider>,
-    );
-
-    expect(screen.getByRole("main")).toHaveClass(
-      "staff-state-page",
-      "staff-state-page--moderation",
-      "staff-state-page--authorization",
-    );
-    expect(screen.getByRole("alert")).toHaveClass("staff-state-panel");
-    expect(screen.getByRole("heading", { name: "We couldn’t find that page." })).toBeVisible();
-    expect(screen.queryByText("Page unavailable")).not.toBeInTheDocument();
-    expect(screen.queryByText(/moderator/i)).not.toBeInTheDocument();
-    expect(mocks.browse).not.toHaveBeenCalled();
   });
 
   it("uses the shared full-width empty state when the open queue has no cases", async () => {

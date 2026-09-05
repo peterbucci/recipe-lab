@@ -40,10 +40,10 @@ redirects and their targets.
 | `/account/saved-recipes` | compatibility-only | `docs/cook-profiles-and-libraries.md` records the old saved-library path; it redirects to `/account/recipes?view=saved`. |
 | `/account/settings` | active | `frontend/shell/account-menu.tsx` links to account settings. |
 | `/auth/callback` | internal | `frontend/server/api-proxy.ts` redirects sanitized provider failures to this presentation route. |
-| `/catalog/ingredient-requests` | internal | `frontend/app/components/staff-tools.tsx` links authorized curators to this workspace. |
+| `/catalog/ingredient-requests` | internal | `frontend/app/staff/_components/staff-tools.tsx` links authorized curators to this workspace. |
 | `/community-rules` | active | `frontend/app/components/recipe-draft-publication.tsx` links the required publication acknowledgement. |
 | `/cooks/[handle]` | active | `frontend/app/components/public-cook-attribution.tsx` links public author attribution. |
-| `/moderation/recipes` | internal | `frontend/app/components/staff-tools.tsx` links authorized moderators to this workspace. |
+| `/moderation/recipes` | internal | `frontend/app/staff/_components/staff-tools.tsx` links authorized moderators to this workspace. |
 | `/onboarding` | internal | `frontend/app/api/[...path]/route.ts` forwards the backend authentication completion redirect here. |
 | `/recipes` | active | `frontend/shell/site-header.tsx` links the public recipe catalog. |
 | `/recipes/[recipeVersionId]` | active | `frontend/app/components/recipe-card.tsx` links every public catalog card to recipe detail. |
@@ -92,9 +92,9 @@ executable FastAPI route, including schema-excluded routes.
 | `GET /api/ingredients` | active | `active_consumer` | `frontend/lib/ingredient-catalog-api.ts` |
 | `GET /api/measurement-units` | active | `active_consumer` | `frontend/lib/measurement-unit-api.ts` |
 | `POST /api/measurements/convert` | internal | `research_experimental` | `docs/measurements.md` |
-| `GET /api/moderation/recipe-reports` | internal | `staff_internal` | `frontend/lib/recipe-moderation-api.ts`; moderator workspace |
-| `GET /api/moderation/recipe-reports/{recipe_version_id}` | internal | `staff_internal` | `frontend/lib/recipe-moderation-api.ts`; moderator workspace |
-| `POST /api/moderation/recipe-reports/{recipe_version_id}/actions` | internal | `staff_internal` | `frontend/lib/recipe-moderation-api.ts`; moderator workspace |
+| `GET /api/moderation/recipe-reports` | internal | `staff_internal` | `frontend/features/moderation/review/recipe-moderation-api.ts`; moderator workspace |
+| `GET /api/moderation/recipe-reports/{recipe_version_id}` | internal | `staff_internal` | `frontend/features/moderation/review/recipe-moderation-api.ts`; moderator workspace |
+| `POST /api/moderation/recipe-reports/{recipe_version_id}/actions` | internal | `staff_internal` | `frontend/features/moderation/review/recipe-moderation-api.ts`; moderator workspace |
 | `GET /api/my/activity` | active | `active_consumer` | `frontend/lib/member-activity-api.ts` |
 | `GET /api/my/community-activity` | active | `active_consumer` | `frontend/lib/member-follow-api.ts` |
 | `GET /api/my/dashboard` | active | `active_consumer` | `frontend/lib/member-activity-api.ts` |
@@ -118,7 +118,7 @@ executable FastAPI route, including schema-excluded routes.
 | `GET /api/recipes/{recipe_version_id}/diff` | active | `active_consumer` | `frontend/lib/recipe-api.ts` |
 | `DELETE /api/recipes/{recipe_version_id}/rating` | active | `active_consumer` | `frontend/lib/interaction-api.ts` |
 | `PUT /api/recipes/{recipe_version_id}/rating` | active | `active_consumer` | `frontend/lib/interaction-api.ts` |
-| `POST /api/recipes/{recipe_version_id}/reports` | active | `active_consumer` | `frontend/lib/recipe-report-api.ts` |
+| `POST /api/recipes/{recipe_version_id}/reports` | active | `active_consumer` | `frontend/features/moderation/reporting/recipe-report-api.ts` |
 | `DELETE /api/recipes/{recipe_version_id}/save` | active | `active_consumer` | `frontend/lib/interaction-api.ts` |
 | `PUT /api/recipes/{recipe_version_id}/save` | active | `active_consumer` | `frontend/lib/interaction-api.ts` |
 | `POST /api/recipes/{recipe_version_id}/view` | active | `active_consumer` | `frontend/lib/interaction-api.ts` |

@@ -1,14 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RecipeReportApiError } from "../../lib/recipe-report-api";
+import { RecipeReportApiError } from "./recipe-report-api";
 import { RecipeReportPanel } from "./recipe-report-panel";
 
 const mocks = vi.hoisted(() => ({ submit: vi.fn(), key: vi.fn() }));
 
-vi.mock("../../shared/api/idempotency-key", () => ({ createIdempotencyKey: mocks.key }));
-vi.mock("../../lib/recipe-report-api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../lib/recipe-report-api")>();
+vi.mock("../../../shared/api/idempotency-key", () => ({ createIdempotencyKey: mocks.key }));
+vi.mock("./recipe-report-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./recipe-report-api")>();
   return { ...actual, submitRecipeReport: mocks.submit };
 });
 

@@ -182,20 +182,20 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("GET", "/api/moderation/recipe-reports"): _operation(
         "moderation_queue_api_moderation_recipe_reports_get",
         "staff_internal",
-        "frontend/lib/recipe-moderation-api.ts",
-        "frontend/app/components/recipe-moderation-workspace.tsx",
+        "frontend/features/moderation/review/recipe-moderation-api.ts",
+        "frontend/features/moderation/review/recipe-moderation-workspace.tsx",
     ),
     ("GET", "/api/moderation/recipe-reports/{recipe_version_id}"): _operation(
         "moderation_case_detail_api_moderation_recipe_reports__recipe_version_id__get",
         "staff_internal",
-        "frontend/lib/recipe-moderation-api.ts",
-        "frontend/app/components/recipe-moderation-workspace.tsx",
+        "frontend/features/moderation/review/recipe-moderation-api.ts",
+        "frontend/features/moderation/review/recipe-moderation-workspace.tsx",
     ),
     ("POST", "/api/moderation/recipe-reports/{recipe_version_id}/actions"): _operation(
         "moderate_recipe_api_moderation_recipe_reports__recipe_version_id__actions_post",
         "staff_internal",
-        "frontend/lib/recipe-moderation-api.ts",
-        "frontend/app/components/recipe-moderation-workspace.tsx",
+        "frontend/features/moderation/review/recipe-moderation-api.ts",
+        "frontend/features/moderation/review/recipe-moderation-workspace.tsx",
     ),
     ("GET", "/api/my/recipes"): _operation(
         "my_recipe_library_api_my_recipes_get",
@@ -315,7 +315,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("POST", "/api/recipes/{recipe_version_id}/reports"): _operation(
         "report_recipe_api_recipes__recipe_version_id__reports_post",
         "active_consumer",
-        "frontend/lib/recipe-report-api.ts",
+        "frontend/features/moderation/reporting/recipe-report-api.ts",
     ),
     ("DELETE", "/api/recipes/{recipe_version_id}/save"): _operation(
         "unsave_recipe_for_current_user_api_recipes__recipe_version_id__save_delete",

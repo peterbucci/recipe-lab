@@ -158,6 +158,13 @@ unit-test marker aliases are confined to Vitest configuration.
 | RCP-49H | Draft editing, recovery, duplicate review, and publication | `features/recipes/authoring` |
 | RCP-49I | Remaining ownership, legacy removal, and final certification | Target roots above |
 
+RCP-49D keeps the `/staff` landing-page composition and reusable staff access
+gate under `app`, because they coordinate multiple feature areas. Recipe
+report submission and moderator review live under `features/moderation`;
+their route wrapper composes the app-owned gate, while the domain-neutral
+queue/detail workspace frame lives in `shared/ui`. The existing stylesheet
+cascade remains in place, so this ownership move does not reorder visual rules.
+
 Each story is implemented on its own topic branch, verified, and merged into
 `refactor/frontend-architecture`. That integration branch remains separate from
 `main` until review.

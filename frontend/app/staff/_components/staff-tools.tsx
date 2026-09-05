@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 
-import { useAuthSession } from "./auth-session-provider";
-import { AuthGateLoading } from "../../shared/ui/loading-ui";
-import { GuardedLink } from "../../shared/navigation/navigation-blocker-provider";
-import { WorkspacePanelHeader } from "../../shared/ui/workspace-panel-header";
-import { WorkspaceEmptyState } from "../../shared/ui/workspace-empty-state";
-import { WorkspaceTabs } from "../../shared/ui/workspace-tab-menu";
+import { useAuthSession } from "../../components/auth-session-provider";
+import { AuthGateLoading } from "../../../shared/ui/loading-ui";
+import { GuardedLink } from "../../../shared/navigation/navigation-blocker-provider";
+import { WorkspacePanelHeader } from "../../../shared/ui/workspace-panel-header";
+import { WorkspaceEmptyState } from "../../../shared/ui/workspace-empty-state";
+import { WorkspaceTabs } from "../../../shared/ui/workspace-tab-menu";
 
 const STAFF_PATH = "/staff";
 

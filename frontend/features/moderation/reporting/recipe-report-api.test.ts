@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AUTH_SESSION_EXPIRED_EVENT } from "../shared/api/browser-session";
+import { AUTH_SESSION_EXPIRED_EVENT } from "../../../shared/api/browser-session";
 import {
   parseRecipeReportReceipt,
   RecipeReportApiError,

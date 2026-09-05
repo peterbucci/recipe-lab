@@ -87,7 +87,7 @@ describe("Vitest runtime ownership", () => {
     const nodeOwned = discovered.filter(
       (path) =>
         !browserLibraries.has(path) &&
-        (/^(?:lib|shared\/api)\/.+\.test\.ts$/.test(path) ||
+        (/^(?:features|lib|shared\/api)\/.+\.test\.ts$/.test(path) ||
           /^(?:performance|server)\/.+\.test\.ts$/.test(path) ||
           /^scripts\/.+\.test\.(?:mjs|ts)$/.test(path) ||
           /^tests\/(?:config|contracts)\/.+\.test\.(?:mjs|ts)$/.test(path)),
@@ -95,7 +95,8 @@ describe("Vitest runtime ownership", () => {
     const jsdomOwned = discovered.filter(
       (path) =>
         browserLibraries.has(path) ||
-        /^(?:app|shell|shared\/(?:ui|navigation))\/.+\.test\.(?:ts|tsx)$/.test(path),
+        /^(?:app|shell|shared\/(?:ui|navigation))\/.+\.test\.(?:ts|tsx)$/.test(path) ||
+        /^features\/.+\.test\.tsx$/.test(path),
     );
     const overlap = nodeOwned.filter((path) => jsdomOwned.includes(path));
     const owned = new Set([...nodeOwned, ...jsdomOwned]);

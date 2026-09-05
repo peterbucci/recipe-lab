@@ -1,12 +1,12 @@
-import type { operations } from "../shared/api/generated/generated";
-import { browserApiRequest } from "../shared/api/browser";
+import type { operations } from "../../../shared/api/generated/generated";
+import { browserApiRequest } from "../../../shared/api/browser";
 import {
   ApiTransportError,
   createRequestFingerprint,
   type PublicApiErrorContract,
-} from "../shared/api/core";
-import type { PublicUserReference } from "./recipe-api";
-import type { RecipeReportReason } from "./recipe-report-api";
+} from "../../../shared/api/core";
+import type { PublicUserReference } from "../../../lib/recipe-api";
+import type { RecipeReportReason } from "../reporting/recipe-report-api";
 
 type ModerationQueueWire =
   operations["moderation_queue_api_moderation_recipe_reports_get"]["responses"][200]["content"]["application/json"];
