@@ -171,6 +171,19 @@ async function activateWithKeyboard(
   await page.keyboard.press("Enter");
 }
 
+async function selectResolvedComboboxOptionWithKeyboard(
+  input: Locator,
+  option: Locator,
+): Promise<void> {
+  await expect(input).toBeFocused();
+  await expect(option).toBeVisible();
+  const optionId = await option.getAttribute("id");
+  expect(optionId).not.toBeNull();
+  await input.press("ArrowDown");
+  await expect(input).toHaveAttribute("aria-activedescendant", optionId!);
+  await input.press("Enter");
+}
+
 function ingredientRequestArticle(
   container: Locator,
   proposedName: string,
@@ -793,9 +806,12 @@ test.describe("member ingredient-request acceptance", () => {
       .getByRole("option", {
         name: `${approvedCanonical} Approved from your ingredient request`,
         exact: true,
-      });
+    });
     await expect(approvedOption).toBeVisible();
-    await activateWithKeyboard(page, approvedOption);
+    await selectResolvedComboboxOptionWithKeyboard(
+      approvedInput,
+      approvedOption,
+    );
     await expect(approvedInput).toBeFocused();
     await expect(approvedInput).toHaveValue(approvedCanonical);
 
@@ -811,7 +827,10 @@ test.describe("member ingredient-request acceptance", () => {
         name: "Pecan Approved from your ingredient request",
         exact: true,
       });
-    await activateWithKeyboard(page, duplicateOption);
+    await selectResolvedComboboxOptionWithKeyboard(
+      duplicateInput,
+      duplicateOption,
+    );
     await expect(duplicateInput).toHaveValue("Pecan");
 
     const rejectedInput = rejectedRow.getByRole("combobox", {

@@ -171,8 +171,6 @@ test.describe("structured cooking action acceptance", () => {
       exact: true,
     });
     const lineTypeId = await lineSelect.inputValue();
-    const stableLineSelectId = await lineSelect.getAttribute("id");
-    expect(stableLineSelectId).not.toBeNull();
     const whiteSugarInput = lineAction
       .getByRole("group", { name: "Ingredient inputs", exact: true })
       .getByRole("checkbox", { name: /Ingredient 3: White sugar/i });
@@ -218,6 +216,15 @@ test.describe("structured cooking action acceptance", () => {
       }),
     ).toHaveValue("2.5");
     await reopenedGreaseAction
+      .getByRole("button", { name: "Done", exact: true })
+      .click();
+
+    await lineDetail.click();
+    const stableLineSelectId = await lineAction
+      .getByRole("combobox", { name: "Cooking action", exact: true })
+      .getAttribute("id");
+    expect(stableLineSelectId).not.toBeNull();
+    await lineAction
       .getByRole("button", { name: "Done", exact: true })
       .click();
 
