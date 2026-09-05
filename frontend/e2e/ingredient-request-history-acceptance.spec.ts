@@ -445,11 +445,17 @@ test.describe("member ingredient-request acceptance", () => {
     await applyAcceptanceMember(page, "alice");
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/recipes?q=carrot");
-    await page
-      .getByRole("article", { name: "Carrot Walnut Snack Cake", exact: true })
-      .filter({ hasNot: page.locator(".recipe-card__parent") })
-      .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
-      .click();
+    await Promise.all([
+      page.waitForURL(/\/recipes\/[0-9a-f-]{36}$/i),
+      page
+        .getByRole("article", {
+          name: "Carrot Walnut Snack Cake",
+          exact: true,
+        })
+        .filter({ hasNot: page.locator(".recipe-card__parent") })
+        .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
+        .click(),
+    ]);
     const sourceRecipeUrl = page.url();
     const sourceId = new URL(sourceRecipeUrl).pathname.split("/").at(-1)!;
     await sourceDrafts.assertFresh("alice", sourceId);

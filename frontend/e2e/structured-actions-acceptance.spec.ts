@@ -60,9 +60,12 @@ test.describe("structured cooking action acceptance", () => {
       })
       .filter({ hasNot: page.locator(".recipe-card__parent") });
     await expect(rootRecipeCard).toHaveCount(1);
-    await rootRecipeCard
-      .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
-      .click();
+    await Promise.all([
+      page.waitForURL(/\/recipes\/[0-9a-f-]{36}$/i),
+      rootRecipeCard
+        .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
+        .click(),
+    ]);
     const sourceRecipeUrl = page.url();
     const sourceId = new URL(sourceRecipeUrl).pathname.split("/").at(-1)!;
     await sourceDrafts.assertFresh("alice", sourceId);
