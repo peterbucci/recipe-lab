@@ -7,6 +7,13 @@ import {
   type Rcp46fStaffState,
 } from "../../e2e/visual/staff-certification-matrix";
 
+function includesState(
+  states: readonly Rcp46fStaffState[],
+  state: Rcp46fStaffState,
+): boolean {
+  return states.includes(state);
+}
+
 describe("RCP-46F staff certification inventory", () => {
   it("keeps curator and moderator routes and capabilities separate", () => {
     const routes = Object.values(RCP46F_STAFF_ROUTES);
@@ -66,7 +73,7 @@ describe("RCP-46F staff certification inventory", () => {
 
     const roles = Object.keys(RCP46F_STAFF_ROUTES).sort();
     const normalRoles = RCP46F_STAFF_STATE_MATRIX.filter(({ states }) =>
-      states.includes("normal"),
+      includesState(states, "normal"),
     ).map(({ routeRole, sessionRole }) => {
       expect(sessionRole).toBe(routeRole);
       return routeRole;
@@ -74,7 +81,7 @@ describe("RCP-46F staff certification inventory", () => {
     expect(normalRoles.sort()).toEqual(roles);
 
     const authorizationPairs = RCP46F_STAFF_STATE_MATRIX.filter(({ states }) =>
-      states.includes("authorization"),
+      includesState(states, "authorization"),
     ).map(({ routeRole, sessionRole }) => {
       expect(sessionRole).not.toBe(routeRole);
       return `${sessionRole}->${routeRole}`;
@@ -88,9 +95,10 @@ describe("RCP-46F staff certification inventory", () => {
 
     for (const matrixCase of RCP46F_STAFF_STATE_MATRIX) {
       expect(matrixCase.scenario).not.toHaveLength(0);
-      if (matrixCase.states.includes("retry")) {
+      if (includesState(matrixCase.states, "retry")) {
         expect(
-          matrixCase.states.includes("error") || matrixCase.states.includes("stale"),
+          includesState(matrixCase.states, "error") ||
+            includesState(matrixCase.states, "stale"),
         ).toBe(true);
       }
     }
