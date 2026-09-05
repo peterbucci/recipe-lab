@@ -91,10 +91,10 @@ describe("explicit Playwright execution modes", () => {
     }
   });
 
-  it("keeps controlled smoke fixtures on the known-safe worker limit", () => {
-    expect(
-      createPlaywrightModeConfig("smoke", environmentFor("smoke")).workers,
-    ).toBe(1);
+  it("bounds CI smoke to one worker and two retries", () => {
+    const config = createPlaywrightModeConfig("smoke", environmentFor("smoke"));
+    expect(config.workers).toBe(1);
+    expect(config.retries).toBe(2);
   });
 
   it("keeps the release reporter private and disables release retries", () => {

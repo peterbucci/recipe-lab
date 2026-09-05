@@ -7,15 +7,16 @@ explicit tiers:
 
 | Event | Tier | Required evidence |
 | --- | --- | --- |
-| Pull request | Fast | Contracts, lint, types, security, backend PostgreSQL tests, frontend tests/build |
-| Push to `main`, nightly schedule, manual dispatch | Full | Every fast check plus evaluation, images, safe source, browser journeys, and deterministic baselines |
+| Pull request | Fast | Contracts, lint, types, security, backend PostgreSQL tests, frontend tests/build, controlled-data Chromium smoke |
+| Push to `main`, nightly schedule, manual dispatch | Full | Common checks plus evaluation, images, safe source, authenticated browser journeys, performance, and deterministic baselines |
 
-Full-only jobs are intentionally skipped on pull requests. The checked-in
-`scripts/require_ci_results.py` command accepts those skips only in the fast
-tier; failures and cancellations still fail closed. In the full tier, every
-listed prerequisite must succeed. This keeps `Repository quality` useful as
-the single required aggregate while avoiding repeated image and browser work
-on each pull-request update.
+Full-only jobs are intentionally skipped on pull requests, and the bounded
+smoke job is intentionally skipped outside pull requests. The checked-in
+`scripts/require_ci_results.py` command accepts a tier-specific skip only when
+that tier is inactive; failures and cancellations still fail closed. This
+keeps `Repository quality` useful as the single required aggregate while
+avoiding repeated image and authenticated browser work on each pull-request
+update.
 
 | Gate | Evidence owner |
 | --- | --- |
@@ -25,7 +26,7 @@ on each pull-request update.
 | `Unit` | Backend and frontend package tests; ML evaluation in the full tier |
 | `Integration` | PostgreSQL-backed backend tests; deterministic evaluation in the full tier |
 | `Build` | Production frontend build; both verified images in the full tier |
-| `E2E` | Full-tier MVP/community browser journeys and deterministic visual/accessibility baselines |
+| `E2E` | Fast-tier controlled-data Chromium smoke; full-tier MVP/community browser journeys and deterministic visual/accessibility baselines |
 | `Security` | Locked runtime dependency vulnerabilities and committed-source vulnerability/secret scans |
 
 Some established jobs produce more than one kind of evidence. The small Unit,

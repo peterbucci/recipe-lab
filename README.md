@@ -504,6 +504,13 @@ workspace members, and uses a frozen package-specific sync followed by
 `package-lock.json`. Download caches are keyed from those lockfiles and never
 replace their resolution checks.
 
+Pull requests also run the explicit controlled-data Chromium smoke mode in the
+pinned Playwright image. Its non-empty discovery and bounded one-worker run are
+required by the stable `E2E` gate; it receives no database, session, or OIDC
+inputs, uploads no browser artifacts, and deletes local diagnostics after the
+run. The heavier acceptance, performance, visual, and release modes remain on
+the full push, schedule, and manual-dispatch tier.
+
 All external Actions use full commit SHAs, checkouts discard persisted Git
 credentials, runners and language toolchains use reviewed exact versions, and
 the read-only repository policy rejects drift. The reusable security workflow

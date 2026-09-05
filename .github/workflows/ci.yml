@@ -190,6 +190,46 @@ jobs:
       - name: Run checked-in frontend gate
         run: npm run ci:verify
 
+  browser-smoke:
+    name: Browser smoke
+    if: ${{ github.event_name == 'pull_request' }}
+    # Playwright 1.62.1 on Ubuntu 24.04 (Noble), pinned to the linux/amd64
+    # manifest published at mcr.microsoft.com/playwright:v1.62.1-noble.
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac
+      options: --ipc=host
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+      PLAYWRIGHT_WEB_SERVER_COMMAND: npm run dev -- --hostname 127.0.0.1
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up locked Node.js
+        uses: ./.github/actions/setup-node
+
+      - name: Install exact frontend dependencies
+        run: npm ci
+
+      - name: Require non-empty controlled-data smoke discovery
+        run: npm run test:e2e:smoke -- --list
+
+      - name: Run bounded controlled-data Chromium smoke
+        run: npm run test:e2e:smoke
+
+      - name: Remove local browser diagnostics
+        if: ${{ always() }}
+        run: rm -rf -- test-results playwright-report
+
   rcp34b-baselines:
     name: RCP-34B deterministic baselines
     if: ${{ github.event_name != 'pull_request' }}
@@ -1441,6 +1481,7 @@ jobs:
     name: E2E
     if: ${{ always() }}
     needs:
+      - browser-smoke
       - mvp-acceptance
       - rcp32-acceptance
       - rcp34b-baselines
@@ -1453,6 +1494,7 @@ jobs:
       - name: Require browser and visual acceptance suites
         run: >-
           python scripts/require_ci_results.py --tier "$CI_TIER"
+          --fast-only "Browser smoke=${{ needs.browser-smoke.result }}"
           --full-only "MVP acceptance=${{ needs.mvp-acceptance.result }}"
           --full-only "RCP-32 acceptance=${{ needs.rcp32-acceptance.result }}"
           --full-only "RCP-34B baselines=${{ needs.rcp34b-baselines.result }}"

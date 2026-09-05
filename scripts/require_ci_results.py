@@ -19,8 +19,9 @@ def validate_results(
     tier: str,
     required: Sequence[tuple[str, str]],
     full_only: Sequence[tuple[str, str]],
+    fast_only: Sequence[tuple[str, str]] = (),
 ) -> list[str]:
-    """Return human-readable failures for the requested tier."""
+    """Return failures, accepting tier-specific skips only outside that tier."""
     failures = [
         f"{label}: expected success, got {result}"
         for label, result in required
@@ -32,6 +33,12 @@ def validate_results(
         for label, result in full_only
         if result not in accepted_full_only
     )
+    accepted_fast_only = {"success"} if tier == "fast" else {"success", "skipped"}
+    failures.extend(
+        f"{label}: expected {'success' if tier == 'fast' else 'success or skipped'}, got {result}"
+        for label, result in fast_only
+        if result not in accepted_fast_only
+    )
     return failures
 
 
@@ -40,12 +47,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--tier", choices=("fast", "full"), required=True)
     parser.add_argument("--required", action="append", default=[], type=_result)
     parser.add_argument("--full-only", action="append", default=[], type=_result)
+    parser.add_argument("--fast-only", action="append", default=[], type=_result)
     args = parser.parse_args(argv)
 
     failures = validate_results(
         tier=args.tier,
         required=args.required,
         full_only=args.full_only,
+        fast_only=args.fast_only,
     )
     if failures:
         for failure in failures:

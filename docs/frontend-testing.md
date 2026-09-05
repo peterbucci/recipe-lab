@@ -99,6 +99,13 @@ All five modes currently use one worker: guarded modes own state, while the
 starting baseline proved the controlled smoke fixtures were unsafe at the old
 unbounded local default. Any increase belongs to measured scheduling work.
 
+Pull-request CI first lists the smoke mode so an empty selection fails, then
+runs its 15 controlled-data Chromium checks with one worker and at most two
+retries. It uses the pinned Playwright image, never receives database, session,
+or OIDC inputs, uploads no browser report, and deletes local diagnostics even
+after failure. The heavier acceptance, visual, performance, and release modes
+remain outside the pull-request tier.
+
 ## Behavior ownership map
 
 This map prevents a coverage percentage or a screenshot from being mistaken
