@@ -1775,7 +1775,7 @@ test.describe("RCP-32 two-user community release gate", () => {
         ).toBeVisible();
         await expect(
           hiddenAuthorCard.getByText(
-            "This recipe is hidden by moderation. Its visibility cannot be changed here.",
+            "This recipe is hidden from public view by moderation. Its visibility cannot be changed here.",
             { exact: true },
           ),
         ).toBeVisible();
