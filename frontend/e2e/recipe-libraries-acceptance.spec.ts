@@ -244,20 +244,29 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
       await page.goto("/recipes?q=carrot");
       const catalogAuthor = page.getByRole("link", { name: "Recipe Lab Demo Catalog" }).first();
       await expect(catalogAuthor).toHaveAttribute("href", "/cooks/recipe-lab-catalog");
-      const versionCard = page
-        .getByRole("article")
-        .filter({
-          has: page.locator(".recipe-card__parent"),
-        })
-        .first();
+      const versionCard = page.getByRole("article", {
+        name: "Lower-Sugar Pecan Carrot Cake",
+        exact: true,
+      });
       await expect(versionCard).toBeVisible();
       await expect(page.locator(".version-badge")).toHaveCount(0);
-      const parentAttribution = versionCard.locator(".recipe-card__parent");
+      const parentAttribution = versionCard.locator(
+        ".recipe-card-engagement__lineage",
+      );
       await expect(parentAttribution).toHaveText(
-        /^Based on .+ by Recipe Lab Demo Catalog$/,
+        "Based on Carrot Walnut Snack Cake",
       );
       await expect(
-        parentAttribution.getByRole("link", { name: "Recipe Lab Demo Catalog" }),
+        parentAttribution.getByRole("link", {
+          name: "Carrot Walnut Snack Cake",
+          exact: true,
+        }),
+      ).toHaveAttribute("href", "/recipes/29454eba-3a4e-5380-b48c-c49dc3697b17");
+      await expect(
+        versionCard.getByRole("link", {
+          name: "Recipe Lab Demo Catalog",
+          exact: true,
+        }),
       ).toHaveAttribute("href", "/cooks/recipe-lab-catalog");
       expect(perCardHydrationRequests).toBe(0);
 
@@ -326,8 +335,9 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
       await expect(
         page.getByRole("heading", { name: "Bob Cook", level: 1 }),
       ).toBeVisible();
+      const profile = page.getByRole("main");
       await expect(
-        page.getByText(
+        profile.getByText(
           `${initial.follower_count} ${
             initial.follower_count === 1 ? "follower" : "followers"
           }`,
@@ -350,7 +360,7 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
         page.getByRole("button", { name: "Unfollow Bob Cook", exact: true }),
       ).toBeVisible();
       await expect(
-        page.getByText(
+        profile.getByText(
           `${initial.follower_count + 1} ${
             initial.follower_count + 1 === 1 ? "follower" : "followers"
           }`,
