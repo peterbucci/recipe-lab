@@ -201,10 +201,19 @@ test.describe("private recipe draft acceptance", () => {
       name: "Acceptance interrupted soup",
     });
     await savedDraft.getByRole("button", { name: "Discard" }).click();
+    const discardConfirmation = savedDraft.getByRole("group", {
+      name: "Discard Acceptance interrupted soup",
+      exact: true,
+    });
     await expect(
-      page.getByText(/permanently deletes this draft/i),
+      discardConfirmation.getByText(
+        "This permanently deletes this private draft. It cannot be restored.",
+        { exact: true },
+      ),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Discard permanently" }).click();
+    await discardConfirmation
+      .getByRole("button", { name: "Discard permanently", exact: true })
+      .click();
     await expect(page).toHaveURL("/account/recipes?view=drafts");
     await expect(page.getByText("Acceptance interrupted soup")).toHaveCount(0);
 
