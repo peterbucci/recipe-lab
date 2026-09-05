@@ -1,7 +1,7 @@
 import type {
   RecipeCardSummary,
   RecipeSummary,
-} from "../../lib/recipe-api";
+} from "../../../lib/recipe-api";
 
 export function buildRecipeSummary(
   overrides: Partial<RecipeSummary> = {},
