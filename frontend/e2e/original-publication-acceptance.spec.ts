@@ -16,7 +16,7 @@ async function confirmPublicationRequirements(page: Page): Promise<void> {
 
 async function completeOriginalDraft(page: Page, title: string): Promise<void> {
   await page.getByLabel("Title", { exact: true }).fill(title);
-  await page.getByLabel("Servings", { exact: true }).fill("2");
+  await page.getByLabel("Makes", { exact: true }).fill("2");
   await page
     .getByRole("button", { name: "Add ingredient", exact: true })
     .click();

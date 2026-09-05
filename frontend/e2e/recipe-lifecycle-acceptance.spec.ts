@@ -44,12 +44,18 @@ async function confirmPublicationRequirements(page: Page): Promise<void> {
 
 async function fillCompleteRecipe(page: Page, title: string): Promise<void> {
   await page.getByLabel("Title", { exact: true }).fill(title);
-  await page.getByLabel("Servings", { exact: true }).fill("2");
-  const categories = page.getByRole("group", {
+  await page.getByLabel("Makes", { exact: true }).fill("2");
+  await page.getByRole("button", { name: "Edit categories", exact: true }).click();
+  const categoryEditor = page.getByRole("dialog", {
+    name: "Edit recipe categories",
+    exact: true,
+  });
+  const categories = categoryEditor.getByRole("group", {
     name: "Curated recipe categories",
   });
   await categories.getByRole("checkbox", { name: "Breakfast" }).check();
   await categories.getByRole("checkbox", { name: "Quick & Easy" }).check();
+  await categoryEditor.getByRole("button", { name: "Done", exact: true }).click();
   await page
     .getByRole("button", { name: "Add ingredient", exact: true })
     .click();
@@ -340,7 +346,9 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
       })
       .click();
     expect((await withdrawalResponse).status()).toBe(200);
-    await expect(page.getByRole("status")).toHaveText(
+    await expect(page.getByRole("status").filter({
+      hasText: `${sourceTitle} moved to Withdrawn.`,
+    })).toHaveText(
       `${sourceTitle} moved to Withdrawn.`,
     );
     await expect(sourceCard).toHaveCount(0);
@@ -412,7 +420,9 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
       .getByRole("button", { name: `Restore ${sourceTitle}`, exact: true })
       .click();
     expect((await restoreResponse).status()).toBe(200);
-    await expect(page.getByRole("status")).toHaveText(
+    await expect(page.getByRole("status").filter({
+      hasText: `${sourceTitle} moved to Published.`,
+    })).toHaveText(
       `${sourceTitle} moved to Published.`,
     );
     await expect(sourceCard).toHaveCount(0);
@@ -497,8 +507,8 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
     await expect(
       publicPage
         .getByRole("main")
-        .getByText("By Deleted cook", { exact: true })
-        .first(),
+        .locator(".recipe-detail__attribution")
+        .getByText("Deleted cook", { exact: true }),
     ).toBeVisible();
     await expect(
       publicPage.getByRole("link", { name: "Deleted cook" }),

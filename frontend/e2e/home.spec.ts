@@ -482,7 +482,7 @@ test("compares a selected family recipe with the open recipe without signing in"
 }) => {
   const parentRecipeVersionId = await openCarrotRoot(page);
 
-  await page.getByRole("link", { name: "Recipe family", exact: true }).click();
+  await page.getByRole("tab", { name: "Family", exact: true }).click();
   await expect(
     page.getByRole("tab", { name: "Family", exact: true }),
   ).toHaveAttribute("aria-selected", "true");
@@ -782,6 +782,10 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
     title: "",
     description: null,
     servings: null,
+    total_time_minutes: null,
+    active_time_minutes: null,
+    difficulty: null,
+    notes: null,
     categories: [],
     ingredients: [],
     instructions: [],
@@ -790,7 +794,25 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
   });
 
   const recipeVersionId = await openCarrotRoot(page);
-  await page.route("**/api/recipe-drafts", async (route) => {
+  await page.route(/\/api\/recipe-drafts(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === "GET") {
+      const query = new URL(route.request().url()).searchParams;
+      expect(query.get("source_version_id")).toBe(recipeVersionId);
+      expect(query.get("page")).toBe("1");
+      expect(query.get("page_size")).toBe("1");
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: [],
+          page: 1,
+          page_size: 1,
+          total: 0,
+          total_pages: 0,
+        }),
+      });
+      return;
+    }
     expect(route.request().method()).toBe("POST");
     expect(route.request().headers()["idempotency-key"]).toMatch(
       /^[0-9a-f-]{36}$/i,

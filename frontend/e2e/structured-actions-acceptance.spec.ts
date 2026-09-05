@@ -260,7 +260,9 @@ test.describe("structured cooking action acceptance", () => {
         ),
     );
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
-    const submitted = (await saveRequest).postDataJSON() as {
+    const savedRequest = await saveRequest;
+    const draftId = new URL(savedRequest.url()).pathname.split("/").at(-1)!;
+    const submitted = savedRequest.postDataJSON() as {
       instructions: Array<{
         title: string | null;
         text: string;
@@ -294,6 +296,10 @@ test.describe("structured cooking action acceptance", () => {
     ).toHaveValue(revisedProse);
 
     await page.reload();
+    await page
+      .getByRole("button", { name: "Continue your version", exact: true })
+      .click();
+    await expect(page).toHaveURL(sourceRecipeUrl);
     await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
       draftTitle,
     );
@@ -344,7 +350,6 @@ test.describe("structured cooking action acceptance", () => {
     }
     await expectNoAccessibilityViolations(page);
 
-    const draftId = new URL(page.url()).pathname.split("/").at(-1)!;
     const preflightResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
@@ -429,8 +434,28 @@ test.describe("structured cooking action acceptance", () => {
     await expectNoAccessibilityViolations(page);
 
     await page
-      .getByRole("link", { name: "See what changed", exact: true })
+      .locator(".recipe-detail__parent-context")
+      .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
       .click();
+    await expect(page).toHaveURL(sourceRecipeUrl);
+    await page.getByRole("tab", { name: "Family", exact: true }).click();
+    const family = page.getByRole("tabpanel", { name: "Family", exact: true });
+    await family
+      .getByRole("button", {
+        name: `Show ${draftTitle} in the family tree`,
+        exact: true,
+      })
+      .click();
+    const compare = family.getByRole("link", {
+      name: "Compare with Carrot Walnut Snack Cake →",
+      exact: true,
+    });
+    const sourceId = new URL(sourceRecipeUrl).pathname.split("/").at(-1)!;
+    const comparisonPath =
+      `/recipes/${published.recipe_version_id}/compare?base_version_id=${sourceId}`;
+    await expect(compare).toHaveAttribute("href", comparisonPath);
+    await compare.click();
+    await expect(page).toHaveURL(comparisonPath);
     const changedInstruction = page.getByRole("article", {
       name: "Update step 1",
       exact: true,

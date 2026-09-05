@@ -171,11 +171,27 @@ test.describe("MVP acceptance", () => {
       page.getByRole("button", { name: "Draft saved", exact: true }),
     ).toBeDisabled();
     await page.reload();
+    await expect(page).toHaveURL(sourceRecipeUrl);
+    await activateWithKeyboard(
+      page,
+      page.getByRole("button", { name: "Continue your version", exact: true }),
+    );
+    await expect(page).toHaveURL(sourceRecipeUrl);
     await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
       draftTitle,
     );
-    await expect(walnutRow.getByText("Pecan", { exact: true })).toBeVisible();
-    await expect(page.getByText(/private version draft/i)).toBeVisible();
+    const persistedIngredient = walnutRow.getByRole("combobox", {
+      name: "Ingredient",
+      exact: true,
+    });
+    await expect(persistedIngredient).toBeVisible();
+    await expect(persistedIngredient).toHaveValue("Pecan");
+    const draftEditor = page.getByRole("form", {
+      name: "Private recipe draft editor",
+      exact: true,
+    });
+    await expect(draftEditor).toBeVisible();
+    await expect(draftEditor.getByText("Draft", { exact: true })).toBeVisible();
     expect(sourceRecipeVersionId).toMatch(/^[0-9a-f-]{36}$/i);
   });
 

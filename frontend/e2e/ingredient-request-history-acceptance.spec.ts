@@ -481,7 +481,7 @@ test.describe("member ingredient-request acceptance", () => {
     await page
       .getByLabel("Description", { exact: true })
       .fill(draftDescription);
-    await page.getByLabel("Servings", { exact: true }).fill("6");
+    await page.getByLabel("Makes", { exact: true }).fill("6");
 
     const sugarLabel = "Ingredient 3";
     const rejectedLabel = "Ingredient 5";
@@ -554,7 +554,7 @@ test.describe("member ingredient-request acceptance", () => {
       await expect(page.getByLabel("Description", { exact: true })).toHaveValue(
         draftDescription,
       );
-      await expect(page.getByLabel("Servings", { exact: true })).toHaveValue(
+      await expect(page.getByLabel("Makes", { exact: true })).toHaveValue(
         "6",
       );
       await sugarRow
@@ -643,17 +643,22 @@ test.describe("member ingredient-request acceptance", () => {
       });
       await expect(requestAction).toBeVisible();
       await activateWithKeyboard(page, requestAction);
-      await row.getByLabel("Short context (optional)").fill(context);
+      const requestDialog = page.getByRole("dialog", {
+        name: "Request a missing ingredient",
+        exact: true,
+      });
+      await expect(requestDialog.getByLabel("Proposed ingredient name")).toBeFocused();
+      await requestDialog.getByLabel("Short context (optional)").fill(context);
       const submitted = page.waitForResponse(
         (response) =>
           response.request().method() === "POST" &&
           new URL(response.url()).pathname === "/api/ingredient-requests",
       );
-      await row.getByRole("button", { name: "Submit catalog request" }).click();
+      await requestDialog.getByRole("button", { name: "Submit catalog request" }).click();
       const response = await submitted;
       expect(response.status(), await response.text()).toBe(201);
       await expect(input).toHaveValue(proposedName);
-      await expect(row.getByRole("status")).toContainText("Awaiting approval");
+      await expect(row.getByRole("status")).toContainText("Pending review");
       return (await response.json()) as CreatedRequest;
     };
 
@@ -760,7 +765,7 @@ test.describe("member ingredient-request acceptance", () => {
     });
     await expect(pendingInput).toHaveValue(pendingName);
     await expect(pendingRow.getByRole("status")).toContainText(
-      "Awaiting approval",
+      "Pending review",
     );
     await pendingInput.focus();
     const pendingResults = pendingRow.getByRole("region", {
@@ -768,7 +773,7 @@ test.describe("member ingredient-request acceptance", () => {
     });
     await expect(pendingResults).toContainText(pendingName);
     await expect(pendingResults).toContainText(
-      "Awaiting approval · not available yet",
+      "Pending review · not available yet",
     );
     await expect(pendingRow.getByRole("option")).toHaveCount(0);
     await expect(

@@ -345,11 +345,9 @@ test.describe("private recipe draft acceptance", () => {
     await page.goto("/recipes/new");
     await firstRequestSeen;
     await expect(
-      page.getByRole("heading", {
-        name: "Opening your private draft…",
-        level: 1,
-      }),
-    ).toBeVisible();
+      page.getByRole("main").getByRole("status"),
+    ).toHaveText("Preparing a private workspace for your new recipe.");
+    await expect(page.getByRole("main")).toHaveAttribute("aria-busy", "true");
     await expect(
       page.getByRole("button", { name: /create private draft|start writing/i }),
     ).toHaveCount(0);

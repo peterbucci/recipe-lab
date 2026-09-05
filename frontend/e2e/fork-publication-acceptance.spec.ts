@@ -21,7 +21,7 @@ async function confirmPublicationRequirements(page: Page): Promise<void> {
 
 async function fillCompleteRecipe(page: Page, title: string): Promise<void> {
   await page.getByLabel("Title", { exact: true }).fill(title);
-  await page.getByLabel("Servings", { exact: true }).fill("2");
+  await page.getByLabel("Makes", { exact: true }).fill("2");
   await page
     .getByRole("button", { name: "Add ingredient", exact: true })
     .click();
@@ -297,9 +297,27 @@ test.describe("cross-user fork publication acceptance", () => {
       false,
     );
 
-    await page
-      .getByRole("link", { name: "See what changed", exact: true })
+    await parentContext
+      .getByRole("link", { name: sourceTitle, exact: true })
       .click();
+    await expect(page).toHaveURL(`/recipes/${sourceId}`);
+    await page.getByRole("tab", { name: "Family", exact: true }).click();
+    const family = page.getByRole("tabpanel", { name: "Family", exact: true });
+    await family
+      .getByRole("button", {
+        name: `Show ${childTitle} in the family tree`,
+        exact: true,
+      })
+      .click();
+    const compare = family.getByRole("link", {
+      name: `Compare with ${sourceTitle} →`,
+      exact: true,
+    });
+    const comparisonPath =
+      `/recipes/${published.recipe_version_id}/compare?base_version_id=${sourceId}`;
+    await expect(compare).toHaveAttribute("href", comparisonPath);
+    await compare.click();
+    await expect(page).toHaveURL(comparisonPath);
     await expect(
       page.getByRole("heading", {
         name: `How ${childTitle} changed`,
