@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { AUTH_SESSION_EXPIRED_EVENT } from "../../lib/auth-api";
+import { AUTH_SESSION_EXPIRED_EVENT } from "../lib/auth-api";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { SiteHeader } from "./site-header";
-import { AuthSessionProvider } from "./auth-session-provider";
+import { AuthSessionProvider } from "../app/components/auth-session-provider";
 
 describe("SiteHeader", () => {
   it("offers search and sign-in without showing creation controls to guests", () => {

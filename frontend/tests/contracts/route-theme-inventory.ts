@@ -61,7 +61,7 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/account/ingredient-requests",
     family: "account-workspace",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/account-menu.tsx"],
+    consumerEvidence: ["frontend/shell/account-menu.tsx"],
   },
   {
     file: "app/account/recipe-drafts/[draftId]/page.tsx",
@@ -84,7 +84,7 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/account/recipes",
     family: "account-workspace",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/account-menu.tsx"],
+    consumerEvidence: ["frontend/shell/account-menu.tsx"],
   },
   {
     file: "app/account/saved-recipes/page.tsx",
@@ -99,7 +99,7 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/account/settings",
     family: "account-workspace",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/account-menu.tsx"],
+    consumerEvidence: ["frontend/shell/account-menu.tsx"],
   },
   {
     file: "app/auth/callback/page.tsx",
@@ -148,7 +148,7 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/",
     family: "discovery",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/site-header.tsx"],
+    consumerEvidence: ["frontend/shell/site-header.tsx"],
   },
   {
     file: "app/recipes/[recipeVersionId]/compare/page.tsx",
@@ -183,28 +183,28 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/recipes/new",
     family: "recipe-authoring",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/site-header.tsx"],
+    consumerEvidence: ["frontend/shell/site-header.tsx"],
   },
   {
     file: "app/recipes/page.tsx",
     route: "/recipes",
     family: "discovery",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/site-header.tsx"],
+    consumerEvidence: ["frontend/shell/site-header.tsx"],
   },
   {
     file: "app/sign-in/page.tsx",
     route: "/sign-in",
     family: "account-access",
     reachability: "active",
-    consumerEvidence: ["frontend/app/components/account-menu.tsx"],
+    consumerEvidence: ["frontend/shell/account-menu.tsx"],
   },
   {
     file: "app/staff/page.tsx",
     route: "/staff",
     family: "staff-tools",
     reachability: "internal",
-    consumerEvidence: ["frontend/app/components/account-menu.tsx"],
+    consumerEvidence: ["frontend/shell/account-menu.tsx"],
   },
 ] as const satisfies readonly PageThemeInventoryItem[];
 

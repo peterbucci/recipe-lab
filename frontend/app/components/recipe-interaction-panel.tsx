@@ -11,7 +11,7 @@ import {
   setRecipeRating,
   setRecipeSaved,
 } from "../../lib/interaction-api";
-import { LoadingButton } from "./loading-ui";
+import { LoadingButton } from "../../shared/ui/loading-ui";
 import { HeartIcon, StarIcon } from "./recipe-action-icons";
 
 interface RecipeInteractionPanelProps {

@@ -13,10 +13,10 @@ import type { RecipeCategory } from "../../lib/recipe-api";
 import { fetchActiveRecipeCategories } from "../../lib/recipe-category-client-api";
 import { MAX_RECIPE_CATEGORIES } from "../../lib/recipe-category";
 import { EditorRowIcon } from "./editor-row-icon";
-import { InlineLoading, SectionLoading } from "./loading-ui";
-import { Popover, PopoverContent, PopoverTrigger } from "./overlay-primitives";
+import { InlineLoading, SectionLoading } from "../../shared/ui/loading-ui";
+import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/overlay-primitives";
 import { RecipeDraftFieldError } from "./recipe-draft-field-error";
-import { useFloatingPanelPlacement } from "./use-floating-panel-placement";
+import { useFloatingPanelPlacement } from "../../shared/ui/use-floating-panel-placement";
 
 interface RecipeCategorySelectorProps {
   disabled?: boolean;

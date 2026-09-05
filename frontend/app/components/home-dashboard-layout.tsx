@@ -6,7 +6,7 @@ import { type ReactNode, useEffect } from "react";
 import { useAuthSession } from "./auth-session-provider";
 import { HomeLoadNotice, HomeLoadStateProvider } from "./home-load-state";
 import { HomeCommunityFeed } from "./home-community-feed";
-import { SectionLoading } from "./loading-ui";
+import { SectionLoading } from "../../shared/ui/loading-ui";
 import { MemberHomeSummary } from "./member-home-summary";
 
 interface HomeDashboardLayoutProps {

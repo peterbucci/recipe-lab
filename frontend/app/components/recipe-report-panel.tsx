@@ -10,7 +10,7 @@ import {
   type RecipeReportReason,
   submitRecipeReport,
 } from "../../lib/recipe-report-api";
-import { LoadingButton } from "./loading-ui";
+import { LoadingButton } from "../../shared/ui/loading-ui";
 
 const REPORT_REASONS: ReadonlyArray<{ value: RecipeReportReason; label: string }> = [
   { value: "spam", label: "Spam or misleading content" },

@@ -10,9 +10,9 @@ import {
 } from "../../lib/member-follow-api";
 import { relativeTimeLabel } from "../../lib/relative-time";
 import { useAuthSession } from "./auth-session-provider";
-import { SectionLoading } from "./loading-ui";
+import { SectionLoading } from "../../shared/ui/loading-ui";
 import { MemberRouteGate } from "./member-route-gate";
-import { WorkspacePagination } from "./workspace-pagination";
+import { WorkspacePagination } from "../../shared/ui/workspace-pagination";
 
 const FOLLOWER_PAGE_SIZE = 20;
 const RETURN_TO = "/account/followers";

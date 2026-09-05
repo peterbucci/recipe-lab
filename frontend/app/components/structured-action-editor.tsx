@@ -16,7 +16,7 @@ import {
 } from "../../lib/structured-action";
 import type { StructuredMeasureField } from "../../lib/structured-measure";
 import { EditorRowIcon } from "./editor-row-icon";
-import { Popover, PopoverContent, PopoverTrigger } from "./overlay-primitives";
+import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/overlay-primitives";
 import {
   draftActionMeasureLabel,
   recipeActionLabel,
@@ -25,7 +25,7 @@ import {
   DurationMeasureControl,
   TemperatureMeasureControl,
 } from "./structured-measure-control";
-import { useFloatingPanelPlacement } from "./use-floating-panel-placement";
+import { useFloatingPanelPlacement } from "../../shared/ui/use-floating-panel-placement";
 
 interface StructuredActionEditorProps {
   idPrefix: string;

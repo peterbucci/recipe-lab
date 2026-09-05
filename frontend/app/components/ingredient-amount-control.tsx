@@ -18,8 +18,8 @@ import {
   type StructuredMeasureDraft,
   type StructuredMeasureField,
 } from "../../lib/structured-measure";
-import { useFloatingPanelPlacement } from "./use-floating-panel-placement";
-import { Popover, PopoverContent, PopoverTrigger } from "./overlay-primitives";
+import { useFloatingPanelPlacement } from "../../shared/ui/use-floating-panel-placement";
+import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/overlay-primitives";
 
 export interface IngredientAmountControlProps {
   idPrefix: string;

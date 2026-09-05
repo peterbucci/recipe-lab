@@ -114,9 +114,10 @@ outside the pull-request tier.
 
 ## Coverage
 
-`npm run test:coverage` measures production modules in `app`, `lib`,
-`server`, and `server.mjs`. It excludes tests, declarations, generated API
-contracts, and colocated `*-test-support` modules. The command writes text,
+`npm run test:coverage` measures production modules in `app`, `features`, `shared`,
+`shell`, `lib`, `server`, and `server.mjs`. It excludes tests, declarations,
+generated API contracts, and colocated `*-test-support` modules in every owner.
+The command writes text,
 JSON summary, and LCOV output to the ignored `frontend/coverage` directory.
 Coverage output is temporary evidence and should be deleted after its results
 are recorded.

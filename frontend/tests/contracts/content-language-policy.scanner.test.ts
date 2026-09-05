@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -11,6 +13,38 @@ import {
 } from "./content-language-policy-scanner";
 
 describe("public product language policy", () => {
+  it("includes relocated UI roots without scanning test or tooling directories", () => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), "recipe-lab-copy-"));
+    const fixtureFiles = [
+      "app/page.tsx",
+      "features/recipes/card.tsx",
+      "shared/ui/status.tsx",
+      "shared/ui/status.test.tsx",
+      "shell/header.tsx",
+      "tests/support/example.tsx",
+    ];
+
+    try {
+      for (const file of fixtureFiles) {
+        const target = join(fixtureRoot, file);
+        mkdirSync(dirname(target), { recursive: true });
+        writeFileSync(target, "export const Surface = () => <p>Ready</p>;");
+      }
+      const inventory = ordinaryUiFiles(fixtureRoot).map((path) =>
+        relative(fixtureRoot, path).replaceAll("\\", "/"),
+      );
+      expect(inventory.sort()).toEqual([
+        "app/page.tsx",
+        "features/recipes/card.tsx",
+        "shared/ui/status.tsx",
+        "shell/header.tsx",
+      ]);
+      expect(ordinaryUiFiles(join(fixtureRoot, "unused"))).toEqual([]);
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
   it("inventories ordinary UI automatically and keeps exceptions narrow", () => {
     const files = ordinaryUiFiles();
     const inventory = new Set(files.map(repositoryPath));
@@ -197,4 +231,3 @@ describe("public product language policy", () => {
     ]);
   });
 });
-

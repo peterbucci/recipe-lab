@@ -1,6 +1,6 @@
 import { FlaskConical, Search } from "lucide-react";
 
-import { GuardedLink } from "./navigation-blocker-provider";
+import { GuardedLink } from "../shared/navigation/navigation-blocker-provider";
 import {
   SiteHeaderMemberActions,
   SiteMobileNavigation,

@@ -1,6 +1,6 @@
 import { FlaskConical } from "lucide-react";
 
-import { GuardedLink } from "./navigation-blocker-provider";
+import { GuardedLink } from "../shared/navigation/navigation-blocker-provider";
 
 const COPYRIGHT_YEAR = 2026;
 

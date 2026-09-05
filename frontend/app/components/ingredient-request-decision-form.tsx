@@ -13,7 +13,7 @@ import {
 } from "../../lib/ingredient-request-presentation";
 import { DuplicateTargetSearch } from "./ingredient-request-duplicate-target-search";
 import { type ReviewDetailProps } from "./ingredient-request-review-model";
-import { LoadingButton } from "./loading-ui";
+import { LoadingButton } from "../../shared/ui/loading-ui";
 
 interface ReviewFieldErrors {
   aliases?: string;

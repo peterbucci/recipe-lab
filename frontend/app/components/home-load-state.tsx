@@ -12,7 +12,7 @@ import {
   useTransition,
 } from "react";
 
-import { LoadingButton } from "./loading-ui";
+import { LoadingButton } from "../../shared/ui/loading-ui";
 
 type RetryHomeLoad = () => Promise<unknown> | void;
 

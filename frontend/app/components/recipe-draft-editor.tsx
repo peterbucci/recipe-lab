@@ -53,17 +53,17 @@ import {
   type LoadedRecipeFamily,
 } from "../../lib/recipe-family-client-api";
 import { MemberRouteGate } from "./member-route-gate";
-import { Dialog } from "./overlay-primitives";
+import { Dialog } from "../../shared/ui/overlay-primitives";
 import { useAuthSession } from "./auth-session-provider";
 import {
   LoadingButton,
-  PageLoadingSkeleton,
   SectionLoading,
-} from "./loading-ui";
+} from "../../shared/ui/loading-ui";
+import { PageLoadingSkeleton } from "../../shell/page-loading-skeleton";
 import {
   GuardedLink,
   useNavigationBlocker,
-} from "./navigation-blocker-provider";
+} from "../../shared/navigation/navigation-blocker-provider";
 import { RecipeCategorySelector } from "./recipe-category-selector";
 import { RecipeArtwork } from "./recipe-artwork";
 import { RecipeDetailTabs } from "./recipe-detail-tabs";

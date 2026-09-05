@@ -13,15 +13,15 @@ import {
   INGREDIENT_REQUEST_STATUS_LABELS,
 } from "../../lib/ingredient-request-presentation";
 import { STATUS_FILTERS } from "./ingredient-request-review-model";
-import { WorkspacePagination } from "./workspace-pagination";
+import { WorkspacePagination } from "../../shared/ui/workspace-pagination";
 import {
   WorkspaceErrorState,
   WorkspaceLoadingState,
-} from "./workspace-state";
+} from "../../shared/ui/workspace-state";
 import {
   WorkspaceTabButton,
   WorkspaceTabMenu,
-} from "./workspace-tab-menu";
+} from "../../shared/ui/workspace-tab-menu";
 
 interface IngredientRequestStatusFiltersProps {
   count?: number | null;

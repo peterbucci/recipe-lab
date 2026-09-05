@@ -22,7 +22,7 @@ import {
   setRecipeSaved,
 } from "../../lib/interaction-api";
 import { useAuthSession } from "./auth-session-provider";
-import { LoadingButton } from "./loading-ui";
+import { LoadingButton } from "../../shared/ui/loading-ui";
 
 interface RecipeCardEngagementProps {
   averageRating: number | null;

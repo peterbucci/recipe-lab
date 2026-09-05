@@ -44,8 +44,8 @@ import {
 import {
   GuardedLink,
   useNavigationBlocker,
-} from "./navigation-blocker-provider";
-import { LoadingButton } from "./loading-ui";
+} from "../../shared/navigation/navigation-blocker-provider";
+import { LoadingButton } from "../../shared/ui/loading-ui";
 import { BranchIcon } from "./recipe-action-icons";
 import { RecipeDuplicatePreflightReview } from "./recipe-duplicate-preflight-review";
 

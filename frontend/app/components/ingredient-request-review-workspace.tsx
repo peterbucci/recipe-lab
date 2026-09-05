@@ -16,12 +16,12 @@ import {
   StaffWorkspaceShell,
   StaffWorkspaceSplitPanel,
 } from "./staff-workspace-shell";
-import { WorkspaceEmptyState } from "./workspace-empty-state";
-import { WorkspacePanelHeader } from "./workspace-panel-header";
+import { WorkspaceEmptyState } from "../../shared/ui/workspace-empty-state";
+import { WorkspacePanelHeader } from "../../shared/ui/workspace-panel-header";
 import {
   WorkspaceErrorState,
   WorkspaceLoadingState,
-} from "./workspace-state";
+} from "../../shared/ui/workspace-state";
 import { useIngredientRequestReviewWorkspace } from "./use-ingredient-request-review-workspace";
 
 const REQUEST_STATUS_PANEL_COPY: Record<

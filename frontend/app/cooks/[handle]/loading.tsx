@@ -1,4 +1,4 @@
-import { PageLoadingSkeleton } from "../../components/loading-ui";
+import { PageLoadingSkeleton } from "../../../shell/page-loading-skeleton";
 
 export default function CookProfileLoading() {
   return (

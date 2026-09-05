@@ -3,11 +3,11 @@
 import { Plus } from "lucide-react";
 
 import type { MyRecipeLibraryView } from "../../lib/recipe-library-api";
-import { GuardedLink } from "./navigation-blocker-provider";
+import { GuardedLink } from "../../shared/navigation/navigation-blocker-provider";
 import {
   WorkspaceTabCount,
   WorkspaceTabMenu,
-} from "./workspace-tab-menu";
+} from "../../shared/ui/workspace-tab-menu";
 
 export type MyRecipesHubView = MyRecipeLibraryView | "saved";
 

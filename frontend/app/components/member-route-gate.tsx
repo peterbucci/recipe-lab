@@ -3,8 +3,8 @@
 import type { ReactNode } from "react";
 
 import { useAuthSession } from "./auth-session-provider";
-import { AuthGateLoading } from "./loading-ui";
-import { GuardedLink } from "./navigation-blocker-provider";
+import { AuthGateLoading } from "../../shared/ui/loading-ui";
+import { GuardedLink } from "../../shared/navigation/navigation-blocker-provider";
 
 interface MemberRouteGateProps {
   anonymousHeading?: string;

@@ -7,7 +7,7 @@ import {
   ingredientRequestMemberStatusLabel,
   INGREDIENT_REQUEST_STATUS_LABELS,
 } from "../../lib/ingredient-request-presentation";
-import { LoadingButton } from "./loading-ui";
+import { LoadingButton } from "../../shared/ui/loading-ui";
 
 interface MemberIngredientRequestCardProps {
   contextLabel?: string;

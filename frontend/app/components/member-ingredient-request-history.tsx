@@ -10,17 +10,17 @@ import type {
 import { MemberIngredientRequestList } from "./member-ingredient-request-list";
 import { useMemberIngredientResolutionSelection } from "./use-member-ingredient-resolution-selection";
 import { useMemberIngredientRequestHistory } from "./use-member-ingredient-request-history";
-import { WorkspaceEmptyState } from "./workspace-empty-state";
-import { WorkspacePanelHeader } from "./workspace-panel-header";
+import { WorkspaceEmptyState } from "../../shared/ui/workspace-empty-state";
+import { WorkspacePanelHeader } from "../../shared/ui/workspace-panel-header";
 import {
   WorkspaceErrorState,
   WorkspaceLoadingState,
-} from "./workspace-state";
+} from "../../shared/ui/workspace-state";
 import {
   WorkspaceTabButton,
   WorkspaceTabItems,
   WorkspaceTabMenu,
-} from "./workspace-tab-menu";
+} from "../../shared/ui/workspace-tab-menu";
 
 interface MemberIngredientRequestHistoryProps {
   contextLabel?: string;

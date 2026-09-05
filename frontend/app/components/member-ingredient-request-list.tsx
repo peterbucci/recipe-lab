@@ -3,7 +3,7 @@ import type {
   MemberIngredientRequestPage,
 } from "../../lib/ingredient-catalog-api";
 import { MemberIngredientRequestCard } from "./member-ingredient-request-card";
-import { WorkspacePagination } from "./workspace-pagination";
+import { WorkspacePagination } from "../../shared/ui/workspace-pagination";
 
 interface MemberIngredientRequestListProps {
   contextLabel?: string;

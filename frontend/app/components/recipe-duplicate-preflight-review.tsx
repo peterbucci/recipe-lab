@@ -7,7 +7,7 @@ import type {
   RecipeDuplicateDecision,
   RecipeDuplicatePreflight,
 } from "../../lib/recipe-duplicate-api";
-import { LoadingButton } from "./loading-ui";
+import { LoadingButton } from "../../shared/ui/loading-ui";
 
 interface RecipeDuplicatePreflightReviewProps {
   result: RecipeDuplicatePreflight;

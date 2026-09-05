@@ -5,9 +5,9 @@ import {
   AuthSessionProvider,
   SessionRecoveryNotice,
 } from "./components/auth-session-provider";
-import { NavigationBlockerProvider } from "./components/navigation-blocker-provider";
-import { SiteFooter } from "./components/site-footer";
-import { SiteHeader } from "./components/site-header";
+import { NavigationBlockerProvider } from "../shared/navigation/navigation-blocker-provider";
+import { SiteFooter } from "../shell/site-footer";
+import { SiteHeader } from "../shell/site-header";
 import "./globals.css";
 
 export const metadata: Metadata = {

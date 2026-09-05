@@ -123,8 +123,11 @@ export function auditSourceReachability(
 ) {
   const files = [
     ...walk(join(sourceRoot, "app")),
+    ...walk(join(sourceRoot, "features")),
     ...walk(join(sourceRoot, "lib")),
     ...walk(join(sourceRoot, "server")),
+    ...walk(join(sourceRoot, "shared")),
+    ...walk(join(sourceRoot, "shell")),
     join(sourceRoot, "server.mjs"),
   ].filter((path) => existsSync(path));
   const sources = new Set(files.map(normalized));

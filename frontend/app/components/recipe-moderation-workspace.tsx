@@ -8,16 +8,16 @@ import { RECIPE_MODERATION_STATUS_LABELS } from "../../lib/recipe-moderation-pre
 import { RecipeModerationCaseDetail } from "./recipe-moderation-case-detail";
 import { RecipeModerationQueue } from "./recipe-moderation-queue";
 import { useRecipeModerationWorkspace } from "./use-recipe-moderation-workspace";
-import { WorkspaceEmptyState } from "./workspace-empty-state";
-import { WorkspacePanelHeader } from "./workspace-panel-header";
+import { WorkspaceEmptyState } from "../../shared/ui/workspace-empty-state";
+import { WorkspacePanelHeader } from "../../shared/ui/workspace-panel-header";
 import {
   WorkspaceErrorState,
   WorkspaceLoadingState,
-} from "./workspace-state";
+} from "../../shared/ui/workspace-state";
 import {
   WorkspaceTabButton,
   WorkspaceTabMenu,
-} from "./workspace-tab-menu";
+} from "../../shared/ui/workspace-tab-menu";
 import {
   StaffWorkspaceAccess,
   StaffWorkspaceShell,

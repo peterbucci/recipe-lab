@@ -12,7 +12,7 @@ import {
   formatModerationTime,
   RECIPE_MODERATION_STATUS_LABELS,
 } from "../../lib/recipe-moderation-presentation";
-import { LoadingButton } from "./loading-ui";
+import { LoadingButton } from "../../shared/ui/loading-ui";
 
 const REASON_LABELS: Record<RecipeReportReason, string> = {
   spam: "Spam or misleading content",

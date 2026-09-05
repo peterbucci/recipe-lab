@@ -3,10 +3,10 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { AuthApiError, signOut } from "../../lib/auth-api";
-import { useAuthSession } from "./auth-session-provider";
-import { LoadingBlock } from "./loading-ui";
-import { GuardedLink, useNavigationBlocker } from "./navigation-blocker-provider";
+import { AuthApiError, signOut } from "../lib/auth-api";
+import { useAuthSession } from "../app/components/auth-session-provider";
+import { LoadingBlock } from "../shared/ui/loading-ui";
+import { GuardedLink, useNavigationBlocker } from "../shared/navigation/navigation-blocker-provider";
 
 export function AccountMenu() {
   const pathname = usePathname();

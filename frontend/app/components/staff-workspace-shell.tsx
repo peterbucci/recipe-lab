@@ -5,7 +5,7 @@ import { type ReactNode, useCallback, useState } from "react";
 
 import type { AccountCapabilities } from "../../lib/auth-api";
 import { useAuthSession } from "./auth-session-provider";
-import { AuthGateLoading } from "./loading-ui";
+import { AuthGateLoading } from "../../shared/ui/loading-ui";
 
 type StaffCapability = keyof AccountCapabilities;
 type StaffWorkspaceVariant = "curation" | "moderation";

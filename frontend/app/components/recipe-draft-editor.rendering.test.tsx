@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { NavigationBlockerProvider } from "./navigation-blocker-provider";
+import { NavigationBlockerProvider } from "../../shared/navigation/navigation-blocker-provider";
 import {
   cleanupRecipeDraftEditorMocks,
   detail,

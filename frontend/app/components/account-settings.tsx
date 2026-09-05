@@ -16,9 +16,9 @@ import {
   updateAccountProfile,
 } from "../../lib/auth-api";
 import { useAuthSession } from "./auth-session-provider";
-import { AuthGateLoading, LoadingButton } from "./loading-ui";
-import { WorkspacePanelHeader } from "./workspace-panel-header";
-import { WorkspaceTabs } from "./workspace-tab-menu";
+import { AuthGateLoading, LoadingButton } from "../../shared/ui/loading-ui";
+import { WorkspacePanelHeader } from "../../shared/ui/workspace-panel-header";
+import { WorkspaceTabs } from "../../shared/ui/workspace-tab-menu";
 
 const SETTINGS_PATH = "/account/settings";
 type SettingsSection = "profile" | "danger";

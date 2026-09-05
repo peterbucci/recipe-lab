@@ -7,7 +7,7 @@ import {
   AuthSessionProvider,
   SessionRecoveryNotice,
 } from "./auth-session-provider";
-import { NavigationBlockerProvider } from "./navigation-blocker-provider";
+import { NavigationBlockerProvider } from "../../shared/navigation/navigation-blocker-provider";
 import { RecipeDraftEditor } from "./recipe-draft-editor";
 
 const mocks = vi.hoisted(() => ({

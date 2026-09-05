@@ -8,7 +8,7 @@ import {
   RecipeVisibilityApiError,
   updateRecipeVisibility,
 } from "../../lib/recipe-visibility-api";
-import { LoadingButton } from "./loading-ui";
+import { LoadingButton } from "../../shared/ui/loading-ui";
 
 interface RecipeVisibilityControlProps {
   compact?: boolean;

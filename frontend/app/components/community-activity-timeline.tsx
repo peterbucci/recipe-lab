@@ -9,7 +9,7 @@ import {
 } from "../../lib/member-follow-api";
 import { useAuthSession } from "./auth-session-provider";
 import { CommunityPublicationList } from "./community-publication-list";
-import { LoadingButton, SectionLoading } from "./loading-ui";
+import { LoadingButton, SectionLoading } from "../../shared/ui/loading-ui";
 import { MemberRouteGate } from "./member-route-gate";
 
 const ACTIVITY_PAGE_SIZE = 20;

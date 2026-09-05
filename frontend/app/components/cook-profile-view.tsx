@@ -4,7 +4,7 @@ import type { PublicCookProfilePage } from "../../lib/recipe-library-api";
 import { CookFollowControl } from "./cook-follow-control";
 import { RecipeCard } from "./recipe-card";
 import { RecipeCardViewerStateProvider } from "./recipe-card-engagement";
-import { WorkspacePagination } from "./workspace-pagination";
+import { WorkspacePagination } from "../../shared/ui/workspace-pagination";
 
 interface CookProfileViewProps {
   data: PublicCookProfilePage;

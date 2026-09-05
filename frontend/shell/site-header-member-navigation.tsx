@@ -1,8 +1,8 @@
 "use client";
 
 import { AccountMenu } from "./account-menu";
-import { useAuthSession } from "./auth-session-provider";
-import { GuardedLink } from "./navigation-blocker-provider";
+import { useAuthSession } from "../app/components/auth-session-provider";
+import { GuardedLink } from "../shared/navigation/navigation-blocker-provider";
 
 function useCanCreateRecipe(): boolean {
   const { sessionExpired, state } = useAuthSession();
