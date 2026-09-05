@@ -1019,9 +1019,12 @@ test.describe("RCP-32 two-user community release gate", () => {
             response.request().method() === "POST" &&
             response.url().endsWith(`/api/recipes/${rootRecipeVersionId}/view`),
         );
-        await rootCard
-          .getByRole("link", { name: rootTitle, exact: true })
-          .click();
+        await Promise.all([
+          bob.waitForURL("/recipes/" + rootRecipeVersionId),
+          rootCard
+            .getByRole("link", { name: rootTitle, exact: true })
+            .click(),
+        ]);
         await expect(
           bob.getByRole("heading", { name: rootTitle, level: 1 }),
         ).toBeVisible();
