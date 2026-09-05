@@ -328,6 +328,7 @@ export function RecipeDraftInstructionsSection({
           id="draft-add-instruction"
           className="draft-editor__add-row draft-editor__add-row--instruction recipe-workspace__add-row"
           type="button"
+          aria-label="Add instruction"
           disabled={instructions.length >= 100}
           onClick={onAdd}
         >

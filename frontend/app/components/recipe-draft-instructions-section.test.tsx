@@ -192,6 +192,7 @@ describe("RecipeDraftInstructionsSection", () => {
     render(<Harness />);
 
     const add = screen.getByRole("button", { name: "Add instruction" });
+    expect(add).toHaveAttribute("aria-label", "Add instruction");
     expect(add).toHaveClass("recipe-workspace__add-row");
     expect(add).not.toHaveClass("button");
     fireEvent.click(add);

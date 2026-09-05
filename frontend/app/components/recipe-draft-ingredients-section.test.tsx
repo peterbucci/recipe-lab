@@ -478,6 +478,7 @@ describe("RecipeDraftIngredientsSection", () => {
 
     const add = screen.getByRole("button", { name: "Add ingredient" });
     expect(add).toBeVisible();
+    expect(add).toHaveAttribute("aria-label", "Add ingredient");
     fireEvent.click(add);
     expect(onAdd).toHaveBeenCalledOnce();
   });

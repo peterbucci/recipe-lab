@@ -366,6 +366,7 @@ export function RecipeDraftIngredientsSection({
         id="draft-add-ingredient"
         className="draft-editor__add-row draft-editor__add-row--ingredient recipe-workspace__add-row"
         type="button"
+        aria-label="Add ingredient"
         disabled={ingredients.length >= 200}
         onClick={onAdd}
       >
