@@ -6,7 +6,6 @@ import re
 import sys
 from pathlib import Path
 
-
 _STACK_LOCATION = re.compile(
     r"(?m)^\s*at\s+[^\r\n]*[/\\]frontend[/\\]e2e[/\\]"
     r"rcp32-community-release-gate\.spec\.ts:"
