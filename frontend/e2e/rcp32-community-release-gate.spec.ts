@@ -2012,13 +2012,24 @@ test.describe("RCP-32 two-user community release gate", () => {
           await expect(
             publicPage.getByRole("heading", { name: childTitle, level: 1 }),
           ).toBeVisible();
-          const deletedCookAttribution = publicPage.locator(
-            ".recipe-detail__attribution",
+          const visibleChildDetail = publicPage
+            .locator("article.recipe-detail")
+            .filter({
+              has: publicPage.getByRole("heading", {
+                name: childTitle,
+                level: 1,
+              }),
+              visible: true,
+            });
+          await expect(visibleChildDetail).toHaveCount(1);
+          const deletedCookAttribution = visibleChildDetail.locator(
+            ".recipe-detail__author-identity",
           );
           await expect(deletedCookAttribution).toBeVisible();
+          await expect(deletedCookAttribution).toContainText("Recipe by");
           await expect(deletedCookAttribution).toContainText("Deleted cook");
           await expect(
-            publicPage.getByRole("link", { name: "Deleted cook" }),
+            deletedCookAttribution.getByRole("link", { name: "Deleted cook" }),
           ).toHaveCount(0);
           await expect(
             publicPage
