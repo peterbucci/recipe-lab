@@ -175,6 +175,7 @@ async function selectResolvedComboboxOptionWithKeyboard(
   input: Locator,
   option: Locator,
 ): Promise<void> {
+  await input.focus();
   await expect(input).toBeFocused();
   await expect(option).toBeVisible();
   const optionId = await option.getAttribute("id");
@@ -800,14 +801,12 @@ test.describe("member ingredient-request acceptance", () => {
       exact: true,
     });
     await expect(approvedInput).toHaveValue(approvedName);
-    await approvedInput.focus();
     const approvedOption = walnutRow
       .getByRole("listbox", { name: "Ingredient suggestions" })
       .getByRole("option", {
         name: `${approvedCanonical} Approved from your ingredient request`,
         exact: true,
-    });
-    await expect(approvedOption).toBeVisible();
+      });
     await selectResolvedComboboxOptionWithKeyboard(
       approvedInput,
       approvedOption,
@@ -820,7 +819,6 @@ test.describe("member ingredient-request acceptance", () => {
       exact: true,
     });
     await expect(duplicateInput).toHaveValue(duplicateName);
-    await duplicateInput.focus();
     const duplicateOption = sugarRow
       .getByRole("listbox", { name: "Ingredient suggestions" })
       .getByRole("option", {

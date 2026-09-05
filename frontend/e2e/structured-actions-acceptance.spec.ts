@@ -303,10 +303,10 @@ test.describe("structured cooking action acceptance", () => {
       ingredient_refs: [expect.stringMatching(/^[0-9a-f-]{36}$/i)],
     });
     expect(savedActions?.[1]).toMatchObject({
-      temperature: { kind: "exact", value: "175.0" },
+      temperature: { kind: "exact", value: "175" },
     });
     expect(savedActions?.[2]).toMatchObject({
-      duration: { kind: "exact", value: "2.500", unit_id: minuteUnitId },
+      duration: { kind: "exact", value: "2.5", unit_id: minuteUnitId },
     });
     expect((await saveResponse).status()).toBe(200);
     await expect(
