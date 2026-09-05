@@ -25,6 +25,18 @@ describe("frontend ownership architecture", () => {
       kind: "features",
       feature: "ingredients",
     });
+    expect(ownerForPath("features/auth/auth-api.ts")).toEqual({
+      kind: "features",
+      feature: "auth",
+    });
+    expect(ownerForPath("features/account/member-activity.ts")).toEqual({
+      kind: "features",
+      feature: "account",
+    });
+    expect(ownerForPath("features/community/member-follow-api.ts")).toEqual({
+      kind: "features",
+      feature: "community",
+    });
     expect(ownerForPath("shared/ui/overlay.tsx")).toEqual({ kind: "shared" });
     expect(ownerForPath("shell/site-header.tsx")).toEqual({ kind: "shell" });
     expect(ownerForPath("server/api-proxy.ts")).toEqual({ kind: "server" });
@@ -45,8 +57,8 @@ describe("frontend ownership architecture", () => {
         ?.story,
     ).toBe("RCP-49H");
     expect(
-      migrationRuleForLegacyPath("lib/recipe-library-server-api.ts")?.story,
-    ).toBe("RCP-49G");
+      migrationRuleForLegacyPath("lib/recipe-library-server-api.ts"),
+    ).toBeUndefined();
     expect(migrationRuleForLegacyPath("lib/recipe-draft-api.test.ts")?.story).toBe(
       "RCP-49H",
     );
@@ -57,7 +69,7 @@ describe("frontend ownership architecture", () => {
   });
 
   it("enforces inward dependency direction for the target roots", () => {
-    expect(forbiddenDependencyReason("shared/api/browser.ts", "lib/auth-api.ts")).toBe(
+    expect(forbiddenDependencyReason("shared/api/browser.ts", "lib/recipe-api.ts")).toBe(
       "shared modules cannot depend on legacy modules",
     );
     expect(
@@ -71,6 +83,9 @@ describe("frontend ownership architecture", () => {
     ).toBeUndefined();
     expect(
       forbiddenDependencyReason("shell/site-header.tsx", "features/auth/session.ts"),
+    ).toBe("shell modules cannot depend on features modules");
+    expect(
+      forbiddenDependencyReason("shell/site-header.tsx", "shared/ui/button.tsx"),
     ).toBeUndefined();
   });
 

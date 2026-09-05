@@ -7,7 +7,7 @@ import {
   recipeDraftCreationIntent,
 } from "../../lib/recipe-draft-creation-attempt";
 import { RecipeDraftApiError } from "../../lib/recipe-draft-api";
-import { AuthSessionProvider } from "./auth-session-provider";
+import { AuthSessionProvider } from "../../features/auth/auth-session-provider";
 import { NavigationBlockerProvider } from "../../shared/navigation/navigation-blocker-provider";
 import { RecipeDraftStarter } from "./recipe-draft-starter";
 

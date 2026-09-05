@@ -8,12 +8,12 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 
-import type { AuthSession } from "../../../lib/auth-api";
+import type { AuthSession } from "../../auth/auth-api";
 import type { RecipeViewerState } from "./interaction-api";
 import type { RecipeDraftListItem } from "../../../lib/recipe-draft-api";
 import type { RecipeDraftEditorEntry } from "../../../lib/recipe-draft-editor-entry";
 import { deferred } from "../../../tests/support/deferred";
-import { AuthSessionProvider, useAuthSession } from "../../../app/components/auth-session-provider";
+import { AuthSessionProvider, useAuthSession } from "../../auth/auth-session-provider";
 import { RecipeMemberActions } from "./recipe-member-actions";
 
 const mocks = vi.hoisted(() => ({

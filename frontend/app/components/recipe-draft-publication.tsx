@@ -10,7 +10,7 @@ import {
 } from "react";
 
 import { isAbortError } from "../../shared/api/abort-error";
-import { AuthApiError } from "../../lib/auth-api";
+import { AuthApiError } from "../../features/auth/auth-api";
 import type { CatalogActionType } from "../../lib/cooking-action-model";
 import { createIdempotencyKey } from "../../shared/api/idempotency-key";
 import type { CatalogUnit } from "../../lib/measurement-unit-model";

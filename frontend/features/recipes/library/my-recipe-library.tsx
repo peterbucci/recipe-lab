@@ -10,7 +10,7 @@ import {
 } from "react";
 
 import { isAbortError } from "../../../shared/api/abort-error";
-import { AuthApiError } from "../../../lib/auth-api";
+import { AuthApiError } from "../../auth/auth-api";
 import { createIdempotencyKey } from "../../../shared/api/idempotency-key";
 import { formatMemberRecipeDate } from "./member-recipe-presentation";
 import {

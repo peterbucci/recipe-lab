@@ -11,9 +11,9 @@ import type {
   RecipeDetail,
 } from "../shared/recipe-contracts";
 import type { RecipeDraftEditorEntry } from "../../../lib/recipe-draft-editor-entry";
-import { relativeTimeLabel } from "../../../lib/relative-time";
-import { CookFollowControl } from "../../../app/components/cook-follow-control";
-import { PublicCookAttribution } from "../../../app/components/public-cook-attribution";
+import { relativeTimeLabel } from "../../../shared/time/relative-time";
+import { CookFollowControl } from "../../community/cook-follow-control";
+import { PublicCookAttribution } from "../../community/public-cook-attribution";
 import { RecipeArtwork } from "../shared/recipe-artwork";
 import { RecipeCategoryList } from "../shared/recipe-category-list";
 import { RecipeDetailTabs } from "./recipe-detail-tabs";

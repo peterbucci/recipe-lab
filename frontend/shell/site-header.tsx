@@ -1,12 +1,14 @@
 import { FlaskConical, Search } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { GuardedLink } from "../shared/navigation/navigation-blocker-provider";
-import {
-  SiteHeaderMemberActions,
-  SiteMobileNavigation,
-} from "./site-header-member-navigation";
 
-export function SiteHeader() {
+interface SiteHeaderProps {
+  memberActions: ReactNode;
+  mobileNavigation: ReactNode;
+}
+
+export function SiteHeader({ memberActions, mobileNavigation }: SiteHeaderProps) {
   return (
     <>
       <header className="site-header">
@@ -43,11 +45,11 @@ export function SiteHeader() {
             </button>
           </form>
 
-          <SiteHeaderMemberActions />
+          {memberActions}
         </div>
       </header>
 
-      <SiteMobileNavigation />
+      {mobileNavigation}
     </>
   );
 }

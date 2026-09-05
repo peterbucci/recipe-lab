@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { MemberFollowersList } from "../../components/member-followers-list";
+import { AccountFollowersRoute } from "./_components/account-followers-route";
 
 export const metadata: Metadata = {
   title: "Followers",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function AccountFollowersPage() {
-  return <MemberFollowersList />;
+  return <AccountFollowersRoute />;
 }

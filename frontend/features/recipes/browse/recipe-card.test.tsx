@@ -5,7 +5,7 @@ import type {
   RecipeSummary,
 } from "../shared/recipe-contracts";
 import { buildRecipeSummary } from "../shared/recipe-test-support";
-import { AuthSessionProvider } from "../../../app/components/auth-session-provider";
+import { AuthSessionProvider } from "../../auth/auth-session-provider";
 import { RecipeCard } from "./recipe-card";
 
 function recipe(overrides: Partial<RecipeSummary> = {}): RecipeSummary {

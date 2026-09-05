@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 import {
   AuthSessionProvider,
   SessionRecoveryNotice,
-} from "./components/auth-session-provider";
+} from "../features/auth/auth-session-provider";
 import { NavigationBlockerProvider } from "../shared/navigation/navigation-blocker-provider";
 import { SiteFooter } from "../shell/site-footer";
-import { SiteHeader } from "../shell/site-header";
+import { SiteHeader } from "./_components/site-header";
 import "./globals.css";
 
 export const metadata: Metadata = {

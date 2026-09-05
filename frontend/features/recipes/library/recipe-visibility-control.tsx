@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { AuthApiError } from "../../../lib/auth-api";
+import { AuthApiError } from "../../auth/auth-api";
 import type { RecipeVisibilityState } from "./recipe-library-model";
 import {
   RecipeVisibilityApiError,

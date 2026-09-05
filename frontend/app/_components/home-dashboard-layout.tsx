@@ -3,11 +3,11 @@
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
 
-import { useAuthSession } from "../components/auth-session-provider";
+import { useAuthSession } from "../../features/auth/auth-session-provider";
 import { HomeLoadNotice, HomeLoadStateProvider } from "./home-load-state";
-import { HomeCommunityFeed } from "../components/home-community-feed";
+import { HomeCommunityFeed } from "./home-community-feed";
 import { SectionLoading } from "../../shared/ui/loading-ui";
-import { MemberHomeSummary } from "../components/member-home-summary";
+import { MemberHomeSummary } from "./member-home-summary";
 
 interface HomeDashboardLayoutProps {
   children: ReactNode;

@@ -6,6 +6,7 @@ export const NODE_TEST_INCLUDE = [
   "features/**/*.test.ts",
   "lib/**/*.test.ts",
   "shared/api/**/*.test.ts",
+  "shared/time/**/*.test.ts",
   "performance/**/*.test.ts",
   "scripts/**/*.test.{mjs,ts}",
   "server/**/*.test.{mjs,ts}",
@@ -14,16 +15,17 @@ export const NODE_TEST_INCLUDE = [
 
 // These colocated tests deliberately exercise cookies, session storage,
 // browser events, or the browser transport. All other TypeScript tests in
-// feature, lib, and shared/api owners stay in Node.
+// feature, lib, and non-UI shared owners stay in Node.
 export const JSDOM_LIBRARY_TEST_INCLUDE = [
   "shared/api/browser.test.ts",
-  "lib/auth-api.test.ts",
+  "features/account/account-api.test.ts",
+  "features/auth/auth-api.test.ts",
   "features/ingredients/catalog/ingredient-catalog-api.test.ts",
   "features/ingredients/requests/ingredient-request-api.test.ts",
   "features/ingredients/review/ingredient-request-review-api.test.ts",
   "features/recipes/detail/interaction-api.test.ts",
-  "lib/member-activity-api.test.ts",
-  "lib/member-follow-api.test.ts",
+  "features/account/member-activity-api.test.ts",
+  "features/community/member-follow-api.test.ts",
   "tests/contracts/ordinary-api-error-boundary.test.ts",
   "features/recipes/browse/recipe-category-client-api.test.ts",
   "lib/recipe-draft-api.test.ts",

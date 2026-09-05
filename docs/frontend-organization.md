@@ -30,7 +30,7 @@ frontend/
 │   ├── community/
 │   └── moderation/
 ├── shared/              Domain-neutral UI, navigation, and API infrastructure
-├── shell/               Header, footer, menus, and site-wide composition
+├── shell/               Domain-neutral header, footer, and site-wide framing
 ├── server/              Standalone and Next server boundaries
 ├── tests/               Cross-cutting contracts, configuration, and support
 ├── e2e/                 Browser suites grouped by execution purpose
@@ -83,9 +83,10 @@ domain owners.
 
 ### `shell`
 
-`shell` owns the site header, footer, account menu, and site-wide provider
-composition. It may consume small feature entry points, but it does not own
-feature workflows or domain parsing.
+`shell` owns the domain-neutral, presentational site header, footer, and
+site-wide frame. Feature-aware controls and provider composition stay in
+`app`, which supplies those controls to shell components through explicit
+slots. Shell code does not import feature workflows or domain parsing.
 
 ### `server`
 
@@ -99,18 +100,20 @@ server transport.
 The intended direction is:
 
 ```text
-app -> shell -> features -> shared
- |        |          |
- +--------+----------+
+app --------> shell ------> shared
+ |                            ^
+ +----------> features -------+
+ +----------------------------+
 
-server ----------------> shared
+server ---------------------> shared
 ```
 
-`app` may import all inward layers. `shell` may import features and shared code.
-Features may import shared code and explicitly reviewed narrow modules from
-another feature. Shared code imports only shared code. Server code imports
-server or shared code. The Next API route is the reviewed exception that may
-import the streaming proxy from `server`.
+`app` may import all inward layers and owns composition between the shell and
+features. `shell` may import only shell and shared code. Features may import
+shared code and explicitly reviewed narrow modules from another feature.
+Shared code imports only shared code. Server code imports server or shared
+code. The Next API route is the reviewed exception that may import the
+streaming proxy from `server`.
 
 Use explicit module imports. Feature-root or shared-root barrel files are not
 allowed because they hide dependency direction and can combine client and
@@ -181,6 +184,14 @@ account-access wrappers remain route-private under `app` because they compose
 multiple workflows. Public cook-profile loading remains assigned to RCP-49G.
 The existing stylesheet cascade and import order stay unchanged during this
 ownership move.
+
+RCP-49G owns authentication and session behavior in `features/auth`, member
+settings and activity in `features/account`, and follows, community activity,
+and public cook data in `features/community`. Home-dashboard and public-profile
+composition remains route-private under `app`. The generic application shell
+depends only on `shared` and `shell`; `app` composes feature-aware navigation
+into that shell. The existing stylesheet cascade and import order remain
+unchanged.
 
 Each story is implemented on its own topic branch, verified, and merged into
 `refactor/frontend-architecture`. That integration branch remains separate from

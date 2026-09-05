@@ -21,7 +21,7 @@ import {
   type RecipeViewerState,
   setRecipeSaved,
 } from "../detail/interaction-api";
-import { useAuthSession } from "../../../app/components/auth-session-provider";
+import { useAuthSession } from "../../auth/auth-session-provider";
 import { LoadingButton } from "../../../shared/ui/loading-ui";
 
 interface RecipeCardEngagementProps {

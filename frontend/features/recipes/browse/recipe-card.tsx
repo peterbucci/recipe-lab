@@ -5,7 +5,7 @@ import { formatServings } from "../shared/recipe-format";
 import type {
   RecipeSummary,
 } from "../shared/recipe-contracts";
-import { PublicCookAttribution } from "../../../app/components/public-cook-attribution";
+import { PublicCookAttribution } from "../../community/public-cook-attribution";
 import { RecipeArtwork } from "../shared/recipe-artwork";
 import { RecipeCardShell } from "../shared/recipe-card-shell";
 import { RecipeCardEngagement } from "./recipe-card-engagement";

@@ -7,16 +7,16 @@ vi.mock("next/navigation", () => ({
   useRouter: () => routerMocks,
 }));
 
-vi.mock("../components/member-home-summary", () => ({
+vi.mock("./member-home-summary", () => ({
   MemberHomeSummary: ({ userId }: { userId: string }) => (
     <section data-testid="member-summary">Private summary for {userId}</section>
   ),
 }));
-vi.mock("../components/home-community-feed", () => ({
+vi.mock("./home-community-feed", () => ({
   HomeCommunityFeed: () => <section>Community feed</section>,
 }));
 
-import { AuthSessionProvider } from "../components/auth-session-provider";
+import { AuthSessionProvider } from "../../features/auth/auth-session-provider";
 import { HomeDashboardLayout } from "./home-dashboard-layout";
 
 describe("HomeDashboardLayout", () => {

@@ -68,38 +68,38 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("DELETE", "/api/auth/account"): _operation(
         "delete_account_api_auth_account_delete",
         "active_consumer",
-        "frontend/lib/auth-api.ts",
+        "frontend/features/account/account-api.ts",
     ),
     ("GET", "/api/auth/callback"): _operation(
         "complete_login_api_auth_callback_get",
         "active_consumer",
-        "frontend/lib/auth-api.ts",
+        "frontend/features/auth/auth-api.ts",
         "frontend/app/api/[...path]/route.ts",
     ),
     ("GET", "/api/auth/login"): _operation(
         "start_login_api_auth_login_get",
         "active_consumer",
-        "frontend/lib/auth-api.ts",
+        "frontend/features/auth/auth-api.ts",
     ),
     ("POST", "/api/auth/logout"): _operation(
         "logout_api_auth_logout_post",
         "active_consumer",
-        "frontend/lib/auth-api.ts",
+        "frontend/features/auth/auth-api.ts",
     ),
     ("GET", "/api/auth/reauthenticate"): _operation(
         "start_reauthentication_api_auth_reauthenticate_get",
         "active_consumer",
-        "frontend/lib/auth-api.ts",
+        "frontend/features/auth/auth-api.ts",
     ),
     ("GET", "/api/auth/session"): _operation(
         "account_session_api_auth_session_get",
         "active_consumer",
-        "frontend/lib/auth-api.ts",
+        "frontend/features/auth/auth-api.ts",
     ),
     ("PATCH", "/api/auth/session/profile"): _operation(
         "update_account_profile_api_auth_session_profile_patch",
         "active_consumer",
-        "frontend/lib/auth-api.ts",
+        "frontend/features/account/account-api.ts",
     ),
     ("GET", "/api/cooking-action-types"): _operation(
         "cooking_action_type_catalog_api_cooking_action_types_get",
@@ -109,22 +109,22 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("GET", "/api/cooks/{handle}"): _operation(
         "public_cook_profile_api_cooks__handle__get",
         "active_consumer",
-        "frontend/lib/recipe-library-server-api.ts",
+        "frontend/features/community/public-cook-profile-server-api.ts",
     ),
     ("DELETE", "/api/cooks/{handle}/follow"): _operation(
         "unfollow_cook_api_cooks__handle__follow_delete",
         "active_consumer",
-        "frontend/lib/member-follow-api.ts",
+        "frontend/features/community/member-follow-api.ts",
     ),
     ("GET", "/api/cooks/{handle}/follow"): _operation(
         "cook_follow_state_api_cooks__handle__follow_get",
         "active_consumer",
-        "frontend/lib/member-follow-api.ts",
+        "frontend/features/community/member-follow-api.ts",
     ),
     ("PUT", "/api/cooks/{handle}/follow"): _operation(
         "follow_cook_api_cooks__handle__follow_put",
         "active_consumer",
-        "frontend/lib/member-follow-api.ts",
+        "frontend/features/community/member-follow-api.ts",
     ),
     ("GET", "/api/health"): _operation(
         "health_check_api_health_get",
@@ -205,27 +205,27 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("GET", "/api/my/activity"): _operation(
         "my_member_activity_api_my_activity_get",
         "active_consumer",
-        "frontend/lib/member-activity-api.ts",
+        "frontend/features/account/member-activity-api.ts",
     ),
     ("GET", "/api/my/dashboard"): _operation(
         "my_member_dashboard_api_my_dashboard_get",
         "active_consumer",
-        "frontend/lib/member-activity-api.ts",
+        "frontend/features/account/member-activity-api.ts",
     ),
     ("GET", "/api/my/follow-stats"): _operation(
         "my_follow_stats_api_my_follow_stats_get",
         "active_consumer",
-        "frontend/lib/member-follow-api.ts",
+        "frontend/features/community/member-follow-api.ts",
     ),
     ("GET", "/api/my/followers"): _operation(
         "my_followers_api_my_followers_get",
         "active_consumer",
-        "frontend/lib/member-follow-api.ts",
+        "frontend/features/community/member-follow-api.ts",
     ),
     ("GET", "/api/my/community-activity"): _operation(
         "my_community_activity_api_my_community_activity_get",
         "active_consumer",
-        "frontend/lib/member-follow-api.ts",
+        "frontend/features/community/member-follow-api.ts",
     ),
     ("GET", "/api/my/saved-recipes"): _operation(
         "my_saved_recipe_library_api_my_saved_recipes_get",

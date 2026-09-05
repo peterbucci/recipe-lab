@@ -10,9 +10,9 @@ import {
   recipeDraftEntryErrorMessage,
   startOrResumeRecipeDraft,
 } from "../../lib/recipe-draft-entry";
-import { useAuthSession } from "./auth-session-provider";
+import { useAuthSession } from "../../features/auth/auth-session-provider";
 import { LoadingButton } from "../../shared/ui/loading-ui";
-import { MemberRouteGate } from "./member-route-gate";
+import { MemberRouteGate } from "../../features/auth/member-route-gate";
 import { RecipeDraftLoadingView } from "./recipe-draft-editor";
 
 interface RecipeDraftStarterProps {
