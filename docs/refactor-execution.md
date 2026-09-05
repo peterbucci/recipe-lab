@@ -109,7 +109,7 @@ journeys, canonical Linux rendering, production images, or release rehearsal:
 | Frontend production build | Passed; all 19 static pages generated |
 | Playwright functional discovery | 39 tests across 15 files discovered successfully |
 | Visual and accessibility baselines | 170 cases completed: 88 passed, 82 expected viewport skips, and 0 failures |
-| Tracked visual assets | 88 opaque PNG baselines reviewed; 0 stale, missing, or mismatched files |
+| Tracked visual assets | 82 opaque PNG baselines reviewed; the 88 passing browser cases included 6 non-screenshot checks; 0 stale, missing, or mismatched files |
 | ML tests | 323 collected; 322 passed and 1 expected skip |
 | Repository scripts | 112 tests passed, including 71 subprocess cases |
 | Static and contract gates | Repository policy, architecture, documentation links, OpenAPI, seed data, generated frontend contracts, CSS contracts, lint, and strict typing passed |
@@ -163,7 +163,8 @@ above. The [canonical visual review](baselines/2026-09-04-canonical-visual-revie
 explains the platform-dependent reference repair without treating its failed
 capture run as acceptance evidence.
 
-The separate frontend test-refactor plan, TF-01 through TF-08, is in the
+The separate frontend test-refactor plan, RCP-48A through RCP-48J, is tracked by
+the [RCP-48 epic](https://github.com/peterbucci/recipe-lab/issues/178) on the
 [refactor project Backlog](https://github.com/users/peterbucci/projects/6/views/1).
-It is not implemented by this integration merge and requires its own final
+It is implemented on its own integration branch and requires a separate final
 review before a future merge to `main`.
