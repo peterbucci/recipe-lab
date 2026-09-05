@@ -273,6 +273,7 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 
 async function expectHomepageDashboardReady(page: Page): Promise<void> {
   await expect(page).toHaveURL("/");
+  await expect(page).toHaveTitle("Recipe Lab");
   await expect(
     page.locator('a[href="/recipes/new"]').filter({ visible: true }),
   ).toHaveCount(1);
