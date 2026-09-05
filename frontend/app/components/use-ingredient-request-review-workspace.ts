@@ -88,11 +88,20 @@ export function useIngredientRequestReviewWorkspace(
           requestId,
           controller.signal,
         );
-        if (detailControllerRef.current !== controller) return;
+        if (
+          controller.signal.aborted ||
+          detailControllerRef.current !== controller
+        ) {
+          return;
+        }
         setDetail(result);
         setDetailError("");
       } catch (reason) {
-        if (isAbortError(reason) || detailControllerRef.current !== controller) {
+        if (
+          isAbortError(reason) ||
+          controller.signal.aborted ||
+          detailControllerRef.current !== controller
+        ) {
           return;
         }
         if (
@@ -118,6 +127,7 @@ export function useIngredientRequestReviewWorkspace(
   useEffect(() => {
     if (!selectedRequestId) {
       detailControllerRef.current?.abort();
+      detailControllerRef.current = null;
       return;
     }
     const controller = new AbortController();
@@ -125,7 +135,10 @@ export function useIngredientRequestReviewWorkspace(
     void Promise.resolve().then(() =>
       runDetailRequest(selectedRequestId, controller),
     );
-    return () => detailControllerRef.current?.abort();
+    return () => {
+      detailControllerRef.current?.abort();
+      detailControllerRef.current = null;
+    };
   }, [runDetailRequest, selectedRequestId]);
 
   const reloadQueue = useCallback(() => {
