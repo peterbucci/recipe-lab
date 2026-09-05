@@ -2,6 +2,15 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RecipeModerationApiError } from "../../lib/recipe-moderation-api";
+import {
+  MODERATOR_ID,
+  NOW,
+  RECIPE_ID,
+  SECOND_RECIPE_ID,
+  moderationDetail,
+  moderationSummary as summary,
+  secondModerationSummary as secondSummary,
+} from "../../tests/support/recipe-moderation";
 import { AuthSessionProvider } from "./auth-session-provider";
 import { RecipeModerationWorkspace } from "./recipe-moderation-workspace";
 
@@ -23,61 +32,7 @@ vi.mock("../../lib/recipe-moderation-api", async (importOriginal) => {
   };
 });
 
-const RECIPE_ID = "11111111-1111-4111-8111-111111111111";
-const SECOND_RECIPE_ID = "55555555-5555-4555-8555-555555555555";
-const AUTHOR_ID = "22222222-2222-4222-8222-222222222222";
-const REPORT_ID = "33333333-3333-4333-8333-333333333333";
-const MODERATOR_ID = "44444444-4444-4444-8444-444444444444";
-const NOW = "2026-08-26T12:00:00Z";
-
-const summary = {
-  recipe_version_id: RECIPE_ID,
-  title: "Reported soup",
-  author: { id: AUTHOR_ID, handle: "cook", display_name: "Recipe Cook" },
-  status: "open" as const,
-  visibility_state: "published" as const,
-  reporter_count: 2,
-  opened_at: NOW,
-  last_reported_at: NOW,
-  resolved_at: null,
-};
-
-const secondSummary = {
-  ...summary,
-  recipe_version_id: SECOND_RECIPE_ID,
-  title: "Flagged noodles",
-  author: {
-    id: "66666666-6666-4666-8666-666666666666",
-    handle: "noodle-cook",
-    display_name: "Noodle Cook",
-  },
-  reporter_count: 1,
-};
-
-const detail = {
-  ...summary,
-  reason_counts: [
-    { reason: "spam" as const, count: 1 },
-    { reason: "dangerous_content" as const, count: 1 },
-  ],
-  reports: [
-    { id: REPORT_ID, reason: "spam" as const, details: "Repeated affiliate links", submitted_at: NOW },
-  ],
-  reports_total: 1,
-  reports_truncated: false,
-  history: [{
-    id: 1,
-    action: "restore" as const,
-    previous_status: "open" as const,
-    status: "open" as const,
-    visibility_state: "published" as const,
-    private_note: "Previous private note",
-    occurred_at: NOW,
-    actor: { id: MODERATOR_ID, handle: "morgan", display_name: "Morgan Moderator" },
-  }],
-  history_total: 1,
-  history_truncated: false,
-};
+const detail = moderationDetail();
 
 function renderAuthorizedWorkspace() {
   return render(

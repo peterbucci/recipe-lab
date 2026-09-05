@@ -101,6 +101,7 @@ export function useRecipeModerationWorkspace({
       signal: controller.signal,
     })
       .then((result) => {
+        if (controller.signal.aborted) return;
         setQueue(result);
         setQueueError("");
         const current = selectedIdRef.current;
@@ -111,7 +112,7 @@ export function useRecipeModerationWorkspace({
         if (next !== current) selectCase(next);
       })
       .catch((reason: unknown) => {
-        if (isAbortError(reason)) return;
+        if (isAbortError(reason) || controller.signal.aborted) return;
         setQueue(null);
         selectCase(null);
         if (reason instanceof RecipeModerationApiError && reason.status === 403) {
@@ -131,11 +132,12 @@ export function useRecipeModerationWorkspace({
     const controller = new AbortController();
     void fetchRecipeModerationCase(selectedId, controller.signal)
       .then((result) => {
+        if (controller.signal.aborted) return;
         setDetail(result);
         setDetailError("");
       })
       .catch((reason: unknown) => {
-        if (isAbortError(reason)) return;
+        if (isAbortError(reason) || controller.signal.aborted) return;
         if (reason instanceof RecipeModerationApiError && reason.status === 403) {
           onAuthorizationLost();
           return;
