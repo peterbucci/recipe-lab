@@ -68,6 +68,37 @@ Use `.test.ts`, `.test.tsx`, or `.test.mjs` for Vitest and `.spec.ts` for
 Playwright. Helpers use neither suffix. Pure Node tests must not inherit jsdom
 merely because component tests need it.
 
+## Browser execution modes
+
+Every Playwright command selects exactly one owned directory. The unqualified
+`npm run test:e2e` and `npx playwright test` commands intentionally fail;
+they cannot guess a mode or silently mix guarded and controlled-data tests.
+
+| Mode | Command | Selected directory | Required environment |
+|---|---|---|---|
+| Smoke | `npm run test:e2e:smoke` | `e2e/smoke` | Controlled route fixtures; no real account |
+| Acceptance | `npm run test:e2e:acceptance` | `e2e/acceptance` | Isolated MVP database, session fixture, and explicit loopback services |
+| Visual/accessibility | `npm run test:e2e:visual` | `e2e/visual` | Built frontend plus the dedicated sanitized fixture |
+| Performance | `npm run test:e2e:performance` | `e2e/performance` | Isolated MVP database, explicit performance request, and loopback services |
+| Release | `npm run test:e2e:release` | `e2e/release` | Exact disposable RCP-32 database, local OIDC, manifest, and loopback services |
+
+`npm run test:e2e:discover` runs Playwright list discovery for all five modes
+with inert, allowlisted declarations. It fails if a config cannot load or a
+mode selects zero tests; it never starts a server or browser. Acceptance,
+performance, and release commands separately validate their real guard flags,
+database names, service URLs, and required fixture paths before discovery.
+
+The smoke mode keeps failure screenshots and first-retry traces because it uses
+controlled data. Acceptance, performance, and release modes always disable
+traces, screenshots, and video. Release also retains its single-worker,
+zero-retry behavior and, on CI, its GitHub-only reporter and privacy-safe
+file/line failure annotation.
+The visual config remains independent, deterministic, and limited to its
+reviewed aggregate plus expected/actual/diff image allowlist.
+All five modes currently use one worker: guarded modes own state, while the
+starting baseline proved the controlled smoke fixtures were unsafe at the old
+unbounded local default. Any increase belongs to measured scheduling work.
+
 ## Behavior ownership map
 
 This map prevents a coverage percentage or a screenshot from being mistaken

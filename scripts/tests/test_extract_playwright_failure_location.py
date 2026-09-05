@@ -14,9 +14,9 @@ from scripts.extract_playwright_failure_location import (
 
 class ExtractPlaywrightFailureLocationTests(unittest.TestCase):
     def test_extracts_only_the_first_stack_location(self) -> None:
-        spec_path = "/work/frontend/e2e/rcp32-community-release-gate.spec.ts"
+        spec_path = "/work/frontend/e2e/release/rcp32-community-release-gate.spec.ts"
         log = f"""
-        1) [chromium] › e2e/rcp32-community-release-gate.spec.ts:549:7
+        1) [chromium] › e2e/release/rcp32-community-release-gate.spec.ts:549:7
         RCP32_PRIVATE_REQUEST_CONTEXT_CANARY secret@example.invalid
             at publishDistinctOriginal ({spec_path}:324:22)
             at another helper ({spec_path}:999:4)
@@ -28,8 +28,8 @@ class ExtractPlaywrightFailureLocationTests(unittest.TestCase):
 
     def test_ignores_headers_and_unrelated_stack_frames(self) -> None:
         log = """
-        [chromium] › e2e/rcp32-community-release-gate.spec.ts:549:7
-            at helper (/work/frontend/e2e/home.spec.ts:480:5)
+        [chromium] › e2e/release/rcp32-community-release-gate.spec.ts:549:7
+            at helper (/work/frontend/e2e/smoke/home.spec.ts:480:5)
         """
         self.assertIsNone(extract_failure_location(log))
 
@@ -39,7 +39,7 @@ class ExtractPlaywrightFailureLocationTests(unittest.TestCase):
             path = Path(directory) / "browser.log"
             path.write_text(
                 canary
-                + "\n    at helper (C:\\work\\frontend\\e2e\\"
+                + "\n    at helper (C:\\work\\frontend\\e2e\\release\\"
                 + "rcp32-community-release-gate.spec.ts:1017:9)\n",
                 encoding="utf-8",
             )

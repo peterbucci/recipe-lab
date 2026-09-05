@@ -342,8 +342,7 @@ npm run lint
 npm run typecheck
 npm test
 npm run build
-npx --no-install playwright test --list
-npm run test:e2e:baseline -- --list
+npm run test:e2e:discover
 ```
 
 Run the offline evaluation checks and reproduce the synthetic verification
@@ -406,25 +405,27 @@ rank-fusion routes, reasons, and adoption guardrails are in the
 hard-constraint, ordering, caution, and benchmark contracts are in the
 [offline substitution rules engine](docs/substitution-engine.md).
 
-The Playwright list command validates test discovery without installing or
-launching a browser. To run the browser flow locally, keep the migrated and
-seeded backend running, install Chromium once, and then run the suite:
+The discovery command asks Playwright to list every explicit browser mode and
+fails if any mode selects zero tests. It does not install or launch a browser.
+To run the controlled-data browser smoke mode locally, install Chromium once,
+then run:
 
 ```powershell
 cd frontend
 npx playwright install chromium
-npm run test:e2e
+npm run test:e2e:smoke
 ```
 
-Ordinary browser flows stay anonymous: they can browse, inspect, and compare
-recipes without creating private activity. Authenticated activity is covered by
-the guarded acceptance run below.
+Smoke journeys use controlled route fixtures. Any signed-in state is invented
+inside the browser test and never uses a real account; real authentication and
+persisted activity remain in the guarded acceptance and release modes.
 
-The separate RCP-34B suite captures only sanitized invented states. Run its
-single-pass comparison from `frontend` with
-`npm run test:e2e:baseline`; use
-`npm run test:e2e:baseline:update` only after an intentional UI change has been
-reviewed. CI uses the pinned Playwright 1.62.1 Noble container and compares the
+The separate RCP-34B visual mode captures only sanitized invented states. Run
+its single-pass comparison from `frontend` with
+`npm run test:e2e:visual`; use
+`npm run test:e2e:visual -- --update-snapshots=all` only after an intentional
+UI change has been reviewed. CI uses the pinned Playwright 1.62.1 Noble
+container and compares the
 complete suite twice, so an image produced on a different browser, OS, or font
 stack is not an authoritative golden. The exact desktop/phone state matrix,
 fixture privacy contract, accessibility checks, screenshot review procedure,
@@ -432,7 +433,7 @@ performance budgets, and artifact-retention rules are in
 [deterministic regression baselines](docs/regression-baselines.md).
 
 The canonical MVP journey intentionally writes real member activity and an
-immutable recipe variant, so it is skipped during ordinary local browser runs.
+immutable recipe variant, so only the explicit acceptance mode selects it.
 CI provisions short-lived sessions for five synthetic members, including a
 narrow curator, a separate recipe moderator, and an account-deletion fixture,
 directly in its isolated database. This is a command-line test fixture, not a
@@ -459,8 +460,8 @@ $env:PLAYWRIGHT_WEB_SERVER_COMMAND = "npm run start -- --hostname 127.0.0.1 --po
 
 After migrating and seeding from `backend`, run
 `python -m app.testing.acceptance_sessions`, start the backend on port 8100,
-build the frontend, and run `npm run test:e2e`. The provisioner refuses every
-database name except `recipe_lab_acceptance` (CI) and
+build the frontend, and run `npm run test:e2e:acceptance`. The provisioner
+refuses every database name except `recipe_lab_acceptance` (CI) and
 `recipe_lab_acceptance_local` (local), refuses a non-temporary fixture path, and
 will not overwrite an existing token file. Delete that file after the run. The
 two guard flags acknowledge a disposable target; they do not create one.

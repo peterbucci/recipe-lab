@@ -596,7 +596,7 @@ account cleanup, and retained public authorship under `Deleted cook`.
 Backend integration separately verifies exactly-one event,
 retry, rollback, source-loss, and concurrent-sibling behavior. Keyboard
 activation and automated WCAG A/AA checks cover the basic accessibility gate.
-The test is disabled unless both
+The acceptance mode refuses to load unless both
 `MVP_ACCEPTANCE=1` and `ACCEPTANCE_DATABASE_ISOLATED=1` are explicitly set, and
 guarded local runs require explicit frontend and backend URLs on ports other
 than the normal 3000 and 8000. The flags attest that the caller provisioned an

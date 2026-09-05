@@ -161,7 +161,7 @@ Build the production frontend, start the provider with
 `python -m app.testing.local_oidc_provider --port 8200`, and start FastAPI on
 port `8201` with `--no-access-log`. Redirect provider, backend, and browser
 output to private temporary log files. From `frontend`, run
-`npm run test:e2e:release-gate`; it starts the configured production frontend
+`npm run test:e2e:release`; it starts the configured production frontend
 and writes the exclusive UUID manifest.
 
 Then verify both the live database and a real restored copy. These commands

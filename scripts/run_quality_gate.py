@@ -135,17 +135,7 @@ def _frontend() -> tuple[Check, ...]:
     return (
         _npm(*test_arguments),
         _npm("run", "build"),
-        Check(
-            label="npx --no-install playwright test --list",
-            arguments=(
-                shutil.which("npx") or "npx",
-                "--no-install",
-                "playwright",
-                "test",
-                "--list",
-            ),
-            working_directory=REPOSITORY / "frontend",
-        ),
+        _npm("run", "test:e2e:discover"),
     )
 
 
