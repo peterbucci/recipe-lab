@@ -49,20 +49,31 @@ def test_events_keep_smoke_and_full_jobs_on_declared_tiers() -> None:
         assert "github.event_name != 'pull_request'" in _job(workflow, job_id)
 
 
-def test_pull_request_browser_smoke_is_bounded_required_and_artifact_free() -> None:
+def test_pull_request_browser_smoke_is_bounded_isolated_and_artifact_free() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     smoke = _job(workflow, "browser-smoke")
 
     assert "name: Browser smoke and engine sanity" in smoke
     assert "timeout-minutes: 10" in smoke
     assert "mcr.microsoft.com/playwright:v1.62.1-noble@sha256:" in smoke
+    assert "HOME: /root" in smoke
+    assert "POSTGRES_DB: recipe_lab_smoke" in smoke
+    assert (
+        "DATABASE_URL: "
+        "postgresql+psycopg://recipe_lab:recipe_lab@postgres:5432/recipe_lab_smoke" in smoke
+    )
     assert "persist-credentials: false" in smoke
+    assert "uv sync --frozen --package recipe-lab-api" in smoke
+    assert "python -m alembic upgrade head" in smoke
+    assert "python -m app.seeds load" in smoke
+    assert "python -m uvicorn app.main:app --host 127.0.0.1 --port 8000" in smoke
+    assert "http://127.0.0.1:8000/api/health" in smoke
     assert "npm ci" in smoke
     assert "npm run test:e2e:smoke -- --list" in smoke
     assert re.search(r"^\s+run: npm run test:e2e:smoke$", smoke, re.MULTILINE)
     assert "rm -rf -- test-results playwright-report" in smoke
+    assert 'kill "$(cat "$RUNNER_TEMP/recipe-lab-smoke-backend.pid")"' in smoke
     assert "actions/upload-artifact@" not in smoke
-    assert "DATABASE_URL" not in smoke
     assert "ACCEPTANCE_SESSION_FIXTURE" not in smoke
     assert "OIDC_" not in smoke
 

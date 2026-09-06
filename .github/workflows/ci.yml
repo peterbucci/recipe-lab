@@ -199,11 +199,32 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac
       options: --ipc=host
+    services:
+      postgres:
+        image: postgres:17.11-alpine@sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee
+        env:
+          POSTGRES_DB: recipe_lab_smoke
+          POSTGRES_USER: recipe_lab
+          POSTGRES_PASSWORD: recipe_lab
+        options: >-
+          --health-cmd "pg_isready -U recipe_lab -d recipe_lab_smoke"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     timeout-minutes: 10
     defaults:
       run:
         working-directory: frontend
     env:
+      # The pinned Playwright container runs jobs as root, so Firefox requires
+      # HOME to point at a root-owned directory rather than /github/home.
+      HOME: /root
+      APP_ENVIRONMENT: local
+      DATABASE_URL: postgresql+psycopg://recipe_lab:recipe_lab@postgres:5432/recipe_lab_smoke
+      CORS_ORIGINS: http://127.0.0.1:3000
+      AUTH_ALLOWED_ORIGINS: http://127.0.0.1:3000
+      RECIPE_API_URL: http://127.0.0.1:8000
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
       NEXT_TELEMETRY_DISABLED: "1"
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
       PLAYWRIGHT_WEB_SERVER_COMMAND: npm run dev -- --hostname 127.0.0.1
@@ -214,8 +235,36 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up locked Python
+        uses: ./.github/actions/setup-python
+
       - name: Set up locked Node.js
         uses: ./.github/actions/setup-node
+
+      - name: Install exact backend dependencies
+        working-directory: .
+        run: |
+          uv lock --check
+          uv sync --frozen --package recipe-lab-api
+          uv pip check
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Migrate, seed, and start isolated smoke API
+        working-directory: backend
+        shell: bash
+        run: |
+          python -m alembic upgrade head
+          python -m app.seeds load
+          nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 \
+            > "$RUNNER_TEMP/recipe-lab-smoke-backend.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/recipe-lab-smoke-backend.pid"
+
+      - name: Wait for isolated smoke API
+        working-directory: .
+        run: >-
+          python scripts/wait_for_services.py
+          --timeout 30
+          --service "backend=http://127.0.0.1:8000/api/health,$RUNNER_TEMP/recipe-lab-smoke-backend.pid"
 
       - name: Install exact frontend dependencies
         run: npm ci
@@ -229,6 +278,18 @@ jobs:
       - name: Remove local browser diagnostics
         if: ${{ always() }}
         run: rm -rf -- test-results playwright-report
+
+      - name: Stop isolated smoke API
+        if: ${{ always() }}
+        working-directory: .
+        shell: bash
+        run: |
+          if test -f "$RUNNER_TEMP/recipe-lab-smoke-backend.pid"; then
+            kill "$(cat "$RUNNER_TEMP/recipe-lab-smoke-backend.pid")" 2>/dev/null || true
+          fi
+          rm -f -- \
+            "$RUNNER_TEMP/recipe-lab-smoke-backend.pid" \
+            "$RUNNER_TEMP/recipe-lab-smoke-backend.log"
 
   rcp34b-baselines:
     name: RCP-34B deterministic baselines
