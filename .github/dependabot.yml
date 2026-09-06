@@ -8,8 +8,12 @@ updates:
       time: "13:00"
       timezone: America/New_York
     groups:
-      github-actions:
-        patterns: ["*"]
+      github-actions-non-major:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: npm
     directory: /frontend
@@ -19,21 +23,27 @@ updates:
       time: "13:10"
       timezone: America/New_York
     groups:
-      frontend:
-        patterns: ["*"]
+      frontend-non-major:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
-  - package-ecosystem: pip
-    directories:
-      - /backend
-      - /ml
+  - package-ecosystem: uv
+    directory: /
     schedule:
       interval: weekly
       day: monday
       time: "13:20"
       timezone: America/New_York
     groups:
-      python-workspace:
-        patterns: ["*"]
+      python-workspace-non-major:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: docker
     directories:
@@ -45,5 +55,9 @@ updates:
       time: "13:30"
       timezone: America/New_York
     groups:
-      container-bases:
-        patterns: ["*"]
+      container-bases-non-major:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
