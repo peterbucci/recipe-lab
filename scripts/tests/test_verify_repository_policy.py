@@ -34,6 +34,44 @@ class RepositoryPolicyTests(unittest.TestCase):
             "POSTGRES_IMAGE=example.invalid/postgres:v1@sha256:" + "b" * 64 + "\n",
             encoding="utf-8",
         )
+        (self.repository / ".github" / "dependabot.yml").write_text(
+            """version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    groups:
+      actions-non-major:
+        patterns: ["*"]
+        update-types:
+          - minor
+          - patch
+  - package-ecosystem: npm
+    directory: /frontend
+    groups:
+      frontend-non-major:
+        patterns: ["*"]
+        update-types:
+          - minor
+          - patch
+  - package-ecosystem: uv
+    directory: /
+    groups:
+      python-non-major:
+        patterns: ["*"]
+        update-types:
+          - minor
+          - patch
+  - package-ecosystem: docker
+    directory: /frontend
+    groups:
+      containers-non-major:
+        patterns: ["*"]
+        update-types:
+          - minor
+          - patch
+""",
+            encoding="utf-8",
+        )
         postgres_image = "example.invalid/postgres:v1@sha256:" + "b" * 64
         (self.repository / "compose.yaml").write_text(
             "\n".join(
@@ -142,6 +180,49 @@ class RepositoryPolicyTests(unittest.TestCase):
         self.assertIn("frontend Compose health check is missing", messages)
         self.assertTrue(
             any("Docker build context does not exclude" in message for message in messages)
+        )
+
+    def test_reports_dependabot_lockfile_and_major_grouping_drift(self) -> None:
+        (self.repository / ".github" / "dependabot.yml").write_text(
+            """version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    groups:
+      actions:
+        update-types:
+          - major
+  - package-ecosystem: npm
+    directory: /frontend
+  - package-ecosystem: pip
+    directories:
+      - /backend
+      - /ml
+  - package-ecosystem: docker
+    directory: /frontend
+    groups:
+      containers:
+        update-types:
+          - minor
+          - patch
+""",
+            encoding="utf-8",
+        )
+
+        messages = [item.message for item in policy.audit_dependabot_policy(self.repository)]
+
+        self.assertIn(
+            "Python workspace updates must use the uv ecosystem so uv.lock is updated",
+            messages,
+        )
+        self.assertIn("Dependabot does not configure the uv ecosystem", messages)
+        self.assertIn(
+            "github-actions groups must contain only minor and patch updates",
+            messages,
+        )
+        self.assertIn(
+            "npm groups must contain only minor and patch updates",
+            messages,
         )
 
 
