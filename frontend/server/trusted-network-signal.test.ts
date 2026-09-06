@@ -199,7 +199,7 @@ describe("trusted frontend network boundary", () => {
       verifyNetworkSignalHeaders(new Headers(signal ?? {}), {
         method: "POST",
         path: "/api/recipe-drafts",
-        secret: "different-network-signal-secret-123456789",
+        secret: [SECRET, "different"].join("-"),
         now: timestamp,
       }),
     ).toBeNull();
