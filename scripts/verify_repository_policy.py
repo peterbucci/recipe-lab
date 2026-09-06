@@ -19,6 +19,10 @@ WORKFLOW_IMAGE = re.compile(r"^\s*image:\s*([^\s#]+)")
 COMPOSE_VARIABLE = re.compile(r"\$\{([A-Z][A-Z0-9_]*)")
 ENVIRONMENT_ASSIGNMENT = re.compile(r"^([A-Z][A-Z0-9_]*)=")
 DOCKERFILE_IMAGE_ARGUMENT = re.compile(r"^ARG\s+[A-Z][A-Z0-9_]*_IMAGE=(\S+)")
+DEPENDABOT_ECOSYSTEM = re.compile(r'^\s*-\s+package-ecosystem:\s*["\']?([^"\'\s]+)["\']?\s*$')
+DEPENDABOT_UPDATE_TYPE = re.compile(r"^\s*-\s+(minor|patch|major)\s*$")
+
+REQUIRED_DEPENDABOT_ECOSYSTEMS = frozenset({"github-actions", "npm", "uv", "docker"})
 
 REQUIRED_DOCKER_EXCLUSIONS = {
     ".dockerignore": frozenset(
@@ -203,6 +207,70 @@ def audit_compose_environment(repository: Path) -> list[Violation]:
     return violations
 
 
+def audit_dependabot_policy(repository: Path) -> list[Violation]:
+    """Keep automated updates compatible with the repository's lockfile ownership."""
+
+    path = repository / ".github" / "dependabot.yml"
+    relative = ".github/dependabot.yml"
+    if not path.is_file():
+        return [Violation(relative, 1, "Dependabot configuration is missing")]
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    starts = [
+        (index, match.group(1))
+        for index, line in enumerate(lines)
+        if (match := DEPENDABOT_ECOSYSTEM.match(line))
+    ]
+    blocks: dict[str, list[tuple[int, list[str]]]] = {}
+    for position, (start, ecosystem) in enumerate(starts):
+        end = starts[position + 1][0] if position + 1 < len(starts) else len(lines)
+        blocks.setdefault(ecosystem, []).append((start, lines[start:end]))
+
+    violations: list[Violation] = []
+    configured = frozenset(blocks)
+    for ecosystem in sorted(REQUIRED_DEPENDABOT_ECOSYSTEMS - configured):
+        violations.append(
+            Violation(relative, 1, f"Dependabot does not configure the {ecosystem} ecosystem")
+        )
+
+    if "pip" in configured:
+        line = blocks["pip"][0][0] + 1
+        violations.append(
+            Violation(
+                relative,
+                line,
+                "Python workspace updates must use the uv ecosystem so uv.lock is updated",
+            )
+        )
+
+    for ecosystem in sorted(REQUIRED_DEPENDABOT_ECOSYSTEMS & configured):
+        for start, block in blocks[ecosystem]:
+            update_types = {
+                match.group(1) for line in block if (match := DEPENDABOT_UPDATE_TYPE.match(line))
+            }
+            if update_types != {"minor", "patch"}:
+                violations.append(
+                    Violation(
+                        relative,
+                        start + 1,
+                        f"{ecosystem} groups must contain only minor and patch updates",
+                    )
+                )
+
+    for start, block in blocks.get("uv", []):
+        normalized = {line.strip().replace('"', "").replace("'", "") for line in block}
+        if "directory: /" not in normalized:
+            violations.append(
+                Violation(
+                    relative,
+                    start + 1,
+                    "uv updates must run from the repository root that owns uv.lock",
+                )
+            )
+
+    return violations
+
+
 def audit_repository(repository: Path) -> tuple[Violation, ...]:
     """Audit every checked-in workflow without modifying policy or lock files."""
 
@@ -222,6 +290,7 @@ def audit_repository(repository: Path) -> tuple[Violation, ...]:
                 ),
                 *audit_docker_policy(repository),
                 *audit_compose_environment(repository),
+                *audit_dependabot_policy(repository),
             ]
         )
     )
