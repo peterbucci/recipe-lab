@@ -4,10 +4,9 @@ import { defineConfig, defineProject } from "vitest/config";
 
 export const NODE_TEST_INCLUDE = [
   "features/**/*.test.ts",
-  "lib/**/*.test.ts",
   "shared/api/**/*.test.ts",
   "shared/time/**/*.test.ts",
-  "performance/**/*.test.ts",
+  "e2e/performance/**/*.test.ts",
   "scripts/**/*.test.{mjs,ts}",
   "server/**/*.test.{mjs,ts}",
   "tests/{config,contracts}/**/*.test.{mjs,ts}",
@@ -15,7 +14,7 @@ export const NODE_TEST_INCLUDE = [
 
 // These colocated tests deliberately exercise cookies, session storage,
 // browser events, or the browser transport. All other TypeScript tests in
-// feature, lib, and non-UI shared owners stay in Node.
+// feature and non-UI shared owners stay in Node.
 export const JSDOM_LIBRARY_TEST_INCLUDE = [
   "shared/api/browser.test.ts",
   "features/account/account-api.test.ts",
@@ -57,7 +56,7 @@ export const VITEST_PROJECT_NAMES = {
 export const COVERAGE_SOURCE_INCLUDE = [
   "app/**/*.{ts,tsx}",
   "features/**/*.{ts,tsx}",
-  "lib/**/*.ts",
+  "e2e/performance/public-performance-baseline.ts",
   "shared/**/*.{ts,tsx}",
   "shell/**/*.{ts,tsx}",
   "server/**/*.{mjs,ts}",

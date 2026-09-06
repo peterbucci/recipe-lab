@@ -7,8 +7,9 @@
 Frontend modules follow the route, feature, shared-infrastructure, application-
 shell, and server ownership boundaries in
 [Frontend ownership architecture](frontend-organization.md). The checked
-migration inventory makes those dependency rules enforceable while legacy
-`app/components` and `lib` modules move story by story.
+source inventory enforces those dependency rules, rejects dependency cycles,
+and requires the retired `app/components` and `lib` locations to remain
+empty of source files.
 
 The Next.js application owns rendering and user interactions. Recipe browse,
 detail, and comparison routes are server components that call the API through

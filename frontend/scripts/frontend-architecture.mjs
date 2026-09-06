@@ -25,80 +25,117 @@ export const FRONTEND_OWNERS = Object.freeze({
 
 const RUNTIME_ROOTS = ["app", "features", "shared", "shell", "server", "lib"];
 
-function moduleFamilies(...names) {
-  const alternatives = names
-    .sort((left, right) => right.length - left.length)
-    .map((name) => name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join("|");
-  return new RegExp(`^(?:app/components|lib)/(?:${alternatives})(?:[./]|$)`);
-}
+const TYPESCRIPT_SOURCE_SUBSTITUTIONS = Object.freeze({
+  ".cjs": [".cts"],
+  ".js": [".ts", ".tsx"],
+  ".jsx": [".tsx", ".ts"],
+  ".mjs": [".mts"],
+});
 
-export const LEGACY_MIGRATION_RULES = Object.freeze([
+const REVIEWED_CROSS_FEATURE_DEPENDENCIES = Object.freeze([
   {
-    story: "RCP-49B",
-    destination: "shared/ui or shell",
-    pattern: moduleFamilies(
-      "loading-status",
-      "loading-ui",
-      "navigation-blocker-provider",
-      "overlay-primitives",
-      "site-footer",
-      "site-header",
-      "use-floating-panel-placement",
-      "workspace-empty-state",
-      "workspace-pagination",
-      "workspace-panel-header",
-      "workspace-primitives",
-      "workspace-state",
-      "workspace-tab-menu",
-    ),
+    importer: /^features\/account\//,
+    dependency: /^features\/auth\/(?:auth-api|auth-session-provider)\.(?:ts|tsx)$/,
   },
   {
-    story: "RCP-49F",
-    destination: "features/recipes/browse, detail, library, or shared",
-    pattern: moduleFamilies(
-      "catalog-category-retry",
-      "format",
-      "interaction-api",
-      "member-recipe-card",
-      "member-recipe-presentation",
-      "my-recipe-library",
-      "my-recipe-library-state",
-      "my-recipes-hub",
-      "pagination",
-      "rating-summary",
-      "recipe-action-icons",
-      "recipe-api",
-      "recipe-id",
-      "recipe-artwork",
-      "recipe-browse-query",
-      "recipe-browser",
-      "recipe-card",
-      "recipe-card-engagement",
-      "recipe-card-shell",
-      "recipe-catalog-filters",
-      "recipe-category",
-      "recipe-category-client-api",
-      "recipe-category-list",
-      "recipe-detail-experience",
-      "recipe-detail-tabs",
-      "recipe-detail-view",
-      "recipe-diff-view",
-      "recipe-family-client-api",
-      "recipe-family-navigator",
-      "recipe-instruction-actions",
-      "recipe-instructions-panel",
-      "recipe-interaction-panel",
-      "recipe-library-api",
-      "recipe-library-model",
-      "recipe-library-views",
-      "recipe-member-actions",
-      "recipe-view-tracker",
-      "recipe-viewer-state",
-      "recipe-visibility-api",
-      "recipe-visibility-control",
-      "saved-recipe-library",
-    ),
+    importer: /^features\/account\/member-activity-api\.ts$/,
+    dependency:
+      /^features\/recipes\/authoring\/draft\/recipe-draft-api\.ts$/,
+  },
+  {
+    importer: /^features\/auth\/auth-api\.test\.ts$/,
+    dependency: /^features\/account\/account-api\.ts$/,
+  },
+  {
+    importer: /^features\/community\/cook-follow-control(?:\.test)?\.tsx$/,
+    dependency: /^features\/auth\/auth-session-provider\.tsx$/,
+  },
+  {
+    importer: /^features\/community\//,
+    dependency: /^features\/recipes\/shared\//,
+  },
+  {
+    importer:
+      /^features\/moderation\/reporting\/recipe-report-access(?:\.test)?\.tsx$/,
+    dependency: /^features\/auth\/auth-session-provider\.tsx$/,
+  },
+  {
+    importer: /^features\/moderation\//,
+    dependency: /^features\/recipes\/shared\//,
+  },
+  {
+    importer: /^features\/recipes\/(?:authoring|browse|detail|library)\//,
+    dependency:
+      /^features\/auth\/(?:auth-api|auth-session-provider|member-route-gate)\.(?:ts|tsx)$/,
+  },
+  {
+    importer: /^features\/recipes\/(?:browse|detail|library)\//,
+    dependency:
+      /^features\/community\/(?:cook-follow-control|member-follow-api|public-cook-attribution)\.(?:ts|tsx)$/,
+  },
+  {
+    importer: /^features\/recipes\/authoring\//,
+    dependency:
+      /^features\/ingredients\/(?:ingredient-catalog-picker|ingredient-model)\.(?:ts|tsx)$/,
+  },
+  {
+    importer: /^features\/recipes\/detail\//,
+    dependency:
+      /^features\/moderation\/reporting\/recipe-report-access\.tsx$/,
+  },
+]);
+
+const REVIEWED_RECIPE_WORKFLOW_DEPENDENCIES = Object.freeze([
+  {
+    importer:
+      /^features\/recipes\/(?:authoring|browse|detail|library)\//,
+    dependency: /^features\/recipes\/shared\//,
+  },
+  {
+    importer:
+      /^features\/recipes\/authoring\/editor\/recipe-category-selector\.tsx$/,
+    dependency:
+      /^features\/recipes\/browse\/recipe-category-client-api\.ts$/,
+  },
+  {
+    importer:
+      /^features\/recipes\/browse\/recipe-card-engagement\.tsx$/,
+    dependency: /^features\/recipes\/detail\/interaction-api\.ts$/,
+  },
+  {
+    importer:
+      /^features\/recipes\/detail\/recipe-detail-view\.tsx$/,
+    dependency:
+      /^features\/recipes\/authoring\/draft\/recipe-draft-editor-entry\.ts$/,
+  },
+  {
+    importer:
+      /^features\/recipes\/detail\/recipe-member-actions\.tsx$/,
+    dependency:
+      /^features\/recipes\/authoring\/draft\/recipe-draft-(?:api|editor-entry|entry)\.ts$/,
+  },
+  {
+    importer:
+      /^features\/recipes\/detail\/recipe-member-actions\.test\.tsx$/,
+    dependency:
+      /^features\/recipes\/authoring\/draft\/recipe-draft-(?:api|editor-entry)\.ts$/,
+  },
+  {
+    importer:
+      /^features\/recipes\/library\/(?:my-recipe-library\.tsx|recipe-library-model\.ts)$/,
+    dependency:
+      /^features\/recipes\/authoring\/draft\/recipe-draft-api\.ts$/,
+  },
+  {
+    importer:
+      /^features\/recipes\/library\/saved-recipe-library\.tsx$/,
+    dependency: /^features\/recipes\/detail\/interaction-api\.ts$/,
+  },
+  {
+    importer:
+      /^features\/recipes\/shared\/recipe-api-behavior\.test\.ts$/,
+    dependency:
+      /^features\/recipes\/(?:browse\/recipe-browse-server-api|detail\/recipe-detail-server-api)\.ts$/,
   },
 ]);
 
@@ -137,21 +174,71 @@ export function ownerForPath(path) {
   return undefined;
 }
 
-export function migrationRuleForLegacyPath(path) {
-  const candidate = normalized(path);
-  return LEGACY_MIGRATION_RULES.find(({ pattern }) => pattern.test(candidate));
+export function reviewedCrossFeatureDependency(importerPath, dependencyPath) {
+  const importer = normalized(importerPath);
+  const dependency = normalized(dependencyPath);
+  return REVIEWED_CROSS_FEATURE_DEPENDENCIES.some(
+    (rule) => rule.importer.test(importer) && rule.dependency.test(dependency),
+  );
+}
+
+function recipeWorkflowForPath(path) {
+  const segment = /^features\/recipes\/([^/]+)(?:\/|$)/.exec(
+    normalized(path),
+  )?.[1];
+  if (!segment) return undefined;
+  return segment.includes(".") ? "(root)" : segment;
+}
+
+export function reviewedRecipeWorkflowDependency(importerPath, dependencyPath) {
+  const importer = normalized(importerPath);
+  const dependency = normalized(dependencyPath);
+  return REVIEWED_RECIPE_WORKFLOW_DEPENDENCIES.some(
+    (rule) => rule.importer.test(importer) && rule.dependency.test(dependency),
+  );
 }
 
 export function forbiddenDependencyReason(importerPath, dependencyPath) {
   const importer = ownerForPath(importerPath);
   const dependency = ownerForPath(dependencyPath);
-  if (!importer || !dependency || importer.kind === FRONTEND_OWNERS.legacy) {
+  if (!importer || !dependency) {
     return undefined;
   }
+  if (importer.kind === FRONTEND_OWNERS.legacy) {
+    return "retired legacy source locations cannot own dependencies";
+  }
   if (dependency.kind === FRONTEND_OWNERS.legacy) {
-    return importer.kind === FRONTEND_OWNERS.shared
-      ? "shared modules cannot depend on legacy modules"
-      : undefined;
+    return `${importer.kind} modules cannot depend on retired legacy source locations`;
+  }
+  if (
+    importer.kind === FRONTEND_OWNERS.features &&
+    dependency.kind === FRONTEND_OWNERS.features
+  ) {
+    const importerWorkflow = recipeWorkflowForPath(importerPath);
+    const dependencyWorkflow = recipeWorkflowForPath(dependencyPath);
+    if (
+      importer.feature === "recipes" &&
+      dependency.feature === "recipes"
+    ) {
+      if (
+        importerWorkflow &&
+        dependencyWorkflow &&
+        importerWorkflow === dependencyWorkflow
+      ) {
+        return undefined;
+      }
+      if (reviewedRecipeWorkflowDependency(importerPath, dependencyPath)) {
+        return undefined;
+      }
+      return `features/recipes/${importerWorkflow ?? "(unknown)"} modules cannot depend on the unreviewed features/recipes/${dependencyWorkflow ?? "(unknown)"} boundary`;
+    }
+    if (
+      importer.feature === dependency.feature ||
+      reviewedCrossFeatureDependency(importerPath, dependencyPath)
+    ) {
+      return undefined;
+    }
+    return `features/${importer.feature} modules cannot depend on the unreviewed features/${dependency.feature} boundary`;
   }
   if (
     importer.kind === FRONTEND_OWNERS.routes &&
@@ -168,10 +255,7 @@ export function forbiddenDependencyReason(importerPath, dependencyPath) {
       FRONTEND_OWNERS.shared,
       FRONTEND_OWNERS.shell,
     ]),
-    [FRONTEND_OWNERS.features]: new Set([
-      FRONTEND_OWNERS.features,
-      FRONTEND_OWNERS.shared,
-    ]),
+    [FRONTEND_OWNERS.features]: new Set([FRONTEND_OWNERS.shared]),
     [FRONTEND_OWNERS.shared]: new Set([FRONTEND_OWNERS.shared]),
     [FRONTEND_OWNERS.shell]: new Set([
       FRONTEND_OWNERS.shared,
@@ -254,6 +338,49 @@ export function clientServerBoundaryErrors(graph, clients, serverModules) {
   return errors;
 }
 
+export function runtimeDependencyCycleErrors(graph) {
+  const errors = [];
+  const emitted = new Set();
+  const state = new Map();
+  const stack = [];
+
+  function visit(modulePath) {
+    const currentState = state.get(modulePath);
+    if (currentState === "visited") return;
+    if (currentState === "visiting") {
+      const cycleStart = stack.indexOf(modulePath);
+      const cycle = [...stack.slice(cycleStart), modulePath];
+      const members = cycle.slice(0, -1);
+      const smallest = members.reduce(
+        (best, candidate, index) =>
+          candidate < members[best] ? index : best,
+        0,
+      );
+      const canonicalMembers = [
+        ...members.slice(smallest),
+        ...members.slice(0, smallest),
+      ];
+      const canonical = [...canonicalMembers, canonicalMembers[0]].join(" -> ");
+      if (!emitted.has(canonical)) {
+        emitted.add(canonical);
+        errors.push(`${canonical}: circular runtime dependency`);
+      }
+      return;
+    }
+
+    state.set(modulePath, "visiting");
+    stack.push(modulePath);
+    for (const dependency of [...(graph.get(modulePath) ?? [])].sort()) {
+      if (graph.has(dependency)) visit(dependency);
+    }
+    stack.pop();
+    state.set(modulePath, "visited");
+  }
+
+  for (const modulePath of [...graph.keys()].sort()) visit(modulePath);
+  return errors.sort();
+}
+
 function resolveInternalImport(sourceRoot, importer, specifier, sources) {
   let base;
   if (specifier.startsWith("@/")) {
@@ -263,7 +390,14 @@ function resolveInternalImport(sourceRoot, importer, specifier, sources) {
   } else {
     return undefined;
   }
+  const explicitExtension = extname(base);
+  const substitutionStem = explicitExtension
+    ? base.slice(0, -explicitExtension.length)
+    : base;
+  const substitutions =
+    TYPESCRIPT_SOURCE_SUBSTITUTIONS[explicitExtension] ?? [];
   const candidates = [
+    ...substitutions.map((extension) => `${substitutionStem}${extension}`),
     base,
     ...[...SOURCE_EXTENSIONS].map((extension) => `${base}${extension}`),
     ...[...SOURCE_EXTENSIONS].map((extension) => join(base, `index${extension}`)),
@@ -285,13 +419,13 @@ export function auditFrontendArchitecture(
     const relativePath = normalized(relative(sourceRoot, path));
     const owner = ownerForPath(relativePath);
     if (!owner) errors.push(`${relativePath}: no frontend owner`);
-    if (owner?.kind === FRONTEND_OWNERS.legacy && !migrationRuleForLegacyPath(relativePath)) {
-      errors.push(`${relativePath}: missing legacy migration owner`);
+    if (owner?.kind === FRONTEND_OWNERS.legacy) {
+      errors.push(`${relativePath}: retired legacy source location is not allowed`);
     }
     if (
       owner &&
       owner.kind !== FRONTEND_OWNERS.legacy &&
-      /\/(?:index)\.(?:ts|tsx|js|jsx|mjs|cjs)$/.test(`/${relativePath}`)
+      /\/(?:index)\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(`/${relativePath}`)
     ) {
       errors.push(`${relativePath}: broad barrel files are not allowed`);
     }
@@ -327,6 +461,7 @@ export function auditFrontendArchitecture(
     runtimeGraph.set(importer, dependencies);
   }
   errors.push(...clientServerBoundaryErrors(runtimeGraph, clients, serverModules));
+  errors.push(...runtimeDependencyCycleErrors(runtimeGraph));
 
   return {
     errors: errors.sort(),
@@ -347,7 +482,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       process.exitCode = 1;
     } else {
       console.log(
-        `Frontend architecture audit passed: ${result.sources.length} source files; ${result.legacy.length} remain in migration-owned legacy folders.`,
+        `Frontend architecture audit passed: ${result.sources.length} source files; ${result.legacy.length} files in retired app/components and lib locations.`,
       );
     }
   } catch (error) {

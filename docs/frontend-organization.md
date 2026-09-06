@@ -1,8 +1,8 @@
 # Frontend ownership architecture
 
 This document defines where frontend code belongs and which dependency
-directions are allowed. It is the migration contract for RCP-49 and the
-long-term placement rule after the migration is complete.
+directions are allowed. RCP-49 completed this structure; these are the
+long-term placement rules for every subsequent change.
 
 The refactor changes ownership and file placement, not product behavior. Route
 URLs, API requests and responses, member-visible language, stylesheet order,
@@ -44,10 +44,12 @@ purposeful folders are acceptable; empty speculative folders are not. The app
 does not gain a `src` wrapper merely to move the same hierarchy one level
 deeper.
 
-The existing `app/styles` stylesheet manifest and cascade order remain in place
-during the feature migration. A later move is allowed only as a mechanical
-final-cleanup step that keeps `app/globals.css` import order and every CSS layer
-unchanged.
+The existing `app/styles` stylesheet manifest and cascade order remain in
+place. Any future move must be a separately reviewed mechanical change that
+keeps `app/globals.css` import order and every CSS layer unchanged.
+
+`app/components` and `lib` are retired source locations. New runtime, test,
+or support modules in either directory fail the architecture check.
 
 ## Ownership rules
 
@@ -115,6 +117,20 @@ Shared code imports only shared code. Server code imports server or shared
 code. The Next API route is the reviewed exception that may import the
 streaming proxy from `server`.
 
+| Importer | Allowed dependencies |
+|---|---|
+| `app` | `app`, `features`, `shared`, and `shell`; Next API route modules may also import `server` |
+| `features` | `shared`, the same feature, and only reviewed cross-feature public modules |
+| `shared` | `shared` |
+| `shell` | `shell` and `shared` |
+| `server` | `server` and `shared` |
+
+Recipe workflows have an additional boundary. Browse, detail, library, and
+authoring may consume `features/recipes/shared`. Other cross-workflow imports
+are limited to the small existing integration seams named in the architecture
+checker. Recipe shared code cannot import authoring, community cannot import
+the private recipe library, and authoring cannot import private detail modules.
+
 Use explicit module imports. Feature-root or shared-root barrel files are not
 allowed because they hide dependency direction and can combine client and
 server graphs. Preserve every existing `"use client"` boundary when moving a
@@ -135,16 +151,12 @@ Every story updates all path consumers in the same change:
 - generated-contract destinations and consumer evidence where applicable;
 - route-theme evidence and current documentation links.
 
-`npm run architecture:check` rejects legacy files without a named migration
-owner, outward imports in the target structure, and broad barrel files. It is
-part of `npm run ci:verify`. The final story removes the transitional legacy
-allowance only after `app/components` and `lib` no longer own runtime code.
-
-Shared API infrastructure may not import migration-owned legacy modules.
-The architecture check follows runtime imports from every `"use client"`
-boundary and rejects direct or indirect paths into a marked server module or
-the standalone `server` directory. Type-only imports do not enter that runtime
-graph. Next's `server-only` compiler checks complement this source audit;
+`npm run architecture:check` rejects any source in the retired
+`app/components` or `lib` locations, outward or unreviewed cross-feature
+imports, broad barrel files, runtime dependency cycles, and direct or indirect
+client paths into a marked server module or the standalone `server` directory.
+It is part of `npm run ci:verify`. Type-only imports do not enter the runtime
+graph, while Next's `server-only` compiler checks complement this source audit;
 unit-test marker aliases are confined to Vitest configuration.
 
 ## Story ownership map
@@ -159,7 +171,7 @@ unit-test marker aliases are confined to Vitest configuration.
 | RCP-49F | Recipe browse, detail, libraries, and common recipe code | `features/recipes/{browse,detail,library,shared}` |
 | RCP-49G | Authentication, account, and community workflows | `features/{auth,account,community}` |
 | RCP-49H | Draft editing, recovery, duplicate review, and publication | `features/recipes/authoring` |
-| RCP-49I | Remaining ownership, legacy removal, and final certification | Target roots above |
+| RCP-49I | Zero-legacy enforcement, final dependency certification, and execution evidence | Verification tooling and documentation |
 
 RCP-49D keeps the `/staff` landing-page composition and reusable staff access
 gate under `app`, because they coordinate multiple feature areas. Recipe
@@ -203,6 +215,8 @@ instruction presentation shared with published recipe views live in
 composition remain under `app`. Navigation blocking stays domain-neutral in
 `shared/navigation`, and the stylesheet cascade remains unchanged.
 
-Each story is implemented on its own topic branch, verified, and merged into
-`refactor/frontend-architecture`. That integration branch remains separate from
-`main` until review.
+RCP-49I retires the transitional migration allowlists, certifies zero source
+files under `app/components` and `lib`, and enforces runtime-cycle and
+reviewed public-boundary rules. The completed topic branches are integrated in
+`refactor/frontend-architecture`, which remains separate from `main` until
+review.

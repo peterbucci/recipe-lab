@@ -134,6 +134,8 @@ def _frontend() -> tuple[Check, ...]:
         test_arguments = ("test", "--", "--configLoader", "runner")
     return (
         _npm(*test_arguments),
+        _npm("run", "architecture:check"),
+        _npm("run", "reachability:check"),
         _npm("run", "build"),
         _npm("run", "test:e2e:discover"),
     )

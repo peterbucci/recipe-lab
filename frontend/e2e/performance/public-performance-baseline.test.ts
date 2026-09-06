@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import committedBaselineJson from "../../docs/baselines/rcp-34b-public-performance.json";
+import committedBaselineJson from "../../../docs/baselines/rcp-34b-public-performance.json";
 import {
   assertPerformanceBaselineDocument,
   assertPrivacySafeAggregate,

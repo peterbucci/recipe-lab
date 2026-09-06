@@ -341,6 +341,8 @@ npm ci
 npm run lint
 npm run typecheck
 npm test
+npm run architecture:check
+npm run reachability:check
 npm run build
 npm run test:e2e:discover
 ```
