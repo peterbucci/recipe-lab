@@ -21,7 +21,7 @@ repository. Backend external-consumer status therefore remains
 
 ## Frontend page routes
 
-`frontend/route-theme-inventory.ts` is the machine-checked source of this table.
+`frontend/tests/contracts/route-theme-inventory.ts` is the machine-checked source of this table.
 Its test recursively discovers every App Router `page.tsx`, requires an exact
 one-to-one inventory, verifies evidence paths, and locks the three compatibility
 redirects and their targets.

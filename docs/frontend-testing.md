@@ -51,7 +51,7 @@ Use the smallest layer that can prove the behavior:
 
 | Test kind | Location | Use it for |
 |---|---|---|
-| Unit/component | Beside code in `app`, `features`, `shared`, `shell`, `server`, `scripts`, or `performance` | One clear production owner |
+| Unit/component | Beside code in `app`, `features`, `shared`, `shell`, `server`, or `scripts` | One clear production owner |
 | Config contract | `frontend/tests/config` | Next.js, Vitest, or Playwright configuration behavior |
 | Cross-cutting contract | `frontend/tests/contracts` | Language, route, architecture, and inventory rules |
 | Shared Vitest support | `frontend/tests/support` | Builders and helpers used by multiple owners |
@@ -114,9 +114,10 @@ outside the pull-request tier.
 
 ## Coverage
 
-`npm run test:coverage` measures production modules in `app`, `features`, `shared`,
-`shell`, `lib`, `server`, and `server.mjs`. It excludes tests, declarations,
-generated API contracts, and colocated `*-test-support` modules in every owner.
+`npm run test:coverage` measures production modules in `app`, `features`,
+`shared`, `shell`, `server`, `server.mjs`, and the performance model in
+`e2e/performance`. It excludes tests, declarations, generated API contracts,
+and colocated `*-test-support` modules in every owner.
 The command writes text,
 JSON summary, and LCOV output to the ignored `frontend/coverage` directory.
 Coverage output is temporary evidence and should be deleted after its results

@@ -9,7 +9,6 @@ export default defineConfig([
     files: [
       "app/**/*.{ts,tsx}",
       "features/**/*.{ts,tsx}",
-      "lib/**/*.{ts,tsx}",
       "server/**/*.{ts,tsx}",
       "shared/**/*.{ts,tsx}",
       "shell/**/*.{ts,tsx}",

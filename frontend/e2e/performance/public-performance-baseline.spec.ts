@@ -14,7 +14,7 @@ import {
   type PerformanceBaselineDocument,
   type ServiceRouteLabel,
   type ServiceSample,
-} from "../../performance/public-performance-baseline";
+} from "./public-performance-baseline";
 
 interface BrowserPerformanceState {
   lcp_ms: number;

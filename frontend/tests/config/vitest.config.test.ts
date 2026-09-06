@@ -87,8 +87,8 @@ describe("Vitest runtime ownership", () => {
     const nodeOwned = discovered.filter(
       (path) =>
         !browserLibraries.has(path) &&
-        (/^(?:features|lib|shared\/(?:api|time))\/.+\.test\.ts$/.test(path) ||
-          /^(?:performance|server)\/.+\.test\.ts$/.test(path) ||
+        (/^(?:features|shared\/(?:api|time))\/.+\.test\.ts$/.test(path) ||
+          /^(?:e2e\/performance|server)\/.+\.test\.ts$/.test(path) ||
           /^scripts\/.+\.test\.(?:mjs|ts)$/.test(path) ||
           /^tests\/(?:config|contracts)\/.+\.test\.(?:mjs|ts)$/.test(path)),
     );
@@ -114,11 +114,13 @@ describe("Vitest runtime ownership", () => {
     expect(COVERAGE_SOURCE_INCLUDE).toEqual(
       expect.arrayContaining([
         "app/**/*.{ts,tsx}",
+        "e2e/performance/public-performance-baseline.ts",
         "features/**/*.{ts,tsx}",
         "shared/**/*.{ts,tsx}",
         "shell/**/*.{ts,tsx}",
       ]),
     );
+    expect(COVERAGE_SOURCE_INCLUDE).not.toContain("lib/**/*.ts");
     expect(COVERAGE_SOURCE_EXCLUDE).toContain("**/*-test-support.{ts,tsx}");
     expect(vitestConfig.test?.coverage).toMatchObject({
       clean: true,

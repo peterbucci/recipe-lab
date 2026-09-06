@@ -164,7 +164,7 @@ than duplicating the same system-state treatment across every width.
 
 ### RCP-46 source theme-family inventory
 
-`frontend/route-theme-inventory.ts` is the plain source inventory for the 25
+`frontend/tests/contracts/route-theme-inventory.ts` is the plain source inventory for the 25
 App Router page modules and 29 convention-based `loading.tsx`, `error.tsx`, and
 `not-found.tsx` modules. Its Vitest contract recursively discovers both sets
 under `frontend/app` and requires exact equality, so an added, removed, or moved

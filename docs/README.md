@@ -41,6 +41,7 @@ historical references do not break merely to create folders.
 - [Operations and observability](operations-observability.md)
 - [Repository quality gates](quality-gates.md)
 - [Frontend testing architecture](frontend-testing.md)
+- [RCP-49 frontend architecture certification](baselines/2026-09-05-frontend-architecture-certification.md)
 - [Production images](production-images.md)
 - [Safe source packaging](source-packaging.md)
 - [Regression baselines](regression-baselines.md)
