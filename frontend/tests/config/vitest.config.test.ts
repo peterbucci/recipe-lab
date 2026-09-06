@@ -3,7 +3,8 @@ import { join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import vitestConfig, {
+import vitestConfig from "../../vitest.config.mts";
+import {
   COVERAGE_REPORTERS,
   COVERAGE_SOURCE_EXCLUDE,
   COVERAGE_SOURCE_INCLUDE,
@@ -11,7 +12,7 @@ import vitestConfig, {
   JSDOM_TEST_INCLUDE,
   NODE_TEST_INCLUDE,
   VITEST_PROJECT_NAMES,
-} from "../../vitest.config";
+} from "../../vitest.shared.mts";
 
 interface InlineProject {
   plugins?: unknown[];
