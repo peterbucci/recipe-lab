@@ -23,6 +23,7 @@ Dockerfile
 eslint.config.mjs
 next.config.test.ts
 playwright.config*.ts
+playwright.mode.ts
 vitest.config.ts
 vitest.setup.ts
 npm-debug.log*

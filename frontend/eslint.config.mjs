@@ -6,10 +6,16 @@ export default defineConfig([
   ...nextVitals,
   ...nextTs,
   {
-    files: ["app/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}", "server/**/*.{ts,tsx}"],
+    files: [
+      "app/**/*.{ts,tsx}",
+      "features/**/*.{ts,tsx}",
+      "server/**/*.{ts,tsx}",
+      "shared/**/*.{ts,tsx}",
+      "shell/**/*.{ts,tsx}",
+    ],
     ignores: [
       "**/*.test.{ts,tsx}",
-      "lib/api-transport/core.ts",
+      "shared/api/core.ts",
       "server/api-proxy.ts",
     ],
     rules: {

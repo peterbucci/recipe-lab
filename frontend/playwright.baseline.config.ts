@@ -7,8 +7,9 @@ export const BASELINE_PLAYWRIGHT_VERSION = "1.62.1";
 export const BASELINE_CHROMIUM_VERSION = "151.0.7922.34";
 export const BASELINE_OUTPUT_DIRECTORY = "test-results/baseline/artifacts";
 export const BASELINE_RESULTS_FILE = "test-results/baseline/results.json";
+export const BASELINE_TEST_MATCH = "**/*-baseline.spec.ts";
 export const BASELINE_SNAPSHOT_TEMPLATE =
-  "{testDir}/../baselines/{projectName}/{arg}{ext}";
+  "{testDir}/../../baselines/{projectName}/{arg}{ext}";
 
 export const BASELINE_DESKTOP_VIEWPORT = Object.freeze({
   width: 1440,
@@ -61,8 +62,8 @@ export const BASELINE_PROJECTS: Project[] = [
 const publicNetworkSignal = "baseline-baseline-baseline-baseline";
 
 export default defineConfig({
-  testDir: "./e2e",
-  testMatch: "rcp34b-baseline.spec.ts",
+  testDir: "./e2e/visual",
+  testMatch: BASELINE_TEST_MATCH,
   fullyParallel: false,
   forbidOnly: true,
   retries: 0,
@@ -83,7 +84,7 @@ export default defineConfig({
   preserveOutput: "failures-only",
   reporter: [
     ["line"],
-    ["./e2e/rcp34b-baseline-reporter.mjs", { outputFile: BASELINE_RESULTS_FILE }],
+    ["./e2e/visual/visual-baseline-reporter.mjs", { outputFile: BASELINE_RESULTS_FILE }],
   ],
   snapshotPathTemplate: BASELINE_SNAPSHOT_TEMPLATE,
   updateSnapshots: "none",
@@ -95,7 +96,7 @@ export default defineConfig({
   projects: BASELINE_PROJECTS,
   webServer: [
     {
-      command: "node e2e/rcp34b-baseline-fixture.mjs",
+      command: "node e2e/visual/visual-baseline-fixture.mjs",
       url: `${BASELINE_FIXTURE_ORIGIN}/__baseline__/health`,
       reuseExistingServer: false,
       timeout: 30_000,

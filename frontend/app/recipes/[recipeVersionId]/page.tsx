@@ -3,11 +3,15 @@ import { notFound } from "next/navigation";
 
 import {
   fetchRecipe,
+} from "../../../features/recipes/detail/recipe-detail-server-api";
+import {
   fetchRecipePage,
-  isRecipeVersionId,
-  type RecipeCardSummary,
-} from "../../../lib/recipe-api";
-import { RecipeDetailExperience } from "../../components/recipe-detail-experience";
+} from "../../../features/recipes/browse/recipe-browse-server-api";
+import type {
+  RecipeCardSummary,
+} from "../../../features/recipes/shared/recipe-contracts";
+import { isRecipeVersionId } from "../../../features/recipes/shared/recipe-id";
+import { RecipeDetailExperience } from "./_components/recipe-detail-experience";
 
 export const dynamic = "force-dynamic";
 

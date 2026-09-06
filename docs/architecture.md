@@ -4,6 +4,13 @@
 
 ### Web application
 
+Frontend modules follow the route, feature, shared-infrastructure, application-
+shell, and server ownership boundaries in
+[Frontend ownership architecture](frontend-organization.md). The checked
+source inventory enforces those dependency rules, rejects dependency cycles,
+and requires the retired `app/components` and `lib` locations to remain
+empty of source files.
+
 The Next.js application owns rendering and user interactions. Recipe browse,
 detail, and comparison routes are server components that call the API through
 the private `RECIPE_API_URL`; Docker Compose points that value at the backend
@@ -21,7 +28,7 @@ writes refresh the server-rendered aggregate after success. Local CORS
 configuration permits the exact `localhost` and `127.0.0.1` development origins.
 
 RCP-34F introduces a staged application-specific transport under
-`frontend/lib/api-transport`. Its browser entry point is an explicit client
+`frontend/shared/api`. Its browser entry point is an explicit client
 boundary that accepts only relative `/api/...` targets, always uses the
 same-origin proxy, and centralizes no-store requests, CSRF, session-expiry
 signals, idempotency keys, safe public error envelopes, request deadlines, and
@@ -44,6 +51,14 @@ authentication recovery can keep a scoped 401 local. Mutations carry CSRF and,
 where the operation has durable retry semantics, a validated idempotency
 identity. The hardened streaming `/api` route remains a separate security proxy;
 the shared JSON transport does not replace or wrap it.
+
+Browser session-expiry signaling and CSRF cookie mechanics live in
+`frontend/shared/api/browser-session.ts`. The auth API retains its own error
+class and safe public messages while adapting the shared not-sent failure.
+Pure cooking-action, measurement, recipe-identifier, and recipe-library models
+are separate from server loaders, so browser parsers do not import a private
+API origin. Next server modules use `server-only`; the standalone Node runtime
+remains importable without the Next compiler.
 
 Raw `fetch` is limited by lint to two reviewed production boundaries. The shared
 transport core owns JSON dispatch, deadlines, cancellation, retry, and safe
@@ -596,7 +611,7 @@ account cleanup, and retained public authorship under `Deleted cook`.
 Backend integration separately verifies exactly-one event,
 retry, rollback, source-loss, and concurrent-sibling behavior. Keyboard
 activation and automated WCAG A/AA checks cover the basic accessibility gate.
-The test is disabled unless both
+The acceptance mode refuses to load unless both
 `MVP_ACCEPTANCE=1` and `ACCEPTANCE_DATABASE_ISOLATED=1` are explicitly set, and
 guarded local runs require explicit frontend and backend URLs on ports other
 than the normal 3000 and 8000. The flags attest that the caller provisioned an

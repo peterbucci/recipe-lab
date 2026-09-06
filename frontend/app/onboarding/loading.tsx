@@ -1,4 +1,4 @@
-import { AuthGateLoading } from "../components/loading-ui";
+import { AuthGateLoading } from "../../shared/ui/loading-ui";
 
 export default function OnboardingLoading() {
   return (

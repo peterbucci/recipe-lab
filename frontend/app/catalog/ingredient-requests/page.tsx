@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { IngredientRequestReviewWorkspace } from "../../components/ingredient-request-review-workspace";
+import { IngredientRequestReviewRoute } from "./_components/ingredient-request-review-route";
 
 export const metadata: Metadata = {
   title: "Ingredient requests",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function IngredientRequestReviewPage() {
-  return <IngredientRequestReviewWorkspace />;
+  return <IngredientRequestReviewRoute />;
 }

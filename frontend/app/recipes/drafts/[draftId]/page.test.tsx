@@ -14,15 +14,15 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 
-vi.mock("../../../../lib/cooking-action-api", () => ({
+vi.mock("../../../../features/recipes/authoring/shared/cooking-action-api", () => ({
   fetchCookingActionTypes: mocks.fetchCookingActionTypes,
 }));
 
-vi.mock("../../../../lib/measurement-unit-api", () => ({
+vi.mock("../../../../features/recipes/authoring/shared/measurement-unit-api", () => ({
   fetchMeasurementUnits: mocks.fetchMeasurementUnits,
 }));
 
-vi.mock("../../../components/recipe-draft-editor", () => ({
+vi.mock("../../../../features/recipes/authoring/editor/recipe-draft-editor", () => ({
   RecipeDraftEditor: mocks.recipeDraftEditor,
 }));
 

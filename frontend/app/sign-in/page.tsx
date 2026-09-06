@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 
-import { safeReturnTo, signInHref } from "../../lib/auth-api";
-import { BranchIcon, HeartIcon } from "../components/recipe-action-icons";
-import { RecipeArtwork } from "../components/recipe-artwork";
+import { safeReturnTo, signInHref } from "../../features/auth/auth-api";
+import { BranchIcon, HeartIcon } from "../../features/recipes/shared/recipe-action-icons";
+import { RecipeArtwork } from "../../features/recipes/shared/recipe-artwork";
 
 export const metadata: Metadata = {
   title: "Sign in",

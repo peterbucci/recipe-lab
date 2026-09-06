@@ -8,6 +8,8 @@ historical references do not break merely to create folders.
 
 - [Architecture](architecture.md) — application boundaries and dependency
   direction.
+- [Frontend ownership architecture](frontend-organization.md) — placement,
+  dependency, and migration rules for frontend code.
 - [MVP scope](mvp-scope.md) — shipped product boundary and acceptance criteria.
 - [Product language](product-language.md) — member-facing terminology and the
   boundary between product and research features.
@@ -38,6 +40,8 @@ historical references do not break merely to create folders.
 
 - [Operations and observability](operations-observability.md)
 - [Repository quality gates](quality-gates.md)
+- [Frontend testing architecture](frontend-testing.md)
+- [RCP-49 frontend architecture certification](baselines/2026-09-05-frontend-architecture-certification.md)
 - [Production images](production-images.md)
 - [Safe source packaging](source-packaging.md)
 - [Regression baselines](regression-baselines.md)

@@ -13,23 +13,27 @@ from scripts.extract_playwright_failure_location import (
 
 
 class ExtractPlaywrightFailureLocationTests(unittest.TestCase):
-    def test_extracts_only_the_first_stack_location(self) -> None:
-        spec_path = "/work/frontend/e2e/rcp32-community-release-gate.spec.ts"
+    def test_extracts_first_spec_location_after_ignoring_stage_helpers(self) -> None:
+        spec_path = "/work/frontend/e2e/release/community-release-gate.spec.ts"
+        support_path = "/work/frontend/e2e/release/community-release-gate-support.ts"
+        publication_path = "/work/frontend/e2e/release/community-release-publication-stages.ts"
         log = f"""
-        1) [chromium] › e2e/rcp32-community-release-gate.spec.ts:549:7
+        1) [chromium] › e2e/release/community-release-gate.spec.ts:549:7
         RCP32_PRIVATE_REQUEST_CONTEXT_CANARY secret@example.invalid
-            at publishDistinctOriginal ({spec_path}:324:22)
+            at publishDistinctOriginal ({support_path}:324:22)
+            at publishRootRecipe ({publication_path}:337:9)
+            at <anonymous> ({spec_path}:57:9)
             at another helper ({spec_path}:999:4)
         """
         self.assertEqual(
             extract_failure_location(log),
-            (324, 22),
+            (57, 9),
         )
 
     def test_ignores_headers_and_unrelated_stack_frames(self) -> None:
         log = """
-        [chromium] › e2e/rcp32-community-release-gate.spec.ts:549:7
-            at helper (/work/frontend/e2e/home.spec.ts:480:5)
+        [chromium] › e2e/release/community-release-gate.spec.ts:549:7
+            at helper (/work/frontend/e2e/smoke/home.spec.ts:480:5)
         """
         self.assertIsNone(extract_failure_location(log))
 
@@ -39,8 +43,8 @@ class ExtractPlaywrightFailureLocationTests(unittest.TestCase):
             path = Path(directory) / "browser.log"
             path.write_text(
                 canary
-                + "\n    at helper (C:\\work\\frontend\\e2e\\"
-                + "rcp32-community-release-gate.spec.ts:1017:9)\n",
+                + "\n    at helper (C:\\work\\frontend\\e2e\\release\\"
+                + "community-release-gate.spec.ts:1017:9)\n",
                 encoding="utf-8",
             )
             output = io.StringIO()

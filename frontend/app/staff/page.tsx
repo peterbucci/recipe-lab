@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { StaffTools } from "../components/staff-tools";
+import { StaffTools } from "./_components/staff-tools";
 
 export const metadata: Metadata = {
   title: "Staff Tools",

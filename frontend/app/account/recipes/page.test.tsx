@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SavedRecipeLibrary } from "../../components/saved-recipe-library";
+import { MyRecipesWorkspace } from "./_components/my-recipes-workspace";
 import MyRecipesPage from "./page";
 
 describe("MyRecipesPage", () => {
@@ -31,6 +31,7 @@ describe("MyRecipesPage", () => {
       searchParams: Promise.resolve({ view: "saved" }),
     });
 
-    expect(element.type).toBe(SavedRecipeLibrary);
+    expect(element.type).toBe(MyRecipesWorkspace);
+    expect(element).toMatchObject({ props: { pageNumber: 1, view: "saved" } });
   });
 });
