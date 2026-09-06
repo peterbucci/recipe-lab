@@ -4,13 +4,15 @@ import { notFound } from "next/navigation";
 import {
   fetchRecipeCategories,
   fetchRecipePage,
-  type RecipeCategory,
-} from "../../lib/recipe-api";
+} from "../../features/recipes/browse/recipe-browse-server-api";
+import type {
+  RecipeCategory,
+} from "../../features/recipes/shared/recipe-contracts";
 import {
   isVariantForRecipeBrowseType,
   parseRecipeBrowseType,
-} from "../../lib/recipe-browse-query";
-import { RecipeBrowser } from "../components/recipe-browser";
+} from "../../features/recipes/browse/recipe-browse-query";
+import { RecipeBrowser } from "../../features/recipes/browse/recipe-browser";
 
 export const dynamic = "force-dynamic";
 

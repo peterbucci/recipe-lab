@@ -1,4 +1,4 @@
-import { PageLoadingSkeleton } from "../../components/loading-ui";
+import { PageLoadingSkeleton } from "../../../shared/ui/page-loading-skeleton";
 
 export default function IngredientRequestReviewLoading() {
   return (

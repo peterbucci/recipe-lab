@@ -164,7 +164,7 @@ than duplicating the same system-state treatment across every width.
 
 ### RCP-46 source theme-family inventory
 
-`frontend/route-theme-inventory.ts` is the plain source inventory for the 25
+`frontend/tests/contracts/route-theme-inventory.ts` is the plain source inventory for the 25
 App Router page modules and 29 convention-based `loading.tsx`, `error.tsx`, and
 `not-found.tsx` modules. Its Vitest contract recursively discovers both sets
 under `frontend/app` and requires exact equality, so an added, removed, or moved
@@ -190,7 +190,7 @@ same change; deleting a module must remove its inventory entry.
 ### RCP-46F staff route and state inventory
 
 The executable inventory is
-`frontend/e2e/rcp46f-staff-certification-matrix.ts`; its focused unit contract
+`frontend/e2e/visual/staff-certification-matrix.ts`; its focused unit contract
 keeps the two routes, two capabilities, three widths, and nine matrix cases
 explicit. The deterministic browser suite runs every case at 1440 by 900, 820
 by 1000, and 390 by 844 CSS pixels without creating a screenshot for every
@@ -228,10 +228,12 @@ usability review.
 
 ## Sanitized fixture and artifact boundary
 
-`frontend/e2e/rcp34b-baseline-fixture.mjs` serves only the reviewed synthetic
-responses consumed by `frontend/e2e/rcp34b-baseline.spec.ts`. The suite must not
-read an acceptance-session fixture, start the RCP-32 identity provider, connect
-to PostgreSQL, reuse a signed-in browser profile, or contact an external host.
+`frontend/e2e/visual/visual-baseline-fixture.mjs` serves only the reviewed synthetic
+responses consumed by the behavior/page-family `*-baseline.spec.ts` files under
+`frontend/e2e/visual`. Their shared deterministic and privacy controls live in
+`visual-baseline-support.ts`. The suite must not read an acceptance-session fixture,
+start the RCP-32 identity provider, connect to PostgreSQL, reuse a signed-in browser
+profile, or contact an external host.
 It contains no real name, handle, email, free-form report, recipe, cookie,
 authorization value, CSRF token, OIDC value, or production identifier. Adding
 a fixture field or request route requires privacy review before a golden is
@@ -288,7 +290,7 @@ Run a normal comparison from `frontend` with:
 
 ```powershell
 npm ci
-npm run test:e2e:baseline
+npm run test:e2e:visual
 ```
 
 Local output is useful for diagnosis, but a golden is authoritative only when
@@ -300,10 +302,10 @@ code or the expected image is wrong.
 If the UI change is intentional:
 
 1. confirm the fixture contains only reviewed invented data;
-2. run `npm run test:e2e:baseline:update` in the pinned image;
+2. run `npm run test:e2e:visual -- --update-snapshots=all` in the pinned image;
 3. review every changed PNG at its full resolution, including text, clipping,
    focus treatment, error copy, staff-only controls, and responsive overflow;
-4. run `npm run test:e2e:baseline -- --repeat-each=2` in the same image;
+4. run `npm run test:e2e:visual -- --repeat-each=2` in the same image;
 5. run the focused accessibility and keyboard suite with the visual check;
 6. bind each new or changed opaque PNG to its exact Git blob ID in the source
    export policy; and
@@ -392,12 +394,13 @@ With the isolated stack already running, the required check is:
 cd frontend
 $env:RCP34B_PERFORMANCE = "1"
 $env:RCP34B_PERFORMANCE_MODE = "check"
-npx playwright test e2e/public-performance-baseline.spec.ts --project=chromium
+npm run test:e2e:performance
 ```
 
-Setting `RCP34B_PERFORMANCE=1` without both isolated-MVP guard variables is a
-hard failure, not a skipped success. Ordinary browser runs omit that explicit
-request and continue to skip this real-stack-only test.
+The performance mode requires `RCP34B_PERFORMANCE=1`, both isolated-MVP guard
+variables, explicit loopback service settings, and the allowlisted disposable
+database. Missing environment is a configuration failure before discovery;
+other browser modes never select this real-stack-only test.
 
 It writes the ignored public observation to
 `frontend/test-results/rcp-34b-public-performance-observation.json`. To measure

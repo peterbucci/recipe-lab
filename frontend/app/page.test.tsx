@@ -16,7 +16,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: navigationMocks.replace }),
 }));
 
-vi.mock("./components/home-public-discovery", () => ({
+vi.mock("./_components/home-public-discovery", () => ({
   HomePublicDiscovery: () => (
     <section>
       <h2>Featured recipes</h2>
@@ -24,7 +24,7 @@ vi.mock("./components/home-public-discovery", () => ({
   ),
 }));
 
-import { AuthSessionProvider } from "./components/auth-session-provider";
+import { AuthSessionProvider } from "../features/auth/auth-session-provider";
 import HomePage from "./page";
 
 describe("HomePage", () => {

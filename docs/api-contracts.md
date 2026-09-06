@@ -135,7 +135,7 @@ classified, missing evidence, or an intentional retirement.
 ## Frontend generated types
 
 RCP-34G generates one committed TypeScript file at
-[`frontend/lib/api-contracts/generated.ts`](../frontend/lib/api-contracts/generated.ts)
+[`frontend/shared/api/generated/generated.ts`](../frontend/shared/api/generated/generated.ts)
 from `backend/openapi.json`. The file contains compile-time request, response,
 and operation types. It is not a second HTTP client and does not replace runtime
 validation.

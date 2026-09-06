@@ -36,10 +36,11 @@ function normalized(path) {
   return resolve(path).replaceAll("\\", "/");
 }
 
-function productionSource(path) {
+export function isProductionSource(path) {
   return (
     SOURCE_EXTENSIONS.includes(extname(path)) &&
     !/\.(?:test|spec)\.[^.]+$/.test(path) &&
+    !/-test-support\.[^.]+$/.test(path) &&
     !/\.d\.(?:ts|mts|cts)$/.test(path)
   );
 }
@@ -48,7 +49,7 @@ function walk(directory) {
   if (!existsSync(directory)) return [];
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
-    return entry.isDirectory() ? walk(path) : productionSource(path) ? [path] : [];
+    return entry.isDirectory() ? walk(path) : isProductionSource(path) ? [path] : [];
   });
 }
 
@@ -122,8 +123,11 @@ export function auditSourceReachability(
 ) {
   const files = [
     ...walk(join(sourceRoot, "app")),
+    ...walk(join(sourceRoot, "features")),
     ...walk(join(sourceRoot, "lib")),
     ...walk(join(sourceRoot, "server")),
+    ...walk(join(sourceRoot, "shared")),
+    ...walk(join(sourceRoot, "shell")),
     join(sourceRoot, "server.mjs"),
   ].filter((path) => existsSync(path));
   const sources = new Set(files.map(normalized));

@@ -10,8 +10,9 @@ const OPENAPI_PATH = path.join(REPOSITORY_ROOT, "backend", "openapi.json");
 
 export const GENERATED_TYPES_PATH = path.join(
   FRONTEND_ROOT,
-  "lib",
-  "api-contracts",
+  "shared",
+  "api",
+  "generated",
   "generated.ts",
 );
 

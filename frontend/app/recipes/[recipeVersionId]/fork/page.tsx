@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { isRecipeVersionId } from "../../../../lib/recipe-api";
-import { RecipeDraftStarter } from "../../../components/recipe-draft-starter";
+import { isRecipeVersionId } from "../../../../features/recipes/shared/recipe-id";
+import { RecipeDraftStarter } from "../../../../features/recipes/authoring/draft/recipe-draft-starter";
 
 export const dynamic = "force-dynamic";
 

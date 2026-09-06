@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { MemberActivityTimeline } from "../../components/member-activity-timeline";
+import { AccountActivityRoute } from "./_components/account-activity-route";
 
 export const metadata: Metadata = {
   title: "Activity",
@@ -9,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function AccountActivityPage() {
-  return <MemberActivityTimeline />;
+  return <AccountActivityRoute />;
 }

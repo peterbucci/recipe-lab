@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { RecipeModerationWorkspace } from "../../components/recipe-moderation-workspace";
+import { RecipeModerationRoute } from "./_components/recipe-moderation-route";
 
 export const metadata: Metadata = {
   title: "Recipe reports",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function RecipeModerationPage() {
-  return <RecipeModerationWorkspace />;
+  return <RecipeModerationRoute />;
 }

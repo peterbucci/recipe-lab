@@ -4,11 +4,15 @@ import { notFound } from "next/navigation";
 
 import {
   RecipeApiError,
+} from "../../../../features/recipes/shared/recipe-api-error";
+import {
   fetchRecipeDiff,
-  isRecipeVersionId,
-  type RecipeDiff,
-} from "../../../../lib/recipe-api";
-import { RecipeDiffView } from "../../../components/recipe-diff-view";
+} from "../../../../features/recipes/detail/recipe-detail-server-api";
+import type {
+  RecipeDiff,
+} from "../../../../features/recipes/shared/recipe-contracts";
+import { isRecipeVersionId } from "../../../../features/recipes/shared/recipe-id";
+import { RecipeDiffView } from "../../../../features/recipes/detail/recipe-diff-view";
 
 export const dynamic = "force-dynamic";
 
