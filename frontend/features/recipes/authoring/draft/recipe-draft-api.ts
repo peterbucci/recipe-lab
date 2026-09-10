@@ -23,6 +23,11 @@ import type {
   RecipeIngredientMeasure,
   VariantMeasureInput,
 } from "../shared/structured-measure";
+import {
+  parseRecipeDraftListItem,
+  type RecipeDraftListItem,
+  type RecipeDraftStatus,
+} from "./recipe-draft-summary";
 
 type RecipeDraftPageWire =
   operations["my_private_recipe_drafts_api_recipe_drafts_get"]["responses"][200]["content"]["application/json"];
@@ -41,20 +46,7 @@ type RecipeDraftUpdateWireInput =
 type RecipeDraftDeleteQuery =
   operations["delete_private_recipe_draft_api_recipe_drafts__draft_id__delete"]["parameters"]["query"];
 
-export type RecipeDraftStatus = "active";
 export type RecipeDifficulty = "easy" | "medium" | "hard";
-
-export interface RecipeDraftListItem {
-  id: string;
-  source_version_id: string | null;
-  status: RecipeDraftStatus;
-  revision: number;
-  title: string;
-  ingredient_count: number;
-  instruction_count: number;
-  created_at: string;
-  updated_at: string;
-}
 
 export interface RecipeDraftPage {
   items: RecipeDraftListItem[];
@@ -571,29 +563,6 @@ export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
     created_at: value.created_at,
     updated_at: value.updated_at,
   };
-}
-
-export function parseRecipeDraftListItem(
-  value: unknown,
-): RecipeDraftListItem | null {
-  if (
-    !isRecord(value) ||
-    !isUuid(value.id) ||
-    (value.source_version_id !== null && !isUuid(value.source_version_id)) ||
-    value.status !== "active" ||
-    !Number.isInteger(value.revision) ||
-    (value.revision as number) < 1 ||
-    !boundedText(value.title, 200, true) ||
-    !Number.isInteger(value.ingredient_count) ||
-    !Number.isInteger(value.instruction_count) ||
-    (value.ingredient_count as number) < 0 ||
-    (value.instruction_count as number) < 0 ||
-    !isTimestamp(value.created_at) ||
-    !isTimestamp(value.updated_at)
-  ) {
-    return null;
-  }
-  return value as unknown as RecipeDraftListItem;
 }
 
 export function parseRecipeDraftPage(value: unknown): RecipeDraftPage {

@@ -20,7 +20,7 @@ import {
   fetchRecipeViewerStates,
   type RecipeViewerState,
   setRecipeSaved,
-} from "../detail/interaction-api";
+} from "../shared/interaction-api";
 import { useAuthSession } from "../../auth/auth-session-provider";
 import { LoadingButton } from "../../../shared/ui/loading-ui";
 

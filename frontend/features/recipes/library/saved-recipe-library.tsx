@@ -11,7 +11,7 @@ import {
 
 import { isAbortError } from "../../../shared/api/abort-error";
 import { createIdempotencyKey } from "../../../shared/api/idempotency-key";
-import { setRecipeSaved } from "../detail/interaction-api";
+import { setRecipeSaved } from "../shared/interaction-api";
 import { fetchSavedRecipeLibrary } from "./recipe-library-api";
 import { RecipeLibraryApiError } from "../shared/recipe-library-error";
 import {

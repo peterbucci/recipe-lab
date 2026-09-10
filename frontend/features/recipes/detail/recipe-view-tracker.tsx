@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 
 import { createIdempotencyKey } from "../../../shared/api/idempotency-key";
-import { recordRecipeView } from "./interaction-api";
+import { recordRecipeView } from "../shared/interaction-api";
 
 interface RecipeViewTrackerProps {
   recipeVersionId: string;

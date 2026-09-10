@@ -6,7 +6,7 @@ import {
   ApiTransportError,
   type PublicApiErrorContract,
 } from "../../../shared/api/core";
-import { parseRecipeCategories } from "../shared/recipe-category";
+import { parseRecipeCategories } from "./recipe-category";
 
 type RecipeCategoryOperation =
   operations["recipe_categories_api_recipe_categories_get"];

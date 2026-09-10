@@ -9,7 +9,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("authoring recipe category API", () => {
+describe("shared recipe category API", () => {
   it("loads and validates the active curated vocabulary in fixed response order", async () => {
     const payload = {
       items: [

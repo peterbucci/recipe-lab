@@ -5,7 +5,7 @@ import {
   MemberActivityApiError,
   type MemberDashboard,
 } from "../../features/account/member-activity-api";
-import type { RecipeDraftListItem } from "../../features/recipes/authoring/draft/recipe-draft-api";
+import type { RecipeDraftListItem } from "../../features/recipes/authoring/draft/recipe-draft-summary";
 import { deferred } from "../../tests/support/deferred";
 import { HomeLoadNotice, HomeLoadStateProvider } from "./home-load-state";
 import { MemberHomeSummary } from "./member-home-summary";

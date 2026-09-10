@@ -13,7 +13,7 @@ vi.mock("../../../shared/api/idempotency-key", () => ({
   createIdempotencyKey: mocks.createIdempotencyKey,
 }));
 
-vi.mock("./interaction-api", () => ({
+vi.mock("../shared/interaction-api", () => ({
   recordRecipeView: mocks.recordRecipeView,
 }));
 

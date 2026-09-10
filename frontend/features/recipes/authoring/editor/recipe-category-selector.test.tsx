@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   fetchActiveRecipeCategories: vi.fn(),
 }));
 
-vi.mock("../../browse/recipe-category-client-api", () => ({
+vi.mock("../../shared/recipe-category-client-api", () => ({
   fetchActiveRecipeCategories: mocks.fetchActiveRecipeCategories,
 }));
 

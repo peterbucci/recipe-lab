@@ -2,10 +2,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  RecipeDraftDetail,
-  RecipeDraftListItem,
-} from "./recipe-draft-api";
+import type { RecipeDraftDetail } from "./recipe-draft-api";
+import type { RecipeDraftListItem } from "./recipe-draft-summary";
 import {
   prepareRecipeDraftEditorEntry,
   RecipeDraftEditorEntryError,

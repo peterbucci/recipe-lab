@@ -46,7 +46,7 @@ vi.mock("../draft/recipe-draft-api", async (importOriginal) => {
   };
 });
 
-vi.mock("../../browse/recipe-category-client-api", () => ({
+vi.mock("../../shared/recipe-category-client-api", () => ({
   fetchActiveRecipeCategories: mocks.fetchActiveRecipeCategories,
 }));
 

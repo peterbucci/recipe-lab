@@ -12,7 +12,7 @@ import { isAbortError } from "../../../../shared/api/abort-error";
 import type {
   RecipeCategory,
 } from "../../shared/recipe-contracts";
-import { fetchActiveRecipeCategories } from "../../browse/recipe-category-client-api";
+import { fetchActiveRecipeCategories } from "../../shared/recipe-category-client-api";
 import { MAX_RECIPE_CATEGORIES } from "../../shared/recipe-category";
 import { EditorRowIcon } from "../shared/editor-row-icon";
 import { InlineLoading } from "../../../../shared/ui/loading-ui";

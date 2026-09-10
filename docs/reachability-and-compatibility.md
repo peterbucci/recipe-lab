@@ -103,7 +103,7 @@ executable FastAPI route, including schema-excluded routes.
 | `GET /api/my/recipes` | active | `active_consumer` | `frontend/features/recipes/library/recipe-library-api.ts` |
 | `GET /api/my/saved-recipes` | active | `active_consumer` | `frontend/features/recipes/library/recipe-library-api.ts` |
 | `GET /api/readiness` | internal | `staff_internal` | `docs/operations-observability.md` |
-| `GET /api/recipe-categories` | active | `active_consumer` | `frontend/features/recipes/browse/recipe-browse-server-api.ts`; `frontend/features/recipes/browse/recipe-category-client-api.ts` |
+| `GET /api/recipe-categories` | active | `active_consumer` | `frontend/features/recipes/browse/recipe-browse-server-api.ts`; `frontend/features/recipes/shared/recipe-category-client-api.ts` |
 | `GET /api/recipe-drafts` | active | `active_consumer` | `frontend/features/recipes/authoring/draft/recipe-draft-api.ts` |
 | `POST /api/recipe-drafts` | active | `active_consumer` | `frontend/features/recipes/authoring/draft/recipe-draft-api.ts` |
 | `DELETE /api/recipe-drafts/{draft_id}` | active | `active_consumer` | `frontend/features/recipes/authoring/draft/recipe-draft-api.ts` |
@@ -113,15 +113,15 @@ executable FastAPI route, including schema-excluded routes.
 | `POST /api/recipe-drafts/{draft_id}/publish` | active | `active_consumer` | `frontend/features/recipes/authoring/publication/recipe-publication-api.ts` |
 | `GET /api/recipes` | active | `active_consumer` | `frontend/features/recipes/browse/recipe-browse-server-api.ts` |
 | `GET /api/recipes/featured` | active | `active_consumer` | `frontend/features/recipes/browse/recipe-browse-server-api.ts` |
-| `GET /api/recipes/viewer-states` | active | `active_consumer` | `frontend/features/recipes/detail/interaction-api.ts` |
+| `GET /api/recipes/viewer-states` | active | `active_consumer` | `frontend/features/recipes/shared/interaction-api.ts` |
 | `GET /api/recipes/{recipe_version_id}` | active | `active_consumer` | `frontend/features/recipes/detail/recipe-detail-server-api.ts` |
 | `GET /api/recipes/{recipe_version_id}/diff` | active | `active_consumer` | `frontend/features/recipes/detail/recipe-detail-server-api.ts` |
-| `DELETE /api/recipes/{recipe_version_id}/rating` | active | `active_consumer` | `frontend/features/recipes/detail/interaction-api.ts` |
-| `PUT /api/recipes/{recipe_version_id}/rating` | active | `active_consumer` | `frontend/features/recipes/detail/interaction-api.ts` |
+| `DELETE /api/recipes/{recipe_version_id}/rating` | active | `active_consumer` | `frontend/features/recipes/shared/interaction-api.ts` |
+| `PUT /api/recipes/{recipe_version_id}/rating` | active | `active_consumer` | `frontend/features/recipes/shared/interaction-api.ts` |
 | `POST /api/recipes/{recipe_version_id}/reports` | active | `active_consumer` | `frontend/features/moderation/reporting/recipe-report-api.ts` |
-| `DELETE /api/recipes/{recipe_version_id}/save` | active | `active_consumer` | `frontend/features/recipes/detail/interaction-api.ts` |
-| `PUT /api/recipes/{recipe_version_id}/save` | active | `active_consumer` | `frontend/features/recipes/detail/interaction-api.ts` |
-| `POST /api/recipes/{recipe_version_id}/view` | active | `active_consumer` | `frontend/features/recipes/detail/interaction-api.ts` |
+| `DELETE /api/recipes/{recipe_version_id}/save` | active | `active_consumer` | `frontend/features/recipes/shared/interaction-api.ts` |
+| `PUT /api/recipes/{recipe_version_id}/save` | active | `active_consumer` | `frontend/features/recipes/shared/interaction-api.ts` |
+| `POST /api/recipes/{recipe_version_id}/view` | active | `active_consumer` | `frontend/features/recipes/shared/interaction-api.ts` |
 | `PUT /api/recipes/{recipe_version_id}/visibility` | active | `active_consumer` | `frontend/features/recipes/library/recipe-visibility-api.ts` |
 | `GET /api/recommendations` | internal | `research_experimental` | `docs/recommendations.md` |
 

@@ -281,7 +281,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
         "recipe_categories_api_recipe_categories_get",
         "active_consumer",
         "frontend/features/recipes/browse/recipe-browse-server-api.ts",
-        "frontend/features/recipes/browse/recipe-category-client-api.ts",
+        "frontend/features/recipes/shared/recipe-category-client-api.ts",
     ),
     ("GET", "/api/recipes/featured"): _operation(
         "featured_recipes_api_recipes_featured_get",
@@ -291,7 +291,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("GET", "/api/recipes/viewer-states"): _operation(
         "recipe_viewer_states_for_current_user_api_recipes_viewer_states_get",
         "active_consumer",
-        "frontend/features/recipes/detail/interaction-api.ts",
+        "frontend/features/recipes/shared/interaction-api.ts",
     ),
     ("GET", "/api/recipes/{recipe_version_id}"): _operation(
         "recipe_detail_api_recipes__recipe_version_id__get",
@@ -306,12 +306,12 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("PUT", "/api/recipes/{recipe_version_id}/rating"): _operation(
         "rate_recipe_for_current_user_api_recipes__recipe_version_id__rating_put",
         "active_consumer",
-        "frontend/features/recipes/detail/interaction-api.ts",
+        "frontend/features/recipes/shared/interaction-api.ts",
     ),
     ("DELETE", "/api/recipes/{recipe_version_id}/rating"): _operation(
         "unrate_recipe_for_current_user_api_recipes__recipe_version_id__rating_delete",
         "active_consumer",
-        "frontend/features/recipes/detail/interaction-api.ts",
+        "frontend/features/recipes/shared/interaction-api.ts",
     ),
     ("POST", "/api/recipes/{recipe_version_id}/reports"): _operation(
         "report_recipe_api_recipes__recipe_version_id__reports_post",
@@ -321,17 +321,17 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("DELETE", "/api/recipes/{recipe_version_id}/save"): _operation(
         "unsave_recipe_for_current_user_api_recipes__recipe_version_id__save_delete",
         "active_consumer",
-        "frontend/features/recipes/detail/interaction-api.ts",
+        "frontend/features/recipes/shared/interaction-api.ts",
     ),
     ("PUT", "/api/recipes/{recipe_version_id}/save"): _operation(
         "save_recipe_for_current_user_api_recipes__recipe_version_id__save_put",
         "active_consumer",
-        "frontend/features/recipes/detail/interaction-api.ts",
+        "frontend/features/recipes/shared/interaction-api.ts",
     ),
     ("POST", "/api/recipes/{recipe_version_id}/view"): _operation(
         "record_recipe_view_for_current_user_api_recipes__recipe_version_id__view_post",
         "active_consumer",
-        "frontend/features/recipes/detail/interaction-api.ts",
+        "frontend/features/recipes/shared/interaction-api.ts",
     ),
     ("PUT", "/api/recipes/{recipe_version_id}/visibility"): _operation(
         "update_authored_recipe_visibility_api_recipes__recipe_version_id__visibility_put",
