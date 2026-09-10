@@ -4,7 +4,6 @@ import { AUTH_SESSION_EXPIRED_EVENT } from "../../../shared/api/browser-session"
 import { IngredientCatalogApiError } from "../ingredient-api-error";
 import {
   browseMyIngredientRequests,
-  fetchMyIngredientRequest,
   submitMissingIngredientRequest,
 } from "./ingredient-request-api";
 
@@ -122,7 +121,7 @@ describe("member ingredient request API client", () => {
   });
 
 
-  it("loads a member's filtered request history and its trusted resolution detail", async () => {
+  it("loads a member's filtered request history with its catalog resolutions", async () => {
     const approvedRequest = {
       id: REQUEST_ID,
       proposed_name: "Dragon fruit",
@@ -138,18 +137,15 @@ describe("member ingredient request API client", () => {
         aliases: ["Dragon fruit"],
       },
     };
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        Response.json({
-          items: [approvedRequest],
-          page: 2,
-          page_size: 10,
-          total: 11,
-          total_pages: 2,
-        }),
-      )
-      .mockResolvedValueOnce(Response.json(approvedRequest));
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      Response.json({
+        items: [approvedRequest],
+        page: 2,
+        page_size: 10,
+        total: 11,
+        total_pages: 2,
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
@@ -164,20 +160,11 @@ describe("member ingredient request API client", () => {
       page: 2,
       items: [{ resolved_ingredient: { canonical_name: "Pitaya" } }],
     });
-    await expect(fetchMyIngredientRequest(REQUEST_ID)).resolves.toMatchObject({
-      id: REQUEST_ID,
-      status: "approved",
-      resolved_ingredient_id: PECAN_ID,
-    });
-
     expect(fetchMock.mock.calls[0]).toEqual([
       "/api/ingredient-requests/mine?page=2&page_size=10&status=approved&reviewed_only=true&q=dragon+%26+fruit",
       expect.objectContaining({ method: "GET", credentials: "same-origin" }),
     ]);
-    expect(fetchMock.mock.calls[1]).toEqual([
-      `/api/ingredient-requests/${REQUEST_ID}`,
-      expect.objectContaining({ method: "GET", credentials: "same-origin" }),
-    ]);
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("keeps history authorization errors local so an unsaved editor stays mounted", async () => {
@@ -196,10 +183,6 @@ describe("member ingredient request API client", () => {
     );
 
     await expect(browseMyIngredientRequests()).rejects.toMatchObject({
-      status: 401,
-      code: "authentication_required",
-    });
-    await expect(fetchMyIngredientRequest(REQUEST_ID)).rejects.toMatchObject({
       status: 401,
       code: "authentication_required",
     });
@@ -245,18 +228,26 @@ describe("member ingredient request API client", () => {
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(
         Response.json({
-          id: REQUEST_ID,
-          proposed_name: "Dragon fruit",
-          context: null,
-          created_at: "2026-08-24T18:00:00Z",
-          reviewed_at: null,
-          decision_reason: null,
-          ...value,
+          items: [
+            {
+              id: REQUEST_ID,
+              proposed_name: "Dragon fruit",
+              context: null,
+              created_at: "2026-08-24T18:00:00Z",
+              reviewed_at: null,
+              decision_reason: null,
+              ...value,
+            },
+          ],
+          page: 1,
+          page_size: 20,
+          total: 1,
+          total_pages: 1,
         }),
       ),
     );
 
-    await expect(fetchMyIngredientRequest(REQUEST_ID)).rejects.toMatchObject({
+    await expect(browseMyIngredientRequests()).rejects.toMatchObject({
       status: 502,
       code: "invalid_ingredient_request_response",
     });

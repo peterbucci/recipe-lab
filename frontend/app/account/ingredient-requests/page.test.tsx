@@ -1,13 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AuthSessionProvider } from "../../../../features/auth/auth-session-provider";
-import { IngredientRequestsRoute } from "./ingredient-requests-route";
+import { AuthSessionProvider } from "../../../features/auth/auth-session-provider";
+import MyIngredientRequestsPage from "./page";
 
 const mocks = vi.hoisted(() => ({ workspace: vi.fn() }));
 
 vi.mock(
-  "../../../../features/ingredients/requests/my-ingredient-requests-workspace",
+  "../../../features/ingredients/requests/my-ingredient-requests-workspace",
   () => ({
     MyIngredientRequestsWorkspace: () => {
       mocks.workspace();
@@ -25,11 +25,11 @@ afterEach(() => {
   mocks.workspace.mockReset();
 });
 
-describe("IngredientRequestsRoute", () => {
+describe("MyIngredientRequestsPage", () => {
   it("keeps anonymous request history private and preserves the return destination", () => {
     render(
       <AuthSessionProvider initialSession={{ status: "anonymous" }}>
-        <IngredientRequestsRoute />
+        <MyIngredientRequestsPage />
       </AuthSessionProvider>,
     );
 
@@ -59,7 +59,7 @@ describe("IngredientRequestsRoute", () => {
           user: { id: "cook-id", display_name: "Alice Cook", handle: null },
         }}
       >
-        <IngredientRequestsRoute />
+        <MyIngredientRequestsPage />
       </AuthSessionProvider>,
     );
 
@@ -75,6 +75,24 @@ describe("IngredientRequestsRoute", () => {
     expect(mocks.workspace).not.toHaveBeenCalled();
   });
 
+  it("renders request history for an authenticated member", () => {
+    render(
+      <AuthSessionProvider
+        initialSession={{
+          status: "authenticated",
+          user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
+        }}
+      >
+        <MyIngredientRequestsPage />
+      </AuthSessionProvider>,
+    );
+
+    expect(
+      screen.getByRole("region", { name: "My ingredient requests" }),
+    ).toBeVisible();
+    expect(mocks.workspace).toHaveBeenCalledOnce();
+  });
+
   it("renders a retryable account-service error before mounting the workspace", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -83,7 +101,7 @@ describe("IngredientRequestsRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(
       <AuthSessionProvider>
-        <IngredientRequestsRoute />
+        <MyIngredientRequestsPage />
       </AuthSessionProvider>,
     );
 
