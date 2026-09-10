@@ -10,15 +10,12 @@ import {
 import { parseRecipeSummary } from "../recipes/shared/recipe-summary-parser";
 
 type FollowCookOperation = operations["follow_cook_api_cooks__handle__follow_put"];
-type MyFollowStatsOperation = operations["my_follow_stats_api_my_follow_stats_get"];
 type MyFollowersOperation = operations["my_followers_api_my_followers_get"];
 type MyCommunityActivityOperation =
   operations["my_community_activity_api_my_community_activity_get"];
 
 export type CookFollowState =
   FollowCookOperation["responses"][200]["content"]["application/json"];
-export type MyFollowStats =
-  MyFollowStatsOperation["responses"][200]["content"]["application/json"];
 export type MyFollowersPage =
   MyFollowersOperation["responses"][200]["content"]["application/json"];
 export type MemberFollower = MyFollowersPage["items"][number];
@@ -150,20 +147,6 @@ export function parseCookFollowState(value: unknown): CookFollowState {
   };
 }
 
-export function parseMyFollowStats(value: unknown): MyFollowStats {
-  if (
-    !isRecord(value) ||
-    !isNonnegativeInteger(value.follower_count) ||
-    !isNonnegativeInteger(value.following_count)
-  ) {
-    throw invalidResponse();
-  }
-  return {
-    follower_count: value.follower_count,
-    following_count: value.following_count,
-  };
-}
-
 export function parseMyFollowersPage(value: unknown): MyFollowersPage {
   if (
     !isRecord(value) ||
@@ -271,26 +254,6 @@ export async function setCookFollowing(
     if (error instanceof ApiTransportError) throw fromTransportError(error);
     throw new MemberFollowApiError(
       "Recipe Lab could not update this follow right now.",
-      0,
-    );
-  }
-}
-
-export async function fetchMyFollowStats(
-  signal?: AbortSignal,
-): Promise<MyFollowStats> {
-  try {
-    const response = await browserApiRequest("/api/my/follow-stats", {
-      errorContract: FOLLOW_ERROR_CONTRACT,
-      kind: "query",
-      signal,
-    });
-    return parseMyFollowStats(response.data);
-  } catch (error) {
-    if (error instanceof MemberFollowApiError) throw error;
-    if (error instanceof ApiTransportError) throw fromTransportError(error);
-    throw new MemberFollowApiError(
-      "Recipe Lab could not load your followers right now.",
       0,
     );
   }

@@ -215,7 +215,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("GET", "/api/my/follow-stats"): _operation(
         "my_follow_stats_api_my_follow_stats_get",
         "active_consumer",
-        "frontend/features/community/member-follow-api.ts",
+        "frontend/e2e/acceptance/recipe-libraries-acceptance.spec.ts",
     ),
     ("GET", "/api/my/followers"): _operation(
         "my_followers_api_my_followers_get",

@@ -17,7 +17,6 @@ import {
   type RecipeDraftUpdateRequest,
 } from "./recipe-draft-api";
 import {
-  createStructuredActionDraft,
   hydrateStructuredActionDrafts,
   structuredActionFieldKey,
   type IngredientOccurrenceOption,
@@ -501,5 +500,3 @@ export function recipeDraftFieldErrorsFromIssues(
 export function recipeDraftFingerprint(state: RecipeDraftEditorState): string {
   return JSON.stringify(state);
 }
-
-export { createStructuredActionDraft };

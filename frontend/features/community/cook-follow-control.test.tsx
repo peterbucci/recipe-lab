@@ -33,6 +33,7 @@ const control = (
     displayName="Alice Cook"
     handle="alice-cook"
     initialFollowerCount={7}
+    variant="profile"
   />
 );
 

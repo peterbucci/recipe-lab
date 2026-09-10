@@ -22,7 +22,7 @@ interface CookFollowControlProps {
   recipeCount?: number;
   returnTo?: string;
   showCount?: boolean;
-  variant?: "default" | "inline" | "profile";
+  variant: "inline" | "profile";
 }
 
 type PrivateState =
@@ -73,7 +73,7 @@ export function CookFollowControl({
   recipeCount = 0,
   returnTo,
   showCount = true,
-  variant = "default",
+  variant,
 }: CookFollowControlProps) {
   const { refreshSession, sessionExpired, state: authState } = useAuthSession();
   const hydrated = useSyncExternalStore(

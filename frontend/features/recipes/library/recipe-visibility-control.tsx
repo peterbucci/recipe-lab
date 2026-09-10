@@ -11,7 +11,6 @@ import {
 import { LoadingButton } from "../../../shared/ui/loading-ui";
 
 interface RecipeVisibilityControlProps {
-  compact?: boolean;
   onChanged: (state: RecipeVisibilityState) => Promise<void> | void;
   recipeTitle: string;
   recipeVersionId: string;
@@ -36,7 +35,6 @@ function visibilityErrorMessage(reason: unknown): string {
 }
 
 export function RecipeVisibilityControl({
-  compact = false,
   onChanged,
   recipeTitle,
   recipeVersionId,
@@ -82,23 +80,12 @@ export function RecipeVisibilityControl({
   }
 
   if (state === "moderation_hidden") {
-    if (compact) return null;
-    return (
-      <div className="recipe-visibility-control">
-        <p>
-          This recipe is hidden by moderation. Its visibility cannot be changed
-          here.
-        </p>
-      </div>
-    );
+    return null;
   }
 
   if (state === "author_withdrawn") {
     return (
       <div className="recipe-visibility-control">
-        {!compact ? (
-          <p>This recipe is visible only in your recipe library.</p>
-        ) : null}
         <LoadingButton
           aria-label={pending ? `Restoring ${recipeTitle}…` : `Restore ${recipeTitle}`}
           className="button button--secondary"
@@ -107,7 +94,7 @@ export function RecipeVisibilityControl({
           pendingLabel="Restoring…"
           onClick={() => void changeVisibility("published")}
         >
-          {compact ? "Restore to public" : "Restore recipe"}
+          Restore to public
         </LoadingButton>
         {error ? (
           <p className="recipe-visibility-control__error" role="alert">

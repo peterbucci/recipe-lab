@@ -188,7 +188,6 @@
   padding-top: 0.85rem;
   position: relative;
 }
-.recipe-visibility-control > p,
 .recipe-visibility-control__confirmation > p,
 .recipe-visibility-control__error,
 .recipe-visibility-control__status {
