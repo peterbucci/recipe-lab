@@ -511,8 +511,6 @@
   .structured-action__card,
   .structured-action__input-options label,
   .duplicate-preflight-review,
-  .duplicate-preflight-review__warning,
-  .duplicate-preflight-candidates > li,
   .duplicate-preflight-review__decision > label {
     border-color: canvastext;
   }
@@ -521,9 +519,7 @@
   .recipe-diff-value,
   .recipe-diff-single-value,
   .recipe-diff-versions a:hover,
-  .duplicate-preflight-review,
-  .duplicate-preflight-review__warning,
-  .duplicate-preflight-candidates > li {
+  .duplicate-preflight-review {
     background: canvas;
   }
   .duplicate-preflight-review__decision > label:has(input:checked) {

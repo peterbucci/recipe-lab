@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PublicCookProfilePage } from "../../../features/recipes/shared/public-cook-profile";
+import type { PublicCookProfilePage } from "../../../features/community/public-cook-profile";
 import { buildRecipeCardSummary } from "../../../features/recipes/shared/recipe-test-support";
 import CookProfilePage from "./page";
 

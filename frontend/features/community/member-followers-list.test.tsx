@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { deferred } from "../../tests/support/deferred";
 import {
   MemberFollowApiError,
   type MyFollowersPage,
@@ -138,5 +139,29 @@ describe("MemberFollowersList", () => {
       );
       expect(screen.getByText("Page 2 of 2")).toBeVisible();
     });
+  });
+
+  it("aborts an in-flight retry when the follower list unmounts", async () => {
+    const retry = deferred<MyFollowersPage>();
+    mocks.fetchMyFollowers
+      .mockRejectedValueOnce(
+        new MemberFollowApiError(
+          "Recipe Lab could not load your followers right now.",
+          503,
+        ),
+      )
+      .mockReturnValueOnce(retry.promise);
+    const view = authenticated();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Retry followers" }),
+    );
+    await waitFor(() => expect(mocks.fetchMyFollowers).toHaveBeenCalledTimes(2));
+    const retrySignal = mocks.fetchMyFollowers.mock.calls[1]?.[0].signal;
+
+    expect(retrySignal).toBeInstanceOf(AbortSignal);
+    expect(retrySignal?.aborted).toBe(false);
+    view.unmount();
+    expect(retrySignal?.aborted).toBe(true);
   });
 });

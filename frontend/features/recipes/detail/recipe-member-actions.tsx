@@ -1,27 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { isAbortError } from "../../../shared/api/abort-error";
 import {
   fetchRecipeViewerState,
   type RecipeViewerState,
-} from "./interaction-api";
-import type {
-  RecipeVersionReference,
-} from "../shared/recipe-contracts";
-import { findActiveRecipeDraftForSource } from "../authoring/draft/recipe-draft-api";
-import {
-  prepareRecipeDraftEditorEntry,
-  RecipeDraftEditorEntryError,
-  type RecipeDraftEditorEntry,
-} from "../authoring/draft/recipe-draft-editor-entry";
-import {
-  recipeDraftEntryErrorMessage,
-  startOrResumeRecipeDraft,
-} from "../authoring/draft/recipe-draft-entry";
+} from "../shared/interaction-api";
 import { useAuthSession } from "../../auth/auth-session-provider";
 import { InlineLoading, LoadingButton } from "../../../shared/ui/loading-ui";
 import { RatingSummary } from "../shared/rating-summary";
@@ -29,15 +15,19 @@ import { BranchIcon, HeartIcon, StarIcon } from "../shared/recipe-action-icons";
 import { RecipeInteractionPanel } from "./recipe-interaction-panel";
 import { RecipeViewTracker } from "./recipe-view-tracker";
 
+export interface RecipeEditActionState {
+  errorMessage: string | null;
+  hasActiveDraft: boolean;
+  pending: boolean;
+}
+
 interface RecipeMemberActionsProps {
   averageRating: number | null;
-  comparison: RecipeVersionReference | null;
-  onActiveDraftChange?: (hasActiveDraft: boolean) => void;
+  editAction: RecipeEditActionState;
+  onRequestEdit: () => void;
   ratingCount: number;
   recipeVersionId: string;
   saveCount: number;
-  showComparisonAction?: boolean;
-  onEditableVersionReady?: (entry: RecipeDraftEditorEntry) => void | Promise<void>;
 }
 
 type PrivateState =
@@ -45,17 +35,7 @@ type PrivateState =
   | { phase: "ready"; ownerId: string; viewerState: RecipeViewerState }
   | { phase: "error"; ownerId: string };
 
-type ActiveDraftState =
-  | { phase: "idle" }
-  | { phase: "ready"; ownerId: string; draftId: string | null }
-  | { phase: "error"; ownerId: string };
-
 type AuthPrompt = "rate" | "save" | null;
-
-type DraftEntryState =
-  | { phase: "idle" }
-  | { phase: "loading" }
-  | { phase: "error"; message: string };
 
 function accountHref(
   path: "/onboarding" | "/sign-in",
@@ -98,29 +78,20 @@ function SignedOutToolbar({ primaryAction, onPrompt }: SignedOutToolbarProps) {
 
 export function RecipeMemberActions({
   averageRating,
-  comparison,
-  onActiveDraftChange,
+  editAction,
+  onRequestEdit,
   ratingCount,
   recipeVersionId,
   saveCount,
-  showComparisonAction = true,
-  onEditableVersionReady,
 }: RecipeMemberActionsProps) {
-  const router = useRouter();
   const { state: authState, refreshSession } = useAuthSession();
   const returnTo = `/recipes/${encodeURIComponent(recipeVersionId)}`;
   const forkHref = `${returnTo}/fork`;
   const [privateState, setPrivateState] = useState<PrivateState>({
     phase: "idle",
   });
-  const [activeDraftState, setActiveDraftState] = useState<ActiveDraftState>({
-    phase: "idle",
-  });
   const [retryCount, setRetryCount] = useState(0);
   const [authPrompt, setAuthPrompt] = useState<AuthPrompt>(null);
-  const [draftEntryState, setDraftEntryState] = useState<DraftEntryState>({
-    phase: "idle",
-  });
   const [displayedSaveCount, setDisplayedSaveCount] = useState(saveCount);
 
   const memberId =
@@ -157,35 +128,6 @@ export function RecipeMemberActions({
     };
   }, [memberId, recipeVersionId, retryCount]);
 
-  useEffect(() => {
-    if (memberId === null) return;
-
-    const controller = new AbortController();
-    let active = true;
-    void findActiveRecipeDraftForSource(recipeVersionId, controller.signal)
-      .then((draft) => {
-        if (!active) return;
-        setActiveDraftState({
-          phase: "ready",
-          ownerId: memberId,
-          draftId: draft?.id ?? null,
-        });
-      })
-      .catch((reason: unknown) => {
-        if (
-          active &&
-          !isAbortError(reason)
-        ) {
-          setActiveDraftState({ phase: "error", ownerId: memberId });
-        }
-      });
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [memberId, recipeVersionId, retryCount]);
-
   const viewerState =
     memberId !== null &&
     privateState.phase === "ready" &&
@@ -196,72 +138,22 @@ export function RecipeMemberActions({
     memberId !== null &&
     privateState.phase === "error" &&
     privateState.ownerId === memberId;
-  const activeDraftId =
-    memberId !== null &&
-    activeDraftState.phase === "ready" &&
-    activeDraftState.ownerId === memberId
-      ? activeDraftState.draftId
-      : null;
-
-  useEffect(() => {
-    onActiveDraftChange?.(activeDraftId !== null);
-  }, [activeDraftId, onActiveDraftChange]);
-
-  const primaryActionHref =
-    activeDraftId === null
-      ? forkHref
-      : `/recipes/drafts/${encodeURIComponent(activeDraftId)}`;
-
-  async function enterEditableVersion() {
-    if (memberId === null || draftEntryState.phase === "loading") return;
-    setDraftEntryState({ phase: "loading" });
-    try {
-      if (onEditableVersionReady) {
-        const entry = await prepareRecipeDraftEditorEntry(
-          memberId,
-          recipeVersionId,
-        );
-        await onEditableVersionReady(entry);
-      } else {
-        const draftId = await startOrResumeRecipeDraft(memberId, recipeVersionId);
-        router.push(`/recipes/drafts/${encodeURIComponent(draftId)}`);
-      }
-    } catch (reason) {
-      setDraftEntryState({
-        phase: "error",
-        message:
-          reason instanceof RecipeDraftEditorEntryError
-            ? reason.message
-            : recipeDraftEntryErrorMessage(reason),
-      });
-    }
-  }
-
-  const authenticatedPrimaryAction =
-    activeDraftId !== null && !onEditableVersionReady ? (
-      <Link
-        className="recipe-action-button recipe-action-button--primary"
-        href={primaryActionHref}
-      >
-        <BranchIcon />
-        <span>Continue your version</span>
-      </Link>
-    ) : (
-      <LoadingButton
-        className="recipe-action-button recipe-action-button--primary"
-        type="button"
-        pending={draftEntryState.phase === "loading"}
-        pendingLabel="Preparing your version…"
-        onClick={() => void enterEditableVersion()}
-      >
-        <BranchIcon />
-        <span>
-          {activeDraftId !== null
-            ? "Continue your version"
-            : "Make your own version"}
-        </span>
-      </LoadingButton>
-    );
+  const authenticatedPrimaryAction = (
+    <LoadingButton
+      className="recipe-action-button recipe-action-button--primary"
+      type="button"
+      pending={editAction.pending}
+      pendingLabel="Preparing your version…"
+      onClick={onRequestEdit}
+    >
+      <BranchIcon />
+      <span>
+        {editAction.hasActiveDraft
+          ? "Continue your version"
+          : "Make your own version"}
+      </span>
+    </LoadingButton>
+  );
 
   let controls;
   let statusContent = null;
@@ -406,19 +298,10 @@ export function RecipeMemberActions({
         </section>
       ) : null}
 
-      {draftEntryState.phase === "error" ? (
+      {editAction.errorMessage !== null ? (
         <p className="recipe-member-status" role="alert">
-          {draftEntryState.message}
+          {editAction.errorMessage}
         </p>
-      ) : null}
-
-      {comparison && showComparisonAction ? (
-        <Link
-          className="recipe-member-comparison-link"
-          href={`/recipes/${encodeURIComponent(recipeVersionId)}/compare`}
-        >
-          See what changed
-        </Link>
       ) : null}
 
       {viewerState !== null ? (

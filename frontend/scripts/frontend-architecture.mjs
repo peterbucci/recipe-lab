@@ -40,19 +40,31 @@ const REVIEWED_CROSS_FEATURE_DEPENDENCIES = Object.freeze([
   {
     importer: /^features\/account\/member-activity-api\.ts$/,
     dependency:
-      /^features\/recipes\/authoring\/draft\/recipe-draft-api\.ts$/,
-  },
-  {
-    importer: /^features\/auth\/auth-api\.test\.ts$/,
-    dependency: /^features\/account\/account-api\.ts$/,
+      /^features\/recipes\/authoring\/draft\/recipe-draft-summary\.ts$/,
   },
   {
     importer: /^features\/community\/cook-follow-control(?:\.test)?\.tsx$/,
     dependency: /^features\/auth\/auth-session-provider\.tsx$/,
   },
   {
-    importer: /^features\/community\//,
-    dependency: /^features\/recipes\/shared\//,
+    importer: /^features\/community\/public-cook-profile\.ts$/,
+    dependency:
+      /^features\/recipes\/shared\/recipe-(?:contracts|summary-parser)\.ts$/,
+  },
+  {
+    importer:
+      /^features\/community\/(?:community-publication-list|public-cook-attribution)\.tsx$/,
+    dependency: /^features\/recipes\/shared\/recipe-contracts\.ts$/,
+  },
+  {
+    importer: /^features\/community\/member-follow-api\.ts$/,
+    dependency: /^features\/recipes\/shared\/recipe-summary-parser\.ts$/,
+  },
+  {
+    importer:
+      /^features\/community\/community-activity-timeline\.test\.tsx$/,
+    dependency:
+      /^features\/recipes\/shared\/recipe-(?:contracts|test-support)\.ts$/,
   },
   {
     importer:
@@ -93,43 +105,15 @@ const REVIEWED_RECIPE_WORKFLOW_DEPENDENCIES = Object.freeze([
   },
   {
     importer:
-      /^features\/recipes\/authoring\/editor\/recipe-category-selector\.tsx$/,
-    dependency:
-      /^features\/recipes\/browse\/recipe-category-client-api\.ts$/,
-  },
-  {
-    importer:
-      /^features\/recipes\/browse\/recipe-card-engagement\.tsx$/,
-    dependency: /^features\/recipes\/detail\/interaction-api\.ts$/,
-  },
-  {
-    importer:
-      /^features\/recipes\/detail\/recipe-detail-view\.tsx$/,
-    dependency:
-      /^features\/recipes\/authoring\/draft\/recipe-draft-editor-entry\.ts$/,
-  },
-  {
-    importer:
-      /^features\/recipes\/detail\/recipe-member-actions\.tsx$/,
-    dependency:
-      /^features\/recipes\/authoring\/draft\/recipe-draft-(?:api|editor-entry|entry)\.ts$/,
-  },
-  {
-    importer:
-      /^features\/recipes\/detail\/recipe-member-actions\.test\.tsx$/,
-    dependency:
-      /^features\/recipes\/authoring\/draft\/recipe-draft-(?:api|editor-entry)\.ts$/,
-  },
-  {
-    importer:
-      /^features\/recipes\/library\/(?:my-recipe-library\.tsx|recipe-library-model\.ts)$/,
+      /^features\/recipes\/library\/my-recipe-library\.tsx$/,
     dependency:
       /^features\/recipes\/authoring\/draft\/recipe-draft-api\.ts$/,
   },
   {
     importer:
-      /^features\/recipes\/library\/saved-recipe-library\.tsx$/,
-    dependency: /^features\/recipes\/detail\/interaction-api\.ts$/,
+      /^features\/recipes\/library\/(?:my-recipe-library\.tsx|recipe-library-model\.ts)$/,
+    dependency:
+      /^features\/recipes\/authoring\/draft\/recipe-draft-summary\.ts$/,
   },
   {
     importer:

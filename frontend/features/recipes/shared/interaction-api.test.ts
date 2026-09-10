@@ -29,7 +29,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("interaction API client", () => {
+describe("shared recipe interaction API client", () => {
   it.each([
     [true, "PUT"],
     [false, "DELETE"],

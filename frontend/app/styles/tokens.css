@@ -43,5 +43,15 @@
     "Segoe UI", sans-serif;
   --display: var(--sans);
 }
+@media (max-width: 56.25rem) {
+  :root {
+    --shell-logo-gutter: 1rem;
+  }
+}
+@media (max-width: 43.75rem) {
+  :root {
+    --shell-logo-gutter: 0.75rem;
+  }
+}
 
 }

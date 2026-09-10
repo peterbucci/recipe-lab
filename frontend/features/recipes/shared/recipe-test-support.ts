@@ -1,4 +1,3 @@
-import type { PublicCookProfilePage } from "./public-cook-profile";
 import type { RecipeCardSummary, RecipeSummary } from "./recipe-contracts";
 
 export function buildRecipeSummary(
@@ -92,20 +91,4 @@ export function fork(): RecipeCardSummary {
       author: catalog,
     },
   });
-}
-
-export function profile(
-  overrides: Partial<PublicCookProfilePage> = {},
-): PublicCookProfilePage {
-  return {
-    cook: alice,
-    follower_count: 4,
-    description: "A home cook sharing practical weeknight recipes.",
-    items: [original(), fork()],
-    page: 1,
-    page_size: 12,
-    total: 13,
-    total_pages: 2,
-    ...overrides,
-  };
 }

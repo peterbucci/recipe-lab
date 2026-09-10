@@ -2,14 +2,18 @@
 
 import { Plus } from "lucide-react";
 
-import type { MyRecipeLibraryView } from "./recipe-library-model";
 import { GuardedLink } from "../../../shared/navigation/navigation-blocker-provider";
 import {
   WorkspaceTabCount,
   WorkspaceTabMenu,
 } from "../../../shared/ui/workspace-tab-menu";
+import {
+  myRecipesHref,
+  type MyRecipesHubView,
+} from "./my-recipes-route";
 
-export type MyRecipesHubView = MyRecipeLibraryView | "saved";
+export { myRecipesHref } from "./my-recipes-route";
+export type { MyRecipesHubView } from "./my-recipes-route";
 
 const MY_RECIPE_VIEWS: readonly MyRecipesHubView[] = [
   "drafts",
@@ -20,12 +24,6 @@ const MY_RECIPE_VIEWS: readonly MyRecipesHubView[] = [
 
 function viewLabel(view: MyRecipesHubView): string {
   return view.slice(0, 1).toUpperCase() + view.slice(1);
-}
-
-export function myRecipesHref(view: MyRecipesHubView, page = 1): string {
-  const query = new URLSearchParams({ view });
-  if (page > 1) query.set("page", String(page));
-  return `/account/recipes?${query.toString()}`;
 }
 
 export function MyRecipesHubHeader() {

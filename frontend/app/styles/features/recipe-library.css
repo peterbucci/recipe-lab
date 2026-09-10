@@ -306,67 +306,6 @@
   max-width: 38rem;
   color: var(--muted);
 }
-.workspace-empty-state {
-  border: 0;
-  border-radius: 0.7rem;
-  background: var(--surface);
-  min-height: 14rem;
-  box-shadow: none;
-  text-align: left;
-  align-items: center;
-  justify-content: center;
-  padding: clamp(1.4rem, 4vw, 2.25rem);
-  display: flex;
-}
-.workspace-empty-state__body {
-  width: min(100%, 38rem);
-}
-.workspace-empty-state .workspace-empty-state__eyebrow {
-  color: #66677a;
-  margin: 0 0 1.1rem;
-  font-size: 0.68rem;
-}
-.workspace-empty-state h2,
-.workspace-empty-state h3 {
-  margin: 0;
-  font-size: 1.25rem;
-  line-height: 1.25;
-}
-.workspace-empty-state .workspace-empty-state__description {
-  max-width: 38rem;
-  color: var(--muted);
-  margin: 0.55rem 0 0;
-  line-height: 1.55;
-}
-.workspace-empty-state__action {
-  margin-top: 1.25rem;
-}
-.member-request-history--standalone > .workspace-empty-state,
-.member-activity-page__shell > .workspace-empty-state,
-.staff-workspace__tab-shell > .workspace-empty-state {
-  margin: 1rem;
-}
-@media (max-width: 43.75rem) {
-  .workspace-empty-state {
-    min-height: 12rem;
-    padding: 1.25rem;
-  }
-  .workspace-empty-state__body {
-    width: 100%;
-  }
-  .member-request-history--standalone > .workspace-empty-state,
-  .member-activity-page__shell > .workspace-empty-state,
-  .staff-workspace__tab-shell > .workspace-empty-state {
-    margin: 0.75rem;
-  }
-}
-@media (forced-colors: active) {
-  .workspace-empty-state {
-    border: 1px solid canvastext;
-    background: canvas;
-    color: canvastext;
-  }
-}
 .account-workspace-page.member-library .member-library__content > .pagination,
 .account-workspace-page.member-library
   .member-library__collection
@@ -467,6 +406,11 @@
     .button--primary {
     width: auto;
     margin-right: 0;
+  }
+}
+@media (max-width: 30rem) {
+  .member-library__draft-card .button-row .button {
+    width: auto;
   }
 }
 @media (max-width: 27rem) {

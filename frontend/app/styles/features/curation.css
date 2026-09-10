@@ -591,21 +591,12 @@
   }
 }
 @media (max-width: 48rem) {
-  .member-request-history__header,
   .member-request-history__auth-recovery {
     flex-direction: column;
     align-items: stretch;
   }
-  .member-request-history__controls,
   .member-request-history__list {
     grid-template-columns: 1fr;
-  }
-  .member-request-history__search > div {
-    flex-direction: column;
-  }
-  .member-request-history__header .button,
-  .member-request-history__search .button {
-    width: 100%;
   }
   .section-heading {
     flex-direction: column;
@@ -715,9 +706,6 @@
   .draft-editor__actions > p {
     min-height: 1.2rem;
   }
-  .site-nav__secondary {
-    display: none;
-  }
   .pagination {
     grid-template-columns: 1fr 1fr;
   }
@@ -733,53 +721,6 @@
   }
 }
 @media (max-width: 30rem) {
-  .site-header__inner {
-    min-height: 3.75rem;
-  }
-  .brand {
-    font-size: 0.95rem;
-  }
-  .site-nav {
-    gap: 0.65rem;
-  }
-  .nav-link {
-    font-size: 0.8rem;
-  }
-  .account-menu__name {
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    white-space: nowrap;
-    width: 1px;
-    height: 1px;
-    position: absolute;
-    overflow: hidden;
-  }
-  .account-menu > summary {
-    min-width: 3.5rem;
-  }
-  .session-recovery__inner {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 0.65rem 0;
-  }
-  .session-recovery__actions {
-    display: grid;
-  }
-  .session-recovery__actions .button,
-  .session-recovery__inner > .button {
-    white-space: normal;
-    width: 100%;
-  }
-  .auth-card__actions,
-  .profile-form__actions {
-    display: grid;
-  }
-  .button-row .button {
-    width: 100%;
-  }
-  .member-library__draft-card .button-row .button {
-    width: auto;
-  }
   .section-heading--compact {
     flex-direction: column;
     align-items: start;

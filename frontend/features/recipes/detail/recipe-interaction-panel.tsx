@@ -10,7 +10,7 @@ import {
   type RecipeViewerState,
   setRecipeRating,
   setRecipeSaved,
-} from "./interaction-api";
+} from "../shared/interaction-api";
 import { LoadingButton } from "../../../shared/ui/loading-ui";
 import { HeartIcon, StarIcon } from "../shared/recipe-action-icons";
 

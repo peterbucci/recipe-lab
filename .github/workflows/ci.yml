@@ -181,6 +181,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up locked Python
+        uses: ./.github/actions/setup-python
+
       - name: Set up locked Node.js
         uses: ./.github/actions/setup-node
 

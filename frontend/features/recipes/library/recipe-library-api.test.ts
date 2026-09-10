@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AUTH_SESSION_EXPIRED_EVENT } from "../../../shared/api/browser-session";
 import { fetchMyRecipeLibrary, fetchSavedRecipeLibrary } from "./recipe-library-api";
-import { RecipeLibraryApiError } from "../shared/recipe-library-error";
+import { RecipeLibraryApiError } from "./recipe-library-error";
 
 const COOK_ID = "11111111-1111-4111-8111-111111111111";
 const PARENT_COOK_ID = "22222222-2222-4222-8222-222222222222";
@@ -72,12 +72,18 @@ describe("private recipe library API", () => {
       instruction_count: 3,
       created_at: "2026-08-25T10:00:00Z",
       updated_at: "2026-08-25T12:00:00Z",
+      future_server_field: "must not escape the library model",
     };
     const originalDraft = {
-      ...draft,
       id: ORIGINAL_DRAFT_ID,
       source_version_id: null,
+      status: "active",
+      revision: 2,
       title: "Original weeknight soup",
+      ingredient_count: 4,
+      instruction_count: 3,
+      created_at: "2026-08-25T10:00:00Z",
+      updated_at: "2026-08-25T12:00:00Z",
     };
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
@@ -101,13 +107,27 @@ describe("private recipe library API", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      fetchMyRecipeLibrary({ view: "drafts", page: 3, pageSize: 8 }),
-    ).resolves.toMatchObject({
+    const page = await fetchMyRecipeLibrary({
+      view: "drafts",
+      page: 3,
+      pageSize: 8,
+    });
+
+    expect(page).toMatchObject({
       items: [
         {
           kind: "draft",
-          draft,
+          draft: {
+            id: DRAFT_ID,
+            source_version_id: PARENT_ID,
+            status: "active",
+            revision: 2,
+            title: "Weeknight soup",
+            ingredient_count: 4,
+            instruction_count: 3,
+            created_at: "2026-08-25T10:00:00Z",
+            updated_at: "2026-08-25T12:00:00Z",
+          },
           source_recipe_title: "Catalog carrot cake",
           description: "A weeknight soup with a silky finish.",
         },
@@ -119,6 +139,12 @@ describe("private recipe library API", () => {
         },
       ],
     });
+    const firstItem = page.items[0];
+    expect(firstItem?.kind).toBe("draft");
+    if (!firstItem || firstItem.kind !== "draft") {
+      throw new TypeError("Expected the first library item to be a draft.");
+    }
+    expect(firstItem.draft).not.toHaveProperty("future_server_field");
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/my/recipes?view=drafts&page=3&page_size=8",
       expect.objectContaining({ credentials: "same-origin" }),

@@ -43,8 +43,8 @@ export default async function RecipeDraftWorkspacePage({
     <RecipeDraftEditor
       actionTypes={actionTypes}
       draftId={draftId}
+      key={draftId}
       measurementUnits={measurementUnits}
-      presentation="recipe"
     />
   );
 }

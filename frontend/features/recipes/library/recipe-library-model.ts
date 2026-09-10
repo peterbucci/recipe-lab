@@ -1,13 +1,15 @@
 import type { operations } from "../../../shared/api/generated/generated";
-import type { RecipeDraftListItem } from "../authoring/draft/recipe-draft-api";
+import {
+  parseRecipeDraftListItem,
+  type RecipeDraftListItem,
+} from "../authoring/draft/recipe-draft-summary";
 import type { RecipeSummary } from "../shared/recipe-contracts";
-import { invalidRecipeLibraryResponse } from "../shared/recipe-library-error";
-import { parseRecipeLibraryPageEnvelope } from "../shared/recipe-library-page-parser";
+import { invalidRecipeLibraryResponse } from "./recipe-library-error";
+import { parseRecipeLibraryPageEnvelope } from "./recipe-library-page-parser";
 import {
   isBoundedRecipeText,
   isRecipeRecord,
   isRecipeTimestamp,
-  isRecipeUuid,
   parseRecipeSummary,
 } from "../shared/recipe-summary-parser";
 
@@ -48,33 +50,18 @@ export interface SavedRecipeLibraryPage {
 }
 
 function parseDraft(value: unknown): RecipeDraftListItem | null {
-  if (
-    !isRecipeRecord(value) ||
-    !isRecipeUuid(value.id) ||
-    (value.source_version_id !== null && !isRecipeUuid(value.source_version_id)) ||
-    value.status !== "active" ||
-    !Number.isInteger(value.revision) ||
-    (value.revision as number) < 1 ||
-    !isBoundedRecipeText(value.title, 200, true) ||
-    !Number.isInteger(value.ingredient_count) ||
-    (value.ingredient_count as number) < 0 ||
-    !Number.isInteger(value.instruction_count) ||
-    (value.instruction_count as number) < 0 ||
-    !isRecipeTimestamp(value.created_at) ||
-    !isRecipeTimestamp(value.updated_at)
-  ) {
-    return null;
-  }
+  const draft = parseRecipeDraftListItem(value);
+  if (draft === null) return null;
   return {
-    id: value.id,
-    source_version_id: value.source_version_id as string | null,
-    status: "active",
-    revision: value.revision as number,
-    title: value.title,
-    ingredient_count: value.ingredient_count as number,
-    instruction_count: value.instruction_count as number,
-    created_at: value.created_at,
-    updated_at: value.updated_at,
+    id: draft.id,
+    source_version_id: draft.source_version_id,
+    status: draft.status,
+    revision: draft.revision,
+    title: draft.title,
+    ingredient_count: draft.ingredient_count,
+    instruction_count: draft.instruction_count,
+    created_at: draft.created_at,
+    updated_at: draft.updated_at,
   };
 }
 

@@ -25,8 +25,6 @@ type CreateIngredientRequestWire =
   CreateIngredientRequestOperation["responses"][201]["content"]["application/json"];
 type MyIngredientRequestsWire =
   operations["my_ingredient_requests_api_ingredient_requests_mine_get"]["responses"][200]["content"]["application/json"];
-type IngredientRequestDetailWire =
-  operations["ingredient_request_detail_api_ingredient_requests__request_id__get"]["responses"][200]["content"]["application/json"];
 
 export interface MemberIngredientRequest extends MissingIngredientRequest {
   resolved_ingredient: CatalogIngredient | null;
@@ -200,39 +198,6 @@ export async function browseMyIngredientRequests({
       throw ingredientRequestError(
         error,
         "Your ingredient requests could not be loaded. Please try again.",
-      );
-    }
-    throw error;
-  }
-}
-
-export async function fetchMyIngredientRequest(
-  requestId: string,
-  signal?: AbortSignal,
-): Promise<MemberIngredientRequest> {
-  try {
-    const response = await browserApiRequest(
-      `/api/ingredient-requests/${encodeURIComponent(requestId)}`,
-      {
-        errorContract: INGREDIENT_REQUEST_ERROR_CONTRACT,
-        kind: "query",
-        retry: "never",
-        sessionExpiry: "local",
-        signal,
-      },
-    );
-    return parseMemberIngredientRequest(
-      response.data as IngredientRequestDetailWire,
-    );
-  } catch (error) {
-    if (error instanceof IngredientCatalogApiError) throw error;
-    if (error instanceof ApiTransportError) {
-      if (signal?.aborted) {
-        throw new DOMException("The request was aborted.", "AbortError");
-      }
-      throw ingredientRequestError(
-        error,
-        "The ingredient request could not be loaded. Please try again.",
       );
     }
     throw error;

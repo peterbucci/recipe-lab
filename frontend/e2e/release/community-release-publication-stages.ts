@@ -104,12 +104,11 @@ export async function requestMissingIngredient(
     name: "Ingredient 1",
     exact: true,
   });
-  await ingredient
-    .getByRole("button", {
-      name: "Edit amount for ingredient 1",
-      exact: true,
-    })
-    .click();
+  const amountTrigger = ingredient.getByRole("button", {
+    name: "Edit amount for ingredient 1",
+    exact: true,
+  });
+  await amountTrigger.click();
   const amountEditor = ingredient.getByRole("dialog", {
     name: "Amount for ingredient 1",
     exact: true,
@@ -126,6 +125,7 @@ export async function requestMissingIngredient(
   await amountEditor
     .getByRole("button", { name: "Done", exact: true })
     .click();
+  await expect(amountTrigger).toBeFocused();
   const search = ingredient.getByRole("combobox", {
     name: "Ingredient",
     exact: true,

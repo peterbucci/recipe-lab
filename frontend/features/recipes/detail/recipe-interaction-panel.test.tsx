@@ -8,7 +8,7 @@ import {
 import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { RecipeViewerState } from "./interaction-api";
+import type { RecipeViewerState } from "../shared/interaction-api";
 import { RecipeInteractionPanel } from "./recipe-interaction-panel";
 
 const mocks = vi.hoisted(() => ({
@@ -27,7 +27,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mocks.refresh }),
 }));
 
-vi.mock("./interaction-api", () => ({
+vi.mock("../shared/interaction-api", () => ({
   clearRecipeRating: mocks.clearRecipeRating,
   setRecipeRating: mocks.setRecipeRating,
   setRecipeSaved: mocks.setRecipeSaved,

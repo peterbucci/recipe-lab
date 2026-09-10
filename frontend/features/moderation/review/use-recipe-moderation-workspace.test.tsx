@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
+  RecipeModerationActionResult,
   RecipeModerationCaseDetail,
   RecipeModerationCasePage,
 } from "./recipe-moderation-api";
@@ -42,6 +43,35 @@ function renderWorkspaceHook() {
     useRecipeModerationWorkspace({ onAuthorizationLost }),
   );
   return { ...hook, onAuthorizationLost };
+}
+
+function moderationActionResult(
+  overrides: Partial<RecipeModerationActionResult> = {},
+): RecipeModerationActionResult {
+  return {
+    recipe_version_id: RECIPE_ID,
+    action: "hide",
+    changed: true,
+    case_status: "open",
+    visibility_state: "moderation_hidden",
+    acted_at: NOW,
+    ...overrides,
+  };
+}
+
+function configureTwoCaseWorkspace() {
+  mocks.browse.mockResolvedValue(
+    moderationPage([moderationSummary, secondModerationSummary]),
+  );
+  mocks.detail.mockImplementation((recipeVersionId: string) =>
+    Promise.resolve(
+      moderationDetail(
+        recipeVersionId === SECOND_RECIPE_ID
+          ? { ...secondModerationSummary }
+          : {},
+      ),
+    ),
+  );
 }
 
 beforeEach(() => {
@@ -239,6 +269,302 @@ describe("useRecipeModerationWorkspace", () => {
     );
     expect(result.current.privateNote).toBe("");
     expect(result.current.workspaceStatus).toMatch(/^Recipe hidden\./);
+  });
+
+  it("keeps the newly selected case and its pending action when the previous case succeeds", async () => {
+    const firstAction = deferred<RecipeModerationActionResult>();
+    const secondAction = deferred<RecipeModerationActionResult>();
+    configureTwoCaseWorkspace();
+    mocks.moderate
+      .mockImplementationOnce(() => firstAction.promise)
+      .mockImplementationOnce(() => secondAction.promise);
+    const { result } = renderWorkspaceHook();
+    await waitFor(() =>
+      expect(result.current.detail?.recipe_version_id).toBe(RECIPE_ID),
+    );
+    act(() => result.current.changePrivateNote("Case A note"));
+
+    let firstPromise!: Promise<void>;
+    act(() => {
+      firstPromise = result.current.applyAction("hide");
+    });
+    expect(result.current.actionPending).toBe("hide");
+
+    act(() => result.current.selectCase(SECOND_RECIPE_ID));
+    await waitFor(() =>
+      expect(result.current.detail?.recipe_version_id).toBe(SECOND_RECIPE_ID),
+    );
+    act(() => result.current.changePrivateNote("Case B note"));
+    let secondPromise!: Promise<void>;
+    act(() => {
+      secondPromise = result.current.applyAction("resolve");
+    });
+    expect(result.current.actionPending).toBe("resolve");
+
+    await act(async () => {
+      firstAction.resolve(moderationActionResult());
+      await firstPromise;
+    });
+    await waitFor(() => expect(mocks.browse).toHaveBeenCalledTimes(2));
+
+    expect(result.current.selectedId).toBe(SECOND_RECIPE_ID);
+    expect(result.current.detail).toMatchObject({
+      recipe_version_id: SECOND_RECIPE_ID,
+      status: "open",
+      visibility_state: "published",
+    });
+    expect(result.current.privateNote).toBe("Case B note");
+    expect(result.current.actionPending).toBe("resolve");
+    expect(result.current.actionError).toBe("");
+    expect(result.current.workspaceStatus).toBe("");
+
+    await act(async () => {
+      secondAction.resolve(
+        moderationActionResult({
+          recipe_version_id: SECOND_RECIPE_ID,
+          action: "resolve",
+          case_status: "resolved",
+          visibility_state: "published",
+        }),
+      );
+      await secondPromise;
+    });
+    expect(result.current.actionPending).toBeNull();
+    expect(result.current.privateNote).toBe("");
+    expect(result.current.workspaceStatus).toMatch(/^Case resolved\./);
+  });
+
+  it.each([
+    [
+      "conflict",
+      new RecipeModerationApiError("The moderation case changed.", 409),
+    ],
+    ["generic failure", new Error("request failed")],
+  ])(
+    "does not show a stale %s from the previously selected case",
+    async (_label, failure) => {
+      const action = deferred<RecipeModerationActionResult>();
+      configureTwoCaseWorkspace();
+      mocks.moderate.mockImplementationOnce(() => action.promise);
+      const { result } = renderWorkspaceHook();
+      await waitFor(() =>
+        expect(result.current.detail?.recipe_version_id).toBe(RECIPE_ID),
+      );
+      act(() => result.current.changePrivateNote("Case A note"));
+
+      let actionPromise!: Promise<void>;
+      act(() => {
+        actionPromise = result.current.applyAction("hide");
+      });
+      act(() => result.current.selectCase(SECOND_RECIPE_ID));
+      await waitFor(() =>
+        expect(result.current.detail?.recipe_version_id).toBe(SECOND_RECIPE_ID),
+      );
+      act(() => result.current.changePrivateNote("Case B note"));
+
+      await act(async () => {
+        action.reject(failure);
+        await actionPromise;
+      });
+
+      expect(result.current.detail?.recipe_version_id).toBe(SECOND_RECIPE_ID);
+      expect(result.current.privateNote).toBe("Case B note");
+      expect(result.current.actionPending).toBeNull();
+      expect(result.current.actionError).toBe("");
+      expect(result.current.workspaceStatus).toBe("");
+    },
+  );
+
+  it("honors authorization loss after the initiating case becomes stale", async () => {
+    const action = deferred<RecipeModerationActionResult>();
+    configureTwoCaseWorkspace();
+    mocks.moderate.mockImplementationOnce(() => action.promise);
+    const { onAuthorizationLost, result } = renderWorkspaceHook();
+    await waitFor(() =>
+      expect(result.current.detail?.recipe_version_id).toBe(RECIPE_ID),
+    );
+
+    let actionPromise!: Promise<void>;
+    act(() => {
+      actionPromise = result.current.applyAction("hide");
+    });
+    act(() => result.current.selectCase(SECOND_RECIPE_ID));
+    await waitFor(() =>
+      expect(result.current.detail?.recipe_version_id).toBe(SECOND_RECIPE_ID),
+    );
+    act(() => result.current.changePrivateNote("Case B note"));
+
+    await act(async () => {
+      action.reject(
+        new RecipeModerationApiError("Moderator access expired.", 403),
+      );
+      await actionPromise;
+    });
+
+    expect(onAuthorizationLost).toHaveBeenCalledOnce();
+    expect(result.current.privateNote).toBe("Case B note");
+    expect(result.current.actionError).toBe("");
+    expect(result.current.workspaceStatus).toBe("");
+  });
+
+  it("does not let an old visit to a case finish into a newer visit or attempt", async () => {
+    const oldAction = deferred<RecipeModerationActionResult>();
+    const newAction = deferred<RecipeModerationActionResult>();
+    configureTwoCaseWorkspace();
+    mocks.key
+      .mockReset()
+      .mockReturnValueOnce("old-moderation-key")
+      .mockReturnValueOnce("new-moderation-key");
+    mocks.moderate
+      .mockImplementationOnce(() => oldAction.promise)
+      .mockImplementationOnce(() => newAction.promise)
+      .mockResolvedValueOnce(moderationActionResult());
+    const { result } = renderWorkspaceHook();
+    await waitFor(() =>
+      expect(result.current.detail?.recipe_version_id).toBe(RECIPE_ID),
+    );
+    act(() => result.current.changePrivateNote("Old visit"));
+
+    let oldPromise!: Promise<void>;
+    act(() => {
+      oldPromise = result.current.applyAction("hide");
+    });
+    act(() => result.current.selectCase(SECOND_RECIPE_ID));
+    await waitFor(() =>
+      expect(result.current.detail?.recipe_version_id).toBe(SECOND_RECIPE_ID),
+    );
+    act(() => result.current.selectCase(RECIPE_ID));
+    await waitFor(() =>
+      expect(result.current.detail?.recipe_version_id).toBe(RECIPE_ID),
+    );
+    act(() => result.current.changePrivateNote("New visit"));
+
+    let newPromise!: Promise<void>;
+    act(() => {
+      newPromise = result.current.applyAction("hide");
+    });
+    expect(result.current.actionPending).toBe("hide");
+
+    await act(async () => {
+      oldAction.resolve(moderationActionResult());
+      await oldPromise;
+    });
+
+    expect(result.current.detail).toMatchObject({
+      recipe_version_id: RECIPE_ID,
+      visibility_state: "published",
+    });
+    expect(result.current.privateNote).toBe("New visit");
+    expect(result.current.actionPending).toBe("hide");
+    expect(result.current.workspaceStatus).toBe("");
+
+    await act(async () => {
+      newAction.reject(
+        new RecipeModerationApiError(
+          "Moderation is temporarily unavailable.",
+          503,
+        ),
+      );
+      await newPromise;
+    });
+    await act(async () => result.current.applyAction("hide"));
+
+    expect(mocks.moderate).toHaveBeenNthCalledWith(
+      2,
+      RECIPE_ID,
+      "hide",
+      "New visit",
+      "new-moderation-key",
+    );
+    expect(mocks.moderate).toHaveBeenNthCalledWith(
+      3,
+      RECIPE_ID,
+      "hide",
+      "New visit",
+      "new-moderation-key",
+    );
+  });
+
+  it("does not move focus to a stale success after selection changes", async () => {
+    const action = deferred<RecipeModerationActionResult>();
+    configureTwoCaseWorkspace();
+    mocks.moderate.mockImplementationOnce(() => action.promise);
+    const { result } = renderWorkspaceHook();
+    await waitFor(() =>
+      expect(result.current.detail?.recipe_version_id).toBe(RECIPE_ID),
+    );
+    const status = document.createElement("p");
+    const focus = vi.spyOn(status, "focus");
+    result.current.statusRef.current = status;
+    let scheduledFocus: (() => void) | undefined;
+    const setTimeout = vi
+      .spyOn(window, "setTimeout")
+      .mockImplementation((handler) => {
+        scheduledFocus = handler;
+        return 1 as unknown as ReturnType<typeof window.setTimeout>;
+      });
+
+    try {
+      let actionPromise!: Promise<void>;
+      act(() => {
+        actionPromise = result.current.applyAction("hide");
+      });
+      await act(async () => {
+        action.resolve(moderationActionResult());
+        await actionPromise;
+      });
+      expect(scheduledFocus).toBeTypeOf("function");
+
+      act(() => result.current.selectCase(SECOND_RECIPE_ID));
+      act(() => {
+        if (typeof scheduledFocus === "function") scheduledFocus();
+      });
+
+      expect(focus).not.toHaveBeenCalled();
+    } finally {
+      setTimeout.mockRestore();
+    }
+  });
+
+  it("does not move focus to a stale error after selection changes", async () => {
+    const action = deferred<RecipeModerationActionResult>();
+    configureTwoCaseWorkspace();
+    mocks.moderate.mockImplementationOnce(() => action.promise);
+    const { result } = renderWorkspaceHook();
+    await waitFor(() =>
+      expect(result.current.detail?.recipe_version_id).toBe(RECIPE_ID),
+    );
+    const alert = document.createElement("div");
+    const focus = vi.spyOn(alert, "focus");
+    result.current.actionErrorRef.current = alert;
+    let scheduledFocus: (() => void) | undefined;
+    const setTimeout = vi
+      .spyOn(window, "setTimeout")
+      .mockImplementation((handler) => {
+        scheduledFocus = handler;
+        return 1 as unknown as ReturnType<typeof window.setTimeout>;
+      });
+
+    try {
+      let actionPromise!: Promise<void>;
+      act(() => {
+        actionPromise = result.current.applyAction("hide");
+      });
+      await act(async () => {
+        action.reject(new Error("request failed"));
+        await actionPromise;
+      });
+      expect(scheduledFocus).toBeTypeOf("function");
+
+      act(() => result.current.selectCase(SECOND_RECIPE_ID));
+      act(() => {
+        if (typeof scheduledFocus === "function") scheduledFocus();
+      });
+
+      expect(focus).not.toHaveBeenCalled();
+    } finally {
+      setTimeout.mockRestore();
+    }
   });
 
   it("reports authorization loss from an action and preserves its note", async () => {

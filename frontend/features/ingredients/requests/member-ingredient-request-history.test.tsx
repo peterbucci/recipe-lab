@@ -6,16 +6,12 @@ import type {
   MemberIngredientRequestPage,
 } from "./ingredient-request-api";
 import { IngredientCatalogApiError } from "../ingredient-api-error";
-import {
-  browseMyIngredientRequests,
-  fetchMyIngredientRequest,
-} from "./ingredient-request-api";
+import { browseMyIngredientRequests } from "./ingredient-request-api";
 import { deferred } from "../../../tests/support/deferred";
 import { MemberIngredientRequestHistory } from "./member-ingredient-request-history";
 
 const mocks = vi.hoisted(() => ({
   browseMyIngredientRequests: vi.fn(),
-  fetchMyIngredientRequest: vi.fn(),
 }));
 
 vi.mock("./ingredient-request-api", async (importOriginal) => {
@@ -23,7 +19,6 @@ vi.mock("./ingredient-request-api", async (importOriginal) => {
   return {
     ...actual,
     browseMyIngredientRequests: mocks.browseMyIngredientRequests,
-    fetchMyIngredientRequest: mocks.fetchMyIngredientRequest,
   };
 });
 
@@ -103,7 +98,6 @@ function requestPage(
 
 beforeEach(() => {
   mocks.browseMyIngredientRequests.mockReset();
-  mocks.fetchMyIngredientRequest.mockReset();
   mocks.browseMyIngredientRequests.mockResolvedValue(requestPage());
 });
 
@@ -119,12 +113,11 @@ describe("MemberIngredientRequestHistory", () => {
     expect(status.closest(".section-loading--rows")).not.toBeNull();
   });
 
-  it("shows every member status and terminal detail without exposing page-level selection", async () => {
+  it("shows every member status and terminal detail", async () => {
     render(<MemberIngredientRequestHistory idPrefix="history" />);
 
     const region = await screen.findByRole("region", { name: "My ingredient requests" });
     expect(region).toHaveClass("member-request-history--standalone");
-    expect(region).not.toHaveClass("member-request-history--picker");
     const statusTabs = within(region).getByRole("navigation", {
       name: "Ingredient request status",
     });
@@ -189,7 +182,6 @@ describe("MemberIngredientRequestHistory", () => {
     expect(
       within(duplicateCard).getByText("Your request matched an existing ingredient"),
     ).toBeVisible();
-    expect(within(region).queryByRole("button", { name: /^Use / })).not.toBeInTheDocument();
   });
 
   it("sends status, search, and paging to the complete member-history endpoint", async () => {
@@ -298,132 +290,6 @@ describe("MemberIngredientRequestHistory", () => {
     expect(next).toHaveFocus();
   });
 
-  it("refetches a trusted resolution before explicitly selecting its canonical identity", async () => {
-    const detail = deferred<MemberIngredientRequest>();
-    mocks.fetchMyIngredientRequest.mockReturnValue(detail.promise);
-    const onSelectResolution = vi.fn();
-    render(
-      <MemberIngredientRequestHistory
-        idPrefix="picker-history"
-        contextLabel="Ingredient 2: Walnuts"
-        onSelectResolution={onSelectResolution}
-      />,
-    );
-
-    const region = await screen.findByRole("region", {
-      name: "Choose from my ingredient requests for Ingredient 2: Walnuts",
-    });
-    expect(region).toHaveClass("member-request-history--picker");
-    expect(region).not.toHaveClass("member-request-history--standalone");
-    expect(
-      within(
-        within(region).getByRole("article", { name: "Ingredient request: Unreviewed herb" }),
-      ).queryByRole("button", { name: /^Use / }),
-    ).not.toBeInTheDocument();
-    expect(
-      within(
-        within(region).getByRole("article", { name: "Ingredient request: Ambiguous powder" }),
-      ).queryByRole("button", { name: /^Use / }),
-    ).not.toBeInTheDocument();
-
-    fireEvent.click(
-      within(region).getByRole("button", {
-        name: "Use Pitaya for Ingredient 2: Walnuts",
-      }),
-    );
-    expect(fetchMyIngredientRequest).toHaveBeenCalledWith(APPROVED_ID, expect.any(AbortSignal));
-    expect(onSelectResolution).not.toHaveBeenCalled();
-    expect(
-      within(region).getByRole("button", { name: "Confirming Pitaya…" }),
-    ).toBeDisabled();
-
-    await act(async () => {
-      detail.resolve(approved);
-      await detail.promise;
-    });
-    expect(onSelectResolution).toHaveBeenCalledWith({
-      ingredientId: PITAYA_ID,
-      canonicalName: "Pitaya",
-      displayName: "Pitaya",
-    });
-  });
-
-  it("leaves the caller untouched when a resolution changed or could not be confirmed", async () => {
-    mocks.fetchMyIngredientRequest.mockResolvedValue({
-      ...approved,
-      status: "duplicate",
-      resolved_ingredient_id: PECAN_ID,
-      resolved_ingredient: duplicate.resolved_ingredient,
-    });
-    const onSelectResolution = vi.fn();
-    render(
-      <MemberIngredientRequestHistory
-        idPrefix="picker-history"
-        contextLabel="New ingredient 4"
-        onSelectResolution={onSelectResolution}
-      />,
-    );
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Use Pitaya for New ingredient 4" }),
-    );
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "This request changed since it was loaded. Your recipe was not changed.",
-    );
-    expect(onSelectResolution).not.toHaveBeenCalled();
-  });
-
-  it("keeps the caller untouched when detail confirmation fails", async () => {
-    mocks.fetchMyIngredientRequest.mockRejectedValue(new Error("offline"));
-    const onSelectResolution = vi.fn();
-    render(
-      <MemberIngredientRequestHistory
-        idPrefix="picker-history"
-        contextLabel="New ingredient 4"
-        onSelectResolution={onSelectResolution}
-      />,
-    );
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Use Pitaya for New ingredient 4" }),
-    );
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "We couldn’t confirm this catalog resolution. Your recipe was not changed.",
-    );
-    expect(onSelectResolution).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole("button", { name: "Use Pitaya for New ingredient 4" }),
-    ).toBeEnabled();
-  });
-
-  it("keeps an expired-session failure local and offers draft-safe recovery", async () => {
-    mocks.fetchMyIngredientRequest.mockRejectedValue(
-      new IngredientCatalogApiError("Sign in again.", 401, "authentication_required"),
-    );
-    const onSelectResolution = vi.fn();
-    render(
-      <MemberIngredientRequestHistory
-        idPrefix="picker-history"
-        contextLabel="New ingredient 4"
-        onSelectResolution={onSelectResolution}
-      />,
-    );
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Use Pitaya for New ingredient 4" }),
-    );
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Your session expired. Your recipe was not changed.",
-    );
-    expect(screen.getByRole("link", { name: "Sign in in a new tab" })).toHaveAttribute(
-      "target",
-      "_blank",
-    );
-    expect(screen.getByText(/keep this recipe tab open/i)).toBeVisible();
-    expect(onSelectResolution).not.toHaveBeenCalled();
-  });
-
   it("recovers from a list-service error and then renders the empty state", async () => {
     const onRequestIngredient = vi.fn();
     mocks.browseMyIngredientRequests
@@ -458,6 +324,42 @@ describe("MemberIngredientRequestHistory", () => {
       within(emptyState!).getByRole("button", { name: "Request an ingredient" }),
     );
     expect(onRequestIngredient).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps list authentication recovery inside standalone history", async () => {
+    mocks.browseMyIngredientRequests
+      .mockRejectedValueOnce(
+        new IngredientCatalogApiError(
+          "Sign in again.",
+          401,
+          "authentication_required",
+        ),
+      )
+      .mockResolvedValueOnce(requestPage([approved]));
+    render(<MemberIngredientRequestHistory idPrefix="history" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your session expired. Sign in again, then retry your request history.",
+    );
+    expect(
+      screen.getByRole("link", { name: "Sign in in a new tab" }),
+    ).toHaveAttribute("target", "_blank");
+    expect(
+      screen.getByText(
+        "After signing in, return to this tab and try loading your requests again.",
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(
+      await screen.findByRole("article", {
+        name: "Ingredient request: Dragon fruit request text",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: "Sign in in a new tab" }),
+    ).not.toBeInTheDocument();
   });
 
   it("uses the shared empty state for empty status filters and searches", async () => {
@@ -519,34 +421,4 @@ describe("MemberIngredientRequestHistory", () => {
     ).toBeVisible();
   });
 
-  it("disables resolution actions while refreshed list data is pending", async () => {
-    const refresh = deferred<MemberIngredientRequestPage>();
-    mocks.browseMyIngredientRequests
-      .mockResolvedValueOnce(requestPage())
-      .mockReturnValueOnce(refresh.promise);
-    render(
-      <MemberIngredientRequestHistory
-        idPrefix="picker-history"
-        contextLabel="New ingredient 4"
-        onSelectResolution={vi.fn()}
-      />,
-    );
-
-    const useButton = await screen.findByRole("button", {
-      name: "Use Pitaya for New ingredient 4",
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Refresh my requests" }));
-    expect(useButton).toBeDisabled();
-    expect(
-      screen
-        .getByText("Updating your ingredient requests…")
-        .closest(".section-loading--refreshing"),
-    ).not.toBeNull();
-
-    await act(async () => {
-      refresh.resolve(requestPage());
-      await refresh.promise;
-    });
-    expect(useButton).toBeEnabled();
-  });
 });

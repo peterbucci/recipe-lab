@@ -21,8 +21,8 @@ import {
 import {
   discardRecipeDraft,
   RecipeDraftApiError,
-  type RecipeDraftListItem,
 } from "../authoring/draft/recipe-draft-api";
+import type { RecipeDraftListItem } from "../authoring/draft/recipe-draft-summary";
 import { fetchMyRecipeLibrary } from "./recipe-library-api";
 import {
   type MyRecipeLibraryView,
@@ -440,7 +440,6 @@ export function MyRecipeLibrary({ pageNumber, view }: MyRecipeLibraryProps) {
                           key={`published-${item.recipe.id}`}
                           actions={
                             <RecipeVisibilityControl
-                              compact
                               onChanged={(visibilityState) =>
                                 handleVisibilityChanged(
                                   item.recipe.id,

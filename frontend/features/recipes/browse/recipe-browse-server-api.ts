@@ -81,5 +81,3 @@ export async function fetchRecipeCategories(): Promise<RecipeCategoryList> {
     "/api/recipe-categories",
   );
 }
-
-export { RecipeApiError } from "../shared/recipe-api-error";

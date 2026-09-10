@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import RecipeDraftWorkspacePage from "./page";
@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   notFound: vi.fn(() => {
     throw new Error("not-found");
   }),
-  recipeDraftEditor: vi.fn(() => null),
+  recipeDraftEditor: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
@@ -23,10 +23,19 @@ vi.mock("../../../../features/recipes/authoring/shared/measurement-unit-api", ()
 }));
 
 vi.mock("../../../../features/recipes/authoring/editor/recipe-draft-editor", () => ({
-  RecipeDraftEditor: mocks.recipeDraftEditor,
+  RecipeDraftEditor: (props: { draftId: string }) => {
+    mocks.recipeDraftEditor(props, undefined);
+    return (
+      <input
+        aria-label="Mounted draft resource"
+        defaultValue={props.draftId}
+      />
+    );
+  },
 }));
 
 const DRAFT_ID = "11111111-1111-4111-8111-111111111111";
+const OTHER_DRAFT_ID = "66666666-6666-4666-8666-666666666666";
 const MASS_UNIT = {
   id: "22222222-2222-4222-8222-222222222222",
   key: "gram",
@@ -76,7 +85,6 @@ describe("RecipeDraftWorkspacePage", () => {
         actionTypes: [ACTION_TYPE],
         draftId: DRAFT_ID,
         measurementUnits: [MASS_UNIT, TIME_UNIT, TEMPERATURE_UNIT],
-        presentation: "recipe",
       },
       undefined,
     );
@@ -92,5 +100,28 @@ describe("RecipeDraftWorkspacePage", () => {
     expect(mocks.notFound).toHaveBeenCalledOnce();
     expect(mocks.fetchMeasurementUnits).not.toHaveBeenCalled();
     expect(mocks.fetchCookingActionTypes).not.toHaveBeenCalled();
+  });
+
+  it("remounts the editor when navigation changes the draft resource", async () => {
+    mocks.fetchMeasurementUnits.mockResolvedValue([MASS_UNIT]);
+    mocks.fetchCookingActionTypes.mockResolvedValue([ACTION_TYPE]);
+
+    const view = render(
+      await RecipeDraftWorkspacePage({
+        params: Promise.resolve({ draftId: DRAFT_ID }),
+      }),
+    );
+    const mountedDraft = screen.getByLabelText("Mounted draft resource");
+    fireEvent.change(mountedDraft, { target: { value: "Unsaved work for A" } });
+
+    view.rerender(
+      await RecipeDraftWorkspacePage({
+        params: Promise.resolve({ draftId: OTHER_DRAFT_ID }),
+      }),
+    );
+
+    expect(screen.getByLabelText("Mounted draft resource")).toHaveValue(
+      OTHER_DRAFT_ID,
+    );
   });
 });

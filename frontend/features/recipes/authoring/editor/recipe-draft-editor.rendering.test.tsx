@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { NavigationBlockerProvider } from "../../../../shared/navigation/navigation-blocker-provider";
@@ -68,6 +68,19 @@ describe("RecipeDraftEditor", () => {
     );
     expect(screen.queryByText("Opening editor…")).toBeNull();
     expect(screen.queryByText("Opening your recipe…")).toBeNull();
+  });
+
+  it("aborts the initial private-draft load when the editor unmounts", async () => {
+    mocks.fetchRecipeDraft.mockReturnValue(new Promise(() => undefined));
+    const view = renderEditor();
+
+    await waitFor(() => expect(mocks.fetchRecipeDraft).toHaveBeenCalledOnce());
+    const signal = mocks.fetchRecipeDraft.mock.calls[0]?.[1];
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal?.aborted).toBe(false);
+
+    view.unmount();
+    expect(signal?.aborted).toBe(true);
   });
 
   it("shows zero public saves for a private draft", () => {

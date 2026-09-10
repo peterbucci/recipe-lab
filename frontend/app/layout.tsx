@@ -5,9 +5,13 @@ import {
   AuthSessionProvider,
   SessionRecoveryNotice,
 } from "../features/auth/auth-session-provider";
+import {
+  SiteHeaderMemberActions,
+  SiteMobileNavigation,
+} from "../features/auth/site-header-member-navigation";
 import { NavigationBlockerProvider } from "../shared/navigation/navigation-blocker-provider";
 import { SiteFooter } from "../shell/site-footer";
-import { SiteHeader } from "./_components/site-header";
+import { SiteHeader } from "../shell/site-header";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -29,7 +33,10 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           <AuthSessionProvider>
             <div className="app-shell">
               <SessionRecoveryNotice />
-              <SiteHeader />
+              <SiteHeader
+                memberActions={<SiteHeaderMemberActions />}
+                mobileNavigation={<SiteMobileNavigation />}
+              />
               {children}
               <SiteFooter />
             </div>

@@ -1,13 +1,11 @@
 from decimal import Decimal
 
 import pytest
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, joinedload
 
 from app.models import Ingredient, IngredientAlias, IngredientSubstitution
-from app.repositories.ingredients import (
-    list_direct_substitutions,
-    resolve_ingredient_name,
-)
+from app.repositories.ingredients import resolve_ingredient_name
 from tests.builders.catalog import persist_catalog_ingredient
 
 
@@ -36,7 +34,7 @@ def test_exact_canonical_and_alias_names_resolve_case_insensitively(
         resolve_ingredient_name(db_session, "   ")
 
 
-def test_substitution_lookup_returns_only_direct_outgoing_edges(
+def test_substitution_fixture_contains_only_direct_outgoing_edges(
     db_session: Session,
 ) -> None:
     butter = persist_catalog_ingredient(db_session, "Butter")
@@ -86,23 +84,35 @@ def test_substitution_lookup_returns_only_direct_outgoing_edges(
     )
     db_session.flush()
 
-    substitutions = list_direct_substitutions(db_session, butter.id)
+    substitutions = list(
+        db_session.scalars(
+            select(IngredientSubstitution)
+            .options(joinedload(IngredientSubstitution.replacement_ingredient))
+            .where(IngredientSubstitution.source_ingredient_id == butter.id)
+        )
+    )
+    by_replacement = {item.replacement_ingredient_id: item for item in substitutions}
 
-    assert [item.replacement_ingredient_id for item in substitutions] == [
-        coconut_oil.id,
-        applesauce.id,
-        olive_oil.id,
-    ]
-    assert substitutions[0].quantity_ratio == Decimal("0.7500")
-    assert substitutions[0].notes == "Best in baked goods."
-    assert substitutions[0].provenance == "Recipe Lab test fixture"
-    assert substitutions[0].confidence == Decimal("0.9500")
-    assert substitutions[1].guidance == "Reduce other liquids if needed."
-    assert list_direct_substitutions(db_session, salt.id) == []
+    assert set(by_replacement) == {coconut_oil.id, applesauce.id, olive_oil.id}
+    assert by_replacement[coconut_oil.id].quantity_ratio == Decimal("0.7500")
+    assert by_replacement[coconut_oil.id].notes == "Best in baked goods."
+    assert by_replacement[coconut_oil.id].provenance == "Recipe Lab test fixture"
+    assert by_replacement[coconut_oil.id].confidence == Decimal("0.9500")
+    assert by_replacement[applesauce.id].guidance == "Reduce other liquids if needed."
+    assert (
+        list(
+            db_session.scalars(
+                select(IngredientSubstitution).where(
+                    IngredientSubstitution.source_ingredient_id == salt.id
+                )
+            )
+        )
+        == []
+    )
 
     db_session.expunge_all()
-    assert [item.replacement_ingredient.canonical_name for item in substitutions] == [
-        "Coconut oil",
+    assert sorted(item.replacement_ingredient.canonical_name for item in substitutions) == [
         "Applesauce",
+        "Coconut oil",
         "Olive oil",
     ]

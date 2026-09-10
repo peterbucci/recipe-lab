@@ -88,7 +88,6 @@ interface RecipeDraftEditorProps {
   initialDetail?: RecipeDraftDetail;
   measurementUnits: readonly CatalogUnit[];
   onDoneForNow?: () => void;
-  presentation?: "recipe";
 }
 
 interface EditorRequest {
@@ -239,13 +238,15 @@ function RecipeDraftEditorInner({
       mode: "initial" | "replacement" = "initial",
       startingFingerprint = "",
     ): Promise<DraftLoadResult> => {
+      if (signal?.aborted) return "failed";
       const requestToken = ++loadRequestToken.current;
       setLoading(true);
       setLoadError("");
       try {
         const loaded = await fetchRecipeDraft(draftId, signal);
         const state = hydrateRecipeDraft(loaded);
-        if (requestToken !== loadRequestToken.current) return "failed";
+        if (signal?.aborted || requestToken !== loadRequestToken.current)
+          return "failed";
         if (
           mode === "replacement" &&
           latestDraftFingerprint.current !== startingFingerprint
@@ -257,7 +258,7 @@ function RecipeDraftEditorInner({
         dispatch({ detail: loaded, draft: state, mode, type: "draft-loaded" });
         return "loaded";
       } catch (reason) {
-        if (isAbortError(reason))
+        if (signal?.aborted || isAbortError(reason))
           return "failed";
         if (requestToken === loadRequestToken.current) {
           setLoadError(draftLoadErrorMessage(reason));
@@ -275,37 +276,9 @@ function RecipeDraftEditorInner({
     if (initialDetail !== undefined) return;
 
     const controller = new AbortController();
-    const requestToken = ++loadRequestToken.current;
-    void fetchRecipeDraft(draftId, controller.signal)
-      .then((loaded) => {
-        if (requestToken !== loadRequestToken.current) return;
-        const state = hydrateRecipeDraft(loaded);
-        latestDraftFingerprint.current = recipeDraftFingerprint(state);
-        dispatch({
-          detail: loaded,
-          draft: state,
-          mode: "initial",
-          type: "draft-loaded",
-        });
-      })
-      .catch((reason: unknown) => {
-        if (isAbortError(reason)) {
-          return;
-        }
-        if (requestToken === loadRequestToken.current) {
-          setLoadError(draftLoadErrorMessage(reason));
-        }
-      })
-      .finally(() => {
-        if (
-          !controller.signal.aborted &&
-          requestToken === loadRequestToken.current
-        ) {
-          setLoading(false);
-        }
-      });
+    void Promise.resolve().then(() => load(controller.signal));
     return () => controller.abort();
-  }, [draftId, initialDetail]);
+  }, [initialDetail, load]);
 
   useLayoutEffect(() => {
     if (draft) {
@@ -819,7 +792,6 @@ function RecipeDraftEditorInner({
                   onChange={(categories) =>
                     dispatch({ categories, type: "categories-changed" })
                   }
-                  presentation="recipe"
                   value={draft.categories}
                 />
                 <div className="recipe-detail__author-row recipe-workspace__author-row">

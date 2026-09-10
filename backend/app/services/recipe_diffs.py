@@ -27,10 +27,11 @@ from app.schemas.recipe_diffs import (
     RecipeInstructionDiff,
     RecipeInstructionPairChange,
 )
-from app.schemas.recipes import RecipeIngredientResponse, RecipeInstructionResponse
-from app.services.actions import serialize_instruction_action
-from app.services.measurements import serialize_measure
-from app.services.recipe_responses import recipe_version_reference
+from app.services.recipe_responses import (
+    recipe_ingredient_response,
+    recipe_instruction_response,
+    recipe_version_reference,
+)
 
 
 class _OrderedIdentified(Protocol):
@@ -249,39 +250,6 @@ def _pair_direct_substitutions(
         pairs,
         [item for item in ordered_before if item.id not in matched_before_ids],
         [item for item in ordered_after if item.id not in matched_after_ids],
-    )
-
-
-def _ingredient_snapshot(item: RecipeIngredient) -> RecipeIngredientResponse:
-    return RecipeIngredientResponse(
-        id=item.id,
-        ingredient_id=item.ingredient_id,
-        canonical_name=item.ingredient.canonical_name,
-        display_name=item.name,
-        measure=serialize_measure(
-            kind=item.measure_mode,
-            quantity_min=item.quantity_min,
-            quantity_max=item.quantity_max,
-            unit=item.measurement_unit,
-            package_size_id=item.package_size_id,
-        ),
-        preparation_notes=item.preparation_notes,
-        display_order=item.display_order,
-    )
-
-
-def _instruction_snapshot(item: RecipeInstruction) -> RecipeInstructionResponse:
-    return RecipeInstructionResponse(
-        id=item.id,
-        title=item.title,
-        text=item.instruction,
-        display_order=item.display_order,
-        actions=[
-            serialize_instruction_action(action)
-            for action in sorted(
-                item.actions, key=lambda value: (value.display_order, value.id.int)
-            )
-        ],
     )
 
 
@@ -532,23 +500,25 @@ def _ingredient_diff(
         if changed_fields:
             modified.append(
                 RecipeIngredientPairChange(
-                    before=_ingredient_snapshot(before),
-                    after=_ingredient_snapshot(after),
+                    before=recipe_ingredient_response(before),
+                    after=recipe_ingredient_response(after),
                     changed_fields=changed_fields,
                 )
             )
 
     replaced = [
         RecipeIngredientPairChange(
-            before=_ingredient_snapshot(before),
-            after=_ingredient_snapshot(after),
+            before=recipe_ingredient_response(before),
+            after=recipe_ingredient_response(after),
             changed_fields=_ingredient_changed_fields(before, after),
         )
         for before, after in replacement_pairs
     ]
     return RecipeIngredientDiff(
-        added=[_ingredient_snapshot(item) for item in sorted(added, key=_ingredient_order)],
-        removed=[_ingredient_snapshot(item) for item in sorted(removed, key=_ingredient_order)],
+        added=[recipe_ingredient_response(item) for item in sorted(added, key=_ingredient_order)],
+        removed=[
+            recipe_ingredient_response(item) for item in sorted(removed, key=_ingredient_order)
+        ],
         replaced=replaced,
         modified=modified,
     )
@@ -593,14 +563,14 @@ def _instruction_diff(
         if changed_fields:
             modified.append(
                 RecipeInstructionPairChange(
-                    before=_instruction_snapshot(before),
-                    after=_instruction_snapshot(after),
+                    before=recipe_instruction_response(before),
+                    after=recipe_instruction_response(after),
                     changed_fields=changed_fields,
                 )
             )
     return RecipeInstructionDiff(
-        added=[_instruction_snapshot(item) for item in remaining_after[shared_count:]],
-        removed=[_instruction_snapshot(item) for item in remaining_before[shared_count:]],
+        added=[recipe_instruction_response(item) for item in remaining_after[shared_count:]],
+        removed=[recipe_instruction_response(item) for item in remaining_before[shared_count:]],
         modified=modified,
     )
 
@@ -651,11 +621,11 @@ def build_recipe_diff(
         ingredients=ingredients,
         ingredient_context=RecipeIngredientContext(
             base=[
-                _ingredient_snapshot(item)
+                recipe_ingredient_response(item)
                 for item in sorted(base.ingredients, key=_ingredient_order)
             ],
             target=[
-                _ingredient_snapshot(item)
+                recipe_ingredient_response(item)
                 for item in sorted(target.ingredients, key=_ingredient_order)
             ],
         ),

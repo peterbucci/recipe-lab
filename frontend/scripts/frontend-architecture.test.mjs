@@ -57,13 +57,75 @@ describe("frontend ownership architecture", () => {
     expect(
       reviewedCrossFeatureDependency(
         "features/community/public-cook-profile.ts",
+        "features/recipes/shared/recipe-summary-parser.ts",
+      ),
+    ).toBe(true);
+    expect(
+      reviewedCrossFeatureDependency(
+        "features/community/community-activity-timeline.test.tsx",
+        "features/recipes/shared/recipe-test-support.ts",
+      ),
+    ).toBe(true);
+    expect(
+      reviewedCrossFeatureDependency(
+        "features/community/public-cook-profile.ts",
+        "features/recipes/shared/recipe-category.ts",
+      ),
+    ).toBe(false);
+    expect(
+      reviewedCrossFeatureDependency(
+        "features/community/community-feed.ts",
+        "features/recipes/shared/recipe-contracts.ts",
+      ),
+    ).toBe(false);
+    expect(
+      reviewedCrossFeatureDependency(
+        "features/community/public-cook-profile.ts",
         "features/recipes/library/recipe-library-model.ts",
       ),
     ).toBe(false);
     expect(
+      forbiddenDependencyReason(
+        "features/community/public-cook-profile.ts",
+        "features/recipes/library/recipe-library-error.ts",
+      ),
+    ).toBe(
+      "features/community modules cannot depend on the unreviewed features/recipes boundary",
+    );
+    expect(
       reviewedRecipeWorkflowDependency(
         "features/recipes/authoring/editor/recipe-category-selector.tsx",
-        "features/recipes/browse/recipe-category-client-api.ts",
+        "features/recipes/shared/recipe-category-client-api.ts",
+      ),
+    ).toBe(true);
+    expect(
+      reviewedCrossFeatureDependency(
+        "features/account/member-activity-api.ts",
+        "features/recipes/authoring/draft/recipe-draft-summary.ts",
+      ),
+    ).toBe(true);
+    expect(
+      reviewedCrossFeatureDependency(
+        "features/account/member-activity-api.ts",
+        "features/recipes/authoring/draft/recipe-draft-api.ts",
+      ),
+    ).toBe(false);
+    expect(
+      reviewedRecipeWorkflowDependency(
+        "features/recipes/library/recipe-library-model.ts",
+        "features/recipes/authoring/draft/recipe-draft-summary.ts",
+      ),
+    ).toBe(true);
+    expect(
+      reviewedRecipeWorkflowDependency(
+        "features/recipes/library/recipe-library-model.ts",
+        "features/recipes/authoring/draft/recipe-draft-api.ts",
+      ),
+    ).toBe(false);
+    expect(
+      reviewedRecipeWorkflowDependency(
+        "features/recipes/library/my-recipe-library.tsx",
+        "features/recipes/authoring/draft/recipe-draft-api.ts",
       ),
     ).toBe(true);
     expect(
@@ -95,7 +157,9 @@ describe("frontend ownership architecture", () => {
         "features/recipes/detail/recipe-member-actions.tsx",
         "features/recipes/authoring/draft/recipe-draft-api.ts",
       ),
-    ).toBeUndefined();
+    ).toBe(
+      "features/recipes/detail modules cannot depend on the unreviewed features/recipes/authoring boundary",
+    );
     expect(
       forbiddenDependencyReason(
         "features/recipes/shared/contracts.ts",

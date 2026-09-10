@@ -12,10 +12,10 @@ import { isAbortError } from "../../../../shared/api/abort-error";
 import type {
   RecipeCategory,
 } from "../../shared/recipe-contracts";
-import { fetchActiveRecipeCategories } from "../../browse/recipe-category-client-api";
+import { fetchActiveRecipeCategories } from "../../shared/recipe-category-client-api";
 import { MAX_RECIPE_CATEGORIES } from "../../shared/recipe-category";
 import { EditorRowIcon } from "../shared/editor-row-icon";
-import { InlineLoading, SectionLoading } from "../../../../shared/ui/loading-ui";
+import { InlineLoading } from "../../../../shared/ui/loading-ui";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../../shared/ui/overlay-primitives";
 import { RecipeDraftFieldError } from "./recipe-draft-field-error";
 import { useFloatingPanelPlacement } from "../../../../shared/ui/use-floating-panel-placement";
@@ -25,7 +25,6 @@ interface RecipeCategorySelectorProps {
   error?: string;
   initialActiveCategories?: readonly RecipeCategory[];
   onChange: (categories: RecipeCategory[]) => void;
-  presentation?: "default" | "recipe";
   value: readonly RecipeCategory[];
 }
 
@@ -36,7 +35,6 @@ export function RecipeCategorySelector({
   error,
   initialActiveCategories,
   onChange,
-  presentation = "default",
   value,
 }: RecipeCategorySelectorProps) {
   const descriptionId = useId();
@@ -96,7 +94,7 @@ export function RecipeCategorySelector({
   const describedBy = [descriptionId, statusId, error ? errorId : ""]
     .filter(Boolean)
     .join(" ");
-  const showCategoryPopover = presentation === "recipe" && editingCategories;
+  const showCategoryPopover = editingCategories;
   const popoverPlacement = useFloatingPanelPlacement({
     contentKey: `${loadState}-${choices.length}`,
     open: showCategoryPopover,
@@ -171,146 +169,96 @@ export function RecipeCategorySelector({
     );
   }
 
-  if (presentation === "recipe") {
-    return (
-      <div
-        className="recipe-workspace__category-selector"
-        role="group"
-        aria-label="Recipe categories"
-      >
-        <p className="visually-hidden" id={descriptionId}>
-          Choose up to {MAX_RECIPE_CATEGORIES} from Recipe Lab’s curated list.
-        </p>
-        <div className="recipe-workspace__category-summary">
-          {value.length > 0 ? (
-            <ul
-              className="recipe-category-list"
-              aria-label="Selected recipe categories"
-            >
-              {value.map((category) => (
-                <li key={category.id}>{category.name}</li>
-              ))}
-            </ul>
-          ) : (
-            <span className="recipe-workspace__category-empty">
-              No categories yet
-            </span>
-          )}
-          <Popover
-            open={showCategoryPopover}
-            onOpenChange={setEditingCategories}
+  return (
+    <div
+      className="recipe-workspace__category-selector"
+      role="group"
+      aria-label="Recipe categories"
+    >
+      <p className="visually-hidden" id={descriptionId}>
+        Choose up to {MAX_RECIPE_CATEGORIES} from Recipe Lab’s curated list.
+      </p>
+      <div className="recipe-workspace__category-summary">
+        {value.length > 0 ? (
+          <ul
+            className="recipe-category-list"
+            aria-label="Selected recipe categories"
           >
-            <PopoverTrigger
-              ref={triggerRef}
-              contentId={popoverId}
-              className="button button--quiet recipe-workspace__category-toggle"
-              disabled={disabled}
-              aria-label="Edit categories"
-              aria-haspopup="dialog"
-              title="Edit categories"
-            >
-              <EditorRowIcon kind="menu" />
-            </PopoverTrigger>
-            <PopoverContent
-              ref={popoverRef}
-              id={popoverId}
-              className="recipe-workspace__category-choices"
-              aria-label="Edit recipe categories"
-              data-placement={popoverPlacement.placement}
-              style={popoverPlacement.style}
-              initialFocus="first"
-            >
-              {loadState === "loading" ? (
-                <InlineLoading label="Loading curated categories…" />
-              ) : null}
-              {loadState === "error" ? (
-                <div className="form-alert" role="alert">
-                  <p>
-                    Curated categories could not be loaded. Your existing
-                    selections are still here.
-                  </p>
-                  <button
-                    className="button button--secondary"
-                    disabled={disabled}
-                    onClick={() => {
-                      setLoadState("loading");
-                      setRequestVersion((version) => version + 1);
-                    }}
-                    type="button"
-                  >
-                    Try loading categories again
-                  </button>
-                </div>
-              ) : null}
-              {categoryOptions()}
-              <div className="recipe-workspace__category-actions">
+            {value.map((category) => (
+              <li key={category.id}>{category.name}</li>
+            ))}
+          </ul>
+        ) : (
+          <span className="recipe-workspace__category-empty">
+            No categories yet
+          </span>
+        )}
+        <Popover open={showCategoryPopover} onOpenChange={setEditingCategories}>
+          <PopoverTrigger
+            ref={triggerRef}
+            contentId={popoverId}
+            className="button button--quiet recipe-workspace__category-toggle"
+            disabled={disabled}
+            aria-label="Edit categories"
+            aria-haspopup="dialog"
+            title="Edit categories"
+          >
+            <EditorRowIcon kind="menu" />
+          </PopoverTrigger>
+          <PopoverContent
+            ref={popoverRef}
+            id={popoverId}
+            className="recipe-workspace__category-choices"
+            aria-label="Edit recipe categories"
+            data-placement={popoverPlacement.placement}
+            style={popoverPlacement.style}
+            initialFocus="first"
+          >
+            {loadState === "loading" ? (
+              <InlineLoading label="Loading curated categories…" />
+            ) : null}
+            {loadState === "error" ? (
+              <div className="form-alert" role="alert">
+                <p>
+                  Curated categories could not be loaded. Your existing
+                  selections are still here.
+                </p>
                 <button
-                  className="button button--primary recipe-workspace__category-done"
+                  className="button button--secondary"
+                  disabled={disabled}
+                  onClick={() => {
+                    setLoadState("loading");
+                    setRequestVersion((version) => version + 1);
+                  }}
                   type="button"
-                  onClick={closeCategoryPopover}
                 >
-                  Done
+                  Try loading categories again
                 </button>
               </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-        <p
-          className="visually-hidden"
-          id={statusId}
-          role="status"
-          aria-live="polite"
-        >
-          {value.length} of {MAX_RECIPE_CATEGORIES} categories selected.
-          {atLimit ? " Clear one selection before choosing another." : ""}
-        </p>
-        <RecipeDraftFieldError id={errorId} message={error} />
+            ) : null}
+            {categoryOptions()}
+            <div className="recipe-workspace__category-actions">
+              <button
+                className="button button--primary recipe-workspace__category-done"
+                type="button"
+                onClick={closeCategoryPopover}
+              >
+                Done
+              </button>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
-    );
-  }
-
-  return (
-    <fieldset className="draft-editor__surface draft-editor__surface--categories">
-      <legend>Recipe categories</legend>
-      <p id={descriptionId}>
-        Choose up to {MAX_RECIPE_CATEGORIES} from Recipe Lab’s curated list.
-        Categories help cooks browse recipes and cannot be entered as free text.
-      </p>
-
-      {loadState === "loading" ? (
-        <SectionLoading
-          count={2}
-          label="Loading curated categories…"
-          layout="rows"
-        />
-      ) : null}
-      {loadState === "error" ? (
-        <div className="form-alert" role="alert">
-          <p>
-            Curated categories could not be loaded. Your existing selections are
-            still here.
-          </p>
-          <button
-            className="button button--secondary"
-            disabled={disabled}
-            onClick={() => {
-              setLoadState("loading");
-              setRequestVersion((version) => version + 1);
-            }}
-            type="button"
-          >
-            Try loading categories again
-          </button>
-        </div>
-      ) : null}
-
-      {categoryOptions()}
-
-      <p id={statusId} role="status" aria-live="polite">
+      <p
+        className="visually-hidden"
+        id={statusId}
+        role="status"
+        aria-live="polite"
+      >
         {value.length} of {MAX_RECIPE_CATEGORIES} categories selected.
         {atLimit ? " Clear one selection before choosing another." : ""}
       </p>
       <RecipeDraftFieldError id={errorId} message={error} />
-    </fieldset>
+    </div>
   );
 }

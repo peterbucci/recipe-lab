@@ -6,7 +6,7 @@
     "api:contracts:check": "node scripts/api-contract-codegen.mjs check",
     "api:contracts:generate": "node scripts/api-contract-codegen.mjs generate",
     "architecture:check": "node scripts/frontend-architecture.mjs",
-    "ci:verify": "npm test && npm run architecture:check && npm run reachability:check && npm run build && npm run test:e2e:discover",
+    "ci:verify": "python ../scripts/run_quality_gate.py frontend",
     "styles:contracts:check": "node scripts/css-architecture.mjs",
     "dev": "node server.mjs --dev",
     "build": "next build",

@@ -100,5 +100,14 @@ a {
   padding: 0.35rem;
   display: flex;
 }
+@media (max-width: 43.75rem) {
+  body {
+    background: var(--surface);
+    padding-bottom: 4.25rem;
+  }
+  .app-shell {
+    border-inline: 0;
+  }
+}
 
 }

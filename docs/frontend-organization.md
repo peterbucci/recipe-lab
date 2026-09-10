@@ -155,9 +155,11 @@ Every story updates all path consumers in the same change:
 `app/components` or `lib` locations, outward or unreviewed cross-feature
 imports, broad barrel files, runtime dependency cycles, and direct or indirect
 client paths into a marked server module or the standalone `server` directory.
-It is part of `npm run ci:verify`. Type-only imports do not enter the runtime
-graph, while Next's `server-only` compiler checks complement this source audit;
-unit-test marker aliases are confined to Vitest configuration.
+`npm run ci:verify` delegates to the repository-owned `frontend` suite in
+`scripts/run_quality_gate.py`, which includes this audit. Type-only imports do
+not enter the runtime graph, while Next's `server-only` compiler checks
+complement this source audit; unit-test marker aliases are confined to Vitest
+configuration.
 
 ## Story ownership map
 
@@ -189,13 +191,14 @@ stylesheet cascade and import order stay unchanged during this ownership move.
 
 RCP-49F separates recipe catalog browsing, public detail and interaction,
 private member libraries, and cross-workflow recipe contracts under
-`features/recipes`. Public summary and cook-profile parsing live in
-`features/recipes/shared`, so community and authoring consumers never depend on
-private library models. The home dashboard, recipe-detail experience, and
-account-access wrappers remain route-private under `app` because they compose
-multiple workflows. Public cook-profile loading remains assigned to RCP-49G.
-The existing stylesheet cascade and import order stay unchanged during this
-ownership move.
+`features/recipes`. Public recipe-summary parsing lives in
+`features/recipes/shared`, while private library response and error handling
+live in `features/recipes/library`. Community and authoring consumers never
+depend on private library models. The home dashboard, recipe-detail experience,
+and account-access wrappers remain route-private under `app` because they
+compose multiple workflows. Public cook-profile parsing and loading remain
+assigned to RCP-49G. The existing stylesheet cascade and import order stay
+unchanged during this ownership move.
 
 RCP-49G owns authentication and session behavior in `features/auth`, member
 settings and activity in `features/account`, and follows, community activity,
@@ -218,5 +221,5 @@ composition remain under `app`. Navigation blocking stays domain-neutral in
 RCP-49I retires the transitional migration allowlists, certifies zero source
 files under `app/components` and `lib`, and enforces runtime-cycle and
 reviewed public-boundary rules. The completed topic branches are integrated in
-`refactor/frontend-architecture`, which remains separate from `main` until
+`refactor/recipe-lab-integration`, which remains separate from `main` until
 review.
