@@ -76,7 +76,6 @@ export function RecipeDetailExperience({
           initialDetail={editorEntry.detail}
           measurementUnits={editorEntry.measurementUnits}
           onDoneForNow={returnToRecipeView}
-          presentation="recipe"
         />
       ) : (
         <>

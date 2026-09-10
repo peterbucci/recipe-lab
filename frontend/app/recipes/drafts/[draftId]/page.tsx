@@ -45,7 +45,6 @@ export default async function RecipeDraftWorkspacePage({
       draftId={draftId}
       key={draftId}
       measurementUnits={measurementUnits}
-      presentation="recipe"
     />
   );
 }

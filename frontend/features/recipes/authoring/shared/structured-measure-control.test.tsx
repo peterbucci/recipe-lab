@@ -84,50 +84,59 @@ function Harness({
   );
 }
 
+function openIngredientAmountEditor() {
+  fireEvent.click(
+    screen.getByRole("button", { name: /^Edit amount/i }),
+  );
+  return screen.getByRole("dialog");
+}
+
 describe("structured measure controls", () => {
   it("starts with familiar amount and unit fields and retains every raw branch", () => {
     render(<Harness />);
     const group = screen.getByRole("group", { name: "Amount for Ingredient 1: Sugar" });
-    expect(within(group).getByRole("textbox", { name: "Amount" })).toHaveValue("");
-    expect(within(group).getByRole("combobox", { name: "Unit" })).toHaveValue("");
+    expect(within(group).getByRole("button", { name: /^Edit amount/i })).toBeVisible();
+    const editor = openIngredientAmountEditor();
+    expect(within(editor).getByRole("textbox", { name: "Amount" })).toHaveValue("");
+    expect(within(editor).getByRole("combobox", { name: "Unit" })).toHaveValue("");
     expect(
-      within(within(group).getByRole("combobox", { name: "Unit" })).queryByRole(
+      within(within(editor).getByRole("combobox", { name: "Unit" })).queryByRole(
         "option",
         { name: /can/i },
       ),
     ).toBeNull();
 
-    fireEvent.change(within(group).getByRole("textbox", { name: "Amount" }), {
+    fireEvent.change(within(editor).getByRole("textbox", { name: "Amount" }), {
       target: { value: "1.2500" },
     });
-    fireEvent.change(within(group).getByRole("combobox", { name: "Unit" }), {
+    fireEvent.change(within(editor).getByRole("combobox", { name: "Unit" }), {
       target: { value: units[0].id },
     });
 
-    fireEvent.click(within(group).getByRole("button", { name: "More amount options" }));
-    expect(within(group).getByRole("radio", { name: "Exact" })).toBeChecked();
+    fireEvent.click(within(editor).getByRole("button", { name: "More amount options" }));
+    expect(within(editor).getByRole("radio", { name: "Exact" })).toBeChecked();
     expect(
-      within(within(group).getByRole("combobox", { name: "Unit" })).getByRole(
+      within(within(editor).getByRole("combobox", { name: "Unit" })).getByRole(
         "option",
         { name: /can/i },
       ),
     ).toBeVisible();
-    fireEvent.click(within(group).getByRole("radio", { name: "Range" }));
-    fireEvent.change(within(group).getByRole("textbox", { name: "Minimum amount" }), {
+    fireEvent.click(within(editor).getByRole("radio", { name: "Range" }));
+    fireEvent.change(within(editor).getByRole("textbox", { name: "Minimum amount" }), {
       target: { value: "1" },
     });
-    fireEvent.change(within(group).getByRole("textbox", { name: "Maximum amount" }), {
+    fireEvent.change(within(editor).getByRole("textbox", { name: "Maximum amount" }), {
       target: { value: "2" },
     });
-    fireEvent.click(within(group).getByRole("radio", { name: "To taste" }));
-    expect(within(group).queryByRole("combobox", { name: "Unit" })).toBeNull();
+    fireEvent.click(within(editor).getByRole("radio", { name: "To taste" }));
+    expect(within(editor).queryByRole("combobox", { name: "Unit" })).toBeNull();
 
-    fireEvent.click(within(group).getByRole("radio", { name: "Exact" }));
-    expect(within(group).getByRole("textbox", { name: "Amount" })).toHaveValue("1.2500");
-    expect(within(group).getByRole("combobox", { name: "Unit" })).toHaveValue(units[0].id);
-    fireEvent.click(within(group).getByRole("radio", { name: "Range" }));
-    expect(within(group).getByRole("textbox", { name: "Minimum amount" })).toHaveValue("1");
-    expect(within(group).getByRole("textbox", { name: "Maximum amount" })).toHaveValue("2");
+    fireEvent.click(within(editor).getByRole("radio", { name: "Exact" }));
+    expect(within(editor).getByRole("textbox", { name: "Amount" })).toHaveValue("1.2500");
+    expect(within(editor).getByRole("combobox", { name: "Unit" })).toHaveValue(units[0].id);
+    fireEvent.click(within(editor).getByRole("radio", { name: "Range" }));
+    expect(within(editor).getByRole("textbox", { name: "Minimum amount" })).toHaveValue("1");
+    expect(within(editor).getByRole("textbox", { name: "Maximum amount" })).toHaveValue("2");
   });
 
   it("reveals saved advanced values with a plain-language summary without exposing IDs", () => {
@@ -149,8 +158,9 @@ describe("structured measure controls", () => {
       />,
     );
 
-    expect(screen.getByText("1–2.5 g")).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "Minimum amount" })).toHaveValue("1");
+    expect(screen.getByRole("button", { name: "Edit amount" })).toHaveTextContent("1–2.5 g");
+    const editor = openIngredientAmountEditor();
+    expect(within(editor).getByRole("textbox", { name: "Minimum amount" })).toHaveValue("1");
 
     rerender(
       <IngredientAmountControl
@@ -169,8 +179,8 @@ describe("structured measure controls", () => {
       />,
     );
 
-    expect(screen.getByText(/package details preserved/i)).toBeVisible();
-    expect(screen.getByText(/stay attached unless you change the unit/i)).toBeVisible();
+    expect(within(editor).getByText(/package details preserved/i)).toBeVisible();
+    expect(within(editor).getByText(/stay attached unless you change the unit/i)).toBeVisible();
     expect(screen.queryByText(packageSizeId)).toBeNull();
   });
 
@@ -189,7 +199,8 @@ describe("structured measure controls", () => {
         }}
       />,
     );
-    const unit = screen.getByRole("combobox", { name: "Unit" });
+    const editor = openIngredientAmountEditor();
+    const unit = within(editor).getByRole("combobox", { name: "Unit" });
     expect(unit).toHaveValue(unavailable.id);
     expect(within(unit).getByRole("option", { name: /gram.*unavailable/i })).toBeDisabled();
   });
@@ -212,11 +223,12 @@ describe("structured measure controls", () => {
         onChange={() => undefined}
       />,
     );
-    expect(screen.getByRole("textbox", { name: "Maximum amount" })).toHaveAttribute(
+    const editor = openIngredientAmountEditor();
+    expect(within(editor).getByRole("textbox", { name: "Maximum amount" })).toHaveAttribute(
       "aria-invalid",
       "true",
     );
-    expect(screen.getByRole("combobox", { name: "Unit" })).toHaveAccessibleDescription(
+    expect(within(editor).getByRole("combobox", { name: "Unit" })).toHaveAccessibleDescription(
       "Choose a unit.",
     );
   });
@@ -276,7 +288,8 @@ describe("structured measure controls", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Unit" }), {
+    const editor = openIngredientAmountEditor();
+    fireEvent.change(within(editor).getByRole("combobox", { name: "Unit" }), {
       target: { value: "" },
     });
 
