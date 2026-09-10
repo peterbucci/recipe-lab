@@ -76,6 +76,9 @@
 .staff-workspace__detail {
   padding: clamp(1rem, 2.5vw, 1.35rem);
 }
+.staff-workspace__tab-shell > .workspace-empty-state {
+  margin: 1rem;
+}
 .staff-workspace__decision {
   border: 1px solid var(--line);
   border-left: 0.2rem solid var(--leaf);
@@ -154,6 +157,9 @@
   }
   .staff-workspace__resource-link {
     align-self: flex-start;
+  }
+  .staff-workspace__tab-shell > .workspace-empty-state {
+    margin: 0.75rem;
   }
 }
 @media (forced-colors: active) {

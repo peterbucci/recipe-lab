@@ -572,51 +572,6 @@
     inset: auto 0.75rem 0.75rem;
   }
 }
-.account-menu__panel {
-  gap: 0;
-}
-.account-menu__identity {
-  border-bottom: 0;
-  grid-template-columns: 3.5rem minmax(0, 1fr);
-  align-items: center;
-  column-gap: 0.65rem;
-}
-.account-menu__identity-copy {
-  min-width: 0;
-  margin: 0;
-  display: grid;
-}
-.account-menu__identity .account-menu__avatar {
-  width: 3.5rem;
-  height: 3.5rem;
-  font-size: 1rem;
-}
-.account-menu__identity-action {
-  width: fit-content;
-  color: var(--leaf);
-  justify-self: start;
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 750;
-  text-decoration: none;
-}
-.account-menu__identity-action:hover {
-  text-underline-offset: 0.15rem;
-  text-decoration: underline;
-}
-.account-menu__identity-action:focus-visible {
-  outline: 0.15rem solid var(--leaf);
-  outline-offset: 0.1rem;
-}
-.account-menu__group {
-  border-top: 1px solid var(--line);
-  gap: 0.1rem;
-  padding-block: 0.25rem;
-  display: grid;
-}
-.account-menu__group--sign-out {
-  padding-bottom: 0;
-}
 .member-library__navigation-row {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
