@@ -40,7 +40,7 @@ const REVIEWED_CROSS_FEATURE_DEPENDENCIES = Object.freeze([
   {
     importer: /^features\/account\/member-activity-api\.ts$/,
     dependency:
-      /^features\/recipes\/authoring\/draft\/recipe-draft-api\.ts$/,
+      /^features\/recipes\/authoring\/draft\/recipe-draft-summary\.ts$/,
   },
   {
     importer: /^features\/community\/cook-follow-control(?:\.test)?\.tsx$/,
@@ -89,25 +89,15 @@ const REVIEWED_RECIPE_WORKFLOW_DEPENDENCIES = Object.freeze([
   },
   {
     importer:
-      /^features\/recipes\/authoring\/editor\/recipe-category-selector\.tsx$/,
-    dependency:
-      /^features\/recipes\/browse\/recipe-category-client-api\.ts$/,
-  },
-  {
-    importer:
-      /^features\/recipes\/browse\/recipe-card-engagement\.tsx$/,
-    dependency: /^features\/recipes\/detail\/interaction-api\.ts$/,
-  },
-  {
-    importer:
-      /^features\/recipes\/library\/(?:my-recipe-library\.tsx|recipe-library-model\.ts)$/,
+      /^features\/recipes\/library\/my-recipe-library\.tsx$/,
     dependency:
       /^features\/recipes\/authoring\/draft\/recipe-draft-api\.ts$/,
   },
   {
     importer:
-      /^features\/recipes\/library\/saved-recipe-library\.tsx$/,
-    dependency: /^features\/recipes\/detail\/interaction-api\.ts$/,
+      /^features\/recipes\/library\/(?:my-recipe-library\.tsx|recipe-library-model\.ts)$/,
+    dependency:
+      /^features\/recipes\/authoring\/draft\/recipe-draft-summary\.ts$/,
   },
   {
     importer:

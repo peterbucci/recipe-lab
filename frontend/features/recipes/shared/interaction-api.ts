@@ -11,9 +11,9 @@ import {
   parseRecipeViewerState,
   type RatingValue,
   type RecipeViewerState,
-} from "../shared/recipe-viewer-state";
+} from "./recipe-viewer-state";
 
-export type { RatingValue, RecipeViewerState } from "../shared/recipe-viewer-state";
+export type { RatingValue, RecipeViewerState } from "./recipe-viewer-state";
 
 type RatingOperation =
   operations["rate_recipe_for_current_user_api_recipes__recipe_version_id__rating_put"];

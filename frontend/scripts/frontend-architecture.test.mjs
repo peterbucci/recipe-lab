@@ -63,7 +63,37 @@ describe("frontend ownership architecture", () => {
     expect(
       reviewedRecipeWorkflowDependency(
         "features/recipes/authoring/editor/recipe-category-selector.tsx",
-        "features/recipes/browse/recipe-category-client-api.ts",
+        "features/recipes/shared/recipe-category-client-api.ts",
+      ),
+    ).toBe(true);
+    expect(
+      reviewedCrossFeatureDependency(
+        "features/account/member-activity-api.ts",
+        "features/recipes/authoring/draft/recipe-draft-summary.ts",
+      ),
+    ).toBe(true);
+    expect(
+      reviewedCrossFeatureDependency(
+        "features/account/member-activity-api.ts",
+        "features/recipes/authoring/draft/recipe-draft-api.ts",
+      ),
+    ).toBe(false);
+    expect(
+      reviewedRecipeWorkflowDependency(
+        "features/recipes/library/recipe-library-model.ts",
+        "features/recipes/authoring/draft/recipe-draft-summary.ts",
+      ),
+    ).toBe(true);
+    expect(
+      reviewedRecipeWorkflowDependency(
+        "features/recipes/library/recipe-library-model.ts",
+        "features/recipes/authoring/draft/recipe-draft-api.ts",
+      ),
+    ).toBe(false);
+    expect(
+      reviewedRecipeWorkflowDependency(
+        "features/recipes/library/my-recipe-library.tsx",
+        "features/recipes/authoring/draft/recipe-draft-api.ts",
       ),
     ).toBe(true);
     expect(

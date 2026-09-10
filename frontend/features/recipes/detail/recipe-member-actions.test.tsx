@@ -13,7 +13,7 @@ import {
   AuthSessionProvider,
   useAuthSession,
 } from "../../auth/auth-session-provider";
-import type { RecipeViewerState } from "./interaction-api";
+import type { RecipeViewerState } from "../shared/interaction-api";
 import {
   RecipeMemberActions,
   type RecipeEditActionState,
@@ -23,9 +23,9 @@ const mocks = vi.hoisted(() => ({
   fetchRecipeViewerState: vi.fn(),
 }));
 
-vi.mock("./interaction-api", async (importOriginal) => {
+vi.mock("../shared/interaction-api", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("./interaction-api")>();
+    await importOriginal<typeof import("../shared/interaction-api")>();
   return { ...actual, fetchRecipeViewerState: mocks.fetchRecipeViewerState };
 });
 vi.mock("./recipe-interaction-panel", () => ({

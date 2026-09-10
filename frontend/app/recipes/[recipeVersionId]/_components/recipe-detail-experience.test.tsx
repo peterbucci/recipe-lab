@@ -14,7 +14,7 @@ import {
   AuthSessionProvider,
   useAuthSession,
 } from "../../../../features/auth/auth-session-provider";
-import type { RecipeDraftListItem } from "../../../../features/recipes/authoring/draft/recipe-draft-api";
+import type { RecipeDraftListItem } from "../../../../features/recipes/authoring/draft/recipe-draft-summary";
 import type { RecipeDraftEditorEntry } from "../../../../features/recipes/authoring/draft/recipe-draft-editor-entry";
 import type { RecipeEditActionState } from "../../../../features/recipes/detail/recipe-member-actions";
 import type { RecipeDetail } from "../../../../features/recipes/shared/recipe-contracts";

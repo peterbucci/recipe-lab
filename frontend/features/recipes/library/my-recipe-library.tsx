@@ -21,8 +21,8 @@ import {
 import {
   discardRecipeDraft,
   RecipeDraftApiError,
-  type RecipeDraftListItem,
 } from "../authoring/draft/recipe-draft-api";
+import type { RecipeDraftListItem } from "../authoring/draft/recipe-draft-summary";
 import { fetchMyRecipeLibrary } from "./recipe-library-api";
 import {
   type MyRecipeLibraryView,

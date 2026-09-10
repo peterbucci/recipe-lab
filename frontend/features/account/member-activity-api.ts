@@ -10,7 +10,7 @@ import type { MemberActivity } from "./member-activity";
 import {
   parseRecipeDraftListItem,
   type RecipeDraftListItem,
-} from "../recipes/authoring/draft/recipe-draft-api";
+} from "../recipes/authoring/draft/recipe-draft-summary";
 
 type ActivityOperation =
   operations["my_member_activity_api_my_activity_get"];

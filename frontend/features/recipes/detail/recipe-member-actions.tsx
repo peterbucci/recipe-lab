@@ -7,7 +7,7 @@ import { isAbortError } from "../../../shared/api/abort-error";
 import {
   fetchRecipeViewerState,
   type RecipeViewerState,
-} from "./interaction-api";
+} from "../shared/interaction-api";
 import { useAuthSession } from "../../auth/auth-session-provider";
 import { InlineLoading, LoadingButton } from "../../../shared/ui/loading-ui";
 import { RatingSummary } from "../shared/rating-summary";

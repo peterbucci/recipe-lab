@@ -19,9 +19,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
-vi.mock("./interaction-api", async (importOriginal) => {
+vi.mock("../shared/interaction-api", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("./interaction-api")>();
+    await importOriginal<typeof import("../shared/interaction-api")>();
   return { ...actual, fetchRecipeViewerState: mocks.fetchRecipeViewerState };
 });
 

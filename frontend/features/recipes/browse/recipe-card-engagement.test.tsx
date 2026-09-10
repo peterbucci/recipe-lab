@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => ({
   setRecipeSaved: vi.fn(),
 }));
 
-vi.mock("../detail/interaction-api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../detail/interaction-api")>()),
+vi.mock("../shared/interaction-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../shared/interaction-api")>()),
   fetchRecipeViewerState: mocks.fetchRecipeViewerState,
   fetchRecipeViewerStates: mocks.fetchRecipeViewerStates,
   setRecipeSaved: mocks.setRecipeSaved,
