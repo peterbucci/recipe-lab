@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AUTH_SESSION_EXPIRED_EVENT } from "../../../shared/api/browser-session";
 import { fetchMyRecipeLibrary, fetchSavedRecipeLibrary } from "./recipe-library-api";
-import { RecipeLibraryApiError } from "../shared/recipe-library-error";
+import { RecipeLibraryApiError } from "./recipe-library-error";
 
 const COOK_ID = "11111111-1111-4111-8111-111111111111";
 const PARENT_COOK_ID = "22222222-2222-4222-8222-222222222222";

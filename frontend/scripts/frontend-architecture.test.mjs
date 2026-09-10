@@ -57,9 +57,41 @@ describe("frontend ownership architecture", () => {
     expect(
       reviewedCrossFeatureDependency(
         "features/community/public-cook-profile.ts",
+        "features/recipes/shared/recipe-summary-parser.ts",
+      ),
+    ).toBe(true);
+    expect(
+      reviewedCrossFeatureDependency(
+        "features/community/community-activity-timeline.test.tsx",
+        "features/recipes/shared/recipe-test-support.ts",
+      ),
+    ).toBe(true);
+    expect(
+      reviewedCrossFeatureDependency(
+        "features/community/public-cook-profile.ts",
+        "features/recipes/shared/recipe-category.ts",
+      ),
+    ).toBe(false);
+    expect(
+      reviewedCrossFeatureDependency(
+        "features/community/community-feed.ts",
+        "features/recipes/shared/recipe-contracts.ts",
+      ),
+    ).toBe(false);
+    expect(
+      reviewedCrossFeatureDependency(
+        "features/community/public-cook-profile.ts",
         "features/recipes/library/recipe-library-model.ts",
       ),
     ).toBe(false);
+    expect(
+      forbiddenDependencyReason(
+        "features/community/public-cook-profile.ts",
+        "features/recipes/library/recipe-library-error.ts",
+      ),
+    ).toBe(
+      "features/community modules cannot depend on the unreviewed features/recipes boundary",
+    );
     expect(
       reviewedRecipeWorkflowDependency(
         "features/recipes/authoring/editor/recipe-category-selector.tsx",

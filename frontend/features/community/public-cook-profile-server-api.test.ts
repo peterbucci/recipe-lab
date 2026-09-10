@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PublicCookProfileApiError } from "./public-cook-profile-error";
 import { fetchPublicCookProfile } from "./public-cook-profile-server-api";
 
 const COOK_ID = "11111111-1111-4111-8111-111111111111";
@@ -92,5 +93,85 @@ describe("public cook server API", () => {
   it("returns null only for a missing public cook", async () => {
     vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 404 })));
     await expect(fetchPublicCookProfile({ handle: "missing-cook" })).resolves.toBeNull();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json(
+          {
+            error: {
+              code: "validation_error",
+              message: "Private validation detail.",
+            },
+          },
+          { status: 422 },
+        ),
+      ),
+    );
+    await expect(fetchPublicCookProfile({ handle: "missing-cook" })).rejects.toBeInstanceOf(
+      PublicCookProfileApiError,
+    );
+  });
+
+  it("uses profile errors and copy for malformed parser and transport responses", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(Response.json({ items: [] }))
+        .mockResolvedValueOnce(
+          new Response("private upstream body", {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          }),
+        )
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              error: {
+                code: "recipe_library_unavailable",
+                message: "Private recipe library detail.",
+              },
+            },
+            { status: 503 },
+          ),
+        ),
+    );
+
+    const malformedProfile = await fetchPublicCookProfile({
+      handle: "alice",
+    }).catch((reason: unknown) => reason);
+    expect(malformedProfile).toBeInstanceOf(PublicCookProfileApiError);
+    expect(malformedProfile).toMatchObject({
+      code: "invalid_public_cook_profile_response",
+      message: "Recipe Lab could not load this cook profile. Please try again.",
+      status: 502,
+    });
+
+    const malformedTransport = await fetchPublicCookProfile({
+      handle: "alice",
+    }).catch((reason: unknown) => reason);
+    expect(malformedTransport).toBeInstanceOf(PublicCookProfileApiError);
+    expect(malformedTransport).toMatchObject({
+      code: "invalid_public_cook_profile_response",
+      message: "Recipe Lab could not load this cook profile. Please try again.",
+      status: 502,
+    });
+    expect(`${String(malformedTransport)} ${JSON.stringify(malformedTransport)}`).not.toMatch(
+      /library|private upstream/i,
+    );
+
+    const unavailableProfile = await fetchPublicCookProfile({
+      handle: "alice",
+    }).catch((reason: unknown) => reason);
+    expect(unavailableProfile).toBeInstanceOf(PublicCookProfileApiError);
+    expect(unavailableProfile).toMatchObject({
+      code: "public_cook_profile_api_error",
+      message: "Recipe Lab could not load this cook profile. Please try again.",
+      status: 503,
+    });
+    expect(`${String(unavailableProfile)} ${JSON.stringify(unavailableProfile)}`).not.toMatch(
+      /library|private recipe/i,
+    );
   });
 });
