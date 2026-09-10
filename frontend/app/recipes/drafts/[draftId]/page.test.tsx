@@ -85,7 +85,6 @@ describe("RecipeDraftWorkspacePage", () => {
         actionTypes: [ACTION_TYPE],
         draftId: DRAFT_ID,
         measurementUnits: [MASS_UNIT, TIME_UNIT, TEMPERATURE_UNIT],
-        presentation: "recipe",
       },
       undefined,
     );

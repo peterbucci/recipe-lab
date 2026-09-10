@@ -731,12 +731,10 @@ export function RecipeDraftPublication({
       ) : null}
       {activeReview ? (
         <RecipeDuplicatePreflightReview
-          mode="publication"
           publicationKind={isFork ? "fork" : "original"}
           confirmationSlot={publicationConfirmationControl}
           result={activeReview.review.result}
           acknowledged={activeReview.acknowledged}
-          decisionFailure={null}
           pendingDecision={pending === "publish" ? "continue" : null}
           onAcknowledgedChange={(acknowledged) =>
             dispatchPublication({
@@ -746,9 +744,6 @@ export function RecipeDraftPublication({
           }
           onContinue={() => void continuePublication()}
           onRevise={keepEditing}
-          onRetryDecision={() => void continuePublication()}
-          onCreateWithoutRecordedDecision={() => undefined}
-          onReturnWithoutRecordedDecision={keepEditing}
         />
       ) : !failureWorkflow ? (
         <div className="draft-publication__actions">

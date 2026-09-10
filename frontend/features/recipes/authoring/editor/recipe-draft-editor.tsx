@@ -88,7 +88,6 @@ interface RecipeDraftEditorProps {
   initialDetail?: RecipeDraftDetail;
   measurementUnits: readonly CatalogUnit[];
   onDoneForNow?: () => void;
-  presentation?: "recipe";
 }
 
 interface EditorRequest {
@@ -819,7 +818,6 @@ function RecipeDraftEditorInner({
                   onChange={(categories) =>
                     dispatch({ categories, type: "categories-changed" })
                   }
-                  presentation="recipe"
                   value={draft.categories}
                 />
                 <div className="recipe-detail__author-row recipe-workspace__author-row">

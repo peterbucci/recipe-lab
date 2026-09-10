@@ -156,7 +156,6 @@ export function RecipeDraftIngredientsSection({
                     idPrefix={`draft-${ingredient.key}-measure`}
                     label="Amount"
                     contextLabel={rowLabel}
-                    presentation="popover"
                     value={ingredient.measure}
                     units={measurementUnits}
                     disabled={disabled}

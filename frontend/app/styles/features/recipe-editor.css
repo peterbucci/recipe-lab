@@ -798,79 +798,6 @@
   margin-top: 1.25rem;
   padding: clamp(1rem, 3vw, 1.5rem);
 }
-.duplicate-preflight-review__intro h2 {
-  margin-bottom: 0.55rem;
-  font-size: clamp(1.45rem, 3vw, 2rem);
-}
-.duplicate-preflight-review__intro > p:last-child {
-  max-width: 48rem;
-  color: var(--muted);
-  margin-bottom: 0;
-  font-size: 0.88rem;
-  line-height: 1.6;
-}
-.duplicate-preflight-review__warning {
-  border: 1px solid var(--mustard);
-  background: #d5a33c24;
-  border-radius: 0.7rem;
-  margin: 1rem 0 0;
-  padding: 0.75rem;
-  font-size: 0.84rem;
-  font-weight: 700;
-}
-.duplicate-preflight-candidates {
-  gap: 0.7rem;
-  margin: 1rem 0 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-}
-.duplicate-preflight-candidates > li {
-  border: 1px solid var(--line);
-  background: #f7f7fbb3;
-  border-radius: 0.8rem;
-  min-width: 0;
-  padding: 0.85rem;
-}
-.duplicate-preflight-candidate__heading {
-  min-width: 0;
-}
-.duplicate-preflight-candidate__heading div,
-.duplicate-preflight-candidate__heading span,
-.duplicate-preflight-candidate__heading a {
-  min-width: 0;
-  display: block;
-}
-.duplicate-preflight-candidate__heading span {
-  color: var(--leaf-dark);
-  letter-spacing: 0.045em;
-  text-transform: uppercase;
-  margin-bottom: 0.2rem;
-  font-size: 0.68rem;
-  font-weight: 800;
-}
-.duplicate-preflight-candidate__heading a {
-  overflow-wrap: anywhere;
-  color: var(--leaf-dark);
-  text-underline-offset: 0.18em;
-  font-weight: 800;
-  text-decoration-thickness: 0.08em;
-}
-.duplicate-preflight-candidate__heading a small {
-  color: var(--muted);
-  margin-top: 0.15rem;
-  font-size: 0.68rem;
-  font-weight: 600;
-  text-decoration: none;
-  display: block;
-}
-.duplicate-preflight-candidates > li > ul {
-  color: var(--muted);
-  margin: 0.65rem 0 0;
-  padding-left: 1.15rem;
-  font-size: 0.78rem;
-  line-height: 1.5;
-}
 .duplicate-preflight-review__decision {
   border-top: 1px solid var(--line);
   margin-top: 1rem;
@@ -905,22 +832,11 @@
   margin-top: 0.8rem;
   display: flex;
 }
-.duplicate-preflight-review__decision > p,
-.duplicate-preflight-unavailable__status {
+.duplicate-preflight-review__decision > p {
   min-height: 1.2rem;
   color: var(--muted);
   margin: 0.65rem 0 0;
   font-size: 0.76rem;
-}
-.duplicate-decision-unavailable h3 {
-  margin-bottom: 0.4rem;
-  font-size: 1rem;
-}
-.duplicate-decision-unavailable > p {
-  color: var(--muted);
-  margin-bottom: 0;
-  font-size: 0.8rem;
-  line-height: 1.5;
 }
 .draft-editor__actions {
   border: 1px solid var(--line);

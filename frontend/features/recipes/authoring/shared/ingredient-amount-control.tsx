@@ -30,7 +30,6 @@ export interface IngredientAmountControlProps {
   errors?: Partial<Record<StructuredMeasureField, string>>;
   disabled?: boolean;
   describedBy?: string;
-  presentation?: "form" | "popover";
   onChange: (value: StructuredMeasureDraft) => void;
 }
 
@@ -74,7 +73,6 @@ export function IngredientAmountControl({
   errors = {},
   disabled = false,
   describedBy,
-  presentation = "form",
   onChange,
 }: IngredientAmountControlProps) {
   const [moreOpen, setMoreOpen] = useState(false);
@@ -101,7 +99,7 @@ export function IngredientAmountControl({
       .join(" ") || undefined;
   const hasErrors = Object.values(errors).some(Boolean);
   const firstError = Object.values(errors).find(Boolean);
-  const showPopover = presentation === "popover" && popoverOpen;
+  const showPopover = popoverOpen;
   const popoverPlacement = useFloatingPanelPlacement({
     open: showPopover,
     panelRef: popoverRef,
@@ -335,9 +333,7 @@ export function IngredientAmountControl({
 
   return (
     <fieldset
-      className={`ingredient-amount${
-        presentation === "popover" ? " ingredient-amount--popover" : ""
-      }`}
+      className="ingredient-amount ingredient-amount--popover"
       disabled={disabled}
       aria-label={contextLabel ? `${label} for ${contextLabel}` : label}
       aria-describedby={groupDescription}
@@ -346,51 +342,47 @@ export function IngredientAmountControl({
         {label}
         {contextLabel ? ` for ${contextLabel}` : ""}
       </legend>
-      {presentation === "popover" ? (
-        <Popover open={showPopover} onOpenChange={setPopoverOpen}>
-          <PopoverTrigger
-            ref={triggerRef}
-            contentId={`${idPrefix}-popover`}
-            className="ingredient-amount__trigger"
-            aria-label={`Edit amount${contextLabel ? ` for ${contextLabel.toLowerCase()}` : ""}`}
-            aria-haspopup="dialog"
-            data-invalid={hasErrors || undefined}
-          >
-            {amountTriggerText}
-          </PopoverTrigger>
-          {!showPopover && firstError ? (
-            <p className="ingredient-amount__trigger-error" role="alert">
-              {firstError}
-            </p>
-          ) : null}
-          <PopoverContent
-              ref={popoverRef}
-              id={`${idPrefix}-popover`}
-              className="ingredient-amount__popover"
-              data-placement={popoverPlacement.placement}
-              style={popoverPlacement.style}
-              aria-label={
-                contextLabel
-                  ? `${label} for ${contextLabel.toLowerCase()}`
-                  : label
-              }
-              initialFocus="first"
+      <Popover open={showPopover} onOpenChange={setPopoverOpen}>
+        <PopoverTrigger
+          ref={triggerRef}
+          contentId={`${idPrefix}-popover`}
+          className="ingredient-amount__trigger"
+          aria-label={`Edit amount${contextLabel ? ` for ${contextLabel.toLowerCase()}` : ""}`}
+          aria-haspopup="dialog"
+          data-invalid={hasErrors || undefined}
+        >
+          {amountTriggerText}
+        </PopoverTrigger>
+        {!showPopover && firstError ? (
+          <p className="ingredient-amount__trigger-error" role="alert">
+            {firstError}
+          </p>
+        ) : null}
+        <PopoverContent
+          ref={popoverRef}
+          id={`${idPrefix}-popover`}
+          className="ingredient-amount__popover"
+          data-placement={popoverPlacement.placement}
+          style={popoverPlacement.style}
+          aria-label={
+            contextLabel
+              ? `${label} for ${contextLabel.toLowerCase()}`
+              : label
+          }
+          initialFocus="first"
+        >
+          {controls}
+          <div className="ingredient-amount__popover-actions">
+            <button
+              className="button button--quiet"
+              type="button"
+              onClick={closePopover}
             >
-              {controls}
-              <div className="ingredient-amount__popover-actions">
-                <button
-                  className="button button--quiet"
-                  type="button"
-                  onClick={closePopover}
-                >
-                  Done
-                </button>
-              </div>
-          </PopoverContent>
-        </Popover>
-      ) : (
-        controls
-      )}
+              Done
+            </button>
+          </div>
+        </PopoverContent>
+      </Popover>
     </fieldset>
   );
 }

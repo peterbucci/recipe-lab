@@ -67,7 +67,6 @@ function RecipePresentationHarness({
     <RecipeCategorySelector
       initialActiveCategories={categories}
       onChange={setValue}
-      presentation="recipe"
       value={value}
     />
   );
@@ -82,12 +81,7 @@ describe("RecipeCategorySelector", () => {
 
   it("loads only curated checkboxes and enforces the three-category limit", async () => {
     render(<Harness />);
-
-    expect(
-      screen
-        .getByText("Loading curated categories…")
-        .closest(".section-loading--rows"),
-    ).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Edit categories" }));
 
     const breakfast = await screen.findByRole("checkbox", {
       name: "Breakfast",
@@ -132,6 +126,7 @@ describe("RecipeCategorySelector", () => {
       .mockResolvedValueOnce({ items: categories });
 
     render(<Harness initial={[inactive]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit categories" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Your existing selections are still here.",

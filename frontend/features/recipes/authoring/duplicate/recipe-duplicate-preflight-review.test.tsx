@@ -1,11 +1,9 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { RecipeDuplicatePreflight } from "./recipe-duplicate-api";
-import {
-  RecipeDuplicatePreflightReview,
-  RecipeDuplicateUnavailable,
-} from "./recipe-duplicate-preflight-review";
+import { RecipeDuplicatePreflightReview } from "./recipe-duplicate-preflight-review";
 
 const CANDIDATE_ID = "33333333-3333-4333-8333-333333333333";
 
@@ -45,31 +43,36 @@ function result(
   };
 }
 
+function reviewProps(
+  overrides: Partial<ComponentProps<typeof RecipeDuplicatePreflightReview>> = {},
+): ComponentProps<typeof RecipeDuplicatePreflightReview> {
+  return {
+    acknowledged: false,
+    onAcknowledgedChange: vi.fn(),
+    onContinue: vi.fn(),
+    onRevise: vi.fn(),
+    pendingDecision: null,
+    publicationKind: "original",
+    result: result(),
+    ...overrides,
+  };
+}
+
 describe("RecipeDuplicatePreflightReview", () => {
-  it("focuses an inline advisory review with bounded public candidate details", async () => {
-    render(
-      <RecipeDuplicatePreflightReview
-        result={result()}
-        acknowledged={false}
-        decisionFailure={null}
-        pendingDecision={null}
-        onAcknowledgedChange={vi.fn()}
-        onContinue={vi.fn()}
-        onRevise={vi.fn()}
-        onRetryDecision={vi.fn()}
-        onCreateWithoutRecordedDecision={vi.fn()}
-        onReturnWithoutRecordedDecision={vi.fn()}
-      />,
-    );
+  it("presents the live original-publication review and its bounded evidence", async () => {
+    const props = reviewProps({
+      confirmationSlot: <p>Confirm publication details</p>,
+    });
+    const view = render(<RecipeDuplicatePreflightReview {...props} />);
 
     const region = screen.getByRole("region", {
-      name: "Review similar recipes",
+      name: "This recipe is similar to another public recipe",
     });
-    expect(region).toHaveClass("duplicate-preflight-review--variant");
+    expect(region).toHaveClass("duplicate-preflight-review--publication");
     await waitFor(() =>
       expect(
         within(region).getByRole("heading", {
-          name: "Review similar recipes",
+          name: "This recipe is similar to another public recipe",
         }),
       ).toHaveFocus(),
     );
@@ -79,133 +82,47 @@ describe("RecipeDuplicatePreflightReview", () => {
     expect(candidateLink).toHaveAttribute("href", `/recipes/${CANDIDATE_ID}`);
     expect(candidateLink).toHaveAttribute("target", "_blank");
     expect(candidateLink).toHaveAttribute("rel", "noopener noreferrer");
-    expect(candidateLink).toHaveTextContent("(opens in a new tab)");
-    expect(region).toHaveTextContent(/only a guide/i);
-    expect(region).toHaveTextContent(/cannot show who created an idea/i);
-    expect(region).toHaveTextContent(/how either recipe will turn out/i);
-    expect(within(region).queryByText("88% similar")).toBeNull();
     expect(
-      within(region).getByRole("list", {
-        name: "Why Public carrot cake was included",
-      }),
-    ).toHaveTextContent("order of cooking actions is similar");
-    expect(region).not.toHaveTextContent(/private|owner|timing|total candidates/i);
-  });
-
-  it("requires explicit acknowledgement before continuing and supports revise", () => {
-    const acknowledge = vi.fn();
-    const continueAction = vi.fn();
-    const revise = vi.fn();
-    const { rerender } = render(
-      <RecipeDuplicatePreflightReview
-        result={result()}
-        acknowledged={false}
-        decisionFailure={null}
-        pendingDecision={null}
-        onAcknowledgedChange={acknowledge}
-        onContinue={continueAction}
-        onRevise={revise}
-        onRetryDecision={vi.fn()}
-        onCreateWithoutRecordedDecision={vi.fn()}
-        onReturnWithoutRecordedDecision={vi.fn()}
-      />,
-    );
-
-    const continueButton = screen.getByRole("button", {
-      name: "Create my version anyway",
-    });
-    expect(continueButton).toBeDisabled();
-    fireEvent.click(
-      screen.getByRole("checkbox", {
-        name: /reviewed these similar recipes/i,
-      }),
-    );
-    expect(acknowledge).toHaveBeenCalledWith(true);
-
-    rerender(
-      <RecipeDuplicatePreflightReview
-        result={result()}
-        acknowledged
-        decisionFailure={null}
-        pendingDecision={null}
-        onAcknowledgedChange={acknowledge}
-        onContinue={continueAction}
-        onRevise={revise}
-        onRetryDecision={vi.fn()}
-        onCreateWithoutRecordedDecision={vi.fn()}
-        onReturnWithoutRecordedDecision={vi.fn()}
-      />,
-    );
-    fireEvent.click(continueButton);
-    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
-    expect(continueAction).toHaveBeenCalledOnce();
-    expect(revise).toHaveBeenCalledOnce();
-  });
-
-  it("uses cook-facing publication language for an original draft", () => {
-    render(
-      <RecipeDuplicatePreflightReview
-        mode="publication"
-        result={result()}
-        acknowledged={false}
-        decisionFailure={null}
-        pendingDecision={null}
-        onAcknowledgedChange={vi.fn()}
-        onContinue={vi.fn()}
-        onRevise={vi.fn()}
-        onRetryDecision={vi.fn()}
-        onCreateWithoutRecordedDecision={vi.fn()}
-        onReturnWithoutRecordedDecision={vi.fn()}
-      />,
-    );
-
-    expect(
-      screen.getByRole("checkbox", {
-        name: "I reviewed these similar recipes and want to publish my recipe anyway.",
-      }),
-    ).toBeVisible();
-    const publicationReview = screen.getByRole("region", {
-      name: "This recipe is similar to another public recipe",
-    });
-    expect(publicationReview).toHaveClass("duplicate-preflight-review--publication");
-    expect(
-      within(publicationReview).getByRole("link", { name: /Public carrot cake/i }),
-    ).toHaveAttribute("target", "_blank");
-    expect(
-      within(publicationReview)
-        .getByText("Why is Recipe Lab showing this?")
-        .closest("details"),
+      within(region).getByText("Why is Recipe Lab showing this?").closest("details"),
     ).not.toHaveAttribute("open");
-    expect(screen.getByRole("button", { name: "Publish recipe" })).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveClass("visually-hidden");
-    expect(screen.queryByRole("button", { name: /without checking similar recipes/i })).toBeNull();
+    expect(region).toHaveTextContent("order of cooking actions is similar");
+    expect(region).not.toHaveTextContent("The structured action flow is similar.");
+    expect(region).toHaveTextContent("Confirm publication details");
+
+    const acknowledgement = within(region).getByRole("checkbox", {
+      name: "I reviewed these similar recipes and want to publish my recipe anyway.",
+    });
+    expect(within(region).getByRole("button", { name: "Publish recipe" })).toBeDisabled();
+    fireEvent.click(acknowledgement);
+    expect(props.onAcknowledgedChange).toHaveBeenCalledWith(true);
+
+    view.rerender(
+      <RecipeDuplicatePreflightReview {...props} acknowledged />,
+    );
+    fireEvent.click(within(region).getByRole("button", { name: "Publish recipe" }));
+    fireEvent.click(within(region).getByRole("button", { name: "Keep editing" }));
+    expect(props.onContinue).toHaveBeenCalledOnce();
+    expect(props.onRevise).toHaveBeenCalledOnce();
+    expect(within(region).getByRole("status")).toHaveClass("visually-hidden");
   });
 
   it("uses the compact source-match confirmation for a publication version", () => {
     render(
       <RecipeDuplicatePreflightReview
-        mode="publication"
-        publicationKind="fork"
-        result={result({
-          classification: "exact_duplicate",
-          same_lineage_no_change: true,
-          candidates: [],
-          warnings: [
-            {
-              code: "same_lineage_no_change",
-              message: "The structured recipe is unchanged from its direct parent.",
-            },
-          ],
+        {...reviewProps({
+          publicationKind: "fork",
+          result: result({
+            classification: "exact_duplicate",
+            same_lineage_no_change: true,
+            candidates: [],
+            warnings: [
+              {
+                code: "same_lineage_no_change",
+                message: "The structured recipe is unchanged from its direct parent.",
+              },
+            ],
+          }),
         })}
-        acknowledged={false}
-        decisionFailure={null}
-        pendingDecision={null}
-        onAcknowledgedChange={vi.fn()}
-        onContinue={vi.fn()}
-        onRevise={vi.fn()}
-        onRetryDecision={vi.fn()}
-        onCreateWithoutRecordedDecision={vi.fn()}
-        onReturnWithoutRecordedDecision={vi.fn()}
       />,
     );
 
@@ -221,154 +138,25 @@ describe("RecipeDuplicatePreflightReview", () => {
       }),
     ).not.toBeChecked();
     expect(within(review).getByRole("button", { name: "Publish version" })).toBeDisabled();
-    expect(
-      within(review)
-        .getByText("Why is Recipe Lab showing this?")
-        .closest("details"),
-    ).not.toHaveAttribute("open");
+    expect(review).toHaveTextContent(
+      "The ingredients, amounts, and cooking actions match its source.",
+    );
   });
 
-  it("presents a cook-facing unchanged-version warning without inventing a candidate", () => {
+  it("disables every publication decision while publishing", () => {
     render(
       <RecipeDuplicatePreflightReview
-        result={result({
-          classification: "exact_duplicate",
-          same_lineage_no_change: true,
-          candidates: [],
-          warnings: [
-            {
-              code: "same_lineage_no_change",
-              message: "The structured recipe is unchanged from its direct parent.",
-            },
-          ],
-        })}
-        acknowledged={false}
-        decisionFailure={null}
-        pendingDecision={null}
-        onAcknowledgedChange={vi.fn()}
-        onContinue={vi.fn()}
-        onRevise={vi.fn()}
-        onRetryDecision={vi.fn()}
-        onCreateWithoutRecordedDecision={vi.fn()}
-        onReturnWithoutRecordedDecision={vi.fn()}
+        {...reviewProps({ acknowledged: true, pendingDecision: "continue" })}
       />,
     );
 
+    const region = screen.getByRole("region");
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(within(region).getByRole("checkbox")).toBeDisabled();
     expect(
-      screen.getByRole("region", {
-        name: "Your version matches the recipe it is based on",
-      }),
-    ).toHaveTextContent("Your version matches the recipe it is based on.");
-    expect(screen.queryByText(/direct parent|canonical|immutable/i)).toBeNull();
-    expect(screen.queryByRole("list", { name: "Public recipe matches" })).toBeNull();
-  });
-
-  it("disables every decision control while one choice is being recorded", () => {
-    render(
-      <RecipeDuplicatePreflightReview
-        result={result()}
-        acknowledged
-        decisionFailure={null}
-        pendingDecision="continue"
-        onAcknowledgedChange={vi.fn()}
-        onContinue={vi.fn()}
-        onRevise={vi.fn()}
-        onRetryDecision={vi.fn()}
-        onCreateWithoutRecordedDecision={vi.fn()}
-        onReturnWithoutRecordedDecision={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByRole("region")).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByRole("checkbox")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Recording your choice…" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Keep editing" })).toBeDisabled();
-  });
-
-  it.each([
-    {
-      decision: "continue" as const,
-      fallbackLabel: "Create without confirming the review decision",
-    },
-    {
-      decision: "revise" as const,
-      fallbackLabel: "Return to editing without confirming the review decision",
-    },
-  ])("truthfully recovers when $decision cannot be recorded", async ({
-    decision,
-    fallbackLabel,
-  }) => {
-    const retry = vi.fn();
-    const createWithout = vi.fn();
-    const returnWithout = vi.fn();
-    render(
-      <RecipeDuplicatePreflightReview
-        result={result()}
-        acknowledged
-        decisionFailure={decision}
-        pendingDecision={null}
-        onAcknowledgedChange={vi.fn()}
-        onContinue={vi.fn()}
-        onRevise={vi.fn()}
-        onRetryDecision={retry}
-        onCreateWithoutRecordedDecision={createWithout}
-        onReturnWithoutRecordedDecision={returnWithout}
-      />,
-    );
-
-    const failureHeading = screen.getByRole("heading", {
-      name: "Your review choice could not be confirmed",
-    });
-    await waitFor(() => expect(failureHeading).toHaveFocus());
-    expect(
-      screen.getByText("No confirmed response was received for your review decision."),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Retry recording my choice" }));
-    fireEvent.click(screen.getByRole("button", { name: fallbackLabel }));
-    expect(retry).toHaveBeenCalledOnce();
-    if (decision === "continue") {
-      expect(createWithout).toHaveBeenCalledOnce();
-      expect(returnWithout).not.toHaveBeenCalled();
-    } else {
-      expect(returnWithout).toHaveBeenCalledOnce();
-      expect(createWithout).not.toHaveBeenCalled();
-    }
-  });
-});
-
-describe("RecipeDuplicateUnavailable", () => {
-  it("offers two explicit neutral choices without inventing a classification", async () => {
-    const retry = vi.fn();
-    const create = vi.fn();
-    render(
-      <RecipeDuplicateUnavailable
-        pendingAction={null}
-        onRetry={retry}
-        onCreateWithoutReview={create}
-      />,
-    );
-
-    const region = screen.getByRole("region", {
-      name: "Similar recipes could not be checked",
-    });
-    expect(region).toHaveClass("duplicate-preflight-review--unavailable");
-    await waitFor(() =>
-      expect(
-        within(region).getByRole("heading", {
-          name: "Similar recipes could not be checked",
-        }),
-      ).toHaveFocus(),
-    );
-    expect(region).toHaveTextContent("does not mean your version is different");
-    expect(region).toHaveTextContent("No similar-recipes result is available.");
-    fireEvent.click(within(region).getByRole("button", { name: "Check similar recipes again" }));
-    fireEvent.click(
-      within(region).getByRole("button", {
-          name: "Create without checking similar recipes",
-      }),
-    );
-    expect(retry).toHaveBeenCalledOnce();
-    expect(create).toHaveBeenCalledOnce();
+      within(region).getByRole("button", { name: "Publishing your recipe…" }),
+    ).toBeDisabled();
+    expect(within(region).getByRole("button", { name: "Keep editing" })).toBeDisabled();
+    expect(within(region).queryByRole("status")).toBeNull();
   });
 });
