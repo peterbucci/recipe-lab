@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 
-import type { MyRecipesHubView } from "../../../features/recipes/library/my-recipes-hub";
-import { MyRecipesWorkspace } from "./_components/my-recipes-workspace";
+import { MemberRouteGate } from "../../../features/auth/member-route-gate";
+import { MyRecipeLibrary } from "../../../features/recipes/library/my-recipe-library";
+import {
+  myRecipesHref,
+  type MyRecipesHubView,
+} from "../../../features/recipes/library/my-recipes-route";
+import { SavedRecipeLibrary } from "../../../features/recipes/library/saved-recipe-library";
 
 export const metadata: Metadata = {
   title: "My recipes",
@@ -36,7 +41,29 @@ function pageNumber(value: string | string[] | undefined): number {
 export default async function MyRecipesPage({ searchParams }: MyRecipesPageProps) {
   const query = await searchParams;
   const view = recipeView(query.view);
+  const currentPage = pageNumber(query.page);
+
+  if (view === "saved") {
+    return (
+      <MemberRouteGate
+        anonymousHeading="Sign in to open My recipes"
+        anonymousMessage="Your drafts, saves, and other private recipe activity belong only to your account."
+        eyebrow="Your recipe workspace"
+        returnTo={myRecipesHref(view, currentPage)}
+        title="My recipes"
+      >
+        <SavedRecipeLibrary pageNumber={currentPage} />
+      </MemberRouteGate>
+    );
+  }
+
   return (
-    <MyRecipesWorkspace pageNumber={pageNumber(query.page)} view={view} />
+    <MemberRouteGate
+      eyebrow="Your recipe workspace"
+      returnTo={myRecipesHref(view, currentPage)}
+      title="My recipes"
+    >
+      <MyRecipeLibrary pageNumber={currentPage} view={view} />
+    </MemberRouteGate>
   );
 }

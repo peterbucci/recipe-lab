@@ -1,17 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+} from "react";
 
 import { isAbortError } from "../../../shared/api/abort-error";
 import { createIdempotencyKey } from "../../../shared/api/idempotency-key";
 import { setRecipeSaved } from "../detail/interaction-api";
 import { fetchSavedRecipeLibrary } from "./recipe-library-api";
-import type { SavedRecipeLibraryPage } from "./recipe-library-model";
 import { RecipeLibraryApiError } from "../shared/recipe-library-error";
 import {
   MyRecipesHubHeader,
   MyRecipesHubNavigation,
 } from "./my-recipes-hub";
+import { myRecipesHref } from "./my-recipes-route";
+import {
+  createSavedRecipeLibraryState,
+  currentSavedRecipeLibraryState,
+  savedRecipeLibraryReducer,
+  type SavedRecipeRemovalAttempt,
+} from "./saved-recipe-library-state";
 import { MemberRecipeCard } from "./member-recipe-card";
 import { GuardedLink } from "../../../shared/navigation/navigation-blocker-provider";
 import { LoadingButton, SectionLoading } from "../../../shared/ui/loading-ui";
@@ -19,120 +32,203 @@ import { WorkspaceEmptyState } from "../../../shared/ui/workspace-empty-state";
 import { WorkspacePanelHeader } from "../../../shared/ui/workspace-panel-header";
 import { WorkspacePagination } from "../../../shared/ui/workspace-pagination";
 
-export function SavedRecipeLibrary() {
-  const loadControllerRef = useRef<AbortController | null>(null);
-  const removeAttempts = useRef(new Map<string, string>());
+interface SavedRecipeLibraryProps {
+  pageNumber: number;
+}
+
+interface SavedRecipeIdempotencyAttempt {
+  attemptId: number;
+  idempotencyKey: string;
+}
+
+function locationKey(pageNumber: number): string {
+  return `saved:${pageNumber}`;
+}
+
+function SavedRecipePagination({
+  currentPage,
+  loading,
+  totalPages,
+}: {
+  currentPage: number;
+  loading: boolean;
+  totalPages: number;
+}) {
+  return (
+    <WorkspacePagination
+      currentPage={currentPage}
+      label="Saved recipe pages"
+      loading={loading}
+      totalPages={totalPages}
+      renderControl={({ disabled, label, page }) =>
+        disabled ? (
+          <span className="button button--disabled" aria-disabled="true">
+            {label}
+          </span>
+        ) : (
+          <GuardedLink
+            className="button button--secondary"
+            href={myRecipesHref("saved", page)}
+          >
+            {label}
+          </GuardedLink>
+        )
+      }
+    />
+  );
+}
+
+export function SavedRecipeLibrary({ pageNumber }: SavedRecipeLibraryProps) {
+  const router = useRouter();
+  const key = locationKey(pageNumber);
+  const requestSequence = useRef(0);
+  const removalSequence = useRef(0);
+  const removeAttempts = useRef(
+    new Map<string, SavedRecipeIdempotencyAttempt>(),
+  );
+  const activeRemovalRef = useRef<SavedRecipeRemovalAttempt | null>(null);
+  const currentLocationRef = useRef({ key, pageNumber, snapshotId: null as number | null });
   const statusRef = useRef<HTMLParagraphElement>(null);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [page, setPage] = useState<SavedRecipeLibraryPage | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [operationError, setOperationError] = useState("");
-  const [status, setStatus] = useState("");
-  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(
+    savedRecipeLibraryReducer,
+    key,
+    createSavedRecipeLibraryState,
+  );
+  const {
+    error,
+    focusStatus,
+    loading,
+    operationError,
+    page,
+    removingId,
+    snapshotId,
+    status,
+  } = currentSavedRecipeLibraryState(state, key);
   const beyondLastPage = Boolean(
     page && page.total > 0 && page.items.length === 0,
   );
 
-  const runLoad = useCallback(
-    async (requestedPage: number, controller: AbortController) => {
-      if (controller.signal.aborted) return;
+  useLayoutEffect(() => {
+    currentLocationRef.current = { key, pageNumber, snapshotId };
+  }, [key, pageNumber, snapshotId]);
+
+  const load = useCallback(
+    async (requestedPage: number, signal?: AbortSignal) => {
+      if (signal?.aborted) return;
+      const requestKey = locationKey(requestedPage);
+      const requestId = ++requestSequence.current;
+      dispatch({ key: requestKey, requestId, type: "load_started" });
       try {
         const result = await fetchSavedRecipeLibrary({
           page: requestedPage,
           pageSize: 12,
-          signal: controller.signal,
+          signal,
         });
-        if (loadControllerRef.current !== controller) return;
-        setPage(result);
-        setPageNumber(result.page);
+        if (requestId !== requestSequence.current || signal?.aborted) return;
+        dispatch({
+          key: requestKey,
+          page: result,
+          requestId,
+          snapshotId: requestId,
+          type: "load_succeeded",
+        });
       } catch (reason) {
-        if (isAbortError(reason) || loadControllerRef.current !== controller) return;
-        setError(
-          reason instanceof RecipeLibraryApiError
+        if (
+          isAbortError(reason) ||
+          requestId !== requestSequence.current ||
+          signal?.aborted
+        ) {
+          return;
+        }
+        dispatch({
+          key: requestKey,
+          message: reason instanceof RecipeLibraryApiError
             ? reason.message
             : "Recipe Lab could not load your saved recipes. Please try again.",
-        );
-      } finally {
-        if (loadControllerRef.current === controller) {
-          loadControllerRef.current = null;
-          if (!controller.signal.aborted) setLoading(false);
-        }
+          requestId,
+          type: "load_failed",
+        });
       }
     },
     [],
   );
 
   useEffect(() => {
-    loadControllerRef.current?.abort();
     const controller = new AbortController();
-    loadControllerRef.current = controller;
-    void Promise.resolve().then(() => runLoad(pageNumber, controller));
-    return () => loadControllerRef.current?.abort();
-  }, [pageNumber, runLoad]);
-
-  function retryLoad() {
-    loadControllerRef.current?.abort();
-    const controller = new AbortController();
-    loadControllerRef.current = controller;
-    setLoading(true);
-    setError("");
-    void runLoad(pageNumber, controller);
-  }
-
-  function changePage(nextPage: number) {
-    setLoading(true);
-    setError("");
-    setOperationError("");
-    setStatus("");
-    setPageNumber(nextPage);
-  }
+    dispatch({ key, type: "location_changed" });
+    void Promise.resolve().then(() => load(pageNumber, controller.signal));
+    return () => controller.abort();
+  }, [key, load, pageNumber]);
 
   useEffect(() => {
-    if (status) statusRef.current?.focus();
-  }, [status]);
+    if (status && focusStatus) statusRef.current?.focus();
+  }, [focusStatus, status]);
 
   async function removeSaved(recipeVersionId: string, title: string) {
-    if (removingId) return;
-    setRemovingId(recipeVersionId);
-    setOperationError("");
-    setStatus("");
+    if (snapshotId === null || !page || removingId) return;
+    const attemptId = ++removalSequence.current;
+    const existingAttempt = removeAttempts.current.get(recipeVersionId);
     const idempotencyKey =
-      removeAttempts.current.get(recipeVersionId) ?? createIdempotencyKey();
-    removeAttempts.current.set(recipeVersionId, idempotencyKey);
+      existingAttempt?.idempotencyKey ?? createIdempotencyKey();
+    const attempt: SavedRecipeRemovalAttempt = {
+      attemptId,
+      originKey: key,
+      originSnapshotId: snapshotId,
+      recipeVersionId,
+    };
+    removeAttempts.current.set(recipeVersionId, { attemptId, idempotencyKey });
+    activeRemovalRef.current = attempt;
+    dispatch({ attempt, type: "removal_started" });
 
     try {
       await setRecipeSaved(recipeVersionId, false, idempotencyKey);
-      removeAttempts.current.delete(recipeVersionId);
-      const nextTotal = Math.max(0, (page?.total ?? 1) - 1);
-      const nextTotalPages = Math.ceil(nextTotal / (page?.page_size ?? 12));
-
-      if (page?.items.length === 1 && pageNumber > 1) {
-        setStatus(`${title} removed from Saved.`);
-        setLoading(true);
-        setPageNumber(pageNumber - 1);
+      if (
+        removeAttempts.current.get(recipeVersionId)?.attemptId === attemptId
+      ) {
+        removeAttempts.current.delete(recipeVersionId);
+      }
+      const currentLocation = currentLocationRef.current;
+      if (
+        activeRemovalRef.current?.attemptId !== attemptId ||
+        currentLocation.key !== attempt.originKey ||
+        currentLocation.snapshotId !== attempt.originSnapshotId
+      ) {
+        await load(currentLocation.pageNumber);
         return;
       }
 
-      setPage((current) =>
-        current
-          ? {
-              ...current,
-              items: current.items.filter(
-                (item) => item.recipe.id !== recipeVersionId,
-              ),
-              total: nextTotal,
-              total_pages: nextTotalPages,
-            }
-          : current,
-      );
-      setStatus(`${title} removed from Saved.`);
+      const targetPage =
+        page.items.length === 1 && pageNumber > 1
+          ? pageNumber - 1
+          : pageNumber;
+      dispatch({
+        attempt,
+        message: `${title} removed from Saved.`,
+        targetKey: locationKey(targetPage),
+        type: "removal_succeeded",
+      });
+      if (targetPage !== pageNumber) {
+        router.replace(myRecipesHref("saved", targetPage));
+      }
     } catch {
-      setOperationError(
-        "We couldn’t remove this saved recipe. Your saved list is unchanged.",
-      );
+      const currentLocation = currentLocationRef.current;
+      if (
+        activeRemovalRef.current?.attemptId === attemptId &&
+        currentLocation.key === attempt.originKey &&
+        currentLocation.snapshotId === attempt.originSnapshotId
+      ) {
+        dispatch({
+          attempt,
+          message:
+            "We couldn’t remove this saved recipe. Your saved list is unchanged.",
+          type: "removal_failed",
+        });
+      }
     } finally {
-      setRemovingId(null);
+      if (activeRemovalRef.current?.attemptId === attemptId) {
+        activeRemovalRef.current = null;
+      }
+      dispatch({ attemptId, type: "removal_finished" });
     }
   }
 
@@ -178,7 +274,7 @@ export function SavedRecipeLibrary() {
               <button
                 className="button button--secondary"
                 type="button"
-                onClick={retryLoad}
+                onClick={() => void load(pageNumber)}
               >
                 Refresh saved recipes
               </button>
@@ -219,13 +315,12 @@ export function SavedRecipeLibrary() {
               <p>
                 Your saved collection currently has {page.total_pages} pages.
               </p>
-              <button
+              <GuardedLink
                 className="button button--secondary"
-                type="button"
-                onClick={() => changePage(1)}
+                href={myRecipesHref("saved")}
               >
                 Return to the first page
-              </button>
+              </GuardedLink>
             </section>
           ) : null}
 
@@ -272,11 +367,9 @@ export function SavedRecipeLibrary() {
                   ))}
                 </ul>
               </section>
-              <WorkspacePagination
+              <SavedRecipePagination
                 currentPage={page.page}
-                label="Saved recipe pages"
                 loading={loading}
-                onPageChange={changePage}
                 totalPages={page.total_pages}
               />
             </>
