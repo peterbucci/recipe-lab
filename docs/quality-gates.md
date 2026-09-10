@@ -77,6 +77,11 @@ external actionlint container remain explicit workflow steps. On Windows the
 frontend unit-test command selects Vitest's portable runner loader, while CI
 keeps the package's normal invocation.
 
+From the `frontend` directory, `npm run ci:verify` is the convenience entry
+point for that same Python-owned `frontend` suite. It delegates to
+`python ../scripts/run_quality_gate.py frontend` rather than maintaining a
+second list of frontend checks.
+
 The repository fixes shell and workflow line endings through `.gitattributes`,
 so the Linux-only release helper remains executable after a Windows checkout.
 Local developer entry points remain PowerShell, Python, npm, uv, and Docker

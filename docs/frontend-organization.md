@@ -155,9 +155,11 @@ Every story updates all path consumers in the same change:
 `app/components` or `lib` locations, outward or unreviewed cross-feature
 imports, broad barrel files, runtime dependency cycles, and direct or indirect
 client paths into a marked server module or the standalone `server` directory.
-It is part of `npm run ci:verify`. Type-only imports do not enter the runtime
-graph, while Next's `server-only` compiler checks complement this source audit;
-unit-test marker aliases are confined to Vitest configuration.
+`npm run ci:verify` delegates to the repository-owned `frontend` suite in
+`scripts/run_quality_gate.py`, which includes this audit. Type-only imports do
+not enter the runtime graph, while Next's `server-only` compiler checks
+complement this source audit; unit-test marker aliases are confined to Vitest
+configuration.
 
 ## Story ownership map
 

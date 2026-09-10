@@ -78,10 +78,13 @@ The dedicated `/recipes/{recipeVersionId}/fork` server route verifies the public
 source and presents a member-gated private-draft boundary. Once the gate
 succeeds, the browser immediately posts one member-scoped creation action that
 asks the backend to copy that exact immutable snapshot, then replaces the route
-with `/account/recipe-drafts/{draftId}`. `/recipes/new` uses the same boundary
-for a source-less draft. One bounded browser attempt survives retry, reload, and
-a same-tab authentication return until a valid draft ID is known; the server's
-member/action binding recovers an unknown outcome without duplicating the draft.
+with the canonical editor URL `/recipes/drafts/{draftId}`. The former
+`/account/recipe-drafts/{draftId}` address remains a compatibility route that
+validates the draft ID and redirects to the canonical editor. `/recipes/new`
+uses the same boundary for a source-less draft. One bounded browser attempt
+survives retry, reload, and a same-tab authentication return until a valid draft
+ID is known; the server's member/action binding recovers an unknown outcome
+without duplicating the draft.
 The unified editor keeps raw entered values in local state, validates them
 without resetting the form, and saves one full
 ordered snapshot under an optimistic revision. API validation and revision
