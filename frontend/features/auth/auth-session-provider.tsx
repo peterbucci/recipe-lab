@@ -36,6 +36,8 @@ type SessionRecoveryResult =
   | "restored"
   | "unavailable";
 
+type SessionRecoveryFeedback = SessionRecoveryResult | "sign_in_started" | null;
+
 interface AuthSessionProviderProps {
   children: ReactNode;
   initialSession?: AuthSession;
@@ -97,28 +99,35 @@ export function AuthSessionProvider({
     applySession(session);
   }, [abortPendingRequests, applySession]);
 
-  const refreshSession = useCallback(async () => {
+  const startSessionRequest = useCallback(() => {
     const request = beginSessionRequest();
-    setState({ phase: "loading" });
-    try {
-      const session = await fetchAuthSession(request.controller.signal);
-      if (!isCurrentRequest(request.controller, request.version)) {
+    const result = (async () => {
+      try {
+        const session = await fetchAuthSession(request.controller.signal);
+        if (!isCurrentRequest(request.controller, request.version)) {
+          return null;
+        }
+        applySession(session);
+        return session;
+      } catch (reason: unknown) {
+        if (
+          isCurrentRequest(request.controller, request.version) &&
+          !isAbortError(reason)
+        ) {
+          setState({ phase: "error" });
+        }
         return null;
+      } finally {
+        requestControllersRef.current.delete(request.controller);
       }
-      applySession(session);
-      return session;
-    } catch (reason: unknown) {
-      if (
-        isCurrentRequest(request.controller, request.version) &&
-        !isAbortError(reason)
-      ) {
-        setState({ phase: "error" });
-      }
-      return null;
-    } finally {
-      requestControllersRef.current.delete(request.controller);
-    }
+    })();
+    return { controller: request.controller, result };
   }, [applySession, beginSessionRequest, isCurrentRequest]);
+
+  const refreshSession = useCallback(() => {
+    setState({ phase: "loading" });
+    return startSessionRequest().result;
+  }, [startSessionRequest]);
 
   const recoverSession = useCallback(async () => {
     const request = beginSessionRequest();
@@ -163,26 +172,10 @@ export function AuthSessionProvider({
       return;
     }
 
-    const request = beginSessionRequest();
-    void fetchAuthSession(request.controller.signal)
-      .then((session) => {
-        if (isCurrentRequest(request.controller, request.version)) {
-          applySession(session);
-        }
-      })
-      .catch((reason: unknown) => {
-        if (
-          isCurrentRequest(request.controller, request.version) &&
-          !isAbortError(reason)
-        ) {
-          setState({ phase: "error" });
-        }
-      })
-      .finally(() => {
-        requestControllersRef.current.delete(request.controller);
-      });
+    const request = startSessionRequest();
+    void request.result;
     return () => request.controller.abort();
-  }, [applySession, beginSessionRequest, initialSession, isCurrentRequest]);
+  }, [initialSession, startSessionRequest]);
 
   useEffect(() => {
     function handleSessionExpired() {
@@ -224,16 +217,37 @@ function isDraftCreationRoute(pathname: string): boolean {
   );
 }
 
+function sessionRecoveryMessage(
+  feedback: SessionRecoveryFeedback,
+  sameTabSignIn: boolean,
+): string {
+  if (feedback === null) {
+    return sameTabSignIn
+      ? "Continue sign-in in this tab. Recipe Lab will retry the same private-draft request when you return."
+      : "Open sign-in in a new tab. This page will keep your unsaved work.";
+  }
+  if (feedback === "sign_in_started") {
+    return "Finish signing in in the new tab, then return here.";
+  }
+  if (feedback === "restored") {
+    return "Sign-in restored. Your work is still here.";
+  }
+  if (feedback === "different_account") {
+    return "A different account is signed in. Sign back in as the account that owns this work.";
+  }
+  if (feedback === "unavailable") {
+    return "We couldn’t confirm sign-in yet. Your work is still here.";
+  }
+  return "Sign-in is not complete. Your work is still here.";
+}
+
 export function SessionRecoveryNotice() {
   const pathname = usePathname();
   const { recoverSession, sessionExpired } = useAuthSession();
   const sameTabSignIn = isDraftCreationRoute(pathname);
-  const initialRecoveryMessage = sameTabSignIn
-    ? "Continue sign-in in this tab. Recipe Lab will retry the same private-draft request when you return."
-    : "Open sign-in in a new tab. This page will keep your unsaved work.";
   const [checking, setChecking] = useState(false);
   const [dismissed, setDismissed] = useState(false);
-  const [message, setMessage] = useState(initialRecoveryMessage);
+  const [feedback, setFeedback] = useState<SessionRecoveryFeedback>(null);
   const checkingRef = useRef(false);
   const noticeRef = useRef<HTMLElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -258,32 +272,26 @@ export function SessionRecoveryNotice() {
     setChecking(false);
     if (result === "restored") {
       recoveryStartedRef.current = false;
-      setMessage("Sign-in restored. Your work is still here.");
+      setFeedback(result);
       return;
     }
-    setMessage(
-      result === "different_account"
-        ? "A different account is signed in. Sign back in as the account that owns this work."
-        : result === "unavailable"
-          ? "We couldn’t confirm sign-in yet. Your work is still here."
-          : "Sign-in is not complete. Your work is still here.",
-    );
+    setFeedback(result);
     window.setTimeout(() => noticeRef.current?.focus(), 0);
-  }, [recoverSession]);
+  }, [recoverSession, setFeedback]);
 
   useEffect(() => {
     if (sessionExpired && !wasExpiredRef.current) {
       previousFocusRef.current =
         document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setDismissed(false);
-      setMessage(initialRecoveryMessage);
+      setFeedback(null);
       window.setTimeout(() => noticeRef.current?.focus(), 0);
     } else if (!sessionExpired && wasExpiredRef.current) {
       recoveryStartedRef.current = false;
       window.setTimeout(restorePreviousFocus, 0);
     }
     wasExpiredRef.current = sessionExpired;
-  }, [initialRecoveryMessage, restorePreviousFocus, sessionExpired]);
+  }, [restorePreviousFocus, sessionExpired]);
 
   useEffect(() => {
     if (!sessionExpired) {
@@ -304,6 +312,7 @@ export function SessionRecoveryNotice() {
 
   const returnTo = pathname || "/recipes";
   const signInHref = `/sign-in?${new URLSearchParams({ return_to: returnTo }).toString()}`;
+  const message = sessionRecoveryMessage(feedback, sameTabSignIn);
 
   if (dismissed) {
     return (
@@ -349,7 +358,7 @@ export function SessionRecoveryNotice() {
                 ? undefined
                 : () => {
                     recoveryStartedRef.current = true;
-                    setMessage("Finish signing in in the new tab, then return here.");
+                    setFeedback("sign_in_started");
                   }
             }
           >
