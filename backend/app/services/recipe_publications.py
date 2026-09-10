@@ -51,7 +51,6 @@ from app.schemas.measurements import (
     RangeMeasureInput,
     StructuredMeasureInput,
 )
-from app.schemas.recipe_duplicates import RecipeDuplicatePreflightResponse
 from app.schemas.recipe_publications import RecipeDraftPublicationRequest
 from app.services.actions import ActionContractError, validate_structured_actions
 from app.services.measurements import (
@@ -850,11 +849,3 @@ def publish_recipe_draft(
 
 
 publish_original_recipe_draft = publish_recipe_draft
-
-
-def publication_preflight_response(
-    result: RecipeDuplicatePreflightServiceResult,
-) -> RecipeDuplicatePreflightResponse:
-    """Keep the route adapter explicit while returning the shared evidence schema."""
-
-    return result.response

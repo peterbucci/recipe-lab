@@ -36,12 +36,6 @@ class RecipeBrowseResult:
 
 
 @dataclass(frozen=True, slots=True)
-class RecipeRatingAggregate:
-    average: Decimal | None
-    count: int
-
-
-@dataclass(frozen=True, slots=True)
 class RecipeCardEngagementAggregate:
     average_rating: Decimal | None
     rating_count: int
@@ -427,20 +421,6 @@ def get_public_recipe_version_titles(
         RecipeVersion.id.in_(recipe_version_ids),
     )
     return {recipe_version_id: title for recipe_version_id, title in session.execute(statement)}
-
-
-def get_recipe_rating_aggregate(
-    session: Session,
-    recipe_version_id: UUID,
-) -> RecipeRatingAggregate:
-    """Summarize ratings without loading individual user interactions."""
-
-    statement = select(
-        cast(func.avg(RecipeRating.rating), Numeric(3, 2)),
-        func.count(RecipeRating.user_id),
-    ).where(RecipeRating.recipe_version_id == recipe_version_id)
-    average, count = session.execute(statement).one()
-    return RecipeRatingAggregate(average=average, count=count)
 
 
 def get_recipe_card_engagement_aggregates(

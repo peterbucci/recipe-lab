@@ -14,7 +14,7 @@ from app.api.dependencies import (
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor, recipe_viewer_state_response
 from app.homepage_content import FEATURED_RECIPE_VERSION_IDS
-from app.models import RecipeIngredient, RecipeInstruction, RecipeVersion
+from app.models import RecipeVersion
 from app.pagination import PageParams
 from app.repositories.interactions import get_recipe_viewer_states
 from app.repositories.recipe_diffs import (
@@ -40,16 +40,15 @@ from app.schemas.recipes import (
     FeaturedRecipeSummary,
     RecipeCardSummary,
     RecipeDetailResponse,
-    RecipeIngredientResponse,
-    RecipeInstructionResponse,
     RecipePageResponse,
-    RecipeSummary,
-    RecipeVersionReference,
 )
-from app.services.actions import serialize_instruction_action
-from app.services.measurements import serialize_measure
 from app.services.recipe_diffs import build_recipe_diff
-from app.services.recipe_responses import recipe_summary_response, recipe_version_reference
+from app.services.recipe_responses import (
+    recipe_ingredient_response,
+    recipe_instruction_response,
+    recipe_summary_response,
+    recipe_version_reference,
+)
 
 router = APIRouter(prefix="/recipes")
 
@@ -110,21 +109,13 @@ DIFF_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
 }
 
 
-def _summary(version: RecipeVersion) -> RecipeSummary:
-    return recipe_summary_response(version)
-
-
-def _reference(version: RecipeVersion) -> RecipeVersionReference:
-    return recipe_version_reference(version)
-
-
 def _featured_summary(
     version: RecipeVersion,
     engagement: RecipeCardEngagementAggregate,
 ) -> FeaturedRecipeSummary:
     average_rating = engagement.average_rating
     return FeaturedRecipeSummary(
-        **_summary(version).model_dump(),
+        **recipe_summary_response(version).model_dump(),
         average_rating=float(average_rating) if average_rating is not None else None,
         rating_count=engagement.rating_count,
         save_count=engagement.save_count,
@@ -137,38 +128,10 @@ def _card_summary(
 ) -> RecipeCardSummary:
     average_rating = engagement.average_rating
     return RecipeCardSummary(
-        **_summary(version).model_dump(),
+        **recipe_summary_response(version).model_dump(),
         average_rating=float(average_rating) if average_rating is not None else None,
         rating_count=engagement.rating_count,
         save_count=engagement.save_count,
-    )
-
-
-def _ingredient(item: RecipeIngredient) -> RecipeIngredientResponse:
-    return RecipeIngredientResponse(
-        id=item.id,
-        ingredient_id=item.ingredient_id,
-        canonical_name=item.ingredient.canonical_name,
-        display_name=item.name,
-        measure=serialize_measure(
-            kind=item.measure_mode,
-            quantity_min=item.quantity_min,
-            quantity_max=item.quantity_max,
-            unit=item.measurement_unit,
-            package_size_id=item.package_size_id,
-        ),
-        preparation_notes=item.preparation_notes,
-        display_order=item.display_order,
-    )
-
-
-def _instruction(item: RecipeInstruction) -> RecipeInstructionResponse:
-    return RecipeInstructionResponse(
-        id=item.id,
-        title=item.title,
-        text=item.instruction,
-        display_order=item.display_order,
-        actions=[serialize_instruction_action(action) for action in item.actions],
     )
 
 
@@ -180,7 +143,7 @@ def _detail_response(
 ) -> RecipeDetailResponse:
     engagement = get_recipe_card_engagement_aggregates(session, [version.id])[version.id]
     return RecipeDetailResponse(
-        **_summary(version).model_dump(),
+        **recipe_summary_response(version).model_dump(),
         total_time_minutes=version.total_time_minutes,
         active_time_minutes=version.active_time_minutes,
         difficulty=cast(Literal["easy", "medium", "hard"] | None, version.difficulty),
@@ -199,9 +162,9 @@ def _detail_response(
             if viewer_user_id is not None
             else None
         ),
-        children=[_reference(child) for child in version.descendants],
-        ingredients=[_ingredient(item) for item in version.ingredients],
-        instructions=[_instruction(item) for item in version.instructions],
+        children=[recipe_version_reference(child) for child in version.descendants],
+        ingredients=[recipe_ingredient_response(item) for item in version.ingredients],
+        instructions=[recipe_instruction_response(item) for item in version.instructions],
     )
 
 
