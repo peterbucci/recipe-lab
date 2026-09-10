@@ -163,7 +163,15 @@ function renderDetail(
 ) {
   return render(
     <AuthSessionProvider initialSession={session}>
-      <RecipeDetailView recipe={recipe} />
+      <RecipeDetailView
+        editAction={{
+          errorMessage: null,
+          hasActiveDraft: false,
+          pending: false,
+        }}
+        onRequestEdit={vi.fn()}
+        recipe={recipe}
+      />
     </AuthSessionProvider>,
   );
 }

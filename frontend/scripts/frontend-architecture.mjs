@@ -100,24 +100,6 @@ const REVIEWED_RECIPE_WORKFLOW_DEPENDENCIES = Object.freeze([
   },
   {
     importer:
-      /^features\/recipes\/detail\/recipe-detail-view\.tsx$/,
-    dependency:
-      /^features\/recipes\/authoring\/draft\/recipe-draft-editor-entry\.ts$/,
-  },
-  {
-    importer:
-      /^features\/recipes\/detail\/recipe-member-actions\.tsx$/,
-    dependency:
-      /^features\/recipes\/authoring\/draft\/recipe-draft-(?:api|editor-entry|entry)\.ts$/,
-  },
-  {
-    importer:
-      /^features\/recipes\/detail\/recipe-member-actions\.test\.tsx$/,
-    dependency:
-      /^features\/recipes\/authoring\/draft\/recipe-draft-(?:api|editor-entry)\.ts$/,
-  },
-  {
-    importer:
       /^features\/recipes\/library\/(?:my-recipe-library\.tsx|recipe-library-model\.ts)$/,
     dependency:
       /^features\/recipes\/authoring\/draft\/recipe-draft-api\.ts$/,

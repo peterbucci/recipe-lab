@@ -95,7 +95,9 @@ describe("frontend ownership architecture", () => {
         "features/recipes/detail/recipe-member-actions.tsx",
         "features/recipes/authoring/draft/recipe-draft-api.ts",
       ),
-    ).toBeUndefined();
+    ).toBe(
+      "features/recipes/detail modules cannot depend on the unreviewed features/recipes/authoring boundary",
+    );
     expect(
       forbiddenDependencyReason(
         "features/recipes/shared/contracts.ts",

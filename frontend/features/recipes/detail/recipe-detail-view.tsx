@@ -10,7 +10,6 @@ import type {
   RecipeCardSummary,
   RecipeDetail,
 } from "../shared/recipe-contracts";
-import type { RecipeDraftEditorEntry } from "../authoring/draft/recipe-draft-editor-entry";
 import { relativeTimeLabel } from "../../../shared/time/relative-time";
 import { CookFollowControl } from "../../community/cook-follow-control";
 import { PublicCookAttribution } from "../../community/public-cook-attribution";
@@ -19,15 +18,16 @@ import { RecipeCategoryList } from "../shared/recipe-category-list";
 import { RecipeDetailTabs } from "../shared/recipe-detail-tabs";
 import { RecipeFamilyNavigator } from "../shared/recipe-family-navigator";
 import { RecipeInstructionsPanel } from "./recipe-instructions-panel";
-import { RecipeMemberActions } from "./recipe-member-actions";
+import {
+  RecipeMemberActions,
+  type RecipeEditActionState,
+} from "./recipe-member-actions";
 import { RecipeReportAccess } from "../../moderation/reporting/recipe-report-access";
 
 interface RecipeDetailViewProps {
+  editAction: RecipeEditActionState;
   familyVersions?: RecipeCardSummary[];
-  onActiveDraftChange?: (hasActiveDraft: boolean) => void;
-  onEditableVersionReady?: (
-    entry: RecipeDraftEditorEntry,
-  ) => void | Promise<void>;
+  onRequestEdit: () => void;
   recipe: RecipeDetail;
 }
 
@@ -36,9 +36,9 @@ function authorInitial(displayName: string): string {
 }
 
 export function RecipeDetailView({
+  editAction,
   familyVersions = [],
-  onActiveDraftChange,
-  onEditableVersionReady,
+  onRequestEdit,
   recipe,
 }: RecipeDetailViewProps) {
   const isVariation = recipe.parent_version_id !== null;
@@ -148,13 +148,11 @@ export function RecipeDetailView({
               <RecipeMemberActions
                 averageRating={recipe.average_rating}
                 key={`${recipe.id}:${recipe.save_count}`}
-                comparison={recipe.parent}
-                onActiveDraftChange={onActiveDraftChange}
+                editAction={editAction}
+                onRequestEdit={onRequestEdit}
                 ratingCount={recipe.rating_count}
                 recipeVersionId={recipe.id}
                 saveCount={recipe.save_count}
-                showComparisonAction={false}
-                onEditableVersionReady={onEditableVersionReady}
               />
             </div>
           </div>
