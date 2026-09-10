@@ -55,6 +55,26 @@ describe("CSS architecture", () => {
     ]);
   });
 
+  it("flags reserved families anywhere in the first compound selector", () => {
+    const source = `@layer features {
+  header.site-header,
+  .feature.site-header,
+  .feature.site-header__inner,
+  :where(.site-header),
+  .feature:where(.account-menu--compact) {
+    display: flex;
+  }
+}`;
+
+    expect(reservedSelectorOwnershipErrors("app/styles/features/example.css", source)).toEqual([
+      'app/styles/features/example.css must not own selector "header.site-header"; .site-header belongs to app/styles/shell/site-shell-auth.css.',
+      'app/styles/features/example.css must not own selector ".feature.site-header"; .site-header belongs to app/styles/shell/site-shell-auth.css.',
+      'app/styles/features/example.css must not own selector ".feature.site-header__inner"; .site-header belongs to app/styles/shell/site-shell-auth.css.',
+      'app/styles/features/example.css must not own selector ":where(.site-header)"; .site-header belongs to app/styles/shell/site-shell-auth.css.',
+      'app/styles/features/example.css must not own selector ".feature:where(.account-menu--compact)"; .account-menu belongs to app/styles/shell/site-shell-auth.css.',
+    ]);
+  });
+
   it("accepts reserved selectors in their owner stylesheets", () => {
     expect(
       reservedSelectorOwnershipErrors(
@@ -78,13 +98,46 @@ describe("CSS architecture", () => {
   .catalog-page .site-header__inner,
   .auth-view > .account-menu,
   .site-header-card,
+  .feature.site-header-card,
   .app-shellfish,
-  .workspace-panel-headerish {
+  .workspace-panel-headerish,
+  .empty-state:where(:not(.workspace-empty-state)),
+  section:has(.site-footer) {
     display: block;
   }
 }`;
 
     expect(reservedSelectorOwnershipErrors("app/styles/features/example.css", source)).toEqual([]);
+  });
+
+  it("rejects unsupported nesting instead of treating it as contextual scope", () => {
+    const source = `@layer features {
+  .catalog-page {
+    & .site-header,
+    & > .workspace-panel-header {
+      display: block;
+    }
+  }
+}`;
+
+    expect(reservedSelectorOwnershipErrors("app/styles/features/example.css", source)).toEqual([
+      'app/styles/features/example.css must not own selector "& .site-header"; .site-header belongs to app/styles/shell/site-shell-auth.css.',
+      'app/styles/features/example.css must not own selector "& > .workspace-panel-header"; .workspace-panel-header belongs to app/styles/primitives.css.',
+    ]);
+  });
+
+  it("does not treat @scope as a contextual exemption", () => {
+    const source = `@layer features {
+  @scope (.catalog-page) {
+    .site-header {
+      display: block;
+    }
+  }
+}`;
+
+    expect(reservedSelectorOwnershipErrors("app/styles/features/example.css", source)).toEqual([
+      'app/styles/features/example.css must not own selector ".site-header"; .site-header belongs to app/styles/shell/site-shell-auth.css.',
+    ]);
   });
 
   it("does not split selector arms at commas inside functions or attributes", () => {

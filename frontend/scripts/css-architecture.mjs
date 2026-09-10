@@ -166,19 +166,99 @@ function selectorListArms(selectorList) {
   return arms.map((arm) => arm.replace(/\/\*[\s\S]*?\*\//g, " ").trim()).filter(Boolean);
 }
 
-function leadingReservedFamily(selector) {
+function reservedFamilyForClassName(className) {
   for (const family of Object.keys(RESERVED_SELECTOR_OWNERS)) {
-    if (!selector.startsWith(`.${family}`)) continue;
-    const suffix = selector.slice(family.length + 1);
     if (
-      suffix === "" ||
-      suffix.startsWith("__") ||
-      suffix.startsWith("--") ||
-      (!/[A-Za-z0-9_-]/.test(suffix[0]) && suffix[0] !== "\\")
+      className === family ||
+      className.startsWith(`${family}__`) ||
+      className.startsWith(`${family}--`)
     ) {
       return family;
     }
   }
+  return null;
+}
+
+function reservedFamilyInSelectorSubject(selector) {
+  const nestedSelector = selector.startsWith("&");
+  let quote = null;
+  let inComment = false;
+  let parentheses = 0;
+  let brackets = 0;
+  const ignoredFunctionDepths = [];
+
+  for (let index = 0; index < selector.length; index += 1) {
+    const character = selector[index];
+    const nextCharacter = selector[index + 1];
+
+    if (inComment) {
+      if (character === "*" && nextCharacter === "/") {
+        inComment = false;
+        index += 1;
+      }
+      continue;
+    }
+    if (quote) {
+      if (character === "\\") {
+        index += 1;
+      } else if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (character === "/" && nextCharacter === "*") {
+      inComment = true;
+      index += 1;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === "[") {
+      brackets += 1;
+      continue;
+    }
+    if (character === "]") {
+      brackets = Math.max(0, brackets - 1);
+      continue;
+    }
+    if (brackets) continue;
+    if (character === "(") {
+      parentheses += 1;
+      const functionName = selector.slice(0, index).match(/:([A-Za-z-]+)\s*$/)?.[1];
+      if (functionName === "not" || functionName === "has") {
+        ignoredFunctionDepths.push(parentheses);
+      }
+      continue;
+    }
+    if (character === ")") {
+      parentheses = Math.max(0, parentheses - 1);
+      while (ignoredFunctionDepths.at(-1) > parentheses) {
+        ignoredFunctionDepths.pop();
+      }
+      continue;
+    }
+    if (
+      !nestedSelector &&
+      parentheses === 0 &&
+      (/\s/.test(character) ||
+        character === ">" ||
+        character === "+" ||
+        character === "~" ||
+        character === "|")
+    ) {
+      break;
+    }
+    if (character !== "." || ignoredFunctionDepths.length) continue;
+
+    const className = selector.slice(index + 1).match(/^[A-Za-z0-9_-]+/)?.[0];
+    if (!className) continue;
+    const family = reservedFamilyForClassName(className);
+    if (family) return family;
+    index += className.length;
+  }
+
   return null;
 }
 
@@ -188,7 +268,7 @@ export function reservedSelectorOwnershipErrors(stylesheetPath, source) {
 
   for (const prelude of rulePreludes(normalizedNewlines(source))) {
     for (const selector of selectorListArms(prelude)) {
-      const family = leadingReservedFamily(selector);
+      const family = reservedFamilyInSelectorSubject(selector);
       if (!family) continue;
       const owner = RESERVED_SELECTOR_OWNERS[family];
       if (normalizedPath === owner || normalizedPath.endsWith(`/${owner}`)) continue;
