@@ -5,7 +5,6 @@ import { catalogUnitSummary, type CatalogUnit } from "../../shared/measurement-u
 import {
   createDraftIngredientState,
   createDraftInstructionState,
-  createStructuredActionDraft,
   draftIngredientOptions,
   hydrateRecipeDraft,
   recipeDraftFieldErrorsFromIssues,
@@ -13,6 +12,7 @@ import {
   validateRecipeDraft,
   validateRecipeDraftForPublication,
 } from "./recipe-draft";
+import { createStructuredActionDraft } from "../shared/structured-action";
 import type { RecipeDraftDetail } from "./recipe-draft-api";
 
 const INGREDIENT_ID = "11111111-1111-4111-8111-111111111111";

@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AUTH_SESSION_EXPIRED_EVENT, CSRF_COOKIE_NAME } from "../../shared/api/browser-session";
-import { deleteAccount, updateAccountProfile } from "../account/account-api";
 import {
   AuthApiError,
   fetchAuthSession,
@@ -88,63 +87,21 @@ describe("auth API client", () => {
     expect(new Headers(init?.headers).get("Accept")).toBe("application/json");
   });
 
-  it("reads the CSRF cookie and sends it for profile, logout, and deletion mutations", async () => {
+  it("reads the CSRF cookie and sends it for logout mutations", async () => {
     document.cookie = `${CSRF_COOKIE_NAME}=token%20value; Path=/`;
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        Response.json({
-          status: "authenticated",
-          user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
-        }),
-      )
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      updateAccountProfile({
-        handle: "alice",
-        display_name: "Alice Cook",
-        description: "Home cook.",
-      }),
-    ).resolves.toMatchObject({ status: "authenticated" });
     await expect(signOut()).resolves.toBeUndefined();
-    await expect(deleteAccount("alice")).resolves.toBeUndefined();
 
-    const [profileTarget, profileInit] = fetchMock.mock.calls[0];
-    expect(profileTarget).toBe("/api/auth/session/profile");
-    expect(profileInit).toMatchObject({
-      method: "PATCH",
-      credentials: "same-origin",
-      body: JSON.stringify({
-        handle: "alice",
-        display_name: "Alice Cook",
-        description: "Home cook.",
-      }),
-    });
-    const profileHeaders = new Headers(profileInit?.headers);
-    expect(profileHeaders.get("Accept")).toBe("application/json");
-    expect(profileHeaders.get("Content-Type")).toBe("application/json");
-    expect(profileHeaders.get("X-CSRF-Token")).toBe("token value");
-
-    const [logoutTarget, logoutInit] = fetchMock.mock.calls[1];
+    const [logoutTarget, logoutInit] = fetchMock.mock.calls[0];
     expect(logoutTarget).toBe("/api/auth/logout");
     expect(logoutInit).toMatchObject({ method: "POST" });
     const logoutHeaders = new Headers(logoutInit?.headers);
     expect(logoutHeaders.get("Accept")).toBe("application/json");
     expect(logoutHeaders.get("X-CSRF-Token")).toBe("token value");
-
-    const [deleteTarget, deleteInit] = fetchMock.mock.calls[2];
-    expect(deleteTarget).toBe("/api/auth/account");
-    expect(deleteInit).toMatchObject({
-      method: "DELETE",
-      body: JSON.stringify({ confirmation: "alice" }),
-    });
-    const deleteHeaders = new Headers(deleteInit?.headers);
-    expect(deleteHeaders.get("Accept")).toBe("application/json");
-    expect(deleteHeaders.get("Content-Type")).toBe("application/json");
-    expect(deleteHeaders.get("X-CSRF-Token")).toBe("token value");
   });
 
   it("reports a missing CSRF cookie as an expired session without making a request", async () => {
@@ -164,7 +121,7 @@ describe("auth API client", () => {
     window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, listener);
   });
 
-  it("does not retry account mutations after the request is dispatched", async () => {
+  it("does not retry auth mutations after the request is dispatched", async () => {
     document.cookie = `${CSRF_COOKIE_NAME}=token; Path=/`;
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -184,40 +141,15 @@ describe("auth API client", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
-  it("preserves known account codes without retaining backend messages", async () => {
+  it("does not retain invalid auth response bodies", async () => {
     document.cookie = `${CSRF_COOKIE_NAME}=token; Path=/`;
-    const internalId = "99999999-9999-4999-8999-999999999999";
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        Response.json(
-          {
-            error: {
-              code: "handle_unavailable",
-              message: `Canonical handle policy ${internalId} rejected this operator request.`,
-              issues: [],
-            },
-          },
-          { status: 409 },
-        ),
-      )
       .mockResolvedValueOnce(
         new Response("private upstream details", { status: 502 }),
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const handleError = await updateAccountProfile({
-      handle: "alice",
-      display_name: "Alice",
-    }).catch((reason: unknown) => reason);
-    expect(handleError).toMatchObject({
-      status: 409,
-      code: "handle_unavailable",
-      message: "That handle is unavailable.",
-    });
-    expect(`${String(handleError)} ${JSON.stringify(handleError)}`).not.toMatch(
-      /canonical|policy|operator|99999999/i,
-    );
     await expect(signOut()).rejects.toMatchObject({
       status: 502,
       code: "auth_api_error",
@@ -225,8 +157,7 @@ describe("auth API client", () => {
     });
   });
 
-  it("drops unknown backend codes and preserves session and recent-authentication behavior", async () => {
-    document.cookie = `${CSRF_COOKIE_NAME}=token; Path=/`;
+  it("preserves session expiration without retaining backend messages", async () => {
     const internalId = "99999999-9999-4999-8999-999999999999";
     const expired = vi.fn();
     window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
@@ -238,18 +169,6 @@ describe("auth API client", () => {
           Response.json(
             {
               error: {
-                code: "private_operator_policy_failure",
-                message: `Account UUID ${internalId} failed canonical policy.`,
-                issues: [],
-              },
-            },
-            { status: 409 },
-          ),
-        )
-        .mockResolvedValueOnce(
-          Response.json(
-            {
-              error: {
                 code: "authentication_required",
                 message: `Session UUID ${internalId} expired.`,
                 issues: [],
@@ -257,31 +176,8 @@ describe("auth API client", () => {
             },
             { status: 401 },
           ),
-        )
-        .mockResolvedValueOnce(
-          Response.json(
-            {
-              error: {
-                code: "recent_authentication_required",
-                message: `Operator policy ${internalId} requires reauthentication.`,
-                issues: [],
-              },
-            },
-            { status: 403 },
-          ),
         ),
     );
-
-    const unknown = await updateAccountProfile({
-      handle: "alice",
-      display_name: "Alice",
-    }).catch((reason: unknown) => reason);
-    expect(unknown).toMatchObject({
-      status: 409,
-      code: "auth_api_error",
-      message: "Recipe Lab could not update your account.",
-      issues: [],
-    });
 
     const unauthorized = await fetchAuthSession().catch(
       (reason: unknown) => reason,
@@ -292,18 +188,9 @@ describe("auth API client", () => {
       message: "Your session expired. Sign in again to continue.",
     });
     expect(expired).toHaveBeenCalledOnce();
-
-    const recentAuthentication = await deleteAccount("alice").catch(
-      (reason: unknown) => reason,
-    );
-    expect(recentAuthentication).toMatchObject({
-      status: 403,
-      code: "recent_authentication_required",
-      message: "Sign in again to verify your identity before continuing.",
-    });
     expect(
-      `${String(unknown)} ${JSON.stringify(unknown)} ${String(unauthorized)} ${JSON.stringify(unauthorized)} ${String(recentAuthentication)} ${JSON.stringify(recentAuthentication)}`,
-    ).not.toMatch(/canonical|policy|operator|99999999|private_operator/i);
+      `${String(unauthorized)} ${JSON.stringify(unauthorized)}`,
+    ).not.toMatch(/session uuid|99999999/i);
     window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
   });
 });

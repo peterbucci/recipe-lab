@@ -440,7 +440,6 @@ export function MyRecipeLibrary({ pageNumber, view }: MyRecipeLibraryProps) {
                           key={`published-${item.recipe.id}`}
                           actions={
                             <RecipeVisibilityControl
-                              compact
                               onChanged={(visibilityState) =>
                                 handleVisibilityChanged(
                                   item.recipe.id,

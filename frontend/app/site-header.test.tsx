@@ -1,21 +1,34 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { AUTH_SESSION_EXPIRED_EVENT } from "../../shared/api/browser-session";
+import { AUTH_SESSION_EXPIRED_EVENT } from "../shared/api/browser-session";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
   useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
 }));
 
-import { AuthSessionProvider } from "../../features/auth/auth-session-provider";
-import { SiteHeader } from "./site-header";
+import { AuthSessionProvider } from "../features/auth/auth-session-provider";
+import {
+  SiteHeaderMemberActions,
+  SiteMobileNavigation,
+} from "../features/auth/site-header-member-navigation";
+import { SiteHeader } from "../shell/site-header";
 
-describe("SiteHeader", () => {
+function ComposedSiteHeader() {
+  return (
+    <SiteHeader
+      memberActions={<SiteHeaderMemberActions />}
+      mobileNavigation={<SiteMobileNavigation />}
+    />
+  );
+}
+
+describe("SiteHeader composition", () => {
   it("offers search and sign-in without showing creation controls to guests", () => {
     render(
       <AuthSessionProvider initialSession={{ status: "anonymous" }}>
-        <SiteHeader />
+        <ComposedSiteHeader />
       </AuthSessionProvider>,
     );
 
@@ -73,7 +86,7 @@ describe("SiteHeader", () => {
           user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
         }}
       >
-        <SiteHeader />
+        <ComposedSiteHeader />
       </AuthSessionProvider>,
     );
 
@@ -99,7 +112,7 @@ describe("SiteHeader", () => {
           user: { id: "cook-id", display_name: "Alice Cook", handle: null },
         }}
       >
-        <SiteHeader />
+        <ComposedSiteHeader />
       </AuthSessionProvider>,
     );
 
@@ -114,7 +127,7 @@ describe("SiteHeader", () => {
           user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
         }}
       >
-        <SiteHeader />
+        <ComposedSiteHeader />
       </AuthSessionProvider>,
     );
 

@@ -5,7 +5,6 @@ import type {
   RecipeNumericMeasure,
 } from "../../shared/recipe-structure";
 import {
-  compareDecimalStrings,
   createStructuredMeasureDraft,
   createUnspecifiedMeasureDraft,
   durationPolicy,
@@ -309,69 +308,4 @@ export function validateStructuredActionDrafts(
     fieldErrors,
     actions: Object.keys(fieldErrors).length === 0 ? actions : null,
   };
-}
-
-function effectiveNumericState(draft: OptionalStructuredMeasureDraft) {
-  if (!draft.enabled) {
-    return null;
-  }
-  const measure = draft.value;
-  if (measure.mode === "exact") {
-    return {
-      mode: measure.mode,
-      value: measure.exactValue.trim(),
-      unitId: measure.unit?.id ?? null,
-    };
-  }
-  if (measure.mode === "range") {
-    return {
-      mode: measure.mode,
-      minimum: measure.rangeMinimum.trim(),
-      maximum: measure.rangeMaximum.trim(),
-      unitId: measure.unit?.id ?? null,
-    };
-  }
-  return { mode: measure.mode };
-}
-
-export function effectiveStructuredActionState(
-  drafts: readonly StructuredActionDraft[],
-  originals: readonly RecipeInstructionAction[],
-  ingredientKeyByOccurrenceId: ReadonlyMap<string, string>,
-) {
-  if (structuredActionDraftsMatchRecipe(drafts, originals, ingredientKeyByOccurrenceId)) {
-    return { matchesOriginal: true };
-  }
-  return drafts.map((draft) => ({
-    sourceId: draft.sourceId,
-    actionTypeId: draft.actionType?.id ?? null,
-    ingredientKeys: draft.ingredientKeys,
-    duration: effectiveNumericState(draft.duration),
-    temperature: effectiveNumericState(draft.temperature),
-  }));
-}
-
-export function numericallyEquivalentOptionalMeasure(
-  left: OptionalStructuredMeasureDraft,
-  right: OptionalStructuredMeasureDraft,
-): boolean {
-  if (left.enabled !== right.enabled) {
-    return false;
-  }
-  if (!left.enabled) {
-    return true;
-  }
-  if (left.value.mode !== right.value.mode || left.value.unit?.id !== right.value.unit?.id) {
-    return false;
-  }
-  if (left.value.mode === "exact" && right.value.mode === "exact") {
-    return compareDecimalStrings(left.value.exactValue, right.value.exactValue) === 0;
-  }
-  if (left.value.mode === "range" && right.value.mode === "range") {
-    return (
-      compareDecimalStrings(left.value.rangeMinimum, right.value.rangeMinimum) === 0 &&
-      compareDecimalStrings(left.value.rangeMaximum, right.value.rangeMaximum) === 0
-    );
-  }
-  return false;
 }

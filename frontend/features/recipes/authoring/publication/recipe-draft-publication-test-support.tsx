@@ -6,10 +6,10 @@ import type { CatalogActionType } from "../../shared/cooking-action-model";
 import {
   createDraftIngredientState,
   createDraftInstructionState,
-  createStructuredActionDraft,
   type RecipeDraftEditorState,
   type RecipeDraftValidation,
 } from "../draft/recipe-draft";
+import { createStructuredActionDraft } from "../shared/structured-action";
 import {
   initialRecipeDraftPublicationState,
   publicationBlocksDismissal,

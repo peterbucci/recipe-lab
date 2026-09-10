@@ -99,7 +99,7 @@ executable FastAPI route, including schema-excluded routes.
 | `GET /api/my/community-activity` | active | `active_consumer` | `frontend/features/community/member-follow-api.ts` |
 | `GET /api/my/dashboard` | active | `active_consumer` | `frontend/features/account/member-activity-api.ts` |
 | `GET /api/my/followers` | active | `active_consumer` | `frontend/features/community/member-follow-api.ts` |
-| `GET /api/my/follow-stats` | active | `active_consumer` | `frontend/features/community/member-follow-api.ts` |
+| `GET /api/my/follow-stats` | active | `active_consumer` | `frontend/e2e/acceptance/recipe-libraries-acceptance.spec.ts` directly exercises the HTTP contract. |
 | `GET /api/my/recipes` | active | `active_consumer` | `frontend/features/recipes/library/recipe-library-api.ts` |
 | `GET /api/my/saved-recipes` | active | `active_consumer` | `frontend/features/recipes/library/recipe-library-api.ts` |
 | `GET /api/readiness` | internal | `staff_internal` | `docs/operations-observability.md` |

@@ -8,7 +8,6 @@ import {
 } from "../../shared/measurement-unit-model";
 import {
   createStructuredActionDraft,
-  effectiveStructuredActionState,
   hydrateStructuredActionDrafts,
   structuredActionDraftsMatchRecipe,
   validateStructuredActionDrafts,
@@ -284,8 +283,5 @@ describe("structured action domain", () => {
     drafts[0].temperature.value.exactValue = "999";
 
     expect(structuredActionDraftsMatchRecipe(drafts, [original], map)).toBe(true);
-    expect(effectiveStructuredActionState(drafts, [original], map)).toEqual({
-      matchesOriginal: true,
-    });
   });
 });

@@ -9343,7 +9343,7 @@
         ],
         "x-recipe-lab-classification": "active_consumer",
         "x-recipe-lab-consumer-evidence": [
-          "frontend/features/community/member-follow-api.ts"
+          "frontend/e2e/acceptance/recipe-libraries-acceptance.spec.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"

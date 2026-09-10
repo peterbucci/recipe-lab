@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { WorkspacePagination } from "../../../shared/ui/workspace-pagination";
 import {
   recipeBrowseHref,
   type RecipeBrowseType,
@@ -9,7 +10,6 @@ import type {
   RecipePage,
 } from "../shared/recipe-contracts";
 import { CatalogCategoryRetry } from "./catalog-category-retry";
-import { Pagination } from "./pagination";
 import { RecipeCatalogFilters } from "./recipe-catalog-filters";
 import { RecipeCard } from "./recipe-card";
 import { RecipeCardViewerStateProvider } from "./recipe-card-engagement";
@@ -260,12 +260,13 @@ export function RecipeBrowser({
         </div>
 
         {!beyondLastPage ? (
-          <Pagination
+          <WorkspacePagination
+            buttonClassName="button button--secondary pagination__link"
+            className="pagination--catalog"
             currentPage={data.page}
-            category={activeCategorySlug}
-            query={query}
-            recipeType={recipeType}
-            sort={sort}
+            disabledClassName="button button--disabled pagination__link pagination__link--disabled"
+            hrefForPage={(page) => recipeBrowseHref(page, query, filters)}
+            label="Recipe result pages"
             totalPages={data.total_pages}
           />
         ) : null}

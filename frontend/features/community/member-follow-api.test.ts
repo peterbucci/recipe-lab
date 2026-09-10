@@ -4,11 +4,9 @@ import {
   fetchCookFollowState,
   fetchMyCommunityActivity,
   fetchMyFollowers,
-  fetchMyFollowStats,
   parseCookFollowState,
   parseMyCommunityActivityPage,
   parseMyFollowersPage,
-  parseMyFollowStats,
   setCookFollowing,
 } from "./member-follow-api";
 
@@ -44,7 +42,7 @@ afterEach(() => {
 });
 
 describe("member follow API client", () => {
-  it("validates bounded follow state and private counts", () => {
+  it("validates bounded follow state", () => {
     expect(
       parseCookFollowState({
         cook_id: COOK_ID,
@@ -56,26 +54,12 @@ describe("member follow API client", () => {
       following: true,
       follower_count: 12,
     });
-    expect(
-      parseMyFollowStats({ follower_count: 12, following_count: 4 }),
-    ).toEqual({ follower_count: 12, following_count: 4 });
-
     expect(() =>
       parseCookFollowState({
         cook_id: COOK_ID,
         following: true,
         follower_count: -1,
       }),
-    ).toThrow(/invalid follower response/i);
-    expect(() =>
-      parseMyFollowStats({
-        follower_count: 1,
-        following_count: 2,
-        private_members: [COOK_ID],
-      }),
-    ).not.toThrow();
-    expect(() =>
-      parseMyFollowStats({ follower_count: 1, following_count: 1.5 }),
     ).toThrow(/invalid follower response/i);
   });
 
@@ -143,7 +127,7 @@ describe("member follow API client", () => {
     ).toThrow(/invalid follower response/i);
   });
 
-  it("loads one cook's private state and the current member's stats", async () => {
+  it("loads one cook's private follow state", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
@@ -152,9 +136,6 @@ describe("member follow API client", () => {
           following: false,
           follower_count: 7,
         }),
-      )
-      .mockResolvedValueOnce(
-        Response.json({ follower_count: 3, following_count: 5 }),
       );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -163,11 +144,6 @@ describe("member follow API client", () => {
       following: false,
       follower_count: 7,
     });
-    await expect(fetchMyFollowStats()).resolves.toEqual({
-      follower_count: 3,
-      following_count: 5,
-    });
-
     expect(fetchMock.mock.calls[0][0]).toBe("/api/cooks/Alice%20Cook/follow");
     expect(fetchMock.mock.calls[0][1]).toEqual(
       expect.objectContaining({
@@ -176,7 +152,6 @@ describe("member follow API client", () => {
         method: "GET",
       }),
     );
-    expect(fetchMock.mock.calls[1][0]).toBe("/api/my/follow-stats");
   });
 
   it("loads one private follower page with bounded pagination", async () => {

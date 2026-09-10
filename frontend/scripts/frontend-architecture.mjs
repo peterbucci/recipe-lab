@@ -43,10 +43,6 @@ const REVIEWED_CROSS_FEATURE_DEPENDENCIES = Object.freeze([
       /^features\/recipes\/authoring\/draft\/recipe-draft-api\.ts$/,
   },
   {
-    importer: /^features\/auth\/auth-api\.test\.ts$/,
-    dependency: /^features\/account\/account-api\.ts$/,
-  },
-  {
     importer: /^features\/community\/cook-follow-control(?:\.test)?\.tsx$/,
     dependency: /^features\/auth\/auth-session-provider\.tsx$/,
   },
