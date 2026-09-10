@@ -32,6 +32,10 @@ ownership regressions as well as production simplification.
 
 ## Final local verification
 
+At integration commit `1193dcc`, the combined non-database command
+`python scripts/run_quality_gate.py contracts lint types frontend ml`
+completed successfully. The constituent evidence is recorded below.
+
 | Area | Result |
 | --- | --- |
 | Frontend canonical entry | `npm run ci:verify` delegated to the Python-owned frontend suite and passed on Windows. |
