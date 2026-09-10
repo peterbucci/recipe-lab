@@ -19,12 +19,14 @@ function initialLabel(displayName: string): string {
 }
 export function MemberFollowersList({ userId }: { userId: string }) {
   const [pageNumber, setPageNumber] = useState(1);
+  const [retryCount, setRetryCount] = useState(0);
   const [page, setPage] = useState<MyFollowersPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const beyondLastPage = Boolean(page && page.total > 0 && page.items.length === 0);
 
-  const load = useCallback(async (requestedPage: number, signal?: AbortSignal) => {
+  const load = useCallback(async (requestedPage: number, signal: AbortSignal) => {
+    if (signal.aborted) return;
     setLoading(true);
     setError("");
     try {
@@ -50,29 +52,9 @@ export function MemberFollowersList({ userId }: { userId: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetchMyFollowers({
-      page: pageNumber,
-      pageSize: FOLLOWER_PAGE_SIZE,
-      signal: controller.signal,
-    })
-      .then((result) => {
-        if (controller.signal.aborted) return;
-        setPage(result);
-        setPageNumber(result.page);
-      })
-      .catch((reason: unknown) => {
-        if (controller.signal.aborted) return;
-        setError(
-          reason instanceof MemberFollowApiError
-            ? reason.message
-            : "Recipe Lab could not load your followers. Please try again.",
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+    void Promise.resolve().then(() => load(pageNumber, controller.signal));
     return () => controller.abort();
-  }, [pageNumber, userId]);
+  }, [load, pageNumber, retryCount, userId]);
 
   function changePage(nextPage: number) {
     setLoading(true);
@@ -107,7 +89,7 @@ export function MemberFollowersList({ userId }: { userId: string }) {
             <button
               className="button button--primary"
               type="button"
-              onClick={() => void load(pageNumber)}
+              onClick={() => setRetryCount((count) => count + 1)}
             >
               Retry followers
             </button>
