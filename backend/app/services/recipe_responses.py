@@ -1,10 +1,24 @@
 from app.core.demo_identity import DEMO_USER_DISPLAY_NAME, DEMO_USER_ID
-from app.models import ACCOUNT_KIND_DEMO, USER_STATUS_DELETED, RecipeVersion, User
+from app.models import (
+    ACCOUNT_KIND_DEMO,
+    USER_STATUS_DELETED,
+    RecipeIngredient,
+    RecipeInstruction,
+    RecipeVersion,
+    User,
+)
 from app.repositories.recipe_drafts import RecipeDraftBrowseItem
 from app.schemas.recipe_categories import RecipeCategorySummary
 from app.schemas.recipe_drafts import RecipeDraftSummaryResponse
-from app.schemas.recipes import RecipeSummary, RecipeVersionReference
+from app.schemas.recipes import (
+    RecipeIngredientResponse,
+    RecipeInstructionResponse,
+    RecipeSummary,
+    RecipeVersionReference,
+)
 from app.schemas.users import PublicUserReference
+from app.services.actions import serialize_instruction_action
+from app.services.measurements import serialize_measure
 
 
 def public_user_reference(user: User) -> PublicUserReference:
@@ -63,6 +77,40 @@ def recipe_summary_response(version: RecipeVersion) -> RecipeSummary:
                 slug=item.category_slug,
             )
             for item in version.categories
+        ],
+    )
+
+
+def recipe_ingredient_response(item: RecipeIngredient) -> RecipeIngredientResponse:
+    return RecipeIngredientResponse(
+        id=item.id,
+        ingredient_id=item.ingredient_id,
+        canonical_name=item.ingredient.canonical_name,
+        display_name=item.name,
+        measure=serialize_measure(
+            kind=item.measure_mode,
+            quantity_min=item.quantity_min,
+            quantity_max=item.quantity_max,
+            unit=item.measurement_unit,
+            package_size_id=item.package_size_id,
+        ),
+        preparation_notes=item.preparation_notes,
+        display_order=item.display_order,
+    )
+
+
+def recipe_instruction_response(item: RecipeInstruction) -> RecipeInstructionResponse:
+    return RecipeInstructionResponse(
+        id=item.id,
+        title=item.title,
+        text=item.instruction,
+        display_order=item.display_order,
+        actions=[
+            serialize_instruction_action(action)
+            for action in sorted(
+                item.actions,
+                key=lambda value: (value.display_order, value.id.int),
+            )
         ],
     )
 

@@ -3,7 +3,7 @@ import logging
 import re
 import secrets
 from collections.abc import Mapping
-from typing import Literal, cast
+from typing import Literal
 from uuid import UUID
 
 from starlette.types import Scope
@@ -94,11 +94,3 @@ def emit_operational_failure(
     # migration tests. Operational failure evidence must remain available afterward.
     _operations_logger.disabled = False
     _operations_logger.error("%s", payload)
-
-
-def operational_failure_event(value: str) -> OperationalFailureEvent:
-    """Narrow an allowlisted runtime value for callers that load policy data."""
-
-    if value not in OPERATIONAL_FAILURE_EVENTS:
-        raise ValueError("Operational failure event is not allowlisted.")
-    return cast(OperationalFailureEvent, value)

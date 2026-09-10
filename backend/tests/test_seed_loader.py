@@ -44,10 +44,7 @@ from app.models import (
     RecipeVersion,
     User,
 )
-from app.repositories.ingredients import (
-    list_direct_substitutions,
-    resolve_ingredient_name,
-)
+from app.repositories.ingredients import resolve_ingredient_name
 from app.schemas.ingredient_catalog import (
     ApproveIngredientCatalogRequest,
     IngredientCatalogRequestCreate,
@@ -296,7 +293,13 @@ def test_fresh_seed_load_creates_expected_catalog_and_relationships(
 
         walnut = resolve_ingredient_name(session, "walnut")
         assert walnut is not None
-        substitutions = list_direct_substitutions(session, walnut.id)
+        substitutions = list(
+            session.scalars(
+                select(IngredientSubstitution).where(
+                    IngredientSubstitution.source_ingredient_id == walnut.id
+                )
+            )
+        )
         assert len(substitutions) == 1
         assert substitutions[0].replacement_ingredient.canonical_name == "Pecan"
         assert substitutions[0].quantity_ratio == Decimal("1.0000")

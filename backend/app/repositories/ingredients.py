@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session, aliased, contains_eager, joinedload, selectinload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.catalog_names import catalog_name_digest, normalize_catalog_name
 from app.db.query import LIKE_ESCAPE, literal_contains_pattern
@@ -12,7 +12,6 @@ from app.models import (
     Ingredient,
     IngredientAlias,
     IngredientCatalogName,
-    IngredientSubstitution,
 )
 
 
@@ -173,32 +172,3 @@ def resolve_ingredient_name(session: Session, raw_name: str) -> Ingredient | Non
         ingredient_alias = catalog_name.ingredient_alias
         return ingredient_alias.ingredient if ingredient_alias is not None else None
     raise RuntimeError(f"Unsupported ingredient catalog name kind {catalog_name.name_kind!r}.")
-
-
-def list_direct_substitutions(
-    session: Session,
-    source_ingredient_id: UUID,
-) -> list[IngredientSubstitution]:
-    """Return curated outgoing substitutions without inferring reverse or transitive edges."""
-
-    replacement = aliased(Ingredient)
-    statement = (
-        select(IngredientSubstitution)
-        .join(
-            replacement,
-            IngredientSubstitution.replacement_ingredient_id == replacement.id,
-        )
-        .options(
-            contains_eager(
-                IngredientSubstitution.replacement_ingredient,
-                alias=replacement,
-            )
-        )
-        .where(IngredientSubstitution.source_ingredient_id == source_ingredient_id)
-        .order_by(
-            IngredientSubstitution.confidence.desc().nulls_last(),
-            func.lower(func.btrim(replacement.canonical_name)),
-            replacement.id,
-        )
-    )
-    return list(session.scalars(statement).all())
