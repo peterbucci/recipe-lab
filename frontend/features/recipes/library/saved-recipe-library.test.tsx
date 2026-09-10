@@ -449,6 +449,76 @@ describe("cook profile and private recipe libraries", () => {
     expect(routerMocks.replace).not.toHaveBeenCalled();
   });
 
+  it.each(["resolves", "rejects"] as const)(
+    "ignores a pending removal that %s after its component lifetime ends",
+    async (outcome) => {
+      document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
+      const removal = deferred<Response>();
+      let pageOneReads = 0;
+      let pageTwoReads = 0;
+      const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+        const url = String(input);
+        if (url === "/api/my/saved-recipes?page=2&page_size=12") {
+          pageTwoReads += 1;
+          return savedPage(original(), 2, 13, 2);
+        }
+        if (url === "/api/my/saved-recipes?page=1&page_size=12") {
+          pageOneReads += 1;
+          return savedPage(fork(), 1, 12, 1);
+        }
+        if (
+          url === `/api/recipes/${ROOT_ID}/save` &&
+          init?.method === "DELETE"
+        ) {
+          return removal.promise;
+        }
+        throw new Error(`Unexpected request: ${url}`);
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      const oldView = authenticated(<SavedRecipeLibrary pageNumber={2} />);
+
+      fireEvent.click(
+        within(
+          await screen.findByRole("list", { name: "Saved recipes" }),
+        ).getByRole("button", {
+          name: "Remove saved Alice’s tomato soup",
+        }),
+      );
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith(
+          `/api/recipes/${ROOT_ID}/save`,
+          expect.objectContaining({ method: "DELETE" }),
+        ),
+      );
+
+      oldView.unmount();
+      authenticated(<SavedRecipeLibrary pageNumber={1} />);
+      const currentPage = await screen.findByRole("list", {
+        name: "Saved recipes",
+      });
+      const currentRecipe = within(currentPage).getByRole("link", {
+        name: "Creamy tomato soup",
+      });
+      currentRecipe.focus();
+
+      await act(async () => {
+        if (outcome === "resolves") {
+          removal.resolve(removedRecipe(ROOT_ID));
+        } else {
+          removal.reject(new Error("old request failed"));
+        }
+      });
+
+      expect(pageOneReads).toBe(1);
+      expect(pageTwoReads).toBe(1);
+      expect(currentPage).toHaveTextContent("Creamy tomato soup");
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(currentRecipe).toHaveFocus();
+      expect(routerMocks.replace).not.toHaveBeenCalled();
+    },
+  );
+
   it("keeps a saved card intact when removing it fails", async () => {
     document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
     const fetchMock = vi
