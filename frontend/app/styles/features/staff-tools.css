@@ -33,41 +33,6 @@
   background: var(--surface);
   overflow: hidden;
 }
-.workspace-panel-header {
-  border-bottom: 1px solid var(--line);
-  background: #fcfcfe;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 1.125rem;
-  padding: 1.05rem 1.125rem 0.8rem;
-  display: flex;
-}
-.workspace-panel-header__copy {
-  flex: 1 1 18rem;
-  min-width: 0;
-}
-.workspace-panel-header h2,
-.workspace-panel-header p {
-  margin: 0;
-}
-.workspace-panel-header h2 {
-  font-size: 1rem;
-  line-height: 1.2;
-}
-.workspace-panel-header p {
-  max-width: 44rem;
-  color: var(--muted);
-  margin-top: 0.25rem;
-  font-size: 0.72rem;
-  line-height: 1.45;
-}
-.workspace-panel-header__meta {
-  color: var(--muted);
-  white-space: nowrap;
-  flex: 0 0 auto;
-  font-size: 0.66rem;
-  line-height: 1.35;
-}
 .staff-tools__panel[hidden] {
   display: none;
 }
@@ -156,11 +121,6 @@
     border-radius: 0;
     margin-inline: -0.75rem;
   }
-  .workspace-panel-header {
-    flex-wrap: wrap;
-    gap: 0.6rem;
-    padding-inline: 0.75rem;
-  }
   .staff-tools__panel .workspace-panel-header__meta {
     display: none;
   }
@@ -180,15 +140,9 @@
   }
 }
 @media (forced-colors: active) {
-  .account-menu__identity-action:focus-visible,
   .staff-tools__shell,
-  .workspace-panel-header,
   .staff-tools__tool-icon {
     border-color: canvastext;
-  }
-  .workspace-panel-header {
-    background: canvas;
-    color: canvastext;
   }
 }
 .recipe-detail__member-actions .recipe-member-actions {

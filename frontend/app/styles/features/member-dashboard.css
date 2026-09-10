@@ -382,6 +382,9 @@
   background: var(--surface);
   overflow: hidden;
 }
+.member-activity-page__shell > .workspace-empty-state {
+  margin: 1rem;
+}
 .member-activity-page__toolbar-placeholder {
   border-bottom: 1px solid var(--line);
   min-height: 3.75rem;
@@ -551,6 +554,9 @@
     border-inline: 0;
     border-radius: 0;
     margin-inline: -0.75rem;
+  }
+  .member-activity-page__shell > .workspace-empty-state {
+    margin: 0.75rem;
   }
   .member-activity-page__content {
     padding-inline: 0.65rem;

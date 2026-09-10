@@ -37,7 +37,9 @@ export function SiteFooter() {
 
       <nav className="site-footer__navigation" aria-label="Footer navigation">
         <section aria-labelledby="footer-explore-heading">
-          <h2 id="footer-explore-heading">Explore</h2>
+          <h2 id="footer-explore-heading" className="site-footer__heading">
+            Explore
+          </h2>
           <GuardedLink className="site-footer__link" href="/recipes">
             Recipes
           </GuardedLink>
@@ -45,7 +47,9 @@ export function SiteFooter() {
           <FutureDestination>Categories</FutureDestination>
         </section>
         <section aria-labelledby="footer-support-heading">
-          <h2 id="footer-support-heading">Support</h2>
+          <h2 id="footer-support-heading" className="site-footer__heading">
+            Support
+          </h2>
           <GuardedLink className="site-footer__link" href="/community-rules">
             Community rules
           </GuardedLink>
@@ -53,7 +57,9 @@ export function SiteFooter() {
           <FutureDestination>Privacy</FutureDestination>
         </section>
         <section aria-labelledby="footer-about-heading">
-          <h2 id="footer-about-heading">About</h2>
+          <h2 id="footer-about-heading" className="site-footer__heading">
+            About
+          </h2>
           <FutureDestination>About Recipe Lab</FutureDestination>
           <FutureDestination>Community</FutureDestination>
           <FutureDestination>Terms</FutureDestination>

@@ -50,6 +50,9 @@
   padding: 0;
   box-shadow: none;
 }
+.member-request-history--standalone > .workspace-empty-state {
+  margin: 1rem;
+}
 .member-request-history--standalone .member-request-history__list-head,
 .member-request-history--standalone .member-request-card--row {
   grid-template-columns:
@@ -587,6 +590,12 @@
   }
   .staff-workspace--curation .curation-request-more__facts {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 43.75rem) {
+  .member-request-history--standalone > .workspace-empty-state {
+    margin: 0.75rem;
   }
 }
 
