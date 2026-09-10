@@ -19,19 +19,15 @@ export interface MemberIngredientRequestHistoryState {
   changePage: (page: number) => void;
   changeStatusFilter: (status: IngredientCatalogRequestStatus | "") => void;
   clearSearch: () => void;
-  expireAuthentication: () => void;
   refresh: () => void;
-  restoreAuthentication: () => void;
   submitSearch: () => void;
   updateQueryInput: (value: string) => void;
 }
 
 export function useMemberIngredientRequestHistory({
   pageSize,
-  selectionEnabled,
 }: {
   pageSize: number;
-  selectionEnabled: boolean;
 }): MemberIngredientRequestHistoryState {
   const listSequenceRef = useRef(0);
   const [statusFilter, setStatusFilter] = useState<IngredientCatalogRequestStatus | "">("");
@@ -75,9 +71,7 @@ export function useMemberIngredientRequestHistory({
         }
         setLoadError(
           reason instanceof IngredientCatalogApiError && reason.status === 401
-            ? selectionEnabled
-              ? "Your session expired. Your recipe was not changed. Sign in again in another tab, then retry."
-              : "Your session expired. Sign in again, then retry your request history."
+            ? "Your session expired. Sign in again, then retry your request history."
             : reason instanceof IngredientCatalogApiError
               ? reason.message
               : "Your ingredient requests could not be loaded. Please try again.",
@@ -90,7 +84,7 @@ export function useMemberIngredientRequestHistory({
       });
 
     return () => controller.abort();
-  }, [listRequestKey, pageNumber, pageSize, query, selectionEnabled, statusFilter]);
+  }, [listRequestKey, pageNumber, pageSize, query, statusFilter]);
 
   function submitSearch() {
     const nextQuery = queryInput.trim();
@@ -131,14 +125,12 @@ export function useMemberIngredientRequestHistory({
     changePage,
     changeStatusFilter,
     clearSearch,
-    expireAuthentication: () => setAuthenticationExpired(true),
     loadError,
     loading,
     query,
     queryInput,
     refresh,
     requestPage,
-    restoreAuthentication: () => setAuthenticationExpired(false),
     statusFilter,
     submitSearch,
     updateQueryInput: setQueryInput,

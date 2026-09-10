@@ -1,14 +1,9 @@
 "use client";
 
 import { Search } from "lucide-react";
-import type { KeyboardEvent } from "react";
 
-import type {
-  CatalogIngredientSelection,
-  IngredientCatalogRequestStatus,
-} from "../ingredient-model";
+import type { IngredientCatalogRequestStatus } from "../ingredient-model";
 import { MemberIngredientRequestList } from "./member-ingredient-request-list";
-import { useMemberIngredientResolutionSelection } from "./use-member-ingredient-resolution-selection";
 import { useMemberIngredientRequestHistory } from "./use-member-ingredient-request-history";
 import { WorkspaceEmptyState } from "../../../shared/ui/workspace-empty-state";
 import { WorkspacePanelHeader } from "../../../shared/ui/workspace-panel-header";
@@ -23,11 +18,8 @@ import {
 } from "../../../shared/ui/workspace-tab-menu";
 
 interface MemberIngredientRequestHistoryProps {
-  contextLabel?: string;
   idPrefix: string;
-  onClose?: () => void;
   onRequestIngredient?: () => void;
-  onSelectResolution?: (selection: CatalogIngredientSelection) => void;
   pageSize?: number;
 }
 
@@ -82,91 +74,38 @@ const STANDALONE_STATUS_TABS: Array<{
 ];
 
 export function MemberIngredientRequestHistory({
-  contextLabel,
   idPrefix,
-  onClose,
   onRequestIngredient,
-  onSelectResolution,
   pageSize = 20,
 }: MemberIngredientRequestHistoryProps) {
-  const selectionEnabled = Boolean(contextLabel && onSelectResolution);
-  const modeClassName = selectionEnabled
-    ? "member-request-history--picker"
-    : "member-request-history--standalone";
-  const regionLabel = selectionEnabled
-    ? `Choose from my ingredient requests for ${contextLabel}`
-    : "My ingredient requests";
-  const searchLabel = selectionEnabled
-    ? `Search my ingredient requests for ${contextLabel}`
-    : "Search my ingredient requests";
-  const filterLabel = selectionEnabled
-    ? `Request status for ${contextLabel}`
-    : "Request status";
   const {
     authenticationExpired,
     changePage,
     changeStatusFilter,
     clearSearch,
-    expireAuthentication,
     loadError,
     loading,
     query,
     queryInput,
     refresh,
     requestPage,
-    restoreAuthentication,
     statusFilter,
     submitSearch,
     updateQueryInput,
-  } = useMemberIngredientRequestHistory({
-    pageSize,
-    selectionEnabled,
-  });
-  const { clearSelectionError, selectResolution, selectingRequestId, selectionError } =
-    useMemberIngredientResolutionSelection({
-      onAuthenticationExpired: expireAuthentication,
-      onAuthenticationRestored: restoreAuthentication,
-      onSelectResolution,
-      selectionEnabled,
-    });
+  } = useMemberIngredientRequestHistory({ pageSize });
   const activeStandaloneTab =
     STANDALONE_STATUS_TABS.find((tab) => tab.value === statusFilter) ??
     STANDALONE_STATUS_TABS[0]!;
 
-  function changeHistoryStatus(status: IngredientCatalogRequestStatus | "") {
-    clearSelectionError();
-    changeStatusFilter(status);
-  }
-
-  function submitHistorySearch() {
-    clearSelectionError();
-    submitSearch();
-  }
-
-  function changeHistoryPage(page: number) {
-    clearSelectionError();
-    changePage(page);
-  }
-
-  function refreshHistory() {
-    clearSelectionError();
-    refresh();
-  }
-
-  function clearHistorySearch() {
-    clearSelectionError();
-    clearSearch();
-  }
-
   const standaloneEmptyAction = query ? (
-    <button className="button button--primary" type="button" onClick={clearHistorySearch}>
+    <button className="button button--primary" type="button" onClick={clearSearch}>
       Clear search
     </button>
   ) : statusFilter ? (
     <button
       className="button button--primary"
       type="button"
-      onClick={() => changeHistoryStatus("")}
+      onClick={() => changeStatusFilter("")}
     >
       View all requests
     </button>
@@ -178,158 +117,83 @@ export function MemberIngredientRequestHistory({
 
   return (
     <section
-      className={`member-request-history ${modeClassName}`}
-      aria-label={regionLabel}
+      className="member-request-history member-request-history--standalone"
+      aria-label="My ingredient requests"
       aria-busy={loading}
     >
-      {selectionEnabled || onClose ? (
-        <header className="member-request-history__header">
-          <div>
-            <h3>{regionLabel}</h3>
-            <p>
-              Track what happened to your requests. Only a curator-approved catalog resolution can
-              be chosen for a recipe.
-            </p>
-          </div>
-          {onClose ? (
-            <button
-              className="button button--quiet"
+      <WorkspaceTabMenu
+        as="form"
+        className="member-request-history__toolbar"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submitSearch();
+        }}
+      >
+        <WorkspaceTabItems
+          as="nav"
+          className="member-request-history__status-tabs"
+          aria-label="Ingredient request status"
+        >
+          {STANDALONE_STATUS_TABS.map((tab) => (
+            <WorkspaceTabButton
+              key={tab.value || "all"}
+              className="member-request-history__status-tab"
               type="button"
-              disabled={selectingRequestId !== null}
-              onClick={onClose}
-            >
-              Close my requests
-            </button>
-          ) : null}
-        </header>
-      ) : null}
-
-      {selectionEnabled ? (
-        <div className="member-request-history__controls">
-          <div className="member-request-history__filter">
-            <label htmlFor={`${idPrefix}-status-filter`}>{filterLabel}</label>
-            <select
-              id={`${idPrefix}-status-filter`}
-              value={statusFilter}
-              onChange={(event) =>
-                changeHistoryStatus(event.target.value as IngredientCatalogRequestStatus | "")
+              active={statusFilter === tab.value}
+              count={
+                statusFilter === tab.value && !loading && requestPage
+                  ? requestPage.total
+                  : null
               }
+              onClick={() => changeStatusFilter(tab.value)}
             >
-              <option value="">All</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="duplicate">Duplicate</option>
-            </select>
-          </div>
-          <div className="member-request-history__search" role="search" aria-label={searchLabel}>
-            <label htmlFor={`${idPrefix}-request-search`}>{searchLabel}</label>
-            <div>
-              <input
-                id={`${idPrefix}-request-search`}
-                type="search"
-                maxLength={100}
-                autoComplete="off"
-                value={queryInput}
-                onChange={(event) => updateQueryInput(event.target.value)}
-                onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    submitHistorySearch();
-                  }
-                }}
-              />
-              <button
-                className="button button--secondary"
-                type="button"
-                onClick={submitHistorySearch}
-              >
-                Search requests
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <>
-          <WorkspaceTabMenu
-            as="form"
-            className="member-request-history__toolbar"
-            onSubmit={(event) => {
-              event.preventDefault();
-              submitHistorySearch();
-            }}
-          >
-            <WorkspaceTabItems
-              as="nav"
-              className="member-request-history__status-tabs"
-              aria-label="Ingredient request status"
-            >
-              {STANDALONE_STATUS_TABS.map((tab) => (
-                <WorkspaceTabButton
-                  key={tab.value || "all"}
-                  className="member-request-history__status-tab"
-                  type="button"
-                  active={statusFilter === tab.value}
-                  count={
-                    statusFilter === tab.value && !loading && requestPage
-                      ? requestPage.total
-                      : null
-                  }
-                  onClick={() => changeHistoryStatus(tab.value)}
-                >
-                  {tab.label}
-                </WorkspaceTabButton>
-              ))}
-            </WorkspaceTabItems>
-            <div
-              className="member-request-history__search member-request-history__search--compact workspace-tab-menu__search"
-              role="search"
-              aria-label={searchLabel}
-            >
-              <label className="visually-hidden" htmlFor={`${idPrefix}-request-search`}>
-                {searchLabel}
-              </label>
-              <Search aria-hidden="true" />
-              <input
-                id={`${idPrefix}-request-search`}
-                type="search"
-                maxLength={100}
-                autoComplete="off"
-                placeholder="Search requests…"
-                value={queryInput}
-                onChange={(event) => updateQueryInput(event.target.value)}
-              />
-            </div>
-          </WorkspaceTabMenu>
-          <WorkspacePanelHeader
-            description={activeStandaloneTab.description}
-            headingId={`${idPrefix}-selected-status-heading`}
-            meta={
-              !loading && requestPage ? (
-                <span aria-live="polite">
-                  {requestPage.total} request{requestPage.total === 1 ? "" : "s"}
-                </span>
-              ) : null
-            }
-            title={activeStandaloneTab.title}
+              {tab.label}
+            </WorkspaceTabButton>
+          ))}
+        </WorkspaceTabItems>
+        <div
+          className="member-request-history__search member-request-history__search--compact workspace-tab-menu__search"
+          role="search"
+          aria-label="Search my ingredient requests"
+        >
+          <label className="visually-hidden" htmlFor={`${idPrefix}-request-search`}>
+            Search my ingredient requests
+          </label>
+          <Search aria-hidden="true" />
+          <input
+            id={`${idPrefix}-request-search`}
+            type="search"
+            maxLength={100}
+            autoComplete="off"
+            placeholder="Search requests…"
+            value={queryInput}
+            onChange={(event) => updateQueryInput(event.target.value)}
           />
-        </>
-      )}
+        </div>
+      </WorkspaceTabMenu>
+      <WorkspacePanelHeader
+        description={activeStandaloneTab.description}
+        headingId={`${idPrefix}-selected-status-heading`}
+        meta={
+          !loading && requestPage ? (
+            <span aria-live="polite">
+              {requestPage.total} request{requestPage.total === 1 ? "" : "s"}
+            </span>
+          ) : null
+        }
+        title={activeStandaloneTab.title}
+      />
 
       {loadError ? (
         <WorkspaceErrorState
-          action={<button className="button button--secondary" type="button" onClick={refreshHistory}>
-            Try again
-          </button>}
+          action={
+            <button className="button button--secondary" type="button" onClick={refresh}>
+              Try again
+            </button>
+          }
           className="member-request-history__error"
           message={loadError}
         />
-      ) : null}
-
-      {selectionError ? (
-        <p className="member-request-history__selection-error" role="alert">
-          {selectionError}
-        </p>
       ) : null}
 
       {authenticationExpired ? (
@@ -342,11 +206,7 @@ export function MemberIngredientRequestHistory({
           >
             Sign in in a new tab
           </a>
-          <p>
-            {selectionEnabled
-              ? "Keep this recipe tab open. After signing in, return here and retry without losing your draft."
-              : "After signing in, return to this tab and try loading your requests again."}
-          </p>
+          <p>After signing in, return to this tab and try loading your requests again.</p>
         </div>
       ) : null}
 
@@ -367,44 +227,32 @@ export function MemberIngredientRequestHistory({
       ) : null}
 
       {!loading && !loadError && requestPage?.items.length === 0 ? (
-        selectionEnabled ? (
-          <div className="member-request-history__state">
-            <h3>No matching requests</h3>
-            <p>Try a different search or status filter.</p>
-          </div>
-        ) : (
-          <WorkspaceEmptyState
-            action={standaloneEmptyAction}
-            description={
-              query
-                ? "Try a different search term or clear the search."
-                : activeStandaloneTab.emptyDescription
-            }
-            eyebrow={query ? "No matches" : undefined}
-            headingId={`${idPrefix}-empty-requests`}
-            headingLevel={3}
-            title={query ? "No requests match your search." : activeStandaloneTab.emptyTitle}
-          />
-        )
+        <WorkspaceEmptyState
+          action={standaloneEmptyAction}
+          description={
+            query
+              ? "Try a different search term or clear the search."
+              : activeStandaloneTab.emptyDescription
+          }
+          eyebrow={query ? "No matches" : undefined}
+          headingId={`${idPrefix}-empty-requests`}
+          headingLevel={3}
+          title={query ? "No requests match your search." : activeStandaloneTab.emptyTitle}
+        />
       ) : null}
 
       {requestPage && requestPage.items.length > 0 ? (
         <MemberIngredientRequestList
-          contextLabel={contextLabel}
           loading={loading}
-          regionLabel={regionLabel}
           requestPage={requestPage}
-          selectingRequestId={selectingRequestId}
-          selectionEnabled={selectionEnabled}
-          onChangePage={changeHistoryPage}
-          onSelectResolution={selectResolution}
+          onChangePage={changePage}
         />
       ) : null}
 
       <button
         className="button button--quiet member-request-history__refresh"
         type="button"
-        onClick={refreshHistory}
+        onClick={refresh}
       >
         Refresh my requests
       </button>
