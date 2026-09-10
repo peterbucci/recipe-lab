@@ -1,19 +1,49 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CSRF_COOKIE_NAME } from "../../../shared/api/browser-session";
+import { deferred } from "../../../tests/support/deferred";
 import {
   authenticated,
+  authenticatedTree,
   cleanupRecipeLibraryViewMocks,
   fork,
+  FORK_ID,
+  getRecipeLibraryRouterMocks,
   original,
   ROOT_ID,
 } from "./recipe-library-test-support";
 import { SavedRecipeLibrary } from "./saved-recipe-library";
+
+const FRESH_ID = "88888888-8888-4888-8888-888888888888";
+const routerMocks = getRecipeLibraryRouterMocks();
 afterEach(cleanupRecipeLibraryViewMocks);
 
+function savedPage(
+  recipe: ReturnType<typeof original>,
+  page: number,
+  total: number,
+  totalPages: number,
+) {
+  return Response.json({
+    items: [{ recipe, saved_at: "2026-08-25T12:00:00Z" }],
+    page,
+    page_size: 12,
+    total,
+    total_pages: totalPages,
+  });
+}
+
+function removedRecipe(recipeVersionId: string) {
+  return Response.json({
+    recipe_version_id: recipeVersionId,
+    saved: false,
+    rating: null,
+  });
+}
+
 describe("cook profile and private recipe libraries", () => {
-  it("lists only the current member’s saved recipes and pages privately", async () => {
+  it("uses URL pages for deep links and back-forward navigation", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
@@ -33,9 +63,18 @@ describe("cook profile and private recipe libraries", () => {
           total: 13,
           total_pages: 2,
         }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          items: [{ recipe: fork(), saved_at: "2026-08-25T12:00:00Z" }],
+          page: 1,
+          page_size: 12,
+          total: 13,
+          total_pages: 2,
+        }),
       );
     vi.stubGlobal("fetch", fetchMock);
-    authenticated(<SavedRecipeLibrary />);
+    const { rerender } = authenticated(<SavedRecipeLibrary pageNumber={1} />);
 
     expect(
       screen.getByRole("heading", { level: 1, name: "My recipes" }),
@@ -96,13 +135,31 @@ describe("cook profile and private recipe libraries", () => {
       "aria-current",
       "page",
     );
-    fireEvent.click(within(pages).getByRole("button", { name: "Next →" }));
+    expect(within(pages).getByRole("link", { name: "Next →" })).toHaveAttribute(
+      "href",
+      "/account/recipes?view=saved&page=2",
+    );
+    rerender(authenticatedTree(<SavedRecipeLibrary pageNumber={2} />));
     await waitFor(() => expect(screen.getByText("Page 2 of 2")).toBeVisible());
     expect(
       screen.getByRole("list", { name: "Saved recipes" }),
     ).toHaveTextContent("Alice’s tomato soup");
     expect(fetchMock).toHaveBeenLastCalledWith(
       "/api/my/saved-recipes?page=2&page_size=12",
+      expect.objectContaining({ credentials: "same-origin" }),
+    );
+    expect(
+      within(
+        screen.getByRole("navigation", { name: "Saved recipe pages" }),
+      ).getByRole("link", { name: "← Previous" }),
+    ).toHaveAttribute("href", "/account/recipes?view=saved");
+
+    rerender(authenticatedTree(<SavedRecipeLibrary pageNumber={1} />));
+    expect(
+      await screen.findByRole("list", { name: "Saved recipes" }),
+    ).toHaveTextContent("Creamy tomato soup");
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/my/saved-recipes?page=1&page_size=12",
       expect.objectContaining({ credentials: "same-origin" }),
     );
   });
@@ -128,7 +185,7 @@ describe("cook profile and private recipe libraries", () => {
         }),
       );
     vi.stubGlobal("fetch", fetchMock);
-    authenticated(<SavedRecipeLibrary />);
+    authenticated(<SavedRecipeLibrary pageNumber={1} />);
 
     const list = await screen.findByRole("list", { name: "Saved recipes" });
     fireEvent.click(
@@ -160,6 +217,238 @@ describe("cook profile and private recipe libraries", () => {
     ).toBeVisible();
   });
 
+  it("returns to the previous URL page after removing its current last item", async () => {
+    document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(savedPage(original(), 2, 13, 2))
+      .mockResolvedValueOnce(removedRecipe(ROOT_ID))
+      .mockResolvedValueOnce(savedPage(fork(), 1, 12, 1));
+    vi.stubGlobal("fetch", fetchMock);
+    const { rerender } = authenticated(
+      <SavedRecipeLibrary pageNumber={2} />,
+    );
+
+    const list = await screen.findByRole("list", { name: "Saved recipes" });
+    fireEvent.click(
+      within(list).getByRole("button", {
+        name: "Remove saved Alice’s tomato soup",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(routerMocks.replace).toHaveBeenCalledWith(
+        "/account/recipes?view=saved",
+      ),
+    );
+    rerender(authenticatedTree(<SavedRecipeLibrary pageNumber={1} />));
+
+    expect(
+      await screen.findByRole("list", { name: "Saved recipes" }),
+    ).toHaveTextContent("Creamy tomato soup");
+    const completion = screen.getByRole("status");
+    expect(completion).toHaveTextContent(
+      "Alice’s tomato soup removed from Saved.",
+    );
+    await waitFor(() => expect(completion).toHaveFocus());
+  });
+
+  it("refreshes the current page when an off-page removal succeeds", async () => {
+    document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
+    const removal = deferred<Response>();
+    let pageOneReads = 0;
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url === "/api/my/saved-recipes?page=2&page_size=12") {
+        return savedPage(original(), 2, 13, 2);
+      }
+      if (url === "/api/my/saved-recipes?page=1&page_size=12") {
+        pageOneReads += 1;
+        return savedPage(fork(), 1, 12, 1);
+      }
+      if (url === `/api/recipes/${ROOT_ID}/save` && init?.method === "DELETE") {
+        return removal.promise;
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { rerender } = authenticated(
+      <SavedRecipeLibrary pageNumber={2} />,
+    );
+
+    const pageTwo = await screen.findByRole("list", { name: "Saved recipes" });
+    fireEvent.click(
+      within(pageTwo).getByRole("button", {
+        name: "Remove saved Alice’s tomato soup",
+      }),
+    );
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/recipes/${ROOT_ID}/save`,
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+
+    rerender(authenticatedTree(<SavedRecipeLibrary pageNumber={1} />));
+    const pageOne = await screen.findByRole("list", { name: "Saved recipes" });
+    const currentRecipe = within(pageOne).getByRole("link", {
+      name: "Creamy tomato soup",
+    });
+    currentRecipe.focus();
+    await act(async () => removal.resolve(removedRecipe(ROOT_ID)));
+
+    await waitFor(() => expect(pageOneReads).toBe(2));
+    expect(
+      screen.getByRole("list", { name: "Saved recipes" }),
+    ).toHaveTextContent("Creamy tomato soup");
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Saved recipes" })
+        .closest("header"),
+    ).toHaveTextContent("12 saved recipes");
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(currentRecipe).toHaveFocus();
+    expect(routerMocks.replace).not.toHaveBeenCalled();
+  });
+
+  it("keeps a newer removal pending when an off-page attempt rejects", async () => {
+    document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
+    const oldRemoval = deferred<Response>();
+    const currentRemoval = deferred<Response>();
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url === "/api/my/saved-recipes?page=2&page_size=12") {
+        return savedPage(original(), 2, 13, 2);
+      }
+      if (url === "/api/my/saved-recipes?page=1&page_size=12") {
+        return savedPage(fork(), 1, 12, 1);
+      }
+      if (init?.method === "DELETE" && url === `/api/recipes/${ROOT_ID}/save`) {
+        return oldRemoval.promise;
+      }
+      if (init?.method === "DELETE" && url === `/api/recipes/${FORK_ID}/save`) {
+        return currentRemoval.promise;
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { rerender } = authenticated(
+      <SavedRecipeLibrary pageNumber={2} />,
+    );
+
+    fireEvent.click(
+      within(await screen.findByRole("list", { name: "Saved recipes" })).getByRole(
+        "button",
+        { name: "Remove saved Alice’s tomato soup" },
+      ),
+    );
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/recipes/${ROOT_ID}/save`,
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+    rerender(authenticatedTree(<SavedRecipeLibrary pageNumber={1} />));
+    const currentPage = await screen.findByRole("list", {
+      name: "Saved recipes",
+    });
+    fireEvent.click(
+      within(currentPage).getByRole("button", {
+        name: "Remove saved Creamy tomato soup",
+      }),
+    );
+    await screen.findByRole("button", {
+      name: "Removing saved Creamy tomato soup…",
+    });
+    const currentRecipe = within(currentPage).getByRole("link", {
+      name: "Creamy tomato soup",
+    });
+    currentRecipe.focus();
+
+    await act(async () => oldRemoval.reject(new Error("old request failed")));
+
+    expect(
+      screen.getByRole("button", {
+        name: "Removing saved Creamy tomato soup…",
+      }),
+    ).toBeDisabled();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(currentRecipe).toHaveFocus();
+
+    await act(async () => currentRemoval.resolve(removedRecipe(FORK_ID)));
+    const completion = await screen.findByRole("status");
+    expect(completion).toHaveTextContent(
+      "Creamy tomato soup removed from Saved.",
+    );
+    await waitFor(() => expect(completion).toHaveFocus());
+  });
+
+  it("does not apply an old page result after returning to a newer snapshot", async () => {
+    document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
+    const removal = deferred<Response>();
+    let pageTwoReads = 0;
+    const freshRecipe = original({
+      id: FRESH_ID,
+      title: "Fresh page two recipe",
+    });
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url === "/api/my/saved-recipes?page=1&page_size=12") {
+        return savedPage(fork(), 1, 12, 1);
+      }
+      if (url === "/api/my/saved-recipes?page=2&page_size=12") {
+        pageTwoReads += 1;
+        if (pageTwoReads === 1) return savedPage(original(), 2, 13, 2);
+        if (pageTwoReads === 2) return savedPage(original(), 2, 25, 3);
+        return savedPage(freshRecipe, 2, 24, 2);
+      }
+      if (url === `/api/recipes/${ROOT_ID}/save` && init?.method === "DELETE") {
+        return removal.promise;
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { rerender } = authenticated(
+      <SavedRecipeLibrary pageNumber={2} />,
+    );
+
+    fireEvent.click(
+      within(await screen.findByRole("list", { name: "Saved recipes" })).getByRole(
+        "button",
+        { name: "Remove saved Alice’s tomato soup" },
+      ),
+    );
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/recipes/${ROOT_ID}/save`,
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+    rerender(authenticatedTree(<SavedRecipeLibrary pageNumber={1} />));
+    expect(
+      await screen.findByRole("list", { name: "Saved recipes" }),
+    ).toHaveTextContent("Creamy tomato soup");
+    rerender(authenticatedTree(<SavedRecipeLibrary pageNumber={2} />));
+    expect(
+      await screen.findByRole("list", { name: "Saved recipes" }),
+    ).toHaveTextContent("Alice’s tomato soup");
+
+    await act(async () => removal.resolve(removedRecipe(ROOT_ID)));
+
+    await waitFor(() => expect(pageTwoReads).toBe(3));
+    expect(
+      screen.getByRole("list", { name: "Saved recipes" }),
+    ).toHaveTextContent("Fresh page two recipe");
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Saved recipes" })
+        .closest("header"),
+    ).toHaveTextContent("24 saved recipes");
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(routerMocks.replace).not.toHaveBeenCalled();
+  });
+
   it("keeps a saved card intact when removing it fails", async () => {
     document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
     const fetchMock = vi
@@ -184,9 +473,10 @@ describe("cook profile and private recipe libraries", () => {
           },
           { status: 503 },
         ),
-      );
+      )
+      .mockResolvedValueOnce(removedRecipe(ROOT_ID));
     vi.stubGlobal("fetch", fetchMock);
-    authenticated(<SavedRecipeLibrary />);
+    authenticated(<SavedRecipeLibrary pageNumber={1} />);
 
     const list = await screen.findByRole("list", { name: "Saved recipes" });
     const remove = within(list).getByRole("button", {
@@ -202,6 +492,20 @@ describe("cook profile and private recipe libraries", () => {
       within(list).getByRole("article", { name: "Alice’s tomato soup" }),
     ).toBeVisible();
     await waitFor(() => expect(remove).toBeEnabled());
+
+    const firstIdempotencyKey = new Headers(
+      fetchMock.mock.calls[1]?.[1]?.headers,
+    ).get("Idempotency-Key");
+    fireEvent.click(remove);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(
+      new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get(
+        "Idempotency-Key",
+      ),
+    ).toBe(firstIdempotencyKey);
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Alice’s tomato soup removed from Saved.",
+    );
   });
 
   it("offers a useful empty state and a retry without exposing service details", async () => {
@@ -220,7 +524,7 @@ describe("cook profile and private recipe libraries", () => {
         }),
       );
     vi.stubGlobal("fetch", fetchMock);
-    authenticated(<SavedRecipeLibrary />);
+    authenticated(<SavedRecipeLibrary pageNumber={1} />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Recipe Lab could not load this recipe library.",
@@ -252,42 +556,18 @@ describe("cook profile and private recipe libraries", () => {
   });
 
   it("recovers from a stale private-library page without claiming the account is empty", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        Response.json({
-          items: [{ recipe: original(), saved_at: "2026-08-25T12:00:00Z" }],
-          page: 1,
-          page_size: 12,
-          total: 13,
-          total_pages: 2,
-        }),
-      )
-      .mockResolvedValueOnce(
-        Response.json({
-          items: [],
-          page: 2,
-          page_size: 12,
-          total: 13,
-          total_pages: 1,
-        }),
-      )
-      .mockResolvedValueOnce(
-        Response.json({
-          items: [{ recipe: original(), saved_at: "2026-08-25T12:00:00Z" }],
-          page: 1,
-          page_size: 12,
-          total: 1,
-          total_pages: 1,
-        }),
-      );
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      Response.json({
+        items: [],
+        page: 2,
+        page_size: 12,
+        total: 13,
+        total_pages: 1,
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
-    authenticated(<SavedRecipeLibrary />);
+    authenticated(<SavedRecipeLibrary pageNumber={2} />);
 
-    const pages = await screen.findByRole("navigation", {
-      name: "Saved recipe pages",
-    });
-    fireEvent.click(within(pages).getByRole("button", { name: "Next →" }));
     expect(
       await screen.findByRole("heading", {
         name: "That page is beyond your saved recipes.",
@@ -296,11 +576,8 @@ describe("cook profile and private recipe libraries", () => {
     expect(
       screen.queryByText("You have no saved recipes yet."),
     ).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Return to the first page" }),
-    );
     expect(
-      await screen.findByRole("list", { name: "Saved recipes" }),
-    ).toHaveTextContent("Alice’s tomato soup");
+      screen.getByRole("link", { name: "Return to the first page" }),
+    ).toHaveAttribute("href", "/account/recipes?view=saved");
   });
 });
