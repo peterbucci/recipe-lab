@@ -10,8 +10,12 @@ import {
   useAuthSession,
 } from "./auth-session-provider";
 
+const navigationMocks = vi.hoisted(() => ({
+  pathname: "/account/settings",
+}));
+
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/account/settings",
+  usePathname: () => navigationMocks.pathname,
 }));
 
 vi.mock("./auth-api", async (importOriginal) => {
@@ -56,6 +60,7 @@ function SessionProbe() {
 
 beforeEach(() => {
   fetchAuthSessionMock.mockReset();
+  navigationMocks.pathname = "/account/settings";
 });
 
 afterEach(() => {
@@ -183,6 +188,40 @@ describe("AuthSessionProvider", () => {
       expiredListener,
     );
     expect(removeEventListener).toHaveBeenCalledWith("focus", focusListener);
+  });
+
+  it("keeps recovery instructions and actions aligned with the current pathname", async () => {
+    const { rerender } = render(
+      <AuthSessionProvider initialSession={alice}>
+        <SessionRecoveryNotice />
+      </AuthSessionProvider>,
+    );
+
+    act(() => window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT)));
+
+    const interruption = await screen.findByRole("alert", {
+      name: "Your session expired. Your work is still here.",
+    });
+    expect(interruption).toHaveTextContent(
+      "Open sign-in in a new tab. This page will keep your unsaved work.",
+    );
+    expect(
+      screen.getByRole("link", { name: "Sign in in a new tab" }),
+    ).toHaveAttribute("target", "_blank");
+
+    navigationMocks.pathname = "/recipes/new";
+    rerender(
+      <AuthSessionProvider initialSession={alice}>
+        <SessionRecoveryNotice />
+      </AuthSessionProvider>,
+    );
+
+    expect(interruption).toHaveTextContent(
+      "Continue sign-in in this tab. Recipe Lab will retry the same private-draft request when you return.",
+    );
+    const signIn = screen.getByRole("link", { name: "Continue to sign in" });
+    expect(signIn).toHaveAttribute("href", "/sign-in?return_to=%2Frecipes%2Fnew");
+    expect(signIn).not.toHaveAttribute("target");
   });
 
   it("rejects use outside its provider", () => {
