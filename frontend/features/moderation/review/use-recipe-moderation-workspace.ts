@@ -14,8 +14,16 @@ import {
 } from "./recipe-moderation-api";
 
 interface Attempt {
+  caseId: string;
   fingerprint: string;
   idempotencyKey: string;
+}
+
+interface PendingAction {
+  action: RecipeModerationAction;
+  attempt: Attempt;
+  detailGeneration: number;
+  note: string | null;
 }
 
 export interface RecipeModerationWorkspaceState {
@@ -62,21 +70,61 @@ export function useRecipeModerationWorkspace({
   const [detailError, setDetailError] = useState("");
   const [detailReload, setDetailReload] = useState(0);
   const [privateNote, setPrivateNote] = useState("");
-  const [actionPending, setActionPending] = useState<RecipeModerationAction | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [actionError, setActionError] = useState("");
   const [workspaceStatus, setWorkspaceStatus] = useState("");
   const statusRef = useRef<HTMLParagraphElement>(null);
   const actionErrorRef = useRef<HTMLDivElement>(null);
   const actionAttempt = useRef<Attempt | null>(null);
+  const detailGenerationRef = useRef(0);
+  const pendingActionRef = useRef<PendingAction | null>(null);
+  const focusOwnerRef = useRef<PendingAction | null>(null);
+  const actionPending = pendingAction?.action ?? null;
+
+  function ownsDetailGeneration(operation: PendingAction) {
+    return (
+      selectedIdRef.current === operation.attempt.caseId &&
+      detailGenerationRef.current === operation.detailGeneration
+    );
+  }
+
+  function ownsPendingAction(operation: PendingAction) {
+    return (
+      pendingActionRef.current === operation &&
+      actionAttempt.current === operation.attempt &&
+      ownsDetailGeneration(operation)
+    );
+  }
+
+  function scheduleOwnedFocus(
+    operation: PendingAction,
+    target: RefObject<HTMLElement | null>,
+  ) {
+    focusOwnerRef.current = operation;
+    window.setTimeout(() => {
+      if (
+        focusOwnerRef.current === operation &&
+        ownsDetailGeneration(operation)
+      ) {
+        target.current?.focus();
+      }
+    }, 0);
+  }
 
   function selectCase(recipeVersionId: string | null) {
+    if (selectedIdRef.current === recipeVersionId) return;
+    detailGenerationRef.current += 1;
     selectedIdRef.current = recipeVersionId;
+    pendingActionRef.current = null;
+    focusOwnerRef.current = null;
     setSelectedId(recipeVersionId);
     setDetail(null);
     setDetailLoading(recipeVersionId !== null);
     setDetailError("");
     setPrivateNote("");
+    setPendingAction(null);
     setActionError("");
+    setWorkspaceStatus("");
     actionAttempt.current = null;
   }
 
@@ -151,40 +199,66 @@ export function useRecipeModerationWorkspace({
   }, [detailReload, onAuthorizationLost, selectedId]);
 
   async function applyAction(action: RecipeModerationAction) {
-    if (!selectedId || actionPending) return;
-    const note = privateNote.trim() || null;
-    const fingerprint = JSON.stringify({ selectedId, action, note });
-    if (actionAttempt.current?.fingerprint !== fingerprint) {
-      actionAttempt.current = { fingerprint, idempotencyKey: createIdempotencyKey() };
+    const caseId = selectedId;
+    if (
+      !caseId ||
+      selectedIdRef.current !== caseId ||
+      pendingActionRef.current
+    ) {
+      return;
     }
-    setActionPending(action);
+    const note = privateNote.trim() || null;
+    const fingerprint = JSON.stringify({ caseId, action, note });
+    if (actionAttempt.current?.fingerprint !== fingerprint) {
+      actionAttempt.current = {
+        caseId,
+        fingerprint,
+        idempotencyKey: createIdempotencyKey(),
+      };
+    }
+    const operation: PendingAction = {
+      action,
+      attempt: actionAttempt.current,
+      detailGeneration: detailGenerationRef.current,
+      note,
+    };
+    pendingActionRef.current = operation;
+    focusOwnerRef.current = null;
+    setPendingAction(operation);
     setActionError("");
     setWorkspaceStatus("");
     try {
       const result = await moderateRecipeCase(
-        selectedId,
-        action,
-        note,
-        actionAttempt.current.idempotencyKey,
-      );
-      setPrivateNote("");
-      actionAttempt.current = null;
-      setWorkspaceStatus(
-        `${action === "hide" ? "Recipe hidden" : action === "restore" ? "Recipe restored" : "Case resolved"}. The moderation record was updated.`,
-      );
-      setDetail((current) =>
-        current
-          ? { ...current, status: result.case_status, visibility_state: result.visibility_state }
-          : current,
+        operation.attempt.caseId,
+        operation.action,
+        operation.note,
+        operation.attempt.idempotencyKey,
       );
       setQueueReload((value) => value + 1);
-      setDetailReload((value) => value + 1);
-      window.setTimeout(() => statusRef.current?.focus(), 0);
+      if (ownsPendingAction(operation)) {
+        setPrivateNote("");
+        actionAttempt.current = null;
+        setWorkspaceStatus(
+          `${action === "hide" ? "Recipe hidden" : action === "restore" ? "Recipe restored" : "Case resolved"}. The moderation record was updated.`,
+        );
+        setDetail((current) =>
+          current?.recipe_version_id === operation.attempt.caseId
+            ? {
+                ...current,
+                status: result.case_status,
+                visibility_state: result.visibility_state,
+              }
+            : current,
+        );
+        setDetailReload((value) => value + 1);
+        scheduleOwnedFocus(operation, statusRef);
+      }
     } catch (reason) {
       if (reason instanceof RecipeModerationApiError && reason.status === 403) {
         onAuthorizationLost();
         return;
       }
+      if (!ownsPendingAction(operation)) return;
       const message =
         reason instanceof RecipeModerationApiError && reason.status === 409
           ? "This case changed before your action completed. Your private note is still here; reload the case and review its current state."
@@ -192,9 +266,14 @@ export function useRecipeModerationWorkspace({
             ? reason.message
             : "Recipe Lab could not complete this moderation action. Please try again.";
       setActionError(message);
-      window.setTimeout(() => actionErrorRef.current?.focus(), 0);
+      scheduleOwnedFocus(operation, actionErrorRef);
     } finally {
-      setActionPending(null);
+      if (pendingActionRef.current === operation) {
+        pendingActionRef.current = null;
+        setPendingAction((current) =>
+          current === operation ? null : current,
+        );
+      }
     }
   }
 
@@ -207,6 +286,7 @@ export function useRecipeModerationWorkspace({
   }
 
   function changePrivateNote(value: string) {
+    focusOwnerRef.current = null;
     setPrivateNote(value);
     setActionError("");
   }
