@@ -49,6 +49,21 @@ def test_events_keep_smoke_and_full_jobs_on_declared_tiers() -> None:
         assert "github.event_name != 'pull_request'" in _job(workflow, job_id)
 
 
+def test_frontend_job_provisions_python_for_the_delegated_quality_gate() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    frontend = _job(workflow, "frontend")
+
+    python_setup = "uses: ./.github/actions/setup-python"
+    node_setup = "uses: ./.github/actions/setup-node"
+    install = "run: npm ci"
+    gate = "run: npm run ci:verify"
+    assert "name: Frontend unit and build" in frontend
+    assert frontend.count(python_setup) == 1
+    assert frontend.index(python_setup) < frontend.index(node_setup)
+    assert frontend.index(node_setup) < frontend.index(install)
+    assert frontend.index(install) < frontend.index(gate)
+
+
 def test_pull_request_browser_smoke_is_bounded_isolated_and_artifact_free() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     smoke = _job(workflow, "browser-smoke")

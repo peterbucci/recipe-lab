@@ -128,10 +128,11 @@ def _backend() -> tuple[Check, ...]:
     )
 
 
-def _frontend() -> tuple[Check, ...]:
+def _frontend(platform_name: str | None = None) -> tuple[Check, ...]:
+    resolved_platform = os.name if platform_name is None else platform_name
     test_arguments: tuple[str, ...] = ("test",)
-    if os.name == "nt":
-        test_arguments = ("test", "--", "--configLoader", "runner")
+    if resolved_platform == "nt":
+        test_arguments = ("test", "--", "--configLoader=runner")
     return (
         _npm(*test_arguments),
         _npm("run", "architecture:check"),
