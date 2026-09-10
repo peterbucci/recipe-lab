@@ -86,6 +86,7 @@ export function SavedRecipeLibrary({ pageNumber }: SavedRecipeLibraryProps) {
   const removeAttempts = useRef(
     new Map<string, SavedRecipeIdempotencyAttempt>(),
   );
+  const activeLifetimeRef = useRef(false);
   const activeRemovalRef = useRef<SavedRecipeRemovalAttempt | null>(null);
   const currentLocationRef = useRef({ key, pageNumber, snapshotId: null as number | null });
   const statusRef = useRef<HTMLParagraphElement>(null);
@@ -109,12 +110,19 @@ export function SavedRecipeLibrary({ pageNumber }: SavedRecipeLibraryProps) {
   );
 
   useLayoutEffect(() => {
+    activeLifetimeRef.current = true;
+    return () => {
+      activeLifetimeRef.current = false;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
     currentLocationRef.current = { key, pageNumber, snapshotId };
   }, [key, pageNumber, snapshotId]);
 
   const load = useCallback(
     async (requestedPage: number, signal?: AbortSignal) => {
-      if (signal?.aborted) return;
+      if (!activeLifetimeRef.current || signal?.aborted) return;
       const requestKey = locationKey(requestedPage);
       const requestId = ++requestSequence.current;
       dispatch({ key: requestKey, requestId, type: "load_started" });
@@ -124,7 +132,13 @@ export function SavedRecipeLibrary({ pageNumber }: SavedRecipeLibraryProps) {
           pageSize: 12,
           signal,
         });
-        if (requestId !== requestSequence.current || signal?.aborted) return;
+        if (
+          !activeLifetimeRef.current ||
+          requestId !== requestSequence.current ||
+          signal?.aborted
+        ) {
+          return;
+        }
         dispatch({
           key: requestKey,
           page: result,
@@ -135,6 +149,7 @@ export function SavedRecipeLibrary({ pageNumber }: SavedRecipeLibraryProps) {
       } catch (reason) {
         if (
           isAbortError(reason) ||
+          !activeLifetimeRef.current ||
           requestId !== requestSequence.current ||
           signal?.aborted
         ) {
@@ -182,6 +197,7 @@ export function SavedRecipeLibrary({ pageNumber }: SavedRecipeLibraryProps) {
 
     try {
       await setRecipeSaved(recipeVersionId, false, idempotencyKey);
+      if (!activeLifetimeRef.current) return;
       if (
         removeAttempts.current.get(recipeVersionId)?.attemptId === attemptId
       ) {
@@ -211,6 +227,7 @@ export function SavedRecipeLibrary({ pageNumber }: SavedRecipeLibraryProps) {
         router.replace(myRecipesHref("saved", targetPage));
       }
     } catch {
+      if (!activeLifetimeRef.current) return;
       const currentLocation = currentLocationRef.current;
       if (
         activeRemovalRef.current?.attemptId === attemptId &&
@@ -225,10 +242,12 @@ export function SavedRecipeLibrary({ pageNumber }: SavedRecipeLibraryProps) {
         });
       }
     } finally {
-      if (activeRemovalRef.current?.attemptId === attemptId) {
-        activeRemovalRef.current = null;
+      if (activeLifetimeRef.current) {
+        if (activeRemovalRef.current?.attemptId === attemptId) {
+          activeRemovalRef.current = null;
+        }
+        dispatch({ attemptId, type: "removal_finished" });
       }
-      dispatch({ attemptId, type: "removal_finished" });
     }
   }
 
