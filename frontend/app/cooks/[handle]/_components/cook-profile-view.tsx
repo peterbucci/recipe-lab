@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import type { PublicCookProfilePage } from "../../../../features/recipes/shared/public-cook-profile";
+import type { PublicCookProfilePage } from "../../../../features/community/public-cook-profile";
 import { CookFollowControl } from "../../../../features/community/cook-follow-control";
 import { RecipeCard } from "../../../../features/recipes/browse/recipe-card";
 import { RecipeCardViewerStateProvider } from "../../../../features/recipes/browse/recipe-card-engagement";

@@ -47,8 +47,24 @@ const REVIEWED_CROSS_FEATURE_DEPENDENCIES = Object.freeze([
     dependency: /^features\/auth\/auth-session-provider\.tsx$/,
   },
   {
-    importer: /^features\/community\//,
-    dependency: /^features\/recipes\/shared\//,
+    importer: /^features\/community\/public-cook-profile\.ts$/,
+    dependency:
+      /^features\/recipes\/shared\/recipe-(?:contracts|summary-parser)\.ts$/,
+  },
+  {
+    importer:
+      /^features\/community\/(?:community-publication-list|public-cook-attribution)\.tsx$/,
+    dependency: /^features\/recipes\/shared\/recipe-contracts\.ts$/,
+  },
+  {
+    importer: /^features\/community\/member-follow-api\.ts$/,
+    dependency: /^features\/recipes\/shared\/recipe-summary-parser\.ts$/,
+  },
+  {
+    importer:
+      /^features\/community\/community-activity-timeline\.test\.tsx$/,
+    dependency:
+      /^features\/recipes\/shared\/recipe-(?:contracts|test-support)\.ts$/,
   },
   {
     importer:

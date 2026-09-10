@@ -13,7 +13,7 @@ import { isAbortError } from "../../../shared/api/abort-error";
 import { createIdempotencyKey } from "../../../shared/api/idempotency-key";
 import { setRecipeSaved } from "../shared/interaction-api";
 import { fetchSavedRecipeLibrary } from "./recipe-library-api";
-import { RecipeLibraryApiError } from "../shared/recipe-library-error";
+import { RecipeLibraryApiError } from "./recipe-library-error";
 import {
   MyRecipesHubHeader,
   MyRecipesHubNavigation,

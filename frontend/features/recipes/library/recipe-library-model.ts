@@ -4,8 +4,8 @@ import {
   type RecipeDraftListItem,
 } from "../authoring/draft/recipe-draft-summary";
 import type { RecipeSummary } from "../shared/recipe-contracts";
-import { invalidRecipeLibraryResponse } from "../shared/recipe-library-error";
-import { parseRecipeLibraryPageEnvelope } from "../shared/recipe-library-page-parser";
+import { invalidRecipeLibraryResponse } from "./recipe-library-error";
+import { parseRecipeLibraryPageEnvelope } from "./recipe-library-page-parser";
 import {
   isBoundedRecipeText,
   isRecipeRecord,

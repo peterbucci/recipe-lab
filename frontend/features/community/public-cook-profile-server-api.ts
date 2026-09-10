@@ -6,11 +6,11 @@ import {
   parsePublicCookProfilePage,
   type PublicCookProfilePage,
   type PublicCookProfileWire,
-} from "../recipes/shared/public-cook-profile";
+} from "./public-cook-profile";
 import {
-  RECIPE_LIBRARY_ERROR_CONTRACT,
-  recipeLibraryErrorFromTransport as fromTransportError,
-} from "../recipes/shared/recipe-library-error";
+  PUBLIC_COOK_PROFILE_ERROR_CONTRACT,
+  publicCookProfileErrorFromTransport as fromTransportError,
+} from "./public-cook-profile-error";
 
 export async function fetchPublicCookProfile({
   handle,
@@ -28,7 +28,11 @@ export async function fetchPublicCookProfile({
   try {
     const response = await serverApiRequest(
       `/api/cooks/${encodeURIComponent(handle)}?${query.toString()}`,
-      { errorContract: RECIPE_LIBRARY_ERROR_CONTRACT, kind: "query", retry: "never" },
+      {
+        errorContract: PUBLIC_COOK_PROFILE_ERROR_CONTRACT,
+        kind: "query",
+        retry: "never",
+      },
     );
     const payload = response.data as PublicCookProfileWire;
     return parsePublicCookProfilePage(payload);

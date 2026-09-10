@@ -15,7 +15,7 @@ import {
   RECIPE_LIBRARY_ERROR_CONTRACT,
   invalidRecipeLibraryResponse as invalidResponse,
   recipeLibraryErrorFromTransport as fromTransportError,
-} from "../shared/recipe-library-error";
+} from "./recipe-library-error";
 
 function pageQuery(page: number, pageSize: number): string {
   return new URLSearchParams({

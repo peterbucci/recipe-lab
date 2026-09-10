@@ -7,8 +7,6 @@ const KNOWN_RECIPE_LIBRARY_ERROR_CODES = new Set([
   "abuse_protection_unavailable",
   "account_setup_required",
   "authentication_required",
-  "cook_not_found",
-  "invalid_identifier",
   "rate_limit_exceeded",
   "recipe_library_unavailable",
   "validation_error",
