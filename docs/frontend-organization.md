@@ -221,5 +221,5 @@ composition remain under `app`. Navigation blocking stays domain-neutral in
 RCP-49I retires the transitional migration allowlists, certifies zero source
 files under `app/components` and `lib`, and enforces runtime-cycle and
 reviewed public-boundary rules. The completed topic branches are integrated in
-`refactor/frontend-architecture`, which remains separate from `main` until
+`refactor/recipe-lab-integration`, which remains separate from `main` until
 review.
