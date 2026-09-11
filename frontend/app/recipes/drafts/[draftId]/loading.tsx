@@ -1,11 +1,1 @@
-import { PageLoadingSkeleton } from "../../../../shared/ui/page-loading-skeleton";
-
-export default function RecipeDraftWorkspaceLoading() {
-  return (
-    <PageLoadingSkeleton
-      className="page-shell page-shell--detail recipe-reading-page draft-editor-page draft-editor-page--loading recipe-workspace-page"
-      label="Loading your private recipe draft…"
-      variant="authoring"
-    />
-  );
-}
+export { RecipeDraftLoadingView as default } from "../../../../features/recipes/authoring/draft/recipe-draft-route-states";
