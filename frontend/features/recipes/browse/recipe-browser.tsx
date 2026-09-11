@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { PaginationOutOfRange } from "../../../shared/ui/pagination-out-of-range";
 import { WorkspacePagination } from "../../../shared/ui/workspace-pagination";
 import {
   recipeBrowseHref,
@@ -220,19 +221,20 @@ export function RecipeBrowser({
               ) : null}
             </div>
           ) : beyondLastPage ? (
-            <div className="empty-state catalog-results__empty catalog-results__empty--stale">
-              <h2>That page is beyond the results.</h2>
-              <p>
-                The collection currently has {data.total_pages} pages of
-                recipes.
-              </p>
-              <Link
-                className="button button--secondary"
-                href={recipeBrowseHref(1, query, filters)}
-              >
-                Return to the first page
-              </Link>
-            </div>
+            <PaginationOutOfRange
+              action={
+                <Link
+                  className="button button--secondary"
+                  href={recipeBrowseHref(1, query, filters)}
+                >
+                  Return to the first page
+                </Link>
+              }
+              className="catalog-results__empty catalog-results__empty--stale"
+              description={`The collection currently has ${data.total_pages} pages of recipes.`}
+              headingId="catalog-results-out-of-range"
+              title="That page is beyond the results."
+            />
           ) : (
             <RecipeCardViewerStateProvider
               key={data.items.map((recipe) => recipe.id).join(":")}

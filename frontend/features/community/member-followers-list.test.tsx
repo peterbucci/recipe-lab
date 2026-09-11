@@ -141,6 +141,47 @@ describe("MemberFollowersList", () => {
     });
   });
 
+  it("returns a stale follower page to page one without treating it as an error", async () => {
+    mocks.fetchMyFollowers.mockImplementation(({ page }: { page: number }) =>
+      Promise.resolve(
+        page === 1
+          ? followersPage({ total: 21, total_pages: 2 })
+          : followersPage({
+              items: [],
+              page: 2,
+              total: 21,
+              total_pages: 1,
+            }),
+      ),
+    );
+    authenticated();
+
+    const pagination = await screen.findByRole("navigation", {
+      name: "Follower pages",
+    });
+    fireEvent.click(within(pagination).getByRole("button", { name: "Next →" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "That page is beyond your current followers.",
+      }),
+    ).toBeVisible();
+    expect(screen.getByText("Page out of range")).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("navigation", { name: "Follower pages" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Return to the first page" }),
+    );
+    await waitFor(() =>
+      expect(mocks.fetchMyFollowers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 1, pageSize: 20 }),
+      ),
+    );
+  });
+
   it("aborts an in-flight retry when the follower list unmounts", async () => {
     const retry = deferred<MyFollowersPage>();
     mocks.fetchMyFollowers

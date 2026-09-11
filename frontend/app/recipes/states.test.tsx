@@ -55,6 +55,10 @@ describe("recipe route states", () => {
         level: 1,
       }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Try again, or return to the home page.",
+    );
+    expect(screen.queryByText(/temporarily unavailable/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(retry).toHaveBeenCalledOnce();
     expect(screen.queryByText(/upstream detail/i)).not.toBeInTheDocument();
@@ -73,7 +77,10 @@ describe("recipe route states", () => {
     expect(alert).toHaveClass("blocking-error-state");
     expect(alert).toHaveTextContent("Something went wrong");
     expect(alert).toHaveTextContent(/couldn’t load this recipe/i);
-    expect(screen.getByText(/temporarily unavailable/i)).toBeInTheDocument();
+    expect(alert).toHaveTextContent(
+      "Try again, or browse the recipe collection.",
+    );
+    expect(screen.queryByText(/temporarily unavailable/i)).toBeNull();
     expect(
       screen.getByRole("link", { name: /browse recipes/i }),
     ).toHaveAttribute("href", "/recipes");
@@ -97,8 +104,9 @@ describe("recipe route states", () => {
       /couldn’t load this comparison/i,
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "This comparison may be temporarily unavailable.",
+      "Try again, or browse the recipe collection.",
     );
+    expect(screen.queryByText(/temporarily unavailable/i)).toBeNull();
     expect(
       screen.getByRole("link", { name: /browse recipes/i }),
     ).toHaveAttribute("href", "/recipes");
@@ -128,6 +136,7 @@ describe("recipe route states", () => {
     expect(
       screen.queryByText(/service|catalog|identifier/i),
     ).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("uses the same neutral unavailable state for every opaque recipe miss", () => {
@@ -140,6 +149,7 @@ describe("recipe route states", () => {
     expect(
       screen.getByRole("link", { name: /browse recipes/i }),
     ).toHaveAttribute("href", "/recipes");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("gives a missing page a plain-language route back to recipes", () => {
@@ -159,10 +169,13 @@ describe("recipe route states", () => {
         .closest(".system-state-panel"),
     ).not.toBeNull();
     expect(
-      screen.getByText("Browse the recipes to find something to cook."),
+      screen.getByText(
+        "Browse the recipe collection to find something to cook.",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /browse recipes/i }),
     ).toHaveAttribute("href", "/recipes");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

@@ -28,6 +28,7 @@ import {
 import { MemberRecipeCard } from "./member-recipe-card";
 import { GuardedLink } from "../../../shared/navigation/navigation-blocker-provider";
 import { LoadingButton, SectionLoading } from "../../../shared/ui/loading-ui";
+import { PaginationOutOfRange } from "../../../shared/ui/pagination-out-of-range";
 import { WorkspaceEmptyState } from "../../../shared/ui/workspace-empty-state";
 import { WorkspacePanelHeader } from "../../../shared/ui/workspace-panel-header";
 import { WorkspacePagination } from "../../../shared/ui/workspace-pagination";
@@ -324,23 +325,19 @@ export function SavedRecipeLibrary({ pageNumber }: SavedRecipeLibraryProps) {
             />
           ) : null}
           {!loading && beyondLastPage && page ? (
-            <section
-              className="empty-state"
-              aria-labelledby="stale-saves-title"
-            >
-              <h2 id="stale-saves-title">
-                That page is beyond your saved recipes.
-              </h2>
-              <p>
-                Your saved collection currently has {page.total_pages} pages.
-              </p>
-              <GuardedLink
-                className="button button--secondary"
-                href={myRecipesHref("saved")}
-              >
-                Return to the first page
-              </GuardedLink>
-            </section>
+            <PaginationOutOfRange
+              action={
+                <GuardedLink
+                  className="button button--secondary"
+                  href={myRecipesHref("saved")}
+                >
+                  Return to the first page
+                </GuardedLink>
+              }
+              description={`Your saved collection currently has ${page.total_pages} pages.`}
+              headingId="stale-saves-title"
+              title="That page is beyond your saved recipes."
+            />
           ) : null}
 
           {page && !beyondLastPage && page.items.length > 0 ? (

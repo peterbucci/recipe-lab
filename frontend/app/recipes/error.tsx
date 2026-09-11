@@ -13,7 +13,7 @@ export default function RecipeError({ retry }: RecipeErrorProps) {
   return (
     <RetryableStatePage
       className="catalog-state-page"
-      description="The catalog may be temporarily unavailable. Try again, or return to the home page."
+      description="Try again, or return to the home page."
       eyebrow="Something went wrong"
       headingId="catalog-error-title"
       panelClassName="catalog-state-panel"

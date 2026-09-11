@@ -1,18 +1,21 @@
 import Link from "next/link";
 
+import { StatePage, StatePanel } from "../shared/ui/state-page";
+
 export default function NotFound() {
   return (
-    <main
-      id="main-content"
-      className="state-page system-state-page system-state-page--not-found"
-    >
-      <div className="empty-state empty-state--large system-state-panel">
-        <h1>We couldn’t find that page.</h1>
-        <p>Browse the recipes to find something to cook.</p>
-        <Link className="button button--primary" href="/recipes">
-          Browse recipes
-        </Link>
-      </div>
-    </main>
+    <StatePage className="system-state-page system-state-page--not-found">
+      <StatePanel
+        actions={
+          <Link className="button button--primary" href="/recipes">
+            Browse recipes
+          </Link>
+        }
+        className="empty-state empty-state--large system-state-panel"
+        description="Browse the recipe collection to find something to cook."
+        headingId="not-found-title"
+        title="We couldn’t find that page."
+      />
+    </StatePage>
   );
 }

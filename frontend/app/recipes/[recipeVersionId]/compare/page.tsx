@@ -13,6 +13,7 @@ import type {
 } from "../../../../features/recipes/shared/recipe-contracts";
 import { isRecipeVersionId } from "../../../../features/recipes/shared/recipe-id";
 import { RecipeDiffView } from "../../../../features/recipes/detail/recipe-diff-view";
+import { StatePage, StatePanel } from "../../../../shared/ui/state-page";
 
 export const dynamic = "force-dynamic";
 
@@ -29,22 +30,23 @@ interface RecipeComparePageProps {
 
 function NoParentComparison({ recipeVersionId }: { recipeVersionId: string }) {
   return (
-    <main id="main-content" className="state-page public-context-state">
-      <div className="empty-state empty-state--large">
-        <p className="eyebrow">Starting recipe</p>
-        <h1>There isn’t an earlier recipe to compare.</h1>
-        <p>
-          This recipe wasn’t based on another recipe, so there are no earlier
-          changes to show.
-        </p>
-        <Link
-          className="button button--primary"
-          href={`/recipes/${encodeURIComponent(recipeVersionId)}`}
-        >
-          Back to recipe
-        </Link>
-      </div>
-    </main>
+    <StatePage className="public-context-state">
+      <StatePanel
+        actions={
+          <Link
+            className="button button--primary"
+            href={`/recipes/${encodeURIComponent(recipeVersionId)}`}
+          >
+            Back to recipe
+          </Link>
+        }
+        className="empty-state empty-state--large"
+        description="This recipe wasn’t based on another recipe, so there are no earlier changes to show."
+        eyebrow="Starting recipe"
+        headingId="recipe-comparison-no-parent-title"
+        title="There isn’t an earlier recipe to compare."
+      />
+    </StatePage>
   );
 }
 

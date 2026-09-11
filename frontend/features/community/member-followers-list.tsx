@@ -10,6 +10,7 @@ import {
 } from "./member-follow-api";
 import { relativeTimeLabel } from "../../shared/time/relative-time";
 import { SectionLoading } from "../../shared/ui/loading-ui";
+import { PaginationOutOfRange } from "../../shared/ui/pagination-out-of-range";
 import { WorkspacePagination } from "../../shared/ui/workspace-pagination";
 
 const FOLLOWER_PAGE_SIZE = 20;
@@ -122,16 +123,21 @@ export function MemberFollowersList({ userId }: { userId: string }) {
         ) : null}
 
         {!loading && !error && beyondLastPage && page ? (
-          <div className="member-activity-page__state">
-            <p>That page is beyond your current followers.</p>
-            <button
-              className="button button--secondary"
-              type="button"
-              onClick={() => changePage(1)}
-            >
-              Return to the first page
-            </button>
-          </div>
+          <PaginationOutOfRange
+            action={
+              <button
+                className="button button--secondary"
+                type="button"
+                onClick={() => changePage(1)}
+              >
+                Return to the first page
+              </button>
+            }
+            className="member-activity-page__state"
+            description={`Your follower list currently has ${page.total_pages} pages.`}
+            headingId="followers-page-out-of-range"
+            title="That page is beyond your current followers."
+          />
         ) : null}
 
         {page && !error && !beyondLastPage && page.items.length > 0 ? (

@@ -161,6 +161,10 @@ describe("cook profile and private recipe libraries", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "We couldn’t load this cook’s profile.",
     );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Try again, or browse the recipe collection.",
+    );
+    expect(screen.queryByText(/temporarily unavailable/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(retry).toHaveBeenCalledOnce();
 
@@ -171,6 +175,37 @@ describe("cook profile and private recipe libraries", () => {
     expect(
       screen.getByRole("link", { name: "Browse recipes" }),
     ).toHaveAttribute("href", "/recipes");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps cook context in ordinary stale-page recovery", () => {
+    const cook = { ...profile().cook, handle: "alice+cook" };
+    anonymous(
+      <CookProfileView
+        data={profile({
+          cook,
+          items: [],
+          page: 3,
+          total: 13,
+          total_pages: 2,
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        level: 3,
+        name: "That page is beyond this cook’s recipes.",
+      }),
+    ).toBeVisible();
+    expect(screen.getByText("Page out of range")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Return to the first page" }),
+    ).toHaveAttribute("href", "/cooks/alice%2Bcook");
+    expect(
+      screen.queryByRole("navigation", { name: "Recipe pages for Alice Cook" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("renders Deleted cook and an unavailable source without profile or source links", () => {

@@ -34,12 +34,23 @@ role is told that no staff tools are assigned.
   primitives. It does not receive or render raw errors.
 - `WorkspaceErrorState` presents section-scoped request failures.
 - `WorkspaceEmptyState` presents ordinary empty or unavailable section content.
-- `WorkspacePagination` owns bounded pagination controls. An out-of-range
-  presentation may compose it with an ordinary state, but is not a request
+- `PaginationOutOfRange` composes `WorkspaceEmptyState` for a collection page
+  that no longer exists. The caller owns the collection-specific copy and the
+  valid page-one destination or action.
+- `WorkspacePagination` owns bounded pagination controls. Hide those controls
+  while `PaginationOutOfRange` is shown; an out-of-range state is not a request
   failure and must not be styled or announced as one.
 - Inline validation and control feedback remain with the feature that owns the
   interaction.
 
-Copy follows the domain rather than the primitive: headings say what happened,
-descriptions explain the useful next step, and actions implement only the
-recovery paths that the caller can support.
+## Copy rules
+
+Copy follows the domain rather than the primitive:
+
+- Headings say what failed or what state the requested resource is in.
+- Descriptions explain the useful next step without guessing why a request
+  failed.
+- Actions implement only recovery paths that the caller can support.
+- Reserve “unavailable” for resources or content. Authentication and
+  out-of-range states should say what the user needs to do or which collection
+  page was requested instead of using “Page unavailable.”

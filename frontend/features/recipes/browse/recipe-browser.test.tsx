@@ -230,7 +230,7 @@ describe("RecipeBrowser", () => {
     expect(screen.getByText(/when they are added/i)).toBeInTheDocument();
   });
 
-  it("preserves the search across pagination and stale-page recovery", () => {
+  it("preserves browse context across pagination and stale-page recovery", () => {
     const { rerender } = render(
       <RecipeBrowser data={page({ page: 2, total_pages: 3 })} query="carrot" />,
       { wrapper: AnonymousAuth },
@@ -253,17 +253,25 @@ describe("RecipeBrowser", () => {
 
     rerender(
       <RecipeBrowser
+        categorySlug="quick-easy"
         data={page({ items: [], page: 99, total: 13, total_pages: 2 })}
         query="carrot"
+        recipeType="versions"
+        sort="newest"
       />,
     );
 
     expect(
       screen.getByRole("heading", { name: /beyond the results/i }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Page out of range")).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /return to the first page/i }),
-    ).toHaveAttribute("href", "/recipes?q=carrot");
+    ).toHaveAttribute(
+      "href",
+      "/recipes?q=carrot&category=quick-easy&type=versions&sort=newest",
+    );
     expect(
       screen.queryByRole("navigation", { name: /recipe result pages/i }),
     ).not.toBeInTheDocument();
