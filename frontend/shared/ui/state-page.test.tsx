@@ -40,16 +40,18 @@ describe("route state primitives", () => {
         <StatePanel
           actions={<Link href="/recipes">Browse recipes</Link>}
           alert
-          description="Try a different recipe."
-          eyebrow="Not found"
+          description="Try loading the recipes again."
+          eyebrow="Something went wrong"
           headingId="recipe-state-title"
-          title="This recipe isn’t available."
+          title="We couldn’t load the recipes."
         />
       </StatePage>,
     );
 
     const alert = screen.getByRole("alert");
-    expect(within(alert).getByText("Not found")).toHaveClass("eyebrow");
+    expect(within(alert).getByText("Something went wrong")).toHaveClass(
+      "eyebrow",
+    );
     expect(within(alert).getByRole("link", { name: "Browse recipes" })).toHaveAttribute(
       "href",
       "/recipes",
