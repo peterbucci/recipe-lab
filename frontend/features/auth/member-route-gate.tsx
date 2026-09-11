@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { useAuthSession } from "./auth-session-provider";
 import { AuthGateLoading } from "../../shared/ui/loading-ui";
 import { GuardedLink } from "../../shared/navigation/navigation-blocker-provider";
+import { RetryableStatePage } from "../../shared/ui/retryable-state-page";
+import { StatePage, StatePanel } from "../../shared/ui/state-page";
 
 interface MemberRouteGateProps {
   cardClassName?: string;
@@ -34,92 +36,83 @@ export function MemberRouteGate({
     return children;
   }
 
+  const statePageClassName = ["auth-page", pageClassName]
+    .filter(Boolean)
+    .join(" ");
+  const statePanelClassName = ["auth-card", cardClassName]
+    .filter(Boolean)
+    .join(" ");
+
   if (state.phase === "loading") {
     return (
-      <main
-        id="main-content"
-        className={pageClassName ? `auth-page ${pageClassName}` : "auth-page"}
-      >
+      <StatePage className={statePageClassName}>
         <AuthGateLoading
           className={cardClassName}
           exitHref="/recipes"
           label="Checking your account…"
         />
-      </main>
+      </StatePage>
     );
   }
-
-  const signInHref = `/sign-in?${new URLSearchParams({ return_to: returnTo }).toString()}`;
-  const onboardingHref = `/onboarding?${new URLSearchParams({ return_to: returnTo }).toString()}`;
-  const accountCheckFailed = state.phase === "error";
-  let heading = "Checking your account…";
-  let message = "Recipe Lab is checking your account.";
-  let action: ReactNode = null;
 
   if (state.phase === "error") {
-    heading = "We couldn’t check your account.";
-    message = "Try checking your account again.";
-    action = (
-      <button
-        className="button button--primary"
-        type="button"
-        onClick={() => void refreshSession()}
-      >
-        Try again
-      </button>
-    );
-  } else if (state.phase === "ready" && state.session.status === "anonymous") {
-    heading = "Sign in to continue.";
-    message = signedOutDescription;
-    action = (
-      <GuardedLink className="button button--primary" href={signInHref}>
-        Sign in
-      </GuardedLink>
-    );
-  } else if (
-    state.phase === "ready" &&
-    state.session.status === "onboarding_required"
-  ) {
-    heading = "Finish setting up your account.";
-    message = "Complete your profile to continue.";
-    action = (
-      <GuardedLink className="button button--primary" href={onboardingHref}>
-        Finish account setup
-      </GuardedLink>
-    );
-  }
-
-  return (
-    <main
-      id="main-content"
-      className={pageClassName ? `auth-page ${pageClassName}` : "auth-page"}
-    >
-      <section
-        className={[
-          "auth-card",
-          cardClassName,
-          accountCheckFailed ? "blocking-error-state" : null,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        role={accountCheckFailed ? "alert" : undefined}
-        aria-labelledby="member-route-title"
-        aria-describedby="member-route-description"
-      >
-        {accountCheckFailed ? (
-          <p className="eyebrow">Something went wrong</p>
-        ) : null}
-        <h1 id="member-route-title">{heading}</h1>
-        <p className="lede" id="member-route-description">
-          {message}
-        </p>
-        <div className="button-row auth-card__actions">
-          {action}
+    return (
+      <RetryableStatePage
+        actionsClassName="auth-card__actions"
+        className={statePageClassName}
+        description="Try checking your account again."
+        descriptionClassName="lede"
+        eyebrow="Something went wrong"
+        headingId="member-route-title"
+        panelClassName={`${statePanelClassName} blocking-error-state`}
+        retry={() => void refreshSession()}
+        secondaryAction={
           <GuardedLink className="button button--secondary" href="/recipes">
             Browse recipes
           </GuardedLink>
-        </div>
-      </section>
-    </main>
+        }
+        title="We couldn’t check your account."
+      />
+    );
+  }
+
+  const signedOut = state.session.status === "anonymous";
+  const destination = signedOut ? "/sign-in" : "/onboarding";
+  const destinationHref = `${destination}?${new URLSearchParams({
+    return_to: returnTo,
+  }).toString()}`;
+
+  return (
+    <StatePage className={statePageClassName}>
+      <StatePanel
+        actions={
+          <>
+            <GuardedLink
+              className="button button--primary"
+              href={destinationHref}
+            >
+              {signedOut ? "Sign in" : "Finish account setup"}
+            </GuardedLink>
+            <GuardedLink className="button button--secondary" href="/recipes">
+              Browse recipes
+            </GuardedLink>
+          </>
+        }
+        actionsClassName="auth-card__actions"
+        className={statePanelClassName}
+        description={
+          signedOut
+            ? signedOutDescription
+            : "Complete your profile to continue."
+        }
+        descriptionClassName="lede"
+        headingId="member-route-title"
+        title={
+          signedOut
+            ? "Sign in to continue."
+            : "Finish setting up your account."
+        }
+      />
+    </StatePage>
   );
 }

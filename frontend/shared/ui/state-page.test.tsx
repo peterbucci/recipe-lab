@@ -39,8 +39,10 @@ describe("route state primitives", () => {
       <StatePage>
         <StatePanel
           actions={<Link href="/recipes">Browse recipes</Link>}
+          actionsClassName="domain-actions"
           alert
           description="Try a different recipe."
+          descriptionClassName="domain-description"
           eyebrow="Not found"
           headingId="recipe-state-title"
           title="This recipe isn’t available."
@@ -50,6 +52,9 @@ describe("route state primitives", () => {
 
     const alert = screen.getByRole("alert");
     expect(within(alert).getByText("Not found")).toHaveClass("eyebrow");
+    expect(within(alert).getByText("Try a different recipe.")).toHaveClass(
+      "domain-description",
+    );
     expect(within(alert).getByRole("link", { name: "Browse recipes" })).toHaveAttribute(
       "href",
       "/recipes",
@@ -57,6 +62,7 @@ describe("route state primitives", () => {
     expect(within(alert).getByRole("link").parentElement).toHaveClass(
       "state-panel__actions",
       "button-row",
+      "domain-actions",
     );
   });
 
