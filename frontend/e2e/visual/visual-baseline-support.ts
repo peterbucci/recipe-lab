@@ -771,7 +771,7 @@ export async function exerciseStaffMatrixCase(
       return;
     case "curator-loading":
       await expect(
-        page.getByRole("status").filter({ hasText: "Checking review access…" }),
+        page.getByRole("status").filter({ hasText: "Checking your account…" }),
       ).toBeVisible();
       await certifyStaffState(page, false);
       return;

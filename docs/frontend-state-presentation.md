@@ -18,6 +18,12 @@ primitives provide consistent structure and interaction mechanics.
 A partial failure is a load failure whose scope is a section or inline region. It
 must not replace an otherwise usable route with a full-page error state.
 
+Direct staff workspaces use a concealed presentation when the current account
+lacks the required capability. It deliberately shares generic not-found copy,
+but it is ordinary page content rather than an HTTP 404 or an alert. The
+top-level `/staff` page remains explicit: an authenticated account with no staff
+role is told that no staff tools are assigned.
+
 ## Primitive ownership
 
 - `StatePage` and `StatePanel` own the accessible structure of blocking route

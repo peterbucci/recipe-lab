@@ -42,9 +42,14 @@ describe("CommunityActivityRoute", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Sign in to see your community activity" }),
+      screen.getByRole("heading", { name: "Sign in to continue." }),
     ).toBeVisible();
-    expect(screen.getByRole("link", { name: "Sign in to continue" })).toHaveAttribute(
+    expect(
+      screen.getByText(
+        "Follow cooks and keep up with the recipes and versions they publish.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
       "/sign-in?return_to=%2Faccount%2Fcommunity-activity",
     );

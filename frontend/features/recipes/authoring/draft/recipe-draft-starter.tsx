@@ -141,10 +141,8 @@ export function RecipeDraftStarter({
   return (
     <MemberRouteGate
       cardClassName="draft-starter recipe-authoring-entry__card"
-      eyebrow="Private recipe workspace"
       pageClassName={`recipe-authoring-entry recipe-authoring-entry--${entryKind}`}
       returnTo={returnTo}
-      title="Private drafts"
     >
       {actorId ? (
         <AuthenticatedRecipeDraftStarter

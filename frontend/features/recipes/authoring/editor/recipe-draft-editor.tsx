@@ -1063,10 +1063,8 @@ export function RecipeDraftEditor(props: RecipeDraftEditorProps) {
   return (
     <MemberRouteGate
       cardClassName="recipe-authoring-state__panel"
-      eyebrow="Private recipe workspace"
       pageClassName="recipe-authoring-state recipe-authoring-state--gate"
       returnTo={returnTo}
-      title="Recipe draft editor"
     >
       <RecipeDraftEditorInner {...props} />
     </MemberRouteGate>

@@ -60,7 +60,7 @@ describe("RCP-46F staff certification inventory", () => {
     );
     expect([...coveredStates].sort()).toEqual(
       [
-        "authorization",
+        "concealed",
         "empty",
         "error",
         "loading",
@@ -80,18 +80,18 @@ describe("RCP-46F staff certification inventory", () => {
     });
     expect(normalRoles.sort()).toEqual(roles);
 
-    const authorizationPairs = RCP46F_STAFF_STATE_MATRIX.filter(({ states }) =>
-      includesState(states, "authorization"),
+    const concealedPairs = RCP46F_STAFF_STATE_MATRIX.filter(({ states }) =>
+      includesState(states, "concealed"),
     ).map(({ routeRole, sessionRole }) => {
       expect(sessionRole).not.toBe(routeRole);
       return `${sessionRole}->${routeRole}`;
     });
-    const expectedAuthorizationPairs = roles.flatMap((sessionRole) =>
+    const expectedConcealedPairs = roles.flatMap((sessionRole) =>
       roles
         .filter((routeRole) => routeRole !== sessionRole)
         .map((routeRole) => `${sessionRole}->${routeRole}`),
     );
-    expect(authorizationPairs.sort()).toEqual(expectedAuthorizationPairs.sort());
+    expect(concealedPairs.sort()).toEqual(expectedConcealedPairs.sort());
 
     for (const matrixCase of RCP46F_STAFF_STATE_MATRIX) {
       expect(matrixCase.scenario).not.toHaveLength(0);

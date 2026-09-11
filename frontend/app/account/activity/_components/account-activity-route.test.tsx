@@ -39,8 +39,8 @@ describe("AccountActivityRoute", () => {
       </AuthSessionProvider>,
     );
 
-    expect(screen.getByRole("heading", { name: "Page Unavailable" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Sign In" })).toHaveAttribute(
+    expect(screen.getByRole("heading", { name: "Sign in to continue." })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href", "/sign-in?return_to=%2Faccount%2Factivity",
     );
     expect(mocks.fetchMemberActivity).not.toHaveBeenCalled();
@@ -60,6 +60,7 @@ describe("AccountActivityRoute", () => {
     expect(screen.getByRole("link", { name: "Finish account setup" })).toHaveAttribute(
       "href", "/onboarding?return_to=%2Faccount%2Factivity",
     );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(mocks.fetchMemberActivity).not.toHaveBeenCalled();
     expect(mocks.timeline).not.toHaveBeenCalled();
   });

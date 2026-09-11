@@ -34,10 +34,12 @@ describe("MyIngredientRequestsPage", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Page Unavailable" }),
+      screen.getByRole("heading", { name: "Sign in to continue." }),
     ).toBeVisible();
-    expect(screen.getByText("Please sign in to continue")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Sign In" })).toHaveAttribute(
+    expect(
+      screen.getByText("This page is available to signed-in members."),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
       "/sign-in?return_to=%2Faccount%2Fingredient-requests",
     );
@@ -64,7 +66,7 @@ describe("MyIngredientRequestsPage", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Finish setting up your account" }),
+      screen.getByRole("heading", { name: "Finish setting up your account." }),
     ).toBeVisible();
     expect(
       screen.getByRole("link", { name: "Finish account setup" }),
@@ -112,7 +114,7 @@ describe("MyIngredientRequestsPage", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole("heading", { name: "Page Unavailable" }),
+        screen.getByRole("heading", { name: "Sign in to continue." }),
       ).toBeVisible(),
     );
     expect(fetchMock).toHaveBeenCalledTimes(2);

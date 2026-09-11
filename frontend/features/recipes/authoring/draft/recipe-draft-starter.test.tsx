@@ -128,24 +128,26 @@ describe("RecipeDraftStarter", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "Page Unavailable",
+        name: "Sign in to continue.",
       }),
     ).toBeVisible();
-    expect(screen.getByText("Please sign in to continue")).toBeVisible();
+    expect(
+      screen.getByText("This page is available to signed-in members."),
+    ).toBeVisible();
     expect(screen.queryByText("Private recipe workspace")).not.toBeInTheDocument();
     expect(screen.queryByText("Private drafts")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Sign In" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
       `/sign-in?return_to=%2Frecipes%2F${SOURCE_ID}%2Ffork`,
     );
-    expect(screen.getByRole("link", { name: "Browse Recipes" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Browse recipes" })).toHaveAttribute(
       "href",
       "/recipes",
     );
     expect(mocks.createRecipeDraft).not.toHaveBeenCalled();
     expect(window.sessionStorage.length).toBe(0);
     expect(container.querySelector("main.recipe-authoring-entry--fork")).not.toBeNull();
-    expect(container.querySelector("section.recipe-authoring-entry__card")).toHaveClass(
+    expect(container.querySelector("section.recipe-authoring-entry__card")).not.toHaveClass(
       "member-route-gate--shared-anonymous",
     );
   });
@@ -153,7 +155,7 @@ describe("RecipeDraftStarter", () => {
   it("preserves the blank-draft auth return without creating early", () => {
     const { container } = renderStarter({ sourceVersionId: null, status: "anonymous" });
 
-    expect(screen.getByRole("link", { name: "Sign In" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
       "/sign-in?return_to=%2Frecipes%2Fnew",
     );
@@ -336,7 +338,7 @@ describe("RecipeDraftStarter", () => {
     interrupted.unmount();
 
     const signedOut = renderStarter({ status: "anonymous" });
-    expect(screen.getByRole("link", { name: "Sign In" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Sign in" })).toBeVisible();
     expect(mocks.createRecipeDraft).toHaveBeenCalledTimes(1);
     expect(window.sessionStorage.getItem(storageKey)).not.toBeNull();
     signedOut.unmount();

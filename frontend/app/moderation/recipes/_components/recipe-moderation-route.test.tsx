@@ -35,9 +35,12 @@ describe("RecipeModerationRoute", () => {
     expect(screen.getByRole("main")).toHaveClass(
       "staff-state-page",
       "staff-state-page--moderation",
-      "staff-state-page--authorization",
+      "staff-state-page--concealed",
     );
-    expect(screen.getByRole("alert")).toHaveClass("staff-state-panel");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "We couldn’t find that page." }).closest("section"),
+    ).toHaveClass("staff-state-panel");
     expect(screen.getByRole("heading", { name: "We couldn’t find that page." })).toBeVisible();
     expect(screen.queryByText("Page unavailable")).not.toBeInTheDocument();
     expect(screen.queryByText(/moderator/i)).not.toBeInTheDocument();
