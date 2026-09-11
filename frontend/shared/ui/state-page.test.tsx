@@ -70,8 +70,10 @@ describe("route state primitives", () => {
     const retry = vi.fn();
     render(
       <RetryableStatePage
+        actionsClassName="retry-actions"
         className="catalog-state-page"
         description="Try again or leave."
+        descriptionClassName="retry-description"
         eyebrow="Something went wrong"
         headingId="catalog-error-title"
         panelClassName="catalog-state-panel"
@@ -86,6 +88,12 @@ describe("route state primitives", () => {
       "state-panel",
       "error-state",
       "catalog-state-panel",
+    );
+    expect(within(alert).getByText("Try again or leave.")).toHaveClass(
+      "retry-description",
+    );
+    expect(within(alert).getByRole("button").parentElement).toHaveClass(
+      "retry-actions",
     );
     fireEvent.click(within(alert).getByRole("button", { name: "Try again" }));
     expect(retry).toHaveBeenCalledOnce();
