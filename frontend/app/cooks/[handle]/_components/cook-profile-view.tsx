@@ -4,6 +4,7 @@ import type { PublicCookProfilePage } from "../../../../features/community/publi
 import { CookFollowControl } from "../../../../features/community/cook-follow-control";
 import { RecipeCard } from "../../../../features/recipes/browse/recipe-card";
 import { RecipeCardViewerStateProvider } from "../../../../features/recipes/browse/recipe-card-engagement";
+import { PaginationOutOfRange } from "../../../../shared/ui/pagination-out-of-range";
 import { WorkspacePagination } from "../../../../shared/ui/workspace-pagination";
 
 interface CookProfileViewProps {
@@ -52,13 +53,20 @@ export function CookProfileView({ data }: CookProfileViewProps) {
             </Link>
           </div>
         ) : beyondLastPage ? (
-          <div className="empty-state">
-            <h3>That page is beyond this cook’s recipes.</h3>
-            <p>The public collection currently has {data.total_pages} pages.</p>
-            <Link className="button button--secondary" href={profileHref(data.cook.handle, 1)}>
-              Return to the first page
-            </Link>
-          </div>
+          <PaginationOutOfRange
+            action={
+              <Link
+                className="button button--secondary"
+                href={profileHref(data.cook.handle, 1)}
+              >
+                Return to the first page
+              </Link>
+            }
+            description={`The public collection currently has ${data.total_pages} pages.`}
+            headingId="cook-recipes-out-of-range"
+            headingLevel={3}
+            title="That page is beyond this cook’s recipes."
+          />
         ) : (
           <RecipeCardViewerStateProvider
             key={data.items.map((recipe) => recipe.id).join(":")}

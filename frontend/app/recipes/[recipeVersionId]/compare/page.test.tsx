@@ -87,6 +87,7 @@ describe("RecipeComparePage", () => {
     expect(
       screen.queryByText(/private implementation detail/i),
     ).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(mocks.fetchRecipeDiff).toHaveBeenCalledWith(RECIPE_ID, undefined);
   });
 

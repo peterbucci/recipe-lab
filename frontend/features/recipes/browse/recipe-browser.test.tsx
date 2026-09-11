@@ -261,6 +261,8 @@ describe("RecipeBrowser", () => {
     expect(
       screen.getByRole("heading", { name: /beyond the results/i }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Page out of range")).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /return to the first page/i }),
     ).toHaveAttribute("href", "/recipes?q=carrot");

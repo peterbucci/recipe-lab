@@ -318,6 +318,12 @@ describe("cook profile and private recipe libraries", () => {
         name: "That page is beyond your withdrawn recipes.",
       }),
     ).toBeVisible();
+    expect(screen.getByText("Page out of range")).toBeVisible();
+    expect(screen.queryByText("Page unavailable")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("navigation", { name: "Withdrawn recipe pages" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Return to the first page" }),
     ).toHaveAttribute("href", "/account/recipes?view=withdrawn");
