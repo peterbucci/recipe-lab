@@ -41,11 +41,11 @@ describe("AccountFollowersRoute", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "Page Unavailable",
+        name: "Sign in to continue.",
       }),
     ).toBeVisible();
     expect(
-      screen.getByRole("link", { name: "Sign In" }),
+      screen.getByRole("link", { name: "Sign in" }),
     ).toHaveAttribute(
       "href",
       "/sign-in?return_to=%2Faccount%2Ffollowers",
@@ -67,6 +67,7 @@ describe("AccountFollowersRoute", () => {
     expect(screen.getByRole("link", { name: "Finish account setup" })).toHaveAttribute(
       "href", "/onboarding?return_to=%2Faccount%2Ffollowers",
     );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(mocks.fetchMyFollowers).not.toHaveBeenCalled();
     expect(mocks.list).not.toHaveBeenCalled();
   });

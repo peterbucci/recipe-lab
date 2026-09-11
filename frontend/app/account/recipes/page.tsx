@@ -46,11 +46,8 @@ export default async function MyRecipesPage({ searchParams }: MyRecipesPageProps
   if (view === "saved") {
     return (
       <MemberRouteGate
-        anonymousHeading="Sign in to open My recipes"
-        anonymousMessage="Your drafts, saves, and other private recipe activity belong only to your account."
-        eyebrow="Your recipe workspace"
         returnTo={myRecipesHref(view, currentPage)}
-        title="My recipes"
+        signedOutDescription="Your drafts, saves, and other private recipe activity belong only to your account."
       >
         <SavedRecipeLibrary pageNumber={currentPage} />
       </MemberRouteGate>
@@ -58,11 +55,7 @@ export default async function MyRecipesPage({ searchParams }: MyRecipesPageProps
   }
 
   return (
-    <MemberRouteGate
-      eyebrow="Your recipe workspace"
-      returnTo={myRecipesHref(view, currentPage)}
-      title="My recipes"
-    >
+    <MemberRouteGate returnTo={myRecipesHref(view, currentPage)}>
       <MyRecipeLibrary pageNumber={currentPage} view={view} />
     </MemberRouteGate>
   );

@@ -5,8 +5,10 @@ import type { ReactNode } from "react";
 import { StatePage, StatePanel } from "./state-page";
 
 interface RetryableStatePageProps {
+  actionsClassName?: string;
   className?: string;
   description: string;
+  descriptionClassName?: string;
   eyebrow?: string;
   headingId: string;
   panelClassName?: string;
@@ -17,8 +19,10 @@ interface RetryableStatePageProps {
 }
 
 export function RetryableStatePage({
+  actionsClassName,
   className,
   description,
+  descriptionClassName,
   eyebrow,
   headingId,
   panelClassName,
@@ -42,9 +46,11 @@ export function RetryableStatePage({
             {secondaryAction}
           </>
         }
+        actionsClassName={actionsClassName}
         alert
         className={["error-state", panelClassName].filter(Boolean).join(" ")}
         description={description}
+        descriptionClassName={descriptionClassName}
         eyebrow={eyebrow}
         headingId={headingId}
         title={title}

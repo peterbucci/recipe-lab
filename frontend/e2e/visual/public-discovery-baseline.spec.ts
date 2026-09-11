@@ -172,7 +172,7 @@ test("anonymous activity never requests private member data", async ({
 
   await expect(
     page.getByRole("heading", {
-      name: "Page Unavailable",
+      name: "Sign in to continue.",
       level: 1,
     }),
   ).toBeVisible();

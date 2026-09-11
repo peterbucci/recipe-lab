@@ -39,8 +39,10 @@ describe("route state primitives", () => {
       <StatePage>
         <StatePanel
           actions={<Link href="/recipes">Browse recipes</Link>}
+          actionsClassName="domain-actions"
           alert
           description="Try loading the recipes again."
+          descriptionClassName="domain-description"
           eyebrow="Something went wrong"
           headingId="recipe-state-title"
           title="We couldn’t load the recipes."
@@ -52,6 +54,9 @@ describe("route state primitives", () => {
     expect(within(alert).getByText("Something went wrong")).toHaveClass(
       "eyebrow",
     );
+    expect(within(alert).getByText("Try loading the recipes again.")).toHaveClass(
+      "domain-description",
+    );
     expect(within(alert).getByRole("link", { name: "Browse recipes" })).toHaveAttribute(
       "href",
       "/recipes",
@@ -59,6 +64,7 @@ describe("route state primitives", () => {
     expect(within(alert).getByRole("link").parentElement).toHaveClass(
       "state-panel__actions",
       "button-row",
+      "domain-actions",
     );
   });
 
@@ -66,8 +72,10 @@ describe("route state primitives", () => {
     const retry = vi.fn();
     render(
       <RetryableStatePage
+        actionsClassName="retry-actions"
         className="catalog-state-page"
         description="Try again or leave."
+        descriptionClassName="retry-description"
         eyebrow="Something went wrong"
         headingId="catalog-error-title"
         panelClassName="catalog-state-panel"
@@ -82,6 +90,12 @@ describe("route state primitives", () => {
       "state-panel",
       "error-state",
       "catalog-state-panel",
+    );
+    expect(within(alert).getByText("Try again or leave.")).toHaveClass(
+      "retry-description",
+    );
+    expect(within(alert).getByRole("button").parentElement).toHaveClass(
+      "retry-actions",
     );
     fireEvent.click(within(alert).getByRole("button", { name: "Try again" }));
     expect(retry).toHaveBeenCalledOnce();

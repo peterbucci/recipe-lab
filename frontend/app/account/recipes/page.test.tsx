@@ -52,8 +52,9 @@ describe("MyRecipesPage", () => {
 
     expect(element.type).toBe(MemberRouteGate);
     expect(element.props).toMatchObject({
-      anonymousHeading: "Sign in to open My recipes",
       returnTo: "/account/recipes?view=saved&page=2",
+      signedOutDescription:
+        "Your drafts, saves, and other private recipe activity belong only to your account.",
     });
     expect(element.props.children).toMatchObject({
       type: SavedRecipeLibrary,

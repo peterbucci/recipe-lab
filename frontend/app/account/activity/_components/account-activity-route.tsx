@@ -12,7 +12,7 @@ export function AccountActivityRoute() {
       : null;
 
   return (
-    <MemberRouteGate eyebrow="Your Recipe Lab" returnTo="/account/activity" title="Activity">
+    <MemberRouteGate returnTo="/account/activity">
       {userId ? <MemberActivityTimeline key={userId} userId={userId} /> : null}
     </MemberRouteGate>
   );

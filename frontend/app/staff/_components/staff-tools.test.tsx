@@ -41,7 +41,7 @@ describe("StaffTools", () => {
     );
 
     const status = screen.getByRole("status");
-    expect(status).toHaveTextContent("Checking staff access…");
+    expect(status).toHaveTextContent("Checking your account…");
     expect(status.closest(".auth-gate-loading")).not.toBeNull();
   });
 
@@ -56,6 +56,7 @@ describe("StaffTools", () => {
     expect(
       screen.getByRole("heading", { name: "No staff tools are assigned to this account." }),
     ).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByRole("tablist", { name: "Staff tool categories" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Open ingredient catalog" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Open recipe reports" })).toBeNull();
@@ -202,7 +203,9 @@ describe("StaffTools", () => {
       </AuthSessionProvider>,
     );
 
-    expect(await screen.findByRole("heading", { name: "We couldn’t check your access." })).toBeVisible();
+    expect(
+      await screen.findByRole("heading", { name: "We couldn’t check your account." }),
+    ).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() =>
       expect(screen.getByRole("heading", { name: "Sign in to open staff tools." })).toBeVisible(),

@@ -7,7 +7,6 @@ export function RecipeModerationRoute() {
   return (
     <StaffWorkspaceAccess
       capability="moderate_recipe_reports"
-      loadingLabel="Checking moderation access…"
       variant="moderation"
     >
       {(onAuthorizationLost) => (

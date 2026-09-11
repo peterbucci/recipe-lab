@@ -13,11 +13,8 @@ export function CommunityActivityRoute() {
 
   return (
     <MemberRouteGate
-      anonymousHeading="Sign in to see your community activity"
-      anonymousMessage="Follow cooks and keep up with the recipes and versions they publish."
-      eyebrow="Your community"
       returnTo="/account/community-activity"
-      title="Community activity"
+      signedOutDescription="Follow cooks and keep up with the recipes and versions they publish."
     >
       {userId ? (
         <CommunityActivityTimeline key={userId} userId={userId} />

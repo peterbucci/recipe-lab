@@ -29,7 +29,7 @@ export type Rcp46fStaffState =
   | "error"
   | "empty"
   | "not-found"
-  | "authorization"
+  | "concealed"
   | "stale"
   | "retry";
 
@@ -89,14 +89,14 @@ export const RCP46F_STAFF_STATE_MATRIX = [
     sessionRole: "curator",
     routeRole: "moderator",
     scenario: "curator-session",
-    states: ["authorization"],
+    states: ["concealed"],
   },
   {
     id: "moderator-cannot-open-curation",
     sessionRole: "moderator",
     routeRole: "curator",
     scenario: "moderator-session",
-    states: ["authorization"],
+    states: ["concealed"],
   },
   {
     id: "curator-stale-retry",
