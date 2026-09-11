@@ -7,7 +7,7 @@ import { RetryableStatePage } from "../../../shared/ui/retryable-state-page";
 export default function CookProfileError({ retry }: { retry: () => void }) {
   return (
     <RetryableStatePage
-      className="public-context-state"
+      panelClassName="state-panel--wide"
       description="Try again, or browse the recipe collection."
       eyebrow="Something went wrong"
       headingId="cook-profile-error-title"

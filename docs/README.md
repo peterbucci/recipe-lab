@@ -44,6 +44,7 @@ historical references do not break merely to create folders.
 - [Repository quality gates](quality-gates.md)
 - [Frontend testing architecture](frontend-testing.md)
 - [RCP-49 frontend architecture certification](baselines/2026-09-05-frontend-architecture-certification.md)
+- [RCP-50 frontend state presentation certification](baselines/2026-09-11-frontend-state-presentation-certification.md)
 - [RF-13 final refactor starting baseline](baselines/2026-09-09-final-refactor-starting-baseline.md)
 - [RF-13 through RF-26 final refactor execution](baselines/2026-09-10-final-refactor-execution.md)
 - [Production images](production-images.md)

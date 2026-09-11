@@ -37,7 +37,6 @@ describe("MemberRouteGate", () => {
     renderGate();
 
     const alert = screen.getByRole("alert");
-    expect(alert).toHaveClass("state-panel", "error-state");
     expect(alert).toHaveTextContent("Something went wrong");
     expect(
       screen.getByRole("heading", { name: "We couldn’t check your account." }),
@@ -63,12 +62,6 @@ describe("MemberRouteGate", () => {
     expect(
       screen.getByRole("heading", { name: "Sign in to continue." }),
     ).toBeVisible();
-    expect(screen.getByRole("main")).toHaveClass("state-page", "auth-page");
-    expect(
-      screen
-        .getByRole("heading", { name: "Sign in to continue." })
-        .closest("section"),
-    ).toHaveClass("state-panel", "auth-card");
     expect(
       screen.getByText("Your activity belongs only to your account."),
     ).toBeVisible();

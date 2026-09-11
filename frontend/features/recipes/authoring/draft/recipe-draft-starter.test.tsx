@@ -147,9 +147,6 @@ describe("RecipeDraftStarter", () => {
     expect(mocks.createRecipeDraft).not.toHaveBeenCalled();
     expect(window.sessionStorage.length).toBe(0);
     expect(container.querySelector("main.recipe-authoring-entry--fork")).not.toBeNull();
-    expect(container.querySelector("section.recipe-authoring-entry__card")).not.toHaveClass(
-      "member-route-gate--shared-anonymous",
-    );
   });
 
   it("preserves the blank-draft auth return without creating early", () => {

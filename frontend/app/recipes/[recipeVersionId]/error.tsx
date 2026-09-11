@@ -12,11 +12,10 @@ interface RecipeDetailErrorProps {
 export default function RecipeDetailError({ retry }: RecipeDetailErrorProps) {
   return (
     <RetryableStatePage
-      className="public-context-state"
       description="Try again, or browse the recipe collection."
       eyebrow="Something went wrong"
       headingId="recipe-detail-error-title"
-      panelClassName="blocking-error-state"
+      panelClassName="state-panel--wide"
       retry={retry}
       secondaryAction={
         <Link className="button button--secondary" href="/recipes">

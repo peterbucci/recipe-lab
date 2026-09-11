@@ -287,25 +287,6 @@
 .member-library__content > .form-status {
   max-width: none;
 }
-.member-library__content > .empty-state:not(.workspace-empty-state) {
-  background: var(--surface);
-  min-height: 14rem;
-  box-shadow: none;
-  border: 0;
-  border-radius: 0.7rem;
-  align-content: center;
-  place-items: start;
-  padding: clamp(1.4rem, 4vw, 2.25rem);
-  display: grid;
-}
-.member-library__content > .empty-state:not(.workspace-empty-state) h2 {
-  margin: 0 0 0.55rem;
-  font-size: 1.25rem;
-}
-.member-library__content > .empty-state:not(.workspace-empty-state) p:not(.eyebrow) {
-  max-width: 38rem;
-  color: var(--muted);
-}
 .account-workspace-page.member-library .member-library__content > .pagination,
 .account-workspace-page.member-library
   .member-library__collection
@@ -447,55 +428,6 @@
     color: canvastext;
     background: canvas;
     border: 1px solid canvastext;
-  }
-}
-
-/* Shared treatment for blocking errors with a clear retry and safe exit. */
-.blocking-error-state {
-  text-align: center;
-}
-
-.error-state.blocking-error-state,
-.auth-card.blocking-error-state {
-  border-top: 0.2rem solid var(--clay);
-}
-
-.blocking-error-state > .eyebrow,
-.blocking-error-state > h1,
-.blocking-error-state > p {
-  margin-inline: auto;
-}
-
-.blocking-error-state .button-row {
-  justify-content: center;
-}
-
-.auth-card.member-route-gate--shared-anonymous {
-  text-align: center;
-}
-
-.member-route-gate--shared-anonymous > h1,
-.member-route-gate--shared-anonymous > .lede {
-  margin-inline: auto;
-}
-
-.member-route-gate--shared-anonymous > .lede {
-  color: var(--ink);
-}
-
-.member-route-gate--shared-anonymous .auth-card__actions {
-  justify-content: center;
-  display: flex;
-}
-
-.member-route-gate--shared-anonymous .button {
-  width: auto;
-}
-
-@media (forced-colors: active) {
-  .error-state.blocking-error-state,
-  .auth-card.blocking-error-state {
-    border-top-color: canvastext;
   }
 }
 

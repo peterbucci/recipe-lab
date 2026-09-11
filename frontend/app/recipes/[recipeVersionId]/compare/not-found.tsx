@@ -4,7 +4,7 @@ import { StatePage, StatePanel } from "../../../../shared/ui/state-page";
 
 export default function RecipeCompareNotFound() {
   return (
-    <StatePage className="public-context-state">
+    <StatePage>
       <StatePanel
         actions={
           <>
@@ -16,7 +16,7 @@ export default function RecipeCompareNotFound() {
             </Link>
           </>
         }
-        className="empty-state empty-state--large"
+        className="state-panel--wide state-panel--large"
         description="Browse the recipe collection to find something else to cook, or return home."
         eyebrow="Comparison unavailable"
         headingId="recipe-comparison-not-found-title"

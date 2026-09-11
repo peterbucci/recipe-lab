@@ -5,10 +5,7 @@ import { StaffWorkspaceAccess } from "../../../_components/staff-workspace-acces
 
 export function RecipeModerationRoute() {
   return (
-    <StaffWorkspaceAccess
-      capability="moderate_recipe_reports"
-      variant="moderation"
-    >
+    <StaffWorkspaceAccess capability="moderate_recipe_reports">
       {(onAuthorizationLost) => (
         <RecipeModerationWorkspace onAuthorizationLost={onAuthorizationLost} />
       )}

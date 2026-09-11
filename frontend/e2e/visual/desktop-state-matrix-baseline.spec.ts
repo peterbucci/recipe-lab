@@ -141,6 +141,24 @@ test.describe("desktop visual state matrix", () => {
     await captureBaseline(page, "catalog-empty");
   });
 
+  test("catalog page out of range", async ({ page }) => {
+    await page.goto("/recipes?page=2");
+    await expect(
+      page.getByRole("heading", {
+        name: "That page is beyond the results.",
+        level: 2,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Return to the first page" }),
+    ).toHaveAttribute("href", "/recipes?sort=newest");
+    await expect(
+      page.getByRole("navigation", { name: "Recipe pages" }),
+    ).toHaveCount(0);
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "catalog-page-out-of-range");
+  });
+
   test("recipe detail normal", async ({ page }) => {
     await page.goto(`/recipes/${VARIANT_RECIPE_ID}`);
     await expect(

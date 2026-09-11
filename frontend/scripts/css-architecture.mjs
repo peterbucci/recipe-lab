@@ -18,6 +18,8 @@ export const RESERVED_SELECTOR_OWNERS = Object.freeze({
   "mobile-nav": "app/styles/shell/site-shell-auth.css",
   "account-menu": "app/styles/shell/site-shell-auth.css",
   "app-shell": "app/styles/base.css",
+  "state-page": "app/styles/primitives.css",
+  "state-panel": "app/styles/primitives.css",
   "workspace-empty-state": "app/styles/primitives.css",
   "workspace-panel-header": "app/styles/primitives.css",
 });

@@ -6,6 +6,7 @@ import { useAuthSession } from "../../../features/auth/auth-session-provider";
 import { AuthGateLoading } from "../../../shared/ui/loading-ui";
 import { GuardedLink } from "../../../shared/navigation/navigation-blocker-provider";
 import { RetryableStatePage } from "../../../shared/ui/retryable-state-page";
+import { StatePage } from "../../../shared/ui/state-page";
 import { WorkspacePanelHeader } from "../../../shared/ui/workspace-panel-header";
 import { WorkspaceEmptyState } from "../../../shared/ui/workspace-empty-state";
 import { WorkspaceTabs } from "../../../shared/ui/workspace-tab-menu";
@@ -157,9 +158,9 @@ export function StaffTools() {
 
   if (state.phase === "loading") {
     return (
-      <main id="main-content" className="state-page staff-tools-page">
+      <StatePage className="staff-tools-page">
         <AuthGateLoading />
-      </main>
+      </StatePage>
     );
   }
 

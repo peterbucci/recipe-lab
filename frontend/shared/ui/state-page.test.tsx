@@ -73,12 +73,12 @@ describe("route state primitives", () => {
     render(
       <RetryableStatePage
         actionsClassName="retry-actions"
-        className="catalog-state-page"
+        className="domain-page"
         description="Try again or leave."
         descriptionClassName="retry-description"
         eyebrow="Something went wrong"
         headingId="catalog-error-title"
-        panelClassName="catalog-state-panel"
+        panelClassName="domain-panel"
         retry={retry}
         secondaryAction={<Link href="/">Return home</Link>}
         title="We couldn’t load the recipes."
@@ -86,11 +86,7 @@ describe("route state primitives", () => {
     );
 
     const alert = screen.getByRole("alert");
-    expect(alert).toHaveClass(
-      "state-panel",
-      "error-state",
-      "catalog-state-panel",
-    );
+    expect(alert).toHaveClass("state-panel", "domain-panel");
     expect(within(alert).getByText("Try again or leave.")).toHaveClass(
       "retry-description",
     );

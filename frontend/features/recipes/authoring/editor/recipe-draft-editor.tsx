@@ -1023,7 +1023,7 @@ export function RecipeDraftEditor(props: RecipeDraftEditorProps) {
   return (
     <MemberRouteGate
       cardClassName="recipe-authoring-state__panel"
-      pageClassName="recipe-authoring-state recipe-authoring-state--gate"
+      pageClassName="recipe-authoring-state"
       returnTo={returnTo}
     >
       <RecipeDraftEditorInner {...props} />

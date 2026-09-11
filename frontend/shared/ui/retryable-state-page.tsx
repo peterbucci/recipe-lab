@@ -48,7 +48,7 @@ export function RetryableStatePage({
         }
         actionsClassName={actionsClassName}
         alert
-        className={["error-state", panelClassName].filter(Boolean).join(" ")}
+        className={panelClassName}
         description={description}
         descriptionClassName={descriptionClassName}
         eyebrow={eyebrow}

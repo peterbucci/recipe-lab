@@ -20,20 +20,29 @@ must not replace an otherwise usable route with a full-page error state.
 
 Direct staff workspaces use a concealed presentation when the current account
 lacks the required capability. It deliberately shares generic not-found copy,
-but it is ordinary page content rather than an HTTP 404 or an alert. The
-top-level `/staff` page remains explicit: an authenticated account with no staff
-role is told that no staff tools are assigned.
+but authorization is client-gated, so the route document remains HTTP 200
+rather than becoming a server 404. Protected staff APIs remain the authorization
+boundary and reject cross-role reads with a generic 403 and no private payload.
+The top-level `/staff` page remains explicit: an authenticated account with no
+staff role is told that no staff tools are assigned.
 
 ## Primitive ownership
 
 - `StatePage` and `StatePanel` own the accessible structure of blocking route
   states. They are server-compatible and know nothing about domains, reasons,
   permissions, or messages.
+- `app/styles/primitives.css` owns the base `.state-page*` and `.state-panel*`
+  selector families, including the `state-panel--wide` and
+  `state-panel--large` size modifiers. Feature styles may contextualize a
+  shared panel but must not recreate those families; the CSS architecture
+  check enforces that boundary. Composing `StatePanel` with `.auth-card` is an
+  intentional exception that retains the authentication surface.
 - `RetryableStatePage` is the small client boundary for a blocking failure. It
   owns the retry button mechanics and composes the server-compatible route
   primitives. It does not receive or render raw errors.
 - `WorkspaceErrorState` presents section-scoped request failures.
-- `WorkspaceEmptyState` presents ordinary empty or unavailable section content.
+- `WorkspaceEmptyState` presents ordinary empty or terminal section content. It
+  must not represent a retryable request failure.
 - `PaginationOutOfRange` composes `WorkspaceEmptyState` for a collection page
   that no longer exists. The caller owns the collection-specific copy and the
   valid page-one destination or action.
@@ -54,3 +63,16 @@ Copy follows the domain rather than the primitive:
 - Reserve “unavailable” for resources or content. Authentication and
   out-of-range states should say what the user needs to do or which collection
   page was requested instead of using “Page unavailable.”
+
+## Testing contract
+
+- Primitive tests own heading linkage, alert opt-in, action structure, and the
+  shared class hooks.
+- Route and feature tests own meaningful behavior: retry callbacks, safe exit
+  destinations, sign-in return locations, disclosure boundaries, valid
+  pagination destinations, and the absence of raw error details. They do not
+  snapshot a shared primitive's class tree.
+- Browser tests own the client-gated staff document HTTP 200 and protected API
+  403 split.
+- Visual baselines cover representative semantic states rather than duplicating
+  every route-specific instance of the same presentation.

@@ -41,15 +41,7 @@ describe("IngredientRequestReviewRoute", () => {
       </AuthSessionProvider>,
     );
 
-    expect(screen.getByRole("main")).toHaveClass(
-      "staff-state-page",
-      "staff-state-page--curation",
-      "staff-state-page--concealed",
-    );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "We couldn’t find that page." }).closest("section"),
-    ).toHaveClass("staff-state-panel");
     expect(
       screen.getByRole("heading", { name: "We couldn’t find that page." }),
     ).toBeVisible();
