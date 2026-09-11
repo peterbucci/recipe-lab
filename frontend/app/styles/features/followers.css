@@ -1,0 +1,303 @@
+@layer features {
+
+.member-followers-page {
+  background:
+    radial-gradient(circle at 50% 0%, #fff 0, #ffffff00 34rem),
+    var(--paper);
+  min-height: 44rem;
+  padding: 2.35rem clamp(1rem, 3vw, 2rem) 4rem;
+}
+.member-followers-page__inner {
+  width: min(100%, 62.5rem);
+  margin: 0 auto;
+}
+.member-followers-page__back {
+  color: var(--text-subtle);
+  width: fit-content;
+  gap: 0.35rem;
+  margin: 0 0 1.25rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  align-items: center;
+  display: inline-flex;
+}
+.member-followers-page__back:hover {
+  color: var(--leaf-dark);
+}
+.member-followers-page__back svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+.member-followers-page__hero {
+  justify-content: space-between;
+  align-items: end;
+  gap: 1.5rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+}
+.member-followers-page__hero .eyebrow {
+  margin-bottom: 0.35rem;
+}
+.member-followers-page__hero h1 {
+  letter-spacing: -0.045em;
+  margin: 0;
+  font-size: clamp(2.25rem, 5vw, 3rem);
+  font-weight: 790;
+  line-height: 1;
+}
+.member-followers-page__lede {
+  max-width: 41rem;
+  color: var(--muted);
+  margin: 0.55rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+.member-followers-page__activity {
+  flex: none;
+  gap: 0.45rem;
+}
+.member-followers-page__activity svg {
+  width: 1rem;
+  height: 1rem;
+}
+.member-followers-page__shell {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+.member-followers-page__privacy {
+  border: 1px solid #d7cdf3;
+  border-radius: var(--radius-sm);
+  background: #faf8ff;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 0.75rem;
+  margin: 1rem 1rem 0;
+  padding: 0.85rem 0.95rem;
+  display: grid;
+}
+.member-followers-page__privacy-icon {
+  border-radius: 0.55rem;
+  background: var(--leaf-soft);
+  color: var(--leaf-dark);
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+}
+.member-followers-page__privacy-icon svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+.member-followers-page__privacy strong {
+  margin-bottom: 0.12rem;
+  font-size: 0.79rem;
+  display: block;
+}
+.member-followers-page__privacy p {
+  color: var(--text-subtle);
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+.member-followers-page__list-section {
+  padding: 1.25rem;
+}
+.member-followers-page__list-heading {
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  min-height: 2.5rem;
+  margin-bottom: 0.85rem;
+  display: flex;
+}
+.member-followers-page__list-heading h2 {
+  letter-spacing: -0.025em;
+  margin: 0;
+  font-size: 1.02rem;
+}
+.member-followers-page__count {
+  border-radius: 999px;
+  background: var(--leaf-soft);
+  color: var(--leaf-dark);
+  place-items: center;
+  min-width: 1.8rem;
+  min-height: 1.65rem;
+  padding: 0 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  display: inline-grid;
+}
+.member-followers-page__list {
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+}
+.member-followers-page__card {
+  border: 1px solid var(--line-subtle);
+  border-radius: 0.7rem;
+  background: var(--surface-soft);
+  grid-template-columns: 2.9rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 0.85rem 0.9rem;
+  transition:
+    border-color 0.13s,
+    background-color 0.13s,
+    box-shadow 0.13s;
+  display: grid;
+}
+.member-followers-page__card:hover {
+  border-color: #d9d1ef;
+  background: #fdfcff;
+  box-shadow: 0 2px 12px #2018430a;
+}
+.member-followers-page__avatar {
+  border-radius: 50%;
+  background: var(--leaf-soft);
+  color: var(--leaf-dark);
+  box-shadow: inset 0 0 0 1px #ded4f7;
+  place-items: center;
+  width: 2.9rem;
+  height: 2.9rem;
+  font-size: 0.88rem;
+  font-weight: 820;
+  display: grid;
+}
+.member-followers-page__copy {
+  min-width: 0;
+}
+.member-followers-page__identity {
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+  display: flex;
+}
+.member-followers-page__identity strong {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  overflow: hidden;
+}
+.member-followers-page__handle,
+.member-followers-page__unavailable {
+  color: var(--text-subtle);
+  font-size: 0.75rem;
+}
+.member-followers-page__meta {
+  color: var(--text-subtle);
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.18rem;
+  font-size: 0.73rem;
+  display: flex;
+}
+.member-followers-page__meta svg {
+  flex: none;
+  width: 0.83rem;
+  height: 0.83rem;
+}
+.member-followers-page__card .button {
+  min-width: 7.1rem;
+}
+.member-followers-page__list-footer {
+  border-top: 1px solid var(--line-subtle);
+  color: var(--text-subtle);
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  font-size: 0.72rem;
+  display: flex;
+}
+.member-followers-page__pagination {
+  margin: 0 auto 0 0;
+}
+.member-followers-page__state {
+  color: var(--muted);
+  text-align: center;
+  place-content: center;
+  justify-items: center;
+  gap: 0.75rem;
+  min-height: 10rem;
+  margin: 0;
+  display: grid;
+}
+.member-followers-page__state p {
+  margin: 0;
+}
+
+@media (max-width: 60rem) {
+  .member-followers-page {
+    padding-top: 1.65rem;
+  }
+}
+
+@media (max-width: 43.75rem) {
+  .member-followers-page {
+    padding: 1rem 0.75rem 2.5rem;
+  }
+  .member-followers-page__hero {
+    flex-direction: column;
+    align-items: start;
+  }
+  .member-followers-page__activity {
+    width: 100%;
+  }
+  .member-followers-page__shell {
+    border-inline: 0;
+    border-radius: 0;
+    margin-inline: -0.75rem;
+  }
+  .member-followers-page__privacy {
+    margin-inline: 0.75rem;
+  }
+  .member-followers-page__list-section {
+    padding: 1rem 0.75rem;
+  }
+  .member-followers-page__card {
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+    align-items: start;
+  }
+  .member-followers-page__avatar {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+  .member-followers-page__card .button,
+  .member-followers-page__unavailable {
+    grid-column: 2;
+    justify-self: start;
+    margin-top: 0.25rem;
+  }
+  .member-followers-page__list-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .member-followers-page__pagination {
+    width: 100%;
+    margin: 0;
+  }
+  .member-followers-page__list-footer > span {
+    align-self: flex-end;
+  }
+}
+
+@media (forced-colors: active) {
+  .member-followers-page__shell,
+  .member-followers-page__privacy,
+  .member-followers-page__card,
+  .member-followers-page__avatar,
+  .member-followers-page__count {
+    border-color: canvastext;
+    background: canvas;
+    color: canvastext;
+  }
+}
+
+}

@@ -144,6 +144,10 @@ EXPORT_POLICY = PackagingPolicy(
             "58e3b1fe02f52f2334fb0940b1698d8f51c5f666",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/account-followers-normal.png",
+            "f9da814056ddabaeb9d5a20bc2e606bd22d86652",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/account-settings-danger-intermediate-normal.png",
             "4ab1129014b096d0a91ce9212f7659c1faf7d08c",
         ),
@@ -350,6 +354,10 @@ EXPORT_POLICY = PackagingPolicy(
         (
             "frontend/baselines/baseline-phone-chromium/account-activity-requests-filtered.png",
             "0c8a8ca278830a3ce2e52052c5eddf7afc858e32",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/account-followers-normal.png",
+            "0dada03f279797dfb2d420ffb91cc4820a2a5261",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/account-settings-danger-normal.png",

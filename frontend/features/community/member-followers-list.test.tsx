@@ -77,16 +77,53 @@ describe("MemberFollowersList", () => {
     authenticated();
 
     const list = await screen.findByRole("list", { name: "Your followers" });
+    expect(screen.getByRole("link", { name: "Back home" })).toHaveAttribute(
+      "href",
+      "/",
+    );
+    expect(
+      screen.getByRole("link", { name: "Community activity" }),
+    ).toHaveAttribute("href", "/account/community-activity");
+    expect(screen.getByText("Only you can see this list")).toBeVisible();
+    expect(
+      screen.getByText(
+        "Public cook pages show your follower total, but never reveal who follows you.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Your followers" }),
+    ).toBeVisible();
     expect(within(list).getByText("Alice Cook")).toBeVisible();
     expect(within(list).getByText("@alice-cook")).toBeVisible();
     expect(within(list).getByText("Followed you 2 hours ago")).toBeVisible();
     expect(
       within(list).getByRole("link", { name: "View Alice Cook’s profile" }),
     ).toHaveAttribute("href", "/cooks/alice-cook");
-    expect(screen.getByText("1 follower", { exact: true })).toBeVisible();
+    expect(screen.getByLabelText("1 follower")).toHaveTextContent("1");
+    expect(screen.getByText("Showing 1 of 1 follower")).toBeVisible();
     expect(mocks.fetchMyFollowers).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, pageSize: 20 }),
     );
+  });
+
+  it("does not invent a public profile link when a follower has no handle", async () => {
+    mocks.fetchMyFollowers.mockResolvedValue(
+      followersPage({
+        items: [
+          {
+            follower: { ...ALICE, handle: null },
+            followed_at: "2026-08-30T14:30:00Z",
+          },
+        ],
+      }),
+    );
+    authenticated();
+
+    const list = await screen.findByRole("list", { name: "Your followers" });
+    expect(within(list).getByText("Profile unavailable")).toBeVisible();
+    expect(
+      within(list).queryByRole("link", { name: "View Alice Cook’s profile" }),
+    ).not.toBeInTheDocument();
   });
 
 
@@ -130,6 +167,7 @@ describe("MemberFollowersList", () => {
     const pagination = await screen.findByRole("navigation", {
       name: "Follower pages",
     });
+    expect(screen.getByText("Showing 1 of 21 followers")).toBeVisible();
     expect(within(pagination).getByText("Page 1 of 2")).toBeVisible();
     fireEvent.click(within(pagination).getByRole("button", { name: "Next →" }));
 
@@ -138,6 +176,7 @@ describe("MemberFollowersList", () => {
         expect.objectContaining({ page: 2, pageSize: 20 }),
       );
       expect(screen.getByText("Page 2 of 2")).toBeVisible();
+      expect(screen.getByText("Showing 21 of 21 followers")).toBeVisible();
     });
   });
 

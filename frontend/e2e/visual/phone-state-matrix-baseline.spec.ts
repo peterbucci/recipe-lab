@@ -69,6 +69,18 @@ test.describe("phone visual state matrix", () => {
     await captureBaseline(page, "account-activity-requests-filtered");
   });
 
+  test("account followers normal", async ({ page }) => {
+    await setScenario("followers-normal");
+    await page.goto("/account/followers");
+    await expect(
+      page.getByRole("heading", { name: "Followers", level: 1 }),
+    ).toBeVisible();
+    await expect(page.getByRole("list", { name: "Your followers" })).toBeVisible();
+    await expect(page.getByText("Damon", { exact: true })).toBeVisible();
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "account-followers-normal");
+  });
+
   test("account settings normal", async ({ page }) => {
     await setScenario("normal");
     await page.goto("/account/settings");

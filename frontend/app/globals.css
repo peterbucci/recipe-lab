@@ -23,6 +23,7 @@
 @import "./styles/features/staff-workspace.css";
 @import "./styles/features/home.css";
 @import "./styles/features/member-dashboard.css";
+@import "./styles/features/followers.css";
 @import "./styles/features/catalog.css";
 @import "./styles/features/recipe-detail.css";
 @import "./styles/features/recipe-authoring.css";

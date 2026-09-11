@@ -111,6 +111,7 @@ image is produced from the same sanitized fixture contract.
 | Settings, Profile, intermediate     | `account-settings-profile-intermediate-normal` | —                  |
 | Settings, Danger zone               | `account-settings-danger-normal`      | `account-settings-danger-normal` |
 | Settings, Danger zone, intermediate | `account-settings-danger-intermediate-normal` | —                   |
+| Followers, normal                  | `account-followers-normal`             | `account-followers-normal` |
 | My Recipes, private drafts          | `my-recipes-normal`                   | `my-recipes-normal`        |
 | My Recipes, intermediate width      | `my-recipes-intermediate-normal`      | —                          |
 | New recipe entry                    | `authoring-entry-desktop-normal`      | —                          |
