@@ -189,7 +189,9 @@ test("requires sign-in for save, rate, recorded-view, and fork actions", async (
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Sign in", exact: true }),
+    page
+      .getByRole("region", { name: "Sign in to continue." })
+      .getByRole("link", { name: "Sign in", exact: true }),
   ).toHaveAttribute(
     "href",
     `/sign-in?return_to=%2Frecipes%2F${recipeVersionId}%2Ffork`,
