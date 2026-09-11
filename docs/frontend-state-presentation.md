@@ -9,7 +9,7 @@ primitives provide consistent structure and interaction mechanics.
 
 | Axis | Choices | Decision |
 | --- | --- | --- |
-| Reason | Missing or concealed, load failure, authentication required, account-check failure, account setup required, no permission, out of range | State what happened without guessing at a cause. Missing and concealed resources may intentionally share copy when disclosure would reveal access or ownership. |
+| Reason | Missing, load failure, authentication required, account-check failure, account setup required, no permission, out of range | State what happened without guessing at a cause. Missing resources and concealed permission failures may intentionally share copy when disclosure would reveal access or ownership. |
 | Scope | Route, section, inline | A blocking route state uses `StatePage` and `StatePanel`. A failed section uses `WorkspaceErrorState`; an ordinary empty section uses `WorkspaceEmptyState`. Small field or control feedback remains domain-owned and inline. |
 | Disclosure | Explicit, concealed | Be explicit when the information is safe and useful. Use the generic not-found presentation when confirming that a protected resource or capability exists would disclose private information. |
 | Recovery | Retry, navigate, none | Offer retry only when the operation can reasonably succeed on another attempt. Otherwise provide a valid destination or the next required action. |
