@@ -39,11 +39,7 @@ describe("recipe authoring route states", () => {
       const retry = vi.fn();
       render(<ErrorState error={new Error("safe failure")} retry={retry} />);
 
-      expect(screen.getByRole("main")).toHaveClass("recipe-authoring-state--error");
-      expect(screen.getByRole("alert")).toHaveClass(
-        "recipe-authoring-state__panel",
-        "blocking-error-state",
-      );
+      expect(screen.getByRole("alert")).toBeVisible();
       expect(screen.getByText("Something went wrong")).toBeVisible();
       fireEvent.click(screen.getByRole("button", { name: "Try again" }));
       expect(retry).toHaveBeenCalledOnce();
@@ -60,19 +56,17 @@ describe("recipe authoring route states", () => {
     (NotFoundState) => {
       render(<NotFoundState />);
 
-      expect(screen.getByRole("main")).toHaveClass(
-        "recipe-authoring-state",
-        "recipe-authoring-state--unavailable",
-      );
       expect(
-        screen
-          .getByRole("heading", { name: "We couldn’t open that draft." })
-          .closest("section"),
-      ).toHaveClass("recipe-authoring-state__panel");
+        screen.getByRole("heading", { name: "We couldn’t open that draft." }),
+      ).toBeVisible();
       expect(screen.getByText(/choose a draft you can edit/i)).toBeVisible();
       expect(screen.queryByText(/belong|owner|account/i)).toBeNull();
       expect(screen.queryByRole("alert")).toBeNull();
       expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+      expect(screen.getByRole("link", { name: "My recipes" })).toHaveAttribute(
+        "href",
+        "/account/recipes?view=drafts",
+      );
     },
   );
 });

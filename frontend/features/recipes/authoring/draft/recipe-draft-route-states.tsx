@@ -27,11 +27,11 @@ export function RecipeDraftRouteError({
 }: RecipeDraftRouteErrorProps) {
   return (
     <RetryableStatePage
-      className="recipe-authoring-state recipe-authoring-state--error"
+      className="recipe-authoring-state"
       description="Try again, or return to My recipes."
       eyebrow="Something went wrong"
       headingId="recipe-draft-route-error-title"
-      panelClassName="recipe-authoring-state__panel blocking-error-state"
+      panelClassName="recipe-authoring-state__panel"
       retry={retry}
       secondaryAction={myRecipesAction("button button--secondary")}
       title="We couldn’t prepare the draft editor."
@@ -48,7 +48,7 @@ export function RecipeDraftLookupError({
       description="Try again, or return to My recipes."
       eyebrow="Something went wrong"
       headingId="recipe-draft-lookup-error-title"
-      panelClassName="draft-editor-page__error blocking-error-state"
+      panelClassName="draft-editor-page__error"
       retry={retry}
       secondaryAction={myRecipesAction("button button--secondary")}
       title="We couldn’t load this draft."
@@ -58,10 +58,10 @@ export function RecipeDraftLookupError({
 
 export function RecipeDraftUnavailableState() {
   return (
-    <StatePage className="recipe-authoring-state recipe-authoring-state--unavailable">
+    <StatePage className="recipe-authoring-state">
       <StatePanel
         actions={myRecipesAction("button button--primary")}
-        className="empty-state empty-state--large recipe-authoring-state__panel"
+        className="state-panel--large recipe-authoring-state__panel"
         description="Return to My recipes to choose a draft you can edit."
         eyebrow="Private draft unavailable"
         headingId="recipe-draft-unavailable-title"

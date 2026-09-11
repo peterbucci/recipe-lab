@@ -27,17 +27,12 @@ describe("StaffWorkspaceAccess", () => {
       <AuthSessionProvider>
         <StaffWorkspaceAccess
           capability="review_ingredient_requests"
-          variant="curation"
         >
           {() => <p>Private review tools</p>}
         </StaffWorkspaceAccess>
       </AuthSessionProvider>,
     );
 
-    expect(screen.getByRole("main")).toHaveClass(
-      "staff-state-page--curation",
-      "staff-state-page--loading",
-    );
     expect(screen.getByRole("status")).toHaveTextContent("Checking your account…");
     expect(screen.queryByText("Private review tools")).not.toBeInTheDocument();
   });
@@ -47,20 +42,19 @@ describe("StaffWorkspaceAccess", () => {
       <AuthSessionProvider initialSession={staffSession(false)}>
         <StaffWorkspaceAccess
           capability="review_ingredient_requests"
-          variant="curation"
         >
           {() => <p>Private review tools</p>}
         </StaffWorkspaceAccess>
       </AuthSessionProvider>,
     );
 
-    expect(screen.getByRole("main")).toHaveClass(
-      "staff-state-page--curation",
-      "staff-state-page--concealed",
-    );
     expect(screen.getByRole("heading", { name: "We couldn’t find that page." })).toBeVisible();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByText("Private review tools")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Browse recipes" })).toHaveAttribute(
+      "href",
+      "/recipes",
+    );
   });
 
   it("retries an account-check failure before presenting concealed access", async () => {
@@ -74,7 +68,6 @@ describe("StaffWorkspaceAccess", () => {
       <AuthSessionProvider>
         <StaffWorkspaceAccess
           capability="review_ingredient_requests"
-          variant="curation"
         >
           {() => <p>Private review tools</p>}
         </StaffWorkspaceAccess>
@@ -82,7 +75,7 @@ describe("StaffWorkspaceAccess", () => {
     );
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveClass("state-panel", "error-state", "staff-state-panel");
+    expect(alert).toBeVisible();
     expect(
       screen.getByRole("heading", { name: "We couldn’t check your account." }),
     ).toBeVisible();
@@ -110,7 +103,6 @@ describe("StaffWorkspaceAccess", () => {
       <AuthSessionProvider initialSession={staffSession(true)}>
         <StaffWorkspaceAccess
           capability="review_ingredient_requests"
-          variant="curation"
         >
           {(onAuthorizationLost) => (
             <button type="button" onClick={onAuthorizationLost}>

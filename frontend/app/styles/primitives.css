@@ -91,6 +91,61 @@ h3 {
   cursor: not-allowed;
   opacity: 0.68;
 }
+.state-page {
+  place-items: center;
+  width: min(76rem, 100% - 2rem);
+  min-height: 70vh;
+  margin: 0 auto;
+  padding: clamp(3rem, 7vw, 5.5rem) 0;
+  display: grid;
+}
+.state-panel {
+  text-align: center;
+}
+.state-panel:not(.auth-card) {
+  border: 1px solid var(--line);
+  border-top: 0.2rem solid var(--leaf);
+  border-radius: var(--radius);
+  background: var(--surface);
+  width: min(100%, 44rem);
+  min-height: 18rem;
+  box-shadow: var(--shadow-panel-subtle);
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  display: flex;
+}
+.state-panel.state-panel--wide {
+  width: min(100%, 48rem);
+  min-height: 22rem;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+}
+.state-panel.state-panel--large {
+  min-height: 28rem;
+}
+.state-panel[role="alert"] {
+  border-top: 0.2rem solid var(--clay);
+}
+.state-panel > .eyebrow,
+.state-panel > h1,
+.state-panel > p {
+  margin-inline: auto;
+}
+.state-panel:not(.auth-card) > h1 {
+  max-width: 42rem;
+  margin-bottom: 0.85rem;
+  font-size: clamp(2.2rem, 5vw, 3.75rem);
+}
+.state-panel:not(.auth-card) > p:not(.eyebrow) {
+  max-width: 35rem;
+  color: var(--muted);
+  margin-bottom: 1.35rem;
+  line-height: 1.6;
+}
+.state-panel__actions {
+  justify-content: center;
+}
 .workspace-empty-state {
   border: 0;
   border-radius: 0.7rem;
@@ -165,6 +220,9 @@ h3 {
   line-height: 1.35;
 }
 @media (max-width: 43.75rem) {
+  .state-panel:not(.auth-card) {
+    padding: 1rem;
+  }
   .workspace-empty-state {
     min-height: 12rem;
     padding: 1.25rem;
@@ -184,6 +242,10 @@ h3 {
   }
 }
 @media (forced-colors: active) {
+  .state-panel:not(.auth-card) {
+    background: canvas;
+    border-color: canvastext;
+  }
   .workspace-empty-state {
     border: 1px solid canvastext;
     background: canvas;

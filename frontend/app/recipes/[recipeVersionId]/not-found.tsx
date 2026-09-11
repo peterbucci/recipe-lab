@@ -4,14 +4,14 @@ import { StatePage, StatePanel } from "../../../shared/ui/state-page";
 
 export default function RecipeNotFound() {
   return (
-    <StatePage className="public-context-state">
+    <StatePage>
       <StatePanel
         actions={
           <Link className="button button--primary" href="/recipes">
             Browse recipes
           </Link>
         }
-        className="empty-state empty-state--large"
+        className="state-panel--wide state-panel--large"
         description="Browse the public collection to find another recipe."
         eyebrow="Recipe unavailable"
         headingId="recipe-not-found-title"

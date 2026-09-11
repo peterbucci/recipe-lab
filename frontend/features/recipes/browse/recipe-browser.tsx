@@ -230,7 +230,7 @@ export function RecipeBrowser({
                   Return to the first page
                 </Link>
               }
-              className="catalog-results__empty catalog-results__empty--stale"
+              className="catalog-results__empty"
               description={`The collection currently has ${data.total_pages} pages of recipes.`}
               headingId="catalog-results-out-of-range"
               title="That page is beyond the results."

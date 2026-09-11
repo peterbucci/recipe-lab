@@ -758,7 +758,7 @@ export async function exerciseStaffMatrixCase(
     auditBefore.route_counts[route.apiRouteLabel] ?? 0;
   const authorizationDeniedCountBefore =
     auditBefore.route_counts[route.authorizationDeniedApiRouteLabel] ?? 0;
-  await page.goto(route.path, {
+  const documentResponse = await page.goto(route.path, {
     waitUntil:
       matrixCase.id === "curator-loading" ? "domcontentloaded" : "load",
   });
@@ -810,6 +810,7 @@ export async function exerciseStaffMatrixCase(
       return;
     case "curator-cannot-open-moderation":
     case "moderator-cannot-open-curation": {
+      expect(documentResponse?.status()).toBe(200);
       await expect(
         page.getByRole("heading", {
           name: "We couldn’t find that page.",

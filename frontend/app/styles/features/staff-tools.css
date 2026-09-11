@@ -6,7 +6,6 @@
   margin-inline: auto;
   padding-block: 1.875rem 4.5rem;
 }
-.staff-tools-page.state-page,
 .staff-tools-page.auth-page {
   place-items: center;
   display: grid;

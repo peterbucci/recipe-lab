@@ -92,6 +92,7 @@ image is produced from the same sanitized fixture contract.
 | Catalog, normal                     | `catalog-normal`                      | `catalog-normal`           |
 | Catalog, intermediate width         | `catalog-intermediate-normal`         | —                          |
 | Catalog, empty                      | `catalog-empty`                       | —                          |
+| Catalog, page out of range          | `catalog-page-out-of-range`           | —                          |
 | Recipe detail, normal               | `recipe-detail-normal`                | `recipe-detail-normal`     |
 | Recipe detail, intermediate width   | `recipe-detail-intermediate-normal`   | —                          |
 | Recipe instructions                 | `recipe-instructions-normal`          | `recipe-instructions-normal` |

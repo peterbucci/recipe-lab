@@ -12,7 +12,7 @@ interface RecipeCompareErrorProps {
 export default function RecipeCompareError({ retry }: RecipeCompareErrorProps) {
   return (
     <RetryableStatePage
-      className="public-context-state"
+      panelClassName="state-panel--wide"
       description="Try again, or browse the recipe collection."
       eyebrow="Something went wrong"
       headingId="recipe-comparison-error-title"

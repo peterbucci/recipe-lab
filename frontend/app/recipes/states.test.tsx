@@ -59,6 +59,10 @@ describe("recipe route states", () => {
       "Try again, or return to the home page.",
     );
     expect(screen.queryByText(/temporarily unavailable/i)).toBeNull();
+    expect(screen.getByRole("link", { name: "Return home" })).toHaveAttribute(
+      "href",
+      "/",
+    );
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(retry).toHaveBeenCalledOnce();
     expect(screen.queryByText(/upstream detail/i)).not.toBeInTheDocument();
@@ -74,7 +78,6 @@ describe("recipe route states", () => {
     );
 
     const alert = screen.getByRole("alert");
-    expect(alert).toHaveClass("blocking-error-state");
     expect(alert).toHaveTextContent("Something went wrong");
     expect(alert).toHaveTextContent(/couldn’t load this recipe/i);
     expect(alert).toHaveTextContent(
@@ -155,19 +158,10 @@ describe("recipe route states", () => {
   it("gives a missing page a plain-language route back to recipes", () => {
     render(<RootNotFound />);
 
-    expect(screen.getByRole("main")).toHaveClass(
-      "system-state-page",
-      "system-state-page--not-found",
-    );
     expect(
       screen.getByRole("heading", { name: "We couldn’t find that page." }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Page not found")).not.toBeInTheDocument();
-    expect(
-      screen
-        .getByRole("heading", { name: "We couldn’t find that page." })
-        .closest(".system-state-panel"),
-    ).not.toBeNull();
     expect(
       screen.getByText(
         "Browse the recipe collection to find something to cook.",

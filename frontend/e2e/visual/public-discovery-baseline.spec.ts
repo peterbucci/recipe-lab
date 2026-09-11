@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 import {
   REVIEWED_SHELL_VIEWPORTS,
@@ -18,6 +18,17 @@ import {
 } from "./visual-baseline-support";
 
 registerVisualBaselineHooks();
+
+async function expectGridColumnCount(grid: Locator, expected: number) {
+  await expect
+    .poll(() =>
+      grid.evaluate(
+        (element) =>
+          getComputedStyle(element).gridTemplateColumns.split(" ").length,
+      ),
+    )
+    .toBe(expected);
+}
 
 test("recipe discovery reflows without hiding results at reviewed widths", async ({
   page,
@@ -51,10 +62,7 @@ test("recipe discovery reflows without hiding results at reviewed widths", async
         await expect(cards.nth(index)).toBeVisible();
       }
 
-      const columns = await results.evaluate(
-        (grid) => getComputedStyle(grid).gridTemplateColumns.split(" ").length,
-      );
-      expect(columns).toBe(expectedColumns[viewport.label]);
+      await expectGridColumnCount(results, expectedColumns[viewport.label]);
       await expect(results.getByText(/^original$/i).first()).toBeVisible();
       await expect(results.getByText(/^version \d+$/i)).toHaveCount(0);
       await expectNoHorizontalOverflow(page);
@@ -336,18 +344,14 @@ test("public recipe context reflows at reviewed widths", async ({
       ).toBeVisible();
       await expect(detailHero).toHaveCount(1);
       await expect(readingPanels).toHaveCount(1);
-      expect(
-        await detailHero.evaluate(
-          (grid) =>
-            getComputedStyle(grid).gridTemplateColumns.split(" ").length,
-        ),
-      ).toBe(expectedColumns[viewport.label].hero);
-      expect(
-        await readingPanels.evaluate(
-          (grid) =>
-            getComputedStyle(grid).gridTemplateColumns.split(" ").length,
-        ),
-      ).toBe(expectedColumns[viewport.label].reading);
+      await expectGridColumnCount(
+        detailHero,
+        expectedColumns[viewport.label].hero,
+      );
+      await expectGridColumnCount(
+        readingPanels,
+        expectedColumns[viewport.label].reading,
+      );
       await expectNoHorizontalOverflow(page);
       await expectNoAccessibilityViolations(page);
 
@@ -361,18 +365,14 @@ test("public recipe context reflows at reviewed widths", async ({
       await expect(highlights).toBeVisible();
       await expect(highlights).toHaveCount(1);
       await expect(versions).toHaveCount(1);
-      expect(
-        await highlights.evaluate(
-          (grid) =>
-            getComputedStyle(grid).gridTemplateColumns.split(" ").length,
-        ),
-      ).toBe(expectedColumns[viewport.label].highlights);
-      expect(
-        await versions.evaluate(
-          (grid) =>
-            getComputedStyle(grid).gridTemplateColumns.split(" ").length,
-        ),
-      ).toBe(expectedColumns[viewport.label].versions);
+      await expectGridColumnCount(
+        highlights,
+        expectedColumns[viewport.label].highlights,
+      );
+      await expectGridColumnCount(
+        versions,
+        expectedColumns[viewport.label].versions,
+      );
       await expectNoHorizontalOverflow(page);
       await expectNoAccessibilityViolations(page);
 
@@ -382,12 +382,10 @@ test("public recipe context reflows at reviewed widths", async ({
       });
       await expect(cookRecipes).toBeVisible();
       await expect(cookRecipes).toHaveCount(1);
-      expect(
-        await cookRecipes.evaluate(
-          (grid) =>
-            getComputedStyle(grid).gridTemplateColumns.split(" ").length,
-        ),
-      ).toBe(expectedColumns[viewport.label].cook);
+      await expectGridColumnCount(
+        cookRecipes,
+        expectedColumns[viewport.label].cook,
+      );
       await expectNoHorizontalOverflow(page);
       await expectNoAccessibilityViolations(page);
 
@@ -397,12 +395,7 @@ test("public recipe context reflows at reviewed widths", async ({
         page.getByRole("heading", { name: "Community rules", level: 1 }),
       ).toBeVisible();
       await expect(rules).toHaveCount(1);
-      expect(
-        await rules.evaluate(
-          (grid) =>
-            getComputedStyle(grid).gridTemplateColumns.split(" ").length,
-        ),
-      ).toBe(expectedColumns[viewport.label].rules);
+      await expectGridColumnCount(rules, expectedColumns[viewport.label].rules);
       await expectNoHorizontalOverflow(page);
       await expectNoAccessibilityViolations(page);
     });

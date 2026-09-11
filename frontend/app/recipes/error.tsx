@@ -12,11 +12,10 @@ interface RecipeErrorProps {
 export default function RecipeError({ retry }: RecipeErrorProps) {
   return (
     <RetryableStatePage
-      className="catalog-state-page"
       description="Try again, or return to the home page."
       eyebrow="Something went wrong"
       headingId="catalog-error-title"
-      panelClassName="catalog-state-panel"
+      panelClassName="state-panel--wide"
       retry={retry}
       secondaryAction={
         <Link className="button button--secondary" href="/">

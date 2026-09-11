@@ -30,7 +30,7 @@ interface RecipeComparePageProps {
 
 function NoParentComparison({ recipeVersionId }: { recipeVersionId: string }) {
   return (
-    <StatePage className="public-context-state">
+    <StatePage>
       <StatePanel
         actions={
           <Link
@@ -40,7 +40,7 @@ function NoParentComparison({ recipeVersionId }: { recipeVersionId: string }) {
             Back to recipe
           </Link>
         }
-        className="empty-state empty-state--large"
+        className="state-panel--wide state-panel--large"
         description="This recipe wasn’t based on another recipe, so there are no earlier changes to show."
         eyebrow="Starting recipe"
         headingId="recipe-comparison-no-parent-title"

@@ -8,9 +8,7 @@
 }
 .account-access-card,
 .account-deleted-card,
-.account-workspace-page > .auth-card,
-.account-workspace-page.state-page > .loading-state,
-.account-workspace-page.state-page > .error-state {
+.account-workspace-page > .auth-card {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -173,9 +171,7 @@
 }
 .account-settings-panel,
 .member-library__collection,
-.member-request-history--standalone,
-.account-workspace-page > .empty-state,
-.account-workspace-page > .error-state {
+.member-request-history--standalone {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -248,13 +244,6 @@
   margin-top: 0.75rem;
   padding: 0.65rem;
 }
-.account-workspace-page > .empty-state,
-.account-workspace-page > .error-state {
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  min-height: 18rem;
-  padding: 1.5rem;
-}
 .member-request-history--standalone {
   margin-top: 0;
   padding: 1rem;
@@ -266,22 +255,6 @@
   border-radius: var(--radius-sm);
   box-shadow: none;
   padding: 0.8rem;
-}
-.account-workspace-page.state-page {
-  min-height: 65vh;
-  box-shadow: none;
-  background: 0 0;
-  border: 0;
-  border-radius: 0;
-  place-items: center;
-  margin: 0 auto;
-  display: grid;
-}
-.account-workspace-page.state-page > .loading-state,
-.account-workspace-page.state-page > .error-state {
-  width: min(100%, 44rem);
-  min-height: 18rem;
-  padding: 1.5rem;
 }
 @media (max-width: 75rem) {
   .member-library__collection .recipe-grid,
@@ -374,11 +347,7 @@
   .account-settings-panel,
   .account-workspace-page .member-library__privacy,
   .member-library__collection,
-  .member-request-history--standalone,
-  .account-workspace-page > .empty-state,
-  .account-workspace-page > .error-state,
-  .account-workspace-page.state-page > .loading-state,
-  .account-workspace-page.state-page > .error-state {
+  .member-request-history--standalone {
     background: canvas;
     border-color: canvastext;
   }

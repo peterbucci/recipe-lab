@@ -64,7 +64,7 @@ export function MemberRouteGate({
         descriptionClassName="lede"
         eyebrow="Something went wrong"
         headingId="member-route-title"
-        panelClassName={`${statePanelClassName} blocking-error-state`}
+        panelClassName={statePanelClassName}
         retry={() => void refreshSession()}
         secondaryAction={
           <GuardedLink className="button button--secondary" href="/recipes">

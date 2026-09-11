@@ -164,6 +164,9 @@ describe("cook profile and private recipe libraries", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Try again, or browse the recipe collection.",
     );
+    expect(
+      screen.getByRole("link", { name: "Browse recipes" }),
+    ).toHaveAttribute("href", "/recipes");
     expect(screen.queryByText(/temporarily unavailable/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(retry).toHaveBeenCalledOnce();
