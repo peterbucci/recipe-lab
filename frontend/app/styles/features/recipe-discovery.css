@@ -230,8 +230,7 @@
   font-size: 0.82rem;
   font-weight: 650;
 }
-.empty-state:where(:not(.workspace-empty-state)),
-.error-state {
+.empty-state:where(:not(.workspace-empty-state)) {
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   text-align: center;
@@ -242,8 +241,7 @@
   padding: 2.5rem 1rem;
   display: flex;
 }
-.empty-state:where(:not(.workspace-empty-state)) h1,
-.error-state h1 {
+.empty-state:where(:not(.workspace-empty-state)) h1 {
   max-width: 42rem;
   margin-bottom: 0.85rem;
   font-size: clamp(2.2rem, 5vw, 3.75rem);
@@ -252,8 +250,7 @@
   margin-bottom: 0.45rem;
   font-size: 1.25rem;
 }
-.empty-state:where(:not(.workspace-empty-state)) p,
-.error-state > p:not(.eyebrow) {
+.empty-state:where(:not(.workspace-empty-state)) p {
   max-width: 35rem;
   color: var(--muted);
   margin-bottom: 1.35rem;
@@ -261,12 +258,6 @@
 }
 .empty-state--large {
   min-height: 28rem;
-}
-.state-page {
-  width: min(76rem, 100% - 2rem);
-  min-height: 70vh;
-  margin: 0 auto;
-  padding: clamp(3rem, 7vw, 5.5rem) 0;
 }
 @media (max-width: 43.75rem) {
   .page-shell {

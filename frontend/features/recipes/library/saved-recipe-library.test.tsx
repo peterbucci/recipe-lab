@@ -646,6 +646,11 @@ describe("cook profile and private recipe libraries", () => {
     expect(
       screen.queryByText("You have no saved recipes yet."),
     ).not.toBeInTheDocument();
+    expect(screen.getByText("Page out of range")).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("navigation", { name: "Saved recipe pages" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Return to the first page" }),
     ).toHaveAttribute("href", "/account/recipes?view=saved");

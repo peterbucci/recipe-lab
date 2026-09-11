@@ -13,7 +13,7 @@ import {
 import { useAuthSession } from "../../../auth/auth-session-provider";
 import { LoadingButton } from "../../../../shared/ui/loading-ui";
 import { MemberRouteGate } from "../../../auth/member-route-gate";
-import { RecipeDraftLoadingView } from "../editor/recipe-draft-editor";
+import { RecipeDraftLoadingView } from "./recipe-draft-route-states";
 
 interface RecipeDraftStarterProps {
   sourceVersionId: string | null;
@@ -74,7 +74,6 @@ function AuthenticatedRecipeDraftStarter({
   if (phase === "loading") {
     return (
       <RecipeDraftLoadingView
-        draftId={sourceVersionId ?? `new-recipe:${actorId}`}
         status={
           sourceVersionId === null
             ? "Preparing a private workspace for your new recipe."
@@ -141,10 +140,8 @@ export function RecipeDraftStarter({
   return (
     <MemberRouteGate
       cardClassName="draft-starter recipe-authoring-entry__card"
-      eyebrow="Private recipe workspace"
       pageClassName={`recipe-authoring-entry recipe-authoring-entry--${entryKind}`}
       returnTo={returnTo}
-      title="Private drafts"
     >
       {actorId ? (
         <AuthenticatedRecipeDraftStarter

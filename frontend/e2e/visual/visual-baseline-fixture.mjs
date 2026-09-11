@@ -1126,13 +1126,15 @@ function requestHasPrivateMaterial(request) {
   );
 }
 
-function apiPage(items, pageSize = 12) {
+function apiPage(items, pageSize = 12, page = 1) {
+  const totalPages = items.length ? Math.ceil(items.length / pageSize) : 0;
+  const pageStart = (page - 1) * pageSize;
   return {
-    items,
-    page: 1,
+    items: items.slice(pageStart, pageStart + pageSize),
+    page,
     page_size: pageSize,
     total: items.length,
-    total_pages: items.length ? 1 : 0,
+    total_pages: totalPages,
   };
 }
 
@@ -1202,7 +1204,11 @@ async function handleApi(request, response, url) {
       url.searchParams.get("page_size") ?? "12",
       10,
     );
-    sendJson(response, 200, apiPage(items, requestedPageSize));
+    const requestedPage = Number.parseInt(
+      url.searchParams.get("page") ?? "1",
+      10,
+    );
+    sendJson(response, 200, apiPage(items, requestedPageSize, requestedPage));
     return;
   }
 

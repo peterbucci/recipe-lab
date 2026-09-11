@@ -5,11 +5,7 @@ import { StaffWorkspaceAccess } from "../../../_components/staff-workspace-acces
 
 export function IngredientRequestReviewRoute() {
   return (
-    <StaffWorkspaceAccess
-      capability="review_ingredient_requests"
-      loadingLabel="Checking review access…"
-      variant="curation"
-    >
+    <StaffWorkspaceAccess capability="review_ingredient_requests">
       {(onAuthorizationLost) => (
         <IngredientRequestReviewWorkspace
           onAuthorizationLost={onAuthorizationLost}

@@ -184,12 +184,14 @@ test("requires sign-in for save, rate, recorded-view, and fork actions", async (
   await page.goto(`/recipes/${recipeVersionId}/fork`);
   await expect(
     page.getByRole("heading", {
-      name: "Page Unavailable",
+      name: "Sign in to continue.",
       level: 1,
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Sign In", exact: true }),
+    page
+      .getByRole("region", { name: "Sign in to continue." })
+      .getByRole("link", { name: "Sign in", exact: true }),
   ).toHaveAttribute(
     "href",
     `/sign-in?return_to=%2Frecipes%2F${recipeVersionId}%2Ffork`,
@@ -232,7 +234,7 @@ test("requires account setup before exposing member recipe actions", async ({
   await page.goto(`/recipes/${recipeVersionId}/fork`);
   await expect(
     page.getByRole("heading", {
-      name: "Finish setting up your account",
+      name: "Finish setting up your account.",
       level: 1,
     }),
   ).toBeVisible();

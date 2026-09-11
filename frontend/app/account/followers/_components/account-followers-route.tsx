@@ -14,11 +14,7 @@ export function AccountFollowersRoute() {
       : null;
 
   return (
-    <MemberRouteGate
-      eyebrow="Your community"
-      returnTo={RETURN_TO}
-      title="Followers"
-    >
+    <MemberRouteGate returnTo={RETURN_TO}>
       {userId ? <MemberFollowersList key={userId} userId={userId} /> : null}
     </MemberRouteGate>
   );

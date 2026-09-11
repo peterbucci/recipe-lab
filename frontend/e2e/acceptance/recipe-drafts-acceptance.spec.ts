@@ -170,6 +170,31 @@ test.describe("private recipe draft acceptance", () => {
       error: { code: "recipe_draft_not_found" },
     });
 
+    const nonexistentDraftId = "99999999-9999-4999-8999-999999999999";
+    await page.goto(`/recipes/drafts/${draftId}`);
+    const foreignHeading = page.getByRole("heading", {
+      name: "We couldn’t open that draft.",
+    });
+    await expect(foreignHeading).toBeVisible();
+    const foreignPanel = foreignHeading.locator("xpath=ancestor::section[1]");
+    const concealedCopy = await foreignPanel.innerText();
+    await expect(
+      foreignPanel.getByRole("button", { name: "Try again" }),
+    ).toHaveCount(0);
+    await expect(foreignPanel).not.toContainText(draftId!);
+
+    await page.goto(`/recipes/drafts/${nonexistentDraftId}`);
+    const missingHeading = page.getByRole("heading", {
+      name: "We couldn’t open that draft.",
+    });
+    await expect(missingHeading).toBeVisible();
+    const missingPanel = missingHeading.locator("xpath=ancestor::section[1]");
+    expect(await missingPanel.innerText()).toBe(concealedCopy);
+    await expect(
+      missingPanel.getByRole("button", { name: "Try again" }),
+    ).toHaveCount(0);
+    await expect(missingPanel).not.toContainText(nonexistentDraftId);
+
     await useAcceptanceMember(page, "alice");
     await page.goto(`/recipes/drafts/${draftId}`);
     await page.setViewportSize({ width: 390, height: 844 });

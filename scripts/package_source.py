@@ -180,6 +180,10 @@ EXPORT_POLICY = PackagingPolicy(
             "7c054d10ea026f2e1dc01fbd93607cd9f7915464",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/catalog-page-out-of-range.png",
+            "c243f189da77e6892db75bed8d4dc0f92c285ce2",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/community-rules-normal.png",
             "a89148d154d4b0ffbdd55f640d0745207fa74f79",
         ),
@@ -225,7 +229,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-similarity-publication-review.png",
-            "0eb9817328d9453ba1073b86e37734ce2a87de3f",
+            "7df474b9856e39f9ba34e67a80caff7c5bd8d530",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/home-account-navigation.png",
@@ -289,7 +293,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-error.png",
-            "63b20f2280db505395285faf53914e00c0469a88",
+            "4938d6f7b89efb4806546d02381791b12ad04804",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-history.png",
@@ -305,7 +309,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-unavailable.png",
-            "d42c81a5657dfb4f503b39a9b2442df238a8a1f6",
+            "39314bddc3f0a94aa85a1887897033d74dcd02a6",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-instructions-normal.png",
@@ -401,7 +405,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/global-not-found.png",
-            "619208dabfdfef86161cd5227ad9468fc2641240",
+            "71c9275f51a66bbe138a5fb7528d8513cb9f11ae",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/home-account-navigation.png",
@@ -445,11 +449,11 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/staff-tools-moderator-selected.png",
-            "8c6de385e0dacbef2941d4fd4afe8b6a4a358a29",
+            "28e64c6e744e525475dd601ec5ed5cd306c4ae70",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/staff-tools-normal.png",
-            "7c8c365fe39345e03e464ffccadf4044e074c85f",
+            "32b4773a767daa981eb0bbd09495baadf9e470d5",
         ),
     ),
 )

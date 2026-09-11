@@ -92,6 +92,7 @@ image is produced from the same sanitized fixture contract.
 | Catalog, normal                     | `catalog-normal`                      | `catalog-normal`           |
 | Catalog, intermediate width         | `catalog-intermediate-normal`         | —                          |
 | Catalog, empty                      | `catalog-empty`                       | —                          |
+| Catalog, page out of range          | `catalog-page-out-of-range`           | —                          |
 | Recipe detail, normal               | `recipe-detail-normal`                | `recipe-detail-normal`     |
 | Recipe detail, intermediate width   | `recipe-detail-intermediate-normal`   | —                          |
 | Recipe instructions                 | `recipe-instructions-normal`          | `recipe-instructions-normal` |
@@ -198,8 +199,8 @@ combination.
 
 | Synthetic session | Authorized route | Only staff capability | Representative states swept at every width | Cross-role denial |
 | --- | --- | --- | --- | --- |
-| Curator | `/catalog/ingredient-requests` | `review_ingredient_requests` | normal, account-permission loading, empty queue, and stale decision followed by current-state load and retry | `/moderation/recipes` renders the ordinary not-found treatment without requesting moderator data |
-| Moderator | `/moderation/recipes` | `moderate_recipe_reports` | normal, queue error followed by retry, and missing case detail | `/catalog/ingredient-requests` renders the ordinary not-found treatment without requesting curator data |
+| Curator | `/catalog/ingredient-requests` | `review_ingredient_requests` | normal, account-check loading, empty queue, and stale decision followed by current-state load and retry | `/moderation/recipes` renders the concealed presentation without requesting moderator data |
+| Moderator | `/moderation/recipes` | `moderate_recipe_reports` | normal, queue error followed by retry, and missing case detail | `/catalog/ingredient-requests` renders the concealed presentation without requesting curator data |
 
 Each stable point in that sweep receives the root overflow, automated Axe, and
 visible-private-material checks. The fixture also rejects direct cross-role API

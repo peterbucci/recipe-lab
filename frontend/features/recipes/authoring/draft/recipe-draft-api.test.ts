@@ -5,6 +5,7 @@ import {
   browseRecipeDrafts,
   createRecipeDraft,
   discardRecipeDraft,
+  fetchRecipeDraft,
   findActiveRecipeDraftForSource,
   parseRecipeDraftDetail,
   parseRecipeDraftPage,
@@ -394,6 +395,41 @@ describe("private recipe draft API", () => {
     });
     expect(expired).toHaveBeenCalledOnce();
     window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expired);
+  });
+
+  it("sanitizes backend detail when a draft lookup returns 404", async () => {
+    const internalId = "99999999-9999-4999-8999-999999999999";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json(
+          {
+            error: {
+              code: "recipe_draft_not_found",
+              message: `Recipe draft ${internalId} belongs to another actor.`,
+              issues: [],
+            },
+          },
+          { status: 404 },
+        ),
+      ),
+    );
+
+    const failure = await fetchRecipeDraft(DRAFT_ID).catch(
+      (reason: unknown) => reason,
+    );
+
+    expect(failure).toMatchObject({
+      code: "recipe_draft_not_found",
+      message: "This private draft is no longer available.",
+      status: 404,
+    });
+    expect(`${String(failure)} ${JSON.stringify(failure)}`).not.toContain(
+      internalId,
+    );
+    expect(`${String(failure)} ${JSON.stringify(failure)}`).not.toMatch(
+      /actor|belong/i,
+    );
   });
 
   it("keeps save and discard failures free of backend messages and identifiers", async () => {

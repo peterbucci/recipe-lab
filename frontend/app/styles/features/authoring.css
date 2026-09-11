@@ -12,13 +12,13 @@
 .draft-editor-page--loading,
 .draft-editor-page--error {
   min-height: calc(100dvh - var(--header-height) - 4rem);
+}
+.recipe-authoring-entry,
+.draft-editor-page--loading {
   place-items: center;
   display: grid;
 }
 .recipe-authoring-entry__card,
-.recipe-authoring-state__panel,
-.draft-editor-page__loading,
-.draft-editor-page__error,
 .draft-editor-page__intro,
 .draft-editor__surface,
 .draft-editor__error-summary,
@@ -28,9 +28,11 @@
   background: var(--surface);
   box-shadow: var(--shadow-panel-subtle);
 }
+.recipe-authoring-entry__card {
+  border-top: 0.2rem solid var(--leaf);
+}
 .recipe-authoring-entry__card,
 .recipe-authoring-state__panel {
-  border-top: 0.2rem solid var(--leaf);
   width: min(100%, 42rem);
   padding: clamp(1.35rem, 4vw, 2rem);
 }
@@ -51,15 +53,12 @@
   margin-top: 1rem;
   padding-top: 0.9rem;
 }
-.recipe-authoring-entry--error .recipe-authoring-entry__card,
-.recipe-authoring-state--error .recipe-authoring-state__panel,
-.draft-editor-page__error {
+.recipe-authoring-entry--error .recipe-authoring-entry__card {
   border-top-color: var(--clay);
 }
 .draft-editor-page--ready {
   display: block;
 }
-.draft-editor-page__loading,
 .draft-editor-page__error {
   width: min(100%, 44rem);
   min-height: 18rem;
@@ -301,7 +300,6 @@
   }
   .recipe-authoring-entry__card,
   .recipe-authoring-state__panel,
-  .draft-editor-page__loading,
   .draft-editor-page__error,
   .draft-editor-page__intro,
   .draft-editor__surface,
@@ -356,9 +354,6 @@
 }
 @media (forced-colors: active) {
   .recipe-authoring-entry__card,
-  .recipe-authoring-state__panel,
-  .draft-editor-page__loading,
-  .draft-editor-page__error,
   .draft-editor-page__intro,
   .draft-editor__surface,
   .draft-editor__row-card,

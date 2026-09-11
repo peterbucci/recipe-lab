@@ -11,10 +11,8 @@ export const metadata: Metadata = {
 export default function MyIngredientRequestsPage() {
   return (
     <MemberRouteGate
-      eyebrow="Ingredient requests"
       pageClassName="account-workspace-page account-ingredient-requests-page"
       returnTo="/account/ingredient-requests"
-      title="Ingredient Requests"
     >
       <MyIngredientRequestsWorkspace />
     </MemberRouteGate>

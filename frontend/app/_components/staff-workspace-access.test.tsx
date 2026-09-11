@@ -27,19 +27,13 @@ describe("StaffWorkspaceAccess", () => {
       <AuthSessionProvider>
         <StaffWorkspaceAccess
           capability="review_ingredient_requests"
-          loadingLabel="Checking review access…"
-          variant="curation"
         >
           {() => <p>Private review tools</p>}
         </StaffWorkspaceAccess>
       </AuthSessionProvider>,
     );
 
-    expect(screen.getByRole("main")).toHaveClass(
-      "staff-state-page--curation",
-      "staff-state-page--loading",
-    );
-    expect(screen.getByRole("status")).toHaveTextContent("Checking review access…");
+    expect(screen.getByRole("status")).toHaveTextContent("Checking your account…");
     expect(screen.queryByText("Private review tools")).not.toBeInTheDocument();
   });
 
@@ -48,20 +42,52 @@ describe("StaffWorkspaceAccess", () => {
       <AuthSessionProvider initialSession={staffSession(false)}>
         <StaffWorkspaceAccess
           capability="review_ingredient_requests"
-          loadingLabel="Checking review access…"
-          variant="curation"
         >
           {() => <p>Private review tools</p>}
         </StaffWorkspaceAccess>
       </AuthSessionProvider>,
     );
 
-    expect(screen.getByRole("main")).toHaveClass(
-      "staff-state-page--curation",
-      "staff-state-page--authorization",
-    );
     expect(screen.getByRole("heading", { name: "We couldn’t find that page." })).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByText("Private review tools")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Browse recipes" })).toHaveAttribute(
+      "href",
+      "/recipes",
+    );
+  });
+
+  it("retries an account-check failure before presenting concealed access", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(Response.json(staffSession(false)));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <AuthSessionProvider>
+        <StaffWorkspaceAccess
+          capability="review_ingredient_requests"
+        >
+          {() => <p>Private review tools</p>}
+        </StaffWorkspaceAccess>
+      </AuthSessionProvider>,
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "We couldn’t check your account." }),
+    ).toBeVisible();
+    expect(screen.queryByText("Private review tools")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "We couldn’t find that page." }),
+    ).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("rechecks the account and hides protected slots after authorization is lost", async () => {
@@ -77,8 +103,6 @@ describe("StaffWorkspaceAccess", () => {
       <AuthSessionProvider initialSession={staffSession(true)}>
         <StaffWorkspaceAccess
           capability="review_ingredient_requests"
-          loadingLabel="Checking review access…"
-          variant="curation"
         >
           {(onAuthorizationLost) => (
             <button type="button" onClick={onAuthorizationLost}>
@@ -95,6 +119,7 @@ describe("StaffWorkspaceAccess", () => {
     expect(
       await screen.findByRole("heading", { name: "We couldn’t find that page." }),
     ).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Simulate authorization loss" }),
     ).not.toBeInTheDocument();

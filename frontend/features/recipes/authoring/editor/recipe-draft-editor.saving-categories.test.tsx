@@ -438,6 +438,45 @@ describe("RecipeDraftEditor", () => {
     expect(screen.getByRole("button", { name: "Draft saved" })).toBeDisabled();
   });
 
+  it("keeps unsaved work mounted when a confirmed conflict reload returns 404", async () => {
+    mocks.fetchRecipeDraft
+      .mockResolvedValueOnce(detail)
+      .mockRejectedValueOnce(
+        new RecipeDraftApiError(
+          "Private ownership detail",
+          404,
+          "recipe_draft_not_found",
+        ),
+      );
+    mocks.updateRecipeDraft.mockRejectedValue(
+      new RecipeDraftApiError(
+        "The draft has a newer saved revision.",
+        409,
+        "recipe_draft_revision_conflict",
+      ),
+    );
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderEditor();
+
+    const title = await screen.findByLabelText("Title");
+    fireEvent.change(title, { target: { value: "Unsaved soup" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Reload saved version" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.fetchRecipeDraft).toHaveBeenCalledTimes(2),
+    );
+    expect(title).toHaveValue("Unsaved soup");
+    expect(
+      screen.queryByRole("heading", { name: "We couldn’t open that draft." }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("form", { name: "Private recipe draft editor" }),
+    ).toBeVisible();
+  });
+
   it("does not replace edits made while a confirmed reload is pending", async () => {
     const reload = deferred<RecipeDraftDetail>();
     mocks.fetchRecipeDraft

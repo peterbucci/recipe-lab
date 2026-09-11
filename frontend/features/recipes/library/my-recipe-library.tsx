@@ -39,6 +39,7 @@ import { GuardedLink } from "../../../shared/navigation/navigation-blocker-provi
 import { RecipeArtwork } from "../shared/recipe-artwork";
 import { RecipeCardShell } from "../shared/recipe-card-shell";
 import { RecipeVisibilityControl } from "./recipe-visibility-control";
+import { PaginationOutOfRange } from "../../../shared/ui/pagination-out-of-range";
 import { WorkspaceEmptyState } from "../../../shared/ui/workspace-empty-state";
 import { WorkspacePagination } from "../../../shared/ui/workspace-pagination";
 import { WorkspacePanelHeader } from "../../../shared/ui/workspace-panel-header";
@@ -408,15 +409,16 @@ export function MyRecipeLibrary({ pageNumber, view }: MyRecipeLibraryProps) {
           ) : null}
 
           {!loading && beyondLastPage && page ? (
-            <WorkspaceEmptyState
-              action={<GuardedLink
-                className="button button--secondary"
-                href={myRecipesHref(view)}
-              >
-                Return to the first page
-              </GuardedLink>}
+            <PaginationOutOfRange
+              action={
+                <GuardedLink
+                  className="button button--secondary"
+                  href={myRecipesHref(view)}
+                >
+                  Return to the first page
+                </GuardedLink>
+              }
               description={`This view currently has ${page.total_pages} pages.`}
-              eyebrow="Page unavailable"
               headingId={`stale-my-recipes-${view}`}
               title={`That page is beyond your ${copy.resultName}s.`}
             />

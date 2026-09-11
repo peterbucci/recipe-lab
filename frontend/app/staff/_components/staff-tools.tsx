@@ -5,6 +5,8 @@ import { useState } from "react";
 import { useAuthSession } from "../../../features/auth/auth-session-provider";
 import { AuthGateLoading } from "../../../shared/ui/loading-ui";
 import { GuardedLink } from "../../../shared/navigation/navigation-blocker-provider";
+import { RetryableStatePage } from "../../../shared/ui/retryable-state-page";
+import { StatePage } from "../../../shared/ui/state-page";
 import { WorkspacePanelHeader } from "../../../shared/ui/workspace-panel-header";
 import { WorkspaceEmptyState } from "../../../shared/ui/workspace-empty-state";
 import { WorkspaceTabs } from "../../../shared/ui/workspace-tab-menu";
@@ -156,33 +158,27 @@ export function StaffTools() {
 
   if (state.phase === "loading") {
     return (
-      <main id="main-content" className="state-page staff-tools-page">
-        <AuthGateLoading label="Checking staff access…" />
-      </main>
+      <StatePage className="staff-tools-page">
+        <AuthGateLoading />
+      </StatePage>
     );
   }
 
   if (state.phase === "error") {
     return (
-      <main id="main-content" className="state-page staff-tools-page">
-        <div className="error-state" role="alert">
-          <p className="eyebrow">Staff tools unavailable</p>
-          <h1>We couldn’t check your access.</h1>
-          <p>Try the account check again before opening a staff workspace.</p>
-          <div className="button-row">
-            <button
-              className="button button--primary"
-              type="button"
-              onClick={() => void refreshSession()}
-            >
-              Try again
-            </button>
-            <GuardedLink className="button button--secondary" href="/recipes">
-              Browse recipes
-            </GuardedLink>
-          </div>
-        </div>
-      </main>
+      <RetryableStatePage
+        className="staff-tools-page"
+        description="Try checking your account again before opening a staff workspace."
+        eyebrow="Something went wrong"
+        headingId="staff-account-error-title"
+        retry={() => void refreshSession()}
+        secondaryAction={
+          <GuardedLink className="button button--secondary" href="/recipes">
+            Browse recipes
+          </GuardedLink>
+        }
+        title="We couldn’t check your account."
+      />
     );
   }
 

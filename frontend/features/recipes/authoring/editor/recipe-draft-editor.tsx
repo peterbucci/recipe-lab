@@ -59,7 +59,6 @@ import {
   LoadingButton,
   SectionLoading,
 } from "../../../../shared/ui/loading-ui";
-import { PageLoadingSkeleton } from "../../../../shared/ui/page-loading-skeleton";
 import {
   GuardedLink,
   useNavigationBlocker,
@@ -77,6 +76,11 @@ import { RecipeDraftNotesSection } from "./recipe-draft-notes-section";
 import { RecipeDraftPublication } from "../publication/recipe-draft-publication";
 import { RecipeFamilyNavigator } from "../../shared/recipe-family-navigator";
 import { RatingSummary } from "../../shared/rating-summary";
+import {
+  RecipeDraftLoadingView,
+  RecipeDraftLookupError,
+  RecipeDraftUnavailableState,
+} from "../draft/recipe-draft-route-states";
 
 interface RecipeDraftEditorProps {
   actionTypes: readonly CatalogActionType[];
@@ -97,30 +101,6 @@ interface EditorRequest {
 
 function authorInitial(displayName: string): string {
   return displayName.trim().charAt(0).toLocaleUpperCase() || "Y";
-}
-
-export function RecipeDraftLoadingView({
-  status = "Loading your private draft…",
-}: {
-  draftId: string;
-  status?: string;
-}) {
-  return (
-    <PageLoadingSkeleton
-      className="page-shell page-shell--detail recipe-reading-page draft-editor-page draft-editor-page--loading recipe-workspace-page"
-      exitHref="/account/recipes?view=drafts"
-      exitLabel="My recipes"
-      label={status}
-      variant="authoring"
-    />
-  );
-}
-
-function draftLoadErrorMessage(reason: unknown): string {
-  if (reason instanceof RecipeDraftApiError && reason.status === 404) {
-    return "This private draft was not found. It may have been discarded, or it may belong to another account.";
-  }
-  return "Recipe Lab could not open this private draft. Please try again.";
 }
 
 function draftFailureKind(reason: unknown): DraftFailureKind {
@@ -161,6 +141,7 @@ function initialEditorDomainState(detail: RecipeDraftDetail | undefined) {
 }
 
 type DraftLoadResult = "failed" | "loaded" | "skipped-newer-work";
+type DraftLookupFailure = "retryable" | "unavailable" | null;
 
 function RecipeDraftEditorInner({
   actionTypes,
@@ -185,7 +166,7 @@ function RecipeDraftEditorInner({
     initialRecipeDraftPublicationState,
   );
   const [loading, setLoading] = useState(initialDetail === undefined);
-  const [loadError, setLoadError] = useState("");
+  const [loadFailure, setLoadFailure] = useState<DraftLookupFailure>(null);
   const [announcement, setAnnouncement] = useState("");
   const [finishOpen, setFinishOpen] = useState(false);
   const [loadedRecipeFamily, setLoadedRecipeFamily] =
@@ -241,7 +222,7 @@ function RecipeDraftEditorInner({
       if (signal?.aborted) return "failed";
       const requestToken = ++loadRequestToken.current;
       setLoading(true);
-      setLoadError("");
+      setLoadFailure(null);
       try {
         const loaded = await fetchRecipeDraft(draftId, signal);
         const state = hydrateRecipeDraft(loaded);
@@ -261,7 +242,11 @@ function RecipeDraftEditorInner({
         if (signal?.aborted || isAbortError(reason))
           return "failed";
         if (requestToken === loadRequestToken.current) {
-          setLoadError(draftLoadErrorMessage(reason));
+          setLoadFailure(
+            reason instanceof RecipeDraftApiError && reason.status === 404
+              ? "unavailable"
+              : "retryable",
+          );
         }
         return "failed";
       } finally {
@@ -555,7 +540,7 @@ function RecipeDraftEditorInner({
   }
 
   if (loading && !draft) {
-    return <RecipeDraftLoadingView draftId={draftId} />;
+    return <RecipeDraftLoadingView />;
   }
 
   function finishEditingForNow() {
@@ -572,35 +557,10 @@ function RecipeDraftEditorInner({
   }
 
   if (!draft || !detail) {
-    return (
-      <main
-        id="main-content"
-        className="state-page draft-editor-page draft-editor-page--error"
-      >
-        <section
-          className="error-state draft-editor-page__error blocking-error-state"
-          role="alert"
-        >
-          <p className="eyebrow">Something went wrong</p>
-          <h1>We couldn’t open this draft.</h1>
-          <p>{loadError || "This private draft is unavailable."}</p>
-          <div className="button-row">
-            <button
-              className="button button--primary"
-              type="button"
-              onClick={() => void load()}
-            >
-              Try again
-            </button>
-            <GuardedLink
-              className="button button--secondary"
-              href="/account/recipes?view=drafts"
-            >
-              My recipes
-            </GuardedLink>
-          </div>
-        </section>
-      </main>
+    return loadFailure === "unavailable" ? (
+      <RecipeDraftUnavailableState />
+    ) : (
+      <RecipeDraftLookupError retry={() => void load()} />
     );
   }
 
@@ -1063,10 +1023,8 @@ export function RecipeDraftEditor(props: RecipeDraftEditorProps) {
   return (
     <MemberRouteGate
       cardClassName="recipe-authoring-state__panel"
-      eyebrow="Private recipe workspace"
-      pageClassName="recipe-authoring-state recipe-authoring-state--gate"
+      pageClassName="recipe-authoring-state"
       returnTo={returnTo}
-      title="Recipe draft editor"
     >
       <RecipeDraftEditorInner {...props} />
     </MemberRouteGate>
