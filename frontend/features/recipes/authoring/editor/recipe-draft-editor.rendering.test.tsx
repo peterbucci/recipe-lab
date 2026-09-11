@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { NavigationBlockerProvider } from "../../../../shared/navigation/navigation-blocker-provider";
@@ -9,9 +9,10 @@ import {
   getRecipeDraftEditorMocks,
   publicSourceRecipe,
   renderEditor,
+  RecipeDraftApiError,
   resetRecipeDraftEditorMocks,
 } from "./recipe-draft-editor-test-support";
-import { RecipeDraftLoadingView } from "./recipe-draft-editor";
+import { RecipeDraftLoadingView } from "../draft/recipe-draft-route-states";
 
 const mocks = getRecipeDraftEditorMocks();
 afterEach(cleanupRecipeDraftEditorMocks);
@@ -55,7 +56,7 @@ describe("RecipeDraftEditor", () => {
   it("reuses the route-shaped authoring skeleton while a private draft loads", () => {
     const { container } = render(
       <NavigationBlockerProvider>
-        <RecipeDraftLoadingView draftId={DRAFT_ID} />
+        <RecipeDraftLoadingView />
       </NavigationBlockerProvider>,
     );
 
@@ -81,6 +82,56 @@ describe("RecipeDraftEditor", () => {
 
     view.unmount();
     expect(signal?.aborted).toBe(true);
+  });
+
+  it.each([
+    "Draft not found for a private identifier.",
+    "Draft belongs to a different account.",
+  ])("conceals a terminal draft lookup regardless of upstream detail", async (detailMessage) => {
+    mocks.fetchRecipeDraft.mockRejectedValueOnce(
+      new RecipeDraftApiError(
+        detailMessage,
+        404,
+        "recipe_draft_not_found",
+      ),
+    );
+
+    renderEditor();
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "We couldn’t open that draft.",
+      }),
+    ).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(screen.queryByText(detailMessage)).toBeNull();
+    expect(screen.queryByText(DRAFT_ID)).toBeNull();
+    expect(screen.getByRole("link", { name: "My recipes" })).toHaveAttribute(
+      "href",
+      "/account/recipes?view=drafts",
+    );
+  });
+
+  it("retries a transient draft lookup and opens the recovered editor", async () => {
+    mocks.fetchRecipeDraft
+      .mockRejectedValueOnce(
+        new RecipeDraftApiError("Private upstream detail", 503),
+      )
+      .mockResolvedValueOnce(detail);
+
+    renderEditor();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("We couldn’t load this draft.");
+    expect(alert).not.toHaveTextContent("Private upstream detail");
+    fireEvent.click(within(alert).getByRole("button", { name: "Try again" }));
+
+    expect(
+      await screen.findByRole("form", { name: "Private recipe draft editor" }),
+    ).toBeVisible();
+    expect(mocks.fetchRecipeDraft).toHaveBeenCalledTimes(2);
   });
 
   it("shows zero public saves for a private draft", () => {
