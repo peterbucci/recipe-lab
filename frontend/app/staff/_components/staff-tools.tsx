@@ -50,8 +50,6 @@ function AuthorizedStaffTools({
           ariaLabel="Staff tool categories"
           items={availableRoles.map((role) => ({
             className: "staff-tools__role-tab",
-            count: 1,
-            countClassName: "staff-tools__role-count",
             id: `staff-${role}-tab`,
             label: role === "curator" ? "Curator tools" : "Moderator tools",
             panelId: `staff-${role}-panel`,

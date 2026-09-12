@@ -121,7 +121,7 @@ describe("MemberIngredientRequestHistory", () => {
       "member-request-history--standalone",
       "workspace-panel-shell",
     );
-    const statusTabs = within(region).getByRole("navigation", {
+    const statusTabs = within(region).getByRole("group", {
       name: "Ingredient request status",
     });
     expect(within(statusTabs).getByRole("button", { name: "All" })).toHaveAttribute(

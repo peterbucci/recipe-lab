@@ -130,9 +130,9 @@ export function MemberIngredientRequestHistory({
         }}
       >
         <WorkspaceTabItems
-          as="nav"
           className="member-request-history__status-tabs"
           aria-label="Ingredient request status"
+          role="group"
         >
           {STANDALONE_STATUS_TABS.map((tab) => (
             <WorkspaceTabButton

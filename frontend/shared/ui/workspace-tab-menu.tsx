@@ -62,18 +62,16 @@ export function WorkspaceTabItems({
 export function WorkspaceTabCount({
   children,
   className,
-  hidden = true,
 }: {
   children: ReactNode;
   className?: string;
-  hidden?: boolean;
 }) {
   return (
     <span
       className={["workspace-tab-menu__count", className]
         .filter(Boolean)
         .join(" ")}
-      aria-hidden={hidden || undefined}
+      aria-hidden="true"
     >
       {children}
     </span>
@@ -85,7 +83,6 @@ interface WorkspaceTabButtonProps
   active: boolean;
   count?: number | null;
   countClassName?: string;
-  countHidden?: boolean;
   selection?: "pressed" | "selected";
 }
 
@@ -99,7 +96,6 @@ export const WorkspaceTabButton = forwardRef<
     className,
     count,
     countClassName,
-    countHidden = true,
     selection = "pressed",
     ...props
   },
@@ -117,7 +113,7 @@ export const WorkspaceTabButton = forwardRef<
     >
       {children}
       {count !== null && count !== undefined ? (
-        <WorkspaceTabCount className={countClassName} hidden={countHidden}>
+        <WorkspaceTabCount className={countClassName}>
           {count}
         </WorkspaceTabCount>
       ) : null}
@@ -129,7 +125,6 @@ export interface WorkspaceTabDefinition<Value extends string> {
   className?: string;
   count?: number | null;
   countClassName?: string;
-  countHidden?: boolean;
   id: string;
   label: ReactNode;
   panelId: string;
@@ -200,7 +195,6 @@ export function WorkspaceTabs<Value extends string>({
           active={value === item.value}
           count={item.count}
           countClassName={item.countClassName}
-          countHidden={item.countHidden}
           selection="selected"
           aria-controls={item.panelId}
           tabIndex={value === item.value ? 0 : -1}
