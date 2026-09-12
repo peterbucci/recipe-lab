@@ -2,14 +2,14 @@ import { render, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import {
-  mixedDiff,
+  comparisonModel,
   sectionNamed,
 } from "./recipe-diff-view-test-support";
 import { RecipeDiffView } from "./recipe-diff-view";
 
 describe("RecipeDiffView", () => {
   it("gives additions, removals, substitutions, amounts, and preparation changes distinct text", () => {
-    render(<RecipeDiffView diff={mixedDiff()} />);
+    render(<RecipeDiffView comparison={comparisonModel()} />);
 
     const ingredients = sectionNamed("Ingredient changes");
 

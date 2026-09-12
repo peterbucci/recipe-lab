@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import {
+  comparisonModel,
   ingredient,
   instruction,
   mixedDiff,
@@ -12,7 +13,7 @@ import { RecipeDiffView } from "./recipe-diff-view";
 
 describe("RecipeDiffView", () => {
   it("distinguishes added, removed, and modified instructions", () => {
-    render(<RecipeDiffView diff={mixedDiff()} />);
+    render(<RecipeDiffView comparison={comparisonModel()} />);
 
     const instructions = sectionNamed("Cooking step changes");
     const changed = within(instructions).getByRole("article", {
@@ -77,7 +78,7 @@ describe("RecipeDiffView", () => {
       ],
     };
 
-    render(<RecipeDiffView diff={diff} />);
+    render(<RecipeDiffView comparison={comparisonModel(diff)} />);
 
     const changed = screen.getByRole("article", { name: "Update step 1" });
     expect(within(changed).getByText("Step title changed")).toBeInTheDocument();
@@ -168,7 +169,7 @@ describe("RecipeDiffView", () => {
       },
     ];
 
-    render(<RecipeDiffView diff={diff} />);
+    render(<RecipeDiffView comparison={comparisonModel(diff)} />);
 
     const changed = screen.getByRole("article", { name: "Update step 1" });
     for (const label of [
