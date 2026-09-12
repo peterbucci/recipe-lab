@@ -219,6 +219,12 @@ h3 {
   font-size: 0.66rem;
   line-height: 1.35;
 }
+:where(.workspace-panel-shell) {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
 @media (max-width: 43.75rem) {
   .state-panel:not(.auth-card) {
     padding: 1rem;
@@ -252,6 +258,11 @@ h3 {
     color: canvastext;
   }
   .workspace-panel-header {
+    border-color: canvastext;
+    background: canvas;
+    color: canvastext;
+  }
+  :where(.workspace-panel-shell) {
     border-color: canvastext;
     background: canvas;
     color: canvastext;

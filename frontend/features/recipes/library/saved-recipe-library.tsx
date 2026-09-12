@@ -259,7 +259,7 @@ export function SavedRecipeLibrary({ pageNumber }: SavedRecipeLibraryProps) {
     >
       <MyRecipesHubHeader />
 
-      <div className="member-library__frame">
+      <div className="member-library__frame workspace-panel-shell">
         <MyRecipesHubNavigation
           activeCount={page && !beyondLastPage ? page.total : null}
           activeView="saved"

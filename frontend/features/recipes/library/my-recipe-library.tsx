@@ -333,7 +333,7 @@ export function MyRecipeLibrary({ pageNumber, view }: MyRecipeLibraryProps) {
     >
       <MyRecipesHubHeader />
 
-      <div className="member-library__frame">
+      <div className="member-library__frame workspace-panel-shell">
         <MyRecipesHubNavigation
           activeCount={page && !beyondLastPage ? page.total : null}
           activeView={view}

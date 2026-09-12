@@ -44,8 +44,6 @@
   height: 1rem;
 }
 .member-request-history--standalone {
-  border-radius: 0.75rem;
-  overflow: hidden;
   margin: 0;
   padding: 0;
   box-shadow: none;

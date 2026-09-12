@@ -67,6 +67,9 @@ describe("AccountSettings", () => {
       screen.getByText("Manage your public profile and account controls."),
     ).toBeVisible();
     const tablist = screen.getByRole("tablist", { name: "Settings categories" });
+    expect(tablist.closest(".account-settings__shell")).toHaveClass(
+      "workspace-panel-shell",
+    );
     const profileTab = within(tablist).getByRole("tab", { name: "Profile" });
     const dangerTab = within(tablist).getByRole("tab", { name: "Danger zone" });
     const profilePanel = screen.getByRole("tabpanel", { name: "Profile" });

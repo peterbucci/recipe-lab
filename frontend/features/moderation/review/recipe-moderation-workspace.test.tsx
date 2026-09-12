@@ -130,8 +130,10 @@ describe("RecipeModerationWorkspace", () => {
       screen.getByRole("heading", { name: "Recipe reports", level: 1 }).closest("header"),
     ).toHaveClass("staff-workspace__header", "moderation-workspace__header");
     expect(screen.queryByText("Moderator workspace")).not.toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Filter moderation cases" })).toHaveClass(
-      "staff-workspace__filters",
+    const filters = screen.getByRole("group", { name: "Filter moderation cases" });
+    expect(filters).toHaveClass("staff-workspace__filters");
+    expect(filters.closest(".staff-workspace__tab-shell")).toHaveClass(
+      "workspace-panel-shell",
     );
     const openHeader = document.querySelector(
       ".staff-workspace--moderation .workspace-panel-header",

@@ -60,10 +60,7 @@
 
 .staff-workspace--curation .staff-workspace__tab-shell,
 .staff-workspace--moderation .staff-workspace__tab-shell {
-  border: 1px solid var(--line);
   border-radius: 0.7rem;
-  background: var(--surface);
-  overflow: hidden;
   margin-bottom: 0.875rem;
 }
 

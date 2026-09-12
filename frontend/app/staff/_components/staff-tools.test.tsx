@@ -90,8 +90,10 @@ describe("StaffTools", () => {
       expect(screen.getByText("Open the staff tools available to your account.")).toBeVisible();
       expect(document.querySelector(".staff-tools__intro .eyebrow")).toBeNull();
       expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).not.toBeInTheDocument();
-      expect(screen.getByRole("tablist", { name: "Staff tool categories" })).toHaveClass(
-        "staff-tools__role-tabs",
+      const tablist = screen.getByRole("tablist", { name: "Staff tool categories" });
+      expect(tablist).toHaveClass("staff-tools__role-tabs");
+      expect(tablist.closest(".staff-tools__shell")).toHaveClass(
+        "workspace-panel-shell",
       );
       const tab = screen.getByRole("tab", { name: tabName });
       expect(tab).toHaveAttribute("aria-selected", "true");

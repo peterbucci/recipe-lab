@@ -49,9 +49,13 @@ describe("IngredientRequestReviewWorkspace", () => {
         .closest("header"),
     ).toHaveClass("staff-workspace__header", "curation-page__intro");
     expect(screen.queryByText("Catalog curation")).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("navigation", { name: "Ingredient request status filters" }),
-    ).toHaveClass("staff-workspace__filters", "curation-filters");
+    const filters = screen.getByRole("navigation", {
+      name: "Ingredient request status filters",
+    });
+    expect(filters).toHaveClass("staff-workspace__filters", "curation-filters");
+    expect(filters.closest(".staff-workspace__tab-shell")).toHaveClass(
+      "workspace-panel-shell",
+    );
     const pendingHeader = document.querySelector(
       ".staff-workspace--curation .workspace-panel-header",
     );

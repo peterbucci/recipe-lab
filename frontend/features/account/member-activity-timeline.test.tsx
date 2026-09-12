@@ -62,6 +62,9 @@ describe("MemberActivityTimeline", () => {
   it("uses the shared row loader while the bounded page resolves", () => {
     mocks.fetchMemberActivity.mockReturnValue(new Promise(() => undefined));
     renderTimeline();
+    expect(screen.getByRole("region", { name: "Account activity" })).toHaveClass(
+      "workspace-panel-shell",
+    );
     expect(screen.getByRole("status")).toHaveTextContent("Loading your activity…");
   });
 
