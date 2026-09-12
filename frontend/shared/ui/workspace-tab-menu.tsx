@@ -5,8 +5,9 @@ import {
   forwardRef,
   type HTMLAttributes,
   type ReactNode,
-  useRef,
 } from "react";
+
+import { useRovingTabs } from "./use-roving-tabs";
 
 type WorkspaceTabMenuElement = "div" | "form" | "nav";
 
@@ -146,33 +147,11 @@ export function WorkspaceTabs<Value extends string>({
   onChange,
   value,
 }: WorkspaceTabsProps<Value>) {
-  const tabRefs = useRef(new Map<Value, HTMLButtonElement>());
-
-  function selectFromKeyboard(
-    event: React.KeyboardEvent<HTMLButtonElement>,
-    currentValue: Value,
-  ) {
-    const currentIndex = items.findIndex((item) => item.value === currentValue);
-    let nextIndex: number | null = null;
-
-    if (event.key === "ArrowRight") {
-      nextIndex = (currentIndex + 1) % items.length;
-    } else if (event.key === "ArrowLeft") {
-      nextIndex = (currentIndex - 1 + items.length) % items.length;
-    } else if (event.key === "Home") {
-      nextIndex = 0;
-    } else if (event.key === "End") {
-      nextIndex = items.length - 1;
-    }
-
-    if (nextIndex === null) return;
-
-    event.preventDefault();
-    const nextItem = items[nextIndex];
-    if (!nextItem) return;
-    onChange(nextItem.value);
-    tabRefs.current.get(nextItem.value)?.focus();
-  }
+  const { getTabProps } = useRovingTabs({
+    onChange,
+    value,
+    values: items.map((item) => item.value),
+  });
 
   return (
     <WorkspaceTabMenu
@@ -181,29 +160,27 @@ export function WorkspaceTabs<Value extends string>({
       role="tablist"
       aria-label={ariaLabel}
     >
-      {items.map((item) => (
-        <WorkspaceTabButton
-          key={item.value}
-          ref={(node) => {
-            if (node) tabRefs.current.set(item.value, node);
-            else tabRefs.current.delete(item.value);
-          }}
-          id={item.id}
-          className={item.className}
-          type="button"
-          role="tab"
-          active={value === item.value}
-          count={item.count}
-          countClassName={item.countClassName}
-          selection="selected"
-          aria-controls={item.panelId}
-          tabIndex={value === item.value ? 0 : -1}
-          onClick={() => onChange(item.value)}
-          onKeyDown={(event) => selectFromKeyboard(event, item.value)}
-        >
-          {item.label}
-        </WorkspaceTabButton>
-      ))}
+      {items.map((item) => {
+        const tabProps = getTabProps(item.value);
+        return (
+          <WorkspaceTabButton
+            {...tabProps}
+            key={item.value}
+            id={item.id}
+            className={item.className}
+            type="button"
+            role="tab"
+            active={tabProps["aria-selected"]}
+            count={item.count}
+            countClassName={item.countClassName}
+            selection="selected"
+            aria-controls={item.panelId}
+            onClick={() => onChange(item.value)}
+          >
+            {item.label}
+          </WorkspaceTabButton>
+        );
+      })}
     </WorkspaceTabMenu>
   );
 }
