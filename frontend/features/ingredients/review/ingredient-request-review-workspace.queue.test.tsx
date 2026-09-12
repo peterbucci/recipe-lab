@@ -49,7 +49,7 @@ describe("IngredientRequestReviewWorkspace", () => {
         .closest("header"),
     ).toHaveClass("staff-workspace__header", "curation-page__intro");
     expect(screen.queryByText("Catalog curation")).not.toBeInTheDocument();
-    const filters = screen.getByRole("navigation", {
+    const filters = screen.getByRole("group", {
       name: "Ingredient request status filters",
     });
     expect(filters).toHaveClass("staff-workspace__filters", "curation-filters");

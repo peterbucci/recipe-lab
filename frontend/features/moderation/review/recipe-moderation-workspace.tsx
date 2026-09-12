@@ -145,7 +145,6 @@ export function RecipeModerationWorkspace({
                   : null
               }
               countClassName="moderation-workspace__tab-count"
-              countHidden={false}
               onClick={() => {
                 setQueueSearch("");
                 changeCaseStatus(filter.value);

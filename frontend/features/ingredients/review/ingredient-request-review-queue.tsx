@@ -36,10 +36,10 @@ export function IngredientRequestStatusFilters({
 }: IngredientRequestStatusFiltersProps) {
   return (
     <WorkspaceTabMenu
-      as="nav"
       className="staff-filter-strip staff-workspace__filters curation-filters"
       aria-label="Ingredient request status filters"
       itemsOnly
+      role="group"
     >
       {STATUS_FILTERS.map((filter) => (
         <WorkspaceTabButton

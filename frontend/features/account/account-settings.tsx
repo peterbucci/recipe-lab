@@ -283,7 +283,6 @@ export function AccountSettings() {
               section === "danger"
                 ? "account-settings__tab account-settings__tab--danger"
                 : "account-settings__tab",
-            count: 1,
             id: `account-settings-${section}-tab`,
             label: section === "profile" ? "Profile" : "Danger zone",
             panelId: `account-settings-${section}-panel`,
