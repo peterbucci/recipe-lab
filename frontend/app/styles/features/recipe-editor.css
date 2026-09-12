@@ -373,10 +373,7 @@
   max-width: 51rem;
 }
 .member-request-history {
-  border: 1px solid var(--line);
-  background: var(--surface);
   box-shadow: var(--shadow-panel-subtle);
-  border-radius: 1rem;
   margin-top: 1.5rem;
   padding: clamp(1rem, 3vw, 1.5rem);
 }

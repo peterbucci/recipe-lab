@@ -61,6 +61,9 @@ describe("cook profile and private recipe libraries", () => {
     authenticated(<MyRecipeLibrary pageNumber={1} view="drafts" />);
 
     const views = screen.getByRole("navigation", { name: "My recipe views" });
+    expect(views.closest(".member-library__frame")).toHaveClass(
+      "workspace-panel-shell",
+    );
     expect(within(views).getByRole("link", { name: "Drafts" })).toHaveAttribute(
       "aria-current",
       "page",

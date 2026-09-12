@@ -39,6 +39,7 @@ describe("CSS architecture", () => {
   .site-header__inner,
   .state-page--compact,
   .state-panel__actions,
+  .workspace-panel-shell,
   .account-menu--compact:hover {
     display: flex;
   }
@@ -54,6 +55,7 @@ describe("CSS architecture", () => {
       'app/styles/features/example.css must not own selector ".site-header__inner"; .site-header belongs to app/styles/shell/site-shell-auth.css.',
       'app/styles/features/example.css must not own selector ".state-page--compact"; .state-page belongs to app/styles/primitives.css.',
       'app/styles/features/example.css must not own selector ".state-panel__actions"; .state-panel belongs to app/styles/primitives.css.',
+      'app/styles/features/example.css must not own selector ".workspace-panel-shell"; .workspace-panel-shell belongs to app/styles/primitives.css.',
       'app/styles/features/example.css must not own selector ".account-menu--compact:hover"; .account-menu belongs to app/styles/shell/site-shell-auth.css.',
       'app/styles/features/example.css must not own selector ".app-shell > main"; .app-shell belongs to app/styles/base.css.',
     ]);
@@ -92,7 +94,7 @@ describe("CSS architecture", () => {
     expect(
       reservedSelectorOwnershipErrors(
         "app/styles/primitives.css",
-        ".state-page, .state-panel[role='alert'], .state-panel__actions, .workspace-empty-state, .workspace-panel-header__actions {}",
+        ".state-page, .state-panel[role='alert'], .state-panel__actions, .workspace-empty-state, .workspace-panel-header__actions, :where(.workspace-panel-shell) {}",
       ),
     ).toEqual([]);
   });

@@ -274,7 +274,7 @@ export function AccountSettings() {
         <p>Manage your public profile and account controls.</p>
       </header>
 
-      <div className="account-settings__shell">
+      <div className="account-settings__shell workspace-panel-shell">
         <WorkspaceTabs
           className="account-settings__tabs"
           ariaLabel="Settings categories"

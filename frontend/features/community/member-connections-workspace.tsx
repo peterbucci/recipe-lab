@@ -227,7 +227,7 @@ export function MemberConnectionsWorkspace({
       </header>
 
       <section
-        className="member-connections-page__frame"
+        className="member-connections-page__frame workspace-panel-shell"
         aria-labelledby={headingId}
       >
         <WorkspaceTabMenu

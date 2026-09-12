@@ -266,7 +266,10 @@ export function MemberActivityTimeline({ userId }: { userId: string }) {
           </div>
         </header>
 
-        <section className="member-activity-page__shell" aria-label="Account activity">
+        <section
+          className="member-activity-page__shell workspace-panel-shell"
+          aria-label="Account activity"
+        >
           <div className="member-activity-page__toolbar workspace-tab-menu">
             <div
               className="member-activity-page__filters workspace-tab-menu__items"

@@ -170,8 +170,7 @@
   font-size: 0.84rem;
 }
 .account-settings-panel,
-.member-library__collection,
-.member-request-history--standalone {
+.member-library__collection {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -346,8 +345,7 @@
   .account-workspace-page > .member-library__intro,
   .account-settings-panel,
   .account-workspace-page .member-library__privacy,
-  .member-library__collection,
-  .member-request-history--standalone {
+  .member-library__collection {
     background: canvas;
     border-color: canvastext;
   }
@@ -381,12 +379,6 @@
   margin: 0;
   font-size: 0.82rem;
   line-height: 1.55;
-}
-.account-settings__shell {
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  background: var(--surface);
-  overflow: hidden;
 }
 .account-settings__panel[hidden] {
   display: none;
@@ -660,7 +652,6 @@
 }
 
 @media (forced-colors: active) {
-  .account-settings__shell,
   .account-settings__profile-preview,
   .account-settings__danger-icon,
   .account-settings-page .account-deletion__disclosure,

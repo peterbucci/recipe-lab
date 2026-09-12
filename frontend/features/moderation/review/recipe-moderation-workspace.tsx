@@ -122,7 +122,7 @@ export function RecipeModerationWorkspace({
       variant="moderation"
     >
 
-      <div className="staff-workspace__tab-shell">
+      <div className="staff-workspace__tab-shell workspace-panel-shell">
         <WorkspaceTabMenu
           className="staff-filter-strip staff-workspace__filters moderation-workspace__filters"
           itemsOnly

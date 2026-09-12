@@ -117,7 +117,7 @@ export function MemberIngredientRequestHistory({
 
   return (
     <section
-      className="member-request-history member-request-history--standalone"
+      className="member-request-history member-request-history--standalone workspace-panel-shell"
       aria-label="My ingredient requests"
       aria-busy={loading}
     >
