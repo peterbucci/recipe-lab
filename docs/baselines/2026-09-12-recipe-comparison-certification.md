@@ -22,9 +22,15 @@ review.
 
 The target recipe is authoritative for artwork, publication context, title,
 source, description, categories, author, facts, ingredients, instructions, and
-notes. The selected comparison base remains separately identified in the
-comparison strip. One read model owns structured change classification,
-ordering, prior-value association, and the overall change total.
+notes. Categories are compared by stable category identity: current categories
+stay in target-recipe order, additions are green, unchanged categories stay
+white, and removed categories follow in base-recipe order with red strikethrough
+text. Visible `+` and `−` markers and insertion/deletion semantics preserve this
+meaning without relying on color. Category additions and removals each
+contribute to the overall change total. The selected comparison base remains
+separately identified in the comparison strip. One read model owns structured
+change classification, ordering, prior-value association, and the overall
+change total.
 
 Ingredients and instructions retain the complete current recipe in canonical
 order. Added, removed, and changed rows use symbols and text in addition to
@@ -92,23 +98,26 @@ panel without changing the comparison route.
 
 ## Reviewed visual evidence
 
-The six comparison-body PNGs were refreshed in the immutable Playwright image
-used by CI, inspected at original resolution, and bound to the opaque-source
-policy with their Git object IDs. The default Steps references show recipe-style
+The comparison references were refreshed in the immutable Playwright image used
+by CI, inspected at original resolution, and bound to the opaque-source policy
+with their Git object IDs. The default Steps references show recipe-style
 ingredient checkboxes, the legend tucked beneath the section tabs, status beside
 the current step title, field-only prior values, change pills below the prior
 box, and an unbroken numbered timeline. The dedicated Cooking breakdown
 references retain the aligned action-card treatment and connected timeline at
-desktop, intermediate, and phone widths. The unchanged phone-top image remains
-valid evidence for the recipe-first hero.
+desktop, intermediate, and phone widths. The category-diff follow-up refreshes
+only the two desktop references whose visible total changes from five to seven
+and the phone-top reference that directly shows green `+ Dinner`, neutral
+`Vegetarian`, and red struck-through `− Lunch` pills. The intermediate and
+scrolled phone-body references remain pixel-valid.
 
 | Project | Snapshot | Git object ID | Review purpose |
 | --- | --- | --- | --- |
-| Desktop | `recipe-comparison-normal` | `74c4bfaafe451499ea80bd97563380260d4e916e` | Two-column Recipe tab with ingredient checkboxes, a close legend, status beside the step title, a wording-only prior box, and a connected timeline. |
-| Desktop | `recipe-comparison-cooking-breakdown` | `e0b95b380864a46a16c89661ed4985e8c26a1666` | Connected numbered Cooking breakdown timeline with one aligned list of neutral, added, removed, and purple modified actions. |
+| Desktop | `recipe-comparison-normal` | `3200f28a51f7377bda6890affc7016d8666b8c23` | Two-column Recipe tab with category additions/removals included in the seven-change total, ingredient checkboxes, a close legend, status beside the step title, a wording-only prior box, and a connected timeline. |
+| Desktop | `recipe-comparison-cooking-breakdown` | `9e549a9c0af0466ac325209282f24574d4ae9679` | Seven-change total plus a connected numbered Cooking breakdown timeline with one aligned list of neutral, added, removed, and purple modified actions. |
 | Desktop | `recipe-comparison-intermediate-normal` | `27cdde516d8639a9e646199724cfda703b367b24` | Stacked 820 px Recipe panel with checkboxes, field-only prior values, labels after the prior box, and an unbroken timeline. |
 | Desktop | `recipe-comparison-intermediate-cooking-breakdown` | `b7bc7df0b1056325688310ea841aa26e852923c8` | Full-width aligned Cooking breakdown rows, inline detail changes, and a connected numbered timeline in the stacked 820 px layout. |
-| Phone | `recipe-comparison-top-normal` | `ecff7f01f82a17e7902b82554d50ef50931f8f5b` | Recipe-first phone hero and current recipe context. |
+| Phone | `recipe-comparison-top-normal` | `6b45cdab14eb06bf2de70ac337b24f66f575b65a` | Recipe-first phone hero with green added, white unchanged, and red removed category pills. |
 | Phone | `recipe-comparison-normal` | `af685fc6746e8dee03f3db0ffe06a8883e566cc8` | Sticky standard tabs with checkboxes, title-adjacent status, field-only prior values, labels below the prior box, and a connected timeline. |
 | Phone | `recipe-comparison-cooking-breakdown` | `dd06a2300cebd660aeed53d09a5f152644022c45` | Connected numbered timeline, two-column aligned action rows, stacked timing, and all four action states without horizontal overflow. |
 
@@ -136,8 +145,9 @@ It reported Playwright 1.62.1 and Chromium 151.0.7922.34 on linux/amd64.
 | Production build | Next.js production build and its TypeScript phase passed; 20 static pages generated. |
 | Pinned visual/accessibility double-run | 190 checks passed with 178 deliberate cross-project skips in the immutable Linux/Chromium image. |
 | Pinned comparison visual refresh | Before promotion, each default-view mismatch repeated with an identical pixel count and byte-identical actual PNG. Exactly six requested comparison-body references were regenerated and inspected at original resolution; the post-update targeted double-run passed 12 checks with 12 deliberate cross-project skips, including the responsive boundary, forced-colors, print, Axe, overflow, and timeline-geometry assertions. |
+| Pinned category-comparison visual follow-up | A staged pre-update double-run was needed because the first stale screenshot stops its enclosing test before the later Cooking breakdown capture. It proved exactly three deterministic changes: desktop Steps (21 pixels twice), desktop Cooking breakdown (21 pixels twice), and phone top (689 pixels twice); both repeat captures were byte-identical. Only those three PNGs were promoted and inspected at original resolution. The post-update comparison double-run passed 12 checks with 12 deliberate cross-project skips, including the unchanged intermediate and phone-body references plus boundary, forced-colors, print, Axe, overflow, and category semantics. |
 | Stateful release assertion compatibility | The comparison assertions in the guarded release journey were migrated to the inline-diff contract and passed lint and TypeScript checks; the full release operator remains owned by its isolated OIDC/database workflow. |
-| Opaque-source policy | The audit matched all 97 tracked PNGs to reviewed object IDs with zero drift; 54 source-package tests and 34 parameterized subtests passed. This follow-up binds the three refreshed default-view and three dedicated Cooking breakdown PNG object IDs. |
+| Opaque-source policy | The audit matched all 97 tracked PNGs to reviewed object IDs with zero drift; 54 source-package tests and 34 parameterized subtests passed. The category-comparison follow-up additionally binds the refreshed desktop Steps, desktop Cooking breakdown, and phone-top PNG object IDs. |
 | Diff hygiene | `git diff --check` passed. |
 
 ## Cleanup boundary

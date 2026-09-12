@@ -139,6 +139,44 @@ describe("buildRecipeComparisonModel", () => {
     });
   });
 
+  it("keeps current categories in order, appends removals, and counts membership changes", () => {
+    const breakfast = { id: "breakfast", name: "Breakfast", slug: "breakfast" };
+    const lunch = { id: "lunch", name: "Lunch", slug: "lunch" };
+    const vegetarian = {
+      id: "vegetarian",
+      name: "Vegetarian",
+      slug: "vegetarian",
+    };
+    const quickEasy = {
+      id: "quick-easy",
+      name: "Quick & Easy",
+      slug: "quick-easy",
+    };
+    const diff = mixedDiff();
+    diff.metadata_changes = [];
+    diff.categories = { added: [lunch], removed: [quickEasy] };
+    diff.ingredients = { added: [], removed: [], replaced: [], modified: [] };
+    diff.instructions = { added: [], removed: [], modified: [] };
+    diff.has_changes = true;
+
+    const model = buildRecipeComparisonModel(
+      targetRecipe({ categories: [breakfast, lunch, vegetarian] }),
+      diff,
+    );
+
+    expect(
+      model.categoryRows.map((row) => [row.status, row.category.name]),
+    ).toEqual([
+      ["unchanged", "Breakfast"],
+      ["added", "Lunch"],
+      ["unchanged", "Vegetarian"],
+      ["removed", "Quick & Easy"],
+    ]);
+    expect(model.categoryChangeCount).toBe(2);
+    expect(model.totalChanges).toBe(2);
+    expect(model.hasChanges).toBe(true);
+  });
+
   it("derives metadata lookup and the authoritative total from structured changes", () => {
     const model = buildRecipeComparisonModel(targetRecipe(), mixedDiff());
 
@@ -148,6 +186,7 @@ describe("buildRecipeComparisonModel", () => {
       after: "Lower-Sugar Pecan Carrot Cake",
     });
     expect(model.metadataChangeCount).toBe(3);
+    expect(model.categoryChangeCount).toBe(0);
     expect(model.ingredientChangeCount).toBe(4);
     expect(model.instructionChangeCount).toBe(3);
     expect(model.totalChanges).toBe(10);

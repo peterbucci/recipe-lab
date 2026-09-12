@@ -1871,6 +1871,13 @@ export type components = {
              */
             readonly version_number: number;
         };
+        /** RecipeCategoryDiff */
+        readonly RecipeCategoryDiff: {
+            /** Added */
+            readonly added?: readonly components["schemas"]["RecipeCategorySummary"][];
+            /** Removed */
+            readonly removed?: readonly components["schemas"]["RecipeCategorySummary"][];
+        };
         /** RecipeCategoryListResponse */
         readonly RecipeCategoryListResponse: {
             /**
@@ -1996,6 +2003,7 @@ export type components = {
         /** RecipeDiffResponse */
         readonly RecipeDiffResponse: {
             readonly base_version: components["schemas"]["RecipeVersionReference"];
+            readonly categories: components["schemas"]["RecipeCategoryDiff"];
             /** Has Changes */
             readonly has_changes: boolean;
             readonly ingredient_context: components["schemas"]["RecipeIngredientContext"];

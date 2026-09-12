@@ -13,6 +13,7 @@ from app.models import (
     RecipeInstructionActionInput,
     RecipeInstructionActionMeasure,
     RecipeVersion,
+    RecipeVersionCategory,
     User,
 )
 from app.schemas.measurements import ExactMeasureResponse
@@ -122,6 +123,23 @@ def _instruction(
     return instruction
 
 
+def _category(
+    *,
+    category_id: int,
+    version_id: UUID,
+    name: str,
+    slug: str,
+    display_order: int,
+) -> RecipeVersionCategory:
+    return RecipeVersionCategory(
+        recipe_version_id=version_id,
+        recipe_category_id=_id(category_id),
+        category_name=name,
+        category_slug=slug,
+        display_order=display_order,
+    )
+
+
 def _action_type(key: str) -> CookingActionType:
     return CookingActionType(
         id=action_uuid("action-type", key),
@@ -209,6 +227,7 @@ def _version(
     difficulty: str | None = None,
     notes: str | None = None,
     parent_version_id: UUID | None = None,
+    categories: list[RecipeVersionCategory] | None = None,
 ) -> RecipeVersion:
     version = RecipeVersion(
         id=_id(version_id),
@@ -226,6 +245,7 @@ def _version(
     )
     version.ingredients = ingredients
     version.instructions = instructions
+    version.categories = categories or []
     version.author = User(
         id=AUTHOR_ID,
         email="recipe-diff-author@example.test",
@@ -236,6 +256,8 @@ def _version(
 
 
 def _assert_no_content_changes(diff: RecipeDiffResponse) -> None:
+    assert diff.categories.added == []
+    assert diff.categories.removed == []
     assert diff.ingredients.added == []
     assert diff.ingredients.removed == []
     assert diff.ingredients.replaced == []
@@ -243,6 +265,85 @@ def _assert_no_content_changes(diff: RecipeDiffResponse) -> None:
     assert diff.instructions.added == []
     assert diff.instructions.removed == []
     assert diff.instructions.modified == []
+
+
+def test_category_changes_use_stable_identity_and_preserve_snapshot_order() -> None:
+    base_id = _id(90)
+    target_id = _id(91)
+    shared_category_id = 900
+    base = _version(
+        version_id=base_id.int,
+        version_number=1,
+        ingredients=[],
+        instructions=[],
+        categories=[
+            _category(
+                category_id=902,
+                version_id=base_id,
+                name="Quick & Easy",
+                slug="quick-easy",
+                display_order=1,
+            ),
+            _category(
+                category_id=shared_category_id,
+                version_id=base_id,
+                name="Vegetarian",
+                slug="vegetarian",
+                display_order=2,
+            ),
+            _category(
+                category_id=901,
+                version_id=base_id,
+                name="Breakfast",
+                slug="breakfast",
+                display_order=0,
+            ),
+        ],
+    )
+    target = _version(
+        version_id=target_id.int,
+        version_number=2,
+        parent_version_id=base.id,
+        ingredients=[],
+        instructions=[],
+        categories=[
+            _category(
+                category_id=904,
+                version_id=target_id,
+                name="Dinner",
+                slug="dinner",
+                display_order=2,
+            ),
+            _category(
+                category_id=903,
+                version_id=target_id,
+                name="Lunch",
+                slug="lunch",
+                display_order=1,
+            ),
+            _category(
+                category_id=shared_category_id,
+                version_id=target_id,
+                name="Vegetarian",
+                slug="vegetarian",
+                display_order=0,
+            ),
+        ],
+    )
+
+    diff = build_recipe_diff(base, target, set())
+
+    assert [item.name for item in diff.categories.added] == ["Lunch", "Dinner"]
+    assert [item.name for item in diff.categories.removed] == ["Breakfast", "Quick & Easy"]
+    assert diff.has_changes is True
+    assert diff.metadata_changes == []
+    assert diff.ingredients.model_dump() == {
+        "added": [],
+        "removed": [],
+        "replaced": [],
+        "modified": [],
+    }
+    assert diff.instructions.model_dump() == {"added": [], "removed": [], "modified": []}
 
 
 def test_copied_snapshots_with_fresh_row_ids_have_no_changes() -> None:

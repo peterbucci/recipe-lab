@@ -55,6 +55,7 @@ def get_recipe_versions_for_diff(
         select(RecipeVersion)
         .options(
             joinedload(RecipeVersion.author),
+            selectinload(RecipeVersion.categories),
             selectinload(RecipeVersion.ingredients).options(
                 joinedload(RecipeIngredient.ingredient),
                 joinedload(RecipeIngredient.measurement_unit),

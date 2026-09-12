@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.recipe_categories import RecipeCategorySummary
 from app.schemas.recipes import (
     RecipeIngredientResponse,
     RecipeInstructionResponse,
@@ -41,6 +42,11 @@ class RecipeFieldChange(BaseModel):
     field: RecipeFieldName
     before: RecipeFieldValue
     after: RecipeFieldValue
+
+
+class RecipeCategoryDiff(BaseModel):
+    added: list[RecipeCategorySummary] = Field(default_factory=list)
+    removed: list[RecipeCategorySummary] = Field(default_factory=list)
 
 
 class RecipeIngredientPairChange(BaseModel):
@@ -89,6 +95,7 @@ class RecipeDiffResponse(BaseModel):
     base_version: RecipeVersionReference
     target_version: RecipeVersionReference
     metadata_changes: list[RecipeFieldChange] = Field(default_factory=list)
+    categories: RecipeCategoryDiff
     ingredients: RecipeIngredientDiff
     ingredient_context: RecipeIngredientContext
     instructions: RecipeInstructionDiff

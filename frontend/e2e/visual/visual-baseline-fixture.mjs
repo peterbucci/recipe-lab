@@ -491,6 +491,10 @@ const diff = Object.freeze({
       after: variantSummary.description,
     },
   ],
+  categories: {
+    added: [recipeCategories[2]],
+    removed: [recipeCategories[1]],
+  },
   ingredients: {
     added: [detailFor(variantSummary).ingredients[1]],
     removed: [],

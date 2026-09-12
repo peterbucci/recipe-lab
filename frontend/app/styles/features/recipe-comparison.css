@@ -198,16 +198,51 @@
   color: inherit;
   text-decoration-thickness: 0.0625rem;
 }
-.recipe-comparison-hero__intro > .recipe-category-list {
+.recipe-comparison-categories {
+  flex-wrap: wrap;
+  gap: 0.35rem;
   margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+  display: flex;
 }
-.recipe-comparison-hero__intro > .recipe-category-list li {
+.recipe-comparison-category {
   border: 1px solid var(--line);
-  background: var(--surface-soft);
+  border-radius: 999px;
+  background: var(--surface);
   color: #626376;
+  align-items: center;
+  gap: 0.25rem;
   min-height: 1.45rem;
   padding: 0.18rem 0.5rem;
   font-size: 0.625rem;
+  font-weight: 800;
+  display: inline-flex;
+}
+.recipe-comparison-category--added {
+  border-color: #a8ddbe;
+  background: #eef9f3;
+  color: #237a4b;
+}
+.recipe-comparison-category--removed {
+  border-color: #ecc2ba;
+  background: #fdf2ef;
+  color: #a44e4e;
+}
+.recipe-comparison-category__marker {
+  font-size: 0.6875rem;
+  font-weight: 950;
+  line-height: 1;
+}
+.recipe-comparison-category ins,
+.recipe-comparison-category del {
+  color: inherit;
+}
+.recipe-comparison-category ins {
+  text-decoration: none;
+}
+.recipe-comparison-category del {
+  text-decoration-thickness: 0.0625rem;
 }
 .recipe-comparison-hero__author {
   align-items: center;
@@ -1331,6 +1366,7 @@
     display: block;
   }
   .recipe-comparison-strip,
+  .recipe-comparison-categories,
   .recipe-comparison-legend,
   .recipe-comparison-section-heading,
   .recipe-comparison-instructions__header,
@@ -1343,6 +1379,7 @@
   .recipe-comparison-ingredient-row--removed,
   .recipe-comparison-ingredient-row--changed,
   .recipe-comparison-ingredient-row--substitution,
+  .recipe-comparison-category,
   .recipe-comparison-instruction-row__previous,
   .recipe-comparison-notes__previous {
     background: transparent;
@@ -1402,6 +1439,7 @@
   .recipe-comparison-hero__artwork,
   .recipe-comparison-hero__version,
   .recipe-comparison-hero__author-avatar,
+  .recipe-comparison-category,
   .recipe-comparison-strip,
   .recipe-comparison-strip__icon,
   .recipe-comparison-strip__count,
@@ -1410,6 +1448,12 @@
     background: Canvas;
     color: CanvasText;
     box-shadow: none;
+  }
+  .recipe-comparison-category--added {
+    border-style: solid;
+  }
+  .recipe-comparison-category--removed {
+    border-style: dashed;
   }
   .recipe-comparison-hero__parent-context a,
   .recipe-comparison-hero__author a,

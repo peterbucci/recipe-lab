@@ -122,6 +122,7 @@ export function mixedDiff(): RecipeDiff {
       },
       { field: "servings", before: "8.0000", after: "6.0000" },
     ],
+    categories: { added: [], removed: [] },
     ingredients: {
       added: [
         ingredient("orange-zest-row", "Orange zest", "1.0000", "tbsp", {

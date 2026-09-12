@@ -102,6 +102,11 @@ export interface RecipeFieldChange {
   after: RecipeFieldValue;
 }
 
+export interface RecipeCategoryDiff {
+  added: RecipeCategory[];
+  removed: RecipeCategory[];
+}
+
 export interface RecipeIngredientPairChange {
   before: RecipeIngredient;
   after: RecipeIngredient;
@@ -139,6 +144,7 @@ export interface RecipeDiff {
   base_version: RecipeVersionReference;
   target_version: RecipeVersionReference;
   metadata_changes: RecipeFieldChange[];
+  categories: RecipeCategoryDiff;
   ingredients: RecipeIngredientDiff;
   ingredient_context: {
     base: RecipeIngredient[];

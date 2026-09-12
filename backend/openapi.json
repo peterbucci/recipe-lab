@@ -2852,6 +2852,26 @@
         "title": "RecipeCardSummary",
         "type": "object"
       },
+      "RecipeCategoryDiff": {
+        "properties": {
+          "added": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeCategorySummary"
+            },
+            "title": "Added",
+            "type": "array"
+          },
+          "removed": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeCategorySummary"
+            },
+            "title": "Removed",
+            "type": "array"
+          }
+        },
+        "title": "RecipeCategoryDiff",
+        "type": "object"
+      },
       "RecipeCategoryListResponse": {
         "properties": {
           "items": {
@@ -3135,6 +3155,9 @@
           "base_version": {
             "$ref": "#/components/schemas/RecipeVersionReference"
           },
+          "categories": {
+            "$ref": "#/components/schemas/RecipeCategoryDiff"
+          },
           "has_changes": {
             "title": "Has Changes",
             "type": "boolean"
@@ -3168,6 +3191,7 @@
           "lineage_id",
           "base_version",
           "target_version",
+          "categories",
           "ingredients",
           "ingredient_context",
           "instructions",

@@ -3,7 +3,6 @@ import Link from "next/link";
 import { PublicCookAttribution } from "../../community/public-cook-attribution";
 import { relativeTimeLabel } from "../../../shared/time/relative-time";
 import { RecipeArtwork } from "../shared/recipe-artwork";
-import { RecipeCategoryList } from "../shared/recipe-category-list";
 import type {
   RecipeDifficulty,
   RecipeFieldChange,
@@ -14,7 +13,10 @@ import {
   formatRecipeDuration,
   formatServings,
 } from "../shared/recipe-format";
-import type { RecipeComparisonModel } from "./recipe-comparison-model";
+import type {
+  RecipeCategoryComparisonRow,
+  RecipeComparisonModel,
+} from "./recipe-comparison-model";
 
 function authorInitial(displayName: string): string {
   return displayName.trim().charAt(0).toLocaleUpperCase() || "C";
@@ -96,6 +98,58 @@ function changeLabel(totalChanges: number): string {
   return `${totalChanges} ${totalChanges === 1 ? "change" : "changes"}`;
 }
 
+function RecipeComparisonCategories({
+  label,
+  rows,
+}: {
+  label: string;
+  rows: readonly RecipeCategoryComparisonRow[];
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <ul className="recipe-comparison-categories" aria-label={label}>
+      {rows.map(({ category, key, status }) => (
+        <li
+          className={`recipe-comparison-category recipe-comparison-category--${status}`}
+          data-category-status={status}
+          key={key}
+        >
+          {status === "added" ? (
+            <>
+              <span
+                className="recipe-comparison-category__marker"
+                aria-hidden="true"
+              >
+                +
+              </span>
+              <ins>
+                <span className="visually-hidden">Added category: </span>
+                {category.name}
+              </ins>
+            </>
+          ) : status === "removed" ? (
+            <>
+              <span
+                className="recipe-comparison-category__marker"
+                aria-hidden="true"
+              >
+                −
+              </span>
+              <del>
+                <span className="visually-hidden">Removed category: </span>
+                {category.name}
+              </del>
+            </>
+          ) : (
+            category.name
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function RecipeComparisonHero({
   comparison,
   headingId,
@@ -103,7 +157,8 @@ export function RecipeComparisonHero({
   comparison: RecipeComparisonModel;
   headingId: string;
 }) {
-  const { diff, metadataChanges, recipe, totalChanges } = comparison;
+  const { categoryRows, diff, metadataChanges, recipe, totalChanges } =
+    comparison;
   const isVariation = recipe.parent_version_id !== null;
   const publicationValue = recipe.published_at ?? recipe.created_at;
   const publication = relativeTimeLabel(publicationValue);
@@ -162,9 +217,9 @@ export function RecipeComparisonHero({
         ) : null}
         <PriorValue change={metadataChanges.description} />
 
-        <RecipeCategoryList
-          categories={recipe.categories}
+        <RecipeComparisonCategories
           label={`Categories for ${recipe.title}`}
+          rows={categoryRows}
         />
 
         <div className="recipe-comparison-hero__author">

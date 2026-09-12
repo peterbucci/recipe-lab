@@ -13,8 +13,10 @@ from app.models import (
     RecipeInstruction,
     RecipeInstructionAction,
     RecipeVersion,
+    RecipeVersionCategory,
 )
 from app.schemas.recipe_diffs import (
+    RecipeCategoryDiff,
     RecipeDiffResponse,
     RecipeFieldChange,
     RecipeFieldName,
@@ -29,6 +31,7 @@ from app.schemas.recipe_diffs import (
     RecipeInstructionPairChange,
 )
 from app.services.recipe_responses import (
+    recipe_category_summary,
     recipe_ingredient_response,
     recipe_instruction_response,
     recipe_version_reference,
@@ -72,6 +75,10 @@ def _ingredient_order(item: RecipeIngredient) -> tuple[int, int]:
 
 def _instruction_order(item: RecipeInstruction) -> tuple[int, int]:
     return item.display_order, item.id.int
+
+
+def _category_order(item: RecipeVersionCategory) -> tuple[int, int]:
+    return item.display_order, item.recipe_category_id.int
 
 
 def _measure_signature(
@@ -496,6 +503,23 @@ def _metadata_changes(
     ]
 
 
+def _category_diff(base: RecipeVersion, target: RecipeVersion) -> RecipeCategoryDiff:
+    base_ids = {item.recipe_category_id for item in base.categories}
+    target_ids = {item.recipe_category_id for item in target.categories}
+    return RecipeCategoryDiff(
+        added=[
+            recipe_category_summary(item)
+            for item in sorted(target.categories, key=_category_order)
+            if item.recipe_category_id not in base_ids
+        ],
+        removed=[
+            recipe_category_summary(item)
+            for item in sorted(base.categories, key=_category_order)
+            if item.recipe_category_id not in target_ids
+        ],
+    )
+
+
 def _ingredient_diff(
     base: RecipeVersion,
     target: RecipeVersion,
@@ -634,6 +658,7 @@ def build_recipe_diff(
     """
 
     metadata_changes = _metadata_changes(base, target)
+    categories = _category_diff(base, target)
     ingredients = _ingredient_diff(base, target, substitution_pairs)
     before_tokens, after_tokens = _ingredient_reference_tokens(base, target)
     instructions = _instruction_diff(
@@ -648,6 +673,8 @@ def build_recipe_diff(
             ingredients.removed,
             ingredients.replaced,
             ingredients.modified,
+            categories.added,
+            categories.removed,
             instructions.added,
             instructions.removed,
             instructions.modified,
@@ -658,6 +685,7 @@ def build_recipe_diff(
         base_version=recipe_version_reference(base),
         target_version=recipe_version_reference(target),
         metadata_changes=metadata_changes,
+        categories=categories,
         ingredients=ingredients,
         ingredient_context=RecipeIngredientContext(
             base=[

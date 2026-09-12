@@ -122,6 +122,11 @@ describe("RecipeComparisonHero", () => {
     expect(within(categories).getAllByRole("listitem")).toHaveLength(2);
     expect(within(categories).getByText("Baking")).toBeVisible();
     expect(within(categories).getByText("Dessert")).toBeVisible();
+    expect(
+      within(categories)
+        .getAllByRole("listitem")
+        .map((item) => item.dataset.categoryStatus),
+    ).toEqual(["unchanged", "unchanged"]);
 
     const sourceContext = screen
       .getByText("The actual source recipe")
@@ -229,5 +234,70 @@ describe("RecipeComparisonHero", () => {
     expect(
       container.querySelector(".recipe-comparison-strip__count"),
     ).toHaveTextContent(expected);
+  });
+
+  it("shows category additions and removals in one semantic pill list", () => {
+    const breakfast = { id: "breakfast", name: "Breakfast", slug: "breakfast" };
+    const lunch = { id: "lunch", name: "Lunch", slug: "lunch" };
+    const vegetarian = {
+      id: "vegetarian",
+      name: "Vegetarian",
+      slug: "vegetarian",
+    };
+    const quickEasy = {
+      id: "quick-easy",
+      name: "Quick & Easy",
+      slug: "quick-easy",
+    };
+    const diff = mixedDiff();
+    diff.metadata_changes = [];
+    diff.categories = { added: [lunch], removed: [quickEasy] };
+    diff.ingredients = { added: [], removed: [], replaced: [], modified: [] };
+    diff.instructions = { added: [], removed: [], modified: [] };
+    diff.has_changes = true;
+    const recipe = targetRecipeDetail(diff, {
+      categories: [breakfast, lunch, vegetarian],
+    });
+
+    const { container } = render(
+      <RecipeComparisonHero
+        comparison={comparisonModel(diff, recipe)}
+        headingId="comparison-heading"
+      />,
+    );
+
+    const categories = screen.getByRole("list", {
+      name: `Categories for ${recipe.title}`,
+    });
+    const pills = within(categories).getAllByRole("listitem");
+    expect(pills.map((item) => item.dataset.categoryStatus)).toEqual([
+      "unchanged",
+      "added",
+      "unchanged",
+      "removed",
+    ]);
+
+    const added = pills[1];
+    expect(within(added).getByText("+")).toBeVisible();
+    expect(within(added).getByText("+")).toHaveAttribute("aria-hidden", "true");
+    expect(within(added).getByText("Added category:")).toHaveClass(
+      "visually-hidden",
+    );
+    expect(added.querySelector("ins")).toHaveTextContent("Added category: Lunch");
+
+    const removed = pills[3];
+    expect(within(removed).getByText("−")).toBeVisible();
+    expect(within(removed).getByText("−")).toHaveAttribute("aria-hidden", "true");
+    expect(within(removed).getByText("Removed category:")).toHaveClass(
+      "visually-hidden",
+    );
+    expect(removed.querySelector("del")).toHaveTextContent(
+      "Removed category: Quick & Easy",
+    );
+    expect(pills[0].querySelector("ins, del")).not.toBeInTheDocument();
+    expect(pills[2].querySelector("ins, del")).not.toBeInTheDocument();
+    expect(
+      container.querySelector(".recipe-comparison-strip__count"),
+    ).toHaveTextContent("2 changes");
   });
 });

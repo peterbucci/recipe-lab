@@ -147,6 +147,44 @@ async function expectComparisonTabsAndActions(
   await expect(notesPanel).toBeHidden();
   await expect(familyPanel).toBeHidden();
 
+  const categories = comparisonView.getByRole("list", {
+    name: "Categories for Garden Cream Tomato Soup",
+  });
+  const categoryItems = categories.getByRole("listitem");
+  const addedCategory = categories.locator(
+    ':scope > [data-category-status="added"]',
+  );
+  const unchangedCategory = categories.locator(
+    ':scope > [data-category-status="unchanged"]',
+  );
+  const removedCategory = categories.locator(
+    ':scope > [data-category-status="removed"]',
+  );
+  await expect(categoryItems).toHaveCount(3);
+  expect(
+    await categoryItems.evaluateAll((items) =>
+      items.map((item) => item.getAttribute("data-category-status")),
+    ),
+  ).toEqual(["added", "unchanged", "removed"]);
+  await expect(addedCategory).toContainText("Dinner");
+  await expect(addedCategory.locator("ins")).toContainText("Dinner");
+  await expect(
+    addedCategory.locator(".recipe-comparison-category__marker"),
+  ).toHaveText("+");
+  await expect(addedCategory.locator(".visually-hidden")).toHaveText(
+    "Added category:",
+  );
+  await expect(unchangedCategory).toHaveText("Vegetarian");
+  await expect(unchangedCategory.locator("ins, del")).toHaveCount(0);
+  await expect(removedCategory).toContainText("Lunch");
+  await expect(removedCategory.locator("del")).toContainText("Lunch");
+  await expect(
+    removedCategory.locator(".recipe-comparison-category__marker"),
+  ).toHaveText("−");
+  await expect(removedCategory.locator(".visually-hidden")).toHaveText(
+    "Removed category:",
+  );
+
   const legend = recipePanel.getByRole("complementary", {
     name: "Comparison legend",
   });
@@ -926,9 +964,28 @@ test("recipe comparison remains understandable in forced colors", async ({
   const addedIngredient = page.locator(
     ".recipe-comparison-ingredient-row--added",
   );
+  const categories = page.getByRole("list", {
+    name: "Categories for Garden Cream Tomato Soup",
+  });
+  const addedCategory = categories.locator(
+    ':scope > [data-category-status="added"]',
+  );
+  const removedCategory = categories.locator(
+    ':scope > [data-category-status="removed"]',
+  );
   const changedInstruction = page.locator(
     "#recipe-comparison-instructions-steps-panel .recipe-comparison-instruction-row--changed",
   );
+  await expect(addedCategory.locator("ins")).toContainText("Dinner");
+  await expect(removedCategory.locator("del")).toContainText("Lunch");
+  await expect(
+    addedCategory.locator(".recipe-comparison-category__marker"),
+  ).toHaveText("+");
+  await expect(
+    removedCategory.locator(".recipe-comparison-category__marker"),
+  ).toHaveText("−");
+  await expect(addedCategory).toHaveCSS("border-top-style", "solid");
+  await expect(removedCategory).toHaveCSS("border-top-style", "dashed");
   await expect(changedIngredient).toHaveCount(1);
   await expect(addedIngredient).toHaveCount(1);
   await expect(changedInstruction).toHaveCount(1);

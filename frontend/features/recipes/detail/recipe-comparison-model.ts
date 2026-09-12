@@ -1,4 +1,5 @@
 import type {
+  RecipeCategory,
   RecipeDetail,
   RecipeDiff,
   RecipeFieldChange,
@@ -17,6 +18,15 @@ export type RecipeComparisonRowStatus =
   | "changed";
 
 export type RecipeIngredientChangeKind = "modified" | "substitution";
+
+export interface RecipeCategoryComparisonRow {
+  key: string;
+  status: Extract<
+    RecipeComparisonRowStatus,
+    "unchanged" | "added" | "removed"
+  >;
+  category: RecipeCategory;
+}
 
 export interface RecipeIngredientComparisonRow {
   key: string;
@@ -42,16 +52,38 @@ export interface RecipeInstructionComparisonRow {
 export interface RecipeComparisonModel {
   recipe: RecipeDetail;
   diff: RecipeDiff;
+  categoryRows: readonly RecipeCategoryComparisonRow[];
   ingredientRows: readonly RecipeIngredientComparisonRow[];
   instructionRows: readonly RecipeInstructionComparisonRow[];
   metadataChanges: Readonly<
     Partial<Record<RecipeFieldName, RecipeFieldChange>>
   >;
+  categoryChangeCount: number;
   ingredientChangeCount: number;
   instructionChangeCount: number;
   metadataChangeCount: number;
   totalChanges: number;
   hasChanges: boolean;
+}
+
+function categoryRows(
+  recipe: RecipeDetail,
+  diff: RecipeDiff,
+): RecipeCategoryComparisonRow[] {
+  const addedIds = new Set(diff.categories.added.map((category) => category.id));
+
+  return [
+    ...recipe.categories.map<RecipeCategoryComparisonRow>((category) => ({
+      key: `current:${category.id}`,
+      status: addedIds.has(category.id) ? "added" : "unchanged",
+      category,
+    })),
+    ...diff.categories.removed.map<RecipeCategoryComparisonRow>((category) => ({
+      key: `removed:${category.id}`,
+      status: "removed",
+      category,
+    })),
+  ];
 }
 
 function compareRows(
@@ -228,6 +260,7 @@ export function buildRecipeComparisonModel(
   recipe: RecipeDetail,
   diff: RecipeDiff,
 ): RecipeComparisonModel {
+  const categories = categoryRows(recipe, diff);
   const ingredients = ingredientRows(recipe, diff);
   const instructions = instructionRows(recipe, diff);
   const ingredientChangeCount =
@@ -239,16 +272,23 @@ export function buildRecipeComparisonModel(
     diff.instructions.added.length +
     diff.instructions.removed.length +
     diff.instructions.modified.length;
+  const categoryChangeCount =
+    diff.categories.added.length + diff.categories.removed.length;
   const metadataChangeCount = diff.metadata_changes.length;
   const totalChanges =
-    ingredientChangeCount + instructionChangeCount + metadataChangeCount;
+    categoryChangeCount +
+    ingredientChangeCount +
+    instructionChangeCount +
+    metadataChangeCount;
 
   return {
     recipe,
     diff,
+    categoryRows: categories,
     ingredientRows: ingredients,
     instructionRows: instructions,
     metadataChanges: metadataChanges(diff),
+    categoryChangeCount,
     ingredientChangeCount,
     instructionChangeCount,
     metadataChangeCount,

@@ -74,6 +74,38 @@ test.describe("structured cooking action acceptance", () => {
     ).toHaveCount(0);
 
     await page.getByLabel("Title", { exact: true }).fill(draftTitle);
+    await page
+      .getByRole("button", { name: "Edit categories", exact: true })
+      .click();
+    const categoryEditor = page.getByRole("dialog", {
+      name: "Edit recipe categories",
+      exact: true,
+    });
+    const categoryChoices = categoryEditor.getByRole("group", {
+      name: "Curated recipe categories",
+      exact: true,
+    });
+    await expect(
+      categoryChoices.getByRole("checkbox", {
+        name: "Desserts",
+        exact: true,
+      }),
+    ).toBeChecked();
+    await expect(
+      categoryChoices.getByRole("checkbox", {
+        name: "Vegetarian",
+        exact: true,
+      }),
+    ).toBeChecked();
+    await categoryChoices
+      .getByRole("checkbox", { name: "Desserts", exact: true })
+      .uncheck();
+    await categoryChoices
+      .getByRole("checkbox", { name: "Dinner", exact: true })
+      .check();
+    await categoryEditor
+      .getByRole("button", { name: "Done", exact: true })
+      .click();
     const firstStep = page.getByRole("group", { name: "Step 1", exact: true });
     await firstStep.getByLabel("Step title", { exact: true }).fill(stepTitle);
     await firstStep
@@ -482,6 +514,37 @@ test.describe("structured cooking action acceptance", () => {
     await expect(previousTitle).toHaveCount(1);
     await expect(previousTitle.locator("del")).toHaveText(
       "Carrot Walnut Snack Cake",
+    );
+
+    const comparisonCategories = comparisonHero.getByRole("list", {
+      name: `Categories for ${draftTitle}`,
+    });
+    const comparisonCategoryItems =
+      comparisonCategories.getByRole("listitem");
+    const addedCategory = comparisonCategories.locator(
+      ':scope > [data-category-status="added"]',
+    );
+    const unchangedCategory = comparisonCategories.locator(
+      ':scope > [data-category-status="unchanged"]',
+    );
+    const removedCategory = comparisonCategories.locator(
+      ':scope > [data-category-status="removed"]',
+    );
+    await expect(comparisonCategoryItems).toHaveCount(3);
+    expect(
+      await comparisonCategoryItems.evaluateAll((items) =>
+        items.map((item) => item.getAttribute("data-category-status")),
+      ),
+    ).toEqual(["added", "unchanged", "removed"]);
+    await expect(addedCategory.locator("ins")).toContainText("Dinner");
+    await expect(addedCategory.locator(".visually-hidden")).toHaveText(
+      "Added category:",
+    );
+    await expect(unchangedCategory).toHaveText("Vegetarian");
+    await expect(unchangedCategory.locator("ins, del")).toHaveCount(0);
+    await expect(removedCategory.locator("del")).toContainText("Desserts");
+    await expect(removedCategory.locator(".visually-hidden")).toHaveText(
+      "Removed category:",
     );
 
     const instructions = page.getByRole("region", { name: "Instructions" });
