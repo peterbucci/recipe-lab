@@ -300,7 +300,7 @@ test.describe("member ingredient-request acceptance", () => {
     const search = page.getByRole("searchbox", {
       name: "Search my ingredient requests",
     });
-    const statusFilters = page.getByRole("navigation", {
+    const statusFilters = page.getByRole("group", {
       name: "Ingredient request status",
     });
     for (const label of ["All", "Pending", "Approved", "Matched", "Rejected"]) {

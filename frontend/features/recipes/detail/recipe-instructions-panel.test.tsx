@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type {
   RecipeIngredient,
@@ -62,20 +62,6 @@ const flour: RecipeIngredient = {
 };
 
 describe("RecipeInstructionsPanel", () => {
-  beforeEach(() => {
-    vi.stubGlobal(
-      "requestAnimationFrame",
-      (callback: FrameRequestCallback): number => {
-        callback(0);
-        return 1;
-      },
-    );
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   it("opens in the readable Steps view and uses a numbered fallback for untitled steps", () => {
     render(
       <RecipeInstructionsPanel
@@ -163,7 +149,7 @@ describe("RecipeInstructionsPanel", () => {
     expect(screen.getByText("Mix, then fold the batter.")).toBeVisible();
   });
 
-  it("supports arrow, Home, and End keyboard navigation between views", () => {
+  it("supports wrapped arrow, Home, and End navigation without focusing on click", () => {
     render(
       <RecipeInstructionsPanel
         ingredients={[]}
@@ -179,7 +165,15 @@ describe("RecipeInstructionsPanel", () => {
     });
     stepsTab.focus();
 
-    fireEvent.keyDown(stepsTab, { key: "ArrowRight" });
+    fireEvent.keyDown(stepsTab, { key: "ArrowLeft" });
+    expect(breakdownTab).toHaveFocus();
+    expect(breakdownTab).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(breakdownTab, { key: "ArrowRight" });
+    expect(stepsTab).toHaveFocus();
+    expect(stepsTab).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(stepsTab, { key: "End" });
     expect(breakdownTab).toHaveFocus();
     expect(breakdownTab).toHaveAttribute("aria-selected", "true");
 
@@ -187,8 +181,8 @@ describe("RecipeInstructionsPanel", () => {
     expect(stepsTab).toHaveFocus();
     expect(stepsTab).toHaveAttribute("aria-selected", "true");
 
-    fireEvent.keyDown(stepsTab, { key: "End" });
-    expect(breakdownTab).toHaveFocus();
+    fireEvent.click(breakdownTab);
     expect(breakdownTab).toHaveAttribute("aria-selected", "true");
+    expect(stepsTab).toHaveFocus();
   });
 });

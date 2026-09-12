@@ -62,6 +62,10 @@ describe("MemberActivityTimeline", () => {
   it("uses the shared row loader while the bounded page resolves", () => {
     mocks.fetchMemberActivity.mockReturnValue(new Promise(() => undefined));
     renderTimeline();
+    expect(screen.getByRole("region", { name: "Account activity" })).toHaveClass(
+      "workspace-panel-shell",
+      "workspace-panel-shell--mobile-bleed",
+    );
     expect(screen.getByRole("status")).toHaveTextContent("Loading your activity…");
   });
 
@@ -89,11 +93,16 @@ describe("MemberActivityTimeline", () => {
     expect(draftLink).not.toBeNull();
     expect(draftLink).toHaveAttribute("href", "/recipes/drafts/one");
     expect(draftLink).toHaveClass("member-activity-page__event");
-    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
+    const filters = screen.getByRole("group", { name: "Activity filters" });
+    expect(filters).toHaveClass("workspace-tab-menu__items");
+    const allFilter = within(filters).getByRole("button", { name: "All" });
+    expect(allFilter).toHaveClass("workspace-tab-menu__item");
+    expect(allFilter).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    expect(screen.getByRole("button", { name: "Saved" })).toBeVisible();
+    expect(within(allFilter).getByText("2")).toHaveAttribute("aria-hidden", "true");
+    expect(within(filters).getByRole("button", { name: "Saved" })).toBeVisible();
   });
 
   it("requests one server-filtered page when a tab changes", async () => {

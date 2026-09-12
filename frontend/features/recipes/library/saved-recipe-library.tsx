@@ -259,7 +259,7 @@ export function SavedRecipeLibrary({ pageNumber }: SavedRecipeLibraryProps) {
     >
       <MyRecipesHubHeader />
 
-      <div className="member-library__frame">
+      <div className="member-library__frame workspace-panel-shell workspace-panel-shell--mobile-bleed">
         <MyRecipesHubNavigation
           activeCount={page && !beyondLastPage ? page.total : null}
           activeView="saved"
@@ -277,7 +277,7 @@ export function SavedRecipeLibrary({ pageNumber }: SavedRecipeLibraryProps) {
           title="Saved recipes"
         />
 
-        <div className="member-library__content">
+        <div className="member-library__content workspace-panel-body">
           {status ? (
             <p className="form-status" role="status" tabIndex={-1} ref={statusRef}>
               {status}

@@ -73,13 +73,6 @@
   padding-left: 0.875rem;
 }
 @media (max-width: 43.75rem) {
-  .recipe-detail__section-nav {
-    overflow-y: hidden;
-  }
-  .recipe-detail__section-tab {
-    white-space: nowrap;
-    flex: none;
-  }
   .recipe-action-strip {
     grid-template-columns: minmax(4.75rem, 0.7fr) minmax(4.75rem, 0.7fr) minmax(
         0,
@@ -960,17 +953,6 @@
   stroke-width: 1.8px;
   width: 1rem;
   height: 1rem;
-}
-.member-library__frame {
-  border: 1px solid var(--line);
-  background: var(--surface);
-  border-radius: 0.875rem;
-  overflow: hidden;
-}
-.member-library__content {
-  background: #fcfcfe;
-  min-height: 16rem;
-  padding: 1.25rem;
 }
 .account-workspace-page.member-library .member-library__collection {
   box-shadow: none;

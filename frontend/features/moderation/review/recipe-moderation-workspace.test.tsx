@@ -130,8 +130,10 @@ describe("RecipeModerationWorkspace", () => {
       screen.getByRole("heading", { name: "Recipe reports", level: 1 }).closest("header"),
     ).toHaveClass("staff-workspace__header", "moderation-workspace__header");
     expect(screen.queryByText("Moderator workspace")).not.toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Filter moderation cases" })).toHaveClass(
-      "staff-workspace__filters",
+    const filters = screen.getByRole("group", { name: "Filter moderation cases" });
+    expect(filters).toHaveClass("staff-workspace__filters");
+    expect(filters.closest(".staff-workspace__tab-shell")).toHaveClass(
+      "workspace-panel-shell",
     );
     const openHeader = document.querySelector(
       ".staff-workspace--moderation .workspace-panel-header",
@@ -282,7 +284,7 @@ describe("RecipeModerationWorkspace", () => {
     expect(screen.getByRole("button", { name: /Resolved/ })).toBeVisible();
   });
 
-  it("marks the active status tab and gives its count an accessible name", async () => {
+  it("marks the active status filter without adding its count to the name", async () => {
     const resolvedSummary = {
       ...summary,
       status: "resolved" as const,
@@ -299,16 +301,19 @@ describe("RecipeModerationWorkspace", () => {
     );
     renderAuthorizedWorkspace();
 
-    const openTab = await screen.findByRole("button", { name: /^Open\s*2$/ });
+    const openTab = await screen.findByRole("button", { name: "Open" });
     const resolvedTab = screen.getByRole("button", { name: "Resolved" });
     expect(openTab).toHaveAttribute("aria-pressed", "true");
     expect(resolvedTab).toHaveAttribute("aria-pressed", "false");
+    expect(within(openTab).getByText("2")).toHaveAttribute("aria-hidden", "true");
 
     fireEvent.click(resolvedTab);
-    const activeResolvedTab = await screen.findByRole("button", {
-      name: /^Resolved\s*1$/,
-    });
+    const activeResolvedTab = await screen.findByRole("button", { name: "Resolved" });
     expect(activeResolvedTab).toHaveAttribute("aria-pressed", "true");
+    expect(within(activeResolvedTab).getByText("1")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
     const resolvedHeader = document.querySelector(
       ".staff-workspace--moderation .workspace-panel-header",
     );

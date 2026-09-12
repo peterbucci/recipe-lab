@@ -117,7 +117,7 @@ export function MemberIngredientRequestHistory({
 
   return (
     <section
-      className="member-request-history member-request-history--standalone"
+      className="member-request-history member-request-history--standalone workspace-panel-shell"
       aria-label="My ingredient requests"
       aria-busy={loading}
     >
@@ -130,9 +130,9 @@ export function MemberIngredientRequestHistory({
         }}
       >
         <WorkspaceTabItems
-          as="nav"
           className="member-request-history__status-tabs"
           aria-label="Ingredient request status"
+          role="group"
         >
           {STANDALONE_STATUS_TABS.map((tab) => (
             <WorkspaceTabButton

@@ -90,6 +90,15 @@ describe("MemberConnectionsWorkspace", () => {
     );
     const navigation = screen.getByRole("navigation", { name: "Connection views" });
     expect(navigation).toHaveClass("workspace-tab-menu");
+    expect(navigation.closest(".member-connections-page__frame")).toHaveClass(
+      "workspace-panel-shell",
+      "workspace-panel-shell--mobile-bleed",
+    );
+    expect(
+      screen
+        .getByRole("list", { name: "Your followers" })
+        .closest(".member-connections-page__content"),
+    ).toHaveClass("workspace-panel-body");
     expect(within(navigation).getByRole("link", { name: "Followers" })).toHaveAttribute(
       "aria-current",
       "page",

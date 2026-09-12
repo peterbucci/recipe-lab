@@ -7,7 +7,9 @@ import { WorkspaceErrorState, WorkspaceLoadingState } from "./workspace-state";
 import { WorkspaceTabs } from "./workspace-tab-menu";
 
 function TabsFixture() {
-  const [active, setActive] = useState<"profile" | "danger">("profile");
+  const [active, setActive] = useState<
+    "profile" | "notifications" | "danger"
+  >("profile");
   return (
     <>
       <WorkspaceTabs
@@ -23,6 +25,12 @@ function TabsFixture() {
             value: "profile",
           },
           {
+            id: "notifications-tab",
+            label: "Notifications",
+            panelId: "notifications-panel",
+            value: "notifications",
+          },
+          {
             count: 1,
             id: "danger-tab",
             label: "Danger zone",
@@ -31,8 +39,24 @@ function TabsFixture() {
           },
         ]}
       />
-      <section id="profile-panel" role="tabpanel" hidden={active !== "profile"} />
-      <section id="danger-panel" role="tabpanel" hidden={active !== "danger"} />
+      <section
+        id="profile-panel"
+        role="tabpanel"
+        aria-labelledby="profile-tab"
+        hidden={active !== "profile"}
+      />
+      <section
+        id="notifications-panel"
+        role="tabpanel"
+        aria-labelledby="notifications-tab"
+        hidden={active !== "notifications"}
+      />
+      <section
+        id="danger-panel"
+        role="tabpanel"
+        aria-labelledby="danger-tab"
+        hidden={active !== "danger"}
+      />
     </>
   );
 }
@@ -43,20 +67,45 @@ describe("workspace primitives", () => {
 
     const tablist = screen.getByRole("tablist", { name: "Settings categories" });
     const profile = within(tablist).getByRole("tab", { name: "Profile" });
+    const notifications = within(tablist).getByRole("tab", {
+      name: "Notifications",
+    });
     const danger = within(tablist).getByRole("tab", { name: "Danger zone" });
 
     expect(profile).toHaveAttribute("aria-selected", "true");
     expect(profile).toHaveAttribute("tabindex", "0");
+    expect(profile).toHaveAttribute("aria-controls", "profile-panel");
+    expect(screen.getByRole("tabpanel", { name: "Profile" })).toHaveAttribute(
+      "id",
+      "profile-panel",
+    );
     expect(within(profile).getByText("1")).toHaveAttribute("aria-hidden", "true");
 
-    fireEvent.keyDown(profile, { key: "ArrowRight" });
+    profile.focus();
+    fireEvent.keyDown(profile, { key: "ArrowLeft" });
     expect(danger).toHaveFocus();
     expect(danger).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(danger, { key: "ArrowRight" });
+    expect(profile).toHaveFocus();
+    expect(profile).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(profile, { key: "ArrowRight" });
+    expect(notifications).toHaveFocus();
+    expect(notifications).toHaveAttribute("aria-selected", "true");
     expect(profile).toHaveAttribute("tabindex", "-1");
+
+    fireEvent.keyDown(notifications, { key: "End" });
+    expect(danger).toHaveFocus();
+    expect(danger).toHaveAttribute("aria-selected", "true");
 
     fireEvent.keyDown(danger, { key: "Home" });
     expect(profile).toHaveFocus();
     expect(profile).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.click(danger);
+    expect(danger).toHaveAttribute("aria-selected", "true");
+    expect(profile).toHaveFocus();
   });
 
   it("uses one bounded pagination contract for loading and page limits", () => {

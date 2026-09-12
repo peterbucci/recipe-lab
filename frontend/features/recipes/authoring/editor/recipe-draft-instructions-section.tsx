@@ -2,11 +2,12 @@
 
 import {
   type ChangeEvent,
-  type KeyboardEvent,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
+
+import { useRovingTabs } from "../../../../shared/ui/use-roving-tabs";
 
 import type { CatalogActionType } from "../../shared/cooking-action-model";
 import type { CatalogUnit } from "../../shared/measurement-unit-model";
@@ -57,26 +58,6 @@ function instructionActionErrors(
       field.startsWith(prefix) ? [[field.slice(prefix.length), message]] : [],
     ),
   );
-}
-
-function nextViewForKey(
-  current: InstructionView,
-  event: KeyboardEvent<HTMLButtonElement>,
-): InstructionView | null {
-  const index = VIEWS.indexOf(current);
-  if (event.key === "ArrowRight") {
-    return VIEWS[(index + 1) % VIEWS.length] ?? null;
-  }
-  if (event.key === "ArrowLeft") {
-    return VIEWS[(index - 1 + VIEWS.length) % VIEWS.length] ?? null;
-  }
-  if (event.key === "Home") {
-    return VIEWS[0] ?? null;
-  }
-  if (event.key === "End") {
-    return VIEWS.at(-1) ?? null;
-  }
-  return null;
 }
 
 function AutoSizeInstructionTextarea({
@@ -143,15 +124,11 @@ export function RecipeDraftInstructionsSection({
       Object.keys(instructionActionErrors(errors, instruction.key)).length > 0,
   );
   const visibleView = hasActionErrors ? "breakdown" : view;
-
-  function selectView(next: InstructionView, focus = false) {
-    setView(next);
-    if (focus) {
-      requestAnimationFrame(() => {
-        document.getElementById(`draft-instructions-${next}-tab`)?.focus();
-      });
-    }
-  }
+  const { getTabProps } = useRovingTabs({
+    onChange: setView,
+    value: visibleView,
+    values: VIEWS,
+  });
 
   return (
     <fieldset
@@ -176,24 +153,15 @@ export function RecipeDraftInstructionsSection({
           aria-label="Instruction editing view"
         >
           {VIEWS.map((candidate) => {
-            const active = candidate === visibleView;
             return (
               <button
+                {...getTabProps(candidate)}
                 id={`draft-instructions-${candidate}-tab`}
                 key={candidate}
                 type="button"
                 role="tab"
-                aria-selected={active}
                 aria-controls={`draft-instructions-${candidate}-panel`}
-                tabIndex={active ? 0 : -1}
-                onClick={() => selectView(candidate)}
-                onKeyDown={(event) => {
-                  const next = nextViewForKey(candidate, event);
-                  if (next) {
-                    event.preventDefault();
-                    selectView(next, true);
-                  }
-                }}
+                onClick={() => setView(candidate)}
               >
                 {candidate === "steps" ? "Steps" : "Cooking breakdown"}
               </button>

@@ -376,12 +376,6 @@
 .member-activity-page--timeline .form-alert {
   margin-bottom: 1rem;
 }
-.member-activity-page__shell {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  overflow: hidden;
-}
 .member-activity-page__shell > .workspace-empty-state {
   margin: 1rem;
 }
@@ -550,11 +544,6 @@
   .member-activity-page--timeline .member-activity-page__heading {
     margin-bottom: 1.35rem;
   }
-  .member-activity-page--timeline .member-activity-page__shell {
-    border-inline: 0;
-    border-radius: 0;
-    margin-inline: -0.75rem;
-  }
   .member-activity-page__shell > .workspace-empty-state {
     margin: 0.75rem;
   }
@@ -573,7 +562,6 @@
   }
 }
 @media (forced-colors: active) {
-  .member-activity-page__shell,
   .member-activity-page--timeline .member-activity-page__icon {
     border: 1px solid canvastext;
     background: canvas;

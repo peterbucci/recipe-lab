@@ -117,8 +117,12 @@ describe("MemberIngredientRequestHistory", () => {
     render(<MemberIngredientRequestHistory idPrefix="history" />);
 
     const region = await screen.findByRole("region", { name: "My ingredient requests" });
-    expect(region).toHaveClass("member-request-history--standalone");
-    const statusTabs = within(region).getByRole("navigation", {
+    expect(region).toHaveClass(
+      "member-request-history--standalone",
+      "workspace-panel-shell",
+    );
+    expect(region).not.toHaveClass("workspace-panel-shell--mobile-bleed");
+    const statusTabs = within(region).getByRole("group", {
       name: "Ingredient request status",
     });
     expect(within(statusTabs).getByRole("button", { name: "All" })).toHaveAttribute(

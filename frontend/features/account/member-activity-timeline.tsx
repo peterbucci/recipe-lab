@@ -15,6 +15,11 @@ import { LoadingButton, SectionLoading } from "../../shared/ui/loading-ui";
 import { MemberActivityIcon } from "./member-activity-icon";
 import { WorkspaceEmptyState } from "../../shared/ui/workspace-empty-state";
 import { WorkspacePanelHeader } from "../../shared/ui/workspace-panel-header";
+import {
+  WorkspaceTabButton,
+  WorkspaceTabItems,
+  WorkspaceTabMenu,
+} from "../../shared/ui/workspace-tab-menu";
 
 const ACTIVITY_PAGE_SIZE = 24;
 const EMPTY_ACTIVITIES: MemberActivity[] = [];
@@ -266,17 +271,21 @@ export function MemberActivityTimeline({ userId }: { userId: string }) {
           </div>
         </header>
 
-        <section className="member-activity-page__shell" aria-label="Account activity">
-          <div className="member-activity-page__toolbar workspace-tab-menu">
-            <div
-              className="member-activity-page__filters workspace-tab-menu__items"
+        <section
+          className="member-activity-page__shell workspace-panel-shell workspace-panel-shell--mobile-bleed"
+          aria-label="Account activity"
+        >
+          <WorkspaceTabMenu className="member-activity-page__toolbar">
+            <WorkspaceTabItems
+              className="member-activity-page__filters"
               aria-label="Activity filters"
               role="group"
             >
               {ACTIVITY_FILTERS.map((item) => (
-                <button
-                  aria-pressed={filter === item.id}
-                  className="member-activity-page__filter workspace-tab-menu__item"
+                <WorkspaceTabButton
+                  active={filter === item.id}
+                  className="member-activity-page__filter"
+                  count={counts[item.id]}
                   key={item.id}
                   type="button"
                   onClick={() => {
@@ -287,12 +296,9 @@ export function MemberActivityTimeline({ userId }: { userId: string }) {
                   }}
                 >
                   {item.label}
-                  <span className="workspace-tab-menu__count" aria-hidden="true">
-                    {counts[item.id]}
-                  </span>
-                </button>
+                </WorkspaceTabButton>
               ))}
-            </div>
+            </WorkspaceTabItems>
             <label className="member-activity-page__search workspace-tab-menu__search">
               <span className="visually-hidden">Search activity</span>
               <Search aria-hidden="true" />
@@ -306,7 +312,7 @@ export function MemberActivityTimeline({ userId }: { userId: string }) {
                 }}
               />
             </label>
-          </div>
+          </WorkspaceTabMenu>
           <WorkspacePanelHeader
             description={activeFilter.description}
             meta={

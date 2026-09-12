@@ -29,16 +29,9 @@
   height: 1rem;
 }
 .member-connections-page__frame {
-  border: 1px solid var(--line);
-  border-radius: 0.875rem;
-  background: var(--surface);
+  --workspace-panel-mobile-gutter: 1rem;
+  --workspace-panel-radius: 0.875rem;
   box-shadow: var(--shadow-panel-subtle);
-  overflow: hidden;
-}
-.member-connections-page__content {
-  background: #fcfcfe;
-  min-height: 16rem;
-  padding: 1.25rem;
 }
 .member-connections-page__list {
   gap: 0.65rem;
@@ -162,11 +155,6 @@
   .member-connections-page__activity {
     width: 100%;
   }
-  .member-connections-page__frame {
-    border-inline: 0;
-    border-radius: 0;
-    margin-inline: -1rem;
-  }
   .member-connections-page__content {
     padding: 1rem;
   }
@@ -198,7 +186,6 @@
 }
 
 @media (forced-colors: active) {
-  .member-connections-page__frame,
   .member-connections-page__card,
   .member-connections-page__avatar {
     border-color: canvastext;

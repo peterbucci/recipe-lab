@@ -60,6 +60,10 @@ describe("CommunityActivityTimeline", () => {
     renderTimeline();
 
     expect(await screen.findByRole("heading", { name: "Community activity" })).toBeVisible();
+    expect(document.querySelector(".community-activity-page__shell")).toHaveClass(
+      "workspace-panel-shell",
+      "workspace-panel-shell--mobile-bleed",
+    );
     expect(screen.queryByText("Your community")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Newest recipe" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Load older activity" }));

@@ -44,14 +44,12 @@ function AuthorizedStaffTools({
         <p>Open the staff tools available to your account.</p>
       </header>
 
-      <section className="staff-tools__shell">
+      <section className="staff-tools__shell workspace-panel-shell workspace-panel-shell--mobile-bleed">
         <WorkspaceTabs
           className="staff-tools__role-tabs"
           ariaLabel="Staff tool categories"
           items={availableRoles.map((role) => ({
             className: "staff-tools__role-tab",
-            count: 1,
-            countClassName: "staff-tools__role-count",
             id: `staff-${role}-tab`,
             label: role === "curator" ? "Curator tools" : "Moderator tools",
             panelId: `staff-${role}-panel`,

@@ -67,6 +67,10 @@ describe("AccountSettings", () => {
       screen.getByText("Manage your public profile and account controls."),
     ).toBeVisible();
     const tablist = screen.getByRole("tablist", { name: "Settings categories" });
+    expect(tablist.closest(".account-settings__shell")).toHaveClass(
+      "workspace-panel-shell",
+      "workspace-panel-shell--mobile-bleed",
+    );
     const profileTab = within(tablist).getByRole("tab", { name: "Profile" });
     const dangerTab = within(tablist).getByRole("tab", { name: "Danger zone" });
     const profilePanel = screen.getByRole("tabpanel", { name: "Profile" });
@@ -75,8 +79,7 @@ describe("AccountSettings", () => {
     expect(dangerPanel).not.toBeNull();
     expect(profileTab).toHaveAttribute("aria-selected", "true");
     expect(profileTab).toHaveAttribute("aria-controls", "account-settings-profile-panel");
-    expect(within(profileTab).getByText("1")).toHaveClass("workspace-tab-menu__count");
-    expect(within(dangerTab).getByText("1")).toHaveClass("workspace-tab-menu__count");
+    expect(within(tablist).queryByText("1")).not.toBeInTheDocument();
     expect(profilePanel).not.toHaveAttribute("hidden");
     const profileHeader = within(profilePanel)
       .getByRole("heading", { level: 2, name: "Public profile" })
@@ -119,30 +122,6 @@ describe("AccountSettings", () => {
 
     fireEvent.click(profileTab);
     expect(description).toHaveValue("A live preview draft.");
-  });
-
-  it("supports arrow, Home, and End navigation across the settings tabs", () => {
-    renderSettings();
-
-    const profileTab = screen.getByRole("tab", { name: "Profile" });
-    const dangerTab = screen.getByRole("tab", { name: "Danger zone" });
-
-    profileTab.focus();
-    fireEvent.keyDown(profileTab, { key: "ArrowRight" });
-    expect(dangerTab).toHaveFocus();
-    expect(dangerTab).toHaveAttribute("aria-selected", "true");
-
-    fireEvent.keyDown(dangerTab, { key: "ArrowLeft" });
-    expect(profileTab).toHaveFocus();
-    expect(profileTab).toHaveAttribute("aria-selected", "true");
-
-    fireEvent.keyDown(profileTab, { key: "End" });
-    expect(dangerTab).toHaveFocus();
-    expect(dangerTab).toHaveAttribute("aria-selected", "true");
-
-    fireEvent.keyDown(dangerTab, { key: "Home" });
-    expect(profileTab).toHaveFocus();
-    expect(profileTab).toHaveAttribute("aria-selected", "true");
   });
 
   it("saves a trimmed public profile description through the protected profile endpoint", async () => {

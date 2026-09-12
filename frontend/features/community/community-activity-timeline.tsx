@@ -102,7 +102,7 @@ export function CommunityActivityTimeline({ userId }: { userId: string }) {
 
         {state.phase === "loading" ? (
           <section
-            className="member-activity-page__shell community-activity-page__shell"
+            className="member-activity-page__shell community-activity-page__shell workspace-panel-shell workspace-panel-shell--mobile-bleed"
             aria-label="Loading community activity"
           >
             <SectionLoading
@@ -114,7 +114,7 @@ export function CommunityActivityTimeline({ userId }: { userId: string }) {
           </section>
         ) : state.phase === "error" ? (
           <section
-            className="member-activity-page__shell community-activity-page__shell"
+            className="member-activity-page__shell community-activity-page__shell workspace-panel-shell workspace-panel-shell--mobile-bleed"
             aria-label="Community activity unavailable"
           >
             <div className="member-activity-page__state" role="alert">
@@ -131,7 +131,7 @@ export function CommunityActivityTimeline({ userId }: { userId: string }) {
           </section>
         ) : state.data.items.length === 0 ? (
           <section
-            className="member-activity-page__shell community-activity-page__shell"
+            className="member-activity-page__shell community-activity-page__shell workspace-panel-shell workspace-panel-shell--mobile-bleed"
             aria-label="Community activity"
           >
             <div className="member-activity-page__state">
@@ -144,7 +144,7 @@ export function CommunityActivityTimeline({ userId }: { userId: string }) {
           </section>
         ) : (
           <section
-            className="member-activity-page__shell community-activity-page__shell"
+            className="member-activity-page__shell community-activity-page__shell workspace-panel-shell workspace-panel-shell--mobile-bleed"
             aria-label="Community activity"
           >
             <CommunityPublicationList items={state.data.items} />

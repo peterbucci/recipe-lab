@@ -21,7 +21,9 @@ export const RESERVED_SELECTOR_OWNERS = Object.freeze({
   "state-page": "app/styles/primitives.css",
   "state-panel": "app/styles/primitives.css",
   "workspace-empty-state": "app/styles/primitives.css",
+  "workspace-panel-body": "app/styles/primitives.css",
   "workspace-panel-header": "app/styles/primitives.css",
+  "workspace-panel-shell": "app/styles/primitives.css",
 });
 
 function stylesheetPaths(directory) {

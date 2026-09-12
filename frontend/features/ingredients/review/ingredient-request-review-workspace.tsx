@@ -90,7 +90,7 @@ export function IngredientRequestReviewWorkspace({
       variant="curation"
     >
 
-      <div className="staff-workspace__tab-shell">
+      <div className="staff-workspace__tab-shell workspace-panel-shell">
         <IngredientRequestStatusFilters
           count={queue && !queueLoading ? queue.total : null}
           requestStatus={requestStatus}

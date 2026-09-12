@@ -170,8 +170,7 @@
   font-size: 0.84rem;
 }
 .account-settings-panel,
-.member-library__collection,
-.member-request-history--standalone {
+.member-library__collection {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -244,18 +243,6 @@
   margin-top: 0.75rem;
   padding: 0.65rem;
 }
-.member-request-history--standalone {
-  margin-top: 0;
-  padding: 1rem;
-}
-.member-request-history--standalone .member-request-history__list {
-  gap: 0.65rem;
-}
-.member-request-history--standalone .member-request-card {
-  border-radius: var(--radius-sm);
-  box-shadow: none;
-  padding: 0.8rem;
-}
 @media (max-width: 75rem) {
   .member-library__collection .recipe-grid,
   .account-recipes-page .member-library__grid,
@@ -270,7 +257,6 @@
   .account-settings-panel,
   .account-workspace-page .member-library__privacy,
   .member-library__collection,
-  .member-request-history--standalone,
   .account-workspace-page > .pagination {
     width: min(100%, 46rem);
     margin-left: auto;
@@ -294,8 +280,7 @@
   .account-workspace-page > .page-intro,
   .account-workspace-page > .member-library__intro,
   .account-settings-panel,
-  .member-library__collection,
-  .member-request-history--standalone {
+  .member-library__collection {
     padding: 1rem;
   }
   .account-access-card h1,
@@ -318,18 +303,13 @@
   }
   .member-library__collection .recipe-grid,
   .account-recipes-page .member-library__grid,
-  .account-saved-recipes-page .member-library__grid,
-  .member-request-history--standalone .member-request-history__list {
+  .account-saved-recipes-page .member-library__grid {
     grid-template-columns: 1fr;
   }
-  .account-workspace-page .pagination,
-  .member-request-history--standalone .member-request-history__pagination {
+  .account-workspace-page .pagination {
     gap: 0.45rem;
   }
-  .account-workspace-page .pagination .button,
-  .member-request-history--standalone
-    .member-request-history__pagination
-    .button {
+  .account-workspace-page .pagination .button {
     width: auto;
     min-width: 0;
     padding-inline: 0.65rem;
@@ -346,8 +326,7 @@
   .account-workspace-page > .member-library__intro,
   .account-settings-panel,
   .account-workspace-page .member-library__privacy,
-  .member-library__collection,
-  .member-request-history--standalone {
+  .member-library__collection {
     background: canvas;
     border-color: canvastext;
   }
@@ -381,12 +360,6 @@
   margin: 0;
   font-size: 0.82rem;
   line-height: 1.55;
-}
-.account-settings__shell {
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  background: var(--surface);
-  overflow: hidden;
 }
 .account-settings__panel[hidden] {
   display: none;
@@ -640,11 +613,6 @@
   .account-settings-page > .page-intro h1 {
     font-size: clamp(1.8rem, 9vw, 2.25rem);
   }
-  .account-settings__shell {
-    border-inline: 0;
-    border-radius: 0;
-    margin-inline: -0.75rem;
-  }
   .account-settings__profile-layout {
     grid-template-columns: 1fr;
     gap: 1.375rem;
@@ -660,7 +628,6 @@
 }
 
 @media (forced-colors: active) {
-  .account-settings__shell,
   .account-settings__profile-preview,
   .account-settings__danger-icon,
   .account-settings-page .account-deletion__disclosure,

@@ -61,6 +61,10 @@ describe("cook profile and private recipe libraries", () => {
     authenticated(<MyRecipeLibrary pageNumber={1} view="drafts" />);
 
     const views = screen.getByRole("navigation", { name: "My recipe views" });
+    expect(views.closest(".member-library__frame")).toHaveClass(
+      "workspace-panel-shell",
+      "workspace-panel-shell--mobile-bleed",
+    );
     expect(within(views).getByRole("link", { name: "Drafts" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -84,6 +88,9 @@ describe("cook profile and private recipe libraries", () => {
     const list = await screen.findByRole("list", {
       name: "Private recipe drafts",
     });
+    expect(list.closest(".member-library__content")).toHaveClass(
+      "workspace-panel-body",
+    );
     const draftsHeader = screen
       .getByRole("heading", { level: 2, name: "Private drafts" })
       .closest("header");

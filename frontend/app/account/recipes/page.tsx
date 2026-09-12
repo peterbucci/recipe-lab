@@ -4,9 +4,10 @@ import { MemberRouteGate } from "../../../features/auth/member-route-gate";
 import { MyRecipeLibrary } from "../../../features/recipes/library/my-recipe-library";
 import {
   myRecipesHref,
-  type MyRecipesHubView,
+  parseMyRecipesView,
 } from "../../../features/recipes/library/my-recipes-route";
 import { SavedRecipeLibrary } from "../../../features/recipes/library/saved-recipe-library";
+import { parsePositivePageNumber } from "../../../shared/navigation/query-params";
 
 export const metadata: Metadata = {
   title: "My recipes",
@@ -20,28 +21,10 @@ interface MyRecipesPageProps {
   }>;
 }
 
-function firstValue(value: string | string[] | undefined): string {
-  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
-}
-
-function recipeView(value: string | string[] | undefined): MyRecipesHubView {
-  const candidate = firstValue(value);
-  return candidate === "published" || candidate === "saved" || candidate === "withdrawn"
-    ? candidate
-    : "drafts";
-}
-
-function pageNumber(value: string | string[] | undefined): number {
-  const candidate = firstValue(value);
-  if (!/^\d+$/.test(candidate)) return 1;
-  const parsed = Number(candidate);
-  return Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= 1_000_000 ? parsed : 1;
-}
-
 export default async function MyRecipesPage({ searchParams }: MyRecipesPageProps) {
   const query = await searchParams;
-  const view = recipeView(query.view);
-  const currentPage = pageNumber(query.page);
+  const view = parseMyRecipesView(query.view);
+  const currentPage = parsePositivePageNumber(query.page);
 
   if (view === "saved") {
     return (

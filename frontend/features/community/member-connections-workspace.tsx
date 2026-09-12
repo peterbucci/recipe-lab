@@ -227,7 +227,7 @@ export function MemberConnectionsWorkspace({
       </header>
 
       <section
-        className="member-connections-page__frame"
+        className="member-connections-page__frame workspace-panel-shell workspace-panel-shell--mobile-bleed"
         aria-labelledby={headingId}
       >
         <WorkspaceTabMenu
@@ -265,7 +265,7 @@ export function MemberConnectionsWorkspace({
           title={copy.heading}
         />
 
-        <div className="member-connections-page__content">
+        <div className="member-connections-page__content workspace-panel-body">
           {error ? (
             <div className="member-connections-page__state" role="alert">
               <p>{error}</p>
