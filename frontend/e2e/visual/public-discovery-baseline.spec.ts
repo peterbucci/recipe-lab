@@ -128,9 +128,62 @@ async function expectComparisonTabsAndActions(
   await breakdownTab.click();
   await expect(stepsPanel).toBeHidden();
   await expect(breakdownPanel).toBeVisible();
-  expect(
-    await breakdownPanel.locator(".recipe-comparison-actions").count(),
-  ).toBeGreaterThan(0);
+  const changedBreakdown = breakdownPanel.locator(
+    ".recipe-comparison-instruction-row--changed",
+  );
+  const currentBreakdown = changedBreakdown.locator(
+    'ins.recipe-comparison-action-group--added',
+  );
+  const previousBreakdown = changedBreakdown.locator(
+    'del.recipe-comparison-action-group--removed',
+  );
+  const currentActions = currentBreakdown.locator(
+    ".recipe-comparison-actions--added",
+  );
+  const previousActions = previousBreakdown.locator(
+    ".recipe-comparison-actions--removed",
+  );
+  await expect(changedBreakdown).toHaveCount(1);
+  await expect(currentBreakdown).toBeVisible();
+  await expect(previousBreakdown).toBeVisible();
+  await expect(
+    currentBreakdown.locator(
+      ".recipe-comparison-action-group__change-label > span",
+    ),
+  ).toHaveText("+");
+  await expect(
+    currentBreakdown.locator(
+      ".recipe-comparison-action-group__change-label",
+    ),
+  ).toContainText("Current cooking breakdown");
+  await expect(
+    previousBreakdown.locator(
+      ".recipe-comparison-action-group__change-label > span",
+    ),
+  ).toHaveText("−");
+  await expect(
+    previousBreakdown.locator(
+      ".recipe-comparison-action-group__change-label",
+    ),
+  ).toContainText("Previous cooking breakdown");
+  await expect(currentActions).toBeVisible();
+  await expect(previousActions).toBeVisible();
+  await expectSameHorizontalBounds(currentActions, currentBreakdown);
+  await expectSameHorizontalBounds(previousActions, previousBreakdown);
+  await expectGridColumnCount(
+    currentActions.locator(":scope > .recipe-comparison-action").first(),
+    layout === "rows" ? 2 : 3,
+  );
+  await expectGridColumnCount(
+    previousActions.locator(":scope > .recipe-comparison-action").first(),
+    layout === "rows" ? 2 : 3,
+  );
+  await expectCurrentBeforePrevious(changedBreakdown);
+  await expect(
+    changedBreakdown.locator(
+      ".recipe-comparison-instruction-value__step-number",
+    ).first(),
+  ).toBeHidden();
   await stepsTab.click();
 
   for (let index = 0; index < 3; index += 1) {
@@ -809,10 +862,32 @@ test("recipe comparison remains understandable in forced colors", async ({
   const changedBreakdown = page.locator(
     "#recipe-comparison-instructions-breakdown-panel .recipe-comparison-instruction-row--changed",
   );
+  const currentBreakdown = changedBreakdown.locator(
+    'ins.recipe-comparison-action-group--added',
+  );
+  const previousBreakdown = changedBreakdown.locator(
+    'del.recipe-comparison-action-group--removed',
+  );
   await expect(changedBreakdown).toHaveCount(1);
   await expect(
     changedBreakdown.locator(".recipe-comparison-instruction-row__marker"),
   ).toHaveText("±");
+  await expect(
+    currentBreakdown.locator(
+      ".recipe-comparison-action-group__change-label > span",
+    ),
+  ).toHaveText("+");
+  await expect(
+    previousBreakdown.locator(
+      ".recipe-comparison-action-group__change-label > span",
+    ),
+  ).toHaveText("−");
+  await expect(
+    currentBreakdown.locator(".recipe-comparison-actions--added"),
+  ).toHaveCSS("border-top-style", "solid");
+  await expect(
+    previousBreakdown.locator(".recipe-comparison-actions--removed"),
+  ).toHaveCSS("border-top-style", "dashed");
   await expectNoHorizontalOverflow(page);
   await expectNoAccessibilityViolations(page);
 });
@@ -912,6 +987,30 @@ test("recipe comparison preserves the complete recipe when printed", async ({
   await expect(
     breakdownPanel.locator('[data-comparison-value="previous"]'),
   ).toHaveCount(1);
+  const currentBreakdown = breakdownPanel.locator(
+    'ins.recipe-comparison-action-group--added',
+  );
+  const previousBreakdown = breakdownPanel.locator(
+    'del.recipe-comparison-action-group--removed',
+  );
+  await expect(currentBreakdown).toBeVisible();
+  await expect(previousBreakdown).toBeVisible();
+  await expect(
+    currentBreakdown.locator(
+      ".recipe-comparison-action-group__change-label",
+    ),
+  ).toContainText("Current cooking breakdown");
+  await expect(
+    previousBreakdown.locator(
+      ".recipe-comparison-action-group__change-label",
+    ),
+  ).toContainText("Previous cooking breakdown");
+  await expect(
+    currentBreakdown.locator(".recipe-comparison-actions--added"),
+  ).toHaveCSS("border-top-style", "solid");
+  await expect(
+    previousBreakdown.locator(".recipe-comparison-actions--removed"),
+  ).toHaveCSS("border-top-style", "solid");
   await expect(notes).toBeVisible();
   await expect(
     notes.getByText(
@@ -1050,4 +1149,3 @@ test("public recipe retry refetches the failed route", async ({
   await expect(page).toHaveTitle("Recipe details · Recipe Lab");
   await expectNoAccessibilityViolations(page);
 });
-

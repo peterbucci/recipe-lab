@@ -47,6 +47,35 @@ async function expectControlsInKeyboardOrder(
   ).toBe(controls.length);
 }
 
+async function expectColorIndependentBreakdownChanges(
+  breakdownPanel: Locator,
+): Promise<void> {
+  const currentBreakdown = breakdownPanel.locator(
+    'ins.recipe-comparison-action-group--added',
+  );
+  const previousBreakdown = breakdownPanel.locator(
+    'del.recipe-comparison-action-group--removed',
+  );
+  expect(await currentBreakdown.count()).toBeGreaterThan(0);
+  expect(await previousBreakdown.count()).toBeGreaterThan(0);
+  await expect(
+    currentBreakdown
+      .first()
+      .locator(".recipe-comparison-action-group__change-label"),
+  ).toContainText("Current cooking breakdown");
+  await expect(
+    previousBreakdown
+      .first()
+      .locator(".recipe-comparison-action-group__change-label"),
+  ).toContainText("Previous cooking breakdown");
+  await expect(
+    currentBreakdown.first().locator(".recipe-comparison-actions--added"),
+  ).toBeVisible();
+  await expect(
+    previousBreakdown.first().locator(".recipe-comparison-actions--removed"),
+  ).toBeVisible();
+}
+
 test("compares a selected family recipe with the open recipe without signing in", async ({
   page,
 }) => {
@@ -152,6 +181,7 @@ test("compares a selected family recipe with the open recipe without signing in"
   );
   await expect(comparison.stepsPanel).toBeHidden();
   await expect(comparison.breakdownPanel).toBeVisible();
+  await expectColorIndependentBreakdownChanges(comparison.breakdownPanel);
   await expect(page).toHaveURL(comparisonUrl);
   await comparison.breakdownTab.press("Home");
   await expect(comparison.stepsTab).toBeFocused();
@@ -261,6 +291,7 @@ test("keeps the selected family comparison usable at a phone viewport", async ({
   await comparison.breakdownTab.click();
   await expect(comparison.breakdownPanel).toBeVisible();
   await expect(comparison.stepsPanel).toBeHidden();
+  await expectColorIndependentBreakdownChanges(comparison.breakdownPanel);
   expect(
     await page.evaluate(
       () =>
@@ -416,4 +447,3 @@ test("keeps the anonymous recipe detail gate usable at a phone viewport", async 
     ),
   ).toBe(false);
 });
-

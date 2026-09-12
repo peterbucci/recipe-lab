@@ -554,27 +554,63 @@ test.describe("structured cooking action acceptance", () => {
     const currentActions = currentBreakdown.getByRole("list", {
       name: "Cooking actions in this recipe for step 1",
     });
+    const currentActionGroup = currentBreakdown.locator(
+      "ins.recipe-comparison-action-group--added",
+    );
+    await expect(currentActionGroup).toHaveCount(1);
+    await expect(currentActionGroup).toContainText("Current cooking breakdown");
+    await expect(currentActions).toHaveClass(
+      /recipe-comparison-actions--added/,
+    );
     const currentActionRows = currentActions.locator(":scope > li");
     await expect(currentActionRows).toHaveCount(3);
     await expect(currentActionRows.nth(0)).toContainText("Grease");
-    await expect(currentActionRows.nth(0)).toContainText("With White sugar");
+    await expect(
+      currentActionRows.nth(0).locator(":scope > .recipe-comparison-action__main"),
+    ).toHaveText("White sugar");
     await expect(currentActionRows.nth(1)).toContainText("Preheat");
-    await expect(currentActionRows.nth(1)).toContainText("At 175 °C");
+    await expect(
+      currentActionRows
+        .nth(1)
+        .locator(":scope > .recipe-comparison-action__details"),
+    ).toHaveText("175 °C");
     await expect(currentActionRows.nth(2)).toContainText("Line pan");
-    await expect(currentActionRows.nth(2)).toContainText("With Vegetable oil");
-    await expect(currentActionRows.nth(2)).toContainText("For 2.5 min");
+    await expect(
+      currentActionRows.nth(2).locator(":scope > .recipe-comparison-action__main"),
+    ).toHaveText("Vegetable oil");
+    await expect(
+      currentActionRows
+        .nth(2)
+        .locator(":scope > .recipe-comparison-action__details"),
+    ).toHaveText("2.5 minutes");
 
     const previousActions = previousBreakdown.getByRole("list", {
       name: "Cooking actions in the starting recipe for step 1",
     });
+    const previousActionGroup = previousBreakdown.locator(
+      "del.recipe-comparison-action-group--removed",
+    );
+    await expect(previousActionGroup).toHaveCount(1);
+    await expect(previousActionGroup).toContainText(
+      "Previous cooking breakdown",
+    );
+    await expect(previousActions).toHaveClass(
+      /recipe-comparison-actions--removed/,
+    );
     const previousActionRows = previousActions.locator(":scope > li");
     await expect(previousActionRows).toHaveCount(3);
     await expect(previousActionRows.nth(0)).toContainText("Preheat");
-    await expect(previousActionRows.nth(0)).toContainText("At 180 °C");
+    await expect(
+      previousActionRows
+        .nth(0)
+        .locator(":scope > .recipe-comparison-action__details"),
+    ).toHaveText("180 °C");
     await expect(previousActionRows.nth(1)).toContainText("Grease");
-    await expect(previousActionRows.nth(1)).toContainText(
-      "With Vegetable oil",
-    );
+    await expect(
+      previousActionRows
+        .nth(1)
+        .locator(":scope > .recipe-comparison-action__main"),
+    ).toHaveText("Vegetable oil");
     await expect(previousActionRows.nth(2)).toContainText("Line pan");
     await expectNoAccessibilityViolations(page);
   });

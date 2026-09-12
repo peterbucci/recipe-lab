@@ -85,12 +85,17 @@ function ComparisonInstructionActions({
   actions,
   ingredientById,
   label,
+  tone,
 }: {
   actions: readonly RecipeInstructionAction[];
   ingredientById: ReadonlyMap<string, RecipeIngredient>;
   label: string;
+  tone?: "added" | "removed";
 }) {
   if (actions.length === 0) {
+    if (tone) {
+      return null;
+    }
     return (
       <p className="recipe-comparison-instruction-value__empty">
         No cooking breakdown was recorded for this step.
@@ -98,8 +103,15 @@ function ComparisonInstructionActions({
     );
   }
 
-  return (
-    <ol className="recipe-comparison-actions" aria-label={label}>
+  const actionList = (
+    <ol
+      className={
+        tone
+          ? `recipe-comparison-actions recipe-comparison-actions--${tone}`
+          : "recipe-comparison-actions"
+      }
+      aria-label={label}
+    >
       {[...actions]
         .sort((left, right) => left.display_order - right.display_order)
         .map((action) => {
@@ -109,25 +121,23 @@ function ComparisonInstructionActions({
             <li className="recipe-comparison-action" key={action.id}>
               <strong className="recipe-comparison-action__verb">{verb}</strong>
               <span className="recipe-comparison-action__main">
-                {ingredients.length > 0
-                  ? `With ${listNames(ingredients)}`
-                  : listNames(ingredients)}
+                <strong>{listNames(ingredients)}</strong>
+                {!action.action_type.active ? (
+                  <small className="recipe-comparison-action__inactive">
+                    Previously used action
+                  </small>
+                ) : null}
               </span>
-              {!action.action_type.active ? (
-                <small className="recipe-comparison-action__inactive">
-                  Previously used action
-                </small>
-              ) : null}
               {action.duration || action.temperature ? (
                 <ul
                   className="recipe-comparison-action__details"
                   aria-label={`${verb} timing and temperature`}
                 >
                   {action.duration ? (
-                    <li>For {action.duration.display}</li>
+                    <li>{action.duration.display}</li>
                   ) : null}
                   {action.temperature ? (
-                    <li>At {action.temperature.display}</li>
+                    <li>{action.temperature.display}</li>
                   ) : null}
                 </ul>
               ) : null}
@@ -135,6 +145,28 @@ function ComparisonInstructionActions({
           );
         })}
     </ol>
+  );
+
+  if (!tone) {
+    return <div className="recipe-comparison-action-group">{actionList}</div>;
+  }
+
+  const changeLabel =
+    tone === "added"
+      ? { marker: "+", text: "Current cooking breakdown" }
+      : { marker: "−", text: "Previous cooking breakdown" };
+  const Group = tone === "added" ? "ins" : "del";
+
+  return (
+    <Group
+      className={`recipe-comparison-action-group recipe-comparison-action-group--${tone}`}
+    >
+      <span className="recipe-comparison-action-group__change-label">
+        <span aria-hidden="true">{changeLabel.marker}</span>
+        {changeLabel.text}
+      </span>
+      {actionList}
+    </Group>
   );
 }
 
@@ -160,6 +192,7 @@ function InstructionValue({
       actions={instruction.actions}
       ingredientById={ingredientById}
       label={actionLabel}
+      tone={breakdownChange}
     />
   );
 
@@ -192,10 +225,6 @@ function InstructionValue({
           <p className="recipe-comparison-instruction-value__text">
             {instruction.text}
           </p>
-        ) : breakdownChange === "added" ? (
-          <ins>{breakdown}</ins>
-        ) : breakdownChange === "removed" ? (
-          <del>{breakdown}</del>
         ) : (
           breakdown
         )}
@@ -283,7 +312,9 @@ function CurrentInstruction({
     <InstructionValue
       actionLabel={`Cooking actions in this recipe for step ${step}`}
       breakdownChange={
-        view === "breakdown" && status === "changed" ? "added" : undefined
+        view === "breakdown" && (status === "added" || status === "changed")
+          ? "added"
+          : undefined
       }
       ingredientById={ingredientById}
       instruction={row.current}
@@ -297,7 +328,7 @@ function CurrentInstruction({
       className="recipe-comparison-instruction-row__current"
       data-comparison-value="current"
     >
-      {status === "added" || (status === "changed" && view === "steps") ? (
+      {view === "steps" && (status === "added" || status === "changed") ? (
         <ins>{value}</ins>
       ) : (
         value
@@ -346,18 +377,18 @@ function PreviousInstruction({
       }
       data-comparison-value="previous"
     >
-      {!removed ? (
+      {!removed && view === "steps" ? (
         <span className="recipe-comparison-instruction-row__previous-label">
-          {view === "steps" ? "Previous" : "Previous cooking breakdown"}
+          Previous
         </span>
       ) : null}
-      {view === "breakdown" && !removed ? (
+      {view === "breakdown" ? (
         <InstructionValue
           actionLabel={`Cooking actions in the starting recipe for step ${step}`}
           breakdownChange="removed"
           ingredientById={ingredientById}
           instruction={instruction}
-          omitHeading
+          omitHeading={!removed}
           view={view}
         />
       ) : (
@@ -398,7 +429,9 @@ function InstructionRow({
         status={status}
         view={view}
       />
-      {status === "changed" && row.previous !== null ? (
+      {status === "changed" &&
+      row.previous !== null &&
+      (view === "steps" || row.previous.actions.length > 0) ? (
         <PreviousInstruction
           ingredientById={baseIngredientById}
           instruction={row.previous}

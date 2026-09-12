@@ -95,16 +95,34 @@ describe("RecipeDiffView instruction integration", () => {
       within(instructions).getByRole("tab", { name: "Cooking breakdown" }),
     );
 
+    const currentActions = within(instructions).getByRole("list", {
+      name: "Cooking actions in this recipe for step 2",
+    });
+    const previousActions = within(instructions).getByRole("list", {
+      name: "Cooking actions in the starting recipe for step 2",
+    });
+    expect(currentActions).toHaveTextContent("Orange zest");
+    expect(currentActions).not.toHaveTextContent("With Orange zest");
+    expect(previousActions).toHaveTextContent("White sugar");
+    expect(previousActions).not.toHaveTextContent("With White sugar");
+    expect(currentActions).toHaveClass("recipe-comparison-actions--added");
+    expect(previousActions).toHaveClass("recipe-comparison-actions--removed");
+    expect(currentActions.closest("ins")).toHaveClass(
+      "recipe-comparison-action-group--added",
+    );
+    expect(previousActions.closest("del")).toHaveClass(
+      "recipe-comparison-action-group--removed",
+    );
     expect(
-      within(instructions).getByRole("list", {
-        name: "Cooking actions in this recipe for step 2",
-      }),
-    ).toHaveTextContent("With Orange zest");
+      within(currentActions.closest("ins")!).getByText(
+        "Current cooking breakdown",
+      ),
+    ).toBeVisible();
     expect(
-      within(instructions).getByRole("list", {
-        name: "Cooking actions in the starting recipe for step 2",
-      }),
-    ).toHaveTextContent("With White sugar");
+      within(previousActions.closest("del")!).getByText(
+        "Previous cooking breakdown",
+      ),
+    ).toBeVisible();
     expect(
       screen.queryByRole("heading", { name: "Cooking step changes" }),
     ).toBeNull();

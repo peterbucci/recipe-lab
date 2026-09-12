@@ -128,6 +128,32 @@ test("recipe comparison intermediate normal", async ({ page }, testInfo) => {
   await expect(comparisonBody).toBeInViewport();
   await stabilizeVisuals(page);
   await captureBaseline(page, "recipe-comparison-intermediate-normal");
+
+  const comparisonInstructions = page.getByRole("region", {
+    name: "Instructions",
+  });
+  await comparisonInstructions
+    .getByRole("tab", { name: "Cooking breakdown", exact: true })
+    .click();
+  const breakdownPanel = comparisonInstructions.locator(
+    "#recipe-comparison-instructions-breakdown-panel",
+  );
+  await expect(breakdownPanel).toBeVisible();
+  await expect(
+    breakdownPanel.locator("ins.recipe-comparison-action-group--added"),
+  ).toBeVisible();
+  await expect(
+    breakdownPanel.locator("del.recipe-comparison-action-group--removed"),
+  ).toBeVisible();
+  await comparisonInstructions.evaluate((region) => {
+    region.scrollIntoView({ block: "start" });
+    window.scrollBy(0, -80);
+  });
+  await stabilizeVisuals(page);
+  await captureBaseline(
+    page,
+    "recipe-comparison-intermediate-cooking-breakdown",
+  );
 });
 
 test("account access intermediate normal", async ({ page }, testInfo) => {
@@ -680,4 +706,3 @@ test("stale curator decision desktop visual evidence", async ({
   await stabilizeVisuals(page);
   await captureBaseline(page, "stale-curation-decision");
 });
-

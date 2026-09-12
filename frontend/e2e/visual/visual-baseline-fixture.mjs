@@ -459,7 +459,29 @@ const diff = Object.freeze({
           title: "Soften the tomatoes",
           text: "Simmer the tomatoes until soft.",
           display_order: 0,
-          actions: [],
+          actions: [
+            {
+              id: "43000000-0000-4000-8000-000000000010",
+              action_type: {
+                id: simmerAction.id,
+                key: simmerAction.key,
+                canonical_verb: simmerAction.canonical_verb,
+                active: true,
+              },
+              display_order: 0,
+              ingredient_occurrence_ids: [
+                "41000000-0000-4000-8000-000000000001",
+              ],
+              duration: {
+                kind: "exact",
+                value: "15.0000",
+                unit: minuteSummary,
+                display_unit: "min",
+                display: "15 min",
+              },
+              temperature: null,
+            },
+          ],
         },
         after: detailFor(variantSummary).instructions[0],
         changed_fields: ["title", "text", "actions"],

@@ -964,13 +964,28 @@ export async function verifyPublicLineage(
     const previousBreakdown = breakdownChange.locator(
       ':scope > [data-comparison-value="previous"]',
     );
-    await expect(currentBreakdown.locator("ins")).toContainText("20 min");
-    await expect(previousBreakdown.locator("del")).toContainText("10 min");
+    const currentActionGroup = currentBreakdown.locator(
+      "ins.recipe-comparison-action-group--added",
+    );
+    const previousActionGroup = previousBreakdown.locator(
+      "del.recipe-comparison-action-group--removed",
+    );
+    await expect(currentActionGroup).toContainText("Current cooking breakdown");
+    await expect(currentActionGroup).toContainText("20 min");
+    await expect(
+      currentActionGroup.locator(".recipe-comparison-actions--added"),
+    ).toHaveCount(1);
+    await expect(previousActionGroup).toContainText(
+      "Previous cooking breakdown",
+    );
+    await expect(previousActionGroup).toContainText("10 min");
+    await expect(
+      previousActionGroup.locator(".recipe-comparison-actions--removed"),
+    ).toHaveCount(1);
     await expect(currentBreakdown).toContainText("Timing changed");
     await expectNoAccessibilityViolations(publicPage);
   } finally {
     await publicContext.close();
   }
 }
-
 

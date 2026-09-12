@@ -362,26 +362,52 @@ describe("RecipeComparisonInstructions", () => {
         .getByRole("heading", { name: "Step 2: Fold gently" })
         .closest("ins"),
     ).toBeNull();
-    expect(currentActions.closest("ins")).not.toBeNull();
-    expect(previousActions.closest("del")).not.toBeNull();
+    const currentActionGroup = currentActions.closest("ins");
+    const previousActionGroup = previousActions.closest("del");
+    expect(currentActionGroup).toHaveClass(
+      "recipe-comparison-action-group--added",
+    );
+    expect(previousActionGroup).toHaveClass(
+      "recipe-comparison-action-group--removed",
+    );
+    expect(currentActions).toHaveClass("recipe-comparison-actions--added");
+    expect(previousActions).toHaveClass("recipe-comparison-actions--removed");
+    expect(
+      within(currentActionGroup!).getByText("Current cooking breakdown"),
+    ).toBeVisible();
+    expect(
+      within(previousActionGroup!).getByText("Previous cooking breakdown"),
+    ).toBeVisible();
     const currentActionRows = Array.from(currentActions.children);
 
     expect(currentActionRows).toHaveLength(2);
     expect(currentActionRows[0]).toHaveTextContent("Line pan");
     expect(currentActionRows[1]).toHaveTextContent("Bake");
     expect(currentActionRows[0]).toHaveTextContent(
-      "With Fresh zest, Ingredient no longer available, and Sea salt",
+      "Fresh zest, Ingredient no longer available, and Sea salt",
     );
     expect(currentActionRows[0]).toHaveTextContent("Previously used action");
-    expect(currentActionRows[0]).toHaveTextContent("For 5 minutes");
-    expect(currentActionRows[0]).toHaveTextContent("At 180 °C");
-    expect(currentActionRows[1]).toHaveTextContent("With Sea salt");
-    expect(currentActionRows[1]).toHaveTextContent("At 180 °C");
-    expect(previousActions).toHaveTextContent(
-      "With Base sugar and Ingredient no longer available",
+    expect(currentActionRows[0]).toHaveTextContent("5 minutes");
+    expect(currentActionRows[0]).toHaveTextContent("180 °C");
+    expect(currentActionRows[1]).toHaveTextContent("Sea salt");
+    expect(currentActionRows[1]).toHaveTextContent("180 °C");
+    expect(currentActionRows[0]!.children).toHaveLength(3);
+    expect(currentActionRows[0]!.children[0]).toHaveClass(
+      "recipe-comparison-action__verb",
     );
-    expect(previousActions).toHaveTextContent("For 5 minutes");
-    expect(within(changed).getByText("Previous cooking breakdown")).toBeVisible();
+    expect(currentActionRows[0]!.children[1]).toHaveClass(
+      "recipe-comparison-action__main",
+    );
+    expect(currentActionRows[0]!.children[2]).toHaveClass(
+      "recipe-comparison-action__details",
+    );
+    expect(previousActions).toHaveTextContent(
+      "Base sugar and Ingredient no longer available",
+    );
+    expect(previousActions).toHaveTextContent("5 minutes");
+    expect(currentActions).not.toHaveTextContent("With Fresh zest");
+    expect(currentActions).not.toHaveTextContent("For 5 minutes");
+    expect(currentActions).not.toHaveTextContent("At 180 °C");
     const added = breakdown.querySelector<HTMLElement>(
       ".recipe-comparison-instruction-row--added",
     );
@@ -391,11 +417,19 @@ describe("RecipeComparisonInstructions", () => {
     expect(added).not.toBeNull();
     expect(removed).not.toBeNull();
     expect(
-      added?.querySelector('[data-comparison-value="current"] > ins'),
+      added?.querySelector(
+        '[data-comparison-value="current"] ins.recipe-comparison-action-group--added',
+      ),
     ).not.toBeNull();
     expect(
-      removed?.querySelector('[data-comparison-value="previous"] > del'),
+      removed?.querySelector(
+        '[data-comparison-value="previous"] del.recipe-comparison-action-group--removed',
+      ),
     ).not.toBeNull();
+    expect(within(added!).getByText("Current cooking breakdown")).toBeVisible();
+    expect(
+      within(removed!).getByText("Previous cooking breakdown"),
+    ).toBeVisible();
     expect(
       within(breakdown).getByText(
         "No cooking breakdown was recorded for this step.",
@@ -494,6 +528,96 @@ describe("RecipeComparisonInstructions", () => {
       }),
     ).toBeNull();
     expect(screen.getByText("1 cooking breakdown change")).toBeVisible();
+  });
+
+  it("shows only the meaningful side when a modification adds or removes every structured action", () => {
+    const priorAction = structuredAction("remove-only-action", "mix", 0);
+    const nextAction = structuredAction("add-only-action", "fold", 0);
+    const beforeRemoval = {
+      ...instruction("before-removal", "Keep this wording.", 0, [priorAction]),
+      title: "Remove all actions",
+    };
+    const afterRemoval = {
+      ...instruction("after-removal", "Keep this wording.", 0),
+      title: "Remove all actions",
+    };
+    const beforeAddition = {
+      ...instruction("before-addition", "Keep this wording too.", 1),
+      title: "Add first action",
+    };
+    const afterAddition = {
+      ...instruction("after-addition", "Keep this wording too.", 1, [nextAction]),
+      title: "Add first action",
+    };
+    const diff: RecipeDiff = {
+      ...mixedDiff(),
+      metadata_changes: [],
+      ingredients: { added: [], removed: [], replaced: [], modified: [] },
+      ingredient_context: { base: [], target: [] },
+      instructions: {
+        added: [],
+        removed: [],
+        modified: [
+          {
+            before: beforeRemoval,
+            after: afterRemoval,
+            changed_fields: ["actions"],
+          },
+          {
+            before: beforeAddition,
+            after: afterAddition,
+            changed_fields: ["actions"],
+          },
+        ],
+      },
+      has_changes: true,
+    };
+    const recipe = targetRecipeDetail(diff, {
+      ingredients: [],
+      instructions: [afterRemoval, afterAddition],
+    });
+    render(
+      <RecipeComparisonInstructions
+        comparison={buildRecipeComparisonModel(recipe, diff)}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Cooking breakdown" }),
+    );
+    const breakdown = viewPanel("Cooking breakdown");
+    const removal = rowWithHeading(
+      breakdown,
+      "Step 1: Remove all actions",
+    );
+    const addition = rowWithHeading(breakdown, "Step 2: Add first action");
+
+    expect(removal).toHaveClass("recipe-comparison-instruction-row--changed");
+    expect(
+      within(removal).queryByRole("list", {
+        name: "Cooking actions in this recipe for step 1",
+      }),
+    ).toBeNull();
+    expect(
+      within(removal).getByRole("list", {
+        name: "Cooking actions in the starting recipe for step 1",
+      }),
+    ).toHaveClass("recipe-comparison-actions--removed");
+    expect(within(removal).getByText("Previous cooking breakdown")).toBeVisible();
+
+    expect(addition).toHaveClass("recipe-comparison-instruction-row--changed");
+    expect(
+      within(addition).getByRole("list", {
+        name: "Cooking actions in this recipe for step 2",
+      }),
+    ).toHaveClass("recipe-comparison-actions--added");
+    expect(
+      within(addition).queryByRole("list", {
+        name: "Cooking actions in the starting recipe for step 2",
+      }),
+    ).toBeNull();
+    expect(within(addition).getByText("Current cooking breakdown")).toBeVisible();
+    expect(screen.getByText("2 cooking breakdown changes")).toBeVisible();
   });
 
   it("supports wrapped arrow, Home, and End navigation", () => {

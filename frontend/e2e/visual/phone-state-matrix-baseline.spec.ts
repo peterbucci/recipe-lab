@@ -239,6 +239,29 @@ test.describe("phone visual state matrix", () => {
     });
     await expect(comparisonBody).toBeInViewport();
     await captureBaseline(page, "recipe-comparison-normal");
+
+    const comparisonInstructions = page.getByRole("region", {
+      name: "Instructions",
+    });
+    await comparisonInstructions
+      .getByRole("tab", { name: "Cooking breakdown", exact: true })
+      .click();
+    const breakdownPanel = comparisonInstructions.locator(
+      "#recipe-comparison-instructions-breakdown-panel",
+    );
+    await expect(breakdownPanel).toBeVisible();
+    await expect(
+      breakdownPanel.locator("ins.recipe-comparison-action-group--added"),
+    ).toBeVisible();
+    await expect(
+      breakdownPanel.locator("del.recipe-comparison-action-group--removed"),
+    ).toBeVisible();
+    await comparisonInstructions.evaluate((region) => {
+      region.scrollIntoView({ block: "start" });
+      window.scrollBy(0, -64);
+    });
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "recipe-comparison-cooking-breakdown");
   });
 
   test("cook profile normal", async ({ page }) => {
@@ -418,4 +441,3 @@ test.describe("phone visual state matrix", () => {
     await captureBaseline(page, "recipe-moderation-staff-review");
   });
 });
-

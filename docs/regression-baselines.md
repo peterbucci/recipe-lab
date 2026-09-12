@@ -98,8 +98,10 @@ image is produced from the same sanitized fixture contract.
 | Recipe instructions                 | `recipe-instructions-normal`          | `recipe-instructions-normal` |
 | Recipe history                      | `recipe-detail-history`               | `recipe-detail-history`    |
 | Recipe comparison, normal           | `recipe-comparison-normal`            | `recipe-comparison-normal` |
+| Recipe comparison, cooking breakdown | `recipe-comparison-cooking-breakdown` | `recipe-comparison-cooking-breakdown` |
 | Recipe comparison, phone hero       | —                                     | `recipe-comparison-top-normal` |
 | Recipe comparison, intermediate     | `recipe-comparison-intermediate-normal` | —                        |
+| Recipe comparison, intermediate cooking breakdown | `recipe-comparison-intermediate-cooking-breakdown` | — |
 | Cook profile, normal                | `cook-profile-normal`                 | `cook-profile-normal`      |
 | Community rules, normal             | `community-rules-normal`              | `community-rules-normal`   |
 | Recipe detail, failure              | `recipe-detail-error`                 | —                          |
@@ -177,7 +179,10 @@ The [RCP-52 recipe-style comparison certification](baselines/2026-09-12-recipe-c
 records the recipe-first inline-diff contract at 1440, 820, 901/900, and 390
 CSS pixels, plus forced-colors, print, keyboard, and complete-content evidence.
 Its instruction contract also exercises the shared Steps/Cooking breakdown
-switch and keeps each change category in its corresponding nested panel.
+switch and keeps each change category in its corresponding nested panel. The
+dedicated Cooking breakdown references show the current action stack as an
+addition and the previous action stack as a removal, with visible `+`/`−`
+labels and insertion/deletion semantics in addition to green/red treatment.
 The phone matrix keeps separate hero and body references so both the recipe
 context and its inline changes receive readable full-resolution review.
 

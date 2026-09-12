@@ -823,6 +823,188 @@
   list-style: none;
   display: inline-flex;
 }
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-instruction-row {
+  padding-bottom: 1.5rem;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-instruction-row:not(:last-child)::before {
+  display: none;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-instruction-row__status {
+  margin: 0 0 0.5rem;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-instruction-value {
+  display: block;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-instruction-value__step-number {
+  display: none;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-instruction-value__heading {
+  margin: 0 0 0.625rem;
+  padding-top: 0;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-instruction-value__title {
+  color: var(--ink);
+  text-decoration: none;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-action-group {
+  min-width: 0;
+  margin-top: 0.625rem;
+  text-decoration: none;
+  display: block;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-instruction-value__heading
+  + .recipe-comparison-action-group {
+  margin-top: 0;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-action-group__change-label {
+  letter-spacing: 0.02em;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.375rem;
+  font-size: 0.5625rem;
+  font-weight: 900;
+  line-height: 1.4;
+  display: flex;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-action-group--added
+  .recipe-comparison-action-group__change-label {
+  color: #237a4b;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-action-group--removed
+  .recipe-comparison-action-group__change-label {
+  color: #a44e4e;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-actions {
+  border: 1px solid var(--control-line);
+  border-radius: 0.625rem;
+  background: var(--surface);
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+  display: block;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-actions--added {
+  border-color: #9acfb1;
+  background: #eef9f3;
+  color: #1f6942;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-actions--removed {
+  border-color: #dfaaa2;
+  background: #fdf2ef;
+  color: #914343;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-action {
+  grid-template-columns: 4.875rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  width: 100%;
+  max-width: none;
+  min-height: 3rem;
+  padding: 0.625rem 0.75rem;
+  display: grid;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-action
+  + .recipe-comparison-action {
+  border-top: 1px solid var(--line);
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-actions--added
+  .recipe-comparison-action
+  + .recipe-comparison-action {
+  border-top-color: #b9dec8;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-actions--removed
+  .recipe-comparison-action
+  + .recipe-comparison-action {
+  border-top-color: #ebc7c1;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-action__verb {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.5625rem;
+  line-height: 1.35;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-actions--added
+  .recipe-comparison-action__verb {
+  color: #237a4b;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-actions--removed
+  .recipe-comparison-action__verb {
+  color: #a44e4e;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-action__main {
+  min-width: 0;
+  font-weight: 800;
+  line-height: 1.45;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-action__inactive {
+  margin-top: 0.125rem;
+  font-weight: 500;
+  display: block;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-action__details {
+  justify-content: flex-end;
+  justify-self: end;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-instruction-labels {
+  margin-left: 0;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-instruction-row__previous {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-instruction-row__previous--removed,
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-instruction-row__previous
+  .recipe-comparison-action-group {
+  margin-top: 0;
+}
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-instruction-row__previous
+  .recipe-comparison-instruction-value__title,
+.recipe-comparison-instructions__panel--breakdown
+  .recipe-comparison-instruction-row--removed
+  .recipe-comparison-instruction-value__title {
+  color: var(--ink);
+  text-decoration: none;
+}
 .recipe-comparison-notes {
   max-width: 48rem;
 }
@@ -984,6 +1166,19 @@
   .recipe-comparison-instruction-row__previous {
     margin-left: 2.75rem;
   }
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-action {
+    grid-template-columns: 4.25rem minmax(0, 1fr);
+    gap: 0.25rem 0.625rem;
+  }
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-action__details {
+    grid-column: 2;
+    justify-content: flex-start;
+    justify-self: start;
+    white-space: normal;
+    text-align: left;
+  }
   .recipe-comparison-tabs .recipe-detail__section-nav {
     margin-inline: -1rem;
     padding-inline: 1rem;
@@ -1077,6 +1272,36 @@
   .recipe-comparison-instructions__header h2 {
     break-after: avoid;
   }
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-action-group__change-label,
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-actions--added,
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-actions--removed,
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-actions--added
+    .recipe-comparison-action__verb,
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-actions--removed
+    .recipe-comparison-action__verb {
+    color: inherit;
+  }
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-actions--added,
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-actions--removed {
+    border-color: currentcolor;
+    background: transparent;
+  }
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-action {
+    break-inside: avoid;
+  }
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-action
+    + .recipe-comparison-action {
+    border-top-color: currentcolor;
+  }
 }
 
 @media (forced-colors: active) {
@@ -1143,6 +1368,40 @@
   }
   .recipe-comparison-instruction-row:not(:last-child)::before {
     background: CanvasText;
+  }
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-action-group__change-label,
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-actions--added,
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-actions--removed,
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-actions--added
+    .recipe-comparison-action__verb,
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-actions--removed
+    .recipe-comparison-action__verb {
+    color: CanvasText;
+  }
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-actions {
+    border-color: CanvasText;
+    background: Canvas;
+  }
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-actions--removed {
+    border-style: dashed;
+  }
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-action {
+    border: 0;
+    background: Canvas;
+    color: CanvasText;
+  }
+  .recipe-comparison-instructions__panel--breakdown
+    .recipe-comparison-action
+    + .recipe-comparison-action {
+    border-top: 1px solid CanvasText;
   }
 }
 
