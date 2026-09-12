@@ -2,10 +2,6 @@ import Link from "next/link";
 
 import { PublicCookAttribution } from "../../community/public-cook-attribution";
 import { relativeTimeLabel } from "../../../shared/time/relative-time";
-import {
-  WorkspaceTabCount,
-  WorkspaceTabMenu,
-} from "../../../shared/ui/workspace-tab-menu";
 import { RecipeArtwork } from "../shared/recipe-artwork";
 import { RecipeCategoryList } from "../shared/recipe-category-list";
 import type {
@@ -243,44 +239,5 @@ export function RecipeComparisonHero({
         </div>
       </div>
     </header>
-  );
-}
-
-export function RecipeComparisonNavigation({
-  comparison,
-}: {
-  comparison: RecipeComparisonModel;
-}) {
-  const { diff, recipe, totalChanges } = comparison;
-  const recipeHref = `/recipes/${encodeURIComponent(recipe.id)}`;
-  const changesHref = `${recipeHref}/compare?base_version_id=${encodeURIComponent(
-    diff.base_version.id,
-  )}`;
-
-  return (
-    <WorkspaceTabMenu
-      as="nav"
-      className="workspace-tab-menu--underline recipe-comparison-nav"
-      aria-label="Recipe views"
-      itemsOnly
-    >
-      <Link
-        aria-current="page"
-        className="workspace-tab-menu__item"
-        href={changesHref}
-      >
-        Changes
-        <WorkspaceTabCount>{totalChanges}</WorkspaceTabCount>
-      </Link>
-      <Link className="workspace-tab-menu__item" href={recipeHref}>
-        Recipe
-      </Link>
-      <Link
-        className="workspace-tab-menu__item"
-        href={`${recipeHref}#recipe-family`}
-      >
-        Family
-      </Link>
-    </WorkspaceTabMenu>
   );
 }

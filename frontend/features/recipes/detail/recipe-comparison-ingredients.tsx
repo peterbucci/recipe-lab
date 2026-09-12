@@ -176,6 +176,7 @@ export function RecipeComparisonIngredients({
 
   return (
     <section
+      id="ingredients"
       className="recipe-comparison-ingredients"
       aria-labelledby="recipe-comparison-ingredients-heading"
     >

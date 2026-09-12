@@ -11,6 +11,7 @@ import { GuardedLink } from "../../../shared/navigation/navigation-blocker-provi
 import { RecipeArtwork } from "./recipe-artwork";
 
 interface RecipeFamilyNavigatorProps {
+  currentRecipeIsPage?: boolean;
   draftPreview?: RecipeFamilyDraftPreview;
   recipe: RecipeDetail;
   versions?: readonly RecipeCardSummary[];
@@ -200,6 +201,7 @@ function sortedNodes(nodes: Iterable<FamilyNode>): FamilyNode[] {
 }
 
 export function RecipeFamilyNavigator({
+  currentRecipeIsPage = true,
   draftPreview,
   recipe,
   versions = [],
@@ -226,7 +228,8 @@ export function RecipeFamilyNavigator({
     selection.scope === selectionScope && nodes.has(selection.focusedId)
       ? selection.focusedId
       : initialFocusedId;
-  const currentRecipeId = draftPreview ? null : recipe.id;
+  const currentRecipeId =
+    draftPreview || !currentRecipeIsPage ? null : recipe.id;
 
   const focused = nodes.get(focusedId) ?? nodes.get(recipe.id)!;
   const parent = focused.parentVersionId

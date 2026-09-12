@@ -28,7 +28,6 @@ export const RESERVED_SELECTOR_OWNERS = Object.freeze({
   "recipe-comparison-hero": "app/styles/features/recipe-comparison.css",
   "recipe-comparison-previous": "app/styles/features/recipe-comparison.css",
   "recipe-comparison-strip": "app/styles/features/recipe-comparison.css",
-  "recipe-comparison-nav": "app/styles/features/recipe-comparison.css",
   "recipe-comparison-legend": "app/styles/features/recipe-comparison.css",
   "recipe-comparison-content": "app/styles/features/recipe-comparison.css",
   "recipe-comparison-body": "app/styles/features/recipe-comparison.css",
@@ -55,9 +54,8 @@ export const RESERVED_SELECTOR_OWNERS = Object.freeze({
     "app/styles/features/recipe-comparison.css",
   "recipe-comparison-actions": "app/styles/features/recipe-comparison.css",
   "recipe-comparison-action": "app/styles/features/recipe-comparison.css",
-  "recipe-comparison-notes-area":
-    "app/styles/features/recipe-comparison.css",
   "recipe-comparison-notes": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-tabs": "app/styles/features/recipe-comparison.css",
   "recipe-comparison-loading": "app/styles/features/recipe-comparison.css",
   "recipe-diff-view": "app/styles/features/recipe-comparison.css",
   "recipe-diff-content": "app/styles/features/recipe-comparison.css",

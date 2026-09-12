@@ -67,7 +67,7 @@ describe("recipe route states", () => {
     expect(comparisonBody?.children).toHaveLength(2);
     expect(
       comparisonSkeleton?.querySelector(".recipe-comparison-loading__notes"),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
   });
 
   it("offers a retry for service errors", () => {

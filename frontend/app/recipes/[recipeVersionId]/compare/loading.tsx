@@ -76,11 +76,6 @@ export default function RecipeCompareLoading() {
             ))}
           </div>
         </div>
-        <div className="recipe-comparison-loading__notes">
-          <LoadingBlock className="loading-block--heading" />
-          <LoadingBlock className="loading-block--copy" />
-          <LoadingBlock className="loading-block--copy loading-block--copy-short" />
-        </div>
       </div>
     </main>
   );

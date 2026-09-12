@@ -50,6 +50,7 @@ export function RecipeComparisonNotes({
 
   return (
     <section
+      id="recipe-notes"
       className="recipe-comparison-notes"
       aria-labelledby="recipe-comparison-notes-heading"
     >

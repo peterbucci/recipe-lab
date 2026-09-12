@@ -9,7 +9,9 @@ import {
   fetchRecipe,
   fetchRecipeDiff,
 } from "../../../../features/recipes/detail/recipe-detail-server-api";
+import { fetchRecipePage } from "../../../../features/recipes/browse/recipe-browse-server-api";
 import type {
+  RecipeCardSummary,
   RecipeDetail,
   RecipeDiff,
 } from "../../../../features/recipes/shared/recipe-contracts";
@@ -95,6 +97,18 @@ export default async function RecipeComparePage({
   }
 
   const comparison = buildRecipeComparisonModel(recipe, diff);
+  let familyVersions: RecipeCardSummary[] = [];
+  try {
+    const familyPage = await fetchRecipePage({
+      lineageId: recipe.lineage_id,
+      pageSize: 100,
+      sort: "title",
+    });
+    familyVersions = [...familyPage.items];
+  } catch {
+    // The detail response still carries bounded parent/current/children
+    // context when the full lineage browse is unavailable.
+  }
 
   return (
     <main
@@ -117,7 +131,10 @@ export default async function RecipeComparePage({
         <span aria-hidden="true">/</span>
         <span aria-current="page">Compare</span>
       </nav>
-      <RecipeDiffView comparison={comparison} />
+      <RecipeDiffView
+        comparison={comparison}
+        familyVersions={familyVersions}
+      />
     </main>
   );
 }

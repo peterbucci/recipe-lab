@@ -235,7 +235,9 @@ test.describe("desktop visual state matrix", () => {
         level: 1,
       }),
     ).toBeVisible();
-    const comparisonBody = page.locator(".recipe-comparison-body");
+    const comparisonBody = page.locator(
+      ".recipe-diff-view:visible #recipe-panel-recipe .recipe-comparison-body",
+    );
     await expect(comparisonBody).toBeVisible();
     await expect(
       comparisonBody.getByRole("heading", { name: "Ingredients", level: 2 }),

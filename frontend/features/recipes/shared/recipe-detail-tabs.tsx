@@ -8,6 +8,7 @@ import { useRovingTabs } from "../../../shared/ui/use-roving-tabs";
 type RecipeDetailTab = "recipe" | "notes" | "family";
 
 interface RecipeDetailTabsProps {
+  className?: string;
   family: ReactNode;
   notes: ReactNode;
   recipe: ReactNode;
@@ -27,6 +28,7 @@ function tabFromHash(hash: string): RecipeDetailTab | null {
 }
 
 export function RecipeDetailTabs({
+  className,
   family,
   notes,
   recipe,
@@ -59,7 +61,11 @@ export function RecipeDetailTabs({
   const content: Record<RecipeDetailTab, ReactNode> = { family, notes, recipe };
 
   return (
-    <div className="recipe-detail__tabs">
+    <div
+      className={["recipe-detail__tabs", className]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <div
         className="recipe-detail__section-nav"
         role="tablist"

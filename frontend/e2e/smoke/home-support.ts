@@ -61,7 +61,6 @@ export async function expectCarrotComparisonToShowCompleteRecipe(
   const baseRecipeHref = `/recipes/${baseRecipeVersionId}`;
   const currentRecipeHref = `/recipes/${targetRecipeVersionId}`;
   const comparisonHref = `${currentRecipeHref}/compare?base_version_id=${baseRecipeVersionId}`;
-  const familyHref = `${currentRecipeHref}#recipe-family`;
 
   await expect(
     page.getByRole("heading", {
@@ -133,7 +132,8 @@ export async function expectCarrotComparisonToShowCompleteRecipe(
     ).toHaveCount(1);
   }
 
-  const hero = page.locator(".recipe-comparison-hero");
+  const comparisonView = page.locator(".recipe-diff-view:visible");
+  const hero = comparisonView.locator(".recipe-comparison-hero");
   await expect(
     hero.getByRole("link", { name: "View starting recipe", exact: true }),
   ).toHaveAttribute("href", baseRecipeHref);
@@ -144,14 +144,63 @@ export async function expectCarrotComparisonToShowCompleteRecipe(
     }),
   ).toHaveAttribute("href", currentRecipeHref);
 
-  const views = page.getByRole("navigation", { name: "Recipe views" });
-  const changesLink = views.getByRole("link", { name: "Changes" });
-  const recipeLink = views.getByRole("link", { name: "Recipe", exact: true });
-  const familyLink = views.getByRole("link", { name: "Family", exact: true });
-  await expect(changesLink).toHaveAttribute("href", comparisonHref);
-  await expect(changesLink).toHaveAttribute("aria-current", "page");
-  await expect(recipeLink).toHaveAttribute("href", currentRecipeHref);
-  await expect(familyLink).toHaveAttribute("href", familyHref);
+  const tabs = comparisonView.getByRole("tablist", {
+    name: "Recipe sections",
+  });
+  const recipeTab = tabs.getByRole("tab", { name: "Recipe", exact: true });
+  const notesTab = tabs.getByRole("tab", { name: "Notes", exact: true });
+  const familyTab = tabs.getByRole("tab", { name: "Family", exact: true });
+  const recipePanel = comparisonView.locator("#recipe-panel-recipe");
+  const notesPanel = comparisonView.locator("#recipe-panel-notes");
+  const familyPanel = comparisonView.locator("#recipe-panel-family");
+
+  await expect(tabs.getByRole("tab")).toHaveCount(3);
+  await expect(recipeTab).toHaveAttribute("aria-selected", "true");
+  await expect(recipeTab).toHaveAttribute(
+    "aria-controls",
+    "recipe-panel-recipe",
+  );
+  await expect(recipeTab).toHaveAttribute("tabindex", "0");
+  await expect(notesTab).toHaveAttribute("aria-selected", "false");
+  await expect(notesTab).toHaveAttribute("aria-controls", "recipe-panel-notes");
+  await expect(notesTab).toHaveAttribute("tabindex", "-1");
+  await expect(familyTab).toHaveAttribute("aria-selected", "false");
+  await expect(familyTab).toHaveAttribute(
+    "aria-controls",
+    "recipe-panel-family",
+  );
+  await expect(familyTab).toHaveAttribute("tabindex", "-1");
+
+  await expect(recipePanel).toHaveAttribute("role", "tabpanel");
+  await expect(recipePanel).toHaveAttribute(
+    "aria-labelledby",
+    "recipe-tab-recipe",
+  );
+  await expect(recipePanel).toBeVisible();
+  await expect(notesPanel).toHaveAttribute("role", "tabpanel");
+  await expect(notesPanel).toHaveAttribute(
+    "aria-labelledby",
+    "recipe-tab-notes",
+  );
+  await expect(notesPanel).toBeHidden();
+  await expect(notesPanel).toContainText("No notes were added for this recipe.");
+  await expect(
+    recipePanel.getByText("No notes were added for this recipe."),
+  ).toHaveCount(0);
+  await expect(familyPanel).toHaveAttribute("role", "tabpanel");
+  await expect(familyPanel).toHaveAttribute(
+    "aria-labelledby",
+    "recipe-tab-family",
+  );
+  await expect(familyPanel).toBeHidden();
+  await expect(familyPanel).toContainText("Recipe family");
+
+  await expect(
+    page.getByRole("navigation", { name: "Recipe views" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Changes", exact: true }),
+  ).toHaveCount(0);
 
   expect(
     await page
@@ -164,12 +213,15 @@ export async function expectCarrotComparisonToShowCompleteRecipe(
   );
 
   return {
-    changesLink,
     comparisonHref,
-    familyHref,
-    familyLink,
+    familyPanel,
+    familyTab,
     ingredients,
     instructions,
-    recipeLink,
+    notesPanel,
+    notesTab,
+    recipePanel,
+    recipeTab,
+    tabs,
   };
 }

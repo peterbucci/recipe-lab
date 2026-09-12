@@ -1,20 +1,23 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
-  baseVersion,
   comparisonModel,
   ingredient,
   instruction,
   mixedDiff,
   sectionNamed,
   targetRecipeDetail,
-  targetVersion,
 } from "./recipe-diff-view-test-support";
 import { RecipeDiffView } from "./recipe-diff-view";
 
 function recipeFirstComparison() {
   const diff = mixedDiff();
+  diff.metadata_changes.push({
+    field: "notes",
+    before: null,
+    after: "Serve slightly warm with yogurt.",
+  });
   const recipe = targetRecipeDetail(diff, {
     ingredients: [
       ingredient("flour-row", "Flour", "200.0000", "g", {
@@ -36,6 +39,18 @@ function recipeFirstComparison() {
 }
 
 describe("RecipeDiffView", () => {
+  beforeEach(() => {
+    window.history.replaceState(
+      null,
+      "",
+      "/recipes/target/compare?base_version_id=base",
+    );
+  });
+
+  afterEach(() => {
+    window.history.replaceState(null, "", "/");
+  });
+
   it("presents the complete current recipe with comparison context in cooking order", () => {
     render(<RecipeDiffView comparison={recipeFirstComparison()} />);
 
@@ -57,22 +72,19 @@ describe("RecipeDiffView", () => {
       ),
     ).toBeInTheDocument();
 
-    const views = screen.getByRole("navigation", { name: "Recipe views" });
-    const changesLink = within(views).getByRole("link", { name: "Changes" });
-    expect(changesLink).toHaveAttribute(
-      "href",
-      `/recipes/${targetVersion.id}/compare?base_version_id=${baseVersion.id}`,
-    );
-    expect(changesLink).toHaveAttribute("aria-current", "page");
-    expect(within(changesLink).getByText("10")).toBeInTheDocument();
-    expect(within(views).getByRole("link", { name: "Recipe" })).toHaveAttribute(
-      "href",
-      `/recipes/${targetVersion.id}`,
-    );
-    expect(within(views).getByRole("link", { name: "Family" })).toHaveAttribute(
-      "href",
-      `/recipes/${targetVersion.id}#recipe-family`,
-    );
+    const tabs = screen.getByRole("tablist", { name: "Recipe sections" });
+    const recipeTab = within(tabs).getByRole("tab", { name: "Recipe" });
+    const notesTab = within(tabs).getByRole("tab", { name: "Notes" });
+    const familyTab = within(tabs).getByRole("tab", { name: "Family" });
+    expect(within(tabs).getAllByRole("tab")).toEqual([
+      recipeTab,
+      notesTab,
+      familyTab,
+    ]);
+    expect(recipeTab).toHaveAttribute("aria-selected", "true");
+    expect(notesTab).toHaveAttribute("aria-selected", "false");
+    expect(familyTab).toHaveAttribute("aria-selected", "false");
+    expect(screen.queryByRole("link", { name: "Changes" })).toBeNull();
 
     const legend = screen.getByRole("complementary", {
       name: "Comparison legend",
@@ -86,9 +98,12 @@ describe("RecipeDiffView", () => {
       screen
         .getAllByRole("heading", { level: 2 })
         .map((heading) => heading.textContent),
-    ).toEqual(["Ingredients", "Instructions", "Notes from Second Cook"]);
+    ).toEqual(["Ingredients", "Instructions"]);
     expect(
-      screen.getByText("10 changes", {
+      screen.queryByRole("heading", { name: "Notes from Second Cook" }),
+    ).toBeNull();
+    expect(
+      screen.getByText("11 changes", {
         selector: ".recipe-comparison-strip__count",
       }),
     ).toBeVisible();
@@ -111,6 +126,39 @@ describe("RecipeDiffView", () => {
     expect(document.body).not.toHaveTextContent(
       /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i,
     );
+
+    fireEvent.click(notesTab);
+    const notesPanel = screen.getByRole("tabpanel", { name: "Notes" });
+    expect(notesTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      within(notesPanel).getByRole("heading", {
+        name: "Notes from Second Cook",
+      }),
+    ).toBeVisible();
+    expect(within(notesPanel).getByText("Notes changed")).toBeVisible();
+    expect(
+      within(notesPanel).getByText("Serve slightly warm with yogurt."),
+    ).toBeVisible();
+    expect(
+      within(notesPanel).getByText(
+        "No notes were added for the starting recipe.",
+      ),
+    ).toBeVisible();
+    expect(document.getElementById("recipe-panel-recipe")).toHaveAttribute(
+      "hidden",
+    );
+
+    fireEvent.click(familyTab);
+    const familyPanel = screen.getByRole("tabpanel", { name: "Family" });
+    expect(familyTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      within(familyPanel).getByRole("heading", { name: "Recipe family" }),
+    ).toBeVisible();
+    expect(
+      within(familyPanel).getByRole("link", {
+        name: "Lower-Sugar Pecan Carrot Cake",
+      }),
+    ).not.toHaveAttribute("aria-current");
   });
 
   it("keeps unchanged recipe content visible when the structured diff has zero changes", () => {
@@ -152,8 +200,6 @@ describe("RecipeDiffView", () => {
       ),
     ).toHaveTextContent("Stir until smooth.");
 
-    const notes = sectionNamed("Notes from Second Cook");
-    expect(within(notes).getByText("Serve warm.")).toBeVisible();
     expect(
       screen.getByText("0 changes", {
         selector: ".recipe-comparison-strip__count",
@@ -174,6 +220,18 @@ describe("RecipeDiffView", () => {
         name: "This recipe matches the starting recipe.",
       }),
     ).not.toBeInTheDocument();
-    expect(container).not.toHaveTextContent("Original");
+    expect(comparisonContent).not.toHaveTextContent("Original");
+
+    expect(
+      screen.queryByRole("heading", { name: "Notes from Second Cook" }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Notes" }));
+    const notes = sectionNamed("Notes from Second Cook");
+    expect(within(notes).getByText("Serve warm.")).toBeVisible();
+    expect(
+      container.querySelector(
+        ".recipe-comparison-notes ins, .recipe-comparison-notes del",
+      ),
+    ).not.toBeInTheDocument();
   });
 });

@@ -62,13 +62,6 @@
   grid-template-columns: minmax(18.75rem, 0.72fr) minmax(0, 1.38fr);
   padding-top: 0.375rem;
 }
-.recipe-comparison-loading__notes {
-  border-top: 1px solid var(--line);
-  gap: 0.7rem;
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  display: grid;
-}
 
 .recipe-comparison-page {
   width: min(80rem, 100% - 3rem);
@@ -328,10 +321,6 @@
   min-width: 0;
   min-height: 2.6875rem;
   text-align: center;
-}
-.recipe-comparison-nav {
-  gap: 1.375rem;
-  margin-top: 0.625rem;
 }
 .recipe-comparison-legend {
   color: var(--muted);
@@ -758,11 +747,6 @@
   list-style: none;
   display: inline-flex;
 }
-.recipe-comparison-notes-area {
-  border-top: 1px solid var(--line);
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-}
 .recipe-comparison-notes {
   max-width: 48rem;
 }
@@ -908,6 +892,10 @@
   .recipe-comparison-instruction-row__previous {
     margin-left: 2.75rem;
   }
+  .recipe-comparison-tabs .recipe-detail__section-nav {
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+  }
 }
 
 @media print {
@@ -915,17 +903,20 @@
     width: 100%;
     padding: 0;
   }
-  .recipe-comparison-nav {
-    visibility: hidden;
-    position: fixed;
-    inset: 0 auto auto 0;
-    width: 0;
-    height: 0;
-    min-height: 0;
-    overflow: hidden;
-    margin: 0;
-    padding: 0;
-    border: 0;
+  .recipe-comparison-tabs .recipe-detail__section-nav {
+    display: none;
+  }
+  .recipe-comparison-tabs #recipe-panel-recipe,
+  .recipe-comparison-tabs #recipe-panel-notes {
+    display: block !important;
+  }
+  .recipe-comparison-tabs #recipe-panel-notes {
+    border-top: 1px solid var(--line);
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+  }
+  .recipe-comparison-tabs #recipe-panel-family {
+    display: none !important;
   }
   .recipe-comparison-hero__actions {
     display: none;

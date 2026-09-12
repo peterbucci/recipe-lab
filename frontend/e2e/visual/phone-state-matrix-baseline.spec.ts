@@ -213,8 +213,12 @@ test.describe("phone visual state matrix", () => {
         level: 1,
       }),
     ).toBeVisible();
-    const comparisonHero = page.locator(".recipe-comparison-hero");
-    const comparisonBody = page.locator(".recipe-comparison-body");
+    const comparisonHero = page.locator(
+      ".recipe-diff-view:visible .recipe-comparison-hero",
+    );
+    const comparisonBody = page.locator(
+      ".recipe-diff-view:visible #recipe-panel-recipe .recipe-comparison-body",
+    );
     await expect(comparisonHero).toBeVisible();
     await expect(comparisonBody).toBeVisible();
     await stabilizeVisuals(page);

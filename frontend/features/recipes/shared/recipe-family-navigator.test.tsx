@@ -227,6 +227,24 @@ describe("RecipeFamilyNavigator", () => {
     ).toHaveAttribute("href", "/recipes/pecan/compare?base_version_id=banana");
   });
 
+  it("does not mark a recipe link current when embedded outside its recipe page", () => {
+    render(
+      <RecipeFamilyNavigator
+        currentRecipeIsPage={false}
+        recipe={recipe()}
+        versions={versions}
+      />,
+    );
+
+    const family = screen.getByRole("region", { name: "Recipe family" });
+    expect(
+      within(family).getByRole("link", { name: "Banana Oat Pancakes" }),
+    ).not.toHaveAttribute("aria-current");
+    expect(
+      within(family).queryByRole("link", { current: "page" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("lets the family origin recenter the tree while its title opens it", () => {
     render(
       <RecipeFamilyNavigator

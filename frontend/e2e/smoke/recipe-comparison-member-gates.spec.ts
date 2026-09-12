@@ -115,7 +115,9 @@ test("compares a selected family recipe with the open recipe without signing in"
     targetRecipeVersionId,
   });
 
-  const comparisonHero = page.locator(".recipe-comparison-hero");
+  const comparisonHero = page.locator(
+    ".recipe-diff-view:visible .recipe-comparison-hero",
+  );
   await expectControlsInKeyboardOrder(page, [
     {
       label: "the Explore breadcrumb",
@@ -137,37 +139,51 @@ test("compares a selected family recipe with the open recipe without signing in"
         exact: true,
       }),
     },
-    { label: "Changes", locator: comparison.changesLink },
-    { label: "Recipe", locator: comparison.recipeLink },
-    { label: "Family", locator: comparison.familyLink },
+    { label: "the selected Recipe tab", locator: comparison.recipeTab },
   ]);
 
-  await page.goto(comparison.comparisonHref);
-
-  await reachWithKeyboard(page, comparison.changesLink);
-  await expect(comparison.changesLink).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(comparison.comparisonHref);
-
-  const recipeLink = page
-    .getByRole("navigation", { name: "Recipe views" })
-    .getByRole("link", { name: "Recipe", exact: true });
-  await reachWithKeyboard(page, recipeLink);
-  await expect(recipeLink).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(`/recipes/${targetRecipeVersionId}`);
-
-  await page.goto(comparison.comparisonHref);
-  const familyLink = page
-    .getByRole("navigation", { name: "Recipe views" })
-    .getByRole("link", { name: "Family", exact: true });
-  await reachWithKeyboard(page, familyLink);
-  await expect(familyLink).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(comparison.familyHref);
+  await comparison.recipeTab.press("ArrowRight");
+  await expect(comparison.notesTab).toBeFocused();
+  await expect(comparison.notesTab).toHaveAttribute("aria-selected", "true");
+  await expect(comparison.recipePanel).toBeHidden();
+  await expect(comparison.notesPanel).toBeVisible();
   await expect(
-    page.getByRole("tab", { name: "Family", exact: true }),
-  ).toHaveAttribute("aria-selected", "true");
+    comparison.notesPanel.getByText("No notes were added for this recipe."),
+  ).toBeVisible();
+  await expect(page).toHaveURL(`${comparison.comparisonHref}#recipe-notes`);
+
+  await comparison.notesTab.press("ArrowRight");
+  await expect(comparison.familyTab).toBeFocused();
+  await expect(comparison.familyTab).toHaveAttribute("aria-selected", "true");
+  await expect(comparison.notesPanel).toBeHidden();
+  await expect(comparison.familyPanel).toBeVisible();
+  await expect(
+    comparison.familyPanel.getByRole("heading", {
+      name: "Recipe family",
+      level: 2,
+    }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(`${comparison.comparisonHref}#recipe-family`);
+
+  await comparison.familyTab.press("Home");
+  await expect(comparison.recipeTab).toBeFocused();
+  await expect(comparison.recipeTab).toHaveAttribute("aria-selected", "true");
+  await expect(comparison.recipePanel).toBeVisible();
+  await expect(comparison.familyPanel).toBeHidden();
+  await expect(page).toHaveURL(`${comparison.comparisonHref}#ingredients`);
+
+  await comparison.recipeTab.press("End");
+  await expect(comparison.familyTab).toBeFocused();
+  await expect(comparison.familyTab).toHaveAttribute("aria-selected", "true");
+  await expect(page).toHaveURL(`${comparison.comparisonHref}#recipe-family`);
+
+  await page.goto(`${comparison.comparisonHref}#recipe-notes`);
+  await expect(comparison.notesTab).toHaveAttribute("aria-selected", "true");
+  await expect(comparison.notesPanel).toBeVisible();
+  await expect(comparison.recipePanel).toBeHidden();
+  expect(new URL(page.url()).searchParams.get("base_version_id")).toBe(
+    parentRecipeVersionId,
+  );
 });
 
 test("keeps the selected family comparison usable at a phone viewport", async ({
@@ -226,8 +242,30 @@ test("keeps the selected family comparison usable at a phone viewport", async ({
     ),
   ).toBe(true);
 
-  await comparison.familyLink.focus();
-  await expect(comparison.familyLink).toBeFocused();
+  await comparison.notesTab.click();
+  await expect(comparison.notesTab).toHaveAttribute("aria-selected", "true");
+  await expect(comparison.notesPanel).toBeVisible();
+  await expect(page).toHaveURL(`${comparison.comparisonHref}#recipe-notes`);
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth ===
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+
+  await comparison.familyTab.click();
+  await expect(comparison.familyTab).toBeFocused();
+  await expect(comparison.familyTab).toHaveAttribute("aria-selected", "true");
+  await expect(comparison.familyPanel).toBeVisible();
+  await expect(page).toHaveURL(`${comparison.comparisonHref}#recipe-family`);
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth ===
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
 });
 
 test("requires sign-in for save, rate, recorded-view, and fork actions", async ({

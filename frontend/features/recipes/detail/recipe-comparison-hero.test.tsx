@@ -7,23 +7,16 @@ import {
   comparisonModel,
   mixedDiff,
   targetRecipeDetail,
-  targetVersion,
 } from "./recipe-diff-view-test-support";
-import {
-  RecipeComparisonHero,
-  RecipeComparisonNavigation,
-} from "./recipe-comparison-hero";
+import { RecipeComparisonHero } from "./recipe-comparison-hero";
 
-function renderComparisonHeader(diff = mixedDiff()) {
+function renderComparisonHero(diff = mixedDiff()) {
   const comparison = comparisonModel(diff);
   return render(
-    <>
-      <RecipeComparisonHero
-        comparison={comparison}
-        headingId="comparison-heading"
-      />
-      <RecipeComparisonNavigation comparison={comparison} />
-    </>,
+    <RecipeComparisonHero
+      comparison={comparison}
+      headingId="comparison-heading"
+    />,
   );
 }
 
@@ -200,34 +193,6 @@ describe("RecipeComparisonHero", () => {
       screen.getByText(`${baseVersion.title} · Version 1`),
     ).toBeVisible();
   });
-});
-
-describe("RecipeComparisonNavigation", () => {
-  it("links to the exact comparison, recipe, and family destinations with only Changes current", () => {
-    renderComparisonHeader();
-
-    const navigation = screen.getByRole("navigation", {
-      name: "Recipe views",
-    });
-    const changes = within(navigation).getByRole("link", { name: "Changes" });
-    const recipe = within(navigation).getByRole("link", { name: "Recipe" });
-    const family = within(navigation).getByRole("link", { name: "Family" });
-
-    expect(changes).toHaveAttribute(
-      "href",
-      `/recipes/${targetVersion.id}/compare?base_version_id=${baseVersion.id}`,
-    );
-    expect(changes).toHaveAttribute("aria-current", "page");
-    expect(recipe).toHaveAttribute("href", `/recipes/${targetVersion.id}`);
-    expect(recipe).not.toHaveAttribute("aria-current");
-    expect(family).toHaveAttribute(
-      "href",
-      `/recipes/${targetVersion.id}#recipe-family`,
-    );
-    expect(family).not.toHaveAttribute("aria-current");
-    expect(within(navigation).queryByRole("tab")).not.toBeInTheDocument();
-    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
-  });
 
   it.each([
     { count: 0, expected: "0 changes" },
@@ -259,13 +224,10 @@ describe("RecipeComparisonNavigation", () => {
         remainingInstructionChanges >= 3 ? diff.instructions.modified : [],
     };
 
-    const { container } = renderComparisonHeader(diff);
+    const { container } = renderComparisonHero(diff);
 
     expect(
       container.querySelector(".recipe-comparison-strip__count"),
     ).toHaveTextContent(expected);
-    expect(
-      container.querySelector(".recipe-comparison-nav .workspace-tab-menu__count"),
-    ).toHaveTextContent(String(count));
   });
 });

@@ -322,6 +322,7 @@ export function RecipeComparisonInstructions({
 
   return (
     <section
+      id="instructions"
       className="recipe-comparison-instructions"
       aria-labelledby="recipe-comparison-instructions-heading"
     >

@@ -1,18 +1,18 @@
-import { render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  RecipeApiError,
-} from "../../../../features/recipes/shared/recipe-api-error";
+import { RecipeApiError } from "../../../../features/recipes/shared/recipe-api-error";
 import type {
   RecipeDetail,
   RecipeDiff,
 } from "../../../../features/recipes/shared/recipe-contracts";
+import { buildRecipeCardSummary } from "../../../../features/recipes/shared/recipe-test-support";
 import RecipeComparePage from "./page";
 
 const mocks = vi.hoisted(() => ({
   fetchRecipe: vi.fn(),
   fetchRecipeDiff: vi.fn(),
+  fetchRecipePage: vi.fn(),
   notFound: vi.fn(() => {
     throw new Error("not-found");
   }),
@@ -29,6 +29,16 @@ vi.mock("../../../../features/recipes/detail/recipe-detail-server-api", async (i
     ...actual,
     fetchRecipe: mocks.fetchRecipe,
     fetchRecipeDiff: mocks.fetchRecipeDiff,
+  };
+});
+
+vi.mock("../../../../features/recipes/browse/recipe-browse-server-api", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("../../../../features/recipes/browse/recipe-browse-server-api")
+  >();
+  return {
+    ...actual,
+    fetchRecipePage: mocks.fetchRecipePage,
   };
 });
 
@@ -82,12 +92,31 @@ const explicitRecipe: RecipeDetail = {
   instructions: [],
 };
 
+const familyVersion = buildRecipeCardSummary({
+  id: RECIPE_ID,
+  lineage_id: explicitDiff.lineage_id,
+  title: "Banana Oat Pancakes",
+  version_number: 1,
+});
+
 describe("RecipeComparePage", () => {
   beforeEach(() => {
+    window.history.replaceState(null, "", "/recipes/target/compare");
     mocks.fetchRecipe.mockReset();
     mocks.fetchRecipe.mockResolvedValue(explicitRecipe);
     mocks.fetchRecipeDiff.mockReset();
+    mocks.fetchRecipePage.mockReset().mockResolvedValue({
+      items: [familyVersion],
+      page: 1,
+      page_size: 100,
+      total: 1,
+      total_pages: 1,
+    });
     mocks.notFound.mockClear();
+  });
+
+  afterEach(() => {
+    window.history.replaceState(null, "", "/");
   });
 
   it("explains when a starting recipe has nothing earlier to compare", async () => {
@@ -138,6 +167,11 @@ describe("RecipeComparePage", () => {
 
     expect(mocks.fetchRecipeDiff).toHaveBeenCalledWith(SELECTED_ID, RECIPE_ID);
     expect(mocks.fetchRecipe).toHaveBeenCalledWith(SELECTED_ID);
+    expect(mocks.fetchRecipePage).toHaveBeenCalledWith({
+      lineageId: explicitDiff.lineage_id,
+      pageSize: 100,
+      sort: "title",
+    });
     expect(
       screen.getByRole("heading", {
         name: "Pecan Banana Oat Pancakes",
@@ -160,6 +194,41 @@ describe("RecipeComparePage", () => {
       "aria-current",
       "page",
     );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Family" }));
+    expect(
+      within(screen.getByRole("tabpanel", { name: "Family" })).getByRole(
+        "link",
+        { name: "Banana Oat Pancakes" },
+      ),
+    ).toHaveAttribute("href", `/recipes/${RECIPE_ID}`);
+  });
+
+  it("keeps the comparison available when the optional family request fails", async () => {
+    mocks.fetchRecipeDiff.mockResolvedValueOnce(explicitDiff);
+    mocks.fetchRecipePage.mockRejectedValueOnce(
+      new Error("family service unavailable"),
+    );
+
+    render(
+      await RecipeComparePage({
+        params: Promise.resolve({ recipeVersionId: SELECTED_ID }),
+        searchParams: Promise.resolve({ base_version_id: RECIPE_ID }),
+      }),
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Pecan Banana Oat Pancakes",
+      }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("tab", { name: "Family" }));
+    expect(
+      within(screen.getByRole("tabpanel", { name: "Family" })).getByRole(
+        "heading",
+        { name: "Recipe family" },
+      ),
+    ).toBeVisible();
   });
   it.each([
     {
@@ -192,6 +261,7 @@ describe("RecipeComparePage", () => {
       expect(mocks.notFound).toHaveBeenCalledOnce();
       expect(mocks.fetchRecipe).not.toHaveBeenCalled();
       expect(mocks.fetchRecipeDiff).not.toHaveBeenCalled();
+      expect(mocks.fetchRecipePage).not.toHaveBeenCalled();
     },
   );
 
@@ -205,6 +275,7 @@ describe("RecipeComparePage", () => {
     ).rejects.toThrow("not-found");
 
     expect(mocks.notFound).toHaveBeenCalledOnce();
+    expect(mocks.fetchRecipePage).not.toHaveBeenCalled();
   });
 
   it("uses the not-found boundary when the target recipe is unavailable", async () => {
@@ -220,6 +291,7 @@ describe("RecipeComparePage", () => {
     expect(mocks.notFound).toHaveBeenCalledOnce();
     expect(mocks.fetchRecipe).toHaveBeenCalledWith(SELECTED_ID);
     expect(mocks.fetchRecipeDiff).toHaveBeenCalledWith(SELECTED_ID, undefined);
+    expect(mocks.fetchRecipePage).not.toHaveBeenCalled();
   });
 
   it("lets ordinary comparison failures reach the route error boundary", async () => {
@@ -234,5 +306,6 @@ describe("RecipeComparePage", () => {
     ).rejects.toThrow("comparison service unavailable");
 
     expect(mocks.notFound).not.toHaveBeenCalled();
+    expect(mocks.fetchRecipePage).not.toHaveBeenCalled();
   });
 });
