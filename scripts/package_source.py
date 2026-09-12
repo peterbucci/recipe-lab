@@ -153,19 +153,19 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-settings-danger-intermediate-normal.png",
-            "4ab1129014b096d0a91ce9212f7659c1faf7d08c",
+            "5d10fdf5d4b17d10c5f0a414422407be3f5a33b9",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-settings-danger-normal.png",
-            "f58a5ed205299fbf596b937e6eaa55a6d8a50ed1",
+            "6c7ba05033ae14fce7b5c2f9c123336714511769",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-settings-profile-intermediate-normal.png",
-            "37e1357a155d405b446323cb1443249024a37236",
+            "81544f04d04299ffd5cd2d1dd0e301eba9250080",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-settings-profile-normal.png",
-            "eee2d09ae51472481ee6ed95b2e7ec28b1e683cf",
+            "ad13a67f263a312977898981cc6ab0794e024f29",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/auth-callback-error-intermediate.png",
@@ -333,19 +333,19 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/staff-tools-moderator-selected-intermediate.png",
-            "cca642dd9bf6360f78ef1f30e0638ccc7aa8461f",
+            "cbf4177107c62876e7550e46343462f92dae7ff6",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/staff-tools-moderator-selected.png",
-            "6e009f3bc64f6785bfa5a0a8c308c9c9e982213b",
+            "e9fccda74f8907e5dcc318021738779e293cd758",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/staff-tools-normal-intermediate.png",
-            "57d46f0c8ff843171e1e73aaddec6876dfe8dc20",
+            "c31c00bec7dd1a414a6bfd43db6364f48f1aca5c",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/staff-tools-normal.png",
-            "88a83e86c893894e5bbc055c6a20300f5ca01d56",
+            "5ad21f7949b87e4af60fff7e0fd6ef7d6efcca65",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/stale-curation-decision.png",
@@ -369,11 +369,11 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/account-settings-danger-normal.png",
-            "e6a4e9f45ca0f9d9e05a06d75b98192120918772",
+            "24278b8604de5d255d0fb715d8ff40e8a6ff3723",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/account-settings-profile-normal.png",
-            "41c96b76b2c3c6dabd207d2c510cd5cbafe9369c",
+            "9a48ad32ea5b6fd05b9fc137c2d822db1a375fd5",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/catalog-normal.png",
@@ -465,11 +465,11 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/staff-tools-moderator-selected.png",
-            "28e64c6e744e525475dd601ec5ed5cd306c4ae70",
+            "1e57b10c5d5a7b111388b2c185d58eb086cfad95",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/staff-tools-normal.png",
-            "32b4773a767daa981eb0bbd09495baadf9e470d5",
+            "0a3f1b22e16b7dfc0804c314aaf846166cd429b3",
         ),
     ),
 )
