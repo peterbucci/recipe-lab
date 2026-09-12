@@ -16,6 +16,7 @@ const IDS = Object.freeze({
   curatorUser: "10000000-0000-4000-8000-000000000003",
   moderatorUser: "10000000-0000-4000-8000-000000000004",
   onboardingUser: "10000000-0000-4000-8000-000000000005",
+  followerUser: "10000000-0000-4000-8000-000000000006",
   recipeRoot: "20000000-0000-4000-8000-000000000001",
   recipeVariant: "20000000-0000-4000-8000-000000000002",
   recipeChild: "20000000-0000-4000-8000-000000000003",
@@ -76,6 +77,11 @@ const onboardingUser = Object.freeze({
   id: IDS.onboardingUser,
   handle: null,
   display_name: "Baseline New Cook",
+});
+const followerUser = Object.freeze({
+  id: IDS.followerUser,
+  handle: "damon",
+  display_name: "Damon",
 });
 const session = Object.freeze({
   status: "authenticated",
@@ -944,6 +950,7 @@ const allowedScenarios = new Set([
   "curation-empty",
   "curation-stale-once",
   "curator-session",
+  "connections-normal",
   "fork-draft",
   "normal",
   "homepage-empty",
@@ -980,11 +987,13 @@ let scenarioState = freshScenarioState();
 function freshScenarioState() {
   const homepageIsEmpty = scenario === "homepage-empty";
   return {
-    baselineCookFollowerCount: homepageIsEmpty ? 0 : 9,
+    baselineCookFollowerCount:
+      homepageIsEmpty ? 0 : scenario === "connections-normal" ? 1 : 9,
     curationDecisionApplied: false,
     curationReviewAttempts: 0,
     followingBaselineCook: false,
-    memberFollowingCount: homepageIsEmpty ? 0 : 3,
+    memberFollowingCount:
+      homepageIsEmpty ? 0 : scenario === "connections-normal" ? 1 : 3,
     moderationQueueAttempts: 0,
   };
 }
@@ -1393,6 +1402,62 @@ async function handleApi(request, response, url) {
           ? scenarioState.baselineCookFollowerCount
           : 0,
       following_count: scenarioState.memberFollowingCount,
+    });
+    return;
+  }
+
+  if (method === "GET" && path === "/api/my/followers") {
+    countRoute("my-followers");
+    if (requireActiveMember(response) === null) return;
+    const requestedPage = Number.parseInt(
+      url.searchParams.get("page") ?? "1",
+      10,
+    );
+    const requestedPageSize = Number.parseInt(
+      url.searchParams.get("page_size") ?? "20",
+      10,
+    );
+    const allItems =
+      scenario === "homepage-empty"
+        ? []
+        : [{ follower: followerUser, followed_at: FIXED_TIME }];
+    const start = (requestedPage - 1) * requestedPageSize;
+    sendJson(response, 200, {
+      items: allItems.slice(start, start + requestedPageSize),
+      page: requestedPage,
+      page_size: requestedPageSize,
+      total: allItems.length,
+      total_pages: allItems.length
+        ? Math.ceil(allItems.length / requestedPageSize)
+        : 0,
+    });
+    return;
+  }
+
+  if (method === "GET" && path === "/api/my/following") {
+    countRoute("my-following");
+    if (requireActiveMember(response) === null) return;
+    const requestedPage = Number.parseInt(
+      url.searchParams.get("page") ?? "1",
+      10,
+    );
+    const requestedPageSize = Number.parseInt(
+      url.searchParams.get("page_size") ?? "20",
+      10,
+    );
+    const allItems =
+      scenario === "homepage-empty"
+        ? []
+        : [{ cook: followerUser, followed_at: FIXED_TIME }];
+    const start = (requestedPage - 1) * requestedPageSize;
+    sendJson(response, 200, {
+      items: allItems.slice(start, start + requestedPageSize),
+      page: requestedPage,
+      page_size: requestedPageSize,
+      total: allItems.length,
+      total_pages: allItems.length
+        ? Math.ceil(allItems.length / requestedPageSize)
+        : 0,
     });
     return;
   }

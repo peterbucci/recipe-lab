@@ -492,6 +492,26 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/my/following": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List cooks I follow
+         * @description Returns only active public identities followed by the signed-in member. Private account, email, identity-provider, and session data are never exposed.
+         */
+        readonly get: operations["my_following_api_my_following_get"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/my/recipes": {
         readonly parameters: {
             readonly query?: never;
@@ -1566,6 +1586,28 @@ export type components = {
         readonly MyFollowersResponse: {
             /** Items */
             readonly items: readonly components["schemas"]["MyFollowerItem"][];
+            /** Page */
+            readonly page: number;
+            /** Page Size */
+            readonly page_size: number;
+            /** Total */
+            readonly total: number;
+            /** Total Pages */
+            readonly total_pages: number;
+        };
+        /** MyFollowingItem */
+        readonly MyFollowingItem: {
+            readonly cook: components["schemas"]["PublicUserReference"];
+            /**
+             * Followed At
+             * Format: date-time
+             */
+            readonly followed_at: string;
+        };
+        /** MyFollowingResponse */
+        readonly MyFollowingResponse: {
+            /** Items */
+            readonly items: readonly components["schemas"]["MyFollowingItem"][];
             /** Page */
             readonly page: number;
             /** Page Size */
@@ -5330,6 +5372,74 @@ export interface operations {
                 };
                 content: {
                     readonly "application/json": components["schemas"]["MyFollowersResponse"];
+                };
+            };
+            /** @description A valid member session is required. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Account setup is incomplete. */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A page parameter is invalid. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly my_following_api_my_following_get: {
+        readonly parameters: {
+            readonly query?: {
+                readonly page?: number;
+                readonly page_size?: number;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["MyFollowingResponse"];
                 };
             };
             /** @description A valid member session is required. */

@@ -2114,6 +2114,67 @@
         "title": "MyFollowersResponse",
         "type": "object"
       },
+      "MyFollowingItem": {
+        "additionalProperties": false,
+        "properties": {
+          "cook": {
+            "$ref": "#/components/schemas/PublicUserReference"
+          },
+          "followed_at": {
+            "format": "date-time",
+            "title": "Followed At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cook",
+          "followed_at"
+        ],
+        "title": "MyFollowingItem",
+        "type": "object"
+      },
+      "MyFollowingResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MyFollowingItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "total_pages": {
+            "minimum": 0.0,
+            "title": "Total Pages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total",
+          "total_pages"
+        ],
+        "title": "MyFollowingResponse",
+        "type": "object"
+      },
       "MyMemberActivityResponse": {
         "additionalProperties": false,
         "properties": {
@@ -9442,6 +9503,110 @@
           }
         },
         "summary": "List my followers",
+        "tags": [
+          "member follows"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/features/community/member-follow-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
+      }
+    },
+    "/api/my/following": {
+      "get": {
+        "description": "Returns only active public identities followed by the signed-in member. Private account, email, identity-provider, and session data are never exposed.",
+        "operationId": "my_following_api_my_following_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyFollowingResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A valid member session is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Account setup is incomplete."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A page parameter is invalid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "List cooks I follow",
         "tags": [
           "member follows"
         ],

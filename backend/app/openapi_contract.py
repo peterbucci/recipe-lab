@@ -222,6 +222,11 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
         "active_consumer",
         "frontend/features/community/member-follow-api.ts",
     ),
+    ("GET", "/api/my/following"): _operation(
+        "my_following_api_my_following_get",
+        "active_consumer",
+        "frontend/features/community/member-follow-api.ts",
+    ),
     ("GET", "/api/my/community-activity"): _operation(
         "my_community_activity_api_my_community_activity_get",
         "active_consumer",

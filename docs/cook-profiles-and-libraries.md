@@ -87,11 +87,16 @@ The public profile includes only the cook's follower total. Private follow
 state is read from `GET /api/cooks/{handle}/follow`, changed with `PUT` or
 `DELETE` on the same route, and derived from the signed-in session rather than
 a caller-supplied user ID. `GET /api/my/follow-stats` supplies the current
-member's follower and following totals, while `GET /api/my/followers` pages
-only the active public identities represented by the follower total. Neither
-private route exposes email, identity-provider, or session data. Private
-responses are not cached and vary on the session cookie. The homepage uses the
-follower total in **Your stats**; ingredient requests remain available in
+member's follower and following totals. `GET /api/my/followers` pages the active
+public identities represented by the follower total, and `GET /api/my/following`
+pages the active public cooks that member follows. None of these private routes
+exposes email, identity-provider, or session data. Private responses are not
+cached and vary on the session cookie.
+
+The signed-in Connections workspace is
+`/account/connections?view=followers|following`. The homepage follower total
+opens its Followers view explicitly, and the former `/account/followers` route
+redirects there for compatibility. Ingredient requests remain available in
 member activity and their dedicated workspace.
 
 ## Private member libraries

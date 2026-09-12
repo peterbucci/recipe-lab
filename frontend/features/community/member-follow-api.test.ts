@@ -4,9 +4,11 @@ import {
   fetchCookFollowState,
   fetchMyCommunityActivity,
   fetchMyFollowers,
+  fetchMyFollowing,
   parseCookFollowState,
   parseMyCommunityActivityPage,
   parseMyFollowersPage,
+  parseMyFollowingPage,
   setCookFollowing,
 } from "./member-follow-api";
 
@@ -60,7 +62,7 @@ describe("member follow API client", () => {
         following: true,
         follower_count: -1,
       }),
-    ).toThrow(/invalid follower response/i);
+    ).toThrow(/invalid connection response/i);
   });
 
   it("validates a bounded page of public follower identities", () => {
@@ -115,7 +117,7 @@ describe("member follow API client", () => {
         total: 1,
         total_pages: 1,
       }),
-    ).toThrow(/invalid follower response/i);
+    ).toThrow(/invalid connection response/i);
     expect(() =>
       parseMyFollowersPage({
         items: [],
@@ -124,7 +126,7 @@ describe("member follow API client", () => {
         total: 21,
         total_pages: 1,
       }),
-    ).toThrow(/invalid follower response/i);
+    ).toThrow(/invalid connection response/i);
   });
 
   it("loads one cook's private follow state", async () => {
@@ -191,6 +193,50 @@ describe("member follow API client", () => {
     await expect(fetchMyFollowers({ pageSize: 101 })).rejects.toThrow(/between 1/i);
   });
 
+  it("validates and loads one private following page", async () => {
+    const payload = {
+      items: [
+        {
+          cook: {
+            id: COOK_ID,
+            handle: "alice-cook",
+            display_name: "Alice Cook",
+          },
+          followed_at: "2026-08-30T14:30:00Z",
+        },
+      ],
+      page: 2,
+      page_size: 12,
+      total: 13,
+      total_pages: 2,
+    };
+
+    expect(parseMyFollowingPage(payload)).toEqual(payload);
+    expect(() =>
+      parseMyFollowingPage({
+        ...payload,
+        items: [{ ...payload.items[0], cook: { ...payload.items[0]?.cook, id: "nope" } }],
+      }),
+    ).toThrow(/invalid connection response/i);
+
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(Response.json(payload));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      fetchMyFollowing({ page: 2, pageSize: 12 }),
+    ).resolves.toMatchObject({ page: 2, total: 13 });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/my/following?page=2&page_size=12",
+      expect.objectContaining({
+        cache: "no-store",
+        credentials: "same-origin",
+        method: "GET",
+      }),
+    );
+    await expect(fetchMyFollowing({ page: 0 })).rejects.toThrow(/between 1/i);
+    await expect(fetchMyFollowing({ pageSize: 101 })).rejects.toThrow(/between 1/i);
+  });
+
   it("loads and validates one private community activity page", async () => {
     const payload = {
       items: [COMMUNITY_RECIPE],
@@ -205,7 +251,7 @@ describe("member follow API client", () => {
         ...payload,
         items: [{ ...COMMUNITY_RECIPE, lineage_id: "not-a-uuid" }],
       }),
-    ).toThrow(/invalid follower response/i);
+    ).toThrow(/invalid connection response/i);
 
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(Response.json(payload));
     vi.stubGlobal("fetch", fetchMock);

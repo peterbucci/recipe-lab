@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Uuid, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -19,6 +19,12 @@ class UserFollow(Base):
             "followed_user_id",
             "created_at",
             "follower_user_id",
+        ),
+        Index(
+            "ix_user_follows_follower_created_followed",
+            "follower_user_id",
+            text("created_at DESC"),
+            "followed_user_id",
         ),
     )
 

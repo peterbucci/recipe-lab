@@ -8,6 +8,7 @@ import {
   MemberActivityApiError,
   type MemberDashboard,
 } from "../../features/account/member-activity-api";
+import { connectionsHref } from "../../features/community/member-connections-route";
 import type { RecipeDraftListItem } from "../../features/recipes/authoring/draft/recipe-draft-summary";
 import { relativeTimeLabel } from "../../shared/time/relative-time";
 import { LoadingBlock, SectionLoading } from "../../shared/ui/loading-ui";
@@ -293,7 +294,7 @@ export function MemberHomeSummary({ userId }: MemberHomeSummaryProps) {
             total={(data) => data.stats.savedRecipes}
           />
           <ResourceMetric
-            href="/account/followers"
+            href={connectionsHref("followers")}
             label="Followers"
             state={dashboard.state}
             total={(data) => data.stats.followers}

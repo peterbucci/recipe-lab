@@ -37,6 +37,18 @@ class FollowerListResult:
 
 
 @dataclass(frozen=True, slots=True)
+class FollowingListEntry:
+    cook: User
+    followed_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class FollowingListResult:
+    items: list[FollowingListEntry]
+    total: int
+
+
+@dataclass(frozen=True, slots=True)
 class CommunityActivityResult:
     items: list[RecipeVersion]
     total: int
@@ -45,6 +57,14 @@ class CommunityActivityResult:
 def _active_follower_filters(*, followed_user_id: UUID) -> tuple[ColumnElement[bool], ...]:
     return (
         UserFollow.followed_user_id == followed_user_id,
+        User.status == USER_STATUS_ACTIVE,
+        User.handle.is_not(None),
+    )
+
+
+def _active_following_filters(*, follower_user_id: UUID) -> tuple[ColumnElement[bool], ...]:
+    return (
+        UserFollow.follower_user_id == follower_user_id,
         User.status == USER_STATUS_ACTIVE,
         User.handle.is_not(None),
     )
@@ -73,7 +93,8 @@ def follow_counts(session: Session, *, user_id: UUID) -> FollowCounts:
     following_count = (
         select(func.count())
         .select_from(UserFollow)
-        .where(UserFollow.follower_user_id == user_id)
+        .join(User, User.id == UserFollow.followed_user_id)
+        .where(*_active_following_filters(follower_user_id=user_id))
         .scalar_subquery()
     )
     followers, following = session.execute(select(follower_count, following_count)).one()
@@ -117,6 +138,44 @@ def browse_followers(
         items=[
             FollowerListEntry(follower=follower, followed_at=followed_at)
             for follower, followed_at in rows
+        ],
+        total=int(total),
+    )
+
+
+def browse_following(
+    session: Session,
+    *,
+    follower_user_id: UUID,
+    offset: int,
+    limit: int,
+) -> FollowingListResult:
+    """Database-page the active public identities one member follows."""
+
+    filters = _active_following_filters(follower_user_id=follower_user_id)
+    total = (
+        session.scalar(
+            select(func.count())
+            .select_from(UserFollow)
+            .join(User, User.id == UserFollow.followed_user_id)
+            .where(*filters)
+        )
+        or 0
+    )
+    rows = session.execute(
+        select(User, UserFollow.created_at)
+        .join(User, User.id == UserFollow.followed_user_id)
+        .where(*filters)
+        .order_by(
+            UserFollow.created_at.desc(),
+            UserFollow.followed_user_id,
+        )
+        .offset(offset)
+        .limit(limit)
+    )
+    return FollowingListResult(
+        items=[
+            FollowingListEntry(cook=cook, followed_at=followed_at) for cook, followed_at in rows
         ],
         total=int(total),
     )

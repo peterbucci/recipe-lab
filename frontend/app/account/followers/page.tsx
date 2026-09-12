@@ -1,12 +1,5 @@
-import type { Metadata } from "next";
-
-import { AccountFollowersRoute } from "./_components/account-followers-route";
-
-export const metadata: Metadata = {
-  title: "Followers",
-  description: "View the Recipe Lab members who follow your public recipe work.",
-};
+import { redirect } from "next/navigation";
 
 export default function AccountFollowersPage() {
-  return <AccountFollowersRoute />;
+  redirect("/account/connections?view=followers");
 }

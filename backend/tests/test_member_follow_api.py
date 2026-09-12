@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.models import (
     RECIPE_PUBLICATION_STATE_MODERATION_HIDDEN,
     RECIPE_PUBLICATION_STATE_PUBLISHED,
+    USER_STATUS_ACTIVE,
     USER_STATUS_SUSPENDED,
     RecipeLineage,
     RecipeVersion,
@@ -256,6 +257,80 @@ def test_my_followers_is_private_paginated_and_limited_to_active_public_identiti
     assert follow_api.anonymous.get("/api/cooks/member_bravo").json()["follower_count"] == 1
 
 
+def test_my_following_is_private_paginated_and_limited_to_active_public_identities(
+    follow_api: FollowApi,
+) -> None:
+    assert follow_api.anonymous.get("/api/my/following").status_code == 401
+
+    empty = follow_api.member_a.get("/api/my/following")
+    assert empty.status_code == 200
+    assert empty.headers["cache-control"] == "private, no-store"
+    assert "Cookie" in empty.headers["vary"]
+    assert empty.json() == {
+        "items": [],
+        "page": 1,
+        "page_size": 20,
+        "total": 0,
+        "total_pages": 0,
+    }
+
+    assert follow_api.member_a.put("/api/cooks/member_bravo/follow").status_code == 200
+    assert follow_api.member_a.put("/api/cooks/member_charlie/follow").status_code == 200
+
+    pages = [
+        _json_object(
+            follow_api.member_a.get(
+                "/api/my/following",
+                params={"page": page, "page_size": 1},
+            ).json()
+        )
+        for page in (1, 2)
+    ]
+    assert [page["page"] for page in pages] == [1, 2]
+    assert all(page["page_size"] == 1 for page in pages)
+    assert all(page["total"] == 2 for page in pages)
+    assert all(page["total_pages"] == 2 for page in pages)
+
+    items = [
+        cast(dict[str, Any], item) for page in pages for item in cast(list[object], page["items"])
+    ]
+    assert {_json_object(item["cook"])["handle"] for item in items} == {
+        "member_bravo",
+        "member_charlie",
+    }
+    for item in items:
+        cook = _json_object(item["cook"])
+        assert set(cook) == {"id", "handle", "display_name"}
+        assert "email" not in cook
+        assert "session" not in cook
+        datetime.fromisoformat(cast(str, item["followed_at"]))
+
+    with Session(bind=follow_api.engine) as session, session.begin():
+        suspended = session.get(User, MEMBER_C_ID)
+        assert suspended is not None
+        suspended.status = USER_STATUS_SUSPENDED
+
+    filtered = _json_object(follow_api.member_a.get("/api/my/following").json())
+    assert filtered["total"] == 1
+    filtered_items = cast(list[dict[str, object]], filtered["items"])
+    assert [_json_object(item["cook"])["handle"] for item in filtered_items] == ["member_bravo"]
+    assert follow_api.member_a.get("/api/my/follow-stats").json()["following_count"] == 1
+
+    with Session(bind=follow_api.engine) as session, session.begin():
+        suspended = session.get(User, MEMBER_C_ID)
+        handleless = session.get(User, MEMBER_B_ID)
+        assert suspended is not None
+        assert handleless is not None
+        suspended.status = USER_STATUS_ACTIVE
+        handleless.handle = None
+
+    filtered = _json_object(follow_api.member_a.get("/api/my/following").json())
+    assert filtered["total"] == 1
+    filtered_items = cast(list[dict[str, object]], filtered["items"])
+    assert [_json_object(item["cook"])["handle"] for item in filtered_items] == ["member_charlie"]
+    assert follow_api.member_a.get("/api/my/follow-stats").json()["following_count"] == 1
+
+
 def test_my_community_activity_contains_only_publications_from_followed_cooks(
     follow_api: FollowApi,
 ) -> None:
@@ -346,9 +421,10 @@ def test_my_community_activity_contains_only_publications_from_followed_cooks(
     "query",
     ("page=0", "page=1000001", "page_size=0", "page_size=101"),
 )
-def test_my_followers_rejects_invalid_pagination(
+def test_my_follow_lists_reject_invalid_pagination(
     follow_api: FollowApi,
     query: str,
 ) -> None:
     assert follow_api.member_a.get(f"/api/my/followers?{query}").status_code == 422
+    assert follow_api.member_a.get(f"/api/my/following?{query}").status_code == 422
     assert follow_api.member_a.get(f"/api/my/community-activity?{query}").status_code == 422

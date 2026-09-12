@@ -255,8 +255,29 @@ test.describe("cross-account community activity acceptance", () => {
 
       await openMemberAccountPage(
         page,
+        "alice",
+        "/account/connections?view=following",
+        "/api/my/following",
+      );
+      const following = page.getByRole("list", { name: "Cooks you follow" });
+      const bobFollowing = following
+        .getByRole("listitem")
+        .filter({ has: page.getByText("Bob Cook", { exact: true }) });
+      await expect(bobFollowing).toHaveCount(1);
+      await expect(
+        bobFollowing.getByText("@acceptance_bob", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        bobFollowing.getByRole("link", {
+          name: "View Bob Cook’s profile",
+          exact: true,
+        }),
+      ).toHaveAttribute("href", "/cooks/acceptance_bob");
+
+      await openMemberAccountPage(
+        page,
         "bob",
-        "/account/followers",
+        "/account/connections?view=followers",
         "/api/my/followers",
       );
       const followers = page.getByRole("list", { name: "Your followers" });
@@ -357,14 +378,14 @@ test.describe("cross-account community activity acceptance", () => {
       await openMemberAccountPage(
         page,
         "curator",
-        "/account/followers",
+        "/account/connections?view=followers",
         "/api/my/followers",
       );
       await expect(
         page.getByText("Loading your followers…", { exact: true }),
       ).toHaveCount(0);
       await expect(
-        page.getByRole("heading", { name: "Followers", level: 1 }),
+        page.getByRole("heading", { name: "Connections", level: 1 }),
       ).toBeVisible();
       await expect(page.getByText("Alice Cook", { exact: true })).toHaveCount(
         0,

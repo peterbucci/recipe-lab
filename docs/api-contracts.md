@@ -46,13 +46,13 @@ stored data.
 ## Operation classifications
 
 The snapshot records these as `x-recipe-lab-classification`,
-`x-recipe-lab-reachability`, and `x-recipe-lab-consumer-evidence`. Its 54
+`x-recipe-lab-reachability`, and `x-recipe-lab-consumer-evidence`. Its 55
 OpenAPI operations have exactly one of
 four classifications:
 
 | Classification | OpenAPI operations | Meaning |
 | --- | ---: | --- |
-| `active_consumer` | 44 | A current in-repository product workflow calls the operation. Its evidence identifies the maintained consumer boundary. |
+| `active_consumer` | 45 | A current in-repository product workflow calls the operation. Its evidence identifies the maintained consumer boundary. |
 | `staff_internal` | 8 | The operation supports a bounded curator, moderator, or operator workflow rather than an ordinary cook-facing workflow. Staff-only does not mean unreviewed or safe to remove. The four separately inventoried framework routes use this classification too. |
 | `research_experimental` | 2 | The operation is limited to an explicitly identified research or experimental boundary. It is not evidence of a supported consumer product claim. |
 | `retired` | 0 | No maintained in-repository product consumer remains. A deployed operation stays in this class until an external-consumer, deprecation, or removal decision is reviewed; new consumers must not depend on it. |
@@ -61,7 +61,7 @@ These labels describe the present contract and its known in-repository use. They
 do not authorize a behavior change. Reclassification is itself inventory drift
 and must be reviewed with updated evidence.
 
-The repository-wide lifecycle vocabulary is deliberately smaller: the 44
+The repository-wide lifecycle vocabulary is deliberately smaller: the 45
 `active_consumer` operations are `active`; the eight `staff_internal` and two
 `research_experimental` operations are `internal`; and a `retired` operation is
 `retired`. There are no live `compatibility-only` backend operations. That class
