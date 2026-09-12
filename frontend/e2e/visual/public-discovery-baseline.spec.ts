@@ -131,59 +131,60 @@ async function expectComparisonTabsAndActions(
   const changedBreakdown = breakdownPanel.locator(
     ".recipe-comparison-instruction-row--changed",
   );
-  const currentBreakdown = changedBreakdown.locator(
-    'ins.recipe-comparison-action-group--added',
+  const cookingActions = changedBreakdown.getByRole("list", {
+    name: "Cooking action comparison for step 1",
+  });
+  const actionRows = cookingActions.locator(
+    ":scope > .recipe-comparison-action",
   );
-  const previousBreakdown = changedBreakdown.locator(
-    'del.recipe-comparison-action-group--removed',
+  const addedActions = cookingActions.locator(
+    ':scope > .recipe-comparison-action[data-action-status="added"]',
   );
-  const currentActions = currentBreakdown.locator(
-    ".recipe-comparison-actions--added",
+  const unchangedActions = cookingActions.locator(
+    ':scope > .recipe-comparison-action[data-action-status="unchanged"]',
   );
-  const previousActions = previousBreakdown.locator(
-    ".recipe-comparison-actions--removed",
+  const removedActions = cookingActions.locator(
+    ':scope > .recipe-comparison-action[data-action-status="removed"]',
   );
   await expect(changedBreakdown).toHaveCount(1);
-  await expect(currentBreakdown).toBeVisible();
-  await expect(previousBreakdown).toBeVisible();
-  await expect(
-    currentBreakdown.locator(
-      ".recipe-comparison-action-group__change-label > span",
+  await expect(cookingActions).toBeVisible();
+  await expect(actionRows).toHaveCount(4);
+  expect(
+    await actionRows.evaluateAll((rows) =>
+      rows.map((row) => row.getAttribute("data-action-status")),
     ),
-  ).toHaveText("+");
-  await expect(
-    currentBreakdown.locator(
-      ".recipe-comparison-action-group__change-label",
-    ),
-  ).toContainText("Current cooking breakdown");
-  await expect(
-    previousBreakdown.locator(
-      ".recipe-comparison-action-group__change-label > span",
-    ),
-  ).toHaveText("−");
-  await expect(
-    previousBreakdown.locator(
-      ".recipe-comparison-action-group__change-label",
-    ),
-  ).toContainText("Previous cooking breakdown");
-  await expect(currentActions).toBeVisible();
-  await expect(previousActions).toBeVisible();
-  await expectSameHorizontalBounds(currentActions, currentBreakdown);
-  await expectSameHorizontalBounds(previousActions, previousBreakdown);
+  ).toEqual(["added", "unchanged", "removed", "added"]);
+  await expect(addedActions).toHaveCount(2);
+  await expect(unchangedActions).toHaveCount(1);
+  await expect(removedActions).toHaveCount(1);
+  await expect(unchangedActions).toContainText("Rest");
+  await expect(addedActions.first().locator("ins")).toHaveText(
+    "Added action:",
+  );
+  await expect(removedActions.locator("del")).toHaveText("Removed action:");
   await expectGridColumnCount(
-    currentActions.locator(":scope > .recipe-comparison-action").first(),
+    actionRows.first(),
     layout === "rows" ? 2 : 3,
   );
   await expectGridColumnCount(
-    previousActions.locator(":scope > .recipe-comparison-action").first(),
+    removedActions,
     layout === "rows" ? 2 : 3,
   );
-  await expectCurrentBeforePrevious(changedBreakdown);
+  await expect(
+    breakdownPanel.locator(".recipe-comparison-instruction-row__step-number"),
+  ).toHaveText(["1", "2"]);
   await expect(
     changedBreakdown.locator(
-      ".recipe-comparison-instruction-value__step-number",
-    ).first(),
-  ).toBeHidden();
+      ".recipe-comparison-instruction-row__step-number",
+    ),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      changedBreakdown.evaluate(
+        (element) => getComputedStyle(element, "::before").display,
+      ),
+    )
+    .not.toBe("none");
   await stepsTab.click();
 
   for (let index = 0; index < 3; index += 1) {
@@ -303,6 +304,7 @@ test("recipe discovery reflows without hiding results at reviewed widths", async
 
   for (const viewport of REVIEWED_SHELL_VIEWPORTS) {
     await test.step(viewport.label, async () => {
+      await setScenario("normal");
       await page.setViewportSize({
         width: viewport.width,
         height: viewport.height,
@@ -622,6 +624,7 @@ test("public recipe context reflows at reviewed widths", async ({
       await expectNoHorizontalOverflow(page);
       await expectNoAccessibilityViolations(page);
 
+      await setScenario("comparison-actions");
       await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
       const comparisonView = page.locator(".recipe-diff-view:visible");
       const comparisonHero = comparisonView.locator(
@@ -727,6 +730,7 @@ test("public recipe context reflows at reviewed widths", async ({
   }
 
   await test.step("instruction switches fill their stacked 680px headers", async () => {
+    await setScenario("normal");
     await page.setViewportSize({ width: 680, height: 900 });
 
     await page.goto(`/recipes/${VARIANT_RECIPE_ID}`);
@@ -743,6 +747,7 @@ test("public recipe context reflows at reviewed widths", async ({
       readerInstructionHeader,
     );
 
+    await setScenario("comparison-actions");
     await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
     const comparisonInstructions = page.getByRole("region", {
       name: "Instructions",
@@ -769,6 +774,7 @@ test("recipe comparison switches both primary grids at the 900px boundary", asyn
     { width: 900, columns: 1 },
   ] as const) {
     await test.step(`${expectation.width}px`, async () => {
+      await setScenario("comparison-actions");
       await page.setViewportSize({ width: expectation.width, height: 1_000 });
       await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
       const comparisonView = page.locator(".recipe-diff-view:visible");
@@ -800,6 +806,7 @@ test("recipe comparison remains understandable in forced colors", async ({
 }, testInfo) => {
   desktopOnly(testInfo);
   await page.emulateMedia({ forcedColors: "active" });
+  await setScenario("comparison-actions");
   await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
   await expect
     .poll(() =>
@@ -862,32 +869,32 @@ test("recipe comparison remains understandable in forced colors", async ({
   const changedBreakdown = page.locator(
     "#recipe-comparison-instructions-breakdown-panel .recipe-comparison-instruction-row--changed",
   );
-  const currentBreakdown = changedBreakdown.locator(
-    'ins.recipe-comparison-action-group--added',
+  const actions = changedBreakdown.getByRole("list", {
+    name: "Cooking action comparison for step 1",
+  });
+  const addedAction = actions.locator(
+    ':scope > .recipe-comparison-action[data-action-status="added"]',
+  ).first();
+  const unchangedAction = actions.locator(
+    ':scope > .recipe-comparison-action[data-action-status="unchanged"]',
   );
-  const previousBreakdown = changedBreakdown.locator(
-    'del.recipe-comparison-action-group--removed',
+  const removedAction = actions.locator(
+    ':scope > .recipe-comparison-action[data-action-status="removed"]',
   );
   await expect(changedBreakdown).toHaveCount(1);
   await expect(
     changedBreakdown.locator(".recipe-comparison-instruction-row__marker"),
   ).toHaveText("±");
+  await expect(addedAction.locator("ins")).toHaveText("Added action:");
+  await expect(removedAction.locator("del")).toHaveText("Removed action:");
+  await expect(unchangedAction).toContainText("Rest");
+  await expect(addedAction).toHaveCSS("border-left-style", "solid");
+  await expect(removedAction).toHaveCSS("border-left-style", "dashed");
   await expect(
-    currentBreakdown.locator(
-      ".recipe-comparison-action-group__change-label > span",
+    changedBreakdown.locator(
+      ".recipe-comparison-instruction-row__step-number",
     ),
-  ).toHaveText("+");
-  await expect(
-    previousBreakdown.locator(
-      ".recipe-comparison-action-group__change-label > span",
-    ),
-  ).toHaveText("−");
-  await expect(
-    currentBreakdown.locator(".recipe-comparison-actions--added"),
   ).toHaveCSS("border-top-style", "solid");
-  await expect(
-    previousBreakdown.locator(".recipe-comparison-actions--removed"),
-  ).toHaveCSS("border-top-style", "dashed");
   await expectNoHorizontalOverflow(page);
   await expectNoAccessibilityViolations(page);
 });
@@ -896,6 +903,7 @@ test("recipe comparison preserves the complete recipe when printed", async ({
   page,
 }, testInfo) => {
   desktopOnly(testInfo);
+  await setScenario("comparison-actions");
   await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
   await page
     .getByRole("tablist", { name: "Instruction comparison view" })
@@ -979,38 +987,34 @@ test("recipe comparison preserves the complete recipe when printed", async ({
     2,
   );
   await expect(
-    breakdownPanel.locator('[data-comparison-value="current"]'),
+    breakdownPanel.locator(".recipe-comparison-instruction-row__step-number"),
   ).toHaveCount(2);
   await expect(
     stepsPanel.locator('[data-comparison-value="previous"]'),
   ).toHaveCount(1);
-  await expect(
-    breakdownPanel.locator('[data-comparison-value="previous"]'),
-  ).toHaveCount(1);
-  const currentBreakdown = breakdownPanel.locator(
-    'ins.recipe-comparison-action-group--added',
+  const actions = breakdownPanel.getByRole("list", {
+    name: "Cooking action comparison for step 1",
+  });
+  const addedActions = actions.locator(
+    ':scope > .recipe-comparison-action[data-action-status="added"]',
   );
-  const previousBreakdown = breakdownPanel.locator(
-    'del.recipe-comparison-action-group--removed',
+  const unchangedAction = actions.locator(
+    ':scope > .recipe-comparison-action[data-action-status="unchanged"]',
   );
-  await expect(currentBreakdown).toBeVisible();
-  await expect(previousBreakdown).toBeVisible();
-  await expect(
-    currentBreakdown.locator(
-      ".recipe-comparison-action-group__change-label",
-    ),
-  ).toContainText("Current cooking breakdown");
-  await expect(
-    previousBreakdown.locator(
-      ".recipe-comparison-action-group__change-label",
-    ),
-  ).toContainText("Previous cooking breakdown");
-  await expect(
-    currentBreakdown.locator(".recipe-comparison-actions--added"),
-  ).toHaveCSS("border-top-style", "solid");
-  await expect(
-    previousBreakdown.locator(".recipe-comparison-actions--removed"),
-  ).toHaveCSS("border-top-style", "solid");
+  const removedAction = actions.locator(
+    ':scope > .recipe-comparison-action[data-action-status="removed"]',
+  );
+  await expect(actions).toBeVisible();
+  await expect(addedActions).toHaveCount(2);
+  await expect(unchangedAction).toHaveCount(1);
+  await expect(removedAction).toHaveCount(1);
+  await expect(unchangedAction).toContainText("Rest");
+  await expect(addedActions.first().locator("ins")).toHaveText(
+    "Added action:",
+  );
+  await expect(removedAction.locator("del")).toHaveText("Removed action:");
+  await expect(addedActions.first()).toHaveCSS("border-left-style", "solid");
+  await expect(removedAction).toHaveCSS("border-left-style", "solid");
   await expect(notes).toBeVisible();
   await expect(
     notes.getByText(

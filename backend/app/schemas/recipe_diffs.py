@@ -63,9 +63,17 @@ class RecipeIngredientContext(BaseModel):
     target: list[RecipeIngredientResponse] = Field(default_factory=list)
 
 
+class RecipeInstructionActionMatch(BaseModel):
+    """One semantically unchanged action across regenerated snapshot rows."""
+
+    before_id: UUID
+    after_id: UUID
+
+
 class RecipeInstructionPairChange(BaseModel):
     before: RecipeInstructionResponse
     after: RecipeInstructionResponse
+    unchanged_action_pairs: list[RecipeInstructionActionMatch]
     changed_fields: list[RecipeInstructionChangedField] = Field(min_length=1)
 
 

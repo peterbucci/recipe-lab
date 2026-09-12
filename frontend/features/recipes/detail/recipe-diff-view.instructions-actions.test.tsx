@@ -67,6 +67,7 @@ describe("RecipeDiffView instruction integration", () => {
           before,
           after,
           changed_fields: ["text", "actions", "inputs"],
+          unchanged_action_pairs: [],
         },
       ],
     };
@@ -95,33 +96,27 @@ describe("RecipeDiffView instruction integration", () => {
       within(instructions).getByRole("tab", { name: "Cooking breakdown" }),
     );
 
-    const currentActions = within(instructions).getByRole("list", {
-      name: "Cooking actions in this recipe for step 2",
+    const actions = within(instructions).getByRole("list", {
+      name: "Cooking action comparison for step 2",
     });
-    const previousActions = within(instructions).getByRole("list", {
-      name: "Cooking actions in the starting recipe for step 2",
-    });
-    expect(currentActions).toHaveTextContent("Orange zest");
-    expect(currentActions).not.toHaveTextContent("With Orange zest");
-    expect(previousActions).toHaveTextContent("White sugar");
-    expect(previousActions).not.toHaveTextContent("With White sugar");
-    expect(currentActions).toHaveClass("recipe-comparison-actions--added");
-    expect(previousActions).toHaveClass("recipe-comparison-actions--removed");
-    expect(currentActions.closest("ins")).toHaveClass(
-      "recipe-comparison-action-group--added",
+    const actionRows = Array.from(actions.children) as HTMLElement[];
+    expect(actionRows).toHaveLength(2);
+    expect(actionRows.map((row) => row.dataset.actionStatus)).toEqual([
+      "removed",
+      "added",
+    ]);
+    expect(actionRows[0]).toHaveTextContent("White sugar");
+    expect(actionRows[0]).not.toHaveTextContent("With White sugar");
+    expect(actionRows[0]!.querySelector("del")).toHaveTextContent(
+      "Removed action",
     );
-    expect(previousActions.closest("del")).toHaveClass(
-      "recipe-comparison-action-group--removed",
+    expect(actionRows[1]).toHaveTextContent("Orange zest");
+    expect(actionRows[1]).not.toHaveTextContent("With Orange zest");
+    expect(actionRows[1]!.querySelector("ins")).toHaveTextContent(
+      "Added action",
     );
     expect(
-      within(currentActions.closest("ins")!).getByText(
-        "Current cooking breakdown",
-      ),
-    ).toBeVisible();
-    expect(
-      within(previousActions.closest("del")!).getByText(
-        "Previous cooking breakdown",
-      ),
+      within(instructions).getByText("Cooking actions changed"),
     ).toBeVisible();
     expect(
       screen.queryByRole("heading", { name: "Cooking step changes" }),

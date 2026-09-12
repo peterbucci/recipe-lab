@@ -100,6 +100,7 @@ test("recipe detail intermediate normal", async ({ page }, testInfo) => {
 
 test("recipe comparison intermediate normal", async ({ page }, testInfo) => {
   desktopOnly(testInfo);
+  await setScenario("comparison-actions");
   await page.setViewportSize({ width: 820, height: 1_000 });
   await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
   await expect(
@@ -140,10 +141,24 @@ test("recipe comparison intermediate normal", async ({ page }, testInfo) => {
   );
   await expect(breakdownPanel).toBeVisible();
   await expect(
-    breakdownPanel.locator("ins.recipe-comparison-action-group--added"),
+    breakdownPanel.locator(
+      '.recipe-comparison-action[data-action-status="added"]',
+    ).first(),
   ).toBeVisible();
   await expect(
-    breakdownPanel.locator("del.recipe-comparison-action-group--removed"),
+    breakdownPanel.locator(
+      '.recipe-comparison-action[data-action-status="unchanged"]',
+    ),
+  ).toBeVisible();
+  await expect(
+    breakdownPanel.locator(
+      '.recipe-comparison-action[data-action-status="removed"]',
+    ),
+  ).toBeVisible();
+  await expect(
+    breakdownPanel.locator(
+      ".recipe-comparison-instruction-row__step-number",
+    ).first(),
   ).toBeVisible();
   await comparisonInstructions.evaluate((region) => {
     region.scrollIntoView({ block: "start" });

@@ -6,6 +6,7 @@ import type {
   RecipeIngredient,
   RecipeIngredientChangedField,
   RecipeInstruction,
+  RecipeInstructionActionMatch,
   RecipeInstructionChangedField,
 } from "../shared/recipe-contracts";
 
@@ -33,6 +34,7 @@ export interface RecipeInstructionComparisonRow {
   current: RecipeInstruction | null;
   previous: RecipeInstruction | null;
   changedFields: readonly RecipeInstructionChangedField[];
+  unchangedActionPairs: readonly RecipeInstructionActionMatch[];
   displayOrder: number;
 }
 
@@ -167,6 +169,7 @@ function instructionRows(
           current,
           previous: change.before,
           changedFields: change.changed_fields,
+          unchangedActionPairs: change.unchanged_action_pairs ?? [],
           displayOrder: current.display_order,
         };
       }
@@ -177,6 +180,7 @@ function instructionRows(
           current,
           previous: null,
           changedFields: [],
+          unchangedActionPairs: [],
           displayOrder: current.display_order,
         };
       }
@@ -186,6 +190,7 @@ function instructionRows(
         current,
         previous: null,
         changedFields: [],
+        unchangedActionPairs: [],
         displayOrder: current.display_order,
       };
     },
@@ -198,6 +203,7 @@ function instructionRows(
       current: null,
       previous,
       changedFields: [],
+      unchangedActionPairs: [],
       displayOrder: previous.display_order,
     });
   }

@@ -119,6 +119,12 @@ export interface RecipeInstructionPairChange {
   before: RecipeInstruction;
   after: RecipeInstruction;
   changed_fields: RecipeInstructionChangedField[];
+  unchanged_action_pairs: RecipeInstructionActionMatch[];
+}
+
+export interface RecipeInstructionActionMatch {
+  before_id: string;
+  after_id: string;
 }
 
 export interface RecipeInstructionDiff {

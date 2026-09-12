@@ -23,6 +23,7 @@ from app.schemas.recipe_diffs import (
     RecipeIngredientContext,
     RecipeIngredientDiff,
     RecipeIngredientPairChange,
+    RecipeInstructionActionMatch,
     RecipeInstructionChangedField,
     RecipeInstructionDiff,
     RecipeInstructionPairChange,
@@ -348,7 +349,11 @@ def _pair_actions(
     *,
     before_tokens: dict[UUID, _IngredientReferenceToken],
     after_tokens: dict[UUID, _IngredientReferenceToken],
-) -> tuple[list[tuple[RecipeInstructionAction, RecipeInstructionAction]], bool]:
+) -> tuple[
+    list[tuple[RecipeInstructionAction, RecipeInstructionAction]],
+    list[tuple[RecipeInstructionAction, RecipeInstructionAction]],
+    bool,
+]:
     """Pair action instances without treating freshly generated row IDs as edits."""
 
     after_by_signature: dict[_ActionSignature, list[RecipeInstructionAction]] = defaultdict(list)
@@ -374,6 +379,7 @@ def _pair_actions(
         pairs.append((item, matched))
         matched_after_ids.add(matched.id)
 
+    exact_pairs = list(pairs)
     remaining_after = [item for item in after_items if item.id not in matched_after_ids]
     before_by_type: dict[UUID, deque[RecipeInstructionAction]] = defaultdict(deque)
     after_by_type: dict[UUID, deque[RecipeInstructionAction]] = defaultdict(deque)
@@ -391,7 +397,7 @@ def _pair_actions(
 
     before_type_counts = Counter(item.action_type_id for item in before_items)
     after_type_counts = Counter(item.action_type_id for item in after_items)
-    return pairs, before_type_counts != after_type_counts
+    return pairs, exact_pairs, before_type_counts != after_type_counts
 
 
 def _instruction_changed_fields(
@@ -400,10 +406,13 @@ def _instruction_changed_fields(
     *,
     before_tokens: dict[UUID, _IngredientReferenceToken],
     after_tokens: dict[UUID, _IngredientReferenceToken],
-) -> list[RecipeInstructionChangedField]:
+) -> tuple[
+    list[RecipeInstructionChangedField],
+    list[tuple[RecipeInstructionAction, RecipeInstructionAction]],
+]:
     before_actions = sorted(before.actions, key=_action_order)
     after_actions = sorted(after.actions, key=_action_order)
-    action_pairs, actions_changed = _pair_actions(
+    action_pairs, exact_action_pairs, actions_changed = _pair_actions(
         before_actions,
         after_actions,
         before_tokens=before_tokens,
@@ -438,7 +447,10 @@ def _instruction_changed_fields(
         "duration": duration_changed,
         "temperature": temperature_changed,
     }
-    return [field for field in _INSTRUCTION_FIELD_ORDER if changed[field]]
+    return (
+        [field for field in _INSTRUCTION_FIELD_ORDER if changed[field]],
+        exact_action_pairs,
+    )
 
 
 def _ingredient_changed_fields(
@@ -554,7 +566,7 @@ def _instruction_diff(
         remaining_after[:shared_count],
         strict=True,
     ):
-        changed_fields = _instruction_changed_fields(
+        changed_fields, unchanged_action_pairs = _instruction_changed_fields(
             before,
             after,
             before_tokens=before_tokens,
@@ -565,6 +577,13 @@ def _instruction_diff(
                 RecipeInstructionPairChange(
                     before=recipe_instruction_response(before),
                     after=recipe_instruction_response(after),
+                    unchanged_action_pairs=[
+                        RecipeInstructionActionMatch(
+                            before_id=before_action.id,
+                            after_id=after_action.id,
+                        )
+                        for before_action, after_action in unchanged_action_pairs
+                    ],
                     changed_fields=changed_fields,
                 )
             )

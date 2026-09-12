@@ -527,16 +527,10 @@ test.describe("structured cooking action acceptance", () => {
       )
       .filter({
         has: page.getByRole("list", {
-          name: "Cooking actions in this recipe for step 1",
+          name: "Cooking action comparison for step 1",
         }),
       });
     await expect(breakdownInstruction).toHaveCount(1);
-    const currentBreakdown = breakdownInstruction.locator(
-      ':scope > [data-comparison-value="current"]',
-    );
-    const previousBreakdown = breakdownInstruction.locator(
-      ':scope > [data-comparison-value="previous"]',
-    );
     const breakdownChangeLabels = breakdownInstruction.getByRole("list", {
       name: "Cooking breakdown changes to step 1",
     });
@@ -551,67 +545,62 @@ test.describe("structured cooking action acceptance", () => {
       ).toBeVisible();
     }
 
-    const currentActions = currentBreakdown.getByRole("list", {
-      name: "Cooking actions in this recipe for step 1",
+    const actions = breakdownInstruction.getByRole("list", {
+      name: "Cooking action comparison for step 1",
     });
-    const currentActionGroup = currentBreakdown.locator(
-      "ins.recipe-comparison-action-group--added",
+    const removedActionRows = actions.locator(
+      ':scope > .recipe-comparison-action[data-action-status="removed"]',
     );
-    await expect(currentActionGroup).toHaveCount(1);
-    await expect(currentActionGroup).toContainText("Current cooking breakdown");
-    await expect(currentActions).toHaveClass(
-      /recipe-comparison-actions--added/,
+    const addedActionRows = actions.locator(
+      ':scope > .recipe-comparison-action[data-action-status="added"]',
     );
-    const currentActionRows = currentActions.locator(":scope > li");
-    await expect(currentActionRows).toHaveCount(3);
-    await expect(currentActionRows.nth(0)).toContainText("Grease");
+    await expect(removedActionRows).toHaveCount(3);
+    await expect(addedActionRows).toHaveCount(3);
+    await expect(removedActionRows.nth(0).locator("del")).toHaveText(
+      "Removed action:",
+    );
+    await expect(addedActionRows.nth(0).locator("ins")).toHaveText(
+      "Added action:",
+    );
+
+    await expect(addedActionRows.nth(0)).toContainText("Grease");
     await expect(
-      currentActionRows.nth(0).locator(":scope > .recipe-comparison-action__main"),
+      addedActionRows.nth(0).locator(":scope > .recipe-comparison-action__main"),
     ).toHaveText("White sugar");
-    await expect(currentActionRows.nth(1)).toContainText("Preheat");
+    await expect(addedActionRows.nth(1)).toContainText("Preheat");
     await expect(
-      currentActionRows
+      addedActionRows
         .nth(1)
         .locator(":scope > .recipe-comparison-action__details"),
     ).toHaveText("175 °C");
-    await expect(currentActionRows.nth(2)).toContainText("Line pan");
+    await expect(addedActionRows.nth(2)).toContainText("Line pan");
     await expect(
-      currentActionRows.nth(2).locator(":scope > .recipe-comparison-action__main"),
+      addedActionRows.nth(2).locator(":scope > .recipe-comparison-action__main"),
     ).toHaveText("Vegetable oil");
     await expect(
-      currentActionRows
+      addedActionRows
         .nth(2)
         .locator(":scope > .recipe-comparison-action__details"),
     ).toHaveText("2.5 minutes");
 
-    const previousActions = previousBreakdown.getByRole("list", {
-      name: "Cooking actions in the starting recipe for step 1",
-    });
-    const previousActionGroup = previousBreakdown.locator(
-      "del.recipe-comparison-action-group--removed",
-    );
-    await expect(previousActionGroup).toHaveCount(1);
-    await expect(previousActionGroup).toContainText(
-      "Previous cooking breakdown",
-    );
-    await expect(previousActions).toHaveClass(
-      /recipe-comparison-actions--removed/,
-    );
-    const previousActionRows = previousActions.locator(":scope > li");
-    await expect(previousActionRows).toHaveCount(3);
-    await expect(previousActionRows.nth(0)).toContainText("Preheat");
+    await expect(removedActionRows.nth(0)).toContainText("Preheat");
     await expect(
-      previousActionRows
+      removedActionRows
         .nth(0)
         .locator(":scope > .recipe-comparison-action__details"),
     ).toHaveText("180 °C");
-    await expect(previousActionRows.nth(1)).toContainText("Grease");
+    await expect(removedActionRows.nth(1)).toContainText("Grease");
     await expect(
-      previousActionRows
+      removedActionRows
         .nth(1)
         .locator(":scope > .recipe-comparison-action__main"),
     ).toHaveText("Vegetable oil");
-    await expect(previousActionRows.nth(2)).toContainText("Line pan");
+    await expect(removedActionRows.nth(2)).toContainText("Line pan");
+    await expect(
+      breakdownInstruction.locator(
+        ".recipe-comparison-instruction-row__step-number",
+      ),
+    ).toHaveText("1");
     await expectNoAccessibilityViolations(page);
   });
 });

@@ -4580,6 +4580,27 @@
         "title": "RecipeIngredientResponse",
         "type": "object"
       },
+      "RecipeInstructionActionMatch": {
+        "description": "One semantically unchanged action across regenerated snapshot rows.",
+        "properties": {
+          "after_id": {
+            "format": "uuid",
+            "title": "After Id",
+            "type": "string"
+          },
+          "before_id": {
+            "format": "uuid",
+            "title": "Before Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "before_id",
+          "after_id"
+        ],
+        "title": "RecipeInstructionActionMatch",
+        "type": "object"
+      },
       "RecipeInstructionActionResponse": {
         "additionalProperties": false,
         "properties": {
@@ -4719,11 +4740,19 @@
             "minItems": 1,
             "title": "Changed Fields",
             "type": "array"
+          },
+          "unchanged_action_pairs": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeInstructionActionMatch"
+            },
+            "title": "Unchanged Action Pairs",
+            "type": "array"
           }
         },
         "required": [
           "before",
           "after",
+          "unchanged_action_pairs",
           "changed_fields"
         ],
         "title": "RecipeInstructionPairChange",

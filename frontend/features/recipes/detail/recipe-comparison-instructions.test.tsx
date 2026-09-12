@@ -75,10 +75,25 @@ function instructionFixture(): InstructionFixture {
   const priorAction = structuredAction(
     "prior-action",
     "mix",
-    0,
+    1,
     [baseSugar.id, UNKNOWN_OCCURRENCE_ID],
   );
   priorAction.duration = exactMeasure("5 minutes", "time");
+
+  const previousRestAction = structuredAction(
+    "previous-rest-action",
+    "rest",
+    0,
+  );
+  previousRestAction.duration = exactMeasure("10 minutes", "time");
+
+  const currentRestAction = structuredAction(
+    "current-rest-action",
+    "rest",
+    1,
+  );
+  currentRestAction.action_type = { ...previousRestAction.action_type };
+  currentRestAction.duration = exactMeasure("10 minutes", "time");
 
   const laterCurrentAction = structuredAction(
     "later-current-action",
@@ -103,13 +118,17 @@ function instructionFixture(): InstructionFixture {
     title: "Get ready",
   };
   const before = {
-    ...instruction("before-step", "Mix the old batter.", 1, [priorAction]),
+    ...instruction("before-step", "Mix the old batter.", 1, [
+      previousRestAction,
+      priorAction,
+    ]),
     title: "Mix",
   };
   const after = {
     ...instruction("after-step", "Fold the fresh batter.", 1, [
       laterCurrentAction,
       firstCurrentAction,
+      currentRestAction,
     ]),
     title: "Fold gently",
   };
@@ -149,6 +168,12 @@ function instructionFixture(): InstructionFixture {
             "action_order",
             "duration",
             "temperature",
+          ],
+          unchanged_action_pairs: [
+            {
+              before_id: previousRestAction.id,
+              after_id: currentRestAction.id,
+            },
           ],
         },
       ],
@@ -330,7 +355,7 @@ describe("RecipeComparisonInstructions", () => {
     expect(within(previous!).getByText("Previous")).toBeVisible();
   });
 
-  it("moves structured changes into Cooking breakdown and keeps version-specific action context", () => {
+  it("merges structured changes into one Cooking breakdown list with version-specific action context", () => {
     const { container } = renderInstructions();
     fireEvent.click(
       screen.getByRole("tab", { name: "Cooking breakdown" }),
@@ -351,63 +376,72 @@ describe("RecipeComparisonInstructions", () => {
       expect(within(changed).getByText(label)).toBeVisible();
     }
 
-    const currentActions = within(changed).getByRole("list", {
-      name: "Cooking actions in this recipe for step 2",
-    });
-    const previousActions = within(changed).getByRole("list", {
-      name: "Cooking actions in the starting recipe for step 2",
+    const actions = within(changed).getByRole("list", {
+      name: "Cooking action comparison for step 2",
     });
     expect(
       within(changed)
         .getByRole("heading", { name: "Step 2: Fold gently" })
         .closest("ins"),
     ).toBeNull();
-    const currentActionGroup = currentActions.closest("ins");
-    const previousActionGroup = previousActions.closest("del");
-    expect(currentActionGroup).toHaveClass(
-      "recipe-comparison-action-group--added",
+    expect(within(changed).getAllByRole("list", { hidden: true })).toContain(
+      actions,
     );
-    expect(previousActionGroup).toHaveClass(
-      "recipe-comparison-action-group--removed",
-    );
-    expect(currentActions).toHaveClass("recipe-comparison-actions--added");
-    expect(previousActions).toHaveClass("recipe-comparison-actions--removed");
-    expect(
-      within(currentActionGroup!).getByText("Current cooking breakdown"),
-    ).toBeVisible();
-    expect(
-      within(previousActionGroup!).getByText("Previous cooking breakdown"),
-    ).toBeVisible();
-    const currentActionRows = Array.from(currentActions.children);
+    const actionRows = Array.from(actions.children) as HTMLElement[];
 
-    expect(currentActionRows).toHaveLength(2);
-    expect(currentActionRows[0]).toHaveTextContent("Line pan");
-    expect(currentActionRows[1]).toHaveTextContent("Bake");
-    expect(currentActionRows[0]).toHaveTextContent(
+    expect(actionRows).toHaveLength(4);
+    expect(actionRows.map((item) => item.dataset.actionStatus)).toEqual([
+      "added",
+      "unchanged",
+      "removed",
+      "added",
+    ]);
+    expect(actionRows[0]).toHaveTextContent("Line pan");
+    expect(actionRows[1]).toHaveTextContent("Rest");
+    expect(actionRows[2]).toHaveTextContent("Mix");
+    expect(actionRows[3]).toHaveTextContent("Bake");
+    expect(actionRows[0]).toHaveTextContent(
       "Fresh zest, Ingredient no longer available, and Sea salt",
     );
-    expect(currentActionRows[0]).toHaveTextContent("Previously used action");
-    expect(currentActionRows[0]).toHaveTextContent("5 minutes");
-    expect(currentActionRows[0]).toHaveTextContent("180 °C");
-    expect(currentActionRows[1]).toHaveTextContent("Sea salt");
-    expect(currentActionRows[1]).toHaveTextContent("180 °C");
-    expect(currentActionRows[0]!.children).toHaveLength(3);
-    expect(currentActionRows[0]!.children[0]).toHaveClass(
-      "recipe-comparison-action__verb",
-    );
-    expect(currentActionRows[0]!.children[1]).toHaveClass(
-      "recipe-comparison-action__main",
-    );
-    expect(currentActionRows[0]!.children[2]).toHaveClass(
-      "recipe-comparison-action__details",
-    );
-    expect(previousActions).toHaveTextContent(
+    expect(actionRows[0]).toHaveTextContent("Previously used action");
+    expect(actionRows[0]).toHaveTextContent("5 minutes");
+    expect(actionRows[0]).toHaveTextContent("180 °C");
+    expect(actionRows[1]).toHaveTextContent("10 minutes");
+    expect(actionRows[2]).toHaveTextContent(
       "Base sugar and Ingredient no longer available",
     );
-    expect(previousActions).toHaveTextContent("5 minutes");
-    expect(currentActions).not.toHaveTextContent("With Fresh zest");
-    expect(currentActions).not.toHaveTextContent("For 5 minutes");
-    expect(currentActions).not.toHaveTextContent("At 180 °C");
+    expect(actionRows[2]).toHaveTextContent("5 minutes");
+    expect(actionRows[3]).toHaveTextContent("Sea salt");
+    expect(actionRows[3]).toHaveTextContent("180 °C");
+    expect(actionRows[0]!.children).toHaveLength(4);
+    expect(actionRows[0]!.children[1]).toHaveClass(
+      "recipe-comparison-action__verb",
+    );
+    expect(actionRows[0]!.children[2]).toHaveClass(
+      "recipe-comparison-action__main",
+    );
+    expect(actionRows[0]!.children[3]).toHaveClass(
+      "recipe-comparison-action__details",
+    );
+    expect(actionRows[0]!.querySelector("ins")).toHaveTextContent(
+      "Added action",
+    );
+    expect(actionRows[1]!.querySelector("ins, del")).toBeNull();
+    expect(actionRows[2]!.querySelector("del")).toHaveTextContent(
+      "Removed action",
+    );
+    expect(actionRows[3]!.querySelector("ins")).toHaveTextContent(
+      "Added action",
+    );
+    expect(actions).not.toHaveTextContent("With Fresh zest");
+    expect(actions).not.toHaveTextContent("For 5 minutes");
+    expect(actions).not.toHaveTextContent("At 180 °C");
+    expect(
+      changed.querySelector(".recipe-comparison-instruction-row__step-number"),
+    ).toHaveTextContent("2");
+    expect(
+      changed.querySelector(".recipe-comparison-instruction-row__step-number"),
+    ).toBeVisible();
     const added = breakdown.querySelector<HTMLElement>(
       ".recipe-comparison-instruction-row--added",
     );
@@ -416,20 +450,22 @@ describe("RecipeComparisonInstructions", () => {
     );
     expect(added).not.toBeNull();
     expect(removed).not.toBeNull();
-    expect(
-      added?.querySelector(
-        '[data-comparison-value="current"] ins.recipe-comparison-action-group--added',
-      ),
-    ).not.toBeNull();
-    expect(
-      removed?.querySelector(
-        '[data-comparison-value="previous"] del.recipe-comparison-action-group--removed',
-      ),
-    ).not.toBeNull();
-    expect(within(added!).getByText("Current cooking breakdown")).toBeVisible();
-    expect(
-      within(removed!).getByText("Previous cooking breakdown"),
-    ).toBeVisible();
+    const addedActions = within(added!).getByRole("list", {
+      name: "Cooking action comparison for step 4",
+    });
+    const removedActions = within(removed!).getByRole("list", {
+      name: "Cooking action comparison for step 4",
+    });
+    expect(addedActions.children).toHaveLength(1);
+    expect(addedActions.children[0]).toHaveAttribute(
+      "data-action-status",
+      "added",
+    );
+    expect(removedActions.children).toHaveLength(1);
+    expect(removedActions.children[0]).toHaveAttribute(
+      "data-action-status",
+      "removed",
+    );
     expect(
       within(breakdown).getByText(
         "No cooking breakdown was recorded for this step.",
@@ -480,11 +516,17 @@ describe("RecipeComparisonInstructions", () => {
         added: [addedWithoutActions],
         removed: [removedWithoutActions],
         modified: [
-          { before: beforeWords, after: afterWords, changed_fields: ["text"] },
+          {
+            before: beforeWords,
+            after: afterWords,
+            changed_fields: ["text"],
+            unchanged_action_pairs: [],
+          },
           {
             before: beforeActions,
             after: afterActions,
             changed_fields: ["actions"],
+            unchanged_action_pairs: [],
           },
         ],
       },
@@ -562,11 +604,13 @@ describe("RecipeComparisonInstructions", () => {
             before: beforeRemoval,
             after: afterRemoval,
             changed_fields: ["actions"],
+            unchanged_action_pairs: [],
           },
           {
             before: beforeAddition,
             after: afterAddition,
             changed_fields: ["actions"],
+            unchanged_action_pairs: [],
           },
         ],
       },
@@ -593,31 +637,225 @@ describe("RecipeComparisonInstructions", () => {
     const addition = rowWithHeading(breakdown, "Step 2: Add first action");
 
     expect(removal).toHaveClass("recipe-comparison-instruction-row--changed");
-    expect(
-      within(removal).queryByRole("list", {
-        name: "Cooking actions in this recipe for step 1",
-      }),
-    ).toBeNull();
-    expect(
-      within(removal).getByRole("list", {
-        name: "Cooking actions in the starting recipe for step 1",
-      }),
-    ).toHaveClass("recipe-comparison-actions--removed");
-    expect(within(removal).getByText("Previous cooking breakdown")).toBeVisible();
+    const removalActions = within(removal).getByRole("list", {
+      name: "Cooking action comparison for step 1",
+    });
+    expect(removalActions.children).toHaveLength(1);
+    expect(removalActions.children[0]).toHaveAttribute(
+      "data-action-status",
+      "removed",
+    );
 
     expect(addition).toHaveClass("recipe-comparison-instruction-row--changed");
-    expect(
-      within(addition).getByRole("list", {
-        name: "Cooking actions in this recipe for step 2",
-      }),
-    ).toHaveClass("recipe-comparison-actions--added");
-    expect(
-      within(addition).queryByRole("list", {
-        name: "Cooking actions in the starting recipe for step 2",
-      }),
-    ).toBeNull();
-    expect(within(addition).getByText("Current cooking breakdown")).toBeVisible();
+    const additionActions = within(addition).getByRole("list", {
+      name: "Cooking action comparison for step 2",
+    });
+    expect(additionActions.children).toHaveLength(1);
+    expect(additionActions.children[0]).toHaveAttribute(
+      "data-action-status",
+      "added",
+    );
     expect(screen.getByText("2 cooking breakdown changes")).toBeVisible();
+  });
+
+  it("uses semantic action pairs instead of regenerated ids and keeps reordered actions neutral once", () => {
+    const previousMix = structuredAction("previous-mix", "mix", 0);
+    const previousBake = structuredAction("previous-bake", "bake", 1);
+    const currentBake = structuredAction("current-bake", "bake", 0);
+    const currentMix = structuredAction("current-mix", "mix", 1);
+    currentBake.action_type = { ...previousBake.action_type };
+    currentMix.action_type = { ...previousMix.action_type };
+    const before = {
+      ...instruction("before-reorder", "Mix, then bake.", 0, [
+        previousMix,
+        previousBake,
+      ]),
+      title: "Prepare",
+    };
+    const after = {
+      ...instruction("after-reorder", "Mix, then bake.", 0, [
+        currentBake,
+        currentMix,
+      ]),
+      title: "Prepare",
+    };
+    const diff: RecipeDiff = {
+      ...mixedDiff(),
+      metadata_changes: [],
+      ingredients: { added: [], removed: [], replaced: [], modified: [] },
+      ingredient_context: { base: [], target: [] },
+      instructions: {
+        added: [],
+        removed: [],
+        modified: [
+          {
+            before,
+            after,
+            changed_fields: ["action_order"],
+            unchanged_action_pairs: [
+              { before_id: previousMix.id, after_id: currentMix.id },
+              { before_id: previousBake.id, after_id: currentBake.id },
+            ],
+          },
+        ],
+      },
+      has_changes: true,
+    };
+    const recipe = targetRecipeDetail(diff, {
+      ingredients: [],
+      instructions: [after],
+    });
+    render(
+      <RecipeComparisonInstructions
+        comparison={buildRecipeComparisonModel(recipe, diff)}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Cooking breakdown" }),
+    );
+    const actions = screen.getByRole("list", {
+      name: "Cooking action comparison for step 1",
+    });
+    const rows = Array.from(actions.children) as HTMLElement[];
+
+    expect(rows).toHaveLength(2);
+    expect(rows.map((item) => item.dataset.actionStatus)).toEqual([
+      "unchanged",
+      "unchanged",
+    ]);
+    expect(rows.map((item) => item.textContent)).toEqual(["BakeNo ingredient linked", "MixNo ingredient linked"]);
+    expect(actions.querySelector("ins, del")).toBeNull();
+    expect(screen.getByText("Order within the step changed")).toBeVisible();
+  });
+
+  it("renders changed duration and temperature as an adjacent removal and addition", () => {
+    const previousAction = structuredAction("previous-heat", "heat", 0);
+    previousAction.duration = exactMeasure("5 minutes", "time");
+    previousAction.temperature = exactMeasure("180 °C", "temperature");
+    const currentAction = structuredAction("current-heat", "heat", 0);
+    currentAction.action_type = { ...previousAction.action_type };
+    currentAction.duration = exactMeasure("10 minutes", "time");
+    currentAction.temperature = exactMeasure("190 °C", "temperature");
+    const before = instruction(
+      "before-heat",
+      "Heat the mixture.",
+      0,
+      [previousAction],
+    );
+    const after = instruction("after-heat", "Heat the mixture.", 0, [
+      currentAction,
+    ]);
+    const diff: RecipeDiff = {
+      ...mixedDiff(),
+      metadata_changes: [],
+      ingredients: { added: [], removed: [], replaced: [], modified: [] },
+      ingredient_context: { base: [], target: [] },
+      instructions: {
+        added: [],
+        removed: [],
+        modified: [
+          {
+            before,
+            after,
+            changed_fields: ["duration", "temperature"],
+            unchanged_action_pairs: [],
+          },
+        ],
+      },
+      has_changes: true,
+    };
+    const recipe = targetRecipeDetail(diff, {
+      ingredients: [],
+      instructions: [after],
+    });
+    render(
+      <RecipeComparisonInstructions
+        comparison={buildRecipeComparisonModel(recipe, diff)}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Cooking breakdown" }),
+    );
+    const actions = screen.getByRole("list", {
+      name: "Cooking action comparison for step 1",
+    });
+    const rows = Array.from(actions.children) as HTMLElement[];
+
+    expect(rows.map((item) => item.dataset.actionStatus)).toEqual([
+      "removed",
+      "added",
+    ]);
+    expect(rows[0]).toHaveTextContent("5 minutes");
+    expect(rows[0]).toHaveTextContent("180 °C");
+    expect(rows[0]!.querySelector("del")).toHaveTextContent("Removed action");
+    expect(rows[1]).toHaveTextContent("10 minutes");
+    expect(rows[1]).toHaveTextContent("190 °C");
+    expect(rows[1]!.querySelector("ins")).toHaveTextContent("Added action");
+  });
+
+  it("preserves the multiplicity of duplicate unchanged actions", () => {
+    const previousFirst = structuredAction("previous-rest-one", "rest", 0);
+    const previousSecond = structuredAction("previous-rest-two", "rest", 1);
+    const currentFirst = structuredAction("current-rest-one", "rest", 0);
+    const currentSecond = structuredAction("current-rest-two", "rest", 1);
+    currentFirst.action_type = { ...previousFirst.action_type };
+    currentSecond.action_type = { ...previousSecond.action_type };
+    const before = instruction("before-rests", "Rest twice.", 0, [
+      previousFirst,
+      previousSecond,
+    ]);
+    const after = instruction("after-rests", "Rest twice, checking each time.", 0, [
+      currentFirst,
+      currentSecond,
+    ]);
+    const diff: RecipeDiff = {
+      ...mixedDiff(),
+      metadata_changes: [],
+      ingredients: { added: [], removed: [], replaced: [], modified: [] },
+      ingredient_context: { base: [], target: [] },
+      instructions: {
+        added: [],
+        removed: [],
+        modified: [
+          {
+            before,
+            after,
+            changed_fields: ["text"],
+            unchanged_action_pairs: [
+              { before_id: previousFirst.id, after_id: currentFirst.id },
+              { before_id: previousSecond.id, after_id: currentSecond.id },
+            ],
+          },
+        ],
+      },
+      has_changes: true,
+    };
+    const recipe = targetRecipeDetail(diff, {
+      ingredients: [],
+      instructions: [after],
+    });
+    render(
+      <RecipeComparisonInstructions
+        comparison={buildRecipeComparisonModel(recipe, diff)}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Cooking breakdown" }),
+    );
+    const actions = screen.getByRole("list", {
+      name: "Cooking action comparison for step 1",
+    });
+    const rows = Array.from(actions.children) as HTMLElement[];
+
+    expect(rows).toHaveLength(2);
+    expect(rows.every((item) => item.dataset.actionStatus === "unchanged")).toBe(
+      true,
+    );
+    expect(rows[0]).toHaveTextContent("Rest");
+    expect(rows[1]).toHaveTextContent("Rest");
   });
 
   it("supports wrapped arrow, Home, and End navigation", () => {

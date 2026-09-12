@@ -81,21 +81,173 @@ function actionIngredientNames(
   );
 }
 
-function ComparisonInstructionActions({
-  actions,
-  ingredientById,
-  label,
-  tone,
-}: {
-  actions: readonly RecipeInstructionAction[];
+type RecipeComparisonActionStatus = "unchanged" | "added" | "removed";
+
+interface RecipeComparisonActionRow {
+  action: RecipeInstructionAction;
   ingredientById: ReadonlyMap<string, RecipeIngredient>;
-  label: string;
-  tone?: "added" | "removed";
-}) {
-  if (actions.length === 0) {
-    if (tone) {
-      return null;
+  key: string;
+  status: RecipeComparisonActionStatus;
+}
+
+interface RecipeComparisonActionAnchor {
+  currentIndex: number;
+  previousIndex: number;
+}
+
+function orderedActions(
+  actions: readonly RecipeInstructionAction[],
+): RecipeInstructionAction[] {
+  return [...actions].sort(
+    (left, right) =>
+      left.display_order - right.display_order || left.id.localeCompare(right.id),
+  );
+}
+
+function monotonicActionAnchors(
+  currentActions: readonly RecipeInstructionAction[],
+  previousActions: readonly RecipeInstructionAction[],
+  matchedCurrentByPreviousId: ReadonlyMap<string, string>,
+): RecipeComparisonActionAnchor[] {
+  const currentIndexById = new Map(
+    currentActions.map((action, index) => [action.id, index]),
+  );
+  const candidates = previousActions.flatMap((action, previousIndex) => {
+    const currentId = matchedCurrentByPreviousId.get(action.id);
+    const currentIndex = currentId
+      ? currentIndexById.get(currentId)
+      : undefined;
+    return currentIndex === undefined
+      ? []
+      : [{ currentIndex, previousIndex }];
+  });
+  const chains = candidates.map((candidate) => [candidate]);
+
+  for (let index = 0; index < candidates.length; index += 1) {
+    for (let priorIndex = 0; priorIndex < index; priorIndex += 1) {
+      if (
+        candidates[priorIndex]!.currentIndex >= candidates[index]!.currentIndex
+      ) {
+        continue;
+      }
+      const candidateChain = [...chains[priorIndex]!, candidates[index]!];
+      if (candidateChain.length > chains[index]!.length) {
+        chains[index] = candidateChain;
+      }
     }
+  }
+
+  return chains.reduce<RecipeComparisonActionAnchor[]>(
+    (longest, chain) => (chain.length > longest.length ? chain : longest),
+    [],
+  );
+}
+
+function comparisonActionRows(
+  row: RecipeInstructionComparisonRow,
+  currentIngredientById: ReadonlyMap<string, RecipeIngredient>,
+  baseIngredientById: ReadonlyMap<string, RecipeIngredient>,
+): RecipeComparisonActionRow[] {
+  const currentActions = orderedActions(row.current?.actions ?? []);
+  const previousActions = orderedActions(row.previous?.actions ?? []);
+
+  if (row.status === "unchanged") {
+    return currentActions.map((action) => ({
+      action,
+      ingredientById: currentIngredientById,
+      key: `current:${action.id}`,
+      status: "unchanged",
+    }));
+  }
+  if (row.status === "added") {
+    return currentActions.map((action) => ({
+      action,
+      ingredientById: currentIngredientById,
+      key: `current:${action.id}`,
+      status: "added",
+    }));
+  }
+  if (row.status === "removed") {
+    return previousActions.map((action) => ({
+      action,
+      ingredientById: baseIngredientById,
+      key: `previous:${action.id}`,
+      status: "removed",
+    }));
+  }
+
+  const currentIds = new Set(currentActions.map((action) => action.id));
+  const previousIds = new Set(previousActions.map((action) => action.id));
+  const matchedPreviousByCurrentId = new Map<string, string>();
+  const matchedCurrentByPreviousId = new Map<string, string>();
+  for (const pair of row.unchangedActionPairs) {
+    if (
+      !currentIds.has(pair.after_id) ||
+      !previousIds.has(pair.before_id) ||
+      matchedPreviousByCurrentId.has(pair.after_id) ||
+      matchedCurrentByPreviousId.has(pair.before_id)
+    ) {
+      continue;
+    }
+    matchedPreviousByCurrentId.set(pair.after_id, pair.before_id);
+    matchedCurrentByPreviousId.set(pair.before_id, pair.after_id);
+  }
+
+  const actionRows: RecipeComparisonActionRow[] = [];
+  const anchors = monotonicActionAnchors(
+    currentActions,
+    previousActions,
+    matchedCurrentByPreviousId,
+  );
+  let currentCursor = 0;
+  let previousCursor = 0;
+
+  const appendGap = (currentEnd: number, previousEnd: number) => {
+    for (const action of previousActions.slice(previousCursor, previousEnd)) {
+      if (matchedCurrentByPreviousId.has(action.id)) continue;
+      actionRows.push({
+        action,
+        ingredientById: baseIngredientById,
+        key: `previous:${action.id}`,
+        status: "removed",
+      });
+    }
+    for (const action of currentActions.slice(currentCursor, currentEnd)) {
+      actionRows.push({
+        action,
+        ingredientById: currentIngredientById,
+        key: `current:${action.id}`,
+        status: matchedPreviousByCurrentId.has(action.id)
+          ? "unchanged"
+          : "added",
+      });
+    }
+  };
+
+  for (const anchor of anchors) {
+    appendGap(anchor.currentIndex, anchor.previousIndex);
+    const action = currentActions[anchor.currentIndex]!;
+    actionRows.push({
+      action,
+      ingredientById: currentIngredientById,
+      key: `current:${action.id}`,
+      status: "unchanged",
+    });
+    currentCursor = anchor.currentIndex + 1;
+    previousCursor = anchor.previousIndex + 1;
+  }
+  appendGap(currentActions.length, previousActions.length);
+  return actionRows;
+}
+
+function ComparisonInstructionActions({
+  label,
+  rows,
+}: {
+  label: string;
+  rows: readonly RecipeComparisonActionRow[];
+}) {
+  if (rows.length === 0) {
     return (
       <p className="recipe-comparison-instruction-value__empty">
         No cooking breakdown was recorded for this step.
@@ -103,103 +255,55 @@ function ComparisonInstructionActions({
     );
   }
 
-  const actionList = (
-    <ol
-      className={
-        tone
-          ? `recipe-comparison-actions recipe-comparison-actions--${tone}`
-          : "recipe-comparison-actions"
-      }
-      aria-label={label}
-    >
-      {[...actions]
-        .sort((left, right) => left.display_order - right.display_order)
-        .map((action) => {
-          const verb = recipeActionLabel(action.action_type.canonical_verb);
-          const ingredients = actionIngredientNames(action, ingredientById);
-          return (
-            <li className="recipe-comparison-action" key={action.id}>
-              <strong className="recipe-comparison-action__verb">{verb}</strong>
-              <span className="recipe-comparison-action__main">
-                <strong>{listNames(ingredients)}</strong>
-                {!action.action_type.active ? (
-                  <small className="recipe-comparison-action__inactive">
-                    Previously used action
-                  </small>
-                ) : null}
-              </span>
-              {action.duration || action.temperature ? (
-                <ul
-                  className="recipe-comparison-action__details"
-                  aria-label={`${verb} timing and temperature`}
-                >
-                  {action.duration ? (
-                    <li>{action.duration.display}</li>
-                  ) : null}
-                  {action.temperature ? (
-                    <li>{action.temperature.display}</li>
-                  ) : null}
-                </ul>
-              ) : null}
-            </li>
-          );
-        })}
-    </ol>
-  );
-
-  if (!tone) {
-    return <div className="recipe-comparison-action-group">{actionList}</div>;
-  }
-
-  const changeLabel =
-    tone === "added"
-      ? { marker: "+", text: "Current cooking breakdown" }
-      : { marker: "−", text: "Previous cooking breakdown" };
-  const Group = tone === "added" ? "ins" : "del";
-
   return (
-    <Group
-      className={`recipe-comparison-action-group recipe-comparison-action-group--${tone}`}
-    >
-      <span className="recipe-comparison-action-group__change-label">
-        <span aria-hidden="true">{changeLabel.marker}</span>
-        {changeLabel.text}
-      </span>
-      {actionList}
-    </Group>
+    <ol className="recipe-comparison-actions" aria-label={label}>
+      {rows.map(({ action, ingredientById, key, status }) => {
+        const verb = recipeActionLabel(action.action_type.canonical_verb);
+        const ingredients = actionIngredientNames(action, ingredientById);
+        return (
+          <li
+            className={`recipe-comparison-action recipe-comparison-action--${status}`}
+            data-action-status={status}
+            key={key}
+          >
+            {status === "added" ? (
+              <ins className="visually-hidden">Added action: </ins>
+            ) : status === "removed" ? (
+              <del className="visually-hidden">Removed action: </del>
+            ) : null}
+            <strong className="recipe-comparison-action__verb">{verb}</strong>
+            <span className="recipe-comparison-action__main">
+              <strong>{listNames(ingredients)}</strong>
+              {!action.action_type.active ? (
+                <small className="recipe-comparison-action__inactive">
+                  Previously used action
+                </small>
+              ) : null}
+            </span>
+            {action.duration || action.temperature ? (
+              <ul
+                className="recipe-comparison-action__details"
+                aria-label={`${verb} timing and temperature`}
+              >
+                {action.duration ? <li>{action.duration.display}</li> : null}
+                {action.temperature ? (
+                  <li>{action.temperature.display}</li>
+                ) : null}
+              </ul>
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
-function InstructionValue({
-  actionLabel,
-  breakdownChange,
-  ingredientById,
-  instruction,
-  omitHeading = false,
-  view,
-}: {
-  actionLabel: string;
-  breakdownChange?: "added" | "removed";
-  ingredientById: ReadonlyMap<string, RecipeIngredient>;
-  instruction: RecipeInstruction;
-  omitHeading?: boolean;
-  view: RecipeInstructionView;
-}) {
+function InstructionValue({ instruction }: { instruction: RecipeInstruction }) {
   const step = instruction.display_order + 1;
   const title = instruction.title?.trim();
-  const breakdown = (
-    <ComparisonInstructionActions
-      actions={instruction.actions}
-      ingredientById={ingredientById}
-      label={actionLabel}
-      tone={breakdownChange}
-    />
-  );
 
   return (
-    <div
-      className={`recipe-comparison-instruction-value recipe-comparison-instruction-value--${view}`}
-    >
+    <div className="recipe-comparison-instruction-value recipe-comparison-instruction-value--steps">
       <span
         className="recipe-comparison-instruction-value__step-number"
         aria-hidden="true"
@@ -207,27 +311,21 @@ function InstructionValue({
         {step}
       </span>
       <div className="recipe-comparison-instruction-value__body">
-        {!omitHeading ? (
-          <h3
-            className="recipe-comparison-instruction-value__heading"
-            aria-label={title ? `Step ${step}: ${title}` : undefined}
-          >
-            {title ? (
-              <span className="recipe-comparison-instruction-value__title">
-                {title}
-              </span>
-            ) : (
-              `Step ${step}`
-            )}
-          </h3>
-        ) : null}
-        {view === "steps" ? (
-          <p className="recipe-comparison-instruction-value__text">
-            {instruction.text}
-          </p>
-        ) : (
-          breakdown
-        )}
+        <h3
+          className="recipe-comparison-instruction-value__heading"
+          aria-label={title ? `Step ${step}: ${title}` : undefined}
+        >
+          {title ? (
+            <span className="recipe-comparison-instruction-value__title">
+              {title}
+            </span>
+          ) : (
+            `Step ${step}`
+          )}
+        </h3>
+        <p className="recipe-comparison-instruction-value__text">
+          {instruction.text}
+        </p>
       </div>
     </div>
   );
@@ -293,42 +391,27 @@ function instructionChangeLabels(
 }
 
 function CurrentInstruction({
-  ingredientById,
   row,
   status,
-  view,
 }: {
-  ingredientById: ReadonlyMap<string, RecipeIngredient>;
   row: RecipeInstructionComparisonRow;
   status: RecipeComparisonRowStatus;
-  view: RecipeInstructionView;
 }) {
   if (row.current === null) {
     return null;
   }
 
   const step = row.current.display_order + 1;
-  const value = (
-    <InstructionValue
-      actionLabel={`Cooking actions in this recipe for step ${step}`}
-      breakdownChange={
-        view === "breakdown" && (status === "added" || status === "changed")
-          ? "added"
-          : undefined
-      }
-      ingredientById={ingredientById}
-      instruction={row.current}
-      view={view}
-    />
-  );
-  const labels = status === "changed" ? instructionChangeLabels(row, view) : [];
+  const value = <InstructionValue instruction={row.current} />;
+  const labels =
+    status === "changed" ? instructionChangeLabels(row, "steps") : [];
 
   return (
     <div
       className="recipe-comparison-instruction-row__current"
       data-comparison-value="current"
     >
-      {view === "steps" && (status === "added" || status === "changed") ? (
+      {status === "added" || status === "changed" ? (
         <ins>{value}</ins>
       ) : (
         value
@@ -336,11 +419,7 @@ function CurrentInstruction({
       {labels.length > 0 ? (
         <ul
           className="recipe-comparison-instruction-labels"
-          aria-label={
-            view === "steps"
-              ? `Changes to step ${step}`
-              : `Cooking breakdown changes to step ${step}`
-          }
+          aria-label={`Changes to step ${step}`}
         >
           {labels.map((label) => (
             <li
@@ -357,17 +436,12 @@ function CurrentInstruction({
 }
 
 function PreviousInstruction({
-  ingredientById,
   instruction,
   removed = false,
-  view,
 }: {
-  ingredientById: ReadonlyMap<string, RecipeIngredient>;
   instruction: RecipeInstruction;
   removed?: boolean;
-  view: RecipeInstructionView;
 }) {
-  const step = instruction.display_order + 1;
   return (
     <div
       className={
@@ -377,31 +451,80 @@ function PreviousInstruction({
       }
       data-comparison-value="previous"
     >
-      {!removed && view === "steps" ? (
+      {!removed ? (
         <span className="recipe-comparison-instruction-row__previous-label">
           Previous
         </span>
       ) : null}
-      {view === "breakdown" ? (
-        <InstructionValue
-          actionLabel={`Cooking actions in the starting recipe for step ${step}`}
-          breakdownChange="removed"
-          ingredientById={ingredientById}
-          instruction={instruction}
-          omitHeading={!removed}
-          view={view}
-        />
-      ) : (
-        <del>
-          <InstructionValue
-            actionLabel={`Cooking actions in the starting recipe for step ${step}`}
-            ingredientById={ingredientById}
-            instruction={instruction}
-            view={view}
-          />
-        </del>
-      )}
+      <del>
+        <InstructionValue instruction={instruction} />
+      </del>
     </div>
+  );
+}
+
+function BreakdownInstruction({
+  baseIngredientById,
+  currentIngredientById,
+  row,
+  status,
+}: {
+  baseIngredientById: ReadonlyMap<string, RecipeIngredient>;
+  currentIngredientById: ReadonlyMap<string, RecipeIngredient>;
+  row: RecipeInstructionComparisonRow;
+  status: RecipeComparisonRowStatus;
+}) {
+  const instruction = row.current ?? row.previous;
+  if (instruction === null) return null;
+
+  const step = instruction.display_order + 1;
+  const title = instruction.title?.trim();
+  const labels =
+    status === "changed" ? instructionChangeLabels(row, "breakdown") : [];
+  const actionRows = comparisonActionRows(
+    row,
+    currentIngredientById,
+    baseIngredientById,
+  );
+
+  return (
+    <>
+      <span
+        className="recipe-comparison-instruction-row__step-number"
+        aria-hidden="true"
+      >
+        {step}
+      </span>
+      <div className="recipe-comparison-instruction-row__body">
+        <div className="recipe-comparison-instruction-row__heading">
+          <h3 aria-label={title ? `Step ${step}: ${title}` : undefined}>
+            {title || `Step ${step}`}
+          </h3>
+          {status !== "unchanged" ? (
+            <InstructionStatus status={status} />
+          ) : null}
+        </div>
+        <ComparisonInstructionActions
+          label={`Cooking action comparison for step ${step}`}
+          rows={actionRows}
+        />
+        {labels.length > 0 ? (
+          <ul
+            className="recipe-comparison-instruction-labels"
+            aria-label={`Cooking breakdown changes to step ${step}`}
+          >
+            {labels.map((label) => (
+              <li
+                className="recipe-comparison-instruction-labels__label"
+                key={label}
+              >
+                {label}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </>
   );
 }
 
@@ -417,34 +540,34 @@ function InstructionRow({
   view: RecipeInstructionView;
 }) {
   const status = instructionStatusForView(row, view);
+  if (view === "breakdown") {
+    return (
+      <li
+        className={`recipe-comparison-instruction-row recipe-comparison-instruction-row--${status}`}
+        data-instruction-view={view}
+      >
+        <BreakdownInstruction
+          baseIngredientById={baseIngredientById}
+          currentIngredientById={currentIngredientById}
+          row={row}
+          status={status}
+        />
+      </li>
+    );
+  }
+
   return (
     <li
       className={`recipe-comparison-instruction-row recipe-comparison-instruction-row--${status}`}
       data-instruction-view={view}
     >
       {status !== "unchanged" ? <InstructionStatus status={status} /> : null}
-      <CurrentInstruction
-        ingredientById={currentIngredientById}
-        row={row}
-        status={status}
-        view={view}
-      />
-      {status === "changed" &&
-      row.previous !== null &&
-      (view === "steps" || row.previous.actions.length > 0) ? (
-        <PreviousInstruction
-          ingredientById={baseIngredientById}
-          instruction={row.previous}
-          view={view}
-        />
+      <CurrentInstruction row={row} status={status} />
+      {status === "changed" && row.previous !== null ? (
+        <PreviousInstruction instruction={row.previous} />
       ) : null}
       {status === "removed" && row.previous !== null ? (
-        <PreviousInstruction
-          ingredientById={baseIngredientById}
-          instruction={row.previous}
-          removed
-          view={view}
-        />
+        <PreviousInstruction instruction={row.previous} removed />
       ) : null}
     </li>
   );

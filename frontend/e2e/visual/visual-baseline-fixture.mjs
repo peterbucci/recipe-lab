@@ -170,6 +170,30 @@ const simmerAction = Object.freeze({
   active: true,
   provenance: "Synthetic baseline catalog.",
 });
+const comparisonBlendAction = Object.freeze({
+  id: "60000000-0000-4000-8000-000000000011",
+  key: "blend",
+  canonical_verb: "blend",
+  active: true,
+});
+const comparisonRestAction = Object.freeze({
+  id: "60000000-0000-4000-8000-000000000012",
+  key: "rest",
+  canonical_verb: "rest",
+  active: true,
+});
+const comparisonHeatAction = Object.freeze({
+  id: "60000000-0000-4000-8000-000000000013",
+  key: "heat",
+  canonical_verb: "heat",
+  active: true,
+});
+const comparisonFoldAction = Object.freeze({
+  id: "60000000-0000-4000-8000-000000000014",
+  key: "fold",
+  canonical_verb: "fold",
+  active: true,
+});
 const tomato = Object.freeze({
   id: IDS.tomato,
   canonical_name: "Plum tomato",
@@ -409,6 +433,56 @@ function detailFor(summary) {
   };
 }
 
+function comparisonDetailFor(summary) {
+  const detail = detailFor(summary);
+  if (summary.id !== IDS.recipeVariant) return detail;
+
+  return {
+    ...detail,
+    instructions: [
+      {
+        ...detail.instructions[0],
+        actions: [
+          {
+            id: "43000000-0000-4000-8000-000000000001",
+            action_type: comparisonBlendAction,
+            display_order: 0,
+            ingredient_occurrence_ids: [
+              "41000000-0000-4000-8000-000000000001",
+              "41000000-0000-4000-8000-000000000002",
+            ],
+            duration: null,
+            temperature: null,
+          },
+          {
+            id: "43000000-0000-4000-8000-000000000002",
+            action_type: comparisonRestAction,
+            display_order: 1,
+            ingredient_occurrence_ids: ["41000000-0000-4000-8000-000000000001"],
+            duration: {
+              kind: "exact",
+              value: "5.0000",
+              unit: minuteSummary,
+              display_unit: "min",
+              display: "5 min",
+            },
+            temperature: null,
+          },
+          {
+            id: "43000000-0000-4000-8000-000000000003",
+            action_type: comparisonHeatAction,
+            display_order: 2,
+            ingredient_occurrence_ids: [],
+            duration: null,
+            temperature: null,
+          },
+        ],
+      },
+      ...detail.instructions.slice(1),
+    ],
+  };
+}
+
 const diff = Object.freeze({
   lineage_id: IDS.lineage,
   base_version: rootReference,
@@ -462,29 +536,40 @@ const diff = Object.freeze({
           actions: [
             {
               id: "43000000-0000-4000-8000-000000000010",
-              action_type: {
-                id: simmerAction.id,
-                key: simmerAction.key,
-                canonical_verb: simmerAction.canonical_verb,
-                active: true,
-              },
+              action_type: comparisonRestAction,
               display_order: 0,
               ingredient_occurrence_ids: [
                 "41000000-0000-4000-8000-000000000001",
               ],
               duration: {
                 kind: "exact",
-                value: "15.0000",
+                value: "5.0000",
                 unit: minuteSummary,
                 display_unit: "min",
-                display: "15 min",
+                display: "5 min",
               },
+              temperature: null,
+            },
+            {
+              id: "43000000-0000-4000-8000-000000000011",
+              action_type: comparisonFoldAction,
+              display_order: 1,
+              ingredient_occurrence_ids: [
+                "41000000-0000-4000-8000-000000000002",
+              ],
+              duration: null,
               temperature: null,
             },
           ],
         },
-        after: detailFor(variantSummary).instructions[0],
+        after: comparisonDetailFor(variantSummary).instructions[0],
         changed_fields: ["title", "text", "actions"],
+        unchanged_action_pairs: [
+          {
+            before_id: "43000000-0000-4000-8000-000000000010",
+            after_id: "43000000-0000-4000-8000-000000000002",
+          },
+        ],
       },
     ],
   },
@@ -969,6 +1054,7 @@ const allowedScenarios = new Set([
   "activity-normal",
   "anonymous-session",
   "auth-error",
+  "comparison-actions",
   "curation-empty",
   "curation-stale-once",
   "curator-session",
@@ -1406,7 +1492,13 @@ async function handleApi(request, response, url) {
         );
         return;
       }
-      sendJson(response, 200, detailFor(summary));
+      sendJson(
+        response,
+        200,
+        scenario === "comparison-actions"
+          ? comparisonDetailFor(summary)
+          : detailFor(summary),
+      );
     } else {
       countRoute("recipe-missing");
       sendError(response, 404, "recipe_not_found", "The recipe was not found.");

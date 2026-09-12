@@ -958,34 +958,35 @@ export async function verifyPublicLineage(
       )
       .filter({ hasText: "20 min" });
     await expect(breakdownChange).toHaveCount(1);
-    const currentBreakdown = breakdownChange.locator(
-      ':scope > [data-comparison-value="current"]',
+    const actions = breakdownChange.locator(
+      ":scope .recipe-comparison-actions",
     );
-    const previousBreakdown = breakdownChange.locator(
-      ':scope > [data-comparison-value="previous"]',
+    const addedAction = actions.locator(
+      ':scope > .recipe-comparison-action[data-action-status="added"]',
     );
-    const currentActionGroup = currentBreakdown.locator(
-      "ins.recipe-comparison-action-group--added",
+    const removedAction = actions.locator(
+      ':scope > .recipe-comparison-action[data-action-status="removed"]',
     );
-    const previousActionGroup = previousBreakdown.locator(
-      "del.recipe-comparison-action-group--removed",
-    );
-    await expect(currentActionGroup).toContainText("Current cooking breakdown");
-    await expect(currentActionGroup).toContainText("20 min");
+    await expect(actions).toHaveCount(1);
+    await expect(addedAction).toHaveCount(1);
+    await expect(removedAction).toHaveCount(1);
+    await expect(addedAction).toContainText("20 min");
+    await expect(removedAction).toContainText("10 min");
+    await expect(addedAction.locator("ins")).toHaveText("Added action:");
+    await expect(removedAction.locator("del")).toHaveText("Removed action:");
+    await expect(breakdownChange).toContainText("Timing changed");
     await expect(
-      currentActionGroup.locator(".recipe-comparison-actions--added"),
-    ).toHaveCount(1);
-    await expect(previousActionGroup).toContainText(
-      "Previous cooking breakdown",
-    );
-    await expect(previousActionGroup).toContainText("10 min");
+      breakdownChange.locator(
+        ".recipe-comparison-instruction-row__step-number",
+      ),
+    ).toBeVisible();
     await expect(
-      previousActionGroup.locator(".recipe-comparison-actions--removed"),
-    ).toHaveCount(1);
-    await expect(currentBreakdown).toContainText("Timing changed");
+      breakdownChange.locator(
+        ".recipe-comparison-instruction-row__step-number",
+      ),
+    ).toHaveText("1");
     await expectNoAccessibilityViolations(publicPage);
   } finally {
     await publicContext.close();
   }
 }
-

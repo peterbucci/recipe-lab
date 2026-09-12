@@ -50,30 +50,22 @@ async function expectControlsInKeyboardOrder(
 async function expectColorIndependentBreakdownChanges(
   breakdownPanel: Locator,
 ): Promise<void> {
-  const currentBreakdown = breakdownPanel.locator(
-    'ins.recipe-comparison-action-group--added',
+  const addedActions = breakdownPanel.locator(
+    '.recipe-comparison-action[data-action-status="added"]',
   );
-  const previousBreakdown = breakdownPanel.locator(
-    'del.recipe-comparison-action-group--removed',
+  const removedActions = breakdownPanel.locator(
+    '.recipe-comparison-action[data-action-status="removed"]',
   );
-  expect(await currentBreakdown.count()).toBeGreaterThan(0);
-  expect(await previousBreakdown.count()).toBeGreaterThan(0);
-  await expect(
-    currentBreakdown
-      .first()
-      .locator(".recipe-comparison-action-group__change-label"),
-  ).toContainText("Current cooking breakdown");
-  await expect(
-    previousBreakdown
-      .first()
-      .locator(".recipe-comparison-action-group__change-label"),
-  ).toContainText("Previous cooking breakdown");
-  await expect(
-    currentBreakdown.first().locator(".recipe-comparison-actions--added"),
-  ).toBeVisible();
-  await expect(
-    previousBreakdown.first().locator(".recipe-comparison-actions--removed"),
-  ).toBeVisible();
+  expect(await addedActions.count()).toBeGreaterThan(0);
+  expect(await removedActions.count()).toBeGreaterThan(0);
+  await expect(addedActions.first().locator("ins")).toHaveText(
+    "Added action:",
+  );
+  await expect(removedActions.first().locator("del")).toHaveText(
+    "Removed action:",
+  );
+  await expect(addedActions.first()).toBeVisible();
+  await expect(removedActions.first()).toBeVisible();
 }
 
 test("compares a selected family recipe with the open recipe without signing in", async ({

@@ -2433,6 +2433,22 @@ export type components = {
             /** Preparation Notes */
             readonly preparation_notes: string | null;
         };
+        /**
+         * RecipeInstructionActionMatch
+         * @description One semantically unchanged action across regenerated snapshot rows.
+         */
+        readonly RecipeInstructionActionMatch: {
+            /**
+             * After Id
+             * Format: uuid
+             */
+            readonly after_id: string;
+            /**
+             * Before Id
+             * Format: uuid
+             */
+            readonly before_id: string;
+        };
         /** RecipeInstructionActionResponse */
         readonly RecipeInstructionActionResponse: {
             readonly action_type: components["schemas"]["CookingActionTypeSummary"];
@@ -2467,6 +2483,8 @@ export type components = {
             readonly before: components["schemas"]["RecipeInstructionResponse"];
             /** Changed Fields */
             readonly changed_fields: readonly components["schemas"]["RecipeInstructionChangedField"][];
+            /** Unchanged Action Pairs */
+            readonly unchanged_action_pairs: readonly components["schemas"]["RecipeInstructionActionMatch"][];
         };
         /** RecipeInstructionResponse */
         readonly RecipeInstructionResponse: {

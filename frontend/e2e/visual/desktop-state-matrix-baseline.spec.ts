@@ -228,6 +228,7 @@ test.describe("desktop visual state matrix", () => {
   });
 
   test("recipe comparison normal", async ({ page }) => {
+    await setScenario("comparison-actions");
     await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
     await expect(
       page.getByRole("heading", {
@@ -267,10 +268,24 @@ test.describe("desktop visual state matrix", () => {
     );
     await expect(breakdownPanel).toBeVisible();
     await expect(
-      breakdownPanel.locator("ins.recipe-comparison-action-group--added"),
+      breakdownPanel.locator(
+        '.recipe-comparison-action[data-action-status="added"]',
+      ).first(),
     ).toBeVisible();
     await expect(
-      breakdownPanel.locator("del.recipe-comparison-action-group--removed"),
+      breakdownPanel.locator(
+        '.recipe-comparison-action[data-action-status="unchanged"]',
+      ),
+    ).toBeVisible();
+    await expect(
+      breakdownPanel.locator(
+        '.recipe-comparison-action[data-action-status="removed"]',
+      ),
+    ).toBeVisible();
+    await expect(
+      breakdownPanel.locator(
+        ".recipe-comparison-instruction-row__step-number",
+      ).first(),
     ).toBeVisible();
     await comparisonInstructions.evaluate((region) => {
       region.scrollIntoView({ block: "start" });

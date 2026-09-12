@@ -1390,8 +1390,20 @@ def test_action_membership_and_action_order_are_distinct_changes() -> None:
     reordered_diff = build_recipe_diff(base, reordered, set())
     added_diff = build_recipe_diff(base, added, set())
 
-    assert reordered_diff.instructions.modified[0].changed_fields == ["action_order"]
-    assert added_diff.instructions.modified[0].changed_fields == ["actions"]
+    reordered_change = reordered_diff.instructions.modified[0]
+    added_change = added_diff.instructions.modified[0]
+    assert reordered_change.changed_fields == ["action_order"]
+    assert [
+        (match.before_id, match.after_id) for match in reordered_change.unchanged_action_pairs
+    ] == [
+        (base.instructions[0].actions[0].id, reordered.instructions[0].actions[1].id),
+        (base.instructions[0].actions[1].id, reordered.instructions[0].actions[0].id),
+    ]
+    assert added_change.changed_fields == ["actions"]
+    assert [(match.before_id, match.after_id) for match in added_change.unchanged_action_pairs] == [
+        (base.instructions[0].actions[0].id, added.instructions[0].actions[0].id),
+        (base.instructions[0].actions[1].id, added.instructions[0].actions[1].id),
+    ]
 
 
 def test_repeated_ingredient_content_convergence_does_not_change_action_input() -> None:
@@ -1580,4 +1592,8 @@ def test_repeated_action_content_convergence_does_not_change_action_order() -> N
 
     diff = build_recipe_diff(base, target, set())
 
-    assert diff.instructions.modified[0].changed_fields == ["duration"]
+    change = diff.instructions.modified[0]
+    assert change.changed_fields == ["duration"]
+    assert [(match.before_id, match.after_id) for match in change.unchanged_action_pairs] == [
+        (base.instructions[0].actions[1].id, target.instructions[0].actions[1].id)
+    ]

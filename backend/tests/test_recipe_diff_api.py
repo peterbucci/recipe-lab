@@ -236,6 +236,12 @@ def test_seeded_carrot_diff_uses_parent_by_default_and_matches_golden_contract(
     base_occurrence_ids = {item["id"] for item in ingredient_context["base"]}
     target_occurrence_ids = {item["id"] for item in ingredient_context["target"]}
     for change in instruction_diff["modified"]:
+        before_action_ids = {action["id"] for action in change["before"]["actions"]}
+        after_action_ids = {action["id"] for action in change["after"]["actions"]}
+        assert {
+            match["before_id"] for match in change["unchanged_action_pairs"]
+        } <= before_action_ids
+        assert {match["after_id"] for match in change["unchanged_action_pairs"]} <= after_action_ids
         assert {
             ingredient_id
             for action in change["before"]["actions"]
@@ -504,6 +510,7 @@ def test_openapi_documents_recipe_diff_contract(diff_client: TestClient) -> None
         "RecipeIngredientDiff",
         "RecipeIngredientContext",
         "RecipeIngredientPairChange",
+        "RecipeInstructionActionMatch",
         "RecipeInstructionDiff",
         "RecipeInstructionPairChange",
     } <= set(schemas)
@@ -520,10 +527,21 @@ def test_openapi_documents_recipe_diff_contract(diff_client: TestClient) -> None
     } == set(response_schema["properties"])
     assert response_schema["properties"]["lineage_id"]["format"] == "uuid"
     assert schemas["RecipeIngredientPairChange"]["properties"]["changed_fields"]["minItems"] == 1
-    assert schemas["RecipeInstructionPairChange"]["properties"]["changed_fields"]["minItems"] == 1
-    changed_field_items = schemas["RecipeInstructionPairChange"]["properties"]["changed_fields"][
-        "items"
-    ]
+    instruction_change_schema = schemas["RecipeInstructionPairChange"]
+    assert instruction_change_schema["properties"]["changed_fields"]["minItems"] == 1
+    assert "unchanged_action_pairs" in instruction_change_schema["required"]
+    assert instruction_change_schema["properties"]["unchanged_action_pairs"]["items"][
+        "$ref"
+    ].endswith("/RecipeInstructionActionMatch")
+    assert set(schemas["RecipeInstructionActionMatch"]["required"]) == {
+        "before_id",
+        "after_id",
+    }
+    assert {
+        schemas["RecipeInstructionActionMatch"]["properties"][field]["format"]
+        for field in ("before_id", "after_id")
+    } == {"uuid"}
+    changed_field_items = instruction_change_schema["properties"]["changed_fields"]["items"]
     assert changed_field_items["$ref"].endswith("/RecipeInstructionChangedField")
     assert schemas["RecipeInstructionChangedField"]["enum"] == [
         "title",
