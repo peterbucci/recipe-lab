@@ -297,11 +297,11 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-comparison-intermediate-cooking-breakdown.png",
-            "b7bc7df0b1056325688310ea841aa26e852923c8",
+            "5b91cbaebb5eba80600e85590aa10bc0e2ff88bc",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-comparison-intermediate-normal.png",
-            "27cdde516d8639a9e646199724cfda703b367b24",
+            "727f360a07666f709cc22e57011d20a7d6706efc",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-comparison-normal.png",

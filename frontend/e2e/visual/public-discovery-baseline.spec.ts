@@ -964,8 +964,13 @@ test("recipe comparison remains understandable in forced colors", async ({
   const addedIngredient = page.locator(
     ".recipe-comparison-ingredient-row--added",
   );
-  const titleChange = page.locator('[data-comparison-field="title"]');
-  const descriptionChange = page.locator(
+  const comparisonHero = page.locator(
+    ".recipe-diff-view:visible .recipe-comparison-hero",
+  );
+  const titleChange = comparisonHero.locator(
+    '[data-comparison-field="title"]',
+  );
+  const descriptionChange = comparisonHero.locator(
     '[data-comparison-field="description"]',
   );
   const categories = page.getByRole("list", {
