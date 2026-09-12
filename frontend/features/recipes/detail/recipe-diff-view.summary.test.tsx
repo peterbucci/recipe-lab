@@ -71,7 +71,7 @@ describe("RecipeDiffView", () => {
         .map((heading) => heading.textContent),
     ).toEqual([
       "Changes at a glance",
-      "Ingredient changes",
+      "Ingredients",
       "Cooking step changes",
       "Recipe details",
     ]);
@@ -86,7 +86,7 @@ describe("RecipeDiffView", () => {
     render(<RecipeDiffView comparison={comparisonModel()} />);
 
     const articles = screen.getAllByRole("article");
-    expect(articles).toHaveLength(11);
+    expect(articles).toHaveLength(7);
     for (const article of articles) {
       expect(article).toHaveAccessibleName();
       const labelledBy = article.getAttribute("aria-labelledby");
@@ -99,7 +99,6 @@ describe("RecipeDiffView", () => {
     expect(
       articleNamed("Lower-Sugar Pecan Carrot Cake"),
     ).toBeInTheDocument();
-    expect(articleNamed("Use Pecan instead of Walnut")).toBeInTheDocument();
     expect(articleNamed("Update step 2")).toBeInTheDocument();
     expect(articleNamed("Title")).toBeInTheDocument();
   });
@@ -138,6 +137,9 @@ describe("RecipeDiffView", () => {
       screen.queryByRole("heading", { name: "Ingredient changes" }),
     ).not.toBeInTheDocument();
     expect(
+      screen.getByRole("heading", { name: "Ingredients" }),
+    ).toBeInTheDocument();
+    expect(
       screen.queryByRole("heading", { name: "Cooking step changes" }),
     ).not.toBeInTheDocument();
   });
@@ -147,7 +149,8 @@ describe("RecipeDiffView", () => {
     diff.metadata_changes = [];
     diff.ingredients = { added: [], removed: [], replaced: [], modified: [] };
     diff.instructions = { added: [], removed: [], modified: [] };
-    diff.has_changes = false;
+    // The composed model, rather than a stale transport hint, owns this state.
+    diff.has_changes = true;
 
     render(<RecipeDiffView comparison={comparisonModel(diff)} />);
 
@@ -169,6 +172,9 @@ describe("RecipeDiffView", () => {
     expect(
       screen.queryByRole("heading", { name: "Ingredient changes" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Ingredients" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Cooking step changes" }),
     ).not.toBeInTheDocument();
