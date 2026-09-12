@@ -604,6 +604,54 @@
   gap: 1.375rem;
   margin-top: 0.625rem;
 }
+.recipe-comparison-legend {
+  color: var(--muted);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.875rem;
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.625rem;
+  display: flex;
+}
+.recipe-comparison-legend > strong {
+  color: var(--ink);
+}
+.recipe-comparison-legend__item {
+  align-items: center;
+  gap: 0.3125rem;
+  display: inline-flex;
+}
+.recipe-comparison-legend__marker {
+  border-radius: 0.3125rem;
+  place-items: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  font-size: 0.75rem;
+  font-weight: 900;
+  display: grid;
+}
+.recipe-comparison-legend__marker--added {
+  background: #e3f6eb;
+  color: #237a4b;
+}
+.recipe-comparison-legend__marker--removed {
+  background: #f8e8e4;
+  color: #a44e4e;
+}
+.recipe-comparison-legend__marker--changed {
+  background: var(--leaf-soft);
+  color: var(--leaf);
+}
+.recipe-comparison-content {
+  min-width: 0;
+}
+.recipe-comparison-body {
+  grid-template-columns: minmax(18.75rem, 0.72fr) minmax(0, 1.38fr);
+  align-items: start;
+  gap: clamp(2.75rem, 6vw, 4.75rem);
+  padding-top: 0.375rem;
+  display: grid;
+}
 .recipe-comparison-ingredients {
   min-width: 0;
 }
@@ -783,6 +831,252 @@
   .recipe-comparison-ingredient-value {
   display: inline-grid;
 }
+.recipe-comparison-instructions {
+  min-width: 0;
+}
+.recipe-comparison-instruction-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recipe-comparison-instruction-row {
+  min-width: 0;
+  padding: 0 0 1.6875rem;
+  position: relative;
+}
+.recipe-comparison-instruction-row:not(:last-child)::before {
+  content: "";
+  background: var(--line);
+  width: 0.0625rem;
+  position: absolute;
+  top: 2.4375rem;
+  bottom: 0.1875rem;
+  left: 1.1875rem;
+}
+.recipe-comparison-instruction-row--unchanged {
+  color: var(--muted);
+  opacity: 0.68;
+}
+.recipe-comparison-instruction-row__status {
+  color: var(--muted);
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0 0 0.375rem 3.1875rem;
+  font-size: 0.5625rem;
+  font-weight: 800;
+  display: flex;
+}
+.recipe-comparison-instruction-row__status > span:last-child {
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+.recipe-comparison-instruction-row__marker {
+  border-radius: 0.3125rem;
+  place-items: center;
+  width: 1.0625rem;
+  height: 1.0625rem;
+  font-size: 0.75rem;
+  font-weight: 950;
+  display: grid;
+}
+.recipe-comparison-instruction-row--added
+  .recipe-comparison-instruction-row__marker {
+  background: #e3f6eb;
+  color: #237a4b;
+}
+.recipe-comparison-instruction-row--removed
+  .recipe-comparison-instruction-row__marker {
+  background: #f8e8e4;
+  color: #a44e4e;
+}
+.recipe-comparison-instruction-row--changed
+  .recipe-comparison-instruction-row__marker {
+  background: var(--leaf-soft);
+  color: var(--leaf);
+}
+.recipe-comparison-instruction-row__current ins,
+.recipe-comparison-instruction-row__previous del {
+  color: inherit;
+  text-decoration: none;
+  display: block;
+}
+.recipe-comparison-instruction-value {
+  grid-template-columns: 2.375rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.8125rem;
+  display: grid;
+}
+.recipe-comparison-instruction-value__step-number {
+  border: 1px solid var(--control-line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: #595a6d;
+  z-index: 1;
+  place-items: center;
+  width: 2.375rem;
+  height: 2.375rem;
+  font-size: 0.6875rem;
+  display: grid;
+  position: relative;
+}
+.recipe-comparison-instruction-value__heading {
+  min-width: 0;
+  padding-top: 0.1875rem;
+}
+.recipe-comparison-instruction-value__body {
+  min-width: 0;
+}
+.recipe-comparison-instruction-value__title {
+  color: var(--ink);
+  margin: 0;
+  font-size: 0.8125rem;
+}
+.recipe-comparison-instruction-value__text {
+  color: #5e5f72;
+  margin: 0.375rem 0 0;
+  font-size: 0.6875rem;
+  line-height: 1.55;
+}
+.recipe-comparison-instruction-labels {
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.5rem 0 0 3.1875rem;
+  padding: 0;
+  list-style: none;
+  display: flex;
+}
+.recipe-comparison-instruction-labels__label {
+  border-radius: 999px;
+  background: var(--leaf-soft);
+  color: var(--leaf-dark);
+  padding: 0.2rem 0.4rem;
+  font-size: 0.5rem;
+  font-weight: 800;
+}
+.recipe-comparison-instruction-row__previous {
+  border-left: 0.125rem solid #cf8e83;
+  border-radius: 0 0.4375rem 0.4375rem 0;
+  background: #f8efec;
+  color: #846d6d;
+  margin: 0.5625rem 0 0 3.1875rem;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.625rem;
+  line-height: 1.5;
+}
+.recipe-comparison-instruction-row__previous-label {
+  color: #a44e4e;
+  margin-bottom: 0.35rem;
+  font-weight: 900;
+  display: block;
+}
+.recipe-comparison-instruction-row__previous
+  .recipe-comparison-instruction-value {
+  grid-template-columns: 1fr;
+}
+.recipe-comparison-instruction-row__previous
+  .recipe-comparison-instruction-value__step-number {
+  display: none;
+}
+.recipe-comparison-instruction-row__previous
+  .recipe-comparison-instruction-value__title,
+.recipe-comparison-instruction-row__previous
+  .recipe-comparison-instruction-value__text,
+.recipe-comparison-instruction-row--removed
+  .recipe-comparison-instruction-value__title,
+.recipe-comparison-instruction-row--removed
+  .recipe-comparison-instruction-value__text {
+  color: inherit;
+  text-decoration-line: line-through;
+  text-decoration-thickness: 0.0625rem;
+}
+.recipe-comparison-actions {
+  flex-wrap: wrap;
+  gap: 0.3125rem;
+  margin: 0.5625rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+}
+.recipe-comparison-action {
+  border: 1px solid var(--control-line);
+  border-radius: 0.375rem;
+  background: var(--surface-soft);
+  color: var(--ink);
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.35rem;
+  max-width: 100%;
+  padding: 0.3125rem 0.4375rem;
+  font-size: 0.5625rem;
+  display: inline-flex;
+}
+.recipe-comparison-action__verb {
+  color: var(--leaf);
+}
+.recipe-comparison-action__main {
+  overflow-wrap: anywhere;
+}
+.recipe-comparison-action__inactive {
+  color: var(--muted);
+  font-style: italic;
+}
+.recipe-comparison-action__details {
+  color: var(--muted);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: inline-flex;
+}
+.recipe-comparison-notes-area {
+  border-top: 1px solid var(--line);
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+}
+.recipe-comparison-notes {
+  max-width: 48rem;
+}
+.recipe-comparison-notes__values p {
+  margin: 0;
+}
+.recipe-comparison-notes__current ins,
+.recipe-comparison-notes__previous del {
+  color: inherit;
+  text-decoration: none;
+}
+.recipe-comparison-notes__value {
+  color: #5e5f72;
+  font-size: 0.75rem;
+  line-height: 1.65;
+}
+.recipe-comparison-notes__value--empty {
+  color: var(--muted);
+  font-style: italic;
+}
+.recipe-comparison-notes__previous {
+  border-left: 0.125rem solid #cf8e83;
+  border-radius: 0 0.4375rem 0.4375rem 0;
+  background: #f8efec;
+  color: #846d6d;
+  margin-top: 0.5625rem;
+  padding: 0.5rem 0.625rem;
+}
+.recipe-comparison-notes__previous-label {
+  color: #a44e4e;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+  font-size: 0.5625rem;
+  font-weight: 900;
+  display: block;
+}
+.recipe-comparison-notes__previous .recipe-comparison-notes__value {
+  color: inherit;
+  text-decoration-line: line-through;
+  text-decoration-thickness: 0.0625rem;
+}
 .recipe-diff-view__header,
 .recipe-diff-overview,
 .recipe-diff-group,
@@ -863,6 +1157,10 @@
   .recipe-comparison-hero__intro {
     padding-right: 0;
   }
+  .recipe-comparison-body {
+    grid-template-columns: 1fr;
+    gap: 2.625rem;
+  }
   .recipe-diff-highlights {
     grid-template-columns: 1fr;
   }
@@ -919,6 +1217,13 @@
     flex-direction: column;
     gap: 0.2rem;
   }
+  .recipe-comparison-legend {
+    align-items: flex-start;
+  }
+  .recipe-comparison-instruction-labels,
+  .recipe-comparison-instruction-row__previous {
+    margin-left: 2.75rem;
+  }
   .recipe-diff-view__header h1 {
     font-size: clamp(2rem, 10vw, 2.7rem);
   }
@@ -952,6 +1257,17 @@
   .recipe-comparison-ingredient-row__marker,
   .recipe-comparison-ingredient-labels__label,
   .recipe-comparison-ingredient-row__previous {
+    border-color: canvastext;
+    background: canvas;
+    color: canvastext;
+  }
+  .recipe-comparison-legend__marker,
+  .recipe-comparison-instruction-row__marker,
+  .recipe-comparison-instruction-value__step-number,
+  .recipe-comparison-instruction-labels__label,
+  .recipe-comparison-action,
+  .recipe-comparison-instruction-row__previous,
+  .recipe-comparison-notes__previous {
     border-color: canvastext;
     background: canvas;
     color: canvastext;
