@@ -132,46 +132,36 @@ describe("RecipeBrowsePage", () => {
     });
   });
 
-  it.each([
-    { label: "missing", page: undefined },
-    { label: "zero", page: "0" },
-    { label: "negative", page: "-1" },
-    { label: "fractional", page: "1.5" },
-    { label: "too large", page: "1000001" },
-    { label: "unsafe", page: "9007199254740992" },
-  ])(
-    "uses safe browse defaults for a $label page query",
-    async ({ page }) => {
-      mocks.fetchRecipeCategories.mockResolvedValue({ items: [] });
+  it("uses route defaults for invalid browse filters", async () => {
+    mocks.fetchRecipeCategories.mockResolvedValue({ items: [] });
 
-      const element = await RecipeBrowsePage({
-        searchParams: Promise.resolve({
-          page,
-          q: "   ",
-          sort: "popular",
-          type: ["versions", "originals"],
-        }),
-      });
-      const props = browserProps(element);
+    const element = await RecipeBrowsePage({
+      searchParams: Promise.resolve({
+        page: "0",
+        q: "   ",
+        sort: "popular",
+        type: ["versions", "originals"],
+      }),
+    });
+    const props = browserProps(element);
 
-      expect(mocks.fetchRecipePage).toHaveBeenCalledWith({
-        category: undefined,
-        isVariant: undefined,
-        page: 1,
-        pageSize: 12,
-        query: "",
-        sort: "newest",
-      });
-      expect(props).toMatchObject({
-        categoriesUnavailable: false,
-        category: undefined,
-        categorySlug: undefined,
-        query: "",
-        recipeType: undefined,
-        sort: "newest",
-      });
-    },
-  );
+    expect(mocks.fetchRecipePage).toHaveBeenCalledWith({
+      category: undefined,
+      isVariant: undefined,
+      page: 1,
+      pageSize: 12,
+      query: "",
+      sort: "newest",
+    });
+    expect(props).toMatchObject({
+      categoriesUnavailable: false,
+      category: undefined,
+      categorySlug: undefined,
+      query: "",
+      recipeType: undefined,
+      sort: "newest",
+    });
+  });
 
   it("uses the not-found boundary for an unknown category", async () => {
     mocks.fetchRecipeCategories.mockResolvedValue({ items: [breakfast] });

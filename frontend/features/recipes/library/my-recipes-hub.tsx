@@ -8,19 +8,13 @@ import {
   WorkspaceTabMenu,
 } from "../../../shared/ui/workspace-tab-menu";
 import {
+  MY_RECIPE_VIEWS,
   myRecipesHref,
   type MyRecipesHubView,
 } from "./my-recipes-route";
 
 export { myRecipesHref } from "./my-recipes-route";
 export type { MyRecipesHubView } from "./my-recipes-route";
-
-const MY_RECIPE_VIEWS: readonly MyRecipesHubView[] = [
-  "drafts",
-  "published",
-  "saved",
-  "withdrawn",
-];
 
 function viewLabel(view: MyRecipesHubView): string {
   return view.slice(0, 1).toUpperCase() + view.slice(1);
