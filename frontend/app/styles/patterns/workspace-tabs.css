@@ -76,6 +76,55 @@
   color: var(--leaf);
 }
 
+/* Destination-style tabs share the workspace menu's markup without looking
+   like selectable filters. */
+.workspace-tab-menu--underline {
+  background: transparent;
+  min-height: 3.375rem;
+  padding: 0;
+  overflow: visible;
+}
+
+.workspace-tab-menu--underline .workspace-tab-menu__item {
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  min-height: 3.375rem;
+  padding: 0.25rem 0.25rem 0.875rem;
+  position: relative;
+}
+
+.workspace-tab-menu--underline .workspace-tab-menu__item:hover {
+  background: transparent;
+  color: var(--ink);
+}
+
+.workspace-tab-menu--underline
+  .workspace-tab-menu__item:is(
+    [aria-current="page"],
+    [aria-pressed="true"],
+    [aria-selected="true"]
+  ) {
+  background: transparent;
+  color: var(--ink);
+}
+
+.workspace-tab-menu--underline
+  .workspace-tab-menu__item:is(
+    [aria-current="page"],
+    [aria-pressed="true"],
+    [aria-selected="true"]
+  )::after {
+  content: "";
+  background: var(--leaf);
+  border-radius: 999px;
+  height: 0.125rem;
+  position: absolute;
+  right: 0;
+  bottom: -0.0625rem;
+  left: 0;
+}
+
 .workspace-tab-menu__count {
   border: 0;
   border-radius: 999px;
@@ -99,6 +148,19 @@
   )
   .workspace-tab-menu__count {
   background: var(--surface);
+  color: var(--leaf);
+}
+
+.workspace-tab-menu--underline .workspace-tab-menu__count,
+.workspace-tab-menu--underline
+  .workspace-tab-menu__item:is(
+    [aria-current="page"],
+    [aria-pressed="true"],
+    [aria-selected="true"]
+  )
+  .workspace-tab-menu__count {
+  border: 0;
+  background: var(--leaf-soft);
   color: var(--leaf);
 }
 
@@ -156,6 +218,10 @@
     padding-inline: 0.75rem;
   }
 
+  .workspace-tab-menu--items-only.workspace-tab-menu--underline {
+    padding-inline: 0;
+  }
+
   .workspace-tab-menu__items,
   .workspace-tab-menu__search {
     width: 100%;
@@ -183,6 +249,15 @@
     border: 1px solid canvastext;
     background: canvas;
     color: canvastext;
+  }
+
+  .workspace-tab-menu--underline
+    .workspace-tab-menu__item:is(
+      [aria-current="page"],
+      [aria-pressed="true"],
+      [aria-selected="true"]
+    )::after {
+    background: canvastext;
   }
 }
 
