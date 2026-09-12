@@ -11,6 +11,7 @@ import { parseRecipeSummary } from "../recipes/shared/recipe-summary-parser";
 
 type FollowCookOperation = operations["follow_cook_api_cooks__handle__follow_put"];
 type MyFollowersOperation = operations["my_followers_api_my_followers_get"];
+type MyFollowingOperation = operations["my_following_api_my_following_get"];
 type MyCommunityActivityOperation =
   operations["my_community_activity_api_my_community_activity_get"];
 
@@ -20,10 +21,20 @@ export type MyFollowersPage =
   MyFollowersOperation["responses"][200]["content"]["application/json"];
 export type MemberFollower = MyFollowersPage["items"][number];
 export type FollowerReference = MemberFollower["follower"];
+export type MyFollowingPage =
+  MyFollowingOperation["responses"][200]["content"]["application/json"];
+export type MemberFollowing = MyFollowingPage["items"][number];
+export type FollowingReference = MemberFollowing["cook"];
 export type MyCommunityActivityPage =
   MyCommunityActivityOperation["responses"][200]["content"]["application/json"];
 
 export interface FetchMyFollowersOptions {
+  page?: number;
+  pageSize?: number;
+  signal?: AbortSignal;
+}
+
+export interface FetchMyFollowingOptions {
   page?: number;
   pageSize?: number;
   signal?: AbortSignal;
@@ -68,7 +79,9 @@ function isTimestamp(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
 
-function parseFollowerReference(value: unknown): FollowerReference | null {
+function parsePublicUserReference(
+  value: unknown,
+): FollowerReference | FollowingReference | null {
   if (
     !isRecord(value) ||
     typeof value.id !== "string" ||
@@ -95,7 +108,7 @@ function parseFollowerReference(value: unknown): FollowerReference | null {
 
 function invalidResponse(): MemberFollowApiError {
   return new MemberFollowApiError(
-    "Recipe Lab received an invalid follower response. Please try again.",
+    "Recipe Lab received an invalid connection response. Please try again.",
     502,
     "invalid_member_follow_response",
   );
@@ -164,12 +177,42 @@ export function parseMyFollowersPage(value: unknown): MyFollowersPage {
 
   const items = value.items.map((item): MemberFollower | null => {
     if (!isRecord(item) || !isTimestamp(item.followed_at)) return null;
-    const follower = parseFollowerReference(item.follower);
+    const follower = parsePublicUserReference(item.follower);
     return follower ? { follower, followed_at: item.followed_at } : null;
   });
   if (items.some((item) => item === null)) throw invalidResponse();
   return {
     items: items as MemberFollower[],
+    page: value.page,
+    page_size: value.page_size,
+    total: value.total,
+    total_pages: value.total_pages,
+  };
+}
+
+export function parseMyFollowingPage(value: unknown): MyFollowingPage {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.items) ||
+    !isPositiveInteger(value.page) ||
+    !isPositiveInteger(value.page_size) ||
+    value.page_size > 100 ||
+    !isNonnegativeInteger(value.total) ||
+    !isNonnegativeInteger(value.total_pages) ||
+    value.items.length > value.page_size ||
+    value.total_pages !== Math.ceil(value.total / value.page_size)
+  ) {
+    throw invalidResponse();
+  }
+
+  const items = value.items.map((item): MemberFollowing | null => {
+    if (!isRecord(item) || !isTimestamp(item.followed_at)) return null;
+    const cook = parsePublicUserReference(item.cook);
+    return cook ? { cook, followed_at: item.followed_at } : null;
+  });
+  if (items.some((item) => item === null)) throw invalidResponse();
+  return {
+    items: items as MemberFollowing[],
     page: value.page,
     page_size: value.page_size,
     total: value.total,
@@ -296,6 +339,48 @@ export async function fetchMyFollowers({
     }
     throw new MemberFollowApiError(
       "Recipe Lab could not load your followers right now.",
+      0,
+    );
+  }
+}
+
+export async function fetchMyFollowing({
+  page = 1,
+  pageSize = 20,
+  signal,
+}: FetchMyFollowingOptions = {}): Promise<MyFollowingPage> {
+  if (!isPositiveInteger(page) || page > 1_000_000) {
+    throw new RangeError("Following page must be between 1 and 1,000,000.");
+  }
+  if (!isPositiveInteger(pageSize) || pageSize > 100) {
+    throw new RangeError("Following page size must be between 1 and 100.");
+  }
+
+  try {
+    const query = new URLSearchParams({
+      page: String(page),
+      page_size: String(pageSize),
+    });
+    const response = await browserApiRequest(`/api/my/following?${query}`, {
+      errorContract: FOLLOW_ERROR_CONTRACT,
+      kind: "query",
+      signal,
+    });
+    return parseMyFollowingPage(response.data);
+  } catch (error) {
+    if (error instanceof MemberFollowApiError) throw error;
+    if (error instanceof ApiTransportError) {
+      const translated = fromTransportError(error);
+      throw new MemberFollowApiError(
+        translated.status === 401
+          ? translated.message
+          : "Recipe Lab could not load the cooks you follow right now.",
+        translated.status,
+        translated.code,
+      );
+    }
+    throw new MemberFollowApiError(
+      "Recipe Lab could not load the cooks you follow right now.",
       0,
     );
   }

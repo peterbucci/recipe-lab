@@ -135,7 +135,9 @@ describe("MemberHomeSummary", () => {
     expect(within(metric("Versions published")).getByText("4")).toBeVisible();
     expect(within(metric("Active drafts")).getByText("2")).toBeVisible();
     expect(within(metric("Saved recipes")).getByText("5")).toBeVisible();
-    expect(within(metric("Followers")).getByText("9")).toBeVisible();
+    expect(
+      within(metric("Followers")).getByRole("link", { name: "View followers" }),
+    ).toHaveAttribute("href", "/account/connections?view=followers");
   });
 
   it("does not render the continue panel when there is no active draft", async () => {

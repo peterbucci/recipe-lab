@@ -950,7 +950,7 @@ const allowedScenarios = new Set([
   "curation-empty",
   "curation-stale-once",
   "curator-session",
-  "followers-normal",
+  "connections-normal",
   "fork-draft",
   "normal",
   "homepage-empty",
@@ -988,11 +988,12 @@ function freshScenarioState() {
   const homepageIsEmpty = scenario === "homepage-empty";
   return {
     baselineCookFollowerCount:
-      homepageIsEmpty ? 0 : scenario === "followers-normal" ? 1 : 9,
+      homepageIsEmpty ? 0 : scenario === "connections-normal" ? 1 : 9,
     curationDecisionApplied: false,
     curationReviewAttempts: 0,
     followingBaselineCook: false,
-    memberFollowingCount: homepageIsEmpty ? 0 : 3,
+    memberFollowingCount:
+      homepageIsEmpty ? 0 : scenario === "connections-normal" ? 1 : 3,
     moderationQueueAttempts: 0,
   };
 }
@@ -1420,6 +1421,34 @@ async function handleApi(request, response, url) {
       scenario === "homepage-empty"
         ? []
         : [{ follower: followerUser, followed_at: FIXED_TIME }];
+    const start = (requestedPage - 1) * requestedPageSize;
+    sendJson(response, 200, {
+      items: allItems.slice(start, start + requestedPageSize),
+      page: requestedPage,
+      page_size: requestedPageSize,
+      total: allItems.length,
+      total_pages: allItems.length
+        ? Math.ceil(allItems.length / requestedPageSize)
+        : 0,
+    });
+    return;
+  }
+
+  if (method === "GET" && path === "/api/my/following") {
+    countRoute("my-following");
+    if (requireActiveMember(response) === null) return;
+    const requestedPage = Number.parseInt(
+      url.searchParams.get("page") ?? "1",
+      10,
+    );
+    const requestedPageSize = Number.parseInt(
+      url.searchParams.get("page_size") ?? "20",
+      10,
+    );
+    const allItems =
+      scenario === "homepage-empty"
+        ? []
+        : [{ cook: followerUser, followed_at: FIXED_TIME }];
     const start = (requestedPage - 1) * requestedPageSize;
     sendJson(response, 200, {
       items: allItems.slice(start, start + requestedPageSize),

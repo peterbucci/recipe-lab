@@ -103,14 +103,14 @@ def test_high_growth_indexes_match_orm_metadata() -> None:
     ]
 
 
-def test_high_growth_index_migration_is_the_single_linear_head(
+def test_high_growth_index_migration_remains_in_the_linear_history(
     alembic_config: Config,
 ) -> None:
     script = ScriptDirectory.from_config(alembic_config)
     revision = script.get_revision("20260902_0030")
 
-    assert script.get_heads() == ["20260902_0030"]
     assert revision.down_revision == "20260902_0029"
+    assert script.get_revision("20260911_0031").down_revision == "20260902_0030"
 
 
 def test_high_growth_index_migration_upgrades_and_downgrades(

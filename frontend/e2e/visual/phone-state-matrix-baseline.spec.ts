@@ -69,16 +69,38 @@ test.describe("phone visual state matrix", () => {
     await captureBaseline(page, "account-activity-requests-filtered");
   });
 
-  test("account followers normal", async ({ page }) => {
-    await setScenario("followers-normal");
-    await page.goto("/account/followers");
+  test("account connections normal", async ({ page }) => {
+    await setScenario("connections-normal");
+    await page.goto("/account/connections?view=followers");
     await expect(
-      page.getByRole("heading", { name: "Followers", level: 1 }),
+      page.getByRole("heading", { name: "Connections", level: 1 }),
     ).toBeVisible();
+    const connectionViews = page.getByRole("navigation", {
+      name: "Connection views",
+    });
+    const followersView = connectionViews.getByRole("link", {
+      name: "Followers",
+      exact: true,
+    });
+    const followingView = connectionViews.getByRole("link", {
+      name: "Following",
+      exact: true,
+    });
+    await expect(followersView).toHaveAttribute("aria-current", "page");
+    await expect(followingView).not.toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("list", { name: "Your followers" })).toBeVisible();
     await expect(page.getByText("Damon", { exact: true })).toBeVisible();
     await stabilizeVisuals(page);
-    await captureBaseline(page, "account-followers-normal");
+    await captureBaseline(page, "account-connections-followers-normal");
+
+    await followingView.click();
+    await expect(page).toHaveURL(/\/account\/connections\?view=following$/);
+    await expect(followingView).toHaveAttribute("aria-current", "page");
+    await expect(followersView).not.toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("list", { name: "Cooks you follow" })).toBeVisible();
+    await expect(page.getByText("Damon", { exact: true })).toBeVisible();
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "account-connections-following-normal");
   });
 
   test("account settings normal", async ({ page }) => {

@@ -43,6 +43,13 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     consumerEvidence: ["frontend/app/_components/home-community-feed.tsx"],
   },
   {
+    file: "app/account/connections/page.tsx",
+    route: "/account/connections",
+    family: "account-workspace",
+    reachability: "active",
+    consumerEvidence: ["frontend/app/_components/member-home-summary.tsx"],
+  },
+  {
     file: "app/account/deleted/page.tsx",
     route: "/account/deleted",
     family: "account-access",
@@ -53,8 +60,9 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     file: "app/account/followers/page.tsx",
     route: "/account/followers",
     family: "account-workspace",
-    reachability: "active",
-    consumerEvidence: ["frontend/app/_components/member-home-summary.tsx"],
+    reachability: "compatibility-only",
+    consumerEvidence: ["docs/cook-profiles-and-libraries.md"],
+    redirectTo: "/account/connections?view=followers",
   },
   {
     file: "app/account/ingredient-requests/page.tsx",

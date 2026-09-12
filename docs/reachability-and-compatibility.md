@@ -23,7 +23,7 @@ repository. Backend external-consumer status therefore remains
 
 `frontend/tests/contracts/route-theme-inventory.ts` is the machine-checked source of this table.
 Its test recursively discovers every App Router `page.tsx`, requires an exact
-one-to-one inventory, verifies evidence paths, and locks the three compatibility
+one-to-one inventory, verifies evidence paths, and locks the four compatibility
 redirects and their targets.
 
 | Route | Lifecycle | Concrete in-repository evidence |
@@ -31,8 +31,9 @@ redirects and their targets.
 | `/` | active | `frontend/shell/site-header.tsx` links to the signed-in home; the page conditionally redirects anonymous visits to `/recipes`. |
 | `/account/activity` | active | `frontend/app/_components/member-home-summary.tsx` links to the complete activity view. |
 | `/account/community-activity` | active | `frontend/app/_components/home-community-feed.tsx` links its View all action here. |
+| `/account/connections` | active | `frontend/app/_components/member-home-summary.tsx` links the follower count to its Followers view. |
 | `/account/deleted` | internal | `frontend/features/account/account-settings.tsx` navigates here after confirmed deletion. |
-| `/account/followers` | active | `frontend/app/_components/member-home-summary.tsx` links the follower count here. |
+| `/account/followers` | compatibility-only | `docs/cook-profiles-and-libraries.md` records the former follower-list path; it redirects to `/account/connections?view=followers`. |
 | `/account/ingredient-requests` | active | `frontend/features/auth/account-menu.tsx` links to the member request workspace. |
 | `/account/recipe-drafts/[draftId]` | compatibility-only | `docs/architecture.md` records the former editor address; the route validates the ID and redirects to `/recipes/drafts/[draftId]`. |
 | `/account/recipe-drafts` | compatibility-only | `docs/cook-profiles-and-libraries.md` records the legacy collection path; it redirects to `/account/recipes?view=drafts`. |
@@ -54,9 +55,9 @@ redirects and their targets.
 | `/sign-in` | active | `frontend/features/auth/account-menu.tsx` links anonymous members and preserves the return path. |
 | `/staff` | internal | `frontend/features/auth/account-menu.tsx` links members with staff capabilities to the tool index. |
 
-There are 16 active, six internal, and three compatibility-only page routes.
+There are 16 active, six internal, and four compatibility-only page routes.
 No executable page is classified as retired. Next configuration defines no
-additional redirects or rewrites. The only page-level redirects are the three
+additional redirects or rewrites. The only page-level redirects are the four
 compatibility routes above and the intentional anonymous `/` to `/recipes`
 product redirect.
 
@@ -99,6 +100,7 @@ executable FastAPI route, including schema-excluded routes.
 | `GET /api/my/community-activity` | active | `active_consumer` | `frontend/features/community/member-follow-api.ts` |
 | `GET /api/my/dashboard` | active | `active_consumer` | `frontend/features/account/member-activity-api.ts` |
 | `GET /api/my/followers` | active | `active_consumer` | `frontend/features/community/member-follow-api.ts` |
+| `GET /api/my/following` | active | `active_consumer` | `frontend/features/community/member-follow-api.ts` |
 | `GET /api/my/follow-stats` | active | `active_consumer` | `frontend/e2e/acceptance/recipe-libraries-acceptance.spec.ts` directly exercises the HTTP contract. |
 | `GET /api/my/recipes` | active | `active_consumer` | `frontend/features/recipes/library/recipe-library-api.ts` |
 | `GET /api/my/saved-recipes` | active | `active_consumer` | `frontend/features/recipes/library/recipe-library-api.ts` |
@@ -128,7 +130,7 @@ executable FastAPI route, including schema-excluded routes.
 The four framework-owned surfaces (`/docs`, `/docs/oauth2-redirect`,
 `/openapi.json`, and `/redoc`, each GET/HEAD) are separately inventoried as
 internal with `docs/api-contracts.md` as their operator evidence. The registry
-contains 44 active and ten internal OpenAPI operations. It contains no live
+contains 45 active and ten internal OpenAPI operations. It contains no live
 compatibility-only or retired operation.
 
 Three retired, pre-deployment-only adapters remain absent and are guarded by
@@ -156,7 +158,7 @@ in the checked graph was unreachable.
 
 The following ambiguous or intentionally compatible surfaces remain:
 
-- the three frontend redirect routes, because old bookmarks and previously
+- the four frontend redirect routes, because old bookmarks and previously
   shared URLs cannot be disproved by repository search;
 - every backend operation, because external-consumer status is
   `unknown_pending` even when its current in-repository role is internal;

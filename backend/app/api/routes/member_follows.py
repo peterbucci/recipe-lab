@@ -18,6 +18,7 @@ from app.repositories.auth import get_user_by_handle
 from app.repositories.member_follows import (
     browse_community_activity,
     browse_followers,
+    browse_following,
     count_followers,
     follow_counts,
     follow_user,
@@ -30,6 +31,8 @@ from app.schemas.member_follows import (
     MyCommunityActivityResponse,
     MyFollowerItem,
     MyFollowersResponse,
+    MyFollowingItem,
+    MyFollowingResponse,
     MyFollowStatsResponse,
 )
 from app.services.recipe_responses import public_user_reference, recipe_summary_response
@@ -246,6 +249,49 @@ def my_followers(
         items=[
             MyFollowerItem(
                 follower=public_user_reference(item.follower),
+                followed_at=item.followed_at,
+            )
+            for item in stored.items
+        ],
+        page=page,
+        page_size=page_size,
+        total=stored.total,
+        total_pages=pagination.total_pages(stored.total),
+    )
+    session.commit()
+    return result
+
+
+@router.get(
+    "/my/following",
+    response_model=MyFollowingResponse,
+    responses=PRIVATE_FOLLOW_ERROR_RESPONSES,
+    summary="List cooks I follow",
+    description=(
+        "Returns only active public identities followed by the signed-in member. "
+        "Private account, email, identity-provider, and session data are never exposed."
+    ),
+)
+def my_following(
+    response: Response,
+    session: SessionDependency,
+    authenticated: RequiredAuthenticatedSessionDependency,
+    page: Annotated[int, Query(ge=1, le=1_000_000)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> MyFollowingResponse:
+    apply_private_no_store(response)
+    actor_id = lock_active_member_actor(session, authenticated)
+    pagination = PageParams(page=page, page_size=page_size)
+    stored = browse_following(
+        session,
+        follower_user_id=actor_id,
+        offset=pagination.offset,
+        limit=page_size,
+    )
+    result = MyFollowingResponse(
+        items=[
+            MyFollowingItem(
+                cook=public_user_reference(item.cook),
                 followed_at=item.followed_at,
             )
             for item in stored.items

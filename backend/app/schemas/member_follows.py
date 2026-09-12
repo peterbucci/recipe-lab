@@ -35,6 +35,19 @@ class MyFollowersResponse(MemberFollowSchema):
     total_pages: int = Field(ge=0)
 
 
+class MyFollowingItem(MemberFollowSchema):
+    cook: PublicUserReference
+    followed_at: datetime
+
+
+class MyFollowingResponse(MemberFollowSchema):
+    items: list[MyFollowingItem]
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
+    total: int = Field(ge=0)
+    total_pages: int = Field(ge=0)
+
+
 class MyCommunityActivityResponse(MemberFollowSchema):
     items: list[RecipeSummary]
     page: int = Field(ge=1)
