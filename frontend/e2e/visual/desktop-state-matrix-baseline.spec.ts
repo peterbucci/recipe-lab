@@ -236,6 +236,32 @@ test.describe("desktop visual state matrix", () => {
         level: 1,
       }),
     ).toBeVisible();
+    const comparisonHero = page.locator(
+      ".recipe-diff-view:visible .recipe-comparison-hero",
+    );
+    const titleChange = comparisonHero.locator(
+      '[data-comparison-field="title"]',
+    );
+    const descriptionChange = comparisonHero.locator(
+      '[data-comparison-field="description"]',
+    );
+    await expect(
+      titleChange.locator('[data-comparison-value="current"] ins'),
+    ).toHaveText("Garden Cream Tomato Soup");
+    await expect(
+      titleChange.locator('[data-comparison-value="previous"] del'),
+    ).toHaveText("Sunlit Tomato Soup");
+    await expect(
+      descriptionChange.locator('[data-comparison-value="current"] ins'),
+    ).toHaveText(
+      "The original soup with basil and a gentle creamy finish.",
+    );
+    await expect(
+      descriptionChange.locator('[data-comparison-value="previous"] del'),
+    ).toHaveText("A bright tomato soup made for a quiet lunch.");
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "recipe-comparison-top-normal");
+
     const comparisonBody = page.locator(
       ".recipe-diff-view:visible #recipe-panel-recipe .recipe-comparison-body",
     );

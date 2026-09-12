@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { PublicCookAttribution } from "../../community/public-cook-attribution";
 import { relativeTimeLabel } from "../../../shared/time/relative-time";
@@ -71,6 +72,135 @@ function PriorValue({
       <strong>{label}</strong>
       <del>{priorFieldValue(change)}</del>
     </small>
+  );
+}
+
+function HeroChangeStatus({ label }: { label: string }) {
+  return (
+    <small className="recipe-comparison-hero__change-status">
+      <span
+        className="recipe-comparison-hero__change-marker"
+        aria-hidden="true"
+      >
+        ±
+      </span>
+      <span className="recipe-comparison-hero__change-label visually-hidden">
+        {label}
+      </span>
+    </small>
+  );
+}
+
+function HeroPreviousValue({
+  change,
+  fieldLabel,
+}: {
+  change: RecipeFieldChange;
+  fieldLabel: string;
+}) {
+  return (
+    <small
+      className="recipe-comparison-previous recipe-comparison-hero__previous-value"
+      data-comparison-value="previous"
+    >
+      <span
+        className="recipe-comparison-hero__previous-marker"
+        aria-hidden="true"
+      >
+        −
+      </span>
+      <strong>
+        Previous
+        <span className="visually-hidden"> {fieldLabel}</span>
+      </strong>
+      <del>{priorFieldValue(change)}</del>
+    </small>
+  );
+}
+
+function HeroMetadataChange({
+  change,
+  children,
+  field,
+  statusLabel,
+}: {
+  change: RecipeFieldChange;
+  children: ReactNode;
+  field: "title" | "description";
+  statusLabel: string;
+}) {
+  return (
+    <div
+      className={`recipe-comparison-hero__metadata-change recipe-comparison-hero__metadata-change--${field}`}
+      data-comparison-field={field}
+    >
+      <div
+        className="recipe-comparison-hero__current-value"
+        data-comparison-value="current"
+      >
+        {children}
+        <HeroChangeStatus label={statusLabel} />
+      </div>
+      <HeroPreviousValue change={change} fieldLabel={field} />
+    </div>
+  );
+}
+
+function RecipeComparisonTitle({
+  change,
+  headingId,
+  title,
+}: {
+  change: RecipeFieldChange | undefined;
+  headingId: string;
+  title: string;
+}) {
+  if (!change) {
+    return <h1 id={headingId}>{title}</h1>;
+  }
+
+  return (
+    <HeroMetadataChange
+      change={change}
+      field="title"
+      statusLabel="Title changed"
+    >
+      <h1 id={headingId}>
+        <ins>{title}</ins>
+      </h1>
+    </HeroMetadataChange>
+  );
+}
+
+function RecipeComparisonDescription({
+  change,
+  description,
+}: {
+  change: RecipeFieldChange | undefined;
+  description: string | null;
+}) {
+  if (!change) {
+    return description ? (
+      <p className="recipe-comparison-hero__description">{description}</p>
+    ) : null;
+  }
+
+  return (
+    <HeroMetadataChange
+      change={change}
+      field="description"
+      statusLabel="Description changed"
+    >
+      <p className="recipe-comparison-hero__description">
+        {description ? (
+          <ins>{description}</ins>
+        ) : (
+          <span className="recipe-comparison-hero__metadata-empty">
+            No description provided.
+          </span>
+        )}
+      </p>
+    </HeroMetadataChange>
   );
 }
 
@@ -188,8 +318,11 @@ export function RecipeComparisonHero({
           </span>
         </div>
 
-        <h1 id={headingId}>{recipe.title}</h1>
-        <PriorValue change={metadataChanges.title} label="Previous title" />
+        <RecipeComparisonTitle
+          change={metadataChanges.title}
+          headingId={headingId}
+          title={recipe.title}
+        />
 
         {recipe.parent ? (
           <p className="recipe-comparison-hero__parent-context">
@@ -206,16 +339,10 @@ export function RecipeComparisonHero({
           </p>
         ) : null}
 
-        {recipe.description ? (
-          <p className="recipe-comparison-hero__description">
-            {recipe.description}
-          </p>
-        ) : metadataChanges.description ? (
-          <p className="recipe-comparison-hero__description">
-            No description was added.
-          </p>
-        ) : null}
-        <PriorValue change={metadataChanges.description} />
+        <RecipeComparisonDescription
+          change={metadataChanges.description}
+          description={recipe.description}
+        />
 
         <RecipeComparisonCategories
           label={`Categories for ${recipe.title}`}

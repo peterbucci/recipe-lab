@@ -325,14 +325,33 @@ test.describe("cross-user fork publication acceptance", () => {
       comparisonHero.getByText(`${sourceTitle} · Version 1`, { exact: true }),
     ).toBeVisible();
 
-    const previousTitle = comparisonHero.locator(
-      "h1 + .recipe-comparison-previous",
+    const titleChange = comparisonHero.locator(
+      '[data-comparison-field="title"]',
     );
-    await expect(previousTitle).toHaveCount(1);
+    await expect(titleChange).toHaveCount(1);
     await expect(
-      previousTitle.getByText("Previous title", { exact: true }),
+      titleChange.locator('[data-comparison-value="current"] ins'),
+    ).toHaveText(childTitle);
+    await expect(
+      titleChange.getByText("Title changed", { exact: true }),
+    ).toHaveClass(/visually-hidden/);
+    await expect(
+      titleChange.locator(".recipe-comparison-hero__change-marker"),
     ).toBeVisible();
-    await expect(previousTitle.locator("del")).toHaveText(sourceTitle);
+    await expect(
+      titleChange.locator(".recipe-comparison-hero__previous-value strong"),
+    ).toHaveText("Previous title");
+    await expect(
+      titleChange.locator(
+        ".recipe-comparison-hero__previous-value strong > .visually-hidden",
+      ),
+    ).toHaveText("title");
+    await expect(
+      titleChange.locator(".recipe-comparison-hero__previous-value strong"),
+    ).toBeVisible();
+    await expect(
+      titleChange.locator('[data-comparison-value="previous"] del'),
+    ).toHaveText(sourceTitle);
 
     const source = await page.request.get(`/api/recipes/${sourceId}`);
     expect(source.status()).toBe(200);

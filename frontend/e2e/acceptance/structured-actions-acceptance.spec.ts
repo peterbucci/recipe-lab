@@ -508,11 +508,22 @@ test.describe("structured cooking action acceptance", () => {
         level: 1,
       }),
     ).toBeVisible();
-    const previousTitle = comparisonHero.locator(
-      "h1 + .recipe-comparison-previous",
+    const titleChange = comparisonHero.locator(
+      '[data-comparison-field="title"]',
     );
-    await expect(previousTitle).toHaveCount(1);
-    await expect(previousTitle.locator("del")).toHaveText(
+    await expect(titleChange).toHaveCount(1);
+    await expect(
+      titleChange.locator('[data-comparison-value="current"] ins'),
+    ).toHaveText(draftTitle);
+    await expect(
+      titleChange.getByText("Title changed", { exact: true }),
+    ).toHaveClass(/visually-hidden/);
+    await expect(
+      titleChange.locator(".recipe-comparison-hero__change-marker"),
+    ).toBeVisible();
+    await expect(
+      titleChange.locator('[data-comparison-value="previous"] del'),
+    ).toHaveText(
       "Carrot Walnut Snack Cake",
     );
 

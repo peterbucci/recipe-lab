@@ -68,7 +68,7 @@ describe("RecipeDiffView", () => {
     expect(
       screen.getByText(
         "The original cake with less sugar and toasted pecans.",
-        { selector: ".recipe-comparison-hero__description" },
+        { selector: ".recipe-comparison-hero__description ins" },
       ),
     ).toBeInTheDocument();
 

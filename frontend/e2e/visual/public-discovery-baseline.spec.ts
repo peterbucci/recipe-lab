@@ -964,6 +964,10 @@ test("recipe comparison remains understandable in forced colors", async ({
   const addedIngredient = page.locator(
     ".recipe-comparison-ingredient-row--added",
   );
+  const titleChange = page.locator('[data-comparison-field="title"]');
+  const descriptionChange = page.locator(
+    '[data-comparison-field="description"]',
+  );
   const categories = page.getByRole("list", {
     name: "Categories for Garden Cream Tomato Soup",
   });
@@ -976,6 +980,44 @@ test("recipe comparison remains understandable in forced colors", async ({
   const changedInstruction = page.locator(
     "#recipe-comparison-instructions-steps-panel .recipe-comparison-instruction-row--changed",
   );
+  await expect(
+    titleChange.locator('[data-comparison-value="current"] ins'),
+  ).toHaveText("Garden Cream Tomato Soup");
+  await expect(
+    titleChange.locator('[data-comparison-value="previous"] del'),
+  ).toHaveText("Sunlit Tomato Soup");
+  await expect(
+    titleChange.getByText("Title changed", { exact: true }),
+  ).toHaveClass(/visually-hidden/);
+  await expect(
+    titleChange.locator(".recipe-comparison-hero__change-marker"),
+  ).toHaveText("±");
+  await expect(
+    titleChange.locator(".recipe-comparison-hero__change-marker"),
+  ).toHaveAttribute("aria-hidden", "true");
+  await expect(
+    titleChange.locator(".recipe-comparison-hero__current-value"),
+  ).toHaveCSS("border-left-style", "double");
+  await expect(
+    titleChange.locator(".recipe-comparison-hero__previous-value"),
+  ).toHaveCSS("border-left-style", "dashed");
+  await expect(
+    descriptionChange.locator('[data-comparison-value="current"] ins'),
+  ).toHaveText(
+    "The original soup with basil and a gentle creamy finish.",
+  );
+  await expect(
+    descriptionChange.locator('[data-comparison-value="previous"] del'),
+  ).toHaveText("A bright tomato soup made for a quiet lunch.");
+  await expect(
+    descriptionChange.getByText("Description changed", { exact: true }),
+  ).toHaveClass(/visually-hidden/);
+  await expect(
+    descriptionChange.locator(".recipe-comparison-hero__current-value"),
+  ).toHaveCSS("border-left-style", "double");
+  await expect(
+    descriptionChange.locator(".recipe-comparison-hero__previous-value"),
+  ).toHaveCSS("border-left-style", "dashed");
   await expect(addedCategory.locator("ins")).toContainText("Dinner");
   await expect(removedCategory.locator("del")).toContainText("Lunch");
   await expect(

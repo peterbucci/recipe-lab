@@ -222,6 +222,18 @@ test.describe("phone visual state matrix", () => {
     );
     await expect(comparisonHero).toBeVisible();
     await expect(comparisonBody).toBeVisible();
+    await expect(
+      comparisonHero.locator('[data-comparison-field="title"]'),
+    ).toBeVisible();
+    await expect(
+      comparisonHero.locator('[data-comparison-field="description"]'),
+    ).toBeVisible();
+    await expect(
+      comparisonHero.locator(".recipe-comparison-categories"),
+    ).toBeInViewport({ ratio: 1 });
+    await expect(
+      comparisonHero.locator(".recipe-comparison-hero__author"),
+    ).toBeInViewport({ ratio: 1 });
     await stabilizeVisuals(page);
     await captureBaseline(page, "recipe-comparison-top-normal");
 

@@ -94,14 +94,53 @@ describe("RecipeComparisonHero", () => {
       screen.getByText("The recipe people can cook today."),
     ).toBeVisible();
 
+    const titleChange = container.querySelector<HTMLElement>(
+      '[data-comparison-field="title"]',
+    );
+    expect(titleChange).not.toBeNull();
+    expect(titleChange?.querySelector('[data-comparison-value="current"] ins'))
+      .toHaveTextContent("Current authoritative carrot cake");
+    expect(within(titleChange!).getByText("±")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(within(titleChange!).getByText("Title changed")).toHaveClass(
+      "visually-hidden",
+    );
+    expect(
+      titleChange?.querySelector('[data-comparison-value="previous"] del'),
+    ).toHaveTextContent("Earlier carrot cake");
+    expect(within(titleChange!).getByText("−")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+
+    const descriptionChange = container.querySelector<HTMLElement>(
+      '[data-comparison-field="description"]',
+    );
+    expect(descriptionChange).not.toBeNull();
+    expect(
+      descriptionChange?.querySelector(
+        '[data-comparison-value="current"] ins',
+      ),
+    ).toHaveTextContent("The recipe people can cook today.");
+    expect(
+      within(descriptionChange!).getByText("Description changed"),
+    ).toHaveClass("visually-hidden");
+    expect(
+      descriptionChange?.querySelector(
+        '[data-comparison-value="previous"] del',
+      ),
+    ).toHaveTextContent("A richer original with walnuts.");
+
     const previousValues = Array.from(
       container.querySelectorAll<HTMLElement>(
         ".recipe-comparison-previous",
       ),
     );
     expect(previousValues.map((value) => value.textContent)).toEqual([
-      "Previous titleEarlier carrot cake",
-      "WasA richer original with walnuts.",
+      "−Previous titleEarlier carrot cake",
+      "−Previous descriptionA richer original with walnuts.",
       "Was1 hr 15 min",
       "Was30 min",
       "Was8 servings",
@@ -234,6 +273,113 @@ describe("RecipeComparisonHero", () => {
     expect(
       container.querySelector(".recipe-comparison-strip__count"),
     ).toHaveTextContent(expected);
+  });
+
+  it("preserves the plain title and description presentation when neither changed", () => {
+    const diff = mixedDiff();
+    diff.metadata_changes = diff.metadata_changes.filter(
+      ({ field }) => field !== "title" && field !== "description",
+    );
+    const recipe = targetRecipeDetail(diff, {
+      title: "Unchanged carrot cake",
+      description: "The same description as before.",
+    });
+
+    const { container } = render(
+      <RecipeComparisonHero
+        comparison={comparisonModel(diff, recipe)}
+        headingId="comparison-heading"
+      />,
+    );
+
+    const heading = screen.getByRole("heading", {
+      level: 1,
+      name: "Unchanged carrot cake",
+    });
+    expect(heading.querySelector("ins, del")).not.toBeInTheDocument();
+    expect(screen.getByText("The same description as before.")).toHaveClass(
+      "recipe-comparison-hero__description",
+    );
+    expect(
+      container.querySelector('[data-comparison-field="title"]'),
+    ).not.toBeInTheDocument();
+    expect(
+      container.querySelector('[data-comparison-field="description"]'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/title changed/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/description changed/i)).not.toBeInTheDocument();
+  });
+
+  it("treats a removed description as an empty current value, not inserted text", () => {
+    const diff = mixedDiff();
+    diff.metadata_changes = [
+      {
+        field: "description",
+        before: "The description that was removed.",
+        after: null,
+      },
+    ];
+    const recipe = targetRecipeDetail(diff, { description: null });
+
+    const { container } = render(
+      <RecipeComparisonHero
+        comparison={comparisonModel(diff, recipe)}
+        headingId="comparison-heading"
+      />,
+    );
+
+    const descriptionChange = container.querySelector<HTMLElement>(
+      '[data-comparison-field="description"]',
+    );
+    expect(descriptionChange).not.toBeNull();
+    expect(
+      within(descriptionChange!).getByText("No description provided."),
+    ).toHaveClass("recipe-comparison-hero__metadata-empty");
+    expect(
+      descriptionChange?.querySelector('[data-comparison-value="current"] ins'),
+    ).not.toBeInTheDocument();
+    expect(
+      descriptionChange?.querySelector(
+        '[data-comparison-value="previous"] del',
+      ),
+    ).toHaveTextContent("The description that was removed.");
+    expect(
+      within(descriptionChange!).getByText("Description changed"),
+    ).toHaveClass("visually-hidden");
+  });
+
+  it("shows a newly added description against the prior empty value", () => {
+    const diff = mixedDiff();
+    diff.metadata_changes = [
+      {
+        field: "description",
+        before: null,
+        after: "A new description for this version.",
+      },
+    ];
+    const recipe = targetRecipeDetail(diff, {
+      description: "A new description for this version.",
+    });
+
+    const { container } = render(
+      <RecipeComparisonHero
+        comparison={comparisonModel(diff, recipe)}
+        headingId="comparison-heading"
+      />,
+    );
+
+    const descriptionChange = container.querySelector<HTMLElement>(
+      '[data-comparison-field="description"]',
+    );
+    expect(descriptionChange).not.toBeNull();
+    expect(
+      descriptionChange?.querySelector('[data-comparison-value="current"] ins'),
+    ).toHaveTextContent("A new description for this version.");
+    expect(
+      descriptionChange?.querySelector(
+        '[data-comparison-value="previous"] del',
+      ),
+    ).toHaveTextContent("Not provided");
   });
 
   it("shows category additions and removals in one semantic pill list", () => {
