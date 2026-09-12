@@ -9,7 +9,10 @@ import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
 import type { CatalogActionType } from "../../shared/cooking-action-model";
-import type { RecipeDraftInstructionState } from "../draft/recipe-draft";
+import {
+  draftInstructionActionFieldKey,
+  type RecipeDraftInstructionState,
+} from "../draft/recipe-draft";
 import {
   createStructuredActionDraft,
   type StructuredActionDraft,
@@ -65,6 +68,7 @@ function detailedAction(): StructuredActionDraft {
 
 function Harness({
   disabled = false,
+  errors = {},
   initialInstructions = [
     instruction("step-one", "Prepare the pan", "Grease the pan."),
     instruction(
@@ -75,6 +79,7 @@ function Harness({
   ],
 }: {
   disabled?: boolean;
+  errors?: Readonly<Record<string, string>>;
   initialInstructions?: RecipeDraftInstructionState[];
 }) {
   const [instructions, setInstructions] = useState(initialInstructions);
@@ -82,7 +87,7 @@ function Harness({
     <RecipeDraftInstructionsSection
       actionTypes={actionTypes}
       disabled={disabled}
-      errors={{}}
+      errors={errors}
       ingredientOptions={[]}
       instructions={instructions}
       measurementUnits={[]}
@@ -233,6 +238,64 @@ describe("RecipeDraftInstructionsSection", () => {
     await waitFor(() => expect(action).toHaveFocus());
   });
 
+  it("shares wrapped arrow, Home, and End navigation without focusing on click", () => {
+    render(<Harness />);
+
+    const steps = screen.getByRole("tab", { name: "Steps" });
+    const breakdown = screen.getByRole("tab", {
+      name: "Cooking breakdown",
+    });
+    steps.focus();
+
+    fireEvent.keyDown(steps, { key: "ArrowLeft" });
+    expect(breakdown).toHaveFocus();
+    expect(breakdown).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(breakdown, { key: "ArrowRight" });
+    expect(steps).toHaveFocus();
+    expect(steps).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(steps, { key: "End" });
+    expect(breakdown).toHaveFocus();
+
+    fireEvent.keyDown(breakdown, { key: "Home" });
+    expect(steps).toHaveFocus();
+
+    fireEvent.click(breakdown);
+    expect(breakdown).toHaveAttribute("aria-selected", "true");
+    expect(steps).toHaveFocus();
+  });
+
+  it("forces validation into the breakdown without losing the requested view", () => {
+    const actionError = draftInstructionActionFieldKey(
+      "step-one",
+      "actions",
+    );
+    const { rerender } = render(<Harness />);
+
+    expect(screen.getByRole("tab", { name: "Steps" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    rerender(<Harness errors={{ [actionError]: "Add a cooking detail." }} />);
+    expect(
+      screen.getByRole("tab", { name: "Cooking breakdown" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(document.getElementById("draft-instructions-steps-panel")).toHaveAttribute(
+      "hidden",
+    );
+
+    rerender(<Harness />);
+    expect(screen.getByRole("tab", { name: "Steps" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      document.getElementById("draft-instructions-breakdown-panel"),
+    ).toHaveAttribute("hidden");
+  });
+
   it("moves and removes steps through the compact icon controls", () => {
     render(<Harness />);
 
@@ -254,6 +317,10 @@ describe("RecipeDraftInstructionsSection", () => {
     ).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Add instruction" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("tab", { name: "Steps" })).toBeDisabled();
+    expect(
+      screen.getByRole("tab", { name: "Cooking breakdown" }),
     ).toBeDisabled();
   });
 });

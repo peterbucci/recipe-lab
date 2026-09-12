@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, type KeyboardEvent } from "react";
+import { useState } from "react";
+
+import { useRovingTabs } from "../../../shared/ui/use-roving-tabs";
 
 import type {
   RecipeIngredient,
@@ -78,26 +80,6 @@ function stepFacts(actions: readonly RecipeInstructionAction[]): string[] {
   return [...new Set(facts)];
 }
 
-function nextViewForKey(
-  current: InstructionView,
-  event: KeyboardEvent<HTMLButtonElement>,
-): InstructionView | null {
-  const index = VIEWS.indexOf(current);
-  if (event.key === "ArrowRight") {
-    return VIEWS[(index + 1) % VIEWS.length] ?? null;
-  }
-  if (event.key === "ArrowLeft") {
-    return VIEWS[(index - 1 + VIEWS.length) % VIEWS.length] ?? null;
-  }
-  if (event.key === "Home") {
-    return VIEWS[0] ?? null;
-  }
-  if (event.key === "End") {
-    return VIEWS.at(-1) ?? null;
-  }
-  return null;
-}
-
 export function RecipeInstructionsPanel({
   ingredients,
   instructions,
@@ -113,15 +95,11 @@ export function RecipeInstructionsPanel({
     view === "steps"
       ? "Read the recipe as normal step-by-step instructions."
       : "See the actions, ingredients, timing, and heat inside each step.";
-
-  function selectView(next: InstructionView, focus = false) {
-    setView(next);
-    if (focus) {
-      requestAnimationFrame(() => {
-        document.getElementById(`recipe-instructions-${next}-tab`)?.focus();
-      });
-    }
-  }
+  const { getTabProps } = useRovingTabs({
+    onChange: setView,
+    value: view,
+    values: VIEWS,
+  });
 
   return (
     <section
@@ -140,25 +118,16 @@ export function RecipeInstructionsPanel({
           aria-label="Instruction view"
         >
           {VIEWS.map((candidate) => {
-            const active = candidate === view;
             const label = candidate === "steps" ? "Steps" : "Cooking breakdown";
             return (
               <button
+                {...getTabProps(candidate)}
                 id={`recipe-instructions-${candidate}-tab`}
                 key={candidate}
                 type="button"
                 role="tab"
-                aria-selected={active}
                 aria-controls={`recipe-instructions-${candidate}-panel`}
-                tabIndex={active ? 0 : -1}
-                onClick={() => selectView(candidate)}
-                onKeyDown={(event) => {
-                  const next = nextViewForKey(candidate, event);
-                  if (next) {
-                    event.preventDefault();
-                    selectView(next, true);
-                  }
-                }}
+                onClick={() => setView(candidate)}
               >
                 {label}
               </button>
