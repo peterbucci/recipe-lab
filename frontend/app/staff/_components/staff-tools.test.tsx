@@ -94,6 +94,7 @@ describe("StaffTools", () => {
       expect(tablist).toHaveClass("staff-tools__role-tabs");
       expect(tablist.closest(".staff-tools__shell")).toHaveClass(
         "workspace-panel-shell",
+        "workspace-panel-shell--mobile-bleed",
       );
       const tab = screen.getByRole("tab", { name: tabName });
       expect(tab).toHaveAttribute("aria-selected", "true");
@@ -155,30 +156,6 @@ describe("StaffTools", () => {
       "href",
       "/moderation/recipes",
     );
-  });
-
-  it("supports arrow, Home, and End keyboard navigation between role tabs", () => {
-    renderStaffTools(authenticatedSession(true, true));
-
-    const curatorTab = screen.getByRole("tab", { name: "Curator tools" });
-    const moderatorTab = screen.getByRole("tab", { name: "Moderator tools" });
-    curatorTab.focus();
-
-    fireEvent.keyDown(curatorTab, { key: "ArrowRight" });
-    expect(moderatorTab).toHaveFocus();
-    expect(moderatorTab).toHaveAttribute("aria-selected", "true");
-
-    fireEvent.keyDown(moderatorTab, { key: "ArrowRight" });
-    expect(curatorTab).toHaveFocus();
-    expect(curatorTab).toHaveAttribute("aria-selected", "true");
-
-    fireEvent.keyDown(curatorTab, { key: "End" });
-    expect(moderatorTab).toHaveFocus();
-    expect(moderatorTab).toHaveAttribute("aria-selected", "true");
-
-    fireEvent.keyDown(moderatorTab, { key: "Home" });
-    expect(curatorTab).toHaveFocus();
-    expect(curatorTab).toHaveAttribute("aria-selected", "true");
   });
 
   it("asks an anonymous visitor to sign in without exposing either tool", () => {

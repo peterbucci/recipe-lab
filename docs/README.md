@@ -12,6 +12,8 @@ historical references do not break merely to create folders.
   dependency, and migration rules for frontend code.
 - [Frontend state presentation](frontend-state-presentation.md) — semantic
   state taxonomy, disclosure rules, and shared presentation primitives.
+- [Frontend workspace navigation](frontend-workspace-navigation.md) — semantic
+  control models, shared panel/menu ownership, and responsive exceptions.
 - [MVP scope](mvp-scope.md) — shipped product boundary and acceptance criteria.
 - [Product language](product-language.md) — member-facing terminology and the
   boundary between product and research features.
@@ -45,6 +47,7 @@ historical references do not break merely to create folders.
 - [Frontend testing architecture](frontend-testing.md)
 - [RCP-49 frontend architecture certification](baselines/2026-09-05-frontend-architecture-certification.md)
 - [RCP-50 frontend state presentation certification](baselines/2026-09-11-frontend-state-presentation-certification.md)
+- [RCP-51 workspace navigation certification](baselines/2026-09-11-workspace-navigation-certification.md)
 - [RF-13 final refactor starting baseline](baselines/2026-09-09-final-refactor-starting-baseline.md)
 - [RF-13 through RF-26 final refactor execution](baselines/2026-09-10-final-refactor-execution.md)
 - [Production images](production-images.md)

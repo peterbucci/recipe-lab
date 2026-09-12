@@ -44,7 +44,7 @@ function AuthorizedStaffTools({
         <p>Open the staff tools available to your account.</p>
       </header>
 
-      <section className="staff-tools__shell workspace-panel-shell">
+      <section className="staff-tools__shell workspace-panel-shell workspace-panel-shell--mobile-bleed">
         <WorkspaceTabs
           className="staff-tools__role-tabs"
           ariaLabel="Staff tool categories"

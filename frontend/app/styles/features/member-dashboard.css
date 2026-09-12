@@ -544,11 +544,6 @@
   .member-activity-page--timeline .member-activity-page__heading {
     margin-bottom: 1.35rem;
   }
-  .member-activity-page--timeline .member-activity-page__shell {
-    border-inline: 0;
-    border-radius: 0;
-    margin-inline: -0.75rem;
-  }
   .member-activity-page__shell > .workspace-empty-state {
     margin: 0.75rem;
   }

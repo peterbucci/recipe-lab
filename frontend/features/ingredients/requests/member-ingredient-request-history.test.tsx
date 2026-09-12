@@ -121,6 +121,7 @@ describe("MemberIngredientRequestHistory", () => {
       "member-request-history--standalone",
       "workspace-panel-shell",
     );
+    expect(region).not.toHaveClass("workspace-panel-shell--mobile-bleed");
     const statusTabs = within(region).getByRole("group", {
       name: "Ingredient request status",
     });

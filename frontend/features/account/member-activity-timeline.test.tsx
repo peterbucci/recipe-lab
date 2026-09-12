@@ -64,6 +64,7 @@ describe("MemberActivityTimeline", () => {
     renderTimeline();
     expect(screen.getByRole("region", { name: "Account activity" })).toHaveClass(
       "workspace-panel-shell",
+      "workspace-panel-shell--mobile-bleed",
     );
     expect(screen.getByRole("status")).toHaveTextContent("Loading your activity…");
   });

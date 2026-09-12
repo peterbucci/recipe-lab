@@ -89,30 +89,13 @@
   max-width: 46rem;
   margin-top: 0;
 }
-@media (max-width: 56.25rem) {
-  .member-library__navigation-row {
-    width: min(100%, 46rem);
-    margin-left: auto;
-    margin-right: auto;
-  }
-}
 @media (max-width: 43.75rem) {
-  .member-library__navigation-row {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-    gap: 0.55rem;
-  }
   .staff-tools-page {
     width: 100%;
     padding: 1.25rem 0.75rem 2.8125rem;
   }
   .staff-tools__intro h1 {
     font-size: clamp(1.8rem, 9vw, 2.25rem);
-  }
-  .staff-tools__shell {
-    border-inline: 0;
-    border-radius: 0;
-    margin-inline: -0.75rem;
   }
   .staff-tools__panel .workspace-panel-header__meta {
     display: none;

@@ -104,6 +104,13 @@ describe("cook profile and private recipe libraries", () => {
     );
     expect(savedHeader).toHaveTextContent("13 saved recipes");
     const savedList = screen.getByRole("list", { name: "Saved recipes" });
+    expect(savedList.closest(".member-library__content")).toHaveClass(
+      "workspace-panel-body",
+    );
+    expect(savedList.closest(".member-library__frame")).toHaveClass(
+      "workspace-panel-shell",
+      "workspace-panel-shell--mobile-bleed",
+    );
     const savedCard = within(savedList).getByRole("article", {
       name: "Creamy tomato soup",
     });

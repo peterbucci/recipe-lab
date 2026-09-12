@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
   PHONE_PROJECT,
@@ -27,6 +27,40 @@ import {
 } from "./visual-baseline-support";
 
 registerVisualBaselineHooks();
+
+const RCP51_WORKSPACE_BREAKPOINT = Object.freeze({
+  width: 680,
+  height: 1_000,
+});
+
+async function certifyWorkspaceAtBreakpoint(page: Page): Promise<void> {
+  await stabilizeVisuals(page);
+  await expectNoHorizontalOverflow(page);
+  await expectNoAccessibilityViolations(page);
+}
+
+async function expectMobileBleedWorkspaceFrame(
+  frame: Locator,
+): Promise<void> {
+  await expect(frame).toBeVisible();
+  await expect(frame).toHaveCSS("border-left-width", "0px");
+  await expect(frame).toHaveCSS("border-right-width", "0px");
+  await expect(frame).toHaveCSS("border-top-left-radius", "0px");
+  await expect(frame).toHaveCSS("border-bottom-right-radius", "0px");
+}
+
+async function expectInsetWorkspaceFrame(frame: Locator): Promise<void> {
+  await expect(frame).toBeVisible();
+  const frameChrome = await frame.evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return {
+      borderLeftWidth: Number.parseFloat(style.borderLeftWidth),
+      borderTopLeftRadius: Number.parseFloat(style.borderTopLeftRadius),
+    };
+  });
+  expect(frameChrome.borderLeftWidth).toBeGreaterThan(0);
+  expect(frameChrome.borderTopLeftRadius).toBeGreaterThan(0);
+}
 
 test("home intermediate normal", async ({ page }, testInfo) => {
   desktopOnly(testInfo);
@@ -387,6 +421,172 @@ test("member ingredient requests intermediate visual evidence", async ({ page },
   ).toBeVisible();
   await stabilizeVisuals(page);
   await captureBaseline(page, "my-ingredient-requests-intermediate");
+});
+
+test("workspace navigation survives the 680 px breakpoint", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize(RCP51_WORKSPACE_BREAKPOINT);
+
+  await test.step("Activity keeps its filter controls and stacked search", async () => {
+    await setScenario("activity-normal");
+    await page.goto("/account/activity");
+    await expectAccountActivityReady(page);
+    await expect(page.locator(".member-activity-page__toolbar")).toHaveCSS(
+      "flex-direction",
+      "column",
+    );
+    await expectMobileBleedWorkspaceFrame(
+      page.locator(".member-activity-page__shell"),
+    );
+    await certifyWorkspaceAtBreakpoint(page);
+  });
+
+  await test.step("My Recipes preserves its URL-owned active view", async () => {
+    await setScenario("normal");
+    await page.goto("/account/recipes?view=drafts");
+    await expect(
+      page.getByRole("list", { name: "Private recipe drafts" }),
+    ).toBeVisible();
+    const recipeViews = page.getByRole("navigation", {
+      name: "My recipe views",
+    });
+    await expect(
+      recipeViews.getByRole("link", { name: "Drafts", exact: true }),
+    ).toHaveAttribute("aria-current", "page");
+    await expectMobileBleedWorkspaceFrame(
+      page.locator(".member-library__frame"),
+    );
+    await certifyWorkspaceAtBreakpoint(page);
+  });
+
+  await test.step("Connections certifies both URL-owned views", async () => {
+    await setScenario("connections-normal");
+    await page.goto("/account/connections?view=followers");
+    const connectionViews = page.getByRole("navigation", {
+      name: "Connection views",
+    });
+    const followersView = connectionViews.getByRole("link", {
+      name: "Followers",
+      exact: true,
+    });
+    const followingView = connectionViews.getByRole("link", {
+      name: "Following",
+      exact: true,
+    });
+    await expect(followersView).toHaveAttribute("aria-current", "page");
+    await expect(followingView).not.toHaveAttribute("aria-current", "page");
+    await expect(
+      page.getByRole("list", { name: "Your followers" }),
+    ).toBeVisible();
+    await expect(page.getByText("Damon", { exact: true })).toBeVisible();
+    await expectMobileBleedWorkspaceFrame(
+      page.locator(".member-connections-page__frame"),
+    );
+    await certifyWorkspaceAtBreakpoint(page);
+
+    await followingView.click();
+    await expect(page).toHaveURL(/\/account\/connections\?view=following$/);
+    await expect(followingView).toHaveAttribute("aria-current", "page");
+    await expect(followersView).not.toHaveAttribute("aria-current", "page");
+    await expect(
+      page.getByRole("list", { name: "Cooks you follow" }),
+    ).toBeVisible();
+    await expect(page.getByText("Damon", { exact: true })).toBeVisible();
+    await certifyWorkspaceAtBreakpoint(page);
+  });
+
+  await test.step("Ingredient Requests keeps its intentional inset frame", async () => {
+    await setScenario("normal");
+    await page.goto("/account/ingredient-requests");
+    const requestHistory = page.getByRole("region", {
+      name: "My ingredient requests",
+    });
+    const statusFilters = requestHistory.getByRole("group", {
+      name: "Ingredient request status",
+    });
+    await expect(
+      statusFilters.getByRole("button", { name: "All", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      requestHistory.getByRole("searchbox", {
+        name: "Search my ingredient requests",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.locator(".member-request-history__toolbar"),
+    ).toHaveCSS("flex-direction", "column");
+    await expectInsetWorkspaceFrame(
+      page.locator(".member-request-history--standalone"),
+    );
+    await certifyWorkspaceAtBreakpoint(page);
+  });
+
+  await test.step("Settings keeps its roving tab and panel contract", async () => {
+    await setScenario("normal");
+    await page.goto("/account/settings");
+    const settingsTabs = page.getByRole("tablist", {
+      name: "Settings categories",
+    });
+    const profileTab = settingsTabs.getByRole("tab", {
+      name: "Profile",
+      exact: true,
+    });
+    const dangerTab = settingsTabs.getByRole("tab", {
+      name: "Danger zone",
+      exact: true,
+    });
+    const profilePanel = page.locator("#account-settings-profile-panel");
+    const dangerPanel = page.locator("#account-settings-danger-panel");
+    await expect(profileTab).toHaveAttribute("aria-selected", "true");
+    await expect(profilePanel).toBeVisible();
+    await expect(dangerPanel).toBeHidden();
+    await expectMobileBleedWorkspaceFrame(
+      page.locator(".account-settings__shell"),
+    );
+    await certifyWorkspaceAtBreakpoint(page);
+
+    await dangerTab.click();
+    await expect(dangerTab).toHaveAttribute("aria-selected", "true");
+    await expect(profileTab).toHaveAttribute("aria-selected", "false");
+    await expect(profilePanel).toBeHidden();
+    await expect(dangerPanel).toBeVisible();
+    await certifyWorkspaceAtBreakpoint(page);
+  });
+
+  await test.step("Staff Tools keeps its roving tab and panel contract", async () => {
+    await setScenario("normal");
+    await page.goto("/staff");
+    const staffTabs = page.getByRole("tablist", {
+      name: "Staff tool categories",
+    });
+    const curatorTab = staffTabs.getByRole("tab", {
+      name: "Curator tools",
+      exact: true,
+    });
+    const moderatorTab = staffTabs.getByRole("tab", {
+      name: "Moderator tools",
+      exact: true,
+    });
+    const curatorPanel = page.locator("#staff-curator-panel");
+    const moderatorPanel = page.locator("#staff-moderator-panel");
+    await expect(curatorTab).toHaveAttribute("aria-selected", "true");
+    await expect(curatorPanel).toBeVisible();
+    await expect(moderatorPanel).toBeHidden();
+    await expectMobileBleedWorkspaceFrame(
+      page.locator(".staff-tools__shell"),
+    );
+    await certifyWorkspaceAtBreakpoint(page);
+
+    await moderatorTab.click();
+    await expect(moderatorTab).toHaveAttribute("aria-selected", "true");
+    await expect(curatorTab).toHaveAttribute("aria-selected", "false");
+    await expect(curatorPanel).toBeHidden();
+    await expect(moderatorPanel).toBeVisible();
+    await certifyWorkspaceAtBreakpoint(page);
+  });
 });
 
 test("moderator intermediate visual evidence", async ({ page }, testInfo) => {

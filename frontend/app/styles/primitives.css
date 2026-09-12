@@ -221,9 +221,14 @@ h3 {
 }
 :where(.workspace-panel-shell) {
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: var(--workspace-panel-radius, var(--radius));
   background: var(--surface);
   overflow: hidden;
+}
+:where(.workspace-panel-body) {
+  background: #fcfcfe;
+  min-height: 16rem;
+  padding: 1.25rem;
 }
 @media (max-width: 43.75rem) {
   .state-panel:not(.auth-card) {
@@ -240,6 +245,13 @@ h3 {
     flex-wrap: wrap;
     gap: 0.6rem;
     padding-inline: 0.75rem;
+  }
+  :where(.workspace-panel-shell--mobile-bleed) {
+    border-inline: 0;
+    border-radius: 0;
+    margin-inline: calc(
+      0rem - var(--workspace-panel-mobile-gutter, 0.75rem)
+    );
   }
 }
 @media (max-width: 30rem) {
@@ -264,6 +276,10 @@ h3 {
   }
   :where(.workspace-panel-shell) {
     border-color: canvastext;
+    background: canvas;
+    color: canvastext;
+  }
+  :where(.workspace-panel-body) {
     background: canvas;
     color: canvastext;
   }

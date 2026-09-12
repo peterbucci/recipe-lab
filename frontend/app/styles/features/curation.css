@@ -591,13 +591,6 @@
   }
 }
 @media (max-width: 48rem) {
-  .member-request-history__auth-recovery {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .member-request-history__list {
-    grid-template-columns: 1fr;
-  }
   .section-heading {
     flex-direction: column;
     align-items: start;

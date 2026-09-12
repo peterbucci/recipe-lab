@@ -165,6 +165,13 @@ the URL, screenshot, or fixture audit. Onboarding, callback failure, and the
 global not-found route retain one representative visual checkpoint each rather
 than duplicating the same system-state treatment across every width.
 
+The [RCP-51 workspace navigation certification](baselines/2026-09-11-workspace-navigation-certification.md)
+adds an assertion-only sweep at 680 CSS pixels for Activity, My Recipes, both
+Connections views, Ingredient Requests, Settings, and Staff Tools. It checks
+the shared 700 px toolbar and mobile-bleed transition, preserves the intentional
+650 px Ingredient Requests inset exception, and reruns Axe and
+horizontal-overflow checks without adding another screenshot tier.
+
 ### RCP-46 source theme-family inventory
 
 `frontend/tests/contracts/route-theme-inventory.ts` is the plain source inventory for the 25

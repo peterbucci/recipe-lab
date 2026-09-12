@@ -95,7 +95,7 @@ zero-retry behavior and, on CI, its GitHub-only reporter and privacy-safe
 file/line failure annotation.
 The visual config remains independent, deterministic, and limited to its
 reviewed aggregate plus expected/actual/diff image allowlist.
-Its 85 logical checks are grouped into six behavior/page-family
+Its 89 logical checks are grouped into six behavior/page-family
 `*-baseline.spec.ts` files. Shared fixture reset, frozen browser, privacy,
 accessibility, overflow, and capture behavior lives in the non-spec
 `frontend/e2e/visual/visual-baseline-support.ts` module.
