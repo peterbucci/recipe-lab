@@ -370,8 +370,7 @@
     border-color: canvastext;
   }
 }
-.recipe-reading-page,
-.recipe-comparison-page {
+.recipe-reading-page {
   width: min(75rem, 100% - 3rem);
   padding-block: 2rem 3rem;
 }
@@ -388,10 +387,6 @@
 .ingredient-panel,
 .instruction-panel,
 .lineage-section,
-.recipe-diff-view__header,
-.recipe-diff-overview,
-.recipe-diff-group,
-.recipe-diff-empty,
 .cook-profile__header,
 .cook-profile__recipes,
 .policy-page__header,
@@ -510,66 +505,6 @@
   background: var(--leaf-soft);
   border-top-width: 1px;
 }
-.recipe-diff-view {
-  gap: 1rem;
-  max-width: none;
-  display: grid;
-}
-.recipe-diff-view__header {
-  max-width: none;
-  margin: 0;
-  padding: clamp(1.35rem, 3vw, 2rem);
-}
-.recipe-diff-view__header h1 {
-  overflow-wrap: anywhere;
-  max-width: 52rem;
-  margin-bottom: 0.75rem;
-  font-size: clamp(2.35rem, 4.5vw, 3.75rem);
-  line-height: 1;
-}
-.recipe-diff-versions {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-soft);
-  margin-top: 1.15rem;
-  overflow: hidden;
-}
-.recipe-diff-versions a {
-  min-height: 5.25rem;
-}
-.recipe-diff-content {
-  gap: 1rem;
-  max-width: none;
-  display: grid;
-}
-.recipe-diff-overview,
-.recipe-diff-group,
-.recipe-diff-empty {
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  max-width: none;
-  margin: 0;
-  padding: clamp(1rem, 2.5vw, 1.35rem);
-}
-.recipe-diff-overview h2,
-.recipe-diff-group .section-heading h2 {
-  font-size: 1.3rem;
-}
-.recipe-diff-highlights {
-  gap: 0.65rem;
-}
-.recipe-diff-highlights li,
-.recipe-diff-entry {
-  border-radius: var(--radius-sm);
-  box-shadow: none;
-}
-.recipe-diff-entry {
-  padding: 1rem;
-}
-.recipe-diff-group--secondary,
-.recipe-diff-group--secondary .recipe-diff-entry {
-  background: var(--surface);
-}
 .cook-profile {
   align-content: start;
   gap: 1rem;
@@ -671,7 +606,6 @@
   .recipe-detail__artwork {
     min-height: clamp(20rem, 65vw, 28rem);
   }
-  .recipe-diff-highlights,
   .policy-page__sections {
     grid-template-columns: 1fr;
   }
@@ -681,27 +615,16 @@
 }
 @media (max-width: 43.75rem) {
   .recipe-reading-page,
-  .recipe-comparison-page,
   .policy-page {
     width: min(75rem, 100% - 2rem);
     padding-block: 1rem 2rem;
   }
   .recipe-detail__header h1,
-  .recipe-diff-view__header h1,
   .policy-page__header h1 {
     font-size: clamp(2rem, 10vw, 2.7rem);
   }
   .recipe-detail__artwork {
     min-height: 18rem;
-  }
-  .recipe-diff-versions ol,
-  .recipe-diff-values {
-    grid-template-columns: 1fr;
-  }
-  .recipe-diff-versions li + li,
-  .recipe-diff-value + .recipe-diff-value {
-    border-top: 1px solid var(--line);
-    border-left: 0;
   }
   .cook-profile__header {
     align-items: flex-start;
@@ -745,10 +668,6 @@
   .lineage-card,
   .recipe-member-gate,
   .recipe-interactions,
-  .recipe-diff-view__header,
-  .recipe-diff-overview,
-  .recipe-diff-group,
-  .recipe-diff-empty,
   .cook-profile__header,
   .cook-profile__recipes,
   .policy-page__header,

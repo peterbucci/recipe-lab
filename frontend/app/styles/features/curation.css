@@ -603,22 +603,9 @@
   .recipe-grid,
   .recipe-detail__body,
   .lineage-grid,
-  .recipe-diff-highlights,
-  .recipe-diff-values,
   .skeleton-grid,
   .detail-skeleton {
     grid-template-columns: 1fr;
-  }
-  .recipe-diff-value + .recipe-diff-value {
-    border-top: 1px solid var(--line);
-    border-left: 0;
-  }
-  .recipe-diff-versions a {
-    min-height: 5.5rem;
-    padding-inline: 0.8rem;
-  }
-  .recipe-diff-entry {
-    padding-inline: 1rem;
   }
   .recipe-facts {
     flex-direction: column;

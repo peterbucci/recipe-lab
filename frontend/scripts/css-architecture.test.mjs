@@ -101,6 +101,25 @@ describe("CSS architecture", () => {
         ".state-page, .state-panel[role='alert'], .state-panel__actions, .workspace-empty-state, .workspace-panel-body, .workspace-panel-header__actions, :where(.workspace-panel-shell), :where(.workspace-panel-shell--mobile-bleed) {}",
       ),
     ).toEqual([]);
+    expect(
+      reservedSelectorOwnershipErrors(
+        "app/styles/features/recipe-comparison.css",
+        ".recipe-comparison-page, .recipe-diff-view__header, .recipe-diff-entry--added, .page-loading__recipe-body--comparison {}",
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps comparison selectors with the comparison feature", () => {
+    expect(
+      reservedSelectorOwnershipErrors(
+        "app/styles/features/recipe-reading.css",
+        ".recipe-diff-view, .recipe-diff-kind--secondary, .recipe-comparison-page {}",
+      ),
+    ).toEqual([
+      'app/styles/features/recipe-reading.css must not own selector ".recipe-diff-view"; .recipe-diff-view belongs to app/styles/features/recipe-comparison.css.',
+      'app/styles/features/recipe-reading.css must not own selector ".recipe-diff-kind--secondary"; .recipe-diff-kind belongs to app/styles/features/recipe-comparison.css.',
+      'app/styles/features/recipe-reading.css must not own selector ".recipe-comparison-page"; .recipe-comparison-page belongs to app/styles/features/recipe-comparison.css.',
+    ]);
   });
 
   it("accepts context-scoped overrides and non-family prefixes", () => {

@@ -161,9 +161,6 @@
   gap: clamp(1.5rem, 4vw, 4rem);
   padding-top: 1.5rem;
 }
-.page-loading__recipe-body--comparison {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
 .page-loading__recipe-body > div {
   display: grid;
   align-content: start;
@@ -452,7 +449,6 @@
   }
   .page-loading__recipe-hero,
   .page-loading__recipe-body,
-  .page-loading__recipe-body--comparison,
   .page-loading__panel-grid {
     grid-template-columns: 1fr;
   }
