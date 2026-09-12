@@ -103,8 +103,27 @@ test("recipe comparison intermediate normal", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 820, height: 1_000 });
   await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
   await expect(
-    page.getByRole("list", { name: "Changes at a glance" }),
+    page.getByRole("heading", {
+      name: "Garden Cream Tomato Soup",
+      level: 1,
+    }),
   ).toBeVisible();
+  const comparisonBody = page.locator(".recipe-comparison-body");
+  await expect(comparisonBody).toBeVisible();
+  await expect(
+    comparisonBody.getByRole("heading", { name: "Ingredients", level: 2 }),
+  ).toBeVisible();
+  await expect(
+    comparisonBody.getByRole("heading", {
+      name: "Instructions",
+      level: 2,
+    }),
+  ).toBeVisible();
+  await comparisonBody.evaluate((body) => {
+    body.scrollIntoView({ block: "start" });
+    window.scrollBy(0, -80);
+  });
+  await expect(comparisonBody).toBeInViewport();
   await stabilizeVisuals(page);
   await captureBaseline(page, "recipe-comparison-intermediate-normal");
 });

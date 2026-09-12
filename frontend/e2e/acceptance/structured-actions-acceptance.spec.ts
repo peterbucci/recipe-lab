@@ -468,17 +468,88 @@ test.describe("structured cooking action acceptance", () => {
     await expect(compare).toHaveAttribute("href", comparisonPath);
     await compare.click();
     await expect(page).toHaveURL(comparisonPath);
-    const changedInstruction = page.getByRole("article", {
-      name: "Update step 1",
-      exact: true,
-    });
-    await expect(changedInstruction).toContainText("Step title changed");
-    await expect(changedInstruction).toContainText("Wording changed");
-    await expect(changedInstruction).toContainText(
-      "Order within the step changed",
+    const comparisonHero = page.locator(".recipe-comparison-hero");
+    await expect(
+      comparisonHero.getByRole("heading", {
+        name: draftTitle,
+        exact: true,
+        level: 1,
+      }),
+    ).toBeVisible();
+    const previousTitle = comparisonHero.locator(
+      "h1 + .recipe-comparison-previous",
     );
-    await expect(changedInstruction).toContainText("Timing changed");
-    await expect(changedInstruction).toContainText("Temperature changed");
+    await expect(previousTitle).toHaveCount(1);
+    await expect(previousTitle.locator("del")).toHaveText(
+      "Carrot Walnut Snack Cake",
+    );
+
+    const instructions = page.getByRole("region", { name: "Instructions" });
+    const changedInstruction = instructions
+      .locator(".recipe-comparison-instruction-row--changed")
+      .filter({ has: page.getByText(revisedProse, { exact: true }) });
+    await expect(changedInstruction).toHaveCount(1);
+    await expect(
+      changedInstruction.getByText("Changed", { exact: true }),
+    ).toBeVisible();
+
+    const currentInstruction = changedInstruction.locator(
+      ':scope > [data-comparison-value="current"]',
+    );
+    const previousInstruction = changedInstruction.locator(
+      ':scope > [data-comparison-value="previous"]',
+    );
+    await expect(
+      changedInstruction.locator(
+        ':scope > [data-comparison-value="current"] + [data-comparison-value="previous"]',
+      ),
+    ).toHaveCount(1);
+    await expect(currentInstruction.locator("ins")).toContainText(
+      revisedProse,
+    );
+    await expect(previousInstruction.locator("del")).toContainText(
+      "Heat the oven to 180°C (350°F), grease a 20 cm square pan, and line its base.",
+    );
+
+    const changeLabels = changedInstruction.getByRole("list", {
+      name: "Changes to step 1",
+    });
+    for (const label of [
+      "Step title changed",
+      "Wording changed",
+      "Ingredients used in the step changed",
+      "Order within the step changed",
+      "Timing changed",
+      "Temperature changed",
+    ]) {
+      await expect(changeLabels.getByText(label, { exact: true })).toBeVisible();
+    }
+
+    const currentActions = currentInstruction.getByRole("list", {
+      name: "Cooking actions in this recipe for step 1",
+    });
+    const currentActionRows = currentActions.locator(":scope > li");
+    await expect(currentActionRows).toHaveCount(3);
+    await expect(currentActionRows.nth(0)).toContainText("Grease");
+    await expect(currentActionRows.nth(0)).toContainText("With White sugar");
+    await expect(currentActionRows.nth(1)).toContainText("Preheat");
+    await expect(currentActionRows.nth(1)).toContainText("At 175 °C");
+    await expect(currentActionRows.nth(2)).toContainText("Line pan");
+    await expect(currentActionRows.nth(2)).toContainText("With Vegetable oil");
+    await expect(currentActionRows.nth(2)).toContainText("For 2.5 min");
+
+    const previousActions = previousInstruction.getByRole("list", {
+      name: "Cooking actions in the starting recipe for step 1",
+    });
+    const previousActionRows = previousActions.locator(":scope > li");
+    await expect(previousActionRows).toHaveCount(3);
+    await expect(previousActionRows.nth(0)).toContainText("Preheat");
+    await expect(previousActionRows.nth(0)).toContainText("At 180 °C");
+    await expect(previousActionRows.nth(1)).toContainText("Grease");
+    await expect(previousActionRows.nth(1)).toContainText(
+      "With Vegetable oil",
+    );
+    await expect(previousActionRows.nth(2)).toContainText("Line pan");
     await expectNoAccessibilityViolations(page);
   });
 });

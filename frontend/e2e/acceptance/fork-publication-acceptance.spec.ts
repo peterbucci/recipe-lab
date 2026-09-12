@@ -310,22 +310,29 @@ test.describe("cross-user fork publication acceptance", () => {
     await expect(compare).toHaveAttribute("href", comparisonPath);
     await compare.click();
     await expect(page).toHaveURL(comparisonPath);
+    const comparisonHero = page.locator(".recipe-comparison-hero");
     await expect(
-      page.getByRole("heading", {
-        name: `How ${childTitle} changed`,
+      comparisonHero.getByRole("heading", {
+        name: childTitle,
+        exact: true,
         level: 1,
       }),
     ).toBeVisible();
     await expect(
-      page
-        .getByRole("list", { name: "Changes at a glance" })
-        .getByText(`Change title from ${sourceTitle} to ${childTitle}.`, {
-          exact: true,
-        }),
+      comparisonHero.getByText("Comparison view", { exact: true }),
     ).toBeVisible();
-    const titleChange = page.getByRole("article", { name: "Title" });
-    await expect(titleChange.locator("del")).toContainText(sourceTitle);
-    await expect(titleChange.locator("ins")).toContainText(childTitle);
+    await expect(
+      comparisonHero.getByText(`${sourceTitle} · Version 1`, { exact: true }),
+    ).toBeVisible();
+
+    const previousTitle = comparisonHero.locator(
+      "h1 + .recipe-comparison-previous",
+    );
+    await expect(previousTitle).toHaveCount(1);
+    await expect(
+      previousTitle.getByText("Previous title", { exact: true }),
+    ).toBeVisible();
+    await expect(previousTitle.locator("del")).toHaveText(sourceTitle);
 
     const source = await page.request.get(`/api/recipes/${sourceId}`);
     expect(source.status()).toBe(200);

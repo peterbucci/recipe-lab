@@ -1,7 +1,8 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
   REVIEWED_SHELL_VIEWPORTS,
+  ROOT_RECIPE_ID,
   VARIANT_RECIPE_ID,
   setScenario,
   readAudit,
@@ -28,6 +29,118 @@ async function expectGridColumnCount(grid: Locator, expected: number) {
       ),
     )
     .toBe(expected);
+}
+
+async function expectContainedBy(
+  child: Locator,
+  container: Locator,
+): Promise<void> {
+  const [childBox, containerBox] = await Promise.all([
+    child.boundingBox(),
+    container.boundingBox(),
+  ]);
+  expect(childBox).not.toBeNull();
+  expect(containerBox).not.toBeNull();
+  expect(childBox!.x).toBeGreaterThanOrEqual(containerBox!.x - 0.5);
+  expect(childBox!.y).toBeGreaterThanOrEqual(containerBox!.y - 0.5);
+  expect(childBox!.x + childBox!.width).toBeLessThanOrEqual(
+    containerBox!.x + containerBox!.width + 0.5,
+  );
+  expect(childBox!.y + childBox!.height).toBeLessThanOrEqual(
+    containerBox!.y + containerBox!.height + 0.5,
+  );
+}
+
+async function expectComparisonDestinationLinks(
+  page: Page,
+  layout: "columns" | "rows",
+): Promise<void> {
+  const navigation = page.getByRole("navigation", { name: "Recipe views" });
+  const navigationLinks = navigation.getByRole("link");
+  await expect(navigationLinks).toHaveCount(3);
+  await expect(navigationLinks.nth(0)).toContainText("Changes");
+  await expect(navigationLinks.nth(0)).toHaveAttribute(
+    "href",
+    `/recipes/${VARIANT_RECIPE_ID}/compare?base_version_id=${ROOT_RECIPE_ID}`,
+  );
+  await expect(navigationLinks.nth(0)).toHaveAttribute("aria-current", "page");
+  await expect(navigationLinks.nth(1)).toHaveText("Recipe");
+  await expect(navigationLinks.nth(1)).toHaveAttribute(
+    "href",
+    `/recipes/${VARIANT_RECIPE_ID}`,
+  );
+  await expect(navigationLinks.nth(2)).toHaveText("Family");
+  await expect(navigationLinks.nth(2)).toHaveAttribute(
+    "href",
+    `/recipes/${VARIANT_RECIPE_ID}#recipe-family`,
+  );
+  for (let index = 0; index < 3; index += 1) {
+    await expectContainedBy(navigationLinks.nth(index), navigation);
+  }
+  const navigationBoxes = await Promise.all(
+    [0, 1, 2].map((index) => navigationLinks.nth(index).boundingBox()),
+  );
+  for (const box of navigationBoxes) {
+    expect(box).not.toBeNull();
+  }
+  expect(navigationBoxes[0]!.x + navigationBoxes[0]!.width).toBeLessThanOrEqual(
+    navigationBoxes[1]!.x + 0.5,
+  );
+  expect(navigationBoxes[1]!.x + navigationBoxes[1]!.width).toBeLessThanOrEqual(
+    navigationBoxes[2]!.x + 0.5,
+  );
+
+  const actions = page.locator(".recipe-comparison-hero__actions");
+  const startingRecipe = actions.getByRole("link", {
+    name: "View starting recipe",
+  });
+  const currentRecipe = actions.getByRole("link", {
+    name: "Back to Garden Cream Tomato Soup",
+  });
+  await expect(actions.getByRole("link")).toHaveCount(2);
+  await expect(startingRecipe).toHaveAttribute(
+    "href",
+    `/recipes/${ROOT_RECIPE_ID}`,
+  );
+  await expect(currentRecipe).toHaveAttribute(
+    "href",
+    `/recipes/${VARIANT_RECIPE_ID}`,
+  );
+  await expectContainedBy(startingRecipe, actions);
+  await expectContainedBy(currentRecipe, actions);
+
+  const [startingBox, currentBox] = await Promise.all([
+    startingRecipe.boundingBox(),
+    currentRecipe.boundingBox(),
+  ]);
+  expect(startingBox).not.toBeNull();
+  expect(currentBox).not.toBeNull();
+  if (layout === "columns") {
+    expect(startingBox!.x + startingBox!.width).toBeLessThanOrEqual(
+      currentBox!.x + 0.5,
+    );
+    expect(Math.abs(startingBox!.y - currentBox!.y)).toBeLessThanOrEqual(0.5);
+  } else {
+    expect(startingBox!.y + startingBox!.height).toBeLessThanOrEqual(
+      currentBox!.y + 0.5,
+    );
+  }
+}
+
+async function expectCurrentBeforePrevious(row: Locator): Promise<void> {
+  const current = row.locator('[data-comparison-value="current"]');
+  const previous = row.locator('[data-comparison-value="previous"]');
+  await expect(current).toBeVisible();
+  await expect(previous).toBeVisible();
+  const [currentBox, previousBox] = await Promise.all([
+    current.boundingBox(),
+    previous.boundingBox(),
+  ]);
+  expect(currentBox).not.toBeNull();
+  expect(previousBox).not.toBeNull();
+  expect(currentBox!.y + currentBox!.height).toBeLessThanOrEqual(
+    previousBox!.y + 0.5,
+  );
 }
 
 test("recipe discovery reflows without hiding results at reviewed widths", async ({
@@ -303,24 +416,30 @@ test("public recipe context reflows at reviewed widths", async ({
     desktop: {
       hero: 2,
       reading: 2,
-      highlights: 3,
-      versions: 2,
+      comparisonHero: 2,
+      comparisonBody: 2,
+      comparisonFacts: 4,
+      comparisonActions: 2,
       cook: 4,
       rules: 2,
     },
     intermediate: {
       hero: 1,
       reading: 1,
-      highlights: 1,
-      versions: 2,
+      comparisonHero: 1,
+      comparisonBody: 1,
+      comparisonFacts: 4,
+      comparisonActions: 2,
       cook: 3,
       rules: 1,
     },
     phone: {
       hero: 1,
       reading: 1,
-      highlights: 1,
-      versions: 1,
+      comparisonHero: 1,
+      comparisonBody: 1,
+      comparisonFacts: 2,
+      comparisonActions: 1,
       cook: 2,
       rules: 1,
     },
@@ -356,22 +475,73 @@ test("public recipe context reflows at reviewed widths", async ({
       await expectNoAccessibilityViolations(page);
 
       await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
-      const highlights = page.getByRole("list", {
-        name: "Changes at a glance",
-      });
-      const versions = page
-        .getByRole("navigation", { name: "Compared recipes" })
-        .locator("ol");
-      await expect(highlights).toBeVisible();
-      await expect(highlights).toHaveCount(1);
-      await expect(versions).toHaveCount(1);
+      const comparisonHero = page.locator(".recipe-comparison-hero");
+      const comparisonBody = page.locator(".recipe-comparison-body");
+      const comparisonFacts = page.locator(".recipe-comparison-hero__facts dl");
+      const comparisonActions = page.locator(
+        ".recipe-comparison-hero__actions",
+      );
+      const changedIngredient = page.locator(
+        ".recipe-comparison-ingredient-row--changed",
+      );
+      const changedInstruction = page.locator(
+        ".recipe-comparison-instruction-row--changed",
+      );
+      await expect(
+        page.getByRole("heading", {
+          name: "Garden Cream Tomato Soup",
+          level: 1,
+        }),
+      ).toBeVisible();
+      await expect(comparisonHero).toHaveCount(1);
+      await expect(comparisonBody).toHaveCount(1);
+      await expect(comparisonFacts).toHaveCount(1);
+      await expect(comparisonActions).toHaveCount(1);
       await expectGridColumnCount(
-        highlights,
-        expectedColumns[viewport.label].highlights,
+        comparisonHero,
+        expectedColumns[viewport.label].comparisonHero,
       );
       await expectGridColumnCount(
-        versions,
-        expectedColumns[viewport.label].versions,
+        comparisonBody,
+        expectedColumns[viewport.label].comparisonBody,
+      );
+      await expectGridColumnCount(
+        comparisonFacts,
+        expectedColumns[viewport.label].comparisonFacts,
+      );
+      await expectGridColumnCount(
+        comparisonActions,
+        expectedColumns[viewport.label].comparisonActions,
+      );
+      await expectCurrentBeforePrevious(changedIngredient);
+      await expectCurrentBeforePrevious(changedInstruction);
+      await expectGridColumnCount(
+        changedIngredient
+          .locator('[data-comparison-value="current"]')
+          .locator(".recipe-comparison-ingredient-value"),
+        2,
+      );
+      await expectGridColumnCount(
+        changedIngredient
+          .locator('[data-comparison-value="previous"]')
+          .locator(".recipe-comparison-ingredient-value"),
+        2,
+      );
+      await expectGridColumnCount(
+        changedInstruction
+          .locator('[data-comparison-value="current"]')
+          .locator(".recipe-comparison-instruction-value"),
+        2,
+      );
+      await expectGridColumnCount(
+        changedInstruction
+          .locator('[data-comparison-value="previous"]')
+          .locator(".recipe-comparison-instruction-value"),
+        1,
+      );
+      await expectComparisonDestinationLinks(
+        page,
+        viewport.label === "phone" ? "rows" : "columns",
       );
       await expectNoHorizontalOverflow(page);
       await expectNoAccessibilityViolations(page);
@@ -400,6 +570,143 @@ test("public recipe context reflows at reviewed widths", async ({
       await expectNoAccessibilityViolations(page);
     });
   }
+});
+
+test("recipe comparison switches both primary grids at the 900px boundary", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+
+  for (const expectation of [
+    { width: 901, columns: 2 },
+    { width: 900, columns: 1 },
+  ] as const) {
+    await test.step(`${expectation.width}px`, async () => {
+      await page.setViewportSize({ width: expectation.width, height: 1_000 });
+      await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
+      await expect(page.locator(".recipe-comparison-hero")).toHaveCount(1);
+      await expect(page.locator(".recipe-comparison-body")).toHaveCount(1);
+      await expectGridColumnCount(
+        page.locator(".recipe-comparison-hero"),
+        expectation.columns,
+      );
+      await expectGridColumnCount(
+        page.locator(".recipe-comparison-body"),
+        expectation.columns,
+      );
+      await expectNoHorizontalOverflow(page);
+    });
+  }
+});
+
+test("recipe comparison remains understandable in forced colors", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+  await page.emulateMedia({ forcedColors: "active" });
+  await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.matchMedia("(forced-colors: active)").matches),
+    )
+    .toBe(true);
+
+  const changedIngredient = page.locator(
+    ".recipe-comparison-ingredient-row--changed",
+  );
+  const addedIngredient = page.locator(
+    ".recipe-comparison-ingredient-row--added",
+  );
+  const changedInstruction = page.locator(
+    ".recipe-comparison-instruction-row--changed",
+  );
+  await expect(changedIngredient).toHaveCount(1);
+  await expect(addedIngredient).toHaveCount(1);
+  await expect(changedInstruction).toHaveCount(1);
+  await expect(
+    changedIngredient.locator(".recipe-comparison-ingredient-row__marker"),
+  ).toHaveText("±");
+  await expect(
+    changedIngredient.getByText("Changed", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    addedIngredient.locator(".recipe-comparison-ingredient-row__marker"),
+  ).toHaveText("+");
+  await expect(addedIngredient.getByText("Added", { exact: true })).toBeVisible();
+  await expect(
+    changedInstruction.locator(".recipe-comparison-instruction-row__marker"),
+  ).toHaveText("±");
+  await expect(
+    changedInstruction.getByText("Changed", { exact: true }),
+  ).toBeVisible();
+
+  await expect(
+    changedIngredient.locator('[data-comparison-value="current"] ins'),
+  ).toBeVisible();
+  await expect(
+    changedIngredient.locator('[data-comparison-value="previous"] del'),
+  ).toBeVisible();
+  await expect(
+    changedInstruction.locator('[data-comparison-value="current"] ins'),
+  ).toBeVisible();
+  await expect(
+    changedInstruction.locator('[data-comparison-value="previous"] del'),
+  ).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await expectNoAccessibilityViolations(page);
+});
+
+test("recipe comparison preserves the complete recipe when printed", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+  await page.emulateMedia({ media: "print" });
+  await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
+  await expect
+    .poll(() => page.evaluate(() => window.matchMedia("print").matches))
+    .toBe(true);
+
+  const ingredients = page.locator(".recipe-comparison-ingredients");
+  const instructions = page.locator(".recipe-comparison-instructions");
+  const notes = page.locator(".recipe-comparison-notes");
+  await expect(
+    page.getByRole("heading", {
+      name: "Garden Cream Tomato Soup",
+      level: 1,
+    }),
+  ).toBeVisible();
+  await expect(ingredients).toHaveCount(1);
+  await expect(instructions).toHaveCount(1);
+  await expect(notes).toHaveCount(1);
+  await expect(ingredients).toBeVisible();
+  await expect(
+    ingredients.locator(".recipe-comparison-ingredient-row"),
+  ).toHaveCount(2);
+  await expect(
+    ingredients.locator('[data-comparison-value="current"]'),
+  ).toHaveCount(2);
+  await expect(
+    ingredients.locator('[data-comparison-value="previous"]'),
+  ).toHaveCount(1);
+  await expect(instructions).toBeVisible();
+  await expect(
+    instructions.locator(".recipe-comparison-instruction-row"),
+  ).toHaveCount(2);
+  await expect(
+    instructions.locator('[data-comparison-value="current"]'),
+  ).toHaveCount(2);
+  await expect(
+    instructions.locator('[data-comparison-value="previous"]'),
+  ).toHaveCount(1);
+  await expect(notes).toBeVisible();
+  await expect(
+    notes.getByText(
+      "Taste before serving and adjust the seasoning if needed.",
+    ),
+  ).toBeVisible();
+  await expect(page.locator(".recipe-comparison-nav")).toBeHidden();
+  await expect(page.locator(".recipe-comparison-hero__actions")).toBeHidden();
+  await expectNoHorizontalOverflow(page);
 });
 
 test("account and private library surfaces stay usable and private at reviewed widths", async ({

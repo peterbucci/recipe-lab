@@ -48,39 +48,128 @@ export async function openCarrotRoot(page: Page): Promise<string> {
   return decodeURIComponent(match[1]);
 }
 
-export async function expectCarrotComparisonToExplainItsChanges(page: Page) {
-  const summary = page.getByRole("list", { name: "Changes at a glance" });
-  await expect(summary).toBeVisible();
+export async function expectCarrotComparisonToShowCompleteRecipe(
+  page: Page,
+  {
+    baseRecipeVersionId,
+    targetRecipeVersionId,
+  }: {
+    baseRecipeVersionId: string;
+    targetRecipeVersionId: string;
+  },
+) {
+  const baseRecipeHref = `/recipes/${baseRecipeVersionId}`;
+  const currentRecipeHref = `/recipes/${targetRecipeVersionId}`;
+  const comparisonHref = `${currentRecipeHref}/compare?base_version_id=${baseRecipeVersionId}`;
+  const familyHref = `${currentRecipeHref}#recipe-family`;
+
   await expect(
-    summary.getByText("Use 100 g Pecan instead of 100 g Walnut.", {
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(
-    summary.getByText("Change White sugar from 180 g to 140 g.", {
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("article", {
-      name: "Use Pecan instead of Walnut",
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("article", {
-      name: "Change White sugar from 180 g to 140 g",
-      exact: true,
+    page.getByRole("heading", {
+      name: "Lower-Sugar Pecan Carrot Cake",
+      level: 1,
     }),
   ).toBeVisible();
 
-  const visibleText = await page.locator("body").innerText();
-  expect(visibleText).not.toMatch(
-    /\bversion\s+\d+\b|catalog name|ingredient \d+:|structured cooking actions|(^|\n)ingredient inputs changed($|\n)|(^|\n)actions changed($|\n)/im,
+  const ingredients = page.getByRole("region", { name: "Ingredients" });
+  await expect(ingredients).toBeVisible();
+  const currentIngredientNames = ingredients.locator(
+    '[data-comparison-value="current"] .recipe-comparison-ingredient-value__name',
   );
+  await expect(currentIngredientNames).toHaveText([
+    "All-purpose flour",
+    "Carrot",
+    "White sugar",
+    "Egg",
+    "Vegetable oil",
+    "Pecan",
+    "Cinnamon",
+    "Baking powder",
+    "Bicarbonate of soda",
+  ]);
+
+  const changedIngredients = ingredients.locator(
+    ".recipe-comparison-ingredient-row--changed",
+  );
+  await expect(changedIngredients).toHaveCount(2);
+  for (let index = 0; index < 2; index += 1) {
+    await expect(
+      changedIngredients
+        .nth(index)
+        .locator(
+          ':scope > [data-comparison-value="current"] + [data-comparison-value="previous"]',
+        ),
+    ).toHaveCount(1);
+  }
+  const changedSugar = changedIngredients.filter({ hasText: "White sugar" });
+  await expect(changedSugar).toContainText("140 g");
+  await expect(changedSugar).toContainText("Previous");
+  await expect(changedSugar).toContainText("180 g");
+  const pecanSubstitution = changedIngredients.filter({ hasText: "Pecan" });
+  await expect(pecanSubstitution).toContainText("100 g Pecan");
+  await expect(pecanSubstitution).toContainText("Previous");
+  await expect(pecanSubstitution).toContainText("100 g Walnut");
+
+  const instructions = page.getByRole("region", { name: "Instructions" });
+  await expect(instructions).toBeVisible();
+  const currentInstructionText = instructions.locator(
+    '[data-comparison-value="current"] .recipe-comparison-instruction-value__text',
+  );
+  await expect(currentInstructionText).toHaveText([
+    "Heat the oven to 180°C (350°F), grease a 20 cm square pan, and line its base.",
+    "Whisk the flour, cinnamon, baking powder, and bicarbonate of soda together.",
+    "Whisk the sugar, eggs, and oil, fold in the dry ingredients, then fold in the carrots and nuts.",
+    "Spread the batter in the pan and bake until the center springs back and a tester comes out clean; cool before slicing.",
+  ]);
+  const changedInstructions = instructions.locator(
+    ".recipe-comparison-instruction-row--changed",
+  );
+  for (let index = 0; index < (await changedInstructions.count()); index += 1) {
+    await expect(
+      changedInstructions
+        .nth(index)
+        .locator(
+          ':scope > [data-comparison-value="current"] + [data-comparison-value="previous"]',
+        ),
+    ).toHaveCount(1);
+  }
+
+  const hero = page.locator(".recipe-comparison-hero");
+  await expect(
+    hero.getByRole("link", { name: "View starting recipe", exact: true }),
+  ).toHaveAttribute("href", baseRecipeHref);
+  await expect(
+    hero.getByRole("link", {
+      name: "Back to Lower-Sugar Pecan Carrot Cake",
+      exact: true,
+    }),
+  ).toHaveAttribute("href", currentRecipeHref);
+
+  const views = page.getByRole("navigation", { name: "Recipe views" });
+  const changesLink = views.getByRole("link", { name: "Changes" });
+  const recipeLink = views.getByRole("link", { name: "Recipe", exact: true });
+  const familyLink = views.getByRole("link", { name: "Family", exact: true });
+  await expect(changesLink).toHaveAttribute("href", comparisonHref);
+  await expect(changesLink).toHaveAttribute("aria-current", "page");
+  await expect(recipeLink).toHaveAttribute("href", currentRecipeHref);
+  await expect(familyLink).toHaveAttribute("href", familyHref);
+
+  expect(
+    await page
+      .getByRole("heading", { name: "Changes at a glance" })
+      .count(),
+  ).toBe(0);
+  const visibleText = await page.locator("body").innerText();
   expect(visibleText).not.toMatch(
     /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i,
   );
 
-  return summary;
+  return {
+    changesLink,
+    comparisonHref,
+    familyHref,
+    familyLink,
+    ingredients,
+    instructions,
+    recipeLink,
+  };
 }

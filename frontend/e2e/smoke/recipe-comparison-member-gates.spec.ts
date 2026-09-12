@@ -1,10 +1,51 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
-  expectCarrotComparisonToExplainItsChanges,
+  expectCarrotComparisonToShowCompleteRecipe,
   openCarrotRoot,
   reachWithKeyboard,
 } from "./home-support";
+
+async function expectControlsInKeyboardOrder(
+  page: Page,
+  controls: readonly { label: string; locator: Locator }[],
+): Promise<void> {
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  });
+
+  let expectedIndex = 0;
+  for (let step = 0; step < 80 && expectedIndex < controls.length; step += 1) {
+    await page.keyboard.press("Tab");
+
+    let focusedIndex = -1;
+    for (let index = 0; index < controls.length; index += 1) {
+      if (
+        await controls[index]!.locator.evaluate(
+          (element) => element === element.ownerDocument.activeElement,
+        )
+      ) {
+        focusedIndex = index;
+        break;
+      }
+    }
+
+    if (focusedIndex === -1) continue;
+    expect(
+      focusedIndex,
+      `Expected ${controls[expectedIndex]!.label} before ${controls[focusedIndex]!.label} in the tab order.`,
+    ).toBe(expectedIndex);
+    await expect(controls[expectedIndex]!.locator).toBeFocused();
+    expectedIndex += 1;
+  }
+
+  expect(
+    expectedIndex,
+    `Keyboard focus did not reach ${controls[expectedIndex]?.label ?? "every required comparison control"}.`,
+  ).toBe(controls.length);
+}
 
 test("compares a selected family recipe with the open recipe without signing in", async ({
   page,
@@ -69,30 +110,64 @@ test("compares a selected family recipe with the open recipe without signing in"
   await expect(page).toHaveURL(
     `/recipes/${targetRecipeVersionId}/compare?base_version_id=${parentRecipeVersionId}`,
   );
-  await expect(
-    page.getByRole("heading", {
-      name: "How Lower-Sugar Pecan Carrot Cake changed",
-      level: 1,
-    }),
-  ).toBeVisible();
-
-  await expectCarrotComparisonToExplainItsChanges(page);
-
-  const comparedRecipes = page.getByRole("navigation", {
-    name: "Compared recipes",
+  const comparison = await expectCarrotComparisonToShowCompleteRecipe(page, {
+    baseRecipeVersionId: parentRecipeVersionId,
+    targetRecipeVersionId,
   });
-  const parentLink = comparedRecipes.getByRole("link", {
-    name: /starting recipe.*carrot walnut snack cake/i,
-  });
-  await expect(
-    comparedRecipes.getByRole("link", {
-      name: /this recipe.*lower-sugar pecan carrot cake/i,
-    }),
-  ).toBeVisible();
-  await parentLink.focus();
-  await expect(parentLink).toBeFocused();
+
+  const comparisonHero = page.locator(".recipe-comparison-hero");
+  await expectControlsInKeyboardOrder(page, [
+    {
+      label: "the Explore breadcrumb",
+      locator: page
+        .getByRole("navigation", { name: "Breadcrumb" })
+        .getByRole("link", { name: "Explore", exact: true }),
+    },
+    {
+      label: "View starting recipe",
+      locator: comparisonHero.getByRole("link", {
+        name: "View starting recipe",
+        exact: true,
+      }),
+    },
+    {
+      label: "Back to the current recipe",
+      locator: comparisonHero.getByRole("link", {
+        name: "Back to Lower-Sugar Pecan Carrot Cake",
+        exact: true,
+      }),
+    },
+    { label: "Changes", locator: comparison.changesLink },
+    { label: "Recipe", locator: comparison.recipeLink },
+    { label: "Family", locator: comparison.familyLink },
+  ]);
+
+  await page.goto(comparison.comparisonHref);
+
+  await reachWithKeyboard(page, comparison.changesLink);
+  await expect(comparison.changesLink).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(`/recipes/${parentRecipeVersionId}`);
+  await expect(page).toHaveURL(comparison.comparisonHref);
+
+  const recipeLink = page
+    .getByRole("navigation", { name: "Recipe views" })
+    .getByRole("link", { name: "Recipe", exact: true });
+  await reachWithKeyboard(page, recipeLink);
+  await expect(recipeLink).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(`/recipes/${targetRecipeVersionId}`);
+
+  await page.goto(comparison.comparisonHref);
+  const familyLink = page
+    .getByRole("navigation", { name: "Recipe views" })
+    .getByRole("link", { name: "Family", exact: true });
+  await reachWithKeyboard(page, familyLink);
+  await expect(familyLink).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(comparison.familyHref);
+  await expect(
+    page.getByRole("tab", { name: "Family", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
 });
 
 test("keeps the selected family comparison usable at a phone viewport", async ({
@@ -123,9 +198,16 @@ test("keeps the selected family comparison usable at a phone viewport", async ({
   await expect(compareLink).toBeFocused();
   await page.keyboard.press("Enter");
 
-  const summary = await expectCarrotComparisonToExplainItsChanges(page);
-  await summary.scrollIntoViewIfNeeded();
-  await expect(summary).toBeInViewport();
+  const targetMatch = childRecipeHref!.match(/^\/recipes\/([^/]+)$/);
+  if (!targetMatch) {
+    throw new Error("Could not read the child recipe version identifier.");
+  }
+  const comparison = await expectCarrotComparisonToShowCompleteRecipe(page, {
+    baseRecipeVersionId: parentRecipeVersionId,
+    targetRecipeVersionId: decodeURIComponent(targetMatch[1]),
+  });
+  await comparison.ingredients.scrollIntoViewIfNeeded();
+  await expect(comparison.ingredients).toBeInViewport();
   expect(
     await page.evaluate(
       () =>
@@ -134,11 +216,18 @@ test("keeps the selected family comparison usable at a phone viewport", async ({
     ),
   ).toBe(true);
 
-  const sourceLink = page
-    .getByRole("navigation", { name: "Compared recipes" })
-    .getByRole("link", { name: /starting recipe.*carrot walnut snack cake/i });
-  await sourceLink.focus();
-  await expect(sourceLink).toBeFocused();
+  await comparison.instructions.scrollIntoViewIfNeeded();
+  await expect(comparison.instructions).toBeInViewport();
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth ===
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+
+  await comparison.familyLink.focus();
+  await expect(comparison.familyLink).toBeFocused();
 });
 
 test("requires sign-in for save, rate, recorded-view, and fork actions", async ({

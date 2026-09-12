@@ -104,7 +104,7 @@ describe("CSS architecture", () => {
     expect(
       reservedSelectorOwnershipErrors(
         "app/styles/features/recipe-comparison.css",
-        ".recipe-comparison-page, .recipe-diff-view__header, .recipe-diff-entry--added, .page-loading__recipe-body--comparison {}",
+        ".recipe-comparison-page, .recipe-comparison-hero__version, .recipe-comparison-ingredient-row--added, .recipe-comparison-instruction-value__text, .recipe-comparison-notes__previous, .recipe-comparison-loading__strip, .recipe-diff-view, .recipe-diff-content, .page-loading__recipe-body--comparison {}",
       ),
     ).toEqual([]);
   });
@@ -113,12 +113,16 @@ describe("CSS architecture", () => {
     expect(
       reservedSelectorOwnershipErrors(
         "app/styles/features/recipe-reading.css",
-        ".recipe-diff-view, .recipe-diff-kind--secondary, .recipe-comparison-page {}",
+        ".recipe-diff-view, .recipe-diff-content, .recipe-comparison-page, .recipe-comparison-ingredient-row--added, .recipe-comparison-instruction-value__text, .recipe-comparison-loading__strip, .page-loading__recipe-body--comparison {}",
       ),
     ).toEqual([
       'app/styles/features/recipe-reading.css must not own selector ".recipe-diff-view"; .recipe-diff-view belongs to app/styles/features/recipe-comparison.css.',
-      'app/styles/features/recipe-reading.css must not own selector ".recipe-diff-kind--secondary"; .recipe-diff-kind belongs to app/styles/features/recipe-comparison.css.',
+      'app/styles/features/recipe-reading.css must not own selector ".recipe-diff-content"; .recipe-diff-content belongs to app/styles/features/recipe-comparison.css.',
       'app/styles/features/recipe-reading.css must not own selector ".recipe-comparison-page"; .recipe-comparison-page belongs to app/styles/features/recipe-comparison.css.',
+      'app/styles/features/recipe-reading.css must not own selector ".recipe-comparison-ingredient-row--added"; .recipe-comparison-ingredient-row belongs to app/styles/features/recipe-comparison.css.',
+      'app/styles/features/recipe-reading.css must not own selector ".recipe-comparison-instruction-value__text"; .recipe-comparison-instruction-value belongs to app/styles/features/recipe-comparison.css.',
+      'app/styles/features/recipe-reading.css must not own selector ".recipe-comparison-loading__strip"; .recipe-comparison-loading belongs to app/styles/features/recipe-comparison.css.',
+      'app/styles/features/recipe-reading.css must not own selector ".page-loading__recipe-body--comparison"; .page-loading__recipe-body--comparison belongs to app/styles/features/recipe-comparison.css.',
     ]);
   });
 

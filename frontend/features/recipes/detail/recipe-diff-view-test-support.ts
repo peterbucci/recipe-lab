@@ -241,7 +241,3 @@ export function sectionNamed(name: string | RegExp): HTMLElement {
   return section!;
 }
 
-export function articleNamed(name: string | RegExp): HTMLElement {
-  return screen.getByRole("article", { name });
-}
-

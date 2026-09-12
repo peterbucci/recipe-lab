@@ -884,41 +884,73 @@ export async function verifyPublicLineage(
     await expect(compare).toHaveAttribute("href", comparisonPath);
     await compare.click();
     await expect(publicPage).toHaveURL(comparisonPath);
+    const comparisonHero = publicPage.locator(".recipe-comparison-hero");
     await expect(
-      publicPage.getByRole("heading", {
-        name: `How ${childTitle} changed`,
+      comparisonHero.getByRole("heading", {
+        name: childTitle,
         level: 1,
       }),
     ).toBeVisible();
-    const summary = publicPage.getByRole("list", {
-      name: "Changes at a glance",
+    const previousTitle = comparisonHero
+      .locator(".recipe-comparison-previous")
+      .filter({ hasText: "Previous title" });
+    await expect(previousTitle).toHaveCount(1);
+    await expect(previousTitle.locator("del")).toHaveText(rootTitle);
+
+    const ingredients = publicPage.getByRole("region", {
+      name: "Ingredients",
     });
-    await expect(summary).toContainText(
-      `Change ${requestedIngredient} from 100 g to 200 g.`,
+    const ingredientChange = ingredients
+      .locator(".recipe-comparison-ingredient-row--changed")
+      .filter({ hasText: requestedIngredient });
+    await expect(ingredientChange).toHaveCount(1);
+    const currentIngredient = ingredientChange.locator(
+      ':scope > [data-comparison-value="current"]',
     );
-    await expect(summary).toContainText(
-      `Update step 1: ${childDirection}`,
+    const previousIngredient = ingredientChange.locator(
+      ':scope > [data-comparison-value="previous"]',
     );
-    const ingredientChange = publicPage.getByRole("article", {
-      name: `Change ${requestedIngredient} from 100 g to 200 g`,
+    await expect(
+      ingredientChange.locator(
+        ':scope > [data-comparison-value="current"] + [data-comparison-value="previous"]',
+      ),
+    ).toHaveCount(1);
+    await expect(currentIngredient.locator("ins")).toContainText(
+      `200 g ${requestedIngredient}`,
+    );
+    await expect(previousIngredient.locator("del")).toContainText(
+      `100 g ${requestedIngredient}`,
+    );
+    await expect(currentIngredient).toContainText("Amount changed");
+
+    const instructions = publicPage.getByRole("region", {
+      name: "Instructions",
     });
-    await expect(ingredientChange).toContainText("Amount changed");
-    await expect(ingredientChange).toContainText("100 g");
-    await expect(ingredientChange).toContainText("200 g");
-    const instructionChange = publicPage.getByRole("article", {
-      name: "Update step 1",
-    });
-    await expect(instructionChange).toContainText("Wording changed");
-    await expect(instructionChange).toContainText("Timing changed");
-    await expect(instructionChange).toContainText(rootDirection);
-    await expect(instructionChange).toContainText(childDirection);
-    await expect(instructionChange).toContainText("10 min");
-    await expect(instructionChange).toContainText("20 min");
-    const titleChange = publicPage.getByRole("article", {
-      name: "Title",
-    });
-    await expect(titleChange).toContainText(rootTitle);
-    await expect(titleChange).toContainText(childTitle);
+    const instructionChange = instructions
+      .locator(".recipe-comparison-instruction-row--changed")
+      .filter({ hasText: childDirection });
+    await expect(instructionChange).toHaveCount(1);
+    const currentInstruction = instructionChange.locator(
+      ':scope > [data-comparison-value="current"]',
+    );
+    const previousInstruction = instructionChange.locator(
+      ':scope > [data-comparison-value="previous"]',
+    );
+    await expect(
+      instructionChange.locator(
+        ':scope > [data-comparison-value="current"] + [data-comparison-value="previous"]',
+      ),
+    ).toHaveCount(1);
+    await expect(currentInstruction.locator("ins")).toContainText(
+      childDirection,
+    );
+    await expect(currentInstruction.locator("ins")).toContainText("20 min");
+    await expect(previousInstruction.locator("del")).toContainText(
+      rootDirection,
+    );
+    await expect(previousInstruction.locator("del")).toContainText("10 min");
+    await expect(currentInstruction).toContainText("Wording changed");
+    await expect(currentInstruction).toContainText("Timing changed");
     await expectNoAccessibilityViolations(publicPage);
   } finally {
     await publicContext.close();

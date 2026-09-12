@@ -13,7 +13,7 @@ import RecipeBrowseLoading from "./loading";
 
 describe("recipe route states", () => {
   it("announces browse and detail loading states", () => {
-    const { rerender } = render(<RecipeBrowseLoading />);
+    const { container, rerender } = render(<RecipeBrowseLoading />);
     expect(screen.getByText("All recipes")).toBeVisible();
     expect(screen.getByRole("main")).toHaveClass(
       "page-loading--catalog",
@@ -40,6 +40,34 @@ describe("recipe route states", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Loading recipe comparison…",
     );
+    expect(screen.getByRole("main")).toHaveAttribute("aria-busy", "true");
+
+    const comparisonSkeleton = container.querySelector(
+      ".recipe-comparison-loading",
+    );
+    expect(comparisonSkeleton).toHaveAttribute("aria-hidden", "true");
+    expect(
+      comparisonSkeleton?.querySelector(".page-loading__recipe-hero"),
+    ).toBeInTheDocument();
+    expect(
+      comparisonSkeleton?.querySelectorAll(
+        ".page-loading__recipe-tabs > .loading-block",
+      ),
+    ).toHaveLength(3);
+    expect(
+      comparisonSkeleton?.querySelectorAll(
+        ".recipe-comparison-loading__legend > .loading-block",
+      ),
+    ).toHaveLength(4);
+
+    const comparisonBody = comparisonSkeleton?.querySelector(
+      ".page-loading__recipe-body--comparison",
+    );
+    expect(comparisonBody).toBeInTheDocument();
+    expect(comparisonBody?.children).toHaveLength(2);
+    expect(
+      comparisonSkeleton?.querySelector(".recipe-comparison-loading__notes"),
+    ).toBeInTheDocument();
   });
 
   it("offers a retry for service errors", () => {
