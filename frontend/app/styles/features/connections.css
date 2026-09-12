@@ -29,13 +29,9 @@
   height: 1rem;
 }
 .member-connections-page__frame {
-  border-radius: 0.875rem;
+  --workspace-panel-mobile-gutter: 1rem;
+  --workspace-panel-radius: 0.875rem;
   box-shadow: var(--shadow-panel-subtle);
-}
-.member-connections-page__content {
-  background: #fcfcfe;
-  min-height: 16rem;
-  padding: 1.25rem;
 }
 .member-connections-page__list {
   gap: 0.65rem;
@@ -158,11 +154,6 @@
   }
   .member-connections-page__activity {
     width: 100%;
-  }
-  .member-connections-page__frame {
-    border-inline: 0;
-    border-radius: 0;
-    margin-inline: -1rem;
   }
   .member-connections-page__content {
     padding: 1rem;

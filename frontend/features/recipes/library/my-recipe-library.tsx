@@ -333,7 +333,7 @@ export function MyRecipeLibrary({ pageNumber, view }: MyRecipeLibraryProps) {
     >
       <MyRecipesHubHeader />
 
-      <div className="member-library__frame workspace-panel-shell">
+      <div className="member-library__frame workspace-panel-shell workspace-panel-shell--mobile-bleed">
         <MyRecipesHubNavigation
           activeCount={page && !beyondLastPage ? page.total : null}
           activeView={view}
@@ -352,7 +352,7 @@ export function MyRecipeLibrary({ pageNumber, view }: MyRecipeLibraryProps) {
           title={copy.heading}
         />
 
-        <div className="member-library__content">
+        <div className="member-library__content workspace-panel-body">
           {status ? (
             <p
               className="form-status"

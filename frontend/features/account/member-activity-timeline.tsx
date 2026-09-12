@@ -272,7 +272,7 @@ export function MemberActivityTimeline({ userId }: { userId: string }) {
         </header>
 
         <section
-          className="member-activity-page__shell workspace-panel-shell"
+          className="member-activity-page__shell workspace-panel-shell workspace-panel-shell--mobile-bleed"
           aria-label="Account activity"
         >
           <WorkspaceTabMenu className="member-activity-page__toolbar">

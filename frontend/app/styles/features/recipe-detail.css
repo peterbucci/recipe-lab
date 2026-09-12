@@ -327,31 +327,40 @@
   margin-bottom: 1.875rem;
   display: flex;
 }
-.recipe-detail__section-nav a {
-  color: #737486;
+.recipe-detail__section-tab {
+  appearance: none;
+  color: #666779;
+  font: inherit;
+  cursor: pointer;
+  background: 0 0;
+  border: 0;
   padding: 0 0.0625rem 0.8125rem;
   font-size: 0.75rem;
   font-weight: 750;
-  text-decoration: none;
   position: relative;
 }
-.recipe-detail__section-nav a:after {
+.recipe-detail__section-tab:after {
   content: "";
   background: 0 0;
   border-radius: 999px;
   height: 2px;
   position: absolute;
   bottom: -1px;
-  left: 0;
-  right: 0;
+  left: -0.25rem;
+  right: -0.25rem;
 }
-.recipe-detail__section-nav a:hover,
-.recipe-detail__section-nav a.is-active {
+.recipe-detail__section-tab:hover,
+.recipe-detail__section-tab[aria-selected="true"] {
   color: var(--ink);
 }
-.recipe-detail__section-nav a:hover:after,
-.recipe-detail__section-nav a.is-active:after {
+.recipe-detail__section-tab:hover:after,
+.recipe-detail__section-tab[aria-selected="true"]:after {
   background: var(--leaf);
+}
+.recipe-detail__section-tab:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 0.2rem;
+  border-radius: 0.25rem;
 }
 .recipe-detail__body {
   grid-template-columns: minmax(16.875rem, 22.5rem) minmax(0, 1fr);
@@ -938,9 +947,11 @@
     position: sticky;
     top: 3.625rem;
     overflow-x: auto;
+    overflow-y: hidden;
   }
-  .recipe-detail__section-nav a {
+  .recipe-detail__section-tab {
     white-space: nowrap;
+    flex: none;
   }
   .recipe-detail__body {
     gap: 2.5rem;

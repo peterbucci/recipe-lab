@@ -572,11 +572,4 @@
     inset: auto 0.75rem 0.75rem;
   }
 }
-.member-library__navigation-row {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.9rem;
-  margin-bottom: 0.75rem;
-  display: grid;
-}
 }

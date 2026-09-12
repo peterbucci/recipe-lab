@@ -1,5 +1,9 @@
 @layer features {
 
+.member-library__frame {
+  --workspace-panel-mobile-gutter: 1rem;
+  --workspace-panel-radius: 0.875rem;
+}
 .member-recipe-card--withdrawn .member-recipe-card__artwork,
 .member-recipe-card--moderation_hidden .member-recipe-card__artwork {
   filter: saturate(0.55);
@@ -336,12 +340,6 @@
     width: 1.15rem;
     height: 1.15rem;
   }
-  .member-library__frame {
-    border-left: 0;
-    border-right: 0;
-    border-radius: 0;
-    margin-inline: -1rem;
-  }
   .member-library__content {
     padding: 0.75rem;
   }
@@ -428,12 +426,6 @@
     background: canvas;
     border: 1px solid canvastext;
   }
-}
-
-/* Ingredient request workspaces: compact member history and curator queue. */
-.account-ingredient-requests-page.member-request-page {
-  width: min(74rem, 100% - 3rem);
-  padding-block: 1.875rem 4.25rem;
 }
 
 }
