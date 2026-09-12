@@ -25,22 +25,42 @@ export const RESERVED_SELECTOR_OWNERS = Object.freeze({
   "workspace-panel-header": "app/styles/primitives.css",
   "workspace-panel-shell": "app/styles/primitives.css",
   "recipe-comparison-page": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-hero": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-previous": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-strip": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-nav": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-legend": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-content": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-body": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-ingredients": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-section-heading":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-ingredient-list":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-ingredient-row":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-ingredient-value":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-ingredient-labels":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-instructions":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-instruction-list":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-instruction-row":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-instruction-value":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-instruction-labels":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-actions": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-action": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-notes-area":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-notes": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-loading": "app/styles/features/recipe-comparison.css",
   "recipe-diff-view": "app/styles/features/recipe-comparison.css",
-  "recipe-diff-versions": "app/styles/features/recipe-comparison.css",
   "recipe-diff-content": "app/styles/features/recipe-comparison.css",
-  "recipe-diff-overview": "app/styles/features/recipe-comparison.css",
-  "recipe-diff-highlights": "app/styles/features/recipe-comparison.css",
-  "recipe-diff-group": "app/styles/features/recipe-comparison.css",
-  "recipe-diff-list": "app/styles/features/recipe-comparison.css",
-  "recipe-diff-entry": "app/styles/features/recipe-comparison.css",
-  "recipe-diff-kinds": "app/styles/features/recipe-comparison.css",
-  "recipe-diff-kind": "app/styles/features/recipe-comparison.css",
-  "recipe-diff-values": "app/styles/features/recipe-comparison.css",
-  "recipe-diff-value": "app/styles/features/recipe-comparison.css",
-  "recipe-diff-single-value": "app/styles/features/recipe-comparison.css",
-  "recipe-diff-ingredient": "app/styles/features/recipe-comparison.css",
-  "recipe-diff-instruction": "app/styles/features/recipe-comparison.css",
-  "recipe-diff-empty": "app/styles/features/recipe-comparison.css",
   "page-loading__recipe-body--comparison":
     "app/styles/features/recipe-comparison.css",
 });

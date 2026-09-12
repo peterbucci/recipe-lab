@@ -4,14 +4,13 @@ import { LoadingBlock } from "./loading-ui";
 export type PageLoadingVariant =
   | "authoring"
   | "catalog"
-  | "comparison"
   | "cook"
   | "member"
   | "recipe"
   | "settings"
   | "staff";
 
-function RecipePageSkeleton({ comparison = false }: { comparison?: boolean }) {
+function RecipePageSkeleton() {
   return (
     <div className="page-loading__recipe" aria-hidden="true">
       <div className="page-loading__recipe-hero">
@@ -38,11 +37,7 @@ function RecipePageSkeleton({ comparison = false }: { comparison?: boolean }) {
           <LoadingBlock key={index} />
         ))}
       </div>
-      <div
-        className={`page-loading__recipe-body${
-          comparison ? " page-loading__recipe-body--comparison" : ""
-        }`}
-      >
+      <div className="page-loading__recipe-body">
         <div>
           <LoadingBlock className="loading-block--heading" />
           {Array.from({ length: 5 }, (_, index) => (
@@ -225,10 +220,7 @@ export function PageLoadingSkeleton({
   title,
   variant,
 }: PageLoadingSkeletonProps) {
-  const detailVariant =
-    variant === "authoring" ||
-    variant === "comparison" ||
-    variant === "recipe";
+  const detailVariant = variant === "authoring" || variant === "recipe";
   return (
     <main
       id="main-content"
@@ -241,9 +233,7 @@ export function PageLoadingSkeleton({
         label={label}
       />
       {variant === "catalog" ? <CatalogPageSkeleton /> : null}
-      {detailVariant ? (
-        <RecipePageSkeleton comparison={variant === "comparison"} />
-      ) : null}
+      {detailVariant ? <RecipePageSkeleton /> : null}
       {variant === "cook" ? <CookPageSkeleton /> : null}
       {variant === "member" ? <MemberPageSkeleton title={title} /> : null}
       {variant === "staff" ? (
