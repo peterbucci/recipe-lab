@@ -13,6 +13,11 @@ import {
   parseRecipeBrowseType,
 } from "../../features/recipes/browse/recipe-browse-query";
 import { RecipeBrowser } from "../../features/recipes/browse/recipe-browser";
+import {
+  firstQueryValue,
+  parseAllowedQueryValue,
+  parsePositivePageNumber,
+} from "../../shared/navigation/query-params";
 
 export const dynamic = "force-dynamic";
 
@@ -31,23 +36,7 @@ interface RecipeBrowsePageProps {
   }>;
 }
 
-function firstValue(value: string | string[] | undefined): string {
-  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
-}
-
-function pageNumber(value: string | string[] | undefined): number {
-  const candidate = firstValue(value);
-  if (!/^\d+$/.test(candidate)) {
-    return 1;
-  }
-  const parsed = Number(candidate);
-  return Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= 1_000_000 ? parsed : 1;
-}
-
-function sortValue(value: string | string[] | undefined): "newest" | "title" {
-  const candidate = firstValue(value);
-  return candidate === "title" ? "title" : "newest";
-}
+const RECIPE_BROWSE_SORTS = ["newest", "title"] as const;
 
 function activeCategory(
   slug: string,
@@ -65,10 +54,14 @@ function activeCategory(
 
 export default async function RecipeBrowsePage({ searchParams }: RecipeBrowsePageProps) {
   const parameters = await searchParams;
-  const categorySlug = firstValue(parameters.category).trim();
-  const query = firstValue(parameters.q).trim();
-  const page = pageNumber(parameters.page);
-  const sort = sortValue(parameters.sort);
+  const categorySlug = firstQueryValue(parameters.category)?.trim() ?? "";
+  const query = firstQueryValue(parameters.q)?.trim() ?? "";
+  const page = parsePositivePageNumber(parameters.page);
+  const sort = parseAllowedQueryValue(
+    parameters.sort,
+    RECIPE_BROWSE_SORTS,
+    "newest",
+  );
   const recipeType = parseRecipeBrowseType(parameters.type);
   const [recipeResult, categoryResult] = await Promise.allSettled([
     fetchRecipePage({

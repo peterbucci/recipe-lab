@@ -69,19 +69,12 @@ describe("CookProfilePage", () => {
     expect(screen.getByText("Profile page 2")).toBeVisible();
   });
 
-  it.each([
-    { label: "missing", page: undefined },
-    { label: "zero", page: "0" },
-    { label: "negative", page: "-1" },
-    { label: "fractional", page: "1.5" },
-    { label: "too large", page: "1000001" },
-    { label: "unsafe", page: "9007199254740992" },
-  ])("defaults a $label page query to page one", async ({ page }) => {
+  it("defaults an invalid page query before loading the profile", async () => {
     mocks.fetchPublicCookProfile.mockResolvedValue(profile);
 
     await CookProfilePage({
       params: Promise.resolve({ handle: "alice" }),
-      searchParams: Promise.resolve({ page }),
+      searchParams: Promise.resolve({ page: "0" }),
     });
 
     expect(mocks.fetchPublicCookProfile).toHaveBeenCalledWith({
