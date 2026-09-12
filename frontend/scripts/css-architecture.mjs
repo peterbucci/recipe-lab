@@ -24,6 +24,45 @@ export const RESERVED_SELECTOR_OWNERS = Object.freeze({
   "workspace-panel-body": "app/styles/primitives.css",
   "workspace-panel-header": "app/styles/primitives.css",
   "workspace-panel-shell": "app/styles/primitives.css",
+  "recipe-instruction-view-tabs":
+    "app/styles/patterns/recipe-instruction-tabs.css",
+  "recipe-comparison-page": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-hero": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-previous": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-strip": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-legend": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-content": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-body": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-ingredients": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-section-heading":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-ingredient-list":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-ingredient-row":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-ingredient-value":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-ingredient-labels":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-instructions":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-instruction-list":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-instruction-row":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-instruction-value":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-instruction-labels":
+    "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-actions": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-action": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-notes": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-tabs": "app/styles/features/recipe-comparison.css",
+  "recipe-comparison-loading": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-view": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-content": "app/styles/features/recipe-comparison.css",
+  "page-loading__recipe-body--comparison":
+    "app/styles/features/recipe-comparison.css",
 });
 
 function stylesheetPaths(directory) {

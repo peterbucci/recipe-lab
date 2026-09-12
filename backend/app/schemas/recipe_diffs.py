@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.recipe_categories import RecipeCategorySummary
 from app.schemas.recipes import (
     RecipeIngredientResponse,
     RecipeInstructionResponse,
@@ -43,6 +44,11 @@ class RecipeFieldChange(BaseModel):
     after: RecipeFieldValue
 
 
+class RecipeCategoryDiff(BaseModel):
+    added: list[RecipeCategorySummary] = Field(default_factory=list)
+    removed: list[RecipeCategorySummary] = Field(default_factory=list)
+
+
 class RecipeIngredientPairChange(BaseModel):
     before: RecipeIngredientResponse
     after: RecipeIngredientResponse
@@ -63,9 +69,18 @@ class RecipeIngredientContext(BaseModel):
     target: list[RecipeIngredientResponse] = Field(default_factory=list)
 
 
+class RecipeInstructionActionMatch(BaseModel):
+    """One semantically paired action across regenerated snapshot rows."""
+
+    before_id: UUID
+    after_id: UUID
+
+
 class RecipeInstructionPairChange(BaseModel):
     before: RecipeInstructionResponse
     after: RecipeInstructionResponse
+    unchanged_action_pairs: list[RecipeInstructionActionMatch]
+    modified_action_pairs: list[RecipeInstructionActionMatch]
     changed_fields: list[RecipeInstructionChangedField] = Field(min_length=1)
 
 
@@ -80,6 +95,7 @@ class RecipeDiffResponse(BaseModel):
     base_version: RecipeVersionReference
     target_version: RecipeVersionReference
     metadata_changes: list[RecipeFieldChange] = Field(default_factory=list)
+    categories: RecipeCategoryDiff
     ingredients: RecipeIngredientDiff
     ingredient_context: RecipeIngredientContext
     instructions: RecipeInstructionDiff

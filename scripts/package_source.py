@@ -292,12 +292,24 @@ EXPORT_POLICY = PackagingPolicy(
             "fedaff7547cee8b3550a7ca3efd7eccba2aed9db",
         ),
         (
+            "frontend/baselines/baseline-desktop-chromium/recipe-comparison-cooking-breakdown.png",
+            "8754afdd76079296354933a666867960f08f5354",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/recipe-comparison-intermediate-cooking-breakdown.png",
+            "b7bc7df0b1056325688310ea841aa26e852923c8",
+        ),
+        (
             "frontend/baselines/baseline-desktop-chromium/recipe-comparison-intermediate-normal.png",
-            "79ea4e9966f7f2f792876422b9fc9b9da6bba8fc",
+            "27cdde516d8639a9e646199724cfda703b367b24",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-comparison-normal.png",
-            "58cbe5dcac95a70ff8cae00f19b788f50286d432",
+            "703cfd6a0833cc52634a62c399c48987fdecc1e8",
+        ),
+        (
+            "frontend/baselines/baseline-desktop-chromium/recipe-comparison-top-normal.png",
+            "81619d8eaabc98e7daa2923f9c626729ecd580b8",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/recipe-detail-error.png",
@@ -444,8 +456,16 @@ EXPORT_POLICY = PackagingPolicy(
             "b276779cbf356bcf2a1231759eebed56660a23d0",
         ),
         (
+            "frontend/baselines/baseline-phone-chromium/recipe-comparison-cooking-breakdown.png",
+            "a286db7f99ebcc4417d7857f72a069ed7671f9b3",
+        ),
+        (
             "frontend/baselines/baseline-phone-chromium/recipe-comparison-normal.png",
-            "c3af05796ae41ae04a2ad2afbf5bbcfe83113d63",
+            "a2c86c57cbac7e143275d91de65bda61e32a8456",
+        ),
+        (
+            "frontend/baselines/baseline-phone-chromium/recipe-comparison-top-normal.png",
+            "70daf9776fe9f1b08662a28a7f53178e6dfad303",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-detail-history.png",

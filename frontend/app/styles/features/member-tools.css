@@ -500,13 +500,6 @@
   }
 }
 @media (forced-colors: active) {
-  .recipe-diff-entry,
-  .recipe-diff-kind,
-  .recipe-diff-values,
-  .recipe-diff-single-value,
-  .recipe-diff-versions,
-  .recipe-diff-versions li + li,
-  .recipe-diff-value + .recipe-diff-value,
   .instruction-actions > li,
   .structured-action__card,
   .structured-action__input-options label,
@@ -514,11 +507,6 @@
   .duplicate-preflight-review__decision > label {
     border-color: canvastext;
   }
-  .recipe-diff-entry,
-  .recipe-diff-kind,
-  .recipe-diff-value,
-  .recipe-diff-single-value,
-  .recipe-diff-versions a:hover,
   .duplicate-preflight-review {
     background: canvas;
   }

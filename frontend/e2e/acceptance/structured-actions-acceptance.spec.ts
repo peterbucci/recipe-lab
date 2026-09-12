@@ -74,6 +74,38 @@ test.describe("structured cooking action acceptance", () => {
     ).toHaveCount(0);
 
     await page.getByLabel("Title", { exact: true }).fill(draftTitle);
+    await page
+      .getByRole("button", { name: "Edit categories", exact: true })
+      .click();
+    const categoryEditor = page.getByRole("dialog", {
+      name: "Edit recipe categories",
+      exact: true,
+    });
+    const categoryChoices = categoryEditor.getByRole("group", {
+      name: "Curated recipe categories",
+      exact: true,
+    });
+    await expect(
+      categoryChoices.getByRole("checkbox", {
+        name: "Desserts",
+        exact: true,
+      }),
+    ).toBeChecked();
+    await expect(
+      categoryChoices.getByRole("checkbox", {
+        name: "Vegetarian",
+        exact: true,
+      }),
+    ).toBeChecked();
+    await categoryChoices
+      .getByRole("checkbox", { name: "Desserts", exact: true })
+      .uncheck();
+    await categoryChoices
+      .getByRole("checkbox", { name: "Dinner", exact: true })
+      .check();
+    await categoryEditor
+      .getByRole("button", { name: "Done", exact: true })
+      .click();
     const firstStep = page.getByRole("group", { name: "Step 1", exact: true });
     await firstStep.getByLabel("Step title", { exact: true }).fill(stepTitle);
     await firstStep
@@ -468,17 +500,176 @@ test.describe("structured cooking action acceptance", () => {
     await expect(compare).toHaveAttribute("href", comparisonPath);
     await compare.click();
     await expect(page).toHaveURL(comparisonPath);
-    const changedInstruction = page.getByRole("article", {
-      name: "Update step 1",
-      exact: true,
-    });
-    await expect(changedInstruction).toContainText("Step title changed");
-    await expect(changedInstruction).toContainText("Wording changed");
-    await expect(changedInstruction).toContainText(
-      "Order within the step changed",
+    const comparisonHero = page.locator(".recipe-comparison-hero");
+    await expect(
+      comparisonHero.getByRole("heading", {
+        name: draftTitle,
+        exact: true,
+        level: 1,
+      }),
+    ).toBeVisible();
+    const titleChange = comparisonHero.locator(
+      '[data-comparison-field="title"]',
     );
-    await expect(changedInstruction).toContainText("Timing changed");
-    await expect(changedInstruction).toContainText("Temperature changed");
+    await expect(titleChange).toHaveCount(1);
+    await expect(
+      titleChange.locator('[data-comparison-value="current"] ins'),
+    ).toHaveText(draftTitle);
+    await expect(
+      titleChange.getByText("Title changed", { exact: true }),
+    ).toHaveClass(/visually-hidden/);
+    await expect(
+      titleChange.locator(".recipe-comparison-hero__change-marker"),
+    ).toBeVisible();
+    await expect(
+      titleChange.locator('[data-comparison-value="previous"] del'),
+    ).toHaveText(
+      "Carrot Walnut Snack Cake",
+    );
+
+    const comparisonCategories = comparisonHero.getByRole("list", {
+      name: `Categories for ${draftTitle}`,
+    });
+    const comparisonCategoryItems =
+      comparisonCategories.getByRole("listitem");
+    const addedCategory = comparisonCategories.locator(
+      ':scope > [data-category-status="added"]',
+    );
+    const unchangedCategory = comparisonCategories.locator(
+      ':scope > [data-category-status="unchanged"]',
+    );
+    const removedCategory = comparisonCategories.locator(
+      ':scope > [data-category-status="removed"]',
+    );
+    await expect(comparisonCategoryItems).toHaveCount(3);
+    expect(
+      await comparisonCategoryItems.evaluateAll((items) =>
+        items.map((item) => item.getAttribute("data-category-status")),
+      ),
+    ).toEqual(["added", "unchanged", "removed"]);
+    await expect(addedCategory.locator("ins")).toContainText("Dinner");
+    await expect(addedCategory.locator(".visually-hidden")).toHaveText(
+      "Added category:",
+    );
+    await expect(unchangedCategory).toHaveText("Vegetarian");
+    await expect(unchangedCategory.locator("ins, del")).toHaveCount(0);
+    await expect(removedCategory.locator("del")).toContainText("Desserts");
+    await expect(removedCategory.locator(".visually-hidden")).toHaveText(
+      "Removed category:",
+    );
+
+    const instructions = page.getByRole("region", { name: "Instructions" });
+    const changedInstruction = instructions
+      .locator(".recipe-comparison-instruction-row--changed")
+      .filter({ has: page.getByText(revisedProse, { exact: true }) });
+    await expect(changedInstruction).toHaveCount(1);
+    await expect(
+      changedInstruction.getByText("Changed", { exact: true }),
+    ).toBeVisible();
+
+    const currentInstruction = changedInstruction.locator(
+      ':scope > [data-comparison-value="current"]',
+    );
+    const previousInstruction = changedInstruction.locator(
+      ':scope > [data-comparison-value="previous"]',
+    );
+    await expect(
+      changedInstruction.locator(
+        ':scope > [data-comparison-value="current"] + [data-comparison-value="previous"]',
+      ),
+    ).toHaveCount(1);
+    await expect(currentInstruction.locator("ins")).toContainText(
+      revisedProse,
+    );
+    await expect(previousInstruction.locator("del")).toContainText(
+      "Heat the oven to 180°C (350°F), grease a 20 cm square pan, and line its base.",
+    );
+
+    const changeLabels = changedInstruction.getByRole("list", {
+      name: "Changes to step 1",
+    });
+    for (const label of ["Step title changed", "Wording changed"]) {
+      await expect(changeLabels.getByText(label, { exact: true })).toBeVisible();
+    }
+
+    await instructions
+      .getByRole("tab", { name: "Cooking breakdown", exact: true })
+      .click();
+    const breakdownInstruction = instructions
+      .locator(
+        "#recipe-comparison-instructions-breakdown-panel .recipe-comparison-instruction-row--changed",
+      )
+      .filter({
+        has: page.getByRole("list", {
+          name: "Cooking action comparison for step 1",
+        }),
+      });
+    await expect(breakdownInstruction).toHaveCount(1);
+    const breakdownChangeLabels = breakdownInstruction.getByRole("list", {
+      name: "Cooking breakdown changes to step 1",
+    });
+    for (const label of [
+      "Ingredients used in the step changed",
+      "Order within the step changed",
+      "Timing changed",
+      "Temperature changed",
+    ]) {
+      await expect(
+        breakdownChangeLabels.getByText(label, { exact: true }),
+      ).toBeVisible();
+    }
+
+    const actions = breakdownInstruction.getByRole("list", {
+      name: "Cooking action comparison for step 1",
+    });
+    const changedActionRows = actions.locator(
+      ':scope > .recipe-comparison-action[data-action-status="changed"]',
+    );
+    await expect(changedActionRows).toHaveCount(3);
+    await expect(
+      actions.locator(
+        ':scope > .recipe-comparison-action[data-action-status="removed"]',
+      ),
+    ).toHaveCount(0);
+    await expect(
+      actions.locator(
+        ':scope > .recipe-comparison-action[data-action-status="added"]',
+      ),
+    ).toHaveCount(0);
+    await expect(changedActionRows.nth(0)).toContainText("Changed action:");
+
+    await expect(changedActionRows.nth(0)).toContainText("Grease");
+    await expect(changedActionRows.nth(0).locator("del")).toContainText(
+      "Vegetable oil",
+    );
+    await expect(changedActionRows.nth(0).locator("ins")).toContainText(
+      "White sugar",
+    );
+    await expect(changedActionRows.nth(1)).toContainText("Preheat");
+    await expect(
+      changedActionRows
+        .nth(1)
+        .locator(":scope > .recipe-comparison-action__details del"),
+    ).toContainText("180 °C");
+    await expect(
+      changedActionRows
+        .nth(1)
+        .locator(":scope > .recipe-comparison-action__details ins"),
+    ).toContainText("175 °C");
+    await expect(changedActionRows.nth(2)).toContainText("Line pan");
+    await expect(
+      changedActionRows.nth(2).locator(":scope > .recipe-comparison-action__main ins"),
+    ).toContainText("Vegetable oil");
+    await expect(
+      changedActionRows
+        .nth(2)
+        .locator(":scope > .recipe-comparison-action__details ins"),
+    ).toContainText("2.5 minutes");
+    await expect(
+      breakdownInstruction.locator(
+        ".recipe-comparison-instruction-row__step-number",
+      ),
+    ).toHaveText("1");
     await expectNoAccessibilityViolations(page);
   });
 });

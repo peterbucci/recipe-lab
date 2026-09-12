@@ -1,0 +1,425 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
+
+import { PublicCookAttribution } from "../../community/public-cook-attribution";
+import { relativeTimeLabel } from "../../../shared/time/relative-time";
+import { RecipeArtwork } from "../shared/recipe-artwork";
+import type {
+  RecipeDifficulty,
+  RecipeFieldChange,
+  RecipeFieldValue,
+} from "../shared/recipe-contracts";
+import {
+  formatRecipeDifficulty,
+  formatRecipeDuration,
+  formatServings,
+} from "../shared/recipe-format";
+import type {
+  RecipeCategoryComparisonRow,
+  RecipeComparisonModel,
+} from "./recipe-comparison-model";
+
+function authorInitial(displayName: string): string {
+  return displayName.trim().charAt(0).toLocaleUpperCase() || "C";
+}
+
+function textValue(value: RecipeFieldValue): string {
+  if (value === null || (typeof value === "string" && value.trim() === "")) {
+    return "Not provided";
+  }
+  return String(value);
+}
+
+function priorFieldValue(change: RecipeFieldChange): string {
+  if (change.field === "servings") {
+    return change.before === null
+      ? "Not provided"
+      : formatServings(String(change.before));
+  }
+  if (
+    change.field === "total_time_minutes" ||
+    change.field === "active_time_minutes"
+  ) {
+    const minutes =
+      typeof change.before === "number"
+        ? change.before
+        : Number(change.before);
+    return formatRecipeDuration(Number.isFinite(minutes) ? minutes : null);
+  }
+  if (change.field === "difficulty") {
+    const difficulty: RecipeDifficulty | null =
+      change.before === "easy" ||
+      change.before === "medium" ||
+      change.before === "hard"
+        ? change.before
+        : null;
+    return formatRecipeDifficulty(difficulty);
+  }
+  return textValue(change.before);
+}
+
+function PriorValue({
+  change,
+  label = "Was",
+}: {
+  change: RecipeFieldChange | undefined;
+  label?: string;
+}) {
+  if (!change) return null;
+
+  return (
+    <small className="recipe-comparison-previous">
+      <strong>{label}</strong>
+      <del>{priorFieldValue(change)}</del>
+    </small>
+  );
+}
+
+function HeroChangeStatus({ label }: { label: string }) {
+  return (
+    <small className="recipe-comparison-hero__change-status">
+      <span
+        className="recipe-comparison-hero__change-marker"
+        aria-hidden="true"
+      >
+        ±
+      </span>
+      <span className="recipe-comparison-hero__change-label visually-hidden">
+        {label}
+      </span>
+    </small>
+  );
+}
+
+function HeroPreviousValue({
+  change,
+  fieldLabel,
+}: {
+  change: RecipeFieldChange;
+  fieldLabel: string;
+}) {
+  return (
+    <small
+      className="recipe-comparison-previous recipe-comparison-hero__previous-value"
+      data-comparison-value="previous"
+    >
+      <span
+        className="recipe-comparison-hero__previous-marker"
+        aria-hidden="true"
+      >
+        −
+      </span>
+      <strong>
+        Previous
+        <span className="visually-hidden"> {fieldLabel}</span>
+      </strong>
+      <del>{priorFieldValue(change)}</del>
+    </small>
+  );
+}
+
+function HeroMetadataChange({
+  change,
+  children,
+  field,
+  statusLabel,
+}: {
+  change: RecipeFieldChange;
+  children: ReactNode;
+  field: "title" | "description";
+  statusLabel: string;
+}) {
+  return (
+    <div
+      className={`recipe-comparison-hero__metadata-change recipe-comparison-hero__metadata-change--${field}`}
+      data-comparison-field={field}
+    >
+      <div
+        className="recipe-comparison-hero__current-value"
+        data-comparison-value="current"
+      >
+        {children}
+        <HeroChangeStatus label={statusLabel} />
+      </div>
+      <HeroPreviousValue change={change} fieldLabel={field} />
+    </div>
+  );
+}
+
+function RecipeComparisonTitle({
+  change,
+  headingId,
+  title,
+}: {
+  change: RecipeFieldChange | undefined;
+  headingId: string;
+  title: string;
+}) {
+  if (!change) {
+    return <h1 id={headingId}>{title}</h1>;
+  }
+
+  return (
+    <HeroMetadataChange
+      change={change}
+      field="title"
+      statusLabel="Title changed"
+    >
+      <h1 id={headingId}>
+        <ins>{title}</ins>
+      </h1>
+    </HeroMetadataChange>
+  );
+}
+
+function RecipeComparisonDescription({
+  change,
+  description,
+}: {
+  change: RecipeFieldChange | undefined;
+  description: string | null;
+}) {
+  if (!change) {
+    return description ? (
+      <p className="recipe-comparison-hero__description">{description}</p>
+    ) : null;
+  }
+
+  return (
+    <HeroMetadataChange
+      change={change}
+      field="description"
+      statusLabel="Description changed"
+    >
+      <p className="recipe-comparison-hero__description">
+        {description ? (
+          <ins>{description}</ins>
+        ) : (
+          <span className="recipe-comparison-hero__metadata-empty">
+            No description provided.
+          </span>
+        )}
+      </p>
+    </HeroMetadataChange>
+  );
+}
+
+function RecipeFact({
+  change,
+  label,
+  value,
+}: {
+  change: RecipeFieldChange | undefined;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>
+        <span>{value}</span>
+        <PriorValue change={change} />
+      </dd>
+    </div>
+  );
+}
+
+function changeLabel(totalChanges: number): string {
+  return `${totalChanges} ${totalChanges === 1 ? "change" : "changes"}`;
+}
+
+function RecipeComparisonCategories({
+  label,
+  rows,
+}: {
+  label: string;
+  rows: readonly RecipeCategoryComparisonRow[];
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <ul className="recipe-comparison-categories" aria-label={label}>
+      {rows.map(({ category, key, status }) => (
+        <li
+          className={`recipe-comparison-category recipe-comparison-category--${status}`}
+          data-category-status={status}
+          key={key}
+        >
+          {status === "added" ? (
+            <>
+              <span
+                className="recipe-comparison-category__marker"
+                aria-hidden="true"
+              >
+                +
+              </span>
+              <ins>
+                <span className="visually-hidden">Added category: </span>
+                {category.name}
+              </ins>
+            </>
+          ) : status === "removed" ? (
+            <>
+              <span
+                className="recipe-comparison-category__marker"
+                aria-hidden="true"
+              >
+                −
+              </span>
+              <del>
+                <span className="visually-hidden">Removed category: </span>
+                {category.name}
+              </del>
+            </>
+          ) : (
+            category.name
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function RecipeComparisonHero({
+  comparison,
+  headingId,
+}: {
+  comparison: RecipeComparisonModel;
+  headingId: string;
+}) {
+  const { categoryRows, diff, metadataChanges, recipe, totalChanges } =
+    comparison;
+  const isVariation = recipe.parent_version_id !== null;
+  const publicationValue = recipe.published_at ?? recipe.created_at;
+  const publication = relativeTimeLabel(publicationValue);
+
+  return (
+    <header className="recipe-comparison-hero">
+      <RecipeArtwork
+        className="recipe-comparison-hero__artwork"
+        recipeKey={recipe.id}
+      />
+      <div className="recipe-comparison-hero__intro">
+        <div className="recipe-comparison-hero__label-row">
+          <span className="recipe-comparison-hero__version">
+            {isVariation ? `Version ${recipe.version_number}` : "Original"}
+          </span>
+          {publication ? (
+            <time
+              className="recipe-comparison-hero__published"
+              dateTime={publicationValue}
+              title={publication.absoluteLabel}
+            >
+              Published {publication.relativeLabel}
+            </time>
+          ) : null}
+          <span className="recipe-comparison-hero__mode">
+            Comparison view
+          </span>
+        </div>
+
+        <RecipeComparisonTitle
+          change={metadataChanges.title}
+          headingId={headingId}
+          title={recipe.title}
+        />
+
+        {recipe.parent ? (
+          <p className="recipe-comparison-hero__parent-context">
+            Based on{" "}
+            <Link href={`/recipes/${encodeURIComponent(recipe.parent.id)}`}>
+              {recipe.parent.title}
+            </Link>
+            {" by "}
+            <PublicCookAttribution author={recipe.parent.author} />
+          </p>
+        ) : isVariation ? (
+          <p className="recipe-comparison-hero__parent-context">
+            Source unavailable
+          </p>
+        ) : null}
+
+        <RecipeComparisonDescription
+          change={metadataChanges.description}
+          description={recipe.description}
+        />
+
+        <RecipeComparisonCategories
+          label={`Categories for ${recipe.title}`}
+          rows={categoryRows}
+        />
+
+        <div className="recipe-comparison-hero__author">
+          <span
+            className="recipe-comparison-hero__author-avatar"
+            aria-hidden="true"
+          >
+            {authorInitial(recipe.author.display_name)}
+          </span>
+          <p>
+            <span>Recipe by</span>
+            <strong>
+              <PublicCookAttribution author={recipe.author} />
+            </strong>
+          </p>
+        </div>
+
+        <div className="recipe-comparison-hero__facts" aria-label="Recipe facts">
+          <dl>
+            <RecipeFact
+              change={metadataChanges.total_time_minutes}
+              label="Total time"
+              value={formatRecipeDuration(recipe.total_time_minutes)}
+            />
+            <RecipeFact
+              change={metadataChanges.active_time_minutes}
+              label="Active time"
+              value={formatRecipeDuration(recipe.active_time_minutes)}
+            />
+            <RecipeFact
+              change={metadataChanges.servings}
+              label="Makes"
+              value={formatServings(recipe.servings)}
+            />
+            <RecipeFact
+              change={metadataChanges.difficulty}
+              label="Difficulty"
+              value={formatRecipeDifficulty(recipe.difficulty)}
+            />
+          </dl>
+        </div>
+
+        <div className="recipe-comparison-strip">
+          <span className="recipe-comparison-strip__icon" aria-hidden="true">
+            ↔
+          </span>
+          <div>
+            <p>Comparing against</p>
+            <strong>
+              {diff.base_version.title} · Version{" "}
+              {diff.base_version.version_number}
+            </strong>
+          </div>
+          <span className="recipe-comparison-strip__count">
+            {changeLabel(totalChanges)}
+          </span>
+        </div>
+
+        <div className="recipe-comparison-hero__actions">
+          <Link
+            className="button button--secondary"
+            href={`/recipes/${encodeURIComponent(diff.base_version.id)}`}
+          >
+            View starting recipe
+          </Link>
+          <Link
+            className="button button--primary"
+            href={`/recipes/${encodeURIComponent(recipe.id)}`}
+          >
+            Back to {recipe.title}
+          </Link>
+        </div>
+      </div>
+    </header>
+  );
+}

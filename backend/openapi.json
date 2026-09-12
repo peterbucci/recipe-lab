@@ -2852,6 +2852,26 @@
         "title": "RecipeCardSummary",
         "type": "object"
       },
+      "RecipeCategoryDiff": {
+        "properties": {
+          "added": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeCategorySummary"
+            },
+            "title": "Added",
+            "type": "array"
+          },
+          "removed": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeCategorySummary"
+            },
+            "title": "Removed",
+            "type": "array"
+          }
+        },
+        "title": "RecipeCategoryDiff",
+        "type": "object"
+      },
       "RecipeCategoryListResponse": {
         "properties": {
           "items": {
@@ -3135,6 +3155,9 @@
           "base_version": {
             "$ref": "#/components/schemas/RecipeVersionReference"
           },
+          "categories": {
+            "$ref": "#/components/schemas/RecipeCategoryDiff"
+          },
           "has_changes": {
             "title": "Has Changes",
             "type": "boolean"
@@ -3168,6 +3191,7 @@
           "lineage_id",
           "base_version",
           "target_version",
+          "categories",
           "ingredients",
           "ingredient_context",
           "instructions",
@@ -4580,6 +4604,27 @@
         "title": "RecipeIngredientResponse",
         "type": "object"
       },
+      "RecipeInstructionActionMatch": {
+        "description": "One semantically paired action across regenerated snapshot rows.",
+        "properties": {
+          "after_id": {
+            "format": "uuid",
+            "title": "After Id",
+            "type": "string"
+          },
+          "before_id": {
+            "format": "uuid",
+            "title": "Before Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "before_id",
+          "after_id"
+        ],
+        "title": "RecipeInstructionActionMatch",
+        "type": "object"
+      },
       "RecipeInstructionActionResponse": {
         "additionalProperties": false,
         "properties": {
@@ -4719,11 +4764,27 @@
             "minItems": 1,
             "title": "Changed Fields",
             "type": "array"
+          },
+          "modified_action_pairs": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeInstructionActionMatch"
+            },
+            "title": "Modified Action Pairs",
+            "type": "array"
+          },
+          "unchanged_action_pairs": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeInstructionActionMatch"
+            },
+            "title": "Unchanged Action Pairs",
+            "type": "array"
           }
         },
         "required": [
           "before",
           "after",
+          "unchanged_action_pairs",
+          "modified_action_pairs",
           "changed_fields"
         ],
         "title": "RecipeInstructionPairChange",

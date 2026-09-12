@@ -42,6 +42,7 @@ describe("CSS architecture", () => {
   .workspace-panel-body,
   .workspace-panel-shell,
   .workspace-panel-shell--mobile-bleed,
+  .recipe-instruction-view-tabs--compact,
   .account-menu--compact:hover {
     display: flex;
   }
@@ -60,6 +61,7 @@ describe("CSS architecture", () => {
       'app/styles/features/example.css must not own selector ".workspace-panel-body"; .workspace-panel-body belongs to app/styles/primitives.css.',
       'app/styles/features/example.css must not own selector ".workspace-panel-shell"; .workspace-panel-shell belongs to app/styles/primitives.css.',
       'app/styles/features/example.css must not own selector ".workspace-panel-shell--mobile-bleed"; .workspace-panel-shell belongs to app/styles/primitives.css.',
+      'app/styles/features/example.css must not own selector ".recipe-instruction-view-tabs--compact"; .recipe-instruction-view-tabs belongs to app/styles/patterns/recipe-instruction-tabs.css.',
       'app/styles/features/example.css must not own selector ".account-menu--compact:hover"; .account-menu belongs to app/styles/shell/site-shell-auth.css.',
       'app/styles/features/example.css must not own selector ".app-shell > main"; .app-shell belongs to app/styles/base.css.',
     ]);
@@ -101,6 +103,35 @@ describe("CSS architecture", () => {
         ".state-page, .state-panel[role='alert'], .state-panel__actions, .workspace-empty-state, .workspace-panel-body, .workspace-panel-header__actions, :where(.workspace-panel-shell), :where(.workspace-panel-shell--mobile-bleed) {}",
       ),
     ).toEqual([]);
+    expect(
+      reservedSelectorOwnershipErrors(
+        "app/styles/features/recipe-comparison.css",
+        ".recipe-comparison-page, .recipe-comparison-hero__version, .recipe-comparison-ingredient-row--added, .recipe-comparison-instruction-value__text, .recipe-comparison-notes__previous, .recipe-comparison-loading__strip, .recipe-diff-view, .recipe-diff-content, .page-loading__recipe-body--comparison {}",
+      ),
+    ).toEqual([]);
+    expect(
+      reservedSelectorOwnershipErrors(
+        "app/styles/patterns/recipe-instruction-tabs.css",
+        ".recipe-instruction-view-tabs, .recipe-instruction-view-tabs--print-hidden {}",
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps comparison selectors with the comparison feature", () => {
+    expect(
+      reservedSelectorOwnershipErrors(
+        "app/styles/features/recipe-reading.css",
+        ".recipe-diff-view, .recipe-diff-content, .recipe-comparison-page, .recipe-comparison-ingredient-row--added, .recipe-comparison-instruction-value__text, .recipe-comparison-loading__strip, .page-loading__recipe-body--comparison {}",
+      ),
+    ).toEqual([
+      'app/styles/features/recipe-reading.css must not own selector ".recipe-diff-view"; .recipe-diff-view belongs to app/styles/features/recipe-comparison.css.',
+      'app/styles/features/recipe-reading.css must not own selector ".recipe-diff-content"; .recipe-diff-content belongs to app/styles/features/recipe-comparison.css.',
+      'app/styles/features/recipe-reading.css must not own selector ".recipe-comparison-page"; .recipe-comparison-page belongs to app/styles/features/recipe-comparison.css.',
+      'app/styles/features/recipe-reading.css must not own selector ".recipe-comparison-ingredient-row--added"; .recipe-comparison-ingredient-row belongs to app/styles/features/recipe-comparison.css.',
+      'app/styles/features/recipe-reading.css must not own selector ".recipe-comparison-instruction-value__text"; .recipe-comparison-instruction-value belongs to app/styles/features/recipe-comparison.css.',
+      'app/styles/features/recipe-reading.css must not own selector ".recipe-comparison-loading__strip"; .recipe-comparison-loading belongs to app/styles/features/recipe-comparison.css.',
+      'app/styles/features/recipe-reading.css must not own selector ".page-loading__recipe-body--comparison"; .page-loading__recipe-body--comparison belongs to app/styles/features/recipe-comparison.css.',
+    ]);
   });
 
   it("accepts context-scoped overrides and non-family prefixes", () => {

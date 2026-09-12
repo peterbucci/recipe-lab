@@ -7,6 +7,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, event
 
+import app.api.routes.recipes as recipe_routes
+from app.models import RecipeVersion, RecipeVersionCategory, User
+from app.repositories.recipe_diffs import RecipeVersionDiffIdentity
 from app.seeds.identifiers import measurement_uuid, seed_uuid
 from tests.application import application_with_database
 
@@ -121,6 +124,48 @@ def _ingredient_snapshot(
     }
 
 
+def _transient_category(
+    *,
+    recipe_version_id: UUID,
+    category_id: UUID,
+    name: str,
+    slug: str,
+    display_order: int,
+) -> RecipeVersionCategory:
+    return RecipeVersionCategory(
+        recipe_version_id=recipe_version_id,
+        recipe_category_id=category_id,
+        category_name=name,
+        category_slug=slug,
+        display_order=display_order,
+    )
+
+
+def _transient_version(
+    *,
+    version_id: UUID,
+    version_number: int,
+    parent_version_id: UUID | None,
+    author: User,
+    categories: list[RecipeVersionCategory],
+) -> RecipeVersion:
+    version = RecipeVersion(
+        id=version_id,
+        lineage_id=CARROT_LINEAGE_ID,
+        parent_version_id=parent_version_id,
+        created_by_user_id=author.id,
+        version_number=version_number,
+        title="Category-only comparison",
+        description=None,
+        servings=Decimal("4.00"),
+    )
+    version.author = author
+    version.categories = categories
+    version.ingredients = []
+    version.instructions = []
+    return version
+
+
 def _expected_carrot_pecan_diff() -> dict[str, Any]:
     root_nuts = _ingredient_snapshot(
         row_id=ROOT_NUTS_ROW_ID,
@@ -188,6 +233,7 @@ def _expected_carrot_pecan_diff() -> dict[str, Any]:
                 ),
             },
         ],
+        "categories": {"added": [], "removed": []},
         "ingredients": {
             "added": [],
             "removed": [],
@@ -209,6 +255,120 @@ def _expected_carrot_pecan_diff() -> dict[str, Any]:
         "instructions": {"added": [], "removed": [], "modified": []},
         "has_changes": True,
     }
+
+
+def test_diff_api_reports_category_only_changes(
+    diff_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base_id = uuid4()
+    target_id = uuid4()
+    breakfast_id = uuid4()
+    lunch_id = uuid4()
+    vegetarian_id = uuid4()
+    quick_easy_id = uuid4()
+    author = User(
+        id=CATALOG_AUTHOR_ID,
+        email="category-diff-author@example.test",
+        handle="recipe-lab-catalog",
+        display_name="Recipe Lab Demo Catalog",
+    )
+    base = _transient_version(
+        version_id=base_id,
+        version_number=1,
+        parent_version_id=None,
+        author=author,
+        categories=[
+            _transient_category(
+                recipe_version_id=base_id,
+                category_id=quick_easy_id,
+                name="Quick & Easy",
+                slug="quick-easy",
+                display_order=2,
+            ),
+            _transient_category(
+                recipe_version_id=base_id,
+                category_id=breakfast_id,
+                name="Breakfast",
+                slug="breakfast",
+                display_order=0,
+            ),
+            _transient_category(
+                recipe_version_id=base_id,
+                category_id=vegetarian_id,
+                name="Vegetarian",
+                slug="vegetarian",
+                display_order=1,
+            ),
+        ],
+    )
+    target = _transient_version(
+        version_id=target_id,
+        version_number=2,
+        parent_version_id=base_id,
+        author=author,
+        categories=[
+            _transient_category(
+                recipe_version_id=target_id,
+                category_id=vegetarian_id,
+                name="Vegetarian",
+                slug="vegetarian",
+                display_order=2,
+            ),
+            _transient_category(
+                recipe_version_id=target_id,
+                category_id=lunch_id,
+                name="Lunch",
+                slug="lunch",
+                display_order=1,
+            ),
+            _transient_category(
+                recipe_version_id=target_id,
+                category_id=breakfast_id,
+                name="Breakfast",
+                slug="breakfast",
+                display_order=0,
+            ),
+        ],
+    )
+
+    monkeypatch.setattr(
+        recipe_routes,
+        "get_recipe_version_diff_identity",
+        lambda _session, _version_id: RecipeVersionDiffIdentity(
+            id=target_id,
+            lineage_id=CARROT_LINEAGE_ID,
+            parent_version_id=base_id,
+        ),
+    )
+    monkeypatch.setattr(
+        recipe_routes,
+        "get_recipe_versions_for_diff",
+        lambda _session, _version_ids: {base_id: base, target_id: target},
+    )
+    monkeypatch.setattr(
+        recipe_routes,
+        "get_direct_substitution_pairs",
+        lambda _session, _ingredient_ids: set(),
+    )
+
+    response = diff_client.get(f"/api/recipes/{target_id}/diff")
+
+    assert response.status_code == 200
+    body = _json_object(response.json())
+    assert body["categories"] == {
+        "added": [{"id": str(lunch_id), "name": "Lunch", "slug": "lunch"}],
+        "removed": [{"id": str(quick_easy_id), "name": "Quick & Easy", "slug": "quick-easy"}],
+    }
+    assert body["metadata_changes"] == []
+    assert body["ingredients"] == {
+        "added": [],
+        "removed": [],
+        "replaced": [],
+        "modified": [],
+    }
+    assert body["instructions"] == {"added": [], "removed": [], "modified": []}
+    assert body["has_changes"] is True
 
 
 def test_seeded_carrot_diff_uses_parent_by_default_and_matches_golden_contract(
@@ -236,6 +396,12 @@ def test_seeded_carrot_diff_uses_parent_by_default_and_matches_golden_contract(
     base_occurrence_ids = {item["id"] for item in ingredient_context["base"]}
     target_occurrence_ids = {item["id"] for item in ingredient_context["target"]}
     for change in instruction_diff["modified"]:
+        before_action_ids = {action["id"] for action in change["before"]["actions"]}
+        after_action_ids = {action["id"] for action in change["after"]["actions"]}
+        assert change["modified_action_pairs"]
+        for pair_kind in ("unchanged_action_pairs", "modified_action_pairs"):
+            assert {match["before_id"] for match in change[pair_kind]} <= before_action_ids
+            assert {match["after_id"] for match in change[pair_kind]} <= after_action_ids
         assert {
             ingredient_id
             for action in change["before"]["actions"]
@@ -296,6 +462,7 @@ def test_same_version_comparison_returns_a_machine_readable_no_change_result(
             "Lower-Sugar Pecan Carrot Cake",
         ),
         "metadata_changes": [],
+        "categories": {"added": [], "removed": []},
         "ingredients": {"added": [], "removed": [], "replaced": [], "modified": []},
         "instructions": {"added": [], "removed": [], "modified": []},
         "has_changes": False,
@@ -454,7 +621,8 @@ def test_diff_reads_use_bounded_queries_and_load_only_public_user_context(
         event.remove(seeded_api_engine, "before_cursor_execute", capture_statement)
 
     assert response.status_code == 200
-    assert len(statements) == 8
+    assert len(statements) == 9
+    assert any("recipe_version_categories" in statement for statement in statements)
     assert any("recipe_version_ingredients" in statement for statement in statements)
     assert any("recipe_version_instructions" in statement for statement in statements)
     assert any("recipe_instruction_actions" in statement for statement in statements)
@@ -500,10 +668,13 @@ def test_openapi_documents_recipe_diff_contract(diff_client: TestClient) -> None
 
     assert {
         "RecipeDiffResponse",
+        "RecipeCategoryDiff",
+        "RecipeCategorySummary",
         "RecipeFieldChange",
         "RecipeIngredientDiff",
         "RecipeIngredientContext",
         "RecipeIngredientPairChange",
+        "RecipeInstructionActionMatch",
         "RecipeInstructionDiff",
         "RecipeInstructionPairChange",
     } <= set(schemas)
@@ -513,17 +684,37 @@ def test_openapi_documents_recipe_diff_contract(diff_client: TestClient) -> None
         "base_version",
         "target_version",
         "metadata_changes",
+        "categories",
         "ingredients",
         "ingredient_context",
         "instructions",
         "has_changes",
     } == set(response_schema["properties"])
     assert response_schema["properties"]["lineage_id"]["format"] == "uuid"
+    category_diff_schema = schemas["RecipeCategoryDiff"]
+    assert set(category_diff_schema["properties"]) == {"added", "removed"}
+    for change_kind in ("added", "removed"):
+        assert category_diff_schema["properties"][change_kind]["items"]["$ref"].endswith(
+            "/RecipeCategorySummary"
+        )
     assert schemas["RecipeIngredientPairChange"]["properties"]["changed_fields"]["minItems"] == 1
-    assert schemas["RecipeInstructionPairChange"]["properties"]["changed_fields"]["minItems"] == 1
-    changed_field_items = schemas["RecipeInstructionPairChange"]["properties"]["changed_fields"][
-        "items"
-    ]
+    instruction_change_schema = schemas["RecipeInstructionPairChange"]
+    assert instruction_change_schema["properties"]["changed_fields"]["minItems"] == 1
+    assert "unchanged_action_pairs" in instruction_change_schema["required"]
+    assert "modified_action_pairs" in instruction_change_schema["required"]
+    for pair_kind in ("unchanged_action_pairs", "modified_action_pairs"):
+        assert instruction_change_schema["properties"][pair_kind]["items"]["$ref"].endswith(
+            "/RecipeInstructionActionMatch"
+        )
+    assert set(schemas["RecipeInstructionActionMatch"]["required"]) == {
+        "before_id",
+        "after_id",
+    }
+    assert {
+        schemas["RecipeInstructionActionMatch"]["properties"][field]["format"]
+        for field in ("before_id", "after_id")
+    } == {"uuid"}
+    changed_field_items = instruction_change_schema["properties"]["changed_fields"]["items"]
     assert changed_field_items["$ref"].endswith("/RecipeInstructionChangedField")
     assert schemas["RecipeInstructionChangedField"]["enum"] == [
         "title",

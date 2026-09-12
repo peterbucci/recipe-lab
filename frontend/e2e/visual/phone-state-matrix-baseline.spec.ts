@@ -206,23 +206,89 @@ test.describe("phone visual state matrix", () => {
   });
 
   test("recipe comparison normal", async ({ page }) => {
+    await setScenario("comparison-actions");
     await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
     await expect(
       page.getByRole("heading", {
-        name: "How Garden Cream Tomato Soup changed",
+        name: "Garden Cream Tomato Soup",
         level: 1,
       }),
     ).toBeVisible();
-    const overview = page.getByRole("region", { name: "Changes at a glance" });
-    const summary = overview.getByRole("list", { name: "Changes at a glance" });
-    await expect(summary).toBeVisible();
-    await overview.evaluate((section) => {
-      section.scrollIntoView({ block: "start" });
+    const comparisonHero = page.locator(
+      ".recipe-diff-view:visible .recipe-comparison-hero",
+    );
+    const comparisonBody = page.locator(
+      ".recipe-diff-view:visible #recipe-panel-recipe .recipe-comparison-body",
+    );
+    await expect(comparisonHero).toBeVisible();
+    await expect(comparisonBody).toBeVisible();
+    await expect(
+      comparisonHero.locator('[data-comparison-field="title"]'),
+    ).toBeVisible();
+    await expect(
+      comparisonHero.locator('[data-comparison-field="description"]'),
+    ).toBeVisible();
+    await expect(
+      comparisonHero.locator(".recipe-comparison-categories"),
+    ).toBeInViewport({ ratio: 1 });
+    await expect(
+      comparisonHero.locator(".recipe-comparison-hero__author"),
+    ).toBeInViewport({ ratio: 1 });
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "recipe-comparison-top-normal");
+
+    await expect(
+      comparisonBody.getByRole("heading", { name: "Ingredients", level: 2 }),
+    ).toBeVisible();
+    await expect(
+      comparisonBody.getByRole("heading", {
+        name: "Instructions",
+        level: 2,
+      }),
+    ).toBeVisible();
+    await comparisonBody.evaluate((body) => {
+      body.scrollIntoView({ block: "start" });
       window.scrollBy(0, -80);
     });
-    await expect(overview).toBeInViewport();
-    await stabilizeVisuals(page);
+    await expect(comparisonBody).toBeInViewport();
     await captureBaseline(page, "recipe-comparison-normal");
+
+    const comparisonInstructions = page.getByRole("region", {
+      name: "Instructions",
+    });
+    await comparisonInstructions
+      .getByRole("tab", { name: "Cooking breakdown", exact: true })
+      .click();
+    const breakdownPanel = comparisonInstructions.locator(
+      "#recipe-comparison-instructions-breakdown-panel",
+    );
+    await expect(breakdownPanel).toBeVisible();
+    await expect(
+      breakdownPanel.locator(
+        '.recipe-comparison-action[data-action-status="added"]',
+      ).first(),
+    ).toBeVisible();
+    await expect(
+      breakdownPanel.locator(
+        '.recipe-comparison-action[data-action-status="unchanged"]',
+      ),
+    ).toBeVisible();
+    await expect(
+      breakdownPanel.locator(
+        '.recipe-comparison-action[data-action-status="changed"]',
+      ),
+    ).toBeVisible();
+    await expect(
+      breakdownPanel.locator(
+        ".recipe-comparison-instruction-row__step-number",
+      ).first(),
+    ).toBeVisible();
+    await comparisonInstructions.evaluate((region) => {
+      region.scrollIntoView({ block: "start" });
+      window.scrollBy(0, -64);
+    });
+    await stabilizeVisuals(page);
+    await captureBaseline(page, "recipe-comparison-cooking-breakdown");
   });
 
   test("cook profile normal", async ({ page }) => {
@@ -402,4 +468,3 @@ test.describe("phone visual state matrix", () => {
     await captureBaseline(page, "recipe-moderation-staff-review");
   });
 });
-

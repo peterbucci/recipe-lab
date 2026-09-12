@@ -100,13 +100,75 @@ test("recipe detail intermediate normal", async ({ page }, testInfo) => {
 
 test("recipe comparison intermediate normal", async ({ page }, testInfo) => {
   desktopOnly(testInfo);
+  await setScenario("comparison-actions");
   await page.setViewportSize({ width: 820, height: 1_000 });
   await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
   await expect(
-    page.getByRole("list", { name: "Changes at a glance" }),
+    page.getByRole("heading", {
+      name: "Garden Cream Tomato Soup",
+      level: 1,
+    }),
   ).toBeVisible();
+  const comparisonBody = page.locator(
+    ".recipe-diff-view:visible #recipe-panel-recipe .recipe-comparison-body",
+  );
+  await expect(comparisonBody).toBeVisible();
+  await expect(
+    comparisonBody.getByRole("heading", { name: "Ingredients", level: 2 }),
+  ).toBeVisible();
+  await expect(
+    comparisonBody.getByRole("heading", {
+      name: "Instructions",
+      level: 2,
+    }),
+  ).toBeVisible();
+  await comparisonBody.evaluate((body) => {
+    body.scrollIntoView({ block: "start" });
+    window.scrollBy(0, -80);
+  });
+  await expect(comparisonBody).toBeInViewport();
   await stabilizeVisuals(page);
   await captureBaseline(page, "recipe-comparison-intermediate-normal");
+
+  const comparisonInstructions = page.getByRole("region", {
+    name: "Instructions",
+  });
+  await comparisonInstructions
+    .getByRole("tab", { name: "Cooking breakdown", exact: true })
+    .click();
+  const breakdownPanel = comparisonInstructions.locator(
+    "#recipe-comparison-instructions-breakdown-panel",
+  );
+  await expect(breakdownPanel).toBeVisible();
+  await expect(
+    breakdownPanel.locator(
+      '.recipe-comparison-action[data-action-status="added"]',
+    ).first(),
+  ).toBeVisible();
+  await expect(
+    breakdownPanel.locator(
+      '.recipe-comparison-action[data-action-status="unchanged"]',
+    ),
+  ).toBeVisible();
+  await expect(
+    breakdownPanel.locator(
+      '.recipe-comparison-action[data-action-status="changed"]',
+    ),
+  ).toBeVisible();
+  await expect(
+    breakdownPanel.locator(
+      ".recipe-comparison-instruction-row__step-number",
+    ).first(),
+  ).toBeVisible();
+  await comparisonInstructions.evaluate((region) => {
+    region.scrollIntoView({ block: "start" });
+    window.scrollBy(0, -80);
+  });
+  await stabilizeVisuals(page);
+  await captureBaseline(
+    page,
+    "recipe-comparison-intermediate-cooking-breakdown",
+  );
 });
 
 test("account access intermediate normal", async ({ page }, testInfo) => {
@@ -659,4 +721,3 @@ test("stale curator decision desktop visual evidence", async ({
   await stabilizeVisuals(page);
   await captureBaseline(page, "stale-curation-decision");
 });
-

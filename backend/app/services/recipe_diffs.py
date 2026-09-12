@@ -13,8 +13,10 @@ from app.models import (
     RecipeInstruction,
     RecipeInstructionAction,
     RecipeVersion,
+    RecipeVersionCategory,
 )
 from app.schemas.recipe_diffs import (
+    RecipeCategoryDiff,
     RecipeDiffResponse,
     RecipeFieldChange,
     RecipeFieldName,
@@ -23,11 +25,13 @@ from app.schemas.recipe_diffs import (
     RecipeIngredientContext,
     RecipeIngredientDiff,
     RecipeIngredientPairChange,
+    RecipeInstructionActionMatch,
     RecipeInstructionChangedField,
     RecipeInstructionDiff,
     RecipeInstructionPairChange,
 )
 from app.services.recipe_responses import (
+    recipe_category_summary,
     recipe_ingredient_response,
     recipe_instruction_response,
     recipe_version_reference,
@@ -71,6 +75,10 @@ def _ingredient_order(item: RecipeIngredient) -> tuple[int, int]:
 
 def _instruction_order(item: RecipeInstruction) -> tuple[int, int]:
     return item.display_order, item.id.int
+
+
+def _category_order(item: RecipeVersionCategory) -> tuple[int, int]:
+    return item.display_order, item.recipe_category_id.int
 
 
 def _measure_signature(
@@ -348,7 +356,11 @@ def _pair_actions(
     *,
     before_tokens: dict[UUID, _IngredientReferenceToken],
     after_tokens: dict[UUID, _IngredientReferenceToken],
-) -> tuple[list[tuple[RecipeInstructionAction, RecipeInstructionAction]], bool]:
+) -> tuple[
+    list[tuple[RecipeInstructionAction, RecipeInstructionAction]],
+    list[tuple[RecipeInstructionAction, RecipeInstructionAction]],
+    bool,
+]:
     """Pair action instances without treating freshly generated row IDs as edits."""
 
     after_by_signature: dict[_ActionSignature, list[RecipeInstructionAction]] = defaultdict(list)
@@ -374,6 +386,7 @@ def _pair_actions(
         pairs.append((item, matched))
         matched_after_ids.add(matched.id)
 
+    exact_pairs = list(pairs)
     remaining_after = [item for item in after_items if item.id not in matched_after_ids]
     before_by_type: dict[UUID, deque[RecipeInstructionAction]] = defaultdict(deque)
     after_by_type: dict[UUID, deque[RecipeInstructionAction]] = defaultdict(deque)
@@ -391,7 +404,7 @@ def _pair_actions(
 
     before_type_counts = Counter(item.action_type_id for item in before_items)
     after_type_counts = Counter(item.action_type_id for item in after_items)
-    return pairs, before_type_counts != after_type_counts
+    return pairs, exact_pairs, before_type_counts != after_type_counts
 
 
 def _instruction_changed_fields(
@@ -400,10 +413,14 @@ def _instruction_changed_fields(
     *,
     before_tokens: dict[UUID, _IngredientReferenceToken],
     after_tokens: dict[UUID, _IngredientReferenceToken],
-) -> list[RecipeInstructionChangedField]:
+) -> tuple[
+    list[RecipeInstructionChangedField],
+    list[tuple[RecipeInstructionAction, RecipeInstructionAction]],
+    list[tuple[RecipeInstructionAction, RecipeInstructionAction]],
+]:
     before_actions = sorted(before.actions, key=_action_order)
     after_actions = sorted(after.actions, key=_action_order)
-    action_pairs, actions_changed = _pair_actions(
+    action_pairs, exact_action_pairs, actions_changed = _pair_actions(
         before_actions,
         after_actions,
         before_tokens=before_tokens,
@@ -438,7 +455,19 @@ def _instruction_changed_fields(
         "duration": duration_changed,
         "temperature": temperature_changed,
     }
-    return [field for field in _INSTRUCTION_FIELD_ORDER if changed[field]]
+    exact_pair_ids = {
+        (before_action.id, after_action.id) for before_action, after_action in exact_action_pairs
+    }
+    modified_action_pairs = [
+        (before_action, after_action)
+        for before_action, after_action in action_pairs
+        if (before_action.id, after_action.id) not in exact_pair_ids
+    ]
+    return (
+        [field for field in _INSTRUCTION_FIELD_ORDER if changed[field]],
+        exact_action_pairs,
+        modified_action_pairs,
+    )
 
 
 def _ingredient_changed_fields(
@@ -472,6 +501,23 @@ def _metadata_changes(
         for field, before, after in values
         if before != after
     ]
+
+
+def _category_diff(base: RecipeVersion, target: RecipeVersion) -> RecipeCategoryDiff:
+    base_ids = {item.recipe_category_id for item in base.categories}
+    target_ids = {item.recipe_category_id for item in target.categories}
+    return RecipeCategoryDiff(
+        added=[
+            recipe_category_summary(item)
+            for item in sorted(target.categories, key=_category_order)
+            if item.recipe_category_id not in base_ids
+        ],
+        removed=[
+            recipe_category_summary(item)
+            for item in sorted(base.categories, key=_category_order)
+            if item.recipe_category_id not in target_ids
+        ],
+    )
 
 
 def _ingredient_diff(
@@ -554,7 +600,11 @@ def _instruction_diff(
         remaining_after[:shared_count],
         strict=True,
     ):
-        changed_fields = _instruction_changed_fields(
+        (
+            changed_fields,
+            unchanged_action_pairs,
+            modified_action_pairs,
+        ) = _instruction_changed_fields(
             before,
             after,
             before_tokens=before_tokens,
@@ -565,6 +615,20 @@ def _instruction_diff(
                 RecipeInstructionPairChange(
                     before=recipe_instruction_response(before),
                     after=recipe_instruction_response(after),
+                    unchanged_action_pairs=[
+                        RecipeInstructionActionMatch(
+                            before_id=before_action.id,
+                            after_id=after_action.id,
+                        )
+                        for before_action, after_action in unchanged_action_pairs
+                    ],
+                    modified_action_pairs=[
+                        RecipeInstructionActionMatch(
+                            before_id=before_action.id,
+                            after_id=after_action.id,
+                        )
+                        for before_action, after_action in modified_action_pairs
+                    ],
                     changed_fields=changed_fields,
                 )
             )
@@ -594,6 +658,7 @@ def build_recipe_diff(
     """
 
     metadata_changes = _metadata_changes(base, target)
+    categories = _category_diff(base, target)
     ingredients = _ingredient_diff(base, target, substitution_pairs)
     before_tokens, after_tokens = _ingredient_reference_tokens(base, target)
     instructions = _instruction_diff(
@@ -608,6 +673,8 @@ def build_recipe_diff(
             ingredients.removed,
             ingredients.replaced,
             ingredients.modified,
+            categories.added,
+            categories.removed,
             instructions.added,
             instructions.removed,
             instructions.modified,
@@ -618,6 +685,7 @@ def build_recipe_diff(
         base_version=recipe_version_reference(base),
         target_version=recipe_version_reference(target),
         metadata_changes=metadata_changes,
+        categories=categories,
         ingredients=ingredients,
         ingredient_context=RecipeIngredientContext(
             base=[

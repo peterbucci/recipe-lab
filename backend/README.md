@@ -168,14 +168,15 @@ default the base is that target's direct parent. An optional
 `base_version_id` selects another version in the same lineage, including the
 target itself for an explicit no-change comparison.
 
-The response reports title, description, and serving changes in a fixed order.
-Ingredients are grouped as added, removed, replaced, or modified; paired rows
-include complete before-and-after snapshots plus fixed-order changed fields for
-canonical identity, authored display name, the atomic structured `measure`, and
-preparation notes. Instruction additions, removals, and text modifications are
-reported separately. Display order is presentation metadata, so moving
-otherwise equal rows does not create a content change. Exact decimals remain
-JSON strings.
+The response reports recipe metadata changes in a fixed order. Curated recipe
+categories are grouped as added or removed using their stable category identity
+and immutable public label snapshots. Ingredients are grouped as added,
+removed, replaced, or modified; paired rows include complete before-and-after
+snapshots plus fixed-order changed fields for canonical identity, authored
+display name, the atomic structured `measure`, and preparation notes.
+Instruction additions, removals, and text modifications are reported
+separately. Display order is presentation metadata, so moving otherwise equal
+rows does not create a content change. Exact decimals remain JSON strings.
 
 Recipe snapshots do not persist the edit operation or copied-row ancestry.
 The engine therefore documents a canonical snapshot comparison rather than

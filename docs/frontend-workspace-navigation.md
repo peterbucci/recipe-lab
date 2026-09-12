@@ -31,8 +31,10 @@ contract, while every consumer owns stable tab and panel IDs, panel content,
 and domain side effects.
 
 Settings and Staff Tools use the shared `WorkspaceTabs` presentation. Recipe
-detail sections, the public instruction reader, and the draft instruction
-editor use the same headless roving behavior with their own visual treatment.
+detail sections use the same headless roving behavior with their own visual
+treatment. The public instruction reader, comparison, and draft editor share
+the compact `RecipeInstructionViewTabs` presentation as well as that keyboard
+contract, while each surface continues to own its panel content.
 
 ## Shared presentation contracts
 
@@ -71,7 +73,10 @@ content layout, responsive content padding, and domain-specific states.
   without adding browser-history entries. Hash-driven changes do not move
   keyboard focus.
 - Public instruction tabs switch between readable steps and the structured
-  cooking breakdown while keeping both panels feature-owned.
+  cooking breakdown while keeping both panels feature-owned. Comparisons use
+  the same control and keep title and wording changes in Steps, while action,
+  ingredient-use, ordering, timing, and temperature changes belong to Cooking
+  breakdown.
 - Draft instruction tabs retain the requested view when validation temporarily
   forces the cooking breakdown to be visible. The surrounding disabled
   fieldset continues to disable both tabs and editor controls.

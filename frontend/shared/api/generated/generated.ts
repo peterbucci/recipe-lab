@@ -1871,6 +1871,13 @@ export type components = {
              */
             readonly version_number: number;
         };
+        /** RecipeCategoryDiff */
+        readonly RecipeCategoryDiff: {
+            /** Added */
+            readonly added?: readonly components["schemas"]["RecipeCategorySummary"][];
+            /** Removed */
+            readonly removed?: readonly components["schemas"]["RecipeCategorySummary"][];
+        };
         /** RecipeCategoryListResponse */
         readonly RecipeCategoryListResponse: {
             /**
@@ -1996,6 +2003,7 @@ export type components = {
         /** RecipeDiffResponse */
         readonly RecipeDiffResponse: {
             readonly base_version: components["schemas"]["RecipeVersionReference"];
+            readonly categories: components["schemas"]["RecipeCategoryDiff"];
             /** Has Changes */
             readonly has_changes: boolean;
             readonly ingredient_context: components["schemas"]["RecipeIngredientContext"];
@@ -2433,6 +2441,22 @@ export type components = {
             /** Preparation Notes */
             readonly preparation_notes: string | null;
         };
+        /**
+         * RecipeInstructionActionMatch
+         * @description One semantically paired action across regenerated snapshot rows.
+         */
+        readonly RecipeInstructionActionMatch: {
+            /**
+             * After Id
+             * Format: uuid
+             */
+            readonly after_id: string;
+            /**
+             * Before Id
+             * Format: uuid
+             */
+            readonly before_id: string;
+        };
         /** RecipeInstructionActionResponse */
         readonly RecipeInstructionActionResponse: {
             readonly action_type: components["schemas"]["CookingActionTypeSummary"];
@@ -2467,6 +2491,10 @@ export type components = {
             readonly before: components["schemas"]["RecipeInstructionResponse"];
             /** Changed Fields */
             readonly changed_fields: readonly components["schemas"]["RecipeInstructionChangedField"][];
+            /** Modified Action Pairs */
+            readonly modified_action_pairs: readonly components["schemas"]["RecipeInstructionActionMatch"][];
+            /** Unchanged Action Pairs */
+            readonly unchanged_action_pairs: readonly components["schemas"]["RecipeInstructionActionMatch"][];
         };
         /** RecipeInstructionResponse */
         readonly RecipeInstructionResponse: {

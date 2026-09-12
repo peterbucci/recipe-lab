@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RecipeDetailTabs } from "./recipe-detail-tabs";
 
-function renderTabs() {
+function renderTabs(className?: string) {
   return render(
     <RecipeDetailTabs
+      className={className}
       recipe={<p>Recipe content</p>}
       notes={<p>Notes content</p>}
       family={<p>Family content</p>}
@@ -15,7 +16,11 @@ function renderTabs() {
 
 describe("RecipeDetailTabs", () => {
   beforeEach(() => {
-    window.history.replaceState(null, "", "/recipes/test#recipe-notes");
+    window.history.replaceState(
+      null,
+      "",
+      "/recipes/test/compare?base_version_id=base#recipe-notes",
+    );
   });
 
   afterEach(() => {
@@ -51,6 +56,8 @@ describe("RecipeDetailTabs", () => {
       "#recipe-family",
     );
     expect(window.location.hash).toBe("#recipe-family");
+    expect(window.location.pathname).toBe("/recipes/test/compare");
+    expect(window.location.search).toBe("?base_version_id=base");
 
     fireEvent.keyDown(family, { key: "ArrowRight" });
     expect(recipe).toHaveFocus();
@@ -77,5 +84,14 @@ describe("RecipeDetailTabs", () => {
       expect(recipe).toHaveAttribute("aria-selected", "true");
       expect(notes).toHaveFocus();
     }
+  });
+
+  it("adds an optional composition class without replacing the shared tab class", () => {
+    const { container } = renderTabs("recipe-comparison-tabs");
+
+    expect(container.firstElementChild).toHaveClass(
+      "recipe-detail__tabs",
+      "recipe-comparison-tabs",
+    );
   });
 });

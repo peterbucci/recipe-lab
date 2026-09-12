@@ -7,8 +7,6 @@ import {
   useState,
 } from "react";
 
-import { useRovingTabs } from "../../../../shared/ui/use-roving-tabs";
-
 import type { CatalogActionType } from "../../shared/cooking-action-model";
 import type { CatalogUnit } from "../../shared/measurement-unit-model";
 import {
@@ -23,6 +21,12 @@ import { RecipeDraftFieldError } from "./recipe-draft-field-error";
 import {
   RecipeInstructionFactPills,
 } from "../../shared/recipe-instruction-actions";
+import {
+  RecipeInstructionViewTabs,
+  recipeInstructionViewPanelId,
+  recipeInstructionViewTabId,
+  type RecipeInstructionView,
+} from "../../shared/recipe-instruction-view-tabs";
 import { recipeDraftStepFacts } from "../shared/structured-action-display";
 import { StructuredActionEditor } from "../shared/structured-action-editor";
 
@@ -44,9 +48,7 @@ interface RecipeDraftInstructionsSectionProps {
   onTitleChange: (key: string, title: string) => void;
 }
 
-type InstructionView = "steps" | "breakdown";
-
-const VIEWS: readonly InstructionView[] = ["steps", "breakdown"];
+const INSTRUCTION_VIEW_ID_PREFIX = "draft-instructions";
 
 function instructionActionErrors(
   errors: Readonly<Record<string, string>>,
@@ -118,18 +120,12 @@ export function RecipeDraftInstructionsSection({
   onTextChange,
   onTitleChange,
 }: RecipeDraftInstructionsSectionProps) {
-  const [view, setView] = useState<InstructionView>("steps");
+  const [view, setView] = useState<RecipeInstructionView>("steps");
   const hasActionErrors = instructions.some(
     (instruction) =>
       Object.keys(instructionActionErrors(errors, instruction.key)).length > 0,
   );
   const visibleView = hasActionErrors ? "breakdown" : view;
-  const { getTabProps } = useRovingTabs({
-    onChange: setView,
-    value: visibleView,
-    values: VIEWS,
-  });
-
   return (
     <fieldset
       className="draft-editor__section instruction-panel recipe-instructions recipe-workspace__instructions"
@@ -147,33 +143,21 @@ export function RecipeDraftInstructionsSection({
               : "Add structured cooking details using Recipe Lab’s curated breakdown."}
           </p>
         </div>
-        <div
-          className="recipe-instructions__view-switch"
-          role="tablist"
-          aria-label="Instruction editing view"
-        >
-          {VIEWS.map((candidate) => {
-            return (
-              <button
-                {...getTabProps(candidate)}
-                id={`draft-instructions-${candidate}-tab`}
-                key={candidate}
-                type="button"
-                role="tab"
-                aria-controls={`draft-instructions-${candidate}-panel`}
-                onClick={() => setView(candidate)}
-              >
-                {candidate === "steps" ? "Steps" : "Cooking breakdown"}
-              </button>
-            );
-          })}
-        </div>
+        <RecipeInstructionViewTabs
+          ariaLabel="Instruction editing view"
+          idPrefix={INSTRUCTION_VIEW_ID_PREFIX}
+          value={visibleView}
+          onChange={setView}
+        />
       </header>
 
       <div
-        id="draft-instructions-steps-panel"
+        id={recipeInstructionViewPanelId(INSTRUCTION_VIEW_ID_PREFIX, "steps")}
         role="tabpanel"
-        aria-labelledby="draft-instructions-steps-tab"
+        aria-labelledby={recipeInstructionViewTabId(
+          INSTRUCTION_VIEW_ID_PREFIX,
+          "steps",
+        )}
         hidden={visibleView !== "steps"}
       >
         <ol className="draft-editor__rows draft-editor__rows--instructions recipe-instructions__step-list recipe-workspace__instruction-list">
@@ -305,9 +289,15 @@ export function RecipeDraftInstructionsSection({
       </div>
 
       <div
-        id="draft-instructions-breakdown-panel"
+        id={recipeInstructionViewPanelId(
+          INSTRUCTION_VIEW_ID_PREFIX,
+          "breakdown",
+        )}
         role="tabpanel"
-        aria-labelledby="draft-instructions-breakdown-tab"
+        aria-labelledby={recipeInstructionViewTabId(
+          INSTRUCTION_VIEW_ID_PREFIX,
+          "breakdown",
+        )}
         hidden={visibleView !== "breakdown"}
       >
         <ol className="recipe-instructions__breakdown-list recipe-workspace__breakdown-list">

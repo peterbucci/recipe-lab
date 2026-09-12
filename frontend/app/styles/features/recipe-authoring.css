@@ -710,7 +710,7 @@
     align-items: stretch !important;
     gap: 0.75rem !important;
   }
-  .recipe-workspace__instructions-header .recipe-instructions__view-switch {
+  .recipe-workspace__instructions-header .recipe-instruction-view-tabs {
     align-self: flex-start;
   }
 }
