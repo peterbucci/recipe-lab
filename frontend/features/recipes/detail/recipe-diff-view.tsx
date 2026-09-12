@@ -20,6 +20,7 @@ import {
   RecipeComparisonHero,
   RecipeComparisonNavigation,
 } from "./recipe-comparison-hero";
+import { RecipeComparisonIngredients } from "./recipe-comparison-ingredients";
 
 interface RecipeDiffViewProps {
   comparison: RecipeComparisonModel;
@@ -66,24 +67,6 @@ function ValuePair({
   );
 }
 
-function IngredientValue({
-  ingredient,
-  showName = true,
-}: {
-  ingredient: RecipeIngredient;
-  showName?: boolean;
-}) {
-  return (
-    <span className="recipe-diff-ingredient">
-      {showName ? <strong>{ingredient.display_name}</strong> : null}
-      <span>{formatIngredientMeasure(ingredient.measure)}</span>
-      {ingredient.preparation_notes ? (
-        <small>Preparation: {ingredient.preparation_notes}</small>
-      ) : null}
-    </span>
-  );
-}
-
 function ingredientWithMeasure(ingredient: RecipeIngredient): string {
   return `${formatIngredientMeasure(ingredient.measure)} ${ingredient.display_name}`;
 }
@@ -102,124 +85,6 @@ function ingredientChangeHeading(change: RecipeIngredientPairChange): string {
     return `Change how ${change.after.display_name} is prepared`;
   }
   return `Change ${change.after.display_name}`;
-}
-
-function SingleIngredientChange({
-  ingredient,
-  kind,
-}: {
-  ingredient: RecipeIngredient;
-  kind: "added" | "removed";
-}) {
-  const added = kind === "added";
-  const headingId = `ingredient-change-${kind}-${ingredient.id}`;
-  return (
-    <li className={`recipe-diff-entry recipe-diff-entry--${kind}`}>
-      <article aria-labelledby={headingId}>
-        <p className="recipe-diff-kind">{added ? "Added" : "Removed"}</p>
-        <h3 id={headingId}>
-          {added ? "Add " : "Remove "}
-          {added ? (
-            <ins>{ingredient.display_name}</ins>
-          ) : (
-            <del>{ingredient.display_name}</del>
-          )}
-        </h3>
-        <div
-          className={`recipe-diff-single-value recipe-diff-single-value--${kind}`}
-        >
-          <span>{added ? "New ingredient" : "Removed ingredient"}</span>
-          {added ? (
-            <ins>
-              <IngredientValue ingredient={ingredient} showName={false} />
-            </ins>
-          ) : (
-            <del>
-              <IngredientValue ingredient={ingredient} showName={false} />
-            </del>
-          )}
-        </div>
-      </article>
-    </li>
-  );
-}
-
-function ingredientChangeLabels(change: RecipeIngredientPairChange): string[] {
-  const labels: string[] = [];
-  const fields = new Set(change.changed_fields);
-
-  if (fields.has("measure")) {
-    labels.push("Amount changed");
-  }
-  if (fields.has("display_name")) {
-    labels.push("Name changed");
-  }
-  if (fields.has("preparation_notes")) {
-    labels.push("Preparation changed");
-  }
-
-  return labels;
-}
-
-function PairedIngredientChange({
-  change,
-  kind,
-}: {
-  change: RecipeIngredientPairChange;
-  kind: "substitution" | "modified";
-}) {
-  const substitution = kind === "substitution";
-  const labels = ingredientChangeLabels(change);
-  const secondaryLabels = substitution
-    ? labels.filter((label) => label !== "Name changed")
-    : labels.slice(1);
-  const headingId = `ingredient-change-${kind}-${change.before.id}-${change.after.id}`;
-
-  return (
-    <li
-      className={`recipe-diff-entry recipe-diff-entry--${
-        substitution ? "substitution" : "modified"
-      }`}
-    >
-      <article aria-labelledby={headingId}>
-        <div
-          className="recipe-diff-kinds"
-          role="group"
-          aria-label="Change type"
-        >
-          <span className="recipe-diff-kind">
-            {substitution
-              ? "Substitution"
-              : (labels[0] ?? "Ingredient changed")}
-          </span>
-          {secondaryLabels.map((label) => (
-            <span
-              key={label}
-              className="recipe-diff-kind recipe-diff-kind--secondary"
-            >
-              {label}
-            </span>
-          ))}
-        </div>
-        <h3 id={headingId}>
-          {substitution ? (
-            <>
-              Use <ins>{change.after.display_name}</ins> instead of{" "}
-              <del>{change.before.display_name}</del>
-            </>
-          ) : (
-            ingredientChangeHeading(change)
-          )}
-        </h3>
-        <ValuePair
-          before={<IngredientValue ingredient={change.before} />}
-          after={<IngredientValue ingredient={change.after} />}
-          beforeLabel={substitution ? "Starting ingredient" : undefined}
-          afterLabel={substitution ? "Use instead" : undefined}
-        />
-      </article>
-    </li>
-  );
 }
 
 function metadataValue(
@@ -539,7 +404,6 @@ function cookingChangeSummaries(diff: RecipeDiff): string[] {
 
 export function RecipeDiffView({ comparison }: RecipeDiffViewProps) {
   const { diff } = comparison;
-  const ingredientChanges = comparison.ingredientChangeCount;
   const instructionChanges = comparison.instructionChangeCount;
   const detailChanges = comparison.metadataChangeCount;
   const summaries = cookingChangeSummaries(diff);
@@ -558,22 +422,22 @@ export function RecipeDiffView({ comparison }: RecipeDiffViewProps) {
       />
       <RecipeComparisonNavigation comparison={comparison} />
 
-      {!diff.has_changes ? (
-        <section
-          className="recipe-diff-empty"
-          aria-labelledby="recipe-diff-empty-heading"
-        >
-          <p className="eyebrow">Comparison complete</p>
-          <h2 id="recipe-diff-empty-heading">
-            This recipe matches the starting recipe.
-          </h2>
-          <p>
-            It has the same recipe details, ingredients, and cooking steps as{" "}
-            {diff.base_version.title}.
-          </p>
-        </section>
-      ) : (
-        <div className="recipe-diff-content">
+      <div className="recipe-diff-content">
+        {!comparison.hasChanges ? (
+          <section
+            className="recipe-diff-empty"
+            aria-labelledby="recipe-diff-empty-heading"
+          >
+            <p className="eyebrow">Comparison complete</p>
+            <h2 id="recipe-diff-empty-heading">
+              This recipe matches the starting recipe.
+            </h2>
+            <p>
+              It has the same recipe details, ingredients, and cooking steps as{" "}
+              {diff.base_version.title}.
+            </p>
+          </section>
+        ) : (
           <section
             className="recipe-diff-overview"
             aria-labelledby="recipe-diff-overview-heading"
@@ -596,52 +460,11 @@ export function RecipeDiffView({ comparison }: RecipeDiffViewProps) {
               </p>
             ) : null}
           </section>
+        )}
 
-          {ingredientChanges > 0 ? (
-            <section
-              className="recipe-diff-group"
-              aria-labelledby="ingredient-changes-heading"
-            >
-              <div className="section-heading section-heading--compact">
-                <div>
-                  <p className="eyebrow">Ingredients</p>
-                  <h2 id="ingredient-changes-heading">Ingredient changes</h2>
-                </div>
-              </div>
-              <ul className="recipe-diff-list">
-                {diff.ingredients.replaced.map((change) => (
-                  <PairedIngredientChange
-                    key={`${change.before.id}:${change.after.id}`}
-                    change={change}
-                    kind="substitution"
-                  />
-                ))}
-                {diff.ingredients.modified.map((change) => (
-                  <PairedIngredientChange
-                    key={`${change.before.id}:${change.after.id}`}
-                    change={change}
-                    kind="modified"
-                  />
-                ))}
-                {diff.ingredients.added.map((ingredient) => (
-                  <SingleIngredientChange
-                    key={ingredient.id}
-                    ingredient={ingredient}
-                    kind="added"
-                  />
-                ))}
-                {diff.ingredients.removed.map((ingredient) => (
-                  <SingleIngredientChange
-                    key={ingredient.id}
-                    ingredient={ingredient}
-                    kind="removed"
-                  />
-                ))}
-              </ul>
-            </section>
-          ) : null}
+        <RecipeComparisonIngredients comparison={comparison} />
 
-          {instructionChanges > 0 ? (
+        {instructionChanges > 0 ? (
             <section
               className="recipe-diff-group"
               aria-labelledby="instruction-changes-heading"
@@ -679,9 +502,9 @@ export function RecipeDiffView({ comparison }: RecipeDiffViewProps) {
                 ))}
               </ul>
             </section>
-          ) : null}
+        ) : null}
 
-          {detailChanges > 0 ? (
+        {detailChanges > 0 ? (
             <section
               className="recipe-diff-group recipe-diff-group--secondary"
               aria-labelledby="recipe-detail-changes-heading"
@@ -698,9 +521,8 @@ export function RecipeDiffView({ comparison }: RecipeDiffViewProps) {
                 ))}
               </ul>
             </section>
-          ) : null}
-        </div>
-      )}
+        ) : null}
+      </div>
     </article>
   );
 }
