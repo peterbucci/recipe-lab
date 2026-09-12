@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -140,12 +140,26 @@ describe("RecipeComparePage", () => {
     expect(mocks.fetchRecipe).toHaveBeenCalledWith(SELECTED_ID);
     expect(
       screen.getByRole("heading", {
-        name: "How Pecan Banana Oat Pancakes changed",
+        name: "Pecan Banana Oat Pancakes",
       }),
     ).toBeVisible();
+
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(
-      screen.getByRole("link", { name: "← Banana Oat Pancakes" }),
+      within(breadcrumb).getByRole("link", { name: "Explore" }),
+    ).toHaveAttribute("href", "/recipes");
+    expect(
+      within(breadcrumb).getByRole("link", { name: "Banana Oat Pancakes" }),
     ).toHaveAttribute("href", `/recipes/${RECIPE_ID}`);
+    expect(
+      within(breadcrumb).getByRole("link", {
+        name: "Pecan Banana Oat Pancakes",
+      }),
+    ).toHaveAttribute("href", `/recipes/${SELECTED_ID}`);
+    expect(within(breadcrumb).getByText("Compare")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
   it.each([
     {

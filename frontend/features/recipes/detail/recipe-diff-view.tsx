@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
 import {
@@ -17,6 +16,10 @@ import type {
   RecipeInstructionPairChange,
 } from "../shared/recipe-contracts";
 import type { RecipeComparisonModel } from "./recipe-comparison-model";
+import {
+  RecipeComparisonHero,
+  RecipeComparisonNavigation,
+} from "./recipe-comparison-hero";
 
 interface RecipeDiffViewProps {
   comparison: RecipeComparisonModel;
@@ -539,7 +542,6 @@ export function RecipeDiffView({ comparison }: RecipeDiffViewProps) {
   const ingredientChanges = comparison.ingredientChangeCount;
   const instructionChanges = comparison.instructionChangeCount;
   const detailChanges = comparison.metadataChangeCount;
-  const totalChanges = comparison.totalChanges;
   const summaries = cookingChangeSummaries(diff);
   const visibleSummaries = summaries.slice(0, 3);
   const remainingSummaries = Math.max(
@@ -550,34 +552,11 @@ export function RecipeDiffView({ comparison }: RecipeDiffViewProps) {
 
   return (
     <article className="recipe-diff-view" aria-labelledby={pageHeadingId}>
-      <header className="recipe-diff-view__header">
-        <p className="eyebrow">Recipe comparison</p>
-        <h1 id={pageHeadingId}>How {diff.target_version.title} changed</h1>
-        <p className="recipe-diff-view__lede">
-          Compared with {diff.base_version.title}. Start with the main cooking
-          changes, then review every recorded detail below.
-        </p>
-        <nav className="recipe-diff-versions" aria-label="Compared recipes">
-          <ol>
-            <li>
-              <Link
-                href={`/recipes/${encodeURIComponent(diff.base_version.id)}`}
-              >
-                <span>Starting recipe</span>
-                <strong>{diff.base_version.title}</strong>
-              </Link>
-            </li>
-            <li>
-              <Link
-                href={`/recipes/${encodeURIComponent(diff.target_version.id)}`}
-              >
-                <span>This recipe</span>
-                <strong>{diff.target_version.title}</strong>
-              </Link>
-            </li>
-          </ol>
-        </nav>
-      </header>
+      <RecipeComparisonHero
+        comparison={comparison}
+        headingId={pageHeadingId}
+      />
+      <RecipeComparisonNavigation comparison={comparison} />
 
       {!diff.has_changes ? (
         <section
@@ -599,9 +578,7 @@ export function RecipeDiffView({ comparison }: RecipeDiffViewProps) {
             className="recipe-diff-overview"
             aria-labelledby="recipe-diff-overview-heading"
           >
-            <p className="eyebrow">
-              {totalChanges} {totalChanges === 1 ? "change" : "changes"}
-            </p>
+            <p className="eyebrow">Key changes</p>
             <h2 id="recipe-diff-overview-heading">Changes at a glance</h2>
             <ul
               className="recipe-diff-highlights"
@@ -714,9 +691,6 @@ export function RecipeDiffView({ comparison }: RecipeDiffViewProps) {
                   <p className="eyebrow">Recipe information</p>
                   <h2 id="recipe-detail-changes-heading">Recipe details</h2>
                 </div>
-                <span>
-                  {detailChanges} {detailChanges === 1 ? "change" : "changes"}
-                </span>
               </div>
               <ul className="recipe-diff-list">
                 {diff.metadata_changes.map((change) => (

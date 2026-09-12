@@ -101,16 +101,21 @@ export default async function RecipeComparePage({
       id="main-content"
       className="page-shell page-shell--detail recipe-comparison-page"
     >
-      <nav className="breadcrumb" aria-label="Breadcrumb">
-        <Link
-          href={`/recipes/${encodeURIComponent(
-            baseVersionId ? diff.base_version.id : diff.target_version.id,
-          )}`}
-        >
-          ← {baseVersionId
-            ? diff.base_version.title
-            : diff.target_version.title}
+      <nav
+        className="breadcrumb recipe-detail-breadcrumb"
+        aria-label="Breadcrumb"
+      >
+        <Link href="/recipes">Explore</Link>
+        <span aria-hidden="true">/</span>
+        <Link href={`/recipes/${encodeURIComponent(diff.base_version.id)}`}>
+          {diff.base_version.title}
         </Link>
+        <span aria-hidden="true">/</span>
+        <Link href={`/recipes/${encodeURIComponent(recipe.id)}`}>
+          {recipe.title}
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">Compare</span>
       </nav>
       <RecipeDiffView comparison={comparison} />
     </main>

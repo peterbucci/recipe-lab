@@ -17,13 +17,14 @@ describe("RecipeDiffView", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "How Lower-Sugar Pecan Carrot Cake changed",
+        name: "Lower-Sugar Pecan Carrot Cake",
         level: 1,
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Compared with Carrot Walnut Snack Cake. Start with the main cooking changes, then review every recorded detail below.",
+        "The original cake with less sugar and toasted pecans.",
+        { selector: ".recipe-comparison-hero__description" },
       ),
     ).toBeInTheDocument();
 
@@ -42,21 +43,24 @@ describe("RecipeDiffView", () => {
     expect(
       screen.getByText("7 more changes are listed below."),
     ).toBeInTheDocument();
+    expect(screen.getAllByText("10 changes", { exact: true })).toHaveLength(1);
 
-    const versions = screen.getByRole("navigation", {
-      name: "Compared recipes",
+    const views = screen.getByRole("navigation", {
+      name: "Recipe views",
     });
+    const changesLink = within(views).getByRole("link", { name: "Changes" });
+    expect(changesLink).toHaveAttribute(
+      "href",
+      `/recipes/${targetVersion.id}/compare?base_version_id=${baseVersion.id}`,
+    );
+    expect(within(changesLink).getByText("10")).toBeInTheDocument();
     expect(
-      within(versions).getByRole("link", {
-        name: /starting recipe.*carrot walnut snack cake/i,
-      }),
-    ).toHaveAttribute("href", `/recipes/${baseVersion.id}`);
-    expect(
-      within(versions).getByRole("link", {
-        name: /this recipe.*lower-sugar pecan carrot cake/i,
-      }),
+      within(views).getByRole("link", { name: "Recipe" }),
     ).toHaveAttribute("href", `/recipes/${targetVersion.id}`);
-    expect(screen.queryByText(/version \d+/i)).not.toBeInTheDocument();
+    expect(
+      within(views).getByRole("link", { name: "Family" }),
+    ).toHaveAttribute("href", `/recipes/${targetVersion.id}#recipe-family`);
+    expect(screen.getByText("Version 2")).toBeInTheDocument();
     expect(screen.queryByText(/direct parent/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/before · parent/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/after · variant/i)).not.toBeInTheDocument();
@@ -93,7 +97,7 @@ describe("RecipeDiffView", () => {
     }
 
     expect(
-      articleNamed("How Lower-Sugar Pecan Carrot Cake changed"),
+      articleNamed("Lower-Sugar Pecan Carrot Cake"),
     ).toBeInTheDocument();
     expect(articleNamed("Use Pecan instead of Walnut")).toBeInTheDocument();
     expect(articleNamed("Update step 2")).toBeInTheDocument();
@@ -110,8 +114,9 @@ describe("RecipeDiffView", () => {
 
     const overview = sectionNamed("Changes at a glance");
     expect(
-      within(overview).getByText("1 change", { exact: true }),
+      within(overview).getByText("Key changes", { exact: true }),
     ).toBeInTheDocument();
+    expect(screen.getAllByText("1 change", { exact: true })).toHaveLength(1);
     const highlights = screen.getByRole("list", {
       name: "Changes at a glance",
     });
@@ -173,8 +178,10 @@ describe("RecipeDiffView", () => {
     expect(
       screen.queryByRole("list", { name: "Changes at a glance" }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText(/^0 changes?$/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/\boriginal\b/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText("0 changes", { exact: true })).toHaveLength(1);
+    expect(
+      screen.queryByText("Original", { exact: true }),
+    ).not.toBeInTheDocument();
   });
 });
 
