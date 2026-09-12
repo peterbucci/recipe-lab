@@ -175,6 +175,7 @@ function instructionFixture(): InstructionFixture {
               after_id: currentRestAction.id,
             },
           ],
+          modified_action_pairs: [],
         },
       ],
     },
@@ -521,12 +522,14 @@ describe("RecipeComparisonInstructions", () => {
             after: afterWords,
             changed_fields: ["text"],
             unchanged_action_pairs: [],
+            modified_action_pairs: [],
           },
           {
             before: beforeActions,
             after: afterActions,
             changed_fields: ["actions"],
             unchanged_action_pairs: [],
+            modified_action_pairs: [],
           },
         ],
       },
@@ -605,12 +608,14 @@ describe("RecipeComparisonInstructions", () => {
             after: afterRemoval,
             changed_fields: ["actions"],
             unchanged_action_pairs: [],
+            modified_action_pairs: [],
           },
           {
             before: beforeAddition,
             after: afterAddition,
             changed_fields: ["actions"],
             unchanged_action_pairs: [],
+            modified_action_pairs: [],
           },
         ],
       },
@@ -696,6 +701,7 @@ describe("RecipeComparisonInstructions", () => {
               { before_id: previousMix.id, after_id: currentMix.id },
               { before_id: previousBake.id, after_id: currentBake.id },
             ],
+            modified_action_pairs: [],
           },
         ],
       },
@@ -729,7 +735,111 @@ describe("RecipeComparisonInstructions", () => {
     expect(screen.getByText("Order within the step changed")).toBeVisible();
   });
 
-  it("renders changed duration and temperature as an adjacent removal and addition", () => {
+  it("renders changed action inputs inline while keeping shared ingredients neutral", () => {
+    const baseOats = ingredient("base-oats", "Rolled oats", "100.0000", "g");
+    const baseBlueberry = ingredient(
+      "base-blueberry",
+      "Blueberry",
+      "50.0000",
+      "g",
+    );
+    const baseOil = ingredient("base-oil", "Neutral oil", "1.0000", "tbsp");
+    const currentOats = ingredient(
+      "current-oats",
+      "Rolled oats",
+      "100.0000",
+      "g",
+    );
+    const currentCinnamon = ingredient(
+      "current-cinnamon",
+      "Cinnamon",
+      "1.0000",
+      "tsp",
+    );
+    const currentOil = ingredient(
+      "current-oil",
+      "Neutral oil",
+      "1.0000",
+      "tbsp",
+    );
+    const previousAction = structuredAction("previous-cook", "cook", 0, [
+      baseOats.id,
+      baseBlueberry.id,
+      baseOil.id,
+    ]);
+    const currentAction = structuredAction("current-cook", "cook", 0, [
+      currentOats.id,
+      currentCinnamon.id,
+      currentOil.id,
+    ]);
+    currentAction.action_type = { ...previousAction.action_type };
+    const before = instruction("before-cook", "Cook the batter.", 0, [
+      previousAction,
+    ]);
+    const after = instruction("after-cook", "Cook the batter.", 0, [
+      currentAction,
+    ]);
+    const diff: RecipeDiff = {
+      ...mixedDiff(),
+      metadata_changes: [],
+      ingredients: { added: [], removed: [], replaced: [], modified: [] },
+      ingredient_context: {
+        base: [baseOats, baseBlueberry, baseOil],
+        target: [currentOats, currentCinnamon, currentOil],
+      },
+      instructions: {
+        added: [],
+        removed: [],
+        modified: [
+          {
+            before,
+            after,
+            changed_fields: ["inputs"],
+            unchanged_action_pairs: [],
+            modified_action_pairs: [
+              { before_id: previousAction.id, after_id: currentAction.id },
+            ],
+          },
+        ],
+      },
+      has_changes: true,
+    };
+    const recipe = targetRecipeDetail(diff, {
+      ingredients: [currentOats, currentCinnamon, currentOil],
+      instructions: [after],
+    });
+    render(
+      <RecipeComparisonInstructions
+        comparison={buildRecipeComparisonModel(recipe, diff)}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Cooking breakdown" }),
+    );
+    const actions = screen.getByRole("list", {
+      name: "Cooking action comparison for step 1",
+    });
+    const rows = Array.from(actions.children) as HTMLElement[];
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveAttribute("data-action-status", "changed");
+    expect(rows[0]).toHaveTextContent("Cook");
+    expect(rows[0]).toHaveTextContent("Rolled oats");
+    expect(rows[0]).toHaveTextContent("Neutral oil");
+    expect(
+      rows[0]!.querySelector(
+        ".recipe-comparison-action__fragment--removed",
+      ),
+    ).toHaveTextContent("Removed ingredient: Blueberry");
+    expect(
+      rows[0]!.querySelector(".recipe-comparison-action__fragment--added"),
+    ).toHaveTextContent("Added ingredient: Cinnamon");
+    expect(rows[0]!.querySelectorAll("del")).toHaveLength(1);
+    expect(rows[0]!.querySelectorAll("ins")).toHaveLength(1);
+  });
+
+  it("renders changed duration and temperature within one changed action", () => {
     const previousAction = structuredAction("previous-heat", "heat", 0);
     previousAction.duration = exactMeasure("5 minutes", "time");
     previousAction.temperature = exactMeasure("180 °C", "temperature");
@@ -760,6 +870,9 @@ describe("RecipeComparisonInstructions", () => {
             after,
             changed_fields: ["duration", "temperature"],
             unchanged_action_pairs: [],
+            modified_action_pairs: [
+              { before_id: previousAction.id, after_id: currentAction.id },
+            ],
           },
         ],
       },
@@ -783,16 +896,22 @@ describe("RecipeComparisonInstructions", () => {
     });
     const rows = Array.from(actions.children) as HTMLElement[];
 
-    expect(rows.map((item) => item.dataset.actionStatus)).toEqual([
-      "removed",
-      "added",
-    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveAttribute("data-action-status", "changed");
+    expect(rows[0]).toHaveClass("recipe-comparison-action--changed");
+    expect(rows[0]).toHaveTextContent("Changed action:");
     expect(rows[0]).toHaveTextContent("5 minutes");
+    expect(rows[0]).toHaveTextContent("10 minutes");
     expect(rows[0]).toHaveTextContent("180 °C");
-    expect(rows[0]!.querySelector("del")).toHaveTextContent("Removed action");
-    expect(rows[1]).toHaveTextContent("10 minutes");
-    expect(rows[1]).toHaveTextContent("190 °C");
-    expect(rows[1]!.querySelector("ins")).toHaveTextContent("Added action");
+    expect(rows[0]).toHaveTextContent("190 °C");
+    expect(rows[0]!.querySelectorAll("del")).toHaveLength(2);
+    expect(rows[0]!.querySelectorAll("ins")).toHaveLength(2);
+    expect(rows[0]!.querySelector("del")).toHaveTextContent(
+      "Previous duration: 5 minutes",
+    );
+    expect(rows[0]!.querySelector("ins")).toHaveTextContent(
+      "New duration: 10 minutes",
+    );
   });
 
   it("preserves the multiplicity of duplicate unchanged actions", () => {
@@ -827,6 +946,7 @@ describe("RecipeComparisonInstructions", () => {
               { before_id: previousFirst.id, after_id: currentFirst.id },
               { before_id: previousSecond.id, after_id: currentSecond.id },
             ],
+            modified_action_pairs: [],
           },
         ],
       },

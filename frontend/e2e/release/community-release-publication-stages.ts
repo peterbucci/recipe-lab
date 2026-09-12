@@ -961,19 +961,16 @@ export async function verifyPublicLineage(
     const actions = breakdownChange.locator(
       ":scope .recipe-comparison-actions",
     );
-    const addedAction = actions.locator(
-      ':scope > .recipe-comparison-action[data-action-status="added"]',
-    );
-    const removedAction = actions.locator(
-      ':scope > .recipe-comparison-action[data-action-status="removed"]',
+    const changedAction = actions.locator(
+      ':scope > .recipe-comparison-action[data-action-status="changed"]',
     );
     await expect(actions).toHaveCount(1);
-    await expect(addedAction).toHaveCount(1);
-    await expect(removedAction).toHaveCount(1);
-    await expect(addedAction).toContainText("20 min");
-    await expect(removedAction).toContainText("10 min");
-    await expect(addedAction.locator("ins")).toHaveText("Added action:");
-    await expect(removedAction.locator("del")).toHaveText("Removed action:");
+    await expect(changedAction).toHaveCount(1);
+    await expect(changedAction).toContainText("20 min");
+    await expect(changedAction).toContainText("10 min");
+    await expect(changedAction).toContainText("Changed action:");
+    await expect(changedAction.locator("ins")).toContainText("20 min");
+    await expect(changedAction.locator("del")).toContainText("10 min");
     await expect(breakdownChange).toContainText("Timing changed");
     await expect(
       breakdownChange.locator(

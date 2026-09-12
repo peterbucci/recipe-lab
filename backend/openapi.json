@@ -4581,7 +4581,7 @@
         "type": "object"
       },
       "RecipeInstructionActionMatch": {
-        "description": "One semantically unchanged action across regenerated snapshot rows.",
+        "description": "One semantically paired action across regenerated snapshot rows.",
         "properties": {
           "after_id": {
             "format": "uuid",
@@ -4741,6 +4741,13 @@
             "title": "Changed Fields",
             "type": "array"
           },
+          "modified_action_pairs": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeInstructionActionMatch"
+            },
+            "title": "Modified Action Pairs",
+            "type": "array"
+          },
           "unchanged_action_pairs": {
             "items": {
               "$ref": "#/components/schemas/RecipeInstructionActionMatch"
@@ -4753,6 +4760,7 @@
           "before",
           "after",
           "unchanged_action_pairs",
+          "modified_action_pairs",
           "changed_fields"
         ],
         "title": "RecipeInstructionPairChange",

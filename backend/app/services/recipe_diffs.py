@@ -409,6 +409,7 @@ def _instruction_changed_fields(
 ) -> tuple[
     list[RecipeInstructionChangedField],
     list[tuple[RecipeInstructionAction, RecipeInstructionAction]],
+    list[tuple[RecipeInstructionAction, RecipeInstructionAction]],
 ]:
     before_actions = sorted(before.actions, key=_action_order)
     after_actions = sorted(after.actions, key=_action_order)
@@ -447,9 +448,18 @@ def _instruction_changed_fields(
         "duration": duration_changed,
         "temperature": temperature_changed,
     }
+    exact_pair_ids = {
+        (before_action.id, after_action.id) for before_action, after_action in exact_action_pairs
+    }
+    modified_action_pairs = [
+        (before_action, after_action)
+        for before_action, after_action in action_pairs
+        if (before_action.id, after_action.id) not in exact_pair_ids
+    ]
     return (
         [field for field in _INSTRUCTION_FIELD_ORDER if changed[field]],
         exact_action_pairs,
+        modified_action_pairs,
     )
 
 
@@ -566,7 +576,11 @@ def _instruction_diff(
         remaining_after[:shared_count],
         strict=True,
     ):
-        changed_fields, unchanged_action_pairs = _instruction_changed_fields(
+        (
+            changed_fields,
+            unchanged_action_pairs,
+            modified_action_pairs,
+        ) = _instruction_changed_fields(
             before,
             after,
             before_tokens=before_tokens,
@@ -583,6 +597,13 @@ def _instruction_diff(
                             after_id=after_action.id,
                         )
                         for before_action, after_action in unchanged_action_pairs
+                    ],
+                    modified_action_pairs=[
+                        RecipeInstructionActionMatch(
+                            before_id=before_action.id,
+                            after_id=after_action.id,
+                        )
+                        for before_action, after_action in modified_action_pairs
                     ],
                     changed_fields=changed_fields,
                 )

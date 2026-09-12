@@ -120,6 +120,7 @@ export interface RecipeInstructionPairChange {
   after: RecipeInstruction;
   changed_fields: RecipeInstructionChangedField[];
   unchanged_action_pairs: RecipeInstructionActionMatch[];
+  modified_action_pairs: RecipeInstructionActionMatch[];
 }
 
 export interface RecipeInstructionActionMatch {

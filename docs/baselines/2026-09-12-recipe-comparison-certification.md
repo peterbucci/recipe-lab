@@ -45,12 +45,13 @@ complete recipe in both instruction views.
 Changed Cooking breakdown values use full-width action cards modeled on the
 normal recipe view. Each instruction has one ordered, aligned action list:
 semantically unchanged actions appear once on white, additions appear on green,
-and removals appear on red. A changed action value is represented honestly as
-the removed prior action followed by the added current action. Visible `+` and
-`−` markers, plus screen-reader-only Added and Removed text with `ins` and `del`
-semantics, preserve that meaning without relying on color. The numbered step
-markers and their vertical connector remain visible in Cooking breakdown just
-as they do in Steps.
+and removals appear on red. When an action stays the same but its details
+change, it appears once in a purple `±` row: unchanged fragments retain normal
+text, removed details are red and struck through, and inserted details are
+green. Visible `+`, `−`, and `±` markers, plus screen-reader-only Added,
+Removed, and Changed text with `ins` and `del` semantics, preserve that meaning
+without relying on color. The numbered step markers and their vertical
+connector remain visible in Cooking breakdown just as they do in Steps.
 
 The comparison uses the same accessible Recipe, Notes, and Family tabs as the
 normal recipe view. Recipe is the default panel and owns the ingredient and
@@ -78,7 +79,7 @@ frontend API types, but does not change the database or add a migration.
 | 820 by 1000 | Hero and body stay stacked without overflow while facts and recipe actions retain their intermediate layout. |
 | 680 by 900 | Reader and comparison instruction headers stack while their shared switch fills the available width. |
 | 390 by 844 | Hero, strip, actions, tabs, active-panel content, ingredient values, prior values, both instruction views, and notes reflow without horizontal overflow; the instruction switch becomes full width, the numbered timeline remains visible, and action-card details move below their ingredient column. |
-| Forced colors | Both selected tab treatments, status symbols, text labels, insertion/deletion semantics, links, prior values, numbered step connectors, and the three action states remain distinguishable; removed action rows retain a dashed boundary. |
+| Forced colors | Both selected tab treatments, status symbols, text labels, insertion/deletion semantics, links, prior values, numbered step connectors, and all four action states remain distinguishable; removed action rows retain a dashed boundary and changed rows retain a double boundary. |
 | Print | Recipe, both instruction views, and Notes print with their prior-value context; both interactive tablists, the Family panel, and recipe actions leave the print flow. Cooking breakdown rows drop their color fills but retain the numbered timeline, borders, labels, and insertion/deletion semantics. |
 
 The keyboard journey establishes this relative focus order while allowing the
@@ -102,12 +103,12 @@ for the recipe-first hero.
 | Project | Snapshot | Git object ID | Review purpose |
 | --- | --- | --- | --- |
 | Desktop | `recipe-comparison-normal` | `fd0737175390917a7eef26470949eb3579539304` | Recipe tab with the two-column complete ingredient comparison and default Steps view. |
-| Desktop | `recipe-comparison-cooking-breakdown` | `281739d4edc91628b1b77c407612f5fbb5a8921b` | Numbered Cooking breakdown timeline with one aligned list of neutral, added, and removed actions. |
+| Desktop | `recipe-comparison-cooking-breakdown` | `f543097010da646f5f9096bcfcc4296cfa02c980` | Numbered Cooking breakdown timeline with one aligned list of neutral, added, removed, and purple modified actions. |
 | Desktop | `recipe-comparison-intermediate-normal` | `fabfa613ebbe201aff9d67102a20ba3c9edf8cc2` | Stacked 820 px Recipe panel, default Steps view, and prior values. |
-| Desktop | `recipe-comparison-intermediate-cooking-breakdown` | `60e7a25c47a300f4481071114f95ce336b0d3224` | Full-width aligned Cooking breakdown rows and numbered timeline in the stacked 820 px layout. |
+| Desktop | `recipe-comparison-intermediate-cooking-breakdown` | `761fa9c5074b6b0ea2c526c1b2808657f7765a1f` | Full-width aligned Cooking breakdown rows, inline detail changes, and numbered timeline in the stacked 820 px layout. |
 | Phone | `recipe-comparison-top-normal` | `ecff7f01f82a17e7902b82554d50ef50931f8f5b` | Recipe-first phone hero and current recipe context. |
 | Phone | `recipe-comparison-normal` | `75e7452cf84bf4a97684c711453a4128f41b7ae7` | Sticky standard tabs with the complete phone Recipe panel and full-width instruction switch. |
-| Phone | `recipe-comparison-cooking-breakdown` | `b3bd8f85d3ee436f70fcd11ecc96e4d7e7a76b48` | Numbered timeline, two-column aligned action rows, stacked timing, and all three action states without horizontal overflow. |
+| Phone | `recipe-comparison-cooking-breakdown` | `0ee98456b771bbb26b8ac49c6dcf1baaa73cda56` | Numbered timeline, two-column aligned action rows, stacked timing, and all four action states without horizontal overflow. |
 
 The canonical runner used:
 
@@ -121,11 +122,11 @@ It reported Playwright 1.62.1 and Chromium 151.0.7922.34 on linux/amd64.
 
 | Check | Result |
 | --- | --- |
-| Focused comparison and route-state components | The focused merged-action suite passed 2 files and 10 tests; the complete frontend suite passed 186 files and 1,027 tests. |
+| Focused comparison and route-state components | The focused comparison suite passed 3 files and 17 tests; the complete frontend suite passed 186 files and 1,028 tests. |
 | Frontend architecture and reachability | Architecture audited 423 source files with no retired-location violations; reachability found 245 modules from 58 runtime entries. |
 | CSS architecture | Current comparison and loading selector families have one enforced owner; retired audit selector families are absent. |
 | Responsive and accessibility contracts | Reviewed-width, exact 901/900 boundary, forced-colors, print, Axe, and horizontal-overflow checks passed. |
-| Current-branch comparison browser smoke | Desktop and phone comparison journeys cover full content, adjacent prior values, both nested instruction views, color-independent neutral/added/removed Cooking breakdown rows, the numbered timeline, independent roving keyboard focus, canonical hashes, and phone overflow. |
+| Current-branch comparison browser smoke | Desktop and phone comparison journeys cover full content, adjacent prior values, both nested instruction views, color-independent neutral/added/removed/modified Cooking breakdown rows, the numbered timeline, independent roving keyboard focus, canonical hashes, and phone overflow. |
 | Full pull-request browser smoke | All 17 Chromium and engine-sanity checks passed against a dedicated current-branch frontend. |
 | Guarded comparison acceptance | Both affected real-stack publication journeys passed against a fresh isolated database: 2 passed in 23.8 seconds; the fixture, backend process, and database were removed afterward. |
 | Browser-mode discovery | Smoke 17, acceptance 23, performance 1, release 1, and visual 184 tests were discovered. |

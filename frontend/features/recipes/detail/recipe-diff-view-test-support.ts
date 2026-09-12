@@ -191,6 +191,7 @@ export function mixedDiff(): RecipeDiff {
           ),
           changed_fields: ["text"],
           unchanged_action_pairs: [],
+          modified_action_pairs: [],
         },
       ],
     },

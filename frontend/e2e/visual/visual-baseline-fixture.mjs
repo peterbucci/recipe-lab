@@ -170,12 +170,6 @@ const simmerAction = Object.freeze({
   active: true,
   provenance: "Synthetic baseline catalog.",
 });
-const comparisonBlendAction = Object.freeze({
-  id: "60000000-0000-4000-8000-000000000011",
-  key: "blend",
-  canonical_verb: "blend",
-  active: true,
-});
 const comparisonRestAction = Object.freeze({
   id: "60000000-0000-4000-8000-000000000012",
   key: "rest",
@@ -445,12 +439,9 @@ function comparisonDetailFor(summary) {
         actions: [
           {
             id: "43000000-0000-4000-8000-000000000001",
-            action_type: comparisonBlendAction,
+            action_type: comparisonFoldAction,
             display_order: 0,
-            ingredient_occurrence_ids: [
-              "41000000-0000-4000-8000-000000000001",
-              "41000000-0000-4000-8000-000000000002",
-            ],
+            ingredient_occurrence_ids: ["41000000-0000-4000-8000-000000000002"],
             duration: null,
             temperature: null,
           },
@@ -555,7 +546,7 @@ const diff = Object.freeze({
               action_type: comparisonFoldAction,
               display_order: 1,
               ingredient_occurrence_ids: [
-                "41000000-0000-4000-8000-000000000002",
+                "41000000-0000-4000-8000-000000000001",
               ],
               duration: null,
               temperature: null,
@@ -563,11 +554,17 @@ const diff = Object.freeze({
           ],
         },
         after: comparisonDetailFor(variantSummary).instructions[0],
-        changed_fields: ["title", "text", "actions"],
+        changed_fields: ["title", "text", "actions", "inputs"],
         unchanged_action_pairs: [
           {
             before_id: "43000000-0000-4000-8000-000000000010",
             after_id: "43000000-0000-4000-8000-000000000002",
+          },
+        ],
+        modified_action_pairs: [
+          {
+            before_id: "43000000-0000-4000-8000-000000000011",
+            after_id: "43000000-0000-4000-8000-000000000001",
           },
         ],
       },

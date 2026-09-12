@@ -2435,7 +2435,7 @@ export type components = {
         };
         /**
          * RecipeInstructionActionMatch
-         * @description One semantically unchanged action across regenerated snapshot rows.
+         * @description One semantically paired action across regenerated snapshot rows.
          */
         readonly RecipeInstructionActionMatch: {
             /**
@@ -2483,6 +2483,8 @@ export type components = {
             readonly before: components["schemas"]["RecipeInstructionResponse"];
             /** Changed Fields */
             readonly changed_fields: readonly components["schemas"]["RecipeInstructionChangedField"][];
+            /** Modified Action Pairs */
+            readonly modified_action_pairs: readonly components["schemas"]["RecipeInstructionActionMatch"][];
             /** Unchanged Action Pairs */
             readonly unchanged_action_pairs: readonly components["schemas"]["RecipeInstructionActionMatch"][];
         };

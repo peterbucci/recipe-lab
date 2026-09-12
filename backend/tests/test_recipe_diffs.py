@@ -1399,11 +1399,13 @@ def test_action_membership_and_action_order_are_distinct_changes() -> None:
         (base.instructions[0].actions[0].id, reordered.instructions[0].actions[1].id),
         (base.instructions[0].actions[1].id, reordered.instructions[0].actions[0].id),
     ]
+    assert reordered_change.modified_action_pairs == []
     assert added_change.changed_fields == ["actions"]
     assert [(match.before_id, match.after_id) for match in added_change.unchanged_action_pairs] == [
         (base.instructions[0].actions[0].id, added.instructions[0].actions[0].id),
         (base.instructions[0].actions[1].id, added.instructions[0].actions[1].id),
     ]
+    assert added_change.modified_action_pairs == []
 
 
 def test_repeated_ingredient_content_convergence_does_not_change_action_input() -> None:
@@ -1596,4 +1598,7 @@ def test_repeated_action_content_convergence_does_not_change_action_order() -> N
     assert change.changed_fields == ["duration"]
     assert [(match.before_id, match.after_id) for match in change.unchanged_action_pairs] == [
         (base.instructions[0].actions[1].id, target.instructions[0].actions[1].id)
+    ]
+    assert [(match.before_id, match.after_id) for match in change.modified_action_pairs] == [
+        (base.instructions[0].actions[0].id, target.instructions[0].actions[0].id)
     ]

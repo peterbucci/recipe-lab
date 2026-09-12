@@ -81,13 +81,25 @@ function actionIngredientNames(
   );
 }
 
-type RecipeComparisonActionStatus = "unchanged" | "added" | "removed";
+type RecipeComparisonActionStatus =
+  | "unchanged"
+  | "added"
+  | "removed"
+  | "changed";
 
 interface RecipeComparisonActionRow {
-  action: RecipeInstructionAction;
-  ingredientById: ReadonlyMap<string, RecipeIngredient>;
+  current: RecipeInstructionAction | null;
+  currentIngredientById: ReadonlyMap<string, RecipeIngredient>;
   key: string;
+  previous: RecipeInstructionAction | null;
+  previousIngredientById: ReadonlyMap<string, RecipeIngredient>;
   status: RecipeComparisonActionStatus;
+}
+
+interface RecipeComparisonActionPair {
+  currentId: string;
+  previousId: string;
+  status: Extract<RecipeComparisonActionStatus, "unchanged" | "changed">;
 }
 
 interface RecipeComparisonActionAnchor {
@@ -153,44 +165,66 @@ function comparisonActionRows(
 
   if (row.status === "unchanged") {
     return currentActions.map((action) => ({
-      action,
-      ingredientById: currentIngredientById,
+      current: action,
+      currentIngredientById,
       key: `current:${action.id}`,
+      previous: null,
+      previousIngredientById: baseIngredientById,
       status: "unchanged",
     }));
   }
   if (row.status === "added") {
     return currentActions.map((action) => ({
-      action,
-      ingredientById: currentIngredientById,
+      current: action,
+      currentIngredientById,
       key: `current:${action.id}`,
+      previous: null,
+      previousIngredientById: baseIngredientById,
       status: "added",
     }));
   }
   if (row.status === "removed") {
     return previousActions.map((action) => ({
-      action,
-      ingredientById: baseIngredientById,
+      current: null,
+      currentIngredientById,
       key: `previous:${action.id}`,
+      previous: action,
+      previousIngredientById: baseIngredientById,
       status: "removed",
     }));
   }
 
   const currentIds = new Set(currentActions.map((action) => action.id));
   const previousIds = new Set(previousActions.map((action) => action.id));
-  const matchedPreviousByCurrentId = new Map<string, string>();
+  const previousById = new Map(previousActions.map((action) => [action.id, action]));
+  const matchedPreviousByCurrentId = new Map<
+    string,
+    RecipeComparisonActionPair
+  >();
   const matchedCurrentByPreviousId = new Map<string, string>();
-  for (const pair of row.unchangedActionPairs) {
+  const pairs: RecipeComparisonActionPair[] = [
+    ...row.unchangedActionPairs.map((pair) => ({
+      currentId: pair.after_id,
+      previousId: pair.before_id,
+      status: "unchanged" as const,
+    })),
+    ...row.modifiedActionPairs.map((pair) => ({
+      currentId: pair.after_id,
+      previousId: pair.before_id,
+      status: "changed" as const,
+    })),
+  ];
+  for (const pair of pairs) {
     if (
-      !currentIds.has(pair.after_id) ||
-      !previousIds.has(pair.before_id) ||
-      matchedPreviousByCurrentId.has(pair.after_id) ||
-      matchedCurrentByPreviousId.has(pair.before_id)
+      !currentIds.has(pair.currentId) ||
+      !previousIds.has(pair.previousId) ||
+      matchedPreviousByCurrentId.has(pair.currentId) ||
+      matchedCurrentByPreviousId.has(pair.previousId)
     ) {
       continue;
     }
-    matchedPreviousByCurrentId.set(pair.after_id, pair.before_id);
-    matchedCurrentByPreviousId.set(pair.before_id, pair.after_id);
+    matchedPreviousByCurrentId.set(pair.currentId, pair);
+    matchedCurrentByPreviousId.set(pair.previousId, pair.currentId);
   }
 
   const actionRows: RecipeComparisonActionRow[] = [];
@@ -206,20 +240,23 @@ function comparisonActionRows(
     for (const action of previousActions.slice(previousCursor, previousEnd)) {
       if (matchedCurrentByPreviousId.has(action.id)) continue;
       actionRows.push({
-        action,
-        ingredientById: baseIngredientById,
+        current: null,
+        currentIngredientById,
         key: `previous:${action.id}`,
+        previous: action,
+        previousIngredientById: baseIngredientById,
         status: "removed",
       });
     }
     for (const action of currentActions.slice(currentCursor, currentEnd)) {
+      const pair = matchedPreviousByCurrentId.get(action.id);
       actionRows.push({
-        action,
-        ingredientById: currentIngredientById,
+        current: action,
+        currentIngredientById,
         key: `current:${action.id}`,
-        status: matchedPreviousByCurrentId.has(action.id)
-          ? "unchanged"
-          : "added",
+        previous: pair ? (previousById.get(pair.previousId) ?? null) : null,
+        previousIngredientById: baseIngredientById,
+        status: pair?.status ?? "added",
       });
     }
   };
@@ -227,17 +264,168 @@ function comparisonActionRows(
   for (const anchor of anchors) {
     appendGap(anchor.currentIndex, anchor.previousIndex);
     const action = currentActions[anchor.currentIndex]!;
+    const pair = matchedPreviousByCurrentId.get(action.id)!;
     actionRows.push({
-      action,
-      ingredientById: currentIngredientById,
+      current: action,
+      currentIngredientById,
       key: `current:${action.id}`,
-      status: "unchanged",
+      previous: previousById.get(pair.previousId) ?? null,
+      previousIngredientById: baseIngredientById,
+      status: pair.status,
     });
     currentCursor = anchor.currentIndex + 1;
     previousCursor = anchor.previousIndex + 1;
   }
   appendGap(currentActions.length, previousActions.length);
   return actionRows;
+}
+
+type RecipeComparisonTextStatus = "unchanged" | "added" | "removed";
+
+interface RecipeComparisonTextFragment {
+  status: RecipeComparisonTextStatus;
+  value: string;
+}
+
+function comparisonTextFragments(
+  previousValues: readonly string[],
+  currentValues: readonly string[],
+): RecipeComparisonTextFragment[] {
+  const previous =
+    previousValues.length > 0 ? previousValues : ["No ingredient linked"];
+  const current =
+    currentValues.length > 0 ? currentValues : ["No ingredient linked"];
+  const lengths = Array.from({ length: previous.length + 1 }, () =>
+    Array<number>(current.length + 1).fill(0),
+  );
+
+  for (let previousIndex = previous.length - 1; previousIndex >= 0; previousIndex -= 1) {
+    for (let currentIndex = current.length - 1; currentIndex >= 0; currentIndex -= 1) {
+      lengths[previousIndex]![currentIndex] =
+        previous[previousIndex] === current[currentIndex]
+          ? lengths[previousIndex + 1]![currentIndex + 1]! + 1
+          : Math.max(
+              lengths[previousIndex + 1]![currentIndex]!,
+              lengths[previousIndex]![currentIndex + 1]!,
+            );
+    }
+  }
+
+  const fragments: RecipeComparisonTextFragment[] = [];
+  let previousIndex = 0;
+  let currentIndex = 0;
+  while (previousIndex < previous.length && currentIndex < current.length) {
+    if (previous[previousIndex] === current[currentIndex]) {
+      fragments.push({
+        status: "unchanged",
+        value: current[currentIndex]!,
+      });
+      previousIndex += 1;
+      currentIndex += 1;
+    } else if (
+      lengths[previousIndex + 1]![currentIndex]! >=
+      lengths[previousIndex]![currentIndex + 1]!
+    ) {
+      fragments.push({
+        status: "removed",
+        value: previous[previousIndex]!,
+      });
+      previousIndex += 1;
+    } else {
+      fragments.push({ status: "added", value: current[currentIndex]! });
+      currentIndex += 1;
+    }
+  }
+  for (; previousIndex < previous.length; previousIndex += 1) {
+    fragments.push({
+      status: "removed",
+      value: previous[previousIndex]!,
+    });
+  }
+  for (; currentIndex < current.length; currentIndex += 1) {
+    fragments.push({ status: "added", value: current[currentIndex]! });
+  }
+  return fragments;
+}
+
+function listSeparator(index: number, length: number): string {
+  if (index === 0) return "";
+  if (length === 2) return " and ";
+  if (index === length - 1) return ", and ";
+  return ", ";
+}
+
+function ComparisonActionIngredients({
+  row,
+}: {
+  row: RecipeComparisonActionRow;
+}) {
+  const action = row.current ?? row.previous;
+  if (action === null) return null;
+
+  if (row.status !== "changed" || row.current === null || row.previous === null) {
+    const ingredientById = row.current
+      ? row.currentIngredientById
+      : row.previousIngredientById;
+    return <strong>{listNames(actionIngredientNames(action, ingredientById))}</strong>;
+  }
+
+  const fragments = comparisonTextFragments(
+    actionIngredientNames(row.previous, row.previousIngredientById),
+    actionIngredientNames(row.current, row.currentIngredientById),
+  );
+  return (
+    <strong>
+      {fragments.map((fragment, index) => (
+        <span key={`${fragment.status}:${index}:${fragment.value}`}>
+          {listSeparator(index, fragments.length)}
+          {fragment.status === "removed" ? (
+            <del className="recipe-comparison-action__fragment recipe-comparison-action__fragment--removed">
+              <span className="visually-hidden">Removed ingredient: </span>
+              {fragment.value}
+            </del>
+          ) : fragment.status === "added" ? (
+            <ins className="recipe-comparison-action__fragment recipe-comparison-action__fragment--added">
+              <span className="visually-hidden">Added ingredient: </span>
+              {fragment.value}
+            </ins>
+          ) : (
+            fragment.value
+          )}
+        </span>
+      ))}
+    </strong>
+  );
+}
+
+function ComparisonActionDetail({
+  current,
+  label,
+  previous,
+}: {
+  current: string | null;
+  label: "duration" | "temperature";
+  previous: string | null;
+}) {
+  if (current === null && previous === null) return null;
+  if (current === previous) return <li>{current}</li>;
+
+  return (
+    <li className="recipe-comparison-action__detail-change">
+      {previous ? (
+        <del className="recipe-comparison-action__fragment recipe-comparison-action__fragment--removed">
+          <span className="visually-hidden">Previous {label}: </span>
+          {previous}
+        </del>
+      ) : null}
+      {current ? (
+        <ins className="recipe-comparison-action__fragment recipe-comparison-action__fragment--added">
+          <span className="visually-hidden">New {label}: </span>
+          {current}
+        </ins>
+      ) : null}
+    </li>
+  );
 }
 
 function ComparisonInstructionActions({
@@ -257,38 +445,68 @@ function ComparisonInstructionActions({
 
   return (
     <ol className="recipe-comparison-actions" aria-label={label}>
-      {rows.map(({ action, ingredientById, key, status }) => {
+      {rows.map((row) => {
+        const action = row.current ?? row.previous;
+        if (action === null) return null;
         const verb = recipeActionLabel(action.action_type.canonical_verb);
-        const ingredients = actionIngredientNames(action, ingredientById);
+        const currentDuration = row.current?.duration?.display ?? null;
+        const previousDuration = row.previous?.duration?.display ?? null;
+        const currentTemperature = row.current?.temperature?.display ?? null;
+        const previousTemperature = row.previous?.temperature?.display ?? null;
+        const hasDetails = Boolean(
+          currentDuration ||
+          previousDuration ||
+          currentTemperature ||
+          previousTemperature,
+        );
         return (
           <li
-            className={`recipe-comparison-action recipe-comparison-action--${status}`}
-            data-action-status={status}
-            key={key}
+            className={`recipe-comparison-action recipe-comparison-action--${row.status}`}
+            data-action-status={row.status}
+            key={row.key}
           >
-            {status === "added" ? (
+            {row.status === "added" ? (
               <ins className="visually-hidden">Added action: </ins>
-            ) : status === "removed" ? (
+            ) : row.status === "removed" ? (
               <del className="visually-hidden">Removed action: </del>
+            ) : row.status === "changed" ? (
+              <span className="visually-hidden">Changed action: </span>
             ) : null}
             <strong className="recipe-comparison-action__verb">{verb}</strong>
             <span className="recipe-comparison-action__main">
-              <strong>{listNames(ingredients)}</strong>
+              <ComparisonActionIngredients row={row} />
               {!action.action_type.active ? (
                 <small className="recipe-comparison-action__inactive">
                   Previously used action
                 </small>
               ) : null}
             </span>
-            {action.duration || action.temperature ? (
+            {hasDetails ? (
               <ul
                 className="recipe-comparison-action__details"
                 aria-label={`${verb} timing and temperature`}
               >
-                {action.duration ? <li>{action.duration.display}</li> : null}
-                {action.temperature ? (
-                  <li>{action.temperature.display}</li>
-                ) : null}
+                {row.status === "changed" ? (
+                  <>
+                    <ComparisonActionDetail
+                      current={currentDuration}
+                      label="duration"
+                      previous={previousDuration}
+                    />
+                    <ComparisonActionDetail
+                      current={currentTemperature}
+                      label="temperature"
+                      previous={previousTemperature}
+                    />
+                  </>
+                ) : (
+                  <>
+                    {action.duration ? <li>{action.duration.display}</li> : null}
+                    {action.temperature ? (
+                      <li>{action.temperature.display}</li>
+                    ) : null}
+                  </>
+                )}
               </ul>
             ) : null}
           </li>

@@ -140,6 +140,9 @@ async function expectComparisonTabsAndActions(
   const addedActions = cookingActions.locator(
     ':scope > .recipe-comparison-action[data-action-status="added"]',
   );
+  const changedActions = cookingActions.locator(
+    ':scope > .recipe-comparison-action[data-action-status="changed"]',
+  );
   const unchangedActions = cookingActions.locator(
     ':scope > .recipe-comparison-action[data-action-status="unchanged"]',
   );
@@ -148,26 +151,29 @@ async function expectComparisonTabsAndActions(
   );
   await expect(changedBreakdown).toHaveCount(1);
   await expect(cookingActions).toBeVisible();
-  await expect(actionRows).toHaveCount(4);
+  await expect(actionRows).toHaveCount(3);
   expect(
     await actionRows.evaluateAll((rows) =>
       rows.map((row) => row.getAttribute("data-action-status")),
     ),
-  ).toEqual(["added", "unchanged", "removed", "added"]);
-  await expect(addedActions).toHaveCount(2);
+  ).toEqual(["changed", "unchanged", "added"]);
+  await expect(addedActions).toHaveCount(1);
+  await expect(changedActions).toHaveCount(1);
   await expect(unchangedActions).toHaveCount(1);
-  await expect(removedActions).toHaveCount(1);
+  await expect(removedActions).toHaveCount(0);
   await expect(unchangedActions).toContainText("Rest");
   await expect(addedActions.first().locator("ins")).toHaveText(
     "Added action:",
   );
-  await expect(removedActions.locator("del")).toHaveText("Removed action:");
+  await expect(changedActions).toContainText("Changed action:");
+  await expect(changedActions.locator("del")).toContainText("ripe plum tomatoes");
+  await expect(changedActions.locator("ins")).toContainText("fresh basil");
   await expectGridColumnCount(
     actionRows.first(),
     layout === "rows" ? 2 : 3,
   );
   await expectGridColumnCount(
-    removedActions,
+    changedActions,
     layout === "rows" ? 2 : 3,
   );
   await expect(
@@ -878,18 +884,20 @@ test("recipe comparison remains understandable in forced colors", async ({
   const unchangedAction = actions.locator(
     ':scope > .recipe-comparison-action[data-action-status="unchanged"]',
   );
-  const removedAction = actions.locator(
-    ':scope > .recipe-comparison-action[data-action-status="removed"]',
+  const changedAction = actions.locator(
+    ':scope > .recipe-comparison-action[data-action-status="changed"]',
   );
   await expect(changedBreakdown).toHaveCount(1);
   await expect(
     changedBreakdown.locator(".recipe-comparison-instruction-row__marker"),
   ).toHaveText("±");
   await expect(addedAction.locator("ins")).toHaveText("Added action:");
-  await expect(removedAction.locator("del")).toHaveText("Removed action:");
+  await expect(changedAction).toContainText("Changed action:");
+  await expect(changedAction.locator("del")).toBeVisible();
+  await expect(changedAction.locator("ins")).toBeVisible();
   await expect(unchangedAction).toContainText("Rest");
   await expect(addedAction).toHaveCSS("border-left-style", "solid");
-  await expect(removedAction).toHaveCSS("border-left-style", "dashed");
+  await expect(changedAction).toHaveCSS("border-left-style", "double");
   await expect(
     changedBreakdown.locator(
       ".recipe-comparison-instruction-row__step-number",
@@ -1001,20 +1009,21 @@ test("recipe comparison preserves the complete recipe when printed", async ({
   const unchangedAction = actions.locator(
     ':scope > .recipe-comparison-action[data-action-status="unchanged"]',
   );
-  const removedAction = actions.locator(
-    ':scope > .recipe-comparison-action[data-action-status="removed"]',
+  const changedAction = actions.locator(
+    ':scope > .recipe-comparison-action[data-action-status="changed"]',
   );
   await expect(actions).toBeVisible();
-  await expect(addedActions).toHaveCount(2);
+  await expect(addedActions).toHaveCount(1);
+  await expect(changedAction).toHaveCount(1);
   await expect(unchangedAction).toHaveCount(1);
-  await expect(removedAction).toHaveCount(1);
   await expect(unchangedAction).toContainText("Rest");
   await expect(addedActions.first().locator("ins")).toHaveText(
     "Added action:",
   );
-  await expect(removedAction.locator("del")).toHaveText("Removed action:");
+  await expect(changedAction.locator("del")).toBeVisible();
+  await expect(changedAction.locator("ins")).toBeVisible();
   await expect(addedActions.first()).toHaveCSS("border-left-style", "solid");
-  await expect(removedAction).toHaveCSS("border-left-style", "solid");
+  await expect(changedAction).toHaveCSS("border-left-style", "solid");
   await expect(notes).toBeVisible();
   await expect(
     notes.getByText(

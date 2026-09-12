@@ -263,7 +263,7 @@ test.describe("phone visual state matrix", () => {
     ).toBeVisible();
     await expect(
       breakdownPanel.locator(
-        '.recipe-comparison-action[data-action-status="removed"]',
+        '.recipe-comparison-action[data-action-status="changed"]',
       ),
     ).toBeVisible();
     await expect(

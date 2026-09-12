@@ -160,13 +160,14 @@ export async function expectCarrotComparisonToShowCompleteRecipe(
   ).toBeGreaterThan(0);
   expect(
     await breakdownPanel
-      .locator('.recipe-comparison-action[data-action-status="added"]')
+      .locator('.recipe-comparison-action[data-action-status="changed"]')
       .count(),
   ).toBeGreaterThan(0);
   expect(
-    await breakdownPanel
-      .locator('.recipe-comparison-action[data-action-status="removed"]')
-      .count(),
+    await breakdownPanel.locator(".recipe-comparison-action--changed del").count(),
+  ).toBeGreaterThan(0);
+  expect(
+    await breakdownPanel.locator(".recipe-comparison-action--changed ins").count(),
   ).toBeGreaterThan(0);
   await stepsTab.click();
   await expect(stepsPanel).toBeVisible();

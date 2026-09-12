@@ -68,6 +68,7 @@ describe("RecipeDiffView instruction integration", () => {
           after,
           changed_fields: ["text", "actions", "inputs"],
           unchanged_action_pairs: [],
+          modified_action_pairs: [],
         },
       ],
     };

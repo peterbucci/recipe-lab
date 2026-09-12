@@ -50,22 +50,14 @@ async function expectControlsInKeyboardOrder(
 async function expectColorIndependentBreakdownChanges(
   breakdownPanel: Locator,
 ): Promise<void> {
-  const addedActions = breakdownPanel.locator(
-    '.recipe-comparison-action[data-action-status="added"]',
+  const changedActions = breakdownPanel.locator(
+    '.recipe-comparison-action[data-action-status="changed"]',
   );
-  const removedActions = breakdownPanel.locator(
-    '.recipe-comparison-action[data-action-status="removed"]',
-  );
-  expect(await addedActions.count()).toBeGreaterThan(0);
-  expect(await removedActions.count()).toBeGreaterThan(0);
-  await expect(addedActions.first().locator("ins")).toHaveText(
-    "Added action:",
-  );
-  await expect(removedActions.first().locator("del")).toHaveText(
-    "Removed action:",
-  );
-  await expect(addedActions.first()).toBeVisible();
-  await expect(removedActions.first()).toBeVisible();
+  expect(await changedActions.count()).toBeGreaterThan(0);
+  await expect(changedActions.first()).toContainText("Changed action:");
+  await expect(changedActions.locator("del").first()).toBeVisible();
+  await expect(changedActions.locator("ins").first()).toBeVisible();
+  await expect(changedActions.first()).toBeVisible();
 }
 
 test("compares a selected family recipe with the open recipe without signing in", async ({

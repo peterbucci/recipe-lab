@@ -64,7 +64,7 @@ class RecipeIngredientContext(BaseModel):
 
 
 class RecipeInstructionActionMatch(BaseModel):
-    """One semantically unchanged action across regenerated snapshot rows."""
+    """One semantically paired action across regenerated snapshot rows."""
 
     before_id: UUID
     after_id: UUID
@@ -74,6 +74,7 @@ class RecipeInstructionPairChange(BaseModel):
     before: RecipeInstructionResponse
     after: RecipeInstructionResponse
     unchanged_action_pairs: list[RecipeInstructionActionMatch]
+    modified_action_pairs: list[RecipeInstructionActionMatch]
     changed_fields: list[RecipeInstructionChangedField] = Field(min_length=1)
 
 

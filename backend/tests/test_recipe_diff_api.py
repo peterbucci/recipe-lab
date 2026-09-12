@@ -238,10 +238,10 @@ def test_seeded_carrot_diff_uses_parent_by_default_and_matches_golden_contract(
     for change in instruction_diff["modified"]:
         before_action_ids = {action["id"] for action in change["before"]["actions"]}
         after_action_ids = {action["id"] for action in change["after"]["actions"]}
-        assert {
-            match["before_id"] for match in change["unchanged_action_pairs"]
-        } <= before_action_ids
-        assert {match["after_id"] for match in change["unchanged_action_pairs"]} <= after_action_ids
+        assert change["modified_action_pairs"]
+        for pair_kind in ("unchanged_action_pairs", "modified_action_pairs"):
+            assert {match["before_id"] for match in change[pair_kind]} <= before_action_ids
+            assert {match["after_id"] for match in change[pair_kind]} <= after_action_ids
         assert {
             ingredient_id
             for action in change["before"]["actions"]
@@ -530,9 +530,11 @@ def test_openapi_documents_recipe_diff_contract(diff_client: TestClient) -> None
     instruction_change_schema = schemas["RecipeInstructionPairChange"]
     assert instruction_change_schema["properties"]["changed_fields"]["minItems"] == 1
     assert "unchanged_action_pairs" in instruction_change_schema["required"]
-    assert instruction_change_schema["properties"]["unchanged_action_pairs"]["items"][
-        "$ref"
-    ].endswith("/RecipeInstructionActionMatch")
+    assert "modified_action_pairs" in instruction_change_schema["required"]
+    for pair_kind in ("unchanged_action_pairs", "modified_action_pairs"):
+        assert instruction_change_schema["properties"][pair_kind]["items"]["$ref"].endswith(
+            "/RecipeInstructionActionMatch"
+        )
     assert set(schemas["RecipeInstructionActionMatch"]["required"]) == {
         "before_id",
         "after_id",

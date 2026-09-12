@@ -35,6 +35,7 @@ export interface RecipeInstructionComparisonRow {
   previous: RecipeInstruction | null;
   changedFields: readonly RecipeInstructionChangedField[];
   unchangedActionPairs: readonly RecipeInstructionActionMatch[];
+  modifiedActionPairs: readonly RecipeInstructionActionMatch[];
   displayOrder: number;
 }
 
@@ -170,6 +171,7 @@ function instructionRows(
           previous: change.before,
           changedFields: change.changed_fields,
           unchangedActionPairs: change.unchanged_action_pairs ?? [],
+          modifiedActionPairs: change.modified_action_pairs ?? [],
           displayOrder: current.display_order,
         };
       }
@@ -181,6 +183,7 @@ function instructionRows(
           previous: null,
           changedFields: [],
           unchangedActionPairs: [],
+          modifiedActionPairs: [],
           displayOrder: current.display_order,
         };
       }
@@ -191,6 +194,7 @@ function instructionRows(
         previous: null,
         changedFields: [],
         unchangedActionPairs: [],
+        modifiedActionPairs: [],
         displayOrder: current.display_order,
       };
     },
@@ -204,6 +208,7 @@ function instructionRows(
       previous,
       changedFields: [],
       unchangedActionPairs: [],
+      modifiedActionPairs: [],
       displayOrder: previous.display_order,
     });
   }
