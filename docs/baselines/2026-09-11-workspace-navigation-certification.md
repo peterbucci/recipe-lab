@@ -67,7 +67,7 @@ move it.
 | Production build | Next.js production build and its TypeScript phase passed; 20 static pages generated. |
 | Full frontend unit and component suite | 181 files, 996 tests passed. |
 | Pull-request browser smoke | 17 Chromium and engine-sanity checks passed. |
-| Pinned visual/accessibility double-run | The committed screenshots are Linux-authored, so the full pixel comparison is delegated to hosted Linux CI. The cross-platform 680 px assertion and WCAG journey passed locally. |
+| Pinned visual/accessibility double-run | The complete suite passed twice in the immutable Linux/Chromium image used by CI: 184 passed and 172 deliberate cross-project skips. Twelve Settings and Staff Tools references were refreshed after full-resolution review because RCP-51B intentionally removes their decorative `1` badges; their opaque-source object IDs were updated with the images. |
 | Diff hygiene | `git diff --check` passed. |
 
 The focused browser command is:
