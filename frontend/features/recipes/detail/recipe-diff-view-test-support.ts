@@ -2,11 +2,14 @@ import { screen } from "@testing-library/react";
 import { expect } from "vitest";
 
 import type {
+  RecipeDetail,
   RecipeDiff,
   RecipeIngredient,
   RecipeInstruction,
 } from "../shared/recipe-contracts";
+import { buildRecipeSummary } from "../shared/recipe-test-support";
 import type { RecipeInstructionAction } from "../shared/recipe-structure";
+import { buildRecipeComparisonModel } from "./recipe-comparison-model";
 
 export const baseVersion = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -192,6 +195,44 @@ export function mixedDiff(): RecipeDiff {
     },
     has_changes: true,
   };
+}
+
+export function targetRecipeDetail(
+  diff: RecipeDiff = mixedDiff(),
+  overrides: Partial<RecipeDetail> = {},
+): RecipeDetail {
+  return {
+    ...buildRecipeSummary({
+      ...diff.target_version,
+      lineage_id: diff.lineage_id,
+      parent_version_id: diff.base_version.id,
+      parent: diff.base_version,
+      description: "The original cake with less sugar and toasted pecans.",
+      servings: "6.0000",
+    }),
+    average_rating: null,
+    rating_count: 0,
+    save_count: 0,
+    total_time_minutes: 60,
+    active_time_minutes: 20,
+    difficulty: "easy",
+    notes: null,
+    viewer_state: null,
+    children: [],
+    ingredients: diff.ingredient_context.target,
+    instructions: [
+      ...diff.instructions.modified.map((change) => change.after),
+      ...diff.instructions.added,
+    ].sort((left, right) => left.display_order - right.display_order),
+    ...overrides,
+  };
+}
+
+export function comparisonModel(
+  diff: RecipeDiff = mixedDiff(),
+  recipe: RecipeDetail = targetRecipeDetail(diff),
+) {
+  return buildRecipeComparisonModel(recipe, diff);
 }
 
 export function sectionNamed(name: string | RegExp): HTMLElement {

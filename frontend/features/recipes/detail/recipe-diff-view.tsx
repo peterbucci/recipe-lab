@@ -16,9 +16,10 @@ import type {
   RecipeInstruction,
   RecipeInstructionPairChange,
 } from "../shared/recipe-contracts";
+import type { RecipeComparisonModel } from "./recipe-comparison-model";
 
 interface RecipeDiffViewProps {
-  diff: RecipeDiff;
+  comparison: RecipeComparisonModel;
 }
 
 interface ValuePairProps {
@@ -455,23 +456,6 @@ function ModifiedInstruction({
   );
 }
 
-function ingredientChangeCount(diff: RecipeDiff): number {
-  return (
-    diff.ingredients.added.length +
-    diff.ingredients.removed.length +
-    diff.ingredients.replaced.length +
-    diff.ingredients.modified.length
-  );
-}
-
-function instructionChangeCount(diff: RecipeDiff): number {
-  return (
-    diff.instructions.added.length +
-    diff.instructions.removed.length +
-    diff.instructions.modified.length
-  );
-}
-
 function instructionChangeSummary(change: RecipeInstructionPairChange): string {
   const step = change.after.display_order + 1;
   const fields = new Set(change.changed_fields);
@@ -550,11 +534,12 @@ function cookingChangeSummaries(diff: RecipeDiff): string[] {
   return summaries;
 }
 
-export function RecipeDiffView({ diff }: RecipeDiffViewProps) {
-  const ingredientChanges = ingredientChangeCount(diff);
-  const instructionChanges = instructionChangeCount(diff);
-  const detailChanges = diff.metadata_changes.length;
-  const totalChanges = ingredientChanges + instructionChanges + detailChanges;
+export function RecipeDiffView({ comparison }: RecipeDiffViewProps) {
+  const { diff } = comparison;
+  const ingredientChanges = comparison.ingredientChangeCount;
+  const instructionChanges = comparison.instructionChangeCount;
+  const detailChanges = comparison.metadataChangeCount;
+  const totalChanges = comparison.totalChanges;
   const summaries = cookingChangeSummaries(diff);
   const visibleSummaries = summaries.slice(0, 3);
   const remainingSummaries = Math.max(

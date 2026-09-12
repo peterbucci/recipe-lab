@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   baseVersion,
+  comparisonModel,
   mixedDiff,
   sectionNamed,
   targetVersion,
@@ -11,7 +12,7 @@ import { RecipeDiffView } from "./recipe-diff-view";
 
 describe("RecipeDiffView", () => {
   it("preserves every old and new recipe detail value", () => {
-    render(<RecipeDiffView diff={mixedDiff()} />);
+    render(<RecipeDiffView comparison={comparisonModel()} />);
 
     const details = sectionNamed("Recipe details");
     const titleChange = within(details).getByRole("article", { name: "Title" });
@@ -75,7 +76,7 @@ describe("RecipeDiffView", () => {
     diff.ingredients = { added: [], removed: [], replaced: [], modified: [] };
     diff.instructions = { added: [], removed: [], modified: [] };
 
-    render(<RecipeDiffView diff={diff} />);
+    render(<RecipeDiffView comparison={comparisonModel(diff)} />);
 
     const details = sectionNamed("Recipe details");
     const totalTime = within(details).getByRole("article", {

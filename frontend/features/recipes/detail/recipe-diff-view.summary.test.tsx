@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   articleNamed,
   baseVersion,
+  comparisonModel,
   mixedDiff,
   sectionNamed,
   targetVersion,
@@ -12,7 +13,7 @@ import { RecipeDiffView } from "./recipe-diff-view";
 
 describe("RecipeDiffView", () => {
   it("leads with a cooking-first summary and orders changes by cooking flow", () => {
-    render(<RecipeDiffView diff={mixedDiff()} />);
+    render(<RecipeDiffView comparison={comparisonModel()} />);
 
     expect(
       screen.getByRole("heading", {
@@ -78,7 +79,7 @@ describe("RecipeDiffView", () => {
   });
 
   it("labels every comparison article with its visible heading", () => {
-    render(<RecipeDiffView diff={mixedDiff()} />);
+    render(<RecipeDiffView comparison={comparisonModel()} />);
 
     const articles = screen.getAllByRole("article");
     expect(articles).toHaveLength(11);
@@ -105,7 +106,7 @@ describe("RecipeDiffView", () => {
     diff.ingredients = { added: [], removed: [], replaced: [], modified: [] };
     diff.instructions = { added: [], removed: [], modified: [] };
 
-    render(<RecipeDiffView diff={diff} />);
+    render(<RecipeDiffView comparison={comparisonModel(diff)} />);
 
     const overview = sectionNamed("Changes at a glance");
     expect(
@@ -143,7 +144,7 @@ describe("RecipeDiffView", () => {
     diff.instructions = { added: [], removed: [], modified: [] };
     diff.has_changes = false;
 
-    render(<RecipeDiffView diff={diff} />);
+    render(<RecipeDiffView comparison={comparisonModel(diff)} />);
 
     expect(
       screen.getByRole("heading", {
