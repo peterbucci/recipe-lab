@@ -18,6 +18,7 @@
 @import "./styles/features/interactions.css";
 @import "./styles/features/moderation-policy.css";
 @import "./styles/features/catalog-public-pages.css";
+@import "./styles/features/recipe-comparison.css";
 @import "./styles/features/account.css";
 @import "./styles/features/authoring.css";
 @import "./styles/features/staff-workspace.css";

@@ -24,6 +24,25 @@ export const RESERVED_SELECTOR_OWNERS = Object.freeze({
   "workspace-panel-body": "app/styles/primitives.css",
   "workspace-panel-header": "app/styles/primitives.css",
   "workspace-panel-shell": "app/styles/primitives.css",
+  "recipe-comparison-page": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-view": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-versions": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-content": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-overview": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-highlights": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-group": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-list": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-entry": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-kinds": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-kind": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-values": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-value": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-single-value": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-ingredient": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-instruction": "app/styles/features/recipe-comparison.css",
+  "recipe-diff-empty": "app/styles/features/recipe-comparison.css",
+  "page-loading__recipe-body--comparison":
+    "app/styles/features/recipe-comparison.css",
 });
 
 function stylesheetPaths(directory) {
