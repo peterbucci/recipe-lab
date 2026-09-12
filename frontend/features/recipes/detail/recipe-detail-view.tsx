@@ -17,6 +17,7 @@ import { RecipeArtwork } from "../shared/recipe-artwork";
 import { RecipeCategoryList } from "../shared/recipe-category-list";
 import { RecipeDetailTabs } from "../shared/recipe-detail-tabs";
 import { RecipeFamilyNavigator } from "../shared/recipe-family-navigator";
+import { RecipeIngredientGatherCheckbox } from "../shared/recipe-ingredient-gather-checkbox";
 import { RecipeInstructionsPanel } from "./recipe-instructions-panel";
 import {
   RecipeMemberActions,
@@ -177,9 +178,8 @@ export function RecipeDetailView({
                 {recipe.ingredients.map((ingredient) => (
                   <li key={ingredient.id}>
                     <label>
-                      <input
-                        type="checkbox"
-                        aria-label={`Mark ${ingredient.display_name} as gathered`}
+                      <RecipeIngredientGatherCheckbox
+                        displayName={ingredient.display_name}
                       />
                       <span className="ingredient-list__amount">
                         {formatIngredientMeasure(ingredient.measure)}

@@ -1,5 +1,6 @@
 import { formatIngredientMeasure } from "../shared/recipe-format";
 import type { RecipeIngredient } from "../shared/recipe-contracts";
+import { RecipeIngredientGatherCheckbox } from "../shared/recipe-ingredient-gather-checkbox";
 import type {
   RecipeComparisonModel,
   RecipeIngredientComparisonRow,
@@ -88,31 +89,34 @@ function CurrentIngredient({ row }: { row: RecipeIngredientComparisonRow }) {
   const labels = row.status === "changed" ? ingredientChangeLabels(row) : [];
 
   return (
-    <div
+    <label
       className="recipe-comparison-ingredient-row__current"
       data-comparison-value="current"
     >
-      {row.status === "added" || row.status === "changed" ? (
-        <ins>{value}</ins>
-      ) : (
-        value
-      )}
-      {labels.length > 0 ? (
-        <ul
-          className="recipe-comparison-ingredient-labels"
-          aria-label="Ingredient changes"
-        >
-          {labels.map((label) => (
-            <li
-              key={label}
-              className="recipe-comparison-ingredient-labels__label"
-            >
-              {label}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
+      <RecipeIngredientGatherCheckbox displayName={row.current.display_name} />
+      <span className="recipe-comparison-ingredient-row__current-value">
+        {row.status === "added" || row.status === "changed" ? (
+          <ins>{value}</ins>
+        ) : (
+          value
+        )}
+        {labels.length > 0 ? (
+          <ul
+            className="recipe-comparison-ingredient-labels"
+            aria-label="Ingredient changes"
+          >
+            {labels.map((label) => (
+              <li
+                key={label}
+                className="recipe-comparison-ingredient-labels__label"
+              >
+                {label}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </span>
+    </label>
   );
 }
 
@@ -136,6 +140,12 @@ function PreviousIngredient({
         <span className="recipe-comparison-ingredient-row__previous-label">
           Previous
         </span>
+      ) : null}
+      {removed ? (
+        <RecipeIngredientGatherCheckbox
+          disabled
+          displayName={ingredient.display_name}
+        />
       ) : null}
       <del>
         <IngredientValue ingredient={ingredient} />

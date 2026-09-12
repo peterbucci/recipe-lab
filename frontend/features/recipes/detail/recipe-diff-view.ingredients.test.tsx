@@ -36,7 +36,19 @@ describe("RecipeDiffView ingredient integration", () => {
     expect(
       within(ingredients).getByText("Baking soda").closest("del"),
     ).not.toBeNull();
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("checkbox")).toHaveLength(4);
+    for (const name of ["Pecan", "Orange zest", "White sugar"]) {
+      expect(
+        within(ingredients).getByRole("checkbox", {
+          name: `Mark ${name} as gathered`,
+        }),
+      ).toBeEnabled();
+    }
+    expect(
+      within(ingredients).getByRole("checkbox", {
+        name: "Baking soda was removed from this recipe version",
+      }),
+    ).toBeDisabled();
     expect(
       screen.queryByRole("heading", { name: "Ingredient changes" }),
     ).not.toBeInTheDocument();

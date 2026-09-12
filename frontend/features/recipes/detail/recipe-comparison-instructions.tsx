@@ -516,36 +516,62 @@ function ComparisonInstructionActions({
   );
 }
 
-function InstructionValue({ instruction }: { instruction: RecipeInstruction }) {
+function InstructionValue({
+  instruction,
+  status,
+  visibleFields,
+}: {
+  instruction: RecipeInstruction;
+  status?: Exclude<RecipeComparisonRowStatus, "unchanged">;
+  visibleFields?: readonly RecipeInstructionChangedField[];
+}) {
   const step = instruction.display_order + 1;
   const title = instruction.title?.trim();
+  const showTitle = visibleFields === undefined || visibleFields.includes("title");
+  const showText = visibleFields === undefined || visibleFields.includes("text");
 
   return (
     <div className="recipe-comparison-instruction-value recipe-comparison-instruction-value--steps">
-      <span
-        className="recipe-comparison-instruction-value__step-number"
-        aria-hidden="true"
-      >
-        {step}
-      </span>
-      <div className="recipe-comparison-instruction-value__body">
-        <h3
-          className="recipe-comparison-instruction-value__heading"
-          aria-label={title ? `Step ${step}: ${title}` : undefined}
-        >
-          {title ? (
-            <span className="recipe-comparison-instruction-value__title">
-              {title}
-            </span>
-          ) : (
-            `Step ${step}`
-          )}
-        </h3>
+      {showTitle || status ? (
+        <div className="recipe-comparison-instruction-row__heading">
+          {showTitle ? (
+            <h3
+              className="recipe-comparison-instruction-value__heading"
+              aria-label={title ? `Step ${step}: ${title}` : undefined}
+            >
+              {title ? (
+                <span className="recipe-comparison-instruction-value__title">
+                  {title}
+                </span>
+              ) : (
+                `Step ${step}`
+              )}
+            </h3>
+          ) : null}
+          {status ? <InstructionStatus status={status} /> : null}
+        </div>
+      ) : null}
+      {showText ? (
         <p className="recipe-comparison-instruction-value__text">
           {instruction.text}
         </p>
-      </div>
+      ) : null}
     </div>
+  );
+}
+
+function InstructionStepNumber({
+  instruction,
+}: {
+  instruction: RecipeInstruction;
+}) {
+  return (
+    <span
+      className="recipe-comparison-instruction-row__step-number"
+      aria-hidden="true"
+    >
+      {instruction.display_order + 1}
+    </span>
   );
 }
 
@@ -619,10 +645,12 @@ function CurrentInstruction({
     return null;
   }
 
-  const step = row.current.display_order + 1;
-  const value = <InstructionValue instruction={row.current} />;
-  const labels =
-    status === "changed" ? instructionChangeLabels(row, "steps") : [];
+  const value = (
+    <InstructionValue
+      instruction={row.current}
+      status={status === "unchanged" ? undefined : status}
+    />
+  );
 
   return (
     <div
@@ -634,29 +662,16 @@ function CurrentInstruction({
       ) : (
         value
       )}
-      {labels.length > 0 ? (
-        <ul
-          className="recipe-comparison-instruction-labels"
-          aria-label={`Changes to step ${step}`}
-        >
-          {labels.map((label) => (
-            <li
-              className="recipe-comparison-instruction-labels__label"
-              key={label}
-            >
-              {label}
-            </li>
-          ))}
-        </ul>
-      ) : null}
     </div>
   );
 }
 
 function PreviousInstruction({
+  changedFields,
   instruction,
   removed = false,
 }: {
+  changedFields?: readonly RecipeInstructionChangedField[];
   instruction: RecipeInstruction;
   removed?: boolean;
 }) {
@@ -675,7 +690,11 @@ function PreviousInstruction({
         </span>
       ) : null}
       <del>
-        <InstructionValue instruction={instruction} />
+        <InstructionValue
+          instruction={instruction}
+          status={removed ? "removed" : undefined}
+          visibleFields={removed ? undefined : changedFields}
+        />
       </del>
     </div>
   );
@@ -707,12 +726,7 @@ function BreakdownInstruction({
 
   return (
     <>
-      <span
-        className="recipe-comparison-instruction-row__step-number"
-        aria-hidden="true"
-      >
-        {step}
-      </span>
+      <InstructionStepNumber instruction={instruction} />
       <div className="recipe-comparison-instruction-row__body">
         <div className="recipe-comparison-instruction-row__heading">
           <h3 aria-label={title ? `Step ${step}: ${title}` : undefined}>
@@ -774,18 +788,44 @@ function InstructionRow({
     );
   }
 
+  const instruction = row.current ?? row.previous;
+  if (instruction === null) return null;
+  const step = instruction.display_order + 1;
+  const changedFields =
+    status === "changed" ? relevantChangedFields(row, "steps") : [];
+  const labels =
+    status === "changed" ? instructionChangeLabels(row, "steps") : [];
+
   return (
     <li
       className={`recipe-comparison-instruction-row recipe-comparison-instruction-row--${status}`}
       data-instruction-view={view}
     >
-      {status !== "unchanged" ? <InstructionStatus status={status} /> : null}
+      <InstructionStepNumber instruction={instruction} />
       <CurrentInstruction row={row} status={status} />
       {status === "changed" && row.previous !== null ? (
-        <PreviousInstruction instruction={row.previous} />
+        <PreviousInstruction
+          changedFields={changedFields}
+          instruction={row.previous}
+        />
       ) : null}
       {status === "removed" && row.previous !== null ? (
         <PreviousInstruction instruction={row.previous} removed />
+      ) : null}
+      {labels.length > 0 ? (
+        <ul
+          className="recipe-comparison-instruction-labels"
+          aria-label={`Changes to step ${step}`}
+        >
+          {labels.map((label) => (
+            <li
+              className="recipe-comparison-instruction-labels__label"
+              key={label}
+            >
+              {label}
+            </li>
+          ))}
+        </ul>
       ) : null}
     </li>
   );

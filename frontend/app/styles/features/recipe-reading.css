@@ -3,6 +3,12 @@
 .breadcrumb {
   margin-bottom: 1.5rem;
 }
+.recipe-ingredient-gather-checkbox {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  accent-color: var(--leaf);
+  margin: 0.0625rem 0 0;
+}
 .breadcrumb a {
   color: var(--leaf-dark);
   text-underline-offset: 0.22rem;

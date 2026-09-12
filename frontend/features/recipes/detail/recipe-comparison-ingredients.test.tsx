@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -232,7 +232,24 @@ describe("RecipeComparisonIngredients", () => {
         ).filter((name) => name.textContent === ingredientItem.display_name),
       ).toHaveLength(1);
     }
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("checkbox")).toHaveLength(7);
+    for (const ingredientItem of current) {
+      expect(
+        screen.getByRole("checkbox", {
+          name: `Mark ${ingredientItem.display_name} as gathered`,
+        }),
+      ).toBeEnabled();
+    }
+    const saltCheckbox = screen.getByRole("checkbox", {
+      name: "Mark Sea salt as gathered",
+    });
+    fireEvent.click(saltCheckbox);
+    expect(saltCheckbox).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Tomato paste was removed from this recipe version",
+      }),
+    ).toBeDisabled();
   });
 
   it("communicates every state with marker text, structured labels, and insertion or deletion semantics", () => {

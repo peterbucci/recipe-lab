@@ -416,12 +416,6 @@
   font-size: 0.75rem;
   display: grid;
 }
-.recipe-detail .ingredient-list input {
-  width: 0.9375rem;
-  height: 0.9375rem;
-  accent-color: var(--leaf);
-  margin: 0.0625rem 0 0;
-}
 .recipe-detail .ingredient-list__amount {
   color: #222336;
   font-size: 0.75rem;

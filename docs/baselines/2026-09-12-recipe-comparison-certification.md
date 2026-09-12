@@ -92,23 +92,25 @@ panel without changing the comparison route.
 
 ## Reviewed visual evidence
 
-The existing comparison-body PNGs retain the default Steps view. Three
-dedicated Cooking breakdown references were generated in the immutable
-Playwright image used by CI, inspected at original resolution, and bound to the
-opaque-source policy with their Git object IDs. They capture the action-card
-treatment at desktop, intermediate, and phone widths without changing the
-default Steps references. The unchanged phone-top image remains valid evidence
-for the recipe-first hero.
+The six comparison-body PNGs were refreshed in the immutable Playwright image
+used by CI, inspected at original resolution, and bound to the opaque-source
+policy with their Git object IDs. The default Steps references show recipe-style
+ingredient checkboxes, the legend tucked beneath the section tabs, status beside
+the current step title, field-only prior values, change pills below the prior
+box, and an unbroken numbered timeline. The dedicated Cooking breakdown
+references retain the aligned action-card treatment and connected timeline at
+desktop, intermediate, and phone widths. The unchanged phone-top image remains
+valid evidence for the recipe-first hero.
 
 | Project | Snapshot | Git object ID | Review purpose |
 | --- | --- | --- | --- |
-| Desktop | `recipe-comparison-normal` | `fd0737175390917a7eef26470949eb3579539304` | Recipe tab with the two-column complete ingredient comparison and default Steps view. |
-| Desktop | `recipe-comparison-cooking-breakdown` | `f543097010da646f5f9096bcfcc4296cfa02c980` | Numbered Cooking breakdown timeline with one aligned list of neutral, added, removed, and purple modified actions. |
-| Desktop | `recipe-comparison-intermediate-normal` | `fabfa613ebbe201aff9d67102a20ba3c9edf8cc2` | Stacked 820 px Recipe panel, default Steps view, and prior values. |
-| Desktop | `recipe-comparison-intermediate-cooking-breakdown` | `761fa9c5074b6b0ea2c526c1b2808657f7765a1f` | Full-width aligned Cooking breakdown rows, inline detail changes, and numbered timeline in the stacked 820 px layout. |
+| Desktop | `recipe-comparison-normal` | `74c4bfaafe451499ea80bd97563380260d4e916e` | Two-column Recipe tab with ingredient checkboxes, a close legend, status beside the step title, a wording-only prior box, and a connected timeline. |
+| Desktop | `recipe-comparison-cooking-breakdown` | `e0b95b380864a46a16c89661ed4985e8c26a1666` | Connected numbered Cooking breakdown timeline with one aligned list of neutral, added, removed, and purple modified actions. |
+| Desktop | `recipe-comparison-intermediate-normal` | `27cdde516d8639a9e646199724cfda703b367b24` | Stacked 820 px Recipe panel with checkboxes, field-only prior values, labels after the prior box, and an unbroken timeline. |
+| Desktop | `recipe-comparison-intermediate-cooking-breakdown` | `b7bc7df0b1056325688310ea841aa26e852923c8` | Full-width aligned Cooking breakdown rows, inline detail changes, and a connected numbered timeline in the stacked 820 px layout. |
 | Phone | `recipe-comparison-top-normal` | `ecff7f01f82a17e7902b82554d50ef50931f8f5b` | Recipe-first phone hero and current recipe context. |
-| Phone | `recipe-comparison-normal` | `75e7452cf84bf4a97684c711453a4128f41b7ae7` | Sticky standard tabs with the complete phone Recipe panel and full-width instruction switch. |
-| Phone | `recipe-comparison-cooking-breakdown` | `0ee98456b771bbb26b8ac49c6dcf1baaa73cda56` | Numbered timeline, two-column aligned action rows, stacked timing, and all four action states without horizontal overflow. |
+| Phone | `recipe-comparison-normal` | `af685fc6746e8dee03f3db0ffe06a8883e566cc8` | Sticky standard tabs with checkboxes, title-adjacent status, field-only prior values, labels below the prior box, and a connected timeline. |
+| Phone | `recipe-comparison-cooking-breakdown` | `dd06a2300cebd660aeed53d09a5f152644022c45` | Connected numbered timeline, two-column aligned action rows, stacked timing, and all four action states without horizontal overflow. |
 
 The canonical runner used:
 
@@ -122,8 +124,8 @@ It reported Playwright 1.62.1 and Chromium 151.0.7922.34 on linux/amd64.
 
 | Check | Result |
 | --- | --- |
-| Focused comparison and route-state components | The focused comparison suite passed 3 files and 17 tests; the complete frontend suite passed 186 files and 1,028 tests. |
-| Frontend architecture and reachability | Architecture audited 423 source files with no retired-location violations; reachability found 245 modules from 58 runtime entries. |
+| Focused comparison and route-state components | The focused comparison suite passed 10 files and 44 tests; the complete frontend suite passed 186 files and 1,028 tests. |
+| Frontend architecture and reachability | Architecture audited 424 source files with no retired-location violations; reachability found 245 modules from 58 runtime entries. |
 | CSS architecture | Current comparison and loading selector families have one enforced owner; retired audit selector families are absent. |
 | Responsive and accessibility contracts | Reviewed-width, exact 901/900 boundary, forced-colors, print, Axe, and horizontal-overflow checks passed. |
 | Current-branch comparison browser smoke | Desktop and phone comparison journeys cover full content, adjacent prior values, both nested instruction views, color-independent neutral/added/removed/modified Cooking breakdown rows, the numbered timeline, independent roving keyboard focus, canonical hashes, and phone overflow. |
@@ -133,8 +135,9 @@ It reported Playwright 1.62.1 and Chromium 151.0.7922.34 on linux/amd64.
 | Locked repository gates | Repository policy, architecture dependencies, documentation links, OpenAPI snapshot, seed data, generated API contracts, Python formatting/lint/types, frontend lint/types, CSS architecture, unit tests, reachability, build, and browser discovery passed. |
 | Production build | Next.js production build and its TypeScript phase passed; 20 static pages generated. |
 | Pinned visual/accessibility double-run | 190 checks passed with 178 deliberate cross-project skips in the immutable Linux/Chromium image. |
+| Pinned comparison visual refresh | Before promotion, each default-view mismatch repeated with an identical pixel count and byte-identical actual PNG. Exactly six requested comparison-body references were regenerated and inspected at original resolution; the post-update targeted double-run passed 12 checks with 12 deliberate cross-project skips, including the responsive boundary, forced-colors, print, Axe, overflow, and timeline-geometry assertions. |
 | Stateful release assertion compatibility | The comparison assertions in the guarded release journey were migrated to the inline-diff contract and passed lint and TypeScript checks; the full release operator remains owned by its isolated OIDC/database workflow. |
-| Opaque-source and production-image policy | 76 packaging and production-image tests plus 54 parameterized subtests passed; this follow-up binds the three refreshed default-view and three dedicated Cooking breakdown PNG object IDs. |
+| Opaque-source policy | The audit matched all 97 tracked PNGs to reviewed object IDs with zero drift; 54 source-package tests and 34 parameterized subtests passed. This follow-up binds the three refreshed default-view and three dedicated Cooking breakdown PNG object IDs. |
 | Diff hygiene | `git diff --check` passed. |
 
 ## Cleanup boundary

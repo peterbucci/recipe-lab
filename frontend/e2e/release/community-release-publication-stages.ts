@@ -947,7 +947,12 @@ export async function verifyPublicLineage(
     await expect(previousInstruction.locator("del")).toContainText(
       rootDirection,
     );
-    await expect(currentInstruction).toContainText("Wording changed");
+    await expect(
+      instructionChange.getByRole("list", {
+        name: /Changes to step \d+/,
+      }),
+    ).toContainText("Wording changed");
+    await expect(previousInstruction.getByRole("heading")).toHaveCount(0);
 
     await instructions
       .getByRole("tab", { name: "Cooking breakdown", exact: true })

@@ -69,6 +69,54 @@ async function expectSameHorizontalBounds(
   ).toBeLessThanOrEqual(0.5);
 }
 
+async function expectConnectedStepTimeline(panel: Locator): Promise<void> {
+  const rows = panel.locator(":scope > .recipe-comparison-instruction-list > .recipe-comparison-instruction-row");
+  const rowCount = await rows.count();
+  expect(rowCount).toBeGreaterThan(1);
+
+  for (let index = 0; index < rowCount - 1; index += 1) {
+    const row = rows.nth(index);
+    const circle = row.locator(
+      ":scope > .recipe-comparison-instruction-row__step-number",
+    );
+    const nextCircle = rows
+      .nth(index + 1)
+      .locator(":scope > .recipe-comparison-instruction-row__step-number");
+    const [rowBox, circleBox, nextCircleBox, line] = await Promise.all([
+      row.boundingBox(),
+      circle.boundingBox(),
+      nextCircle.boundingBox(),
+      row.evaluate((element) => {
+        const style = getComputedStyle(element, "::before");
+        return {
+          bottom: Number.parseFloat(style.bottom),
+          display: style.display,
+          left: Number.parseFloat(style.left),
+          top: Number.parseFloat(style.top),
+        };
+      }),
+    ]);
+    expect(rowBox).not.toBeNull();
+    expect(circleBox).not.toBeNull();
+    expect(nextCircleBox).not.toBeNull();
+    expect(line.display).not.toBe("none");
+    expect(
+      Math.abs(
+        rowBox!.x + line.left + 0.5 -
+          (circleBox!.x + circleBox!.width / 2),
+      ),
+    ).toBeLessThanOrEqual(1.5);
+    expect(
+      Math.abs(rowBox!.y + line.top - (circleBox!.y + circleBox!.height)),
+    ).toBeLessThanOrEqual(1.5);
+    expect(
+      Math.abs(
+        rowBox!.y + rowBox!.height - line.bottom - nextCircleBox!.y,
+      ),
+    ).toBeLessThanOrEqual(1.5);
+  }
+}
+
 async function expectComparisonTabsAndActions(
   page: Page,
   layout: "columns" | "rows",
@@ -99,6 +147,19 @@ async function expectComparisonTabsAndActions(
   await expect(notesPanel).toBeHidden();
   await expect(familyPanel).toBeHidden();
 
+  const legend = recipePanel.getByRole("complementary", {
+    name: "Comparison legend",
+  });
+  const [tablistBox, legendBox] = await Promise.all([
+    tablist.boundingBox(),
+    legend.boundingBox(),
+  ]);
+  expect(tablistBox).not.toBeNull();
+  expect(legendBox).not.toBeNull();
+  const legendGap = legendBox!.y - (tablistBox!.y + tablistBox!.height);
+  expect(legendGap).toBeGreaterThanOrEqual(-0.5);
+  expect(legendGap).toBeLessThanOrEqual(16);
+
   const instructions = recipePanel.getByRole("region", {
     name: "Instructions",
   });
@@ -125,6 +186,47 @@ async function expectComparisonTabsAndActions(
   await expect(breakdownPanel).toBeHidden();
   await expectContainedBy(stepsTab, instructionTabs);
   await expectContainedBy(breakdownTab, instructionTabs);
+  const changedStep = stepsPanel.locator(
+    ".recipe-comparison-instruction-row--changed",
+  );
+  const changedStepHeading = changedStep.locator(
+    ".recipe-comparison-instruction-row__heading h3",
+  );
+  const changedStepStatus = changedStep.locator(
+    ".recipe-comparison-instruction-row__heading .recipe-comparison-instruction-row__status",
+  );
+  const previousStep = changedStep.locator(
+    ':scope > [data-comparison-value="previous"]',
+  );
+  const stepLabels = changedStep.getByRole("list", {
+    name: "Changes to step 1",
+  });
+  await expect(changedStep).toHaveCount(1);
+  await expect(changedStepHeading).toContainText("Simmer the tomatoes");
+  await expect(changedStepStatus).toContainText("Changed");
+  await expect(previousStep.getByRole("heading")).toHaveCount(0);
+  await expect(previousStep.locator("del")).toContainText(
+    "Simmer the tomatoes until soft.",
+  );
+  const [headingBox, statusBox, previousBox, labelsBox] = await Promise.all([
+    changedStepHeading.boundingBox(),
+    changedStepStatus.boundingBox(),
+    previousStep.boundingBox(),
+    stepLabels.boundingBox(),
+  ]);
+  expect(headingBox).not.toBeNull();
+  expect(statusBox).not.toBeNull();
+  expect(previousBox).not.toBeNull();
+  expect(labelsBox).not.toBeNull();
+  expect(headingBox!.x + headingBox!.width).toBeLessThanOrEqual(
+    statusBox!.x + 0.5,
+  );
+  expect(statusBox!.y).toBeLessThan(headingBox!.y + headingBox!.height);
+  expect(statusBox!.y + statusBox!.height).toBeGreaterThan(headingBox!.y);
+  expect(previousBox!.y + previousBox!.height).toBeLessThanOrEqual(
+    labelsBox!.y + 0.5,
+  );
+  await expectConnectedStepTimeline(stepsPanel);
   await breakdownTab.click();
   await expect(stepsPanel).toBeHidden();
   await expect(breakdownPanel).toBeVisible();
@@ -191,7 +293,16 @@ async function expectComparisonTabsAndActions(
       ),
     )
     .not.toBe("none");
+  await expectConnectedStepTimeline(breakdownPanel);
   await stepsTab.click();
+
+  const currentIngredientCheckboxes = recipePanel.locator(
+    '.recipe-comparison-ingredient-row [data-comparison-value="current"] input[type="checkbox"]',
+  );
+  await expect(currentIngredientCheckboxes).toHaveCount(2);
+  for (let index = 0; index < 2; index += 1) {
+    await expect(currentIngredientCheckboxes.nth(index)).toBeEnabled();
+  }
 
   for (let index = 0; index < 3; index += 1) {
     await expectContainedBy(tabs.nth(index), tablist);
@@ -691,18 +802,7 @@ test("public recipe context reflows at reviewed widths", async ({
           .locator(".recipe-comparison-ingredient-value"),
         2,
       );
-      await expectGridColumnCount(
-        changedInstruction
-          .locator('[data-comparison-value="current"]')
-          .locator(".recipe-comparison-instruction-value"),
-        2,
-      );
-      await expectGridColumnCount(
-        changedInstruction
-          .locator('[data-comparison-value="previous"]')
-          .locator(".recipe-comparison-instruction-value"),
-        1,
-      );
+      await expectGridColumnCount(changedInstruction, 2);
       await expectComparisonTabsAndActions(
         page,
         viewport.label === "phone" ? "rows" : "columns",

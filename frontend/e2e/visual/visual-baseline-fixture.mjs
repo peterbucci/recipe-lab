@@ -521,7 +521,7 @@ const diff = Object.freeze({
       {
         before: {
           id: "42000000-0000-4000-8000-000000000010",
-          title: "Soften the tomatoes",
+          title: "Simmer the tomatoes",
           text: "Simmer the tomatoes until soft.",
           display_order: 0,
           actions: [
@@ -554,7 +554,7 @@ const diff = Object.freeze({
           ],
         },
         after: comparisonDetailFor(variantSummary).instructions[0],
-        changed_fields: ["title", "text", "actions", "inputs"],
+        changed_fields: ["text", "actions", "inputs"],
         unchanged_action_pairs: [
           {
             before_id: "43000000-0000-4000-8000-000000000010",

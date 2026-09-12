@@ -328,6 +328,18 @@ describe("RecipeComparisonInstructions", () => {
       changed.querySelector(".recipe-comparison-instruction-row__marker"),
     ).toHaveTextContent("±");
     expect(within(changed).getByText("Changed")).toBeVisible();
+    const changedHeading = within(changed).getByRole("heading", {
+      name: "Step 2: Fold gently",
+    });
+    const changedHeadingRow = changedHeading.closest(
+      ".recipe-comparison-instruction-row__heading",
+    );
+    expect(changedHeadingRow).not.toBeNull();
+    expect(
+      changedHeadingRow?.querySelector(
+        ".recipe-comparison-instruction-row__status",
+      ),
+    ).toContainElement(within(changed).getByText("Changed"));
     expect(changed.querySelector("ins")).toHaveTextContent(
       "Fold the fresh batter.",
     );
@@ -354,6 +366,11 @@ describe("RecipeComparisonInstructions", () => {
     expect(previous).not.toBeNull();
     expect(current!.nextElementSibling).toBe(previous);
     expect(within(previous!).getByText("Previous")).toBeVisible();
+    const labels = within(changed).getByRole("list", {
+      name: "Changes to step 2",
+    });
+    expect(previous!.nextElementSibling).toBe(labels);
+    expect(current).not.toContainElement(labels);
   });
 
   it("merges structured changes into one Cooking breakdown list with version-specific action context", () => {
@@ -546,9 +563,24 @@ describe("RecipeComparisonInstructions", () => {
     );
 
     const steps = viewPanel("Steps");
-    expect(rowWithText(steps, "New wording.")).toHaveClass(
+    const wordingChange = rowWithText(steps, "New wording.");
+    expect(wordingChange).toHaveClass(
       "recipe-comparison-instruction-row--changed",
     );
+    const previousWording = wordingChange.querySelector<HTMLElement>(
+      '[data-comparison-value="previous"]',
+    );
+    expect(previousWording).not.toBeNull();
+    expect(previousWording?.querySelector("del")).toHaveTextContent(
+      "Old wording.",
+    );
+    expect(previousWording).not.toHaveTextContent("Written only");
+    expect(previousWording?.querySelector("h3")).not.toBeInTheDocument();
+    const wordingLabels = within(wordingChange).getByRole("list", {
+      name: "Changes to step 1",
+    });
+    expect(previousWording?.nextElementSibling).toBe(wordingLabels);
+    expect(within(wordingLabels).getByText("Wording changed")).toBeVisible();
     expect(rowWithText(steps, "Keep this wording.")).toHaveClass(
       "recipe-comparison-instruction-row--unchanged",
     );
