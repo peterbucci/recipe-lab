@@ -176,6 +176,8 @@ horizontal-overflow checks without adding another screenshot tier.
 The [RCP-52 recipe-style comparison certification](baselines/2026-09-12-recipe-comparison-certification.md)
 records the recipe-first inline-diff contract at 1440, 820, 901/900, and 390
 CSS pixels, plus forced-colors, print, keyboard, and complete-content evidence.
+Its instruction contract also exercises the shared Steps/Cooking breakdown
+switch and keeps each change category in its corresponding nested panel.
 The phone matrix keeps separate hero and body references so both the recipe
 context and its inline changes receive readable full-resolution review.
 

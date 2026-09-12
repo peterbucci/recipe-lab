@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -192,11 +192,43 @@ function rowWithText(container: HTMLElement, text: string): HTMLElement {
   return row!;
 }
 
+function rowWithHeading(container: HTMLElement, name: string): HTMLElement {
+  const heading = within(container).getByRole("heading", { name });
+  const row = heading.closest<HTMLElement>(".recipe-comparison-instruction-row");
+  expect(row).not.toBeNull();
+  return row!;
+}
+
+function viewPanel(name: "Steps" | "Cooking breakdown"): HTMLElement {
+  return screen.getByRole("tabpanel", { name });
+}
+
 describe("RecipeComparisonInstructions", () => {
-  it("renders every current step once in target order with deterministic removed rows", () => {
-    const { comparison, container, currentInstructions } = renderInstructions();
+  it("opens in Steps with a wired, keyboard-ready comparison view switch", () => {
+    const { comparison, currentInstructions } = renderInstructions();
+    const stepsTab = screen.getByRole("tab", { name: "Steps" });
+    const breakdownTab = screen.getByRole("tab", {
+      name: "Cooking breakdown",
+    });
+    const steps = viewPanel("Steps");
+
+    expect(
+      screen.getByRole("tablist", { name: "Instruction comparison view" }),
+    ).toContainElement(stepsTab);
+    expect(stepsTab).toHaveAttribute("aria-selected", "true");
+    expect(stepsTab).toHaveAttribute("tabindex", "0");
+    expect(stepsTab).toHaveAttribute(
+      "aria-controls",
+      "recipe-comparison-instructions-steps-panel",
+    );
+    expect(breakdownTab).toHaveAttribute("aria-selected", "false");
+    expect(breakdownTab).toHaveAttribute("tabindex", "-1");
+    expect(
+      document.getElementById("recipe-comparison-instructions-breakdown-panel"),
+    ).toHaveAttribute("hidden");
+
     const rows = Array.from(
-      container.querySelectorAll<HTMLElement>(
+      steps.querySelectorAll<HTMLElement>(
         ".recipe-comparison-instruction-row",
       ),
     );
@@ -221,7 +253,7 @@ describe("RecipeComparisonInstructions", () => {
     for (const instructionItem of currentInstructions) {
       expect(
         Array.from(
-          container.querySelectorAll<HTMLElement>(
+          steps.querySelectorAll<HTMLElement>(
             '[data-comparison-value="current"] .recipe-comparison-instruction-value__text',
           ),
         ).filter((item) => item.textContent === instructionItem.text),
@@ -233,15 +265,16 @@ describe("RecipeComparisonInstructions", () => {
     expect(
       screen.getByRole("heading", { name: "Step 2: Fold gently" }),
     ).toBeVisible();
-    expect(screen.getByText("3 cooking changes")).toBeVisible();
+    expect(screen.getByText("3 step changes")).toBeVisible();
   });
 
-  it("uses visible statuses, insertion and deletion semantics, and every structured change label", () => {
-    const { container } = renderInstructions();
-    const unchanged = rowWithText(container, "Prepare the pan.");
-    const changed = rowWithText(container, "Fold the fresh batter.");
-    const removed = rowWithText(container, "Rest the batter overnight.");
-    const added = rowWithText(container, "Serve while warm.");
+  it("keeps written-step statuses, insertions, deletions, and labels in Steps", () => {
+    renderInstructions();
+    const steps = viewPanel("Steps");
+    const unchanged = rowWithText(steps, "Prepare the pan.");
+    const changed = rowWithText(steps, "Fold the fresh batter.");
+    const removed = rowWithText(steps, "Rest the batter overnight.");
+    const added = rowWithText(steps, "Serve while warm.");
 
     expect(unchanged).toHaveClass(
       "recipe-comparison-instruction-row--unchanged",
@@ -275,17 +308,15 @@ describe("RecipeComparisonInstructions", () => {
     expect(changed.querySelector("del")).toHaveTextContent(
       "Mix the old batter.",
     );
-    for (const label of [
-      "Step title changed",
-      "Wording changed",
-      "Cooking actions changed",
-      "Ingredients used in the step changed",
-      "Order within the step changed",
-      "Timing changed",
-      "Temperature changed",
-    ]) {
+    for (const label of ["Step title changed", "Wording changed"]) {
       expect(within(changed).getByText(label)).toBeVisible();
     }
+    expect(within(steps).queryByText("Cooking actions changed")).toBeNull();
+    expect(
+      within(steps).queryByRole("list", {
+        name: "Cooking actions in this recipe for step 2",
+      }),
+    ).toBeNull();
 
     const current = changed.querySelector<HTMLElement>(
       '[data-comparison-value="current"]',
@@ -299,15 +330,40 @@ describe("RecipeComparisonInstructions", () => {
     expect(within(previous!).getByText("Previous")).toBeVisible();
   });
 
-  it("sorts structured actions and resolves inputs from the correct recipe version without exposing IDs", () => {
+  it("moves structured changes into Cooking breakdown and keeps version-specific action context", () => {
     const { container } = renderInstructions();
-    const changed = rowWithText(container, "Fold the fresh batter.");
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Cooking breakdown" }),
+    );
+    const breakdown = viewPanel("Cooking breakdown");
+    const changed = rowWithHeading(breakdown, "Step 2: Fold gently");
+
+    expect(screen.getByText("3 cooking breakdown changes")).toBeVisible();
+    expect(within(breakdown).queryByText("Fold the fresh batter.")).toBeNull();
+    expect(within(breakdown).queryByText("Wording changed")).toBeNull();
+    for (const label of [
+      "Cooking actions changed",
+      "Ingredients used in the step changed",
+      "Order within the step changed",
+      "Timing changed",
+      "Temperature changed",
+    ]) {
+      expect(within(changed).getByText(label)).toBeVisible();
+    }
+
     const currentActions = within(changed).getByRole("list", {
       name: "Cooking actions in this recipe for step 2",
     });
     const previousActions = within(changed).getByRole("list", {
       name: "Cooking actions in the starting recipe for step 2",
     });
+    expect(
+      within(changed)
+        .getByRole("heading", { name: "Step 2: Fold gently" })
+        .closest("ins"),
+    ).toBeNull();
+    expect(currentActions.closest("ins")).not.toBeNull();
+    expect(previousActions.closest("del")).not.toBeNull();
     const currentActionRows = Array.from(currentActions.children);
 
     expect(currentActionRows).toHaveLength(2);
@@ -325,6 +381,26 @@ describe("RecipeComparisonInstructions", () => {
       "With Base sugar and Ingredient no longer available",
     );
     expect(previousActions).toHaveTextContent("For 5 minutes");
+    expect(within(changed).getByText("Previous cooking breakdown")).toBeVisible();
+    const added = breakdown.querySelector<HTMLElement>(
+      ".recipe-comparison-instruction-row--added",
+    );
+    const removed = breakdown.querySelector<HTMLElement>(
+      ".recipe-comparison-instruction-row--removed",
+    );
+    expect(added).not.toBeNull();
+    expect(removed).not.toBeNull();
+    expect(
+      added?.querySelector('[data-comparison-value="current"] > ins'),
+    ).not.toBeNull();
+    expect(
+      removed?.querySelector('[data-comparison-value="previous"] > del'),
+    ).not.toBeNull();
+    expect(
+      within(breakdown).getByText(
+        "No cooking breakdown was recorded for this step.",
+      ),
+    ).toBeVisible();
 
     expect(container).not.toHaveTextContent("Wrong target-context name");
     expect(container).not.toHaveTextContent("SECRET_CURRENT_SALT");
@@ -332,5 +408,110 @@ describe("RecipeComparisonInstructions", () => {
     expect(container).not.toHaveTextContent(
       "20000000-0000-4000-8000-000000000001",
     );
+  });
+
+  it("projects prose-only and action-only modifications into their own views", () => {
+    const priorAction = structuredAction("prior-mix", "mix", 0);
+    const nextAction = structuredAction("next-fold", "fold", 0);
+    const beforeWords = {
+      ...instruction("before-words", "Old wording.", 0),
+      title: "Written only",
+    };
+    const afterWords = {
+      ...instruction("after-words", "New wording.", 0),
+      title: "Written only",
+    };
+    const beforeActions = {
+      ...instruction("before-actions", "Keep this wording.", 1, [priorAction]),
+      title: "Action only",
+    };
+    const afterActions = {
+      ...instruction("after-actions", "Keep this wording.", 1, [nextAction]),
+      title: "Action only",
+    };
+    const addedWithoutActions = {
+      ...instruction("added-without-actions", "A new written step.", 2),
+      title: "New actionless step",
+    };
+    const removedWithoutActions = {
+      ...instruction("removed-without-actions", "An old written step.", 3),
+      title: "Removed actionless step",
+    };
+    const diff: RecipeDiff = {
+      ...mixedDiff(),
+      metadata_changes: [],
+      ingredients: { added: [], removed: [], replaced: [], modified: [] },
+      ingredient_context: { base: [], target: [] },
+      instructions: {
+        added: [addedWithoutActions],
+        removed: [removedWithoutActions],
+        modified: [
+          { before: beforeWords, after: afterWords, changed_fields: ["text"] },
+          {
+            before: beforeActions,
+            after: afterActions,
+            changed_fields: ["actions"],
+          },
+        ],
+      },
+      has_changes: true,
+    };
+    const recipe = targetRecipeDetail(diff, {
+      ingredients: [],
+      instructions: [afterWords, afterActions, addedWithoutActions],
+    });
+    render(
+      <RecipeComparisonInstructions
+        comparison={buildRecipeComparisonModel(recipe, diff)}
+      />,
+    );
+
+    const steps = viewPanel("Steps");
+    expect(rowWithText(steps, "New wording.")).toHaveClass(
+      "recipe-comparison-instruction-row--changed",
+    );
+    expect(rowWithText(steps, "Keep this wording.")).toHaveClass(
+      "recipe-comparison-instruction-row--unchanged",
+    );
+    expect(screen.getByText("3 step changes")).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Cooking breakdown" }),
+    );
+    const breakdown = viewPanel("Cooking breakdown");
+    expect(rowWithHeading(breakdown, "Step 1: Written only")).toHaveClass(
+      "recipe-comparison-instruction-row--unchanged",
+    );
+    expect(rowWithHeading(breakdown, "Step 2: Action only")).toHaveClass(
+      "recipe-comparison-instruction-row--changed",
+    );
+    expect(rowWithHeading(breakdown, "Step 3: New actionless step")).toHaveClass(
+      "recipe-comparison-instruction-row--unchanged",
+    );
+    expect(
+      within(breakdown).queryByRole("heading", {
+        name: "Step 4: Removed actionless step",
+      }),
+    ).toBeNull();
+    expect(screen.getByText("1 cooking breakdown change")).toBeVisible();
+  });
+
+  it("supports wrapped arrow, Home, and End navigation", () => {
+    renderInstructions();
+    const stepsTab = screen.getByRole("tab", { name: "Steps" });
+    const breakdownTab = screen.getByRole("tab", {
+      name: "Cooking breakdown",
+    });
+    stepsTab.focus();
+
+    fireEvent.keyDown(stepsTab, { key: "ArrowLeft" });
+    expect(breakdownTab).toHaveFocus();
+    expect(breakdownTab).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(breakdownTab, { key: "Home" });
+    expect(stepsTab).toHaveFocus();
+    fireEvent.keyDown(stepsTab, { key: "End" });
+    expect(breakdownTab).toHaveFocus();
+    fireEvent.keyDown(breakdownTab, { key: "ArrowRight" });
+    expect(stepsTab).toHaveFocus();
   });
 });

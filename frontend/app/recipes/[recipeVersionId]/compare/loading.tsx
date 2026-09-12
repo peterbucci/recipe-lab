@@ -70,7 +70,14 @@ export default function RecipeCompareLoading() {
             ))}
           </div>
           <div>
-            <LoadingBlock className="loading-block--heading" />
+            <div className="recipe-comparison-loading__instruction-header">
+              <LoadingBlock className="loading-block--heading" />
+              <div className="recipe-comparison-loading__instruction-tabs">
+                {Array.from({ length: 2 }, (_, index) => (
+                  <LoadingBlock key={index} />
+                ))}
+              </div>
+            </div>
             {Array.from({ length: 5 }, (_, index) => (
               <LoadingBlock className="loading-block--row" key={index} />
             ))}

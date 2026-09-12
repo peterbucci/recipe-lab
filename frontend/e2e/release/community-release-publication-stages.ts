@@ -944,13 +944,29 @@ export async function verifyPublicLineage(
     await expect(currentInstruction.locator("ins")).toContainText(
       childDirection,
     );
-    await expect(currentInstruction.locator("ins")).toContainText("20 min");
     await expect(previousInstruction.locator("del")).toContainText(
       rootDirection,
     );
-    await expect(previousInstruction.locator("del")).toContainText("10 min");
     await expect(currentInstruction).toContainText("Wording changed");
-    await expect(currentInstruction).toContainText("Timing changed");
+
+    await instructions
+      .getByRole("tab", { name: "Cooking breakdown", exact: true })
+      .click();
+    const breakdownChange = instructions
+      .locator(
+        "#recipe-comparison-instructions-breakdown-panel .recipe-comparison-instruction-row--changed",
+      )
+      .filter({ hasText: "20 min" });
+    await expect(breakdownChange).toHaveCount(1);
+    const currentBreakdown = breakdownChange.locator(
+      ':scope > [data-comparison-value="current"]',
+    );
+    const previousBreakdown = breakdownChange.locator(
+      ':scope > [data-comparison-value="previous"]',
+    );
+    await expect(currentBreakdown.locator("ins")).toContainText("20 min");
+    await expect(previousBreakdown.locator("del")).toContainText("10 min");
+    await expect(currentBreakdown).toContainText("Timing changed");
     await expectNoAccessibilityViolations(publicPage);
   } finally {
     await publicContext.close();

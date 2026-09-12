@@ -66,6 +66,11 @@ describe("recipe route states", () => {
     expect(comparisonBody).toBeInTheDocument();
     expect(comparisonBody?.children).toHaveLength(2);
     expect(
+      comparisonSkeleton?.querySelectorAll(
+        ".recipe-comparison-loading__instruction-tabs > .loading-block",
+      ),
+    ).toHaveLength(2);
+    expect(
       comparisonSkeleton?.querySelector(".recipe-comparison-loading__notes"),
     ).not.toBeInTheDocument();
   });

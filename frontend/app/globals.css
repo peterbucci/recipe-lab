@@ -32,4 +32,5 @@
 @import "./styles/features/ingredient-requests.css";
 @import "./styles/features/moderation.css";
 @import "./styles/features/sign-in.css";
+@import "./styles/patterns/recipe-instruction-tabs.css";
 @import "./styles/patterns/workspace-tabs.css";

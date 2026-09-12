@@ -140,8 +140,24 @@ test("compares a selected family recipe with the open recipe without signing in"
       }),
     },
     { label: "the selected Recipe tab", locator: comparison.recipeTab },
+    { label: "the selected Steps tab", locator: comparison.stepsTab },
   ]);
 
+  const comparisonUrl = page.url();
+  await comparison.stepsTab.press("ArrowRight");
+  await expect(comparison.breakdownTab).toBeFocused();
+  await expect(comparison.breakdownTab).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(comparison.stepsPanel).toBeHidden();
+  await expect(comparison.breakdownPanel).toBeVisible();
+  await expect(page).toHaveURL(comparisonUrl);
+  await comparison.breakdownTab.press("Home");
+  await expect(comparison.stepsTab).toBeFocused();
+  await expect(comparison.stepsPanel).toBeVisible();
+
+  await comparison.recipeTab.focus();
   await comparison.recipeTab.press("ArrowRight");
   await expect(comparison.notesTab).toBeFocused();
   await expect(comparison.notesTab).toHaveAttribute("aria-selected", "true");
@@ -241,6 +257,18 @@ test("keeps the selected family comparison usable at a phone viewport", async ({
         document.documentElement.clientWidth,
     ),
   ).toBe(true);
+
+  await comparison.breakdownTab.click();
+  await expect(comparison.breakdownPanel).toBeVisible();
+  await expect(comparison.stepsPanel).toBeHidden();
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth ===
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await comparison.stepsTab.click();
 
   await comparison.notesTab.click();
   await expect(comparison.notesTab).toHaveAttribute("aria-selected", "true");

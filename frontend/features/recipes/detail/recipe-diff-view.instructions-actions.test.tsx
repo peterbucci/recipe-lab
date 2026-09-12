@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -85,6 +85,15 @@ describe("RecipeDiffView instruction integration", () => {
     expect(
       within(instructions).getByText("Cool completely before slicing."),
     ).toBeVisible();
+    expect(
+      within(instructions).queryByRole("list", {
+        name: "Cooking actions in this recipe for step 2",
+      }),
+    ).toBeNull();
+
+    fireEvent.click(
+      within(instructions).getByRole("tab", { name: "Cooking breakdown" }),
+    );
 
     expect(
       within(instructions).getByRole("list", {

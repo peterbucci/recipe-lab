@@ -110,7 +110,28 @@ export async function expectCarrotComparisonToShowCompleteRecipe(
 
   const instructions = page.getByRole("region", { name: "Instructions" });
   await expect(instructions).toBeVisible();
-  const currentInstructionText = instructions.locator(
+  const instructionTabs = instructions.getByRole("tablist", {
+    name: "Instruction comparison view",
+  });
+  const stepsTab = instructionTabs.getByRole("tab", {
+    name: "Steps",
+    exact: true,
+  });
+  const breakdownTab = instructionTabs.getByRole("tab", {
+    name: "Cooking breakdown",
+    exact: true,
+  });
+  const stepsPanel = instructions.locator(
+    "#recipe-comparison-instructions-steps-panel",
+  );
+  const breakdownPanel = instructions.locator(
+    "#recipe-comparison-instructions-breakdown-panel",
+  );
+  await expect(stepsTab).toHaveAttribute("aria-selected", "true");
+  await expect(stepsPanel).toBeVisible();
+  await expect(breakdownPanel).toBeHidden();
+
+  const currentInstructionText = stepsPanel.locator(
     '[data-comparison-value="current"] .recipe-comparison-instruction-value__text',
   );
   await expect(currentInstructionText).toHaveText([
@@ -119,7 +140,7 @@ export async function expectCarrotComparisonToShowCompleteRecipe(
     "Whisk the sugar, eggs, and oil, fold in the dry ingredients, then fold in the carrots and nuts.",
     "Spread the batter in the pan and bake until the center springs back and a tester comes out clean; cool before slicing.",
   ]);
-  const changedInstructions = instructions.locator(
+  const changedInstructions = stepsPanel.locator(
     ".recipe-comparison-instruction-row--changed",
   );
   for (let index = 0; index < (await changedInstructions.count()); index += 1) {
@@ -131,6 +152,25 @@ export async function expectCarrotComparisonToShowCompleteRecipe(
         ),
     ).toHaveCount(1);
   }
+  await breakdownTab.click();
+  await expect(breakdownPanel).toBeVisible();
+  await expect(stepsPanel).toBeHidden();
+  expect(
+    await breakdownPanel
+      .locator(
+        '[data-comparison-value="current"] .recipe-comparison-actions',
+      )
+      .count(),
+  ).toBeGreaterThan(0);
+  expect(
+    await breakdownPanel
+      .locator(
+        '[data-comparison-value="previous"] .recipe-comparison-actions',
+      )
+      .count(),
+  ).toBeGreaterThan(0);
+  await stepsTab.click();
+  await expect(stepsPanel).toBeVisible();
 
   const comparisonView = page.locator(".recipe-diff-view:visible");
   const hero = comparisonView.locator(".recipe-comparison-hero");
@@ -218,10 +258,14 @@ export async function expectCarrotComparisonToShowCompleteRecipe(
     familyTab,
     ingredients,
     instructions,
+    breakdownPanel,
+    breakdownTab,
     notesPanel,
     notesTab,
     recipePanel,
     recipeTab,
+    stepsPanel,
+    stepsTab,
     tabs,
   };
 }

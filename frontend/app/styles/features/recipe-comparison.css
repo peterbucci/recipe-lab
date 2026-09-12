@@ -62,6 +62,29 @@
   grid-template-columns: minmax(18.75rem, 0.72fr) minmax(0, 1.38fr);
   padding-top: 0.375rem;
 }
+.recipe-comparison-loading__instruction-header {
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  display: flex;
+}
+.recipe-comparison-loading__instruction-tabs {
+  border: 1px solid var(--control-line);
+  border-radius: 0.5625rem;
+  flex: none;
+  align-items: center;
+  gap: 0.1875rem;
+  padding: 0.1875rem;
+  display: inline-flex;
+}
+.recipe-comparison-loading__instruction-tabs > .loading-block {
+  border-radius: 0.4375rem;
+  width: 5.25rem;
+  height: 2.125rem;
+}
+.recipe-comparison-loading__instruction-tabs > .loading-block:last-child {
+  width: 7.5rem;
+}
 
 .recipe-comparison-page {
   width: min(80rem, 100% - 3rem);
@@ -552,6 +575,52 @@
 .recipe-comparison-instructions {
   min-width: 0;
 }
+.recipe-comparison-instructions__header {
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.75rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+}
+.recipe-comparison-instructions__heading-copy {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+  min-width: 0;
+  display: flex;
+}
+.recipe-comparison-instructions__heading-copy h2 {
+  letter-spacing: -0.035em;
+  margin: 0;
+  font-size: 1.4375rem;
+}
+.recipe-comparison-instructions__heading-copy > div {
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  display: flex;
+}
+.recipe-comparison-instructions__heading-copy p {
+  color: #68697a;
+  margin: 0;
+  font-size: 0.625rem;
+  line-height: 1.45;
+}
+.recipe-comparison-instructions__heading-copy small {
+  color: var(--muted);
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+.recipe-comparison-instructions__heading-copy small::before {
+  content: "·";
+  margin-right: 0.5rem;
+}
+.recipe-comparison-instructions__panel {
+  min-width: 0;
+}
+.recipe-comparison-instructions__print-heading {
+  display: none;
+}
 .recipe-comparison-instruction-list {
   margin: 0;
   padding: 0;
@@ -653,6 +722,13 @@
   margin: 0.375rem 0 0;
   font-size: 0.6875rem;
   line-height: 1.55;
+}
+.recipe-comparison-instruction-value__empty {
+  color: var(--muted);
+  margin: 0.375rem 0 0;
+  font-size: 0.625rem;
+  font-style: italic;
+  line-height: 1.5;
 }
 .recipe-comparison-instruction-labels {
   flex-wrap: wrap;
@@ -822,6 +898,22 @@
   }
 }
 
+@media (max-width: 43.75rem) {
+  .recipe-comparison-loading__instruction-header,
+  .recipe-comparison-instructions__header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .recipe-comparison-loading__instruction-tabs {
+    width: 100%;
+  }
+  .recipe-comparison-loading__instruction-tabs > .loading-block {
+    flex: 1 1 0;
+    width: auto;
+  }
+}
+
 @media (max-width: 33.75rem) {
   .recipe-comparison-page {
     width: min(80rem, 100% - 2rem);
@@ -940,9 +1032,27 @@
   .recipe-comparison-instructions {
     margin-top: 2rem;
   }
+  .recipe-comparison-instructions__panel {
+    display: block !important;
+  }
+  .recipe-comparison-instructions__heading-copy
+    > .recipe-comparison-instructions__view-summary {
+    display: none;
+  }
+  .recipe-comparison-instructions__panel--breakdown {
+    border-top: 1px solid var(--line);
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+  }
+  .recipe-comparison-instructions__print-heading {
+    break-after: avoid;
+    margin: 0 0 1rem;
+    display: block;
+  }
   .recipe-comparison-strip,
   .recipe-comparison-legend,
   .recipe-comparison-section-heading,
+  .recipe-comparison-instructions__header,
   .recipe-comparison-ingredient-row,
   .recipe-comparison-instruction-row,
   .recipe-comparison-notes {
@@ -963,7 +1073,8 @@
   .recipe-comparison-instruction-labels__label {
     border: 1px solid currentcolor;
   }
-  .recipe-comparison-section-heading h2 {
+  .recipe-comparison-section-heading h2,
+  .recipe-comparison-instructions__header h2 {
     break-after: avoid;
   }
 }

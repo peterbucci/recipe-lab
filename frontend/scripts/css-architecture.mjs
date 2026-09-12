@@ -24,6 +24,8 @@ export const RESERVED_SELECTOR_OWNERS = Object.freeze({
   "workspace-panel-body": "app/styles/primitives.css",
   "workspace-panel-header": "app/styles/primitives.css",
   "workspace-panel-shell": "app/styles/primitives.css",
+  "recipe-instruction-view-tabs":
+    "app/styles/patterns/recipe-instruction-tabs.css",
   "recipe-comparison-page": "app/styles/features/recipe-comparison.css",
   "recipe-comparison-hero": "app/styles/features/recipe-comparison.css",
   "recipe-comparison-previous": "app/styles/features/recipe-comparison.css",

@@ -192,13 +192,27 @@ describe("RecipeDiffView", () => {
     ).toHaveTextContent("Sea salt");
 
     const instructions = sectionNamed("Instructions");
-    expect(within(instructions).getByText("0 cooking changes")).toBeVisible();
+    expect(within(instructions).getByText("0 step changes")).toBeVisible();
+    expect(
+      within(instructions).getByRole("tab", { name: "Steps" }),
+    ).toHaveAttribute("aria-selected", "true");
     expect(within(instructions).getByText("Stir until smooth.")).toBeVisible();
     expect(
       instructions.querySelector(
         ".recipe-comparison-instruction-row--unchanged",
       ),
     ).toHaveTextContent("Stir until smooth.");
+    fireEvent.click(
+      within(instructions).getByRole("tab", { name: "Cooking breakdown" }),
+    );
+    expect(
+      within(instructions).getByText("0 cooking breakdown changes"),
+    ).toBeVisible();
+    expect(
+      within(instructions).getByText(
+        "No cooking breakdown was recorded for this step.",
+      ),
+    ).toBeVisible();
 
     expect(
       screen.getByText("0 changes", {

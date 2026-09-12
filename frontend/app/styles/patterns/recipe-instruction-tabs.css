@@ -1,0 +1,61 @@
+@layer patterns {
+
+.recipe-instruction-view-tabs {
+  border: 1px solid var(--control-line);
+  background: #f8f8fb;
+  border-radius: 0.5625rem;
+  flex: none;
+  align-items: center;
+  gap: 0.1875rem;
+  margin-top: 0.0625rem;
+  padding: 0.1875rem;
+  display: inline-flex;
+}
+.recipe-instruction-view-tabs button {
+  color: #68697a;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 0.4375rem;
+  min-height: 2.125rem;
+  padding: 0.4375rem 0.75rem;
+  font-size: 0.625rem;
+  font-weight: 780;
+}
+.recipe-instruction-view-tabs button:hover {
+  color: var(--leaf);
+}
+.recipe-instruction-view-tabs button[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--leaf);
+  box-shadow: 0 0.0625rem 0.1875rem #20184314;
+}
+
+@media (max-width: 43.75rem) {
+  .recipe-instruction-view-tabs {
+    width: 100%;
+  }
+  .recipe-instruction-view-tabs button {
+    flex: 1 1 0;
+  }
+}
+
+@media (forced-colors: active) {
+  .recipe-instruction-view-tabs,
+  .recipe-instruction-view-tabs button[aria-selected="true"] {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+  .recipe-instruction-view-tabs button[aria-selected="true"] {
+    border: 1px solid CanvasText;
+  }
+}
+
+@media print {
+  .recipe-instruction-view-tabs--print-hidden {
+    display: none;
+  }
+}
+
+}

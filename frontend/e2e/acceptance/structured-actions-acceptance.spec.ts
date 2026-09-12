@@ -514,18 +514,44 @@ test.describe("structured cooking action acceptance", () => {
     const changeLabels = changedInstruction.getByRole("list", {
       name: "Changes to step 1",
     });
+    for (const label of ["Step title changed", "Wording changed"]) {
+      await expect(changeLabels.getByText(label, { exact: true })).toBeVisible();
+    }
+
+    await instructions
+      .getByRole("tab", { name: "Cooking breakdown", exact: true })
+      .click();
+    const breakdownInstruction = instructions
+      .locator(
+        "#recipe-comparison-instructions-breakdown-panel .recipe-comparison-instruction-row--changed",
+      )
+      .filter({
+        has: page.getByRole("list", {
+          name: "Cooking actions in this recipe for step 1",
+        }),
+      });
+    await expect(breakdownInstruction).toHaveCount(1);
+    const currentBreakdown = breakdownInstruction.locator(
+      ':scope > [data-comparison-value="current"]',
+    );
+    const previousBreakdown = breakdownInstruction.locator(
+      ':scope > [data-comparison-value="previous"]',
+    );
+    const breakdownChangeLabels = breakdownInstruction.getByRole("list", {
+      name: "Cooking breakdown changes to step 1",
+    });
     for (const label of [
-      "Step title changed",
-      "Wording changed",
       "Ingredients used in the step changed",
       "Order within the step changed",
       "Timing changed",
       "Temperature changed",
     ]) {
-      await expect(changeLabels.getByText(label, { exact: true })).toBeVisible();
+      await expect(
+        breakdownChangeLabels.getByText(label, { exact: true }),
+      ).toBeVisible();
     }
 
-    const currentActions = currentInstruction.getByRole("list", {
+    const currentActions = currentBreakdown.getByRole("list", {
       name: "Cooking actions in this recipe for step 1",
     });
     const currentActionRows = currentActions.locator(":scope > li");
@@ -538,7 +564,7 @@ test.describe("structured cooking action acceptance", () => {
     await expect(currentActionRows.nth(2)).toContainText("With Vegetable oil");
     await expect(currentActionRows.nth(2)).toContainText("For 2.5 min");
 
-    const previousActions = previousInstruction.getByRole("list", {
+    const previousActions = previousBreakdown.getByRole("list", {
       name: "Cooking actions in the starting recipe for step 1",
     });
     const previousActionRows = previousActions.locator(":scope > li");

@@ -51,6 +51,24 @@ async function expectContainedBy(
   );
 }
 
+async function expectSameHorizontalBounds(
+  child: Locator,
+  container: Locator,
+): Promise<void> {
+  const [childBox, containerBox] = await Promise.all([
+    child.boundingBox(),
+    container.boundingBox(),
+  ]);
+  expect(childBox).not.toBeNull();
+  expect(containerBox).not.toBeNull();
+  expect(Math.abs(childBox!.x - containerBox!.x)).toBeLessThanOrEqual(0.5);
+  expect(
+    Math.abs(
+      childBox!.x + childBox!.width - (containerBox!.x + containerBox!.width),
+    ),
+  ).toBeLessThanOrEqual(0.5);
+}
+
 async function expectComparisonTabsAndActions(
   page: Page,
   layout: "columns" | "rows",
@@ -80,6 +98,40 @@ async function expectComparisonTabsAndActions(
   await expect(recipePanel).toBeVisible();
   await expect(notesPanel).toBeHidden();
   await expect(familyPanel).toBeHidden();
+
+  const instructions = recipePanel.getByRole("region", {
+    name: "Instructions",
+  });
+  const instructionTabs = instructions.getByRole("tablist", {
+    name: "Instruction comparison view",
+  });
+  const stepsTab = instructionTabs.getByRole("tab", {
+    name: "Steps",
+    exact: true,
+  });
+  const breakdownTab = instructionTabs.getByRole("tab", {
+    name: "Cooking breakdown",
+    exact: true,
+  });
+  const stepsPanel = instructions.locator(
+    "#recipe-comparison-instructions-steps-panel",
+  );
+  const breakdownPanel = instructions.locator(
+    "#recipe-comparison-instructions-breakdown-panel",
+  );
+  await expect(instructionTabs.getByRole("tab")).toHaveCount(2);
+  await expect(stepsTab).toHaveAttribute("aria-selected", "true");
+  await expect(stepsPanel).toBeVisible();
+  await expect(breakdownPanel).toBeHidden();
+  await expectContainedBy(stepsTab, instructionTabs);
+  await expectContainedBy(breakdownTab, instructionTabs);
+  await breakdownTab.click();
+  await expect(stepsPanel).toBeHidden();
+  await expect(breakdownPanel).toBeVisible();
+  expect(
+    await breakdownPanel.locator(".recipe-comparison-actions").count(),
+  ).toBeGreaterThan(0);
+  await stepsTab.click();
 
   for (let index = 0; index < 3; index += 1) {
     await expectContainedBy(tabs.nth(index), tablist);
@@ -244,6 +296,7 @@ test("recipe discovery reflows without hiding results at reviewed widths", async
       await expectNoAccessibilityViolations(page);
     });
   }
+
 });
 
 test("anonymous root opens the catalog without requesting private member data", async ({
@@ -534,7 +587,7 @@ test("public recipe context reflows at reviewed widths", async ({
         ".recipe-comparison-ingredient-row--changed",
       );
       const changedInstruction = comparisonView.locator(
-        ".recipe-comparison-instruction-row--changed",
+        "#recipe-comparison-instructions-steps-panel .recipe-comparison-instruction-row--changed",
       );
       await expect(
         page.getByRole("heading", {
@@ -619,6 +672,38 @@ test("public recipe context reflows at reviewed widths", async ({
       await expectNoAccessibilityViolations(page);
     });
   }
+
+  await test.step("instruction switches fill their stacked 680px headers", async () => {
+    await page.setViewportSize({ width: 680, height: 900 });
+
+    await page.goto(`/recipes/${VARIANT_RECIPE_ID}`);
+    const readerInstructionTabs = page.getByRole("tablist", {
+      name: "Instruction view",
+    });
+    const readerInstructionHeader = page.locator(
+      ".recipe-detail:visible .recipe-instructions__header",
+    );
+    await expect(readerInstructionTabs).toBeVisible();
+    await expect(readerInstructionHeader).toBeVisible();
+    await expectSameHorizontalBounds(
+      readerInstructionTabs,
+      readerInstructionHeader,
+    );
+
+    await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
+    const comparisonInstructions = page.getByRole("region", {
+      name: "Instructions",
+    });
+    await expectSameHorizontalBounds(
+      comparisonInstructions.getByRole("tablist", {
+        name: "Instruction comparison view",
+      }),
+      comparisonInstructions.locator(
+        ".recipe-comparison-instructions__header",
+      ),
+    );
+    await expectNoHorizontalOverflow(page);
+  });
 });
 
 test("recipe comparison switches both primary grids at the 900px boundary", async ({
@@ -676,7 +761,7 @@ test("recipe comparison remains understandable in forced colors", async ({
     ".recipe-comparison-ingredient-row--added",
   );
   const changedInstruction = page.locator(
-    ".recipe-comparison-instruction-row--changed",
+    "#recipe-comparison-instructions-steps-panel .recipe-comparison-instruction-row--changed",
   );
   await expect(changedIngredient).toHaveCount(1);
   await expect(addedIngredient).toHaveCount(1);
@@ -710,6 +795,24 @@ test("recipe comparison remains understandable in forced colors", async ({
   await expect(
     changedInstruction.locator('[data-comparison-value="previous"] del'),
   ).toBeVisible();
+  const instructionTabs = page.getByRole("tablist", {
+    name: "Instruction comparison view",
+  });
+  const breakdownTab = instructionTabs.getByRole("tab", {
+    name: "Cooking breakdown",
+  });
+  await expect(
+    instructionTabs.getByRole("tab", { name: "Steps" }),
+  ).toHaveCSS("border-top-style", "solid");
+  await breakdownTab.click();
+  await expect(breakdownTab).toHaveCSS("border-top-style", "solid");
+  const changedBreakdown = page.locator(
+    "#recipe-comparison-instructions-breakdown-panel .recipe-comparison-instruction-row--changed",
+  );
+  await expect(changedBreakdown).toHaveCount(1);
+  await expect(
+    changedBreakdown.locator(".recipe-comparison-instruction-row__marker"),
+  ).toHaveText("±");
   await expectNoHorizontalOverflow(page);
   await expectNoAccessibilityViolations(page);
 });
@@ -718,8 +821,12 @@ test("recipe comparison preserves the complete recipe when printed", async ({
   page,
 }, testInfo) => {
   desktopOnly(testInfo);
-  await page.emulateMedia({ media: "print" });
   await page.goto(`/recipes/${VARIANT_RECIPE_ID}/compare`);
+  await page
+    .getByRole("tablist", { name: "Instruction comparison view" })
+    .getByRole("tab", { name: "Cooking breakdown" })
+    .click();
+  await page.emulateMedia({ media: "print" });
   await expect
     .poll(() => page.evaluate(() => window.matchMedia("print").matches))
     .toBe(true);
@@ -737,6 +844,16 @@ test("recipe comparison preserves the complete recipe when printed", async ({
     name: "Recipe sections",
     includeHidden: true,
   });
+  const instructionTablist = comparisonView.getByRole("tablist", {
+    name: "Instruction comparison view",
+    includeHidden: true,
+  });
+  const stepsPanel = comparisonView.locator(
+    "#recipe-comparison-instructions-steps-panel",
+  );
+  const breakdownPanel = comparisonView.locator(
+    "#recipe-comparison-instructions-breakdown-panel",
+  );
   await expect(
     page.getByRole("heading", {
       name: "Garden Cream Tomato Soup",
@@ -750,6 +867,7 @@ test("recipe comparison preserves the complete recipe when printed", async ({
   await expect(notesPanel).toBeVisible();
   await expect(familyPanel).toBeHidden();
   await expect(tablist).toBeHidden();
+  await expect(instructionTablist).toBeHidden();
   await expect(ingredients).toBeVisible();
   await expect(
     ingredients.locator(".recipe-comparison-ingredient-row"),
@@ -762,13 +880,37 @@ test("recipe comparison preserves the complete recipe when printed", async ({
   ).toHaveCount(1);
   await expect(instructions).toBeVisible();
   await expect(
-    instructions.locator(".recipe-comparison-instruction-row"),
+    instructions.getByRole("heading", {
+      name: /^Written steps — \d+ step changes?$/,
+    }),
+  ).toBeVisible();
+  await expect(
+    instructions.getByRole("heading", {
+      name: /^Cooking breakdown — \d+ cooking breakdown changes?$/,
+    }),
+  ).toBeVisible();
+  await expect(
+    instructions.locator(".recipe-comparison-instructions__view-summary"),
+  ).toBeHidden();
+  await expect(stepsPanel).toBeVisible();
+  await expect(breakdownPanel).toBeVisible();
+  await expect(stepsPanel.locator(".recipe-comparison-instruction-row")).toHaveCount(
+    2,
+  );
+  await expect(
+    breakdownPanel.locator(".recipe-comparison-instruction-row"),
+  ).toHaveCount(2);
+  await expect(stepsPanel.locator('[data-comparison-value="current"]')).toHaveCount(
+    2,
+  );
+  await expect(
+    breakdownPanel.locator('[data-comparison-value="current"]'),
   ).toHaveCount(2);
   await expect(
-    instructions.locator('[data-comparison-value="current"]'),
-  ).toHaveCount(2);
+    stepsPanel.locator('[data-comparison-value="previous"]'),
+  ).toHaveCount(1);
   await expect(
-    instructions.locator('[data-comparison-value="previous"]'),
+    breakdownPanel.locator('[data-comparison-value="previous"]'),
   ).toHaveCount(1);
   await expect(notes).toBeVisible();
   await expect(

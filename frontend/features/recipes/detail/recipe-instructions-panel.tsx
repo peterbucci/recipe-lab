@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 
-import { useRovingTabs } from "../../../shared/ui/use-roving-tabs";
-
 import type {
   RecipeIngredient,
   RecipeInstruction,
 } from "../shared/recipe-contracts";
+import {
+  RecipeInstructionViewTabs,
+  recipeInstructionViewPanelId,
+  recipeInstructionViewTabId,
+  type RecipeInstructionView,
+} from "../shared/recipe-instruction-view-tabs";
 import type { RecipeInstructionAction } from "../shared/recipe-structure";
 import {
   RecipeInstructionFactPills,
@@ -19,9 +23,7 @@ interface RecipeInstructionsPanelProps {
   instructions: RecipeInstruction[];
 }
 
-type InstructionView = "steps" | "breakdown";
-
-const VIEWS: readonly InstructionView[] = ["steps", "breakdown"];
+const INSTRUCTION_VIEW_ID_PREFIX = "recipe-instructions";
 
 function instructionTitle(
   instruction: RecipeInstruction,
@@ -84,7 +86,7 @@ export function RecipeInstructionsPanel({
   ingredients,
   instructions,
 }: RecipeInstructionsPanelProps) {
-  const [view, setView] = useState<InstructionView>("steps");
+  const [view, setView] = useState<RecipeInstructionView>("steps");
   const orderedInstructions = [...instructions].sort(
     (left, right) => left.display_order - right.display_order,
   );
@@ -95,12 +97,6 @@ export function RecipeInstructionsPanel({
     view === "steps"
       ? "Read the recipe as normal step-by-step instructions."
       : "See the actions, ingredients, timing, and heat inside each step.";
-  const { getTabProps } = useRovingTabs({
-    onChange: setView,
-    value: view,
-    values: VIEWS,
-  });
-
   return (
     <section
       id="instructions"
@@ -112,34 +108,21 @@ export function RecipeInstructionsPanel({
           <h2 id="instructions-heading">Instructions</h2>
           <p aria-live="polite">{helper}</p>
         </div>
-        <div
-          className="recipe-instructions__view-switch"
-          role="tablist"
-          aria-label="Instruction view"
-        >
-          {VIEWS.map((candidate) => {
-            const label = candidate === "steps" ? "Steps" : "Cooking breakdown";
-            return (
-              <button
-                {...getTabProps(candidate)}
-                id={`recipe-instructions-${candidate}-tab`}
-                key={candidate}
-                type="button"
-                role="tab"
-                aria-controls={`recipe-instructions-${candidate}-panel`}
-                onClick={() => setView(candidate)}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
+        <RecipeInstructionViewTabs
+          ariaLabel="Instruction view"
+          idPrefix={INSTRUCTION_VIEW_ID_PREFIX}
+          value={view}
+          onChange={setView}
+        />
       </header>
 
       <div
-        id="recipe-instructions-steps-panel"
+        id={recipeInstructionViewPanelId(INSTRUCTION_VIEW_ID_PREFIX, "steps")}
         role="tabpanel"
-        aria-labelledby="recipe-instructions-steps-tab"
+        aria-labelledby={recipeInstructionViewTabId(
+          INSTRUCTION_VIEW_ID_PREFIX,
+          "steps",
+        )}
         tabIndex={0}
         hidden={view !== "steps"}
       >
@@ -173,9 +156,15 @@ export function RecipeInstructionsPanel({
       </div>
 
       <div
-        id="recipe-instructions-breakdown-panel"
+        id={recipeInstructionViewPanelId(
+          INSTRUCTION_VIEW_ID_PREFIX,
+          "breakdown",
+        )}
         role="tabpanel"
-        aria-labelledby="recipe-instructions-breakdown-tab"
+        aria-labelledby={recipeInstructionViewTabId(
+          INSTRUCTION_VIEW_ID_PREFIX,
+          "breakdown",
+        )}
         tabIndex={0}
         hidden={view !== "breakdown"}
       >
