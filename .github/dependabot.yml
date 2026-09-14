@@ -26,6 +26,9 @@ updates:
       frontend-non-major:
         patterns:
           - "*"
+        # Browser upgrades are reviewed with the pinned CI image and visual baselines.
+        exclude-patterns:
+          - "@playwright/test"
         update-types:
           - minor
           - patch
