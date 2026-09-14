@@ -125,14 +125,21 @@ unchanged.
 
 | Project | Snapshot | Git object ID | Review purpose |
 | --- | --- | --- | --- |
-| Desktop | `recipe-comparison-top-normal` | `81619d8eaabc98e7daa2923f9c626729ecd580b8` | Above-fold metadata comparison with compact purple current title and description rows, slim red prior-value strips, and color-independent markers. |
+| Desktop | `recipe-comparison-top-normal` | `ce1370dde47559971e48311adf11dca47241c409` | Above-fold metadata comparison with compact purple current title and description rows, slim red prior-value strips, color-independent markers, and the publication label reconciled to the frozen browser clock. |
 | Desktop | `recipe-comparison-normal` | `703cfd6a0833cc52634a62c399c48987fdecc1e8` | Two-column Recipe tab with category additions/removals included in the seven-change total, ingredient checkboxes, a close legend, status beside the step title, a wording-only prior box, and a connected timeline. |
 | Desktop | `recipe-comparison-cooking-breakdown` | `8754afdd76079296354933a666867960f08f5354` | Seven-change total plus a connected numbered Cooking breakdown timeline with one aligned list of neutral, added, removed, and purple modified actions. |
 | Desktop | `recipe-comparison-intermediate-normal` | `727f360a07666f709cc22e57011d20a7d6706efc` | Stacked 820 px Recipe panel with checkboxes, field-only prior values, labels after the prior box, and an unbroken timeline. |
 | Desktop | `recipe-comparison-intermediate-cooking-breakdown` | `5b91cbaebb5eba80600e85590aa10bc0e2ff88bc` | Full-width aligned Cooking breakdown rows, inline detail changes, and a connected numbered timeline in the stacked 820 px layout. |
-| Phone | `recipe-comparison-top-normal` | `70daf9776fe9f1b08662a28a7f53178e6dfad303` | Compact title and description diffs, category additions/removals, and the complete author row above the fixed navigation. |
+| Phone | `recipe-comparison-top-normal` | `258188c33246a6a25a8baf5c34e9da8d6e3b7dd5` | Compact title and description diffs, category additions/removals, the deterministic publication label, and the complete author row above the fixed navigation. |
 | Phone | `recipe-comparison-normal` | `a2c86c57cbac7e143275d91de65bda61e32a8456` | Sticky standard tabs with checkboxes, title-adjacent status, field-only prior values, labels below the prior box, and a connected timeline. |
 | Phone | `recipe-comparison-cooking-breakdown` | `a286db7f99ebcc4417d7857f72a069ed7671f9b3` | Connected numbered timeline, two-column aligned action rows, stacked timing, and all four action states without horizontal overflow. |
+
+On September 14, the two top-of-page references were recaptured after the
+comparison publication label was changed to reconcile from its server value to
+the already frozen browser clock. Both independent captures matched byte for
+byte at each viewport, and full-resolution review confirmed that only the
+relative publication text changed, from a host-clock-dependent day count to
+`Published yesterday`.
 
 The canonical runner used:
 
