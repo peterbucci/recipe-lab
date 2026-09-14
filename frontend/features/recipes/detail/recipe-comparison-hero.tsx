@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { PublicCookAttribution } from "../../community/public-cook-attribution";
 import { relativeTimeLabel } from "../../../shared/time/relative-time";
 import { RecipeArtwork } from "../shared/recipe-artwork";
+import { RecipePublicationTime } from "../shared/recipe-publication-time";
 import type {
   RecipeDifficulty,
   RecipeFieldChange,
@@ -305,13 +306,11 @@ export function RecipeComparisonHero({
             {isVariation ? `Version ${recipe.version_number}` : "Original"}
           </span>
           {publication ? (
-            <time
+            <RecipePublicationTime
               className="recipe-comparison-hero__published"
-              dateTime={publicationValue}
-              title={publication.absoluteLabel}
-            >
-              Published {publication.relativeLabel}
-            </time>
+              initialPublication={publication}
+              value={publicationValue}
+            />
           ) : null}
           <span className="recipe-comparison-hero__mode">
             Comparison view

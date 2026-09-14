@@ -58,13 +58,16 @@ The fixture fixes every input that would otherwise introduce pixel drift:
 | Randomness                  | Seeded Web Crypto UUID sequence and fixed `Math.random`                                       |
 | Identities                  | Reviewed UUID constants and separate invented cook, curator, moderator, and onboarding accounts |
 | Content                     | Reviewed synthetic recipe, draft, request, comparison, and moderation fixtures only           |
-| Fonts                       | The Geist WOFF2 shipped with pinned Next.js 16.3.1, injected under deterministic test aliases |
+| Fonts                       | The Geist WOFF2 shipped with pinned Next.js 16.3.5, injected under deterministic test aliases |
 | Network                     | New loopback-only servers for every run; service workers blocked                              |
 
 The harness first asserts the production CSS font-family variables, then
 installs the deterministic aliases and waits for `document.fonts.ready`. This
 keeps font files stable without allowing the test override to hide a product
 font-contract regression. Animations and transitions are disabled for capture.
+Server-rendered relative timestamps preserve their initial HTML, then reconcile
+to the frozen browser clock before capture; the state-matrix assertions wait for
+that reconciliation explicitly.
 The browser context starts empty and fixture dates, generated IDs, and account
 state never come from the host clock or operating-system entropy. HTTP and
 WebSocket route allowlists abort anything outside the two reviewed `127.0.0.1`
