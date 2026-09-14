@@ -259,6 +259,9 @@ test.describe("desktop visual state matrix", () => {
     await expect(
       descriptionChange.locator('[data-comparison-value="previous"] del'),
     ).toHaveText("A bright tomato soup made for a quiet lunch.");
+    await expect(
+      comparisonHero.locator(".recipe-comparison-hero__published"),
+    ).toHaveText("Published yesterday");
     await stabilizeVisuals(page);
     await captureBaseline(page, "recipe-comparison-top-normal");
 
