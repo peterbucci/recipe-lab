@@ -1,20 +1,22 @@
 # Recipe visibility and account lifecycle
 
 RCP-30 adds reversible author withdrawal and irreversible member-account
-deletion without weakening Recipe Lab's immutable publication and fork-history
-contracts. A recipe snapshot never changes after publication. Visibility is a
-separate lifecycle decision around that snapshot, and deleting an account
-removes private identity and activity while retaining the minimum anonymous
-author tombstone required by public recipe topology.
+deletion without weakening Recipe Lab's immutable publication and adaptation
+history. RCP-53 adds stable recipe identity and same-recipe editions without
+changing that visibility authority. A recipe snapshot never changes after
+publication. Visibility is a separate lifecycle decision around each exact
+snapshot, and deleting an account removes private identity and activity while
+retaining the minimum anonymous author tombstone and topology required by
+public recipe history.
 
 ## Shared public-read boundary
 
 Every public recipe adapter starts from the same database predicate: the exact
 version must have a publication row whose effective state is `published`.
-Browse, search, public cook profiles, recommendations, saved libraries, recipe
-details, parent and child projections, interactions, fork-draft creation,
-publication source checks, duplicate candidates, and diffs all use that seam.
-Filtering after loading or scoring is not an acceptable substitute.
+Browse, search, public cook profiles, recommendations, saved libraries, exact
+and stable detail, history projections, interactions, adaptation/revision draft
+creation, publication source checks, duplicate candidates, and diffs all use
+that seam. Filtering after loading or scoring is not an acceptable substitute.
 
 The canonical SQL predicates and effective-state precedence live together in
 `app/policies/recipe_visibility.py`. Repositories and publication/moderation
@@ -25,6 +27,30 @@ update.
 The earlier repository and service compatibility re-exports have been removed
 now that every maintained caller imports this policy boundary directly.
 Migration history and stored visibility evidence are unchanged.
+
+## Stable, current, and exact reads
+
+A stable `recipes` row groups editions of one author's recipe, owns one
+explicit `current_recipe_version_id`, and holds nullable active-owner authority.
+Each append-only `recipe_editions` row maps one exact immutable
+`recipe_versions` snapshot into that stable recipe. Same-recipe succession uses
+`previous_recipe_version_id`; cross-recipe adaptation continues to use the
+exact `parent_version_id` in the wider lineage. Supersession and visibility are
+therefore independent axes.
+
+`GET /api/recipes/current/{recipe_id}` resolves only the explicitly selected
+current edition when that exact version is readable. It never falls back to an
+older edition if current is author-withdrawn or moderation-hidden.
+`GET /api/recipes/{recipe_version_id}` remains an exact permalink and never
+redirects to or substitutes newer content. A readable older edition may expose
+a separate current-version reference only when that destination is readable.
+History and comparison continue to use exact version IDs.
+
+Browse, search, public profiles, community activity, recommendations, and
+ordinary authored libraries select at most the readable current edition of
+each stable recipe. Saved recipes are different: a save remains pinned to the
+exact version the member saved and may separately say **Newer version
+available** when the stable current destination is readable.
 
 Publication rows support three effective states:
 
@@ -76,11 +102,25 @@ moderation detail. A direct request for a nonexistent, withdrawn, or
 moderation-hidden recipe uses the same neutral unavailable response. Public
 diffs never load an unavailable side.
 
-Fork drafts may retain the stable ID of a source that is later withdrawn, but
-publication rechecks the shared predicate while holding the publication guard
-and source-lineage lock. If visibility changed, publication fails atomically
-with `recipe_fork_source_unavailable`; the private draft remains intact and no
-child, publication receipt, or fork signal is written.
+An adaptation or revision draft retains the exact ID of the source it copied.
+Publication rechecks the shared predicate while holding the publication guard
+and its topology locks. If an adaptation source changed visibility,
+publication fails atomically with `recipe_fork_source_unavailable`; the private
+draft remains intact and no version, stable recipe, edition, receipt, or fork
+signal is written. A revision additionally requires its source still to be the
+readable current edition of the stable recipe owned by the active member. A
+stale or hidden source cannot advance current and leaves the private draft
+editable.
+
+An author may declare a revision a correction and request predecessor
+withdrawal. The publication transaction creates the successor, advances the
+stable current pointer, and author-withdraws that exact predecessor atomically.
+This is the ordinary dangerous-version safety path: unrelated callers never see
+a moment when a committed successor exists without its requested withdrawal.
+It does not rewrite the unsafe snapshot, transfer its interactions, or clear a
+moderation-hidden state. A moderation-hidden current edition cannot be revised
+back into public visibility through the ordinary author path, and moderator
+restore cannot override an earlier author withdrawal.
 
 ## Recent authentication
 
@@ -118,7 +158,8 @@ Deletion immediately makes every application session unusable and removes:
 - the OIDC issuer/subject mapping and private email;
 - the public handle and member-chosen display name;
 - all session rows, saves, ratings, and preference events;
-- active private drafts and their structured content;
+- active private original, adaptation, and revision drafts and their structured
+  content;
 - unresolved private catalog-request content and unreferenced private
   duplicate-review evidence; and
 - any current curator grant held by the member.
@@ -134,8 +175,12 @@ values while the action and before/after state remain append-only.
 
 The stable user UUID remains only as a constrained tombstone with status
 `deleted`, no email or handle, a deletion timestamp, and display name
-`Deleted cook`. Published recipe lineages, immutable versions, visibility, and
-publication-bound audit evidence remain. A published snapshot that was public
+`Deleted cook`. Published recipe lineages, stable recipes, append-only edition
+topology, immutable exact versions, visibility, and publication-bound audit
+evidence remain. Each stable recipe keeps its attributed tombstone and current
+pointer, but account lifecycle clears `recipes.owner_user_id`; the deleted
+account therefore cannot authorize another edition and no retained recipe
+pointer re-identifies an active owner. A published snapshot that was public
 stays public under unlinked **Deleted cook** attribution; an author-withdrawn
 snapshot stays withdrawn permanently because no account remains to restore it.
 Published source-draft rows required by immutable receipt foreign keys are
@@ -155,8 +200,13 @@ active identities fail closed. Cook-profile lookup still requires an active
 handle, so the deleted member's old profile route is indistinguishable from an
 unknown handle.
 
-RCP-30 does not add report intake, moderation queues, unlisted sharing,
-automated classification, cascading fork deletion, or hard deletion of
-published snapshots. Those are separate product and governance decisions.
-The exhaustive database, log, backup, and research-artifact rules are in
+RCP-30 and RCP-53 do not add unlisted sharing, automated classification,
+cascading adaptation deletion, or hard deletion of published snapshots. Those
+are separate product and governance decisions. In particular, RCP-54
+exceptional privacy or security erasure is a separate, unimplemented launch
+gate. It requires a legal/DPO-approved field and retention policy plus a
+strongly authenticated privacy authority; ordinary account deletion,
+visibility, moderation, and publication code must not impersonate that path.
+The exhaustive database, log, backup, research-artifact, and exceptional-
+operation rules are in
 [account-data governance and deletion completeness](account-data-governance.md).

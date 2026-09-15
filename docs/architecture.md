@@ -449,6 +449,20 @@ visibility metadata can transition, with append-only audit evidence. Corrections
 must create a new immutable version through an authorized lifecycle rather than
 rewrite the published snapshot.
 
+The governing qualified invariant is:
+
+> Published recipe content is immutable against ordinary product mutations,
+> subject to legally required privacy or security operations.
+
+No exceptional mutation follows from that qualification today. RCP-54 is a
+separate, unimplemented launch gate requiring a legal/DPO-approved field and
+retention policy, a strongly authenticated privacy authority, auditable and
+idempotent execution, and propagation through replicas, backups, restored
+copies, indexes, exports, and derived artifacts. Ordinary publication,
+visibility, moderation, account lifecycle, and database administration must
+not bypass these snapshot and topology guards. See
+[account-data governance](account-data-governance.md#exceptional-privacy-or-security-erasure).
+
 `recipe_structural_fingerprints` stores one immutable result per recipe version
 and algorithm version. It retains both a lowercase SHA-256 digest and the exact
 compact canonical JSON. The non-unique algorithm/digest index finds candidates;
@@ -601,6 +615,11 @@ and a rating constraint enforces the one-to-five scale. The bundled loader also
 preserves the fixed, non-login Demo Cook identity and its historical activity
 for compatibility, but the runtime no longer selects it as an action principal
 or personal recommendation profile.
+
+Comments are not part of the current product. If introduced later, they must be
+separately mutable and moderatable social records bound to one exact recipe
+version. They must not become immutable snapshot content, move to a successor,
+or be copied merely because an author publishes a new edition.
 
 `preference_events` is separate append-only history. Its UUID primary key is an
 internal event identity, while `action_id` is the caller's idempotency key.

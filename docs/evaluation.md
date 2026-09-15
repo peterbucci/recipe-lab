@@ -35,36 +35,60 @@ fixtures are the only durable research inputs. See
 
 ## Snapshot contract
 
-The `recipe-lab-evaluation-snapshot-v2` format contains:
+The governed PostgreSQL exporter writes `recipe-lab-evaluation-snapshot-v3`.
+It contains:
 
 - a dataset ID, one explicit UTC cutoff, and stated limitations;
-- recipe-version IDs, creation times, titles, version numbers, and one structured
-  record per authored ingredient occurrence; each record carries its canonical
+- opaque stable-recipe and exact-version IDs, series-local edition numbers,
+  exact base-version IDs, derived `original`/`adaptation`/`revision` relation
+  kinds, optional author-declared revision reasons, creation and publication
+  times, titles, legacy lineage-wide version numbers, and versioned structural
+  fingerprint algorithm/digest metadata;
+- one structured record per authored ingredient occurrence; each record carries its canonical
   ingredient identity, exact/range/qualitative kind, decimal bounds, curated
   measurement-unit identity, optional reviewed package-size identity, and any
   qualitative value; and
 - typed view, save, rating, and fork events with opaque event and profile IDs.
 
-The extractor reads a repeatable PostgreSQL snapshot and omits names, email
-addresses, IP addresses, user agents, referrers, search text, fork request
-fingerprints, and free-form event context. Recipe and event arrays are
+The extractor reads a repeatable PostgreSQL snapshot. It exports only currently
+published versions. A version published no later than the cutoff is included
+only when its latest audited visibility at that boundary was also published;
+versions published later may remain only as referential and holdout context and
+are excluded from the frozen training catalog. Events from before and after the
+training boundary are retained when they belong to an active member and
+reference eligible exact versions, so the existing temporal split can construct
+both training and holdout data. A fork signal is kept only when its exact child
+is an eligible adaptation of its exact source; same-recipe revisions, including
+declared corrections, never become preference signals. The declared reason is
+weak author-supplied metadata and does not determine topology or establish
+factual correctness. An adaptation and its diff are observational provenance,
+not evidence that either version was cooked, that the changes succeeded, or
+that the child is safer or better.
+
+The v3 export omits names, email addresses, IP addresses, user agents, referrers,
+search text, fork request fingerprints, canonical structural-fingerprint
+payloads, and free-form event context. Recipe and event arrays are
 canonicalized before hashing; ingredient occurrences retain authored order.
 Equivalent recipe/event ordering and JSON formatting yield the same snapshot
-fingerprint, while any measure-only change changes it.
+fingerprint, while any measure-only, topology, publication-time, or fingerprint
+metadata change changes it.
+
+The reader deliberately accepts both v1 and v2 snapshots for historical
+evaluation. V1 distinct ingredient IDs remain available only through an
+explicit legacy-ID fallback; they do not become fabricated qualitative
+measures. Existing v2 snapshots retain their structured measures and their
+original bytes and hashes; they are never reinterpreted as v3. In-memory
+evaluators without governed publication/topology metadata continue to create
+v2 snapshots, while database exports explicitly require v3 metadata and fail
+closed if it is missing. Creating either structured format from
+legacy ID-only recipes is refused with a recapture instruction.
 
 Snapshot v2 deliberately does not export instruction prose or structured
-cooking actions. Adding action types, occurrence inputs, order, duration, or
-temperature would change the identifying input and therefore requires a new
-snapshot schema and fingerprint contract. Existing v2 snapshots and reports
-must not be reinterpreted. No current offline model consumes action data; see
+cooking actions. V3 preserves that privacy boundary while adding only governed
+identity, topology, publication-time, and fingerprint metadata. No current
+offline model consumes action data; see
 [structured cooking actions](cooking-actions.md) for the future-version
 boundary.
-
-The reader deliberately accepts v1 snapshots for historical evaluation. Their
-distinct ingredient IDs remain available only through an explicit legacy-ID
-fallback; they do not become fabricated qualitative measures. New exports and
-programmatically created snapshots are always v2, and creating v2 data from
-legacy ID-only recipes is refused with a recapture instruction.
 
 The evaluator never reads the mutable `recipe_saves` or `recipe_ratings` tables
 for a historical run. Their present state cannot describe what was known at an
@@ -75,7 +99,8 @@ append-only preference events that existed before the cutoff.
 
 The protocol is `fixed-cutoff-full-catalog-v1`:
 
-1. Recipe versions with `created_at < cutoff` are available.
+1. Recipe versions with `created_at < cutoff` are available; formats carrying
+   publication time also require `published_at < cutoff`.
 2. Events with `occurred_at < cutoff` are training data.
 3. Events with `occurred_at >= cutoff` are held-out labels or context.
 4. A model receives only the available catalog and training events. Held-out
