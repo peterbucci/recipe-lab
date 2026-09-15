@@ -23,12 +23,14 @@ from app.models import (
     IngredientCatalogRequest,
     OIDCIdentity,
     PreferenceEvent,
+    Recipe,
     RecipeDraft,
     RecipeDraftCategory,
     RecipeDraftInstruction,
     RecipeDuplicateCandidate,
     RecipeDuplicateDecision,
     RecipeDuplicatePreflight,
+    RecipeEdition,
     RecipeLineage,
     RecipeModerationAuditEvent,
     RecipeModerationCase,
@@ -214,6 +216,24 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
         duplicate_policy_version=bound_preflight.policy_version,
         duplicate_result_digest=bound_preflight.result_digest,
     )
+    stable_recipe = Recipe(
+        id=uuid4(),
+        lineage_id=lineage.id,
+        attributed_author_user_id=deleting_user_id,
+        owner_user_id=deleting_user_id,
+        current_recipe_version_id=version.id,
+        created_at=now,
+    )
+    stable_edition = RecipeEdition(
+        recipe_version_id=version.id,
+        recipe_id=stable_recipe.id,
+        lineage_id=lineage.id,
+        attributed_author_user_id=deleting_user_id,
+        edition_number=1,
+        relation_kind="original",
+        previous_recipe_version_id=None,
+        declared_change_reason=None,
+    )
     pending_request = IngredientCatalogRequest(
         requester_user_id=deleting_user_id,
         proposed_name="Private pending ingredient",
@@ -232,7 +252,9 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
         reviewed_at=now,
         decision_reason="Not suitable for the catalog.",
     )
-    db_session.add_all([publication, pending_request, terminal_request])
+    db_session.add_all(
+        [publication, stable_recipe, stable_edition, pending_request, terminal_request]
+    )
     db_session.flush()
     moderation_case = RecipeModerationCase(
         recipe_version_id=version.id,
@@ -440,6 +462,11 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
     retained_publication = db_session.get(RecipeVersionPublication, version_id)
     assert retained_publication is not None
     assert retained_publication.state == "published"
+    retained_recipe = db_session.get(Recipe, stable_recipe.id)
+    assert retained_recipe is not None
+    assert retained_recipe.owner_user_id is None
+    assert retained_recipe.attributed_author_user_id == deleting_user_id
+    assert retained_recipe.current_recipe_version_id == version_id
     retained_categories = list(
         db_session.scalars(
             select(RecipeVersionCategory).where(

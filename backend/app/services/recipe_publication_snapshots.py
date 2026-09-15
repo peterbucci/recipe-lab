@@ -6,7 +6,14 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.domain_errors import DomainConflictError
-from app.models import RecipeLineage, RecipeVersion
+from app.models import (
+    RECIPE_RELATION_KIND_ADAPTATION,
+    RECIPE_RELATION_KIND_ORIGINAL,
+    Recipe,
+    RecipeEdition,
+    RecipeLineage,
+    RecipeVersion,
+)
 from app.policies.recipe_visibility import publicly_readable_recipe_version_filter
 from app.services.recipe_documents import RecipeDocument, RecipeDocumentMaterializationError
 
@@ -94,4 +101,27 @@ def create_recipe_version_identity(
     if new_lineage is not None:
         version.lineage = new_lineage
     session.add(version)
+    recipe_id = uuid4()
+    recipe = Recipe(
+        id=recipe_id,
+        lineage_id=lineage_id,
+        attributed_author_user_id=author_user_id,
+        owner_user_id=author_user_id,
+        current_recipe_version_id=version.id,
+    )
+    edition = RecipeEdition(
+        recipe_version_id=version.id,
+        recipe_id=recipe_id,
+        lineage_id=lineage_id,
+        attributed_author_user_id=author_user_id,
+        edition_number=1,
+        relation_kind=(
+            RECIPE_RELATION_KIND_ORIGINAL
+            if source_version_id is None
+            else RECIPE_RELATION_KIND_ADAPTATION
+        ),
+        previous_recipe_version_id=None,
+        declared_change_reason=None,
+    )
+    session.add_all((recipe, edition))
     return version

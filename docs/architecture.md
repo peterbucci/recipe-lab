@@ -323,12 +323,31 @@ deleted member is retained only as a constrained `Deleted cook` topology
 tombstone with no email or handle. Catalog Author and Demo Cook are seeded as non-login
 identities, and no migration transfers their existing activity to a member.
 
-Each `recipe_lineages` row groups an original recipe and all of its variants.
-Every `recipe_versions` row is an append-oriented snapshot with a direct parent
-or, for the original, no parent. A composite foreign key prevents a version
-from naming a parent in another lineage, while a partial unique index permits
-only one root per lineage. Ingredients and instructions belong to a specific
-snapshot and have stable display positions.
+Each `recipe_lineages` row groups an original recipe and all of its adaptations.
+The stable `recipes` aggregate owns current-edition selection and nullable
+active-owner authority. Every `recipe_versions` row remains an append-oriented
+exact snapshot. Its `parent_version_id` is reserved for a cross-recipe
+adaptation in the same lineage. Append-only `recipe_editions` rows map exact
+published versions to a stable recipe, store recipe-local `edition_number`, and
+represent same-recipe succession with `previous_recipe_version_id`. The
+topological `relation_kind` (`original`, `adaptation`, or `revision`) is
+separate from the optional, weak author declaration (`correction` or `update`).
+The legacy `version_number` remains lineage-wide and is not edition order.
+Composite foreign keys and deferred constraint triggers require an immediate
+same-recipe, same-lineage revision predecessor, a cross-recipe adaptation
+parent, the current pointer to select the latest edition in that recipe, and
+exactly one edition mapping for every publication receipt. A partial unique
+index on edition metadata permits only one true origin per lineage.
+Ingredients and instructions belong to a specific exact snapshot and have
+stable display positions.
+
+Migration `20260914_0032` deterministically maps every existing publication to
+a one-edition stable recipe using the exact version UUID as the initial recipe
+UUID. It inserts only into the two new tables, preserving every version row,
+content value, timestamp, lineage edge, receipt, visibility state, interaction,
+and audit event. A downgrade is refused after edition state diverges from that
+losslessly reconstructable backfill because the earlier schema cannot represent
+same-recipe succession without losing topology.
 
 `recipe_version_publications` is the explicit public-state and immutable-receipt
 boundary. Every seeded version is backfilled with supported `published` state
@@ -408,9 +427,18 @@ rows are reused, while any changed immutable recipe snapshot fails loudly.
 
 Application services must create a new version rather than edit an existing
 snapshot. PostgreSQL prevents changes to a stored version's ID, lineage, or
-parent, and a recursive constraint trigger rejects cyclic bulk inserts. These
-guards keep lineage topology acyclic regardless of the write path. Restrictive
-foreign keys also protect referenced history from deletion. Once a version has
+adaptation parent. `recipe_editions` is append-only; constraint triggers require
+consecutive same-recipe editions, reject same-recipe adaptation parents, and
+retain the existing recursive rejection of cyclic derivation inserts. Stable
+recipe identity, lineage, attribution, and creation time are immutable, while
+only active ownership and the constrained current pointer may change. These
+guards keep edition and lineage topology unambiguous regardless of the write
+path. Restrictive foreign keys also protect referenced history from deletion.
+A publication transaction preallocates stable and exact UUIDs and writes its
+version, stable recipe or current-pointer update, edition mapping, and receipt
+atomically. Deferred same-recipe-current and publication-membership constraints
+allow this cycle without permitting a committed missing mapping, null current
+pointer, or non-latest current selection. Once a version has
 a publication receipt, database triggers reject changes to its lineage or
 version and insert, update, delete, or truncate attempts against its ordered
 ingredients, instructions, actions, action inputs, and measures. Existing

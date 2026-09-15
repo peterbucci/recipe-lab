@@ -29,7 +29,9 @@ from app.models import (
     MeasurementConversionRule,
     MeasurementUnit,
     MeasurementUnitAlias,
+    Recipe,
     RecipeCategory,
+    RecipeEdition,
     RecipeIngredient,
     RecipeInstruction,
     RecipeInstructionAction,
@@ -1441,6 +1443,7 @@ def _record_recipe_publication(
     version: RecipeVersion,
     catalog: SeedCatalog,
     report: SeedReport,
+    stable_editions_supported: bool,
 ) -> None:
     """Make deterministic seed snapshots publicly visible under the new predicate."""
 
@@ -1464,6 +1467,14 @@ def _record_recipe_publication(
                 "stored publication evidence differs from the catalog",
             )
         report.reused["recipe_version_publications"] += 1
+        if stable_editions_supported:
+            _record_stable_recipe_edition(
+                session,
+                seed=seed,
+                version=version,
+                catalog=catalog,
+                report=report,
+            )
         return
 
     session.add(
@@ -1478,6 +1489,86 @@ def _record_recipe_publication(
     )
     session.flush()
     report.created["recipe_version_publications"] += 1
+    if stable_editions_supported:
+        _record_stable_recipe_edition(
+            session,
+            seed=seed,
+            version=version,
+            catalog=catalog,
+            report=report,
+        )
+
+
+def _record_stable_recipe_edition(
+    session: Session,
+    *,
+    seed: RecipeSeed,
+    version: RecipeVersion,
+    catalog: SeedCatalog,
+    report: SeedReport,
+) -> None:
+    """Create or verify deterministic one-edition stable identity for a seed."""
+
+    recipe = session.get(Recipe, version.id)
+    if recipe is None:
+        recipe = Recipe(
+            id=version.id,
+            lineage_id=version.lineage_id,
+            attributed_author_user_id=version.created_by_user_id,
+            owner_user_id=version.created_by_user_id,
+            current_recipe_version_id=version.id,
+            created_at=catalog.published_at,
+        )
+        session.add(recipe)
+        report.created["recipes"] += 1
+    else:
+        if (
+            recipe.lineage_id != version.lineage_id
+            or recipe.attributed_author_user_id != version.created_by_user_id
+            or recipe.owner_user_id != version.created_by_user_id
+            or recipe.current_recipe_version_id != version.id
+            or recipe.created_at != catalog.published_at
+        ):
+            raise _conflict(
+                "stable recipe",
+                seed.key,
+                "stored identity differs from the catalog",
+            )
+        report.reused["recipes"] += 1
+
+    expected_kind = "original" if version.parent_version_id is None else "adaptation"
+    edition = session.get(RecipeEdition, version.id)
+    if edition is None:
+        session.add(
+            RecipeEdition(
+                recipe_version_id=version.id,
+                recipe_id=version.id,
+                lineage_id=version.lineage_id,
+                attributed_author_user_id=version.created_by_user_id,
+                edition_number=1,
+                relation_kind=expected_kind,
+                previous_recipe_version_id=None,
+                declared_change_reason=None,
+            )
+        )
+        report.created["recipe_editions"] += 1
+    else:
+        if (
+            edition.recipe_id != version.id
+            or edition.lineage_id != version.lineage_id
+            or edition.attributed_author_user_id != version.created_by_user_id
+            or edition.edition_number != 1
+            or edition.relation_kind != expected_kind
+            or edition.previous_recipe_version_id is not None
+            or edition.declared_change_reason is not None
+        ):
+            raise _conflict(
+                "recipe edition",
+                seed.key,
+                "stored topology differs from the catalog",
+            )
+        report.reused["recipe_editions"] += 1
+    session.flush()
 
 
 def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
@@ -1545,6 +1636,7 @@ def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
         _load_substitution(session, catalog, substitution_seed, ingredients, report)
 
     lineages: dict[str, RecipeLineage] = {}
+    stable_editions_supported = inspect(session.connection()).has_table("recipe_editions")
     for recipe_seed in catalog.recipes_in_parent_first_order():
         root_key = catalog.root_key_for(recipe_seed.key)
         if root_key not in lineages:
@@ -1579,6 +1671,7 @@ def seed_catalog(session: Session, catalog: SeedCatalog) -> SeedReport:
             version=version,
             catalog=catalog,
             report=report,
+            stable_editions_supported=stable_editions_supported,
         )
 
     session.flush()

@@ -161,7 +161,7 @@ def test_parent_version_must_belong_to_the_same_lineage(db_session: Session) -> 
     )
 
 
-def test_lineage_allows_only_one_root_version(db_session: Session) -> None:
+def test_unpublished_versions_do_not_claim_stable_lineage_origin(db_session: Session) -> None:
     creator = create_user(db_session, "one-root@example.com")
     lineage, _ = create_lineage_with_root(db_session, creator, title="Original")
     second_root = RecipeVersion(
@@ -174,11 +174,11 @@ def test_lineage_allows_only_one_root_version(db_session: Session) -> None:
         servings=Decimal("4.00"),
     )
 
-    assert_flush_violates(
-        db_session,
-        second_root,
-        "uq_recipe_versions_one_root_per_lineage",
-    )
+    db_session.add(second_root)
+    db_session.flush()
+
+    assert second_root.parent_version_id is None
+    assert second_root.lineage_id == lineage.id
 
 
 def test_parent_version_cannot_be_deleted_while_descendants_exist(

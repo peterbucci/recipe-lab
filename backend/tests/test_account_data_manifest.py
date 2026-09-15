@@ -165,8 +165,8 @@ def _cloned_metadata() -> MetaData:
 
 
 def test_reviewed_database_manifest_matches_every_account_linked_mapper() -> None:
-    assert MANIFEST_SCHEMA_VERSION == "1"
-    assert MANIFEST_REVIEW_REFERENCE == "RCP-33E / GitHub issue #93"
+    assert MANIFEST_SCHEMA_VERSION == "2"
+    assert MANIFEST_REVIEW_REFERENCE == ("RCP-33E / GitHub issue #93; RCP-53A / GitHub issue #246")
     assert _manifest_findings(Base.metadata, _relationship_locators()) == []
 
 

@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Final
 
-MANIFEST_SCHEMA_VERSION: Final[str] = "1"
-MANIFEST_REVIEW_REFERENCE: Final[str] = "RCP-33E / GitHub issue #93"
+MANIFEST_SCHEMA_VERSION: Final[str] = "2"
+MANIFEST_REVIEW_REFERENCE: Final[str] = "RCP-33E / GitHub issue #93; RCP-53A / GitHub issue #246"
 
 
 class DataDisposition(StrEnum):
@@ -819,7 +819,10 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
         "recipe_lineages",
         "created_by_user_id id created_at",
         foreign_keys=("recipe_lineages(created_by_user_id)->users(id)",),
-        relationships=("recipe_lineages.versions->recipe_versions",),
+        relationships=(
+            "recipe_lineages.recipes->recipes",
+            "recipe_lineages.versions->recipe_versions",
+        ),
         column_disposition=DataDisposition.RETAIN,
         scope="Retain lineage identity and stable tombstone attribution for published versions.",
         rationale="Deleting a lineage would break public version and fork topology.",
@@ -936,6 +939,73 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
         column_disposition=DataDisposition.DELETE,
         scope="Delete every save made by the member.",
         rationale="A member's saved library is private preference state.",
+    ),
+    _table(
+        "recipe_editions",
+        "recipe_version_id recipe_id lineage_id attributed_author_user_id edition_number "
+        "relation_kind previous_recipe_version_id declared_change_reason",
+        foreign_keys=(
+            "recipe_editions(recipe_id,attributed_author_user_id)"
+            "->recipes(id,attributed_author_user_id)",
+            "recipe_editions(recipe_id,lineage_id)->recipes(id,lineage_id)",
+            "recipe_editions(recipe_id,previous_recipe_version_id)"
+            "->recipe_editions(recipe_id,recipe_version_id)",
+            "recipe_editions(recipe_version_id)->recipe_version_publications(recipe_version_id)",
+            "recipe_editions(recipe_version_id,attributed_author_user_id)"
+            "->recipe_versions(id,created_by_user_id)",
+            "recipe_editions(lineage_id,recipe_version_id)->recipe_versions(lineage_id,id)",
+        ),
+        relationships=(
+            "recipe_editions.recipe->recipes",
+            "recipe_editions.recipe_version->recipe_versions",
+        ),
+        column_disposition=DataDisposition.RETAIN,
+        scope=(
+            "Retain immutable stable-recipe membership, topology, categorical declared intent, "
+            "and tombstone attribution for every published exact version."
+        ),
+        rationale=(
+            "Edition links distinguish same-recipe succession from adaptation without changing "
+            "the published snapshot or treating a self-reported correction as policy authority."
+        ),
+    ),
+    _table(
+        "recipes",
+        "lineage_id attributed_author_user_id owner_user_id current_recipe_version_id id "
+        "created_at",
+        foreign_keys=(
+            "recipes(attributed_author_user_id)->users(id)",
+            "recipes(id,current_recipe_version_id)->recipe_editions(recipe_id,recipe_version_id)",
+            "recipes(lineage_id)->recipe_lineages(id)",
+            "recipes(owner_user_id)->users(id)",
+        ),
+        relationships=(
+            "recipes.attributed_author->users",
+            "recipes.current_edition->recipe_editions",
+            "recipes.editions->recipe_editions",
+            "recipes.lineage->recipe_lineages",
+            "recipes.owner->users",
+        ),
+        column_policies=(
+            _column_policy(
+                "owner_user_id",
+                DataDisposition.ANONYMIZE,
+                "Clear active ownership authority when the owning account is deleted.",
+            ),
+            _column_policy(
+                "lineage_id attributed_author_user_id current_recipe_version_id id created_at",
+                DataDisposition.RETAIN,
+                "Stable identity and current-edition topology survive account deletion.",
+            ),
+        ),
+        scope=(
+            "Retain stable recipe and current-edition topology; clear the nullable owner "
+            "authority without changing immutable version attribution."
+        ),
+        rationale=(
+            "Public edition links must survive deletion, but a deleted account must retain "
+            "no ownership capability."
+        ),
     ),
     _table(
         "recipe_structural_fingerprints",
@@ -1065,6 +1135,7 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
             "recipe_versions.author->users",
             "recipe_versions.categories->recipe_version_categories",
             "recipe_versions.descendants->recipe_versions",
+            "recipe_versions.edition->recipe_editions",
             "recipe_versions.ingredients->recipe_version_ingredients",
             "recipe_versions.instructions->recipe_version_instructions",
             "recipe_versions.lineage->recipe_lineages",

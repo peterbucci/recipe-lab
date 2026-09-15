@@ -6,7 +6,7 @@ from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import Engine, delete, func, select
@@ -18,6 +18,7 @@ from app.models import (
     USER_STATUS_ACTIVE,
     USER_STATUS_DELETED,
     USER_STATUS_SUSPENDED,
+    Recipe,
     RecipeDraft,
     RecipeLineage,
     RecipeVersion,
@@ -436,6 +437,36 @@ def test_tombstone_privacy_verification_rejects_a_retained_profile_description()
         recovery._verify_deleted_members(session, [(tombstone, DELETED_AT)])
 
 
+def test_tombstone_privacy_verification_rejects_retained_recipe_authority(
+    db_session: Session,
+) -> None:
+    tombstone = _deleted_user(DELETED_USER_ID)
+    lineage = RecipeLineage(created_by_user_id=DELETED_USER_ID)
+    version_id = uuid4()
+    version = RecipeVersion(
+        id=version_id,
+        lineage=lineage,
+        parent_version_id=None,
+        created_by_user_id=DELETED_USER_ID,
+        version_number=1,
+        title="Retained topology",
+        servings=Decimal("1.00"),
+    )
+    recipe = Recipe(
+        id=version_id,
+        lineage=lineage,
+        attributed_author_user_id=DELETED_USER_ID,
+        owner_user_id=DELETED_USER_ID,
+        current_recipe_version_id=version_id,
+        created_at=DELETED_AT,
+    )
+    db_session.add_all((tombstone, version, recipe))
+    db_session.flush()
+
+    with pytest.raises(DeletionLedgerError):
+        recovery._verify_deleted_members(db_session, [(tombstone, DELETED_AT)])
+
+
 def test_exclusive_writer_removes_temporary_file_when_publication_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -483,6 +514,16 @@ def test_replay_handles_deletable_deleted_and_absent_members_without_losing_publ
     )
     db_session.add(version)
     db_session.flush()
+    recipe = Recipe(
+        id=version.id,
+        lineage_id=lineage.id,
+        attributed_author_user_id=ACTIVE_USER_ID,
+        owner_user_id=ACTIVE_USER_ID,
+        current_recipe_version_id=version.id,
+        created_at=DELETED_AT,
+    )
+    db_session.add(recipe)
+    db_session.flush()
     draft_id = active_draft.id
     version_id = version.id
 
@@ -520,6 +561,11 @@ def test_replay_handles_deletable_deleted_and_absent_members_without_losing_publ
     assert retained is not None
     assert retained.created_by_user_id == ACTIVE_USER_ID
     assert retained.title == "Public recovery recipe"
+    retained_recipe = db_session.get(Recipe, recipe.id)
+    assert retained_recipe is not None
+    assert retained_recipe.owner_user_id is None
+    assert retained_recipe.attributed_author_user_id == ACTIVE_USER_ID
+    assert retained_recipe.current_recipe_version_id == version_id
 
 
 def test_replay_preflights_every_entry_before_mutation_and_fails_all(
