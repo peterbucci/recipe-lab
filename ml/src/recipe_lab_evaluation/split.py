@@ -82,7 +82,10 @@ def split_snapshot(snapshot: EvaluationSnapshot) -> EvaluationSplit:
         sorted(snapshot.events, key=lambda event: (event.occurred_at, event.id.int))
     )
     available_recipes = tuple(
-        recipe for recipe in ordered_recipes if recipe.created_at < snapshot.cutoff
+        recipe
+        for recipe in ordered_recipes
+        if recipe.created_at < snapshot.cutoff
+        and (recipe.published_at is None or recipe.published_at < snapshot.cutoff)
     )
     available_ids = frozenset(recipe.id for recipe in available_recipes)
     training_events = tuple(
