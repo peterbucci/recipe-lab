@@ -2,10 +2,8 @@
 
 Date: 2026-09-12
 
-This record describes the RCP-52 review candidate assembled on
-`codex/rcp-52-recipe-comparison-integration`. Each implementation pass is also
-preserved on the topic branch listed below. `main` remains unchanged pending
-review.
+This record describes the RCP-52 implementation merged to `main` by `c754b61`.
+Each implementation pass is also preserved on the topic branch listed below.
 
 ## Story map
 
@@ -182,8 +180,9 @@ its instruction column now previews the nested two-option switch. Note changes
 belong to the Notes panel. The unreachable generic comparison loading variant
 is removed.
 
-## Review boundary
+## Completion boundary
 
-Review the completed candidate as
-`main...codex/rcp-52-recipe-comparison-integration`. Do not merge it to `main`
-until its hosted checks have passed and the changes have been reviewed.
+The reviewed integration was merged to `main` after its hosted checks passed.
+Later comparison refinements retain this certification record as their baseline;
+new behavior still requires focused verification and an intentional baseline
+decision where visual evidence changes.
