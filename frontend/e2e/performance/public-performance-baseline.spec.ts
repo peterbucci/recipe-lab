@@ -276,7 +276,7 @@ test.describe("RCP-34B public performance baseline", () => {
         .filter({ hasNot: page.locator(".recipe-card__parent") })
         .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true });
       const recipePath = await recipeLink.getAttribute("href");
-      if (!recipePath || !/^\/recipes\/[0-9a-f-]{36}$/i.test(recipePath)) {
+      if (!recipePath || !/^\/recipes\/current\/[0-9a-f-]{36}$/i.test(recipePath)) {
         throw new Error("The deterministic public recipe detail route was unavailable.");
       }
 

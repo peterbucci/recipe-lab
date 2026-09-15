@@ -6,8 +6,9 @@ This record covers the RCP-53 implementation candidate on
 `codex/recipe-editions-and-corrections`. It records architectural ownership,
 story coverage, and final merge-certification evidence. The RCP-53 code,
 invariant, real-database, browser, and committed-source-package gates described
-here passed. This is not a production-release certificate: the full RCP-33
-production-image release rehearsal remains a separate gate described below.
+here passed. The exact merged `main` revision later passed the full RCP-33
+release rehearsal, but selecting and deploying a production revision remains a
+separate RCP-21 decision.
 
 ## Story map
 
@@ -97,9 +98,9 @@ PostgreSQL 17.11 image. It completed migration up/down/up and drift checks, a
 production frontend build, its one guarded browser journey, live verification,
 custom-format dump and isolated restore, restored-database drift verification,
 byte-identical live/restored verifier summaries, and a privacy scan of nine
-evidence files with zero findings. That proves the existing community restore
-boundary for this candidate; it does not substitute for the broader RCP-33
-production-image rehearsal.
+evidence files with zero findings. That independently proves the community
+restore boundary for this candidate; the broader post-merge RCP-33 rehearsal is
+recorded below.
 
 ## Verification recorded for this workspace
 
@@ -116,23 +117,22 @@ production-image rehearsal.
 | Stable RCP-32 PostgreSQL 17.11 community rehearsal | **Passed.** Migration down/up and drift checks, production build, release browser journey 1/1, live verification, dump/restore, restored drift verification, live/restored byte equality, and the nine-file privacy scan all passed with zero privacy findings. |
 | Repository source-package support tests | **Passed: 124 tests plus 71 subtests.** This verifies the packaging scripts and policy harness, but is not the deterministic audit of an eventual committed candidate ref. |
 | Deterministic source-package audit of the final committed ref | **Passed.** The committed candidate was exported twice from a clean tree. Both independently generated archives were byte-identical, both manifests were byte-identical, all 100 tracked PNGs matched their reviewed Git object IDs, and both the commit-tree and completed-archive secret scans reported zero findings. |
-| Full RCP-33 production-image release rehearsal | **Not run.** Image identity, vulnerability scanning, deletion-ledger replay, compatible ancestor-image rollback, and compiled release evidence remain production-release requirements; this omission is not presented as a pass. |
+| Full RCP-33 production-image release rehearsal | **Passed post-merge for `d0db07b`.** [Run 34966979083](https://github.com/peterbucci/recipe-lab/actions/runs/34966979083) verified exact image identity, vulnerability scans, migration and recovery, deletion-ledger replay, candidate smoke checks, compatible ancestor-image rollback, and compiled privacy-safe release evidence. |
 
 ## Release boundary
 
 The evidence above completes RCP-53 merge certification for this committed
 candidate: the complete backend, ML, frontend, static, clean smoke, fresh
-real-stack acceptance, canonical visual, deterministic source-package, and
-stable RCP-32 community gates all passed. Normal review and local integration
-may proceed without mislabeling the remaining release-only rehearsal as failed
-RCP-53 behavior.
+real-stack acceptance, canonical visual, deterministic source-package, stable
+RCP-32 community, and post-merge RCP-33 rehearsal gates all passed.
 
-Before release or deployment, complete the full RCP-33 production-image release
-rehearsal. If the release ref differs from this certified merge candidate,
-repeat the deterministic source-package audit for that exact ref. Any nonzero
-stable-recipe integrity query, lossy downgrade attempt, generated-contract
-drift, privacy finding, source-package mismatch, or release-rehearsal failure
-blocks release rather than authorizing a manual repair.
+The successful rehearsal does not itself select or deploy a production
+revision. If the RCP-21 release ref differs from `d0db07b`, repeat the
+deterministic source-package audit and full release rehearsal for that exact
+ref. Any nonzero stable-recipe integrity query, lossy downgrade attempt,
+generated-contract drift, privacy finding, source-package mismatch, or
+release-rehearsal failure blocks release rather than authorizing a manual
+repair.
 
 RCP-54 exceptional privacy or security erasure remains a separate,
 unimplemented launch gate requiring legal/DPO policy and a strongly
