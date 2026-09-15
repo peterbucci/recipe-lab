@@ -339,6 +339,8 @@ def test_diff_api_reports_category_only_changes(
             id=target_id,
             lineage_id=CARROT_LINEAGE_ID,
             parent_version_id=base_id,
+            relation_kind="adaptation",
+            previous_version_id=None,
         ),
     )
     monkeypatch.setattr(

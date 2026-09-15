@@ -31,6 +31,15 @@ _EDITION_IMMUTABILITY_TRIGGER = "recipe_editions_append_only"
 _EDITION_TRUNCATE_TRIGGER = "recipe_editions_no_truncate"
 _RECIPE_IMMUTABILITY_FUNCTION = "prevent_stable_recipe_identity_update"
 _RECIPE_IMMUTABILITY_TRIGGER = "recipes_identity_immutable"
+_DEFERRED_EDITION_CONSTRAINTS = (
+    "fk_recipe_editions_published_version",
+    "fk_recipe_editions_previous_same_recipe",
+    "fk_recipes_current_edition_same_recipe",
+    _TOPOLOGY_TRIGGER,
+    _CURRENT_RECIPE_TRIGGER,
+    _CURRENT_EDITION_TRIGGER,
+    _PUBLICATION_TRIGGER,
+)
 
 
 def _create_integrity_guards() -> None:
@@ -599,6 +608,14 @@ def downgrade() -> None:
         $$
         """
     )
+
+    # PostgreSQL will not alter a table while it still has queued events from
+    # these deferred foreign keys and constraint triggers. Drain only the
+    # stable-edition guards, then restore their initially-deferred mode so an
+    # enclosing transaction can safely downgrade and re-upgrade this revision.
+    constraint_names = ", ".join(_DEFERRED_EDITION_CONSTRAINTS)
+    op.execute(f"SET CONSTRAINTS {constraint_names} IMMEDIATE")
+    op.execute(f"SET CONSTRAINTS {constraint_names} DEFERRED")
 
     _drop_integrity_guards()
     op.create_index(

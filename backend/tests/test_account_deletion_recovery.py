@@ -460,7 +460,9 @@ def test_tombstone_privacy_verification_rejects_retained_recipe_authority(
         current_recipe_version_id=version_id,
         created_at=DELETED_AT,
     )
-    db_session.add_all((tombstone, version, recipe))
+    db_session.add(tombstone)
+    db_session.flush()
+    db_session.add_all((version, recipe))
     db_session.flush()
 
     with pytest.raises(DeletionLedgerError):

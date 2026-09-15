@@ -155,7 +155,7 @@ export type paths = {
         };
         /**
          * Read a public cook profile
-         * @description Returns only public identity fields and explicitly published recipe versions.
+         * @description Returns only public identity fields and readable current recipe editions.
          */
         readonly get: operations["public_cook_profile_api_cooks__handle__get"];
         readonly put?: never;
@@ -424,7 +424,7 @@ export type paths = {
         };
         /**
          * List publications from cooks I follow
-         * @description Returns publicly readable original recipes and new versions authored by active cooks the signed-in member currently follows, ordered by publication time.
+         * @description Returns publicly readable current recipe editions authored by active cooks the signed-in member currently follows, ordered by publication time.
          */
         readonly get: operations["my_community_activity_api_my_community_activity_get"];
         readonly put?: never;
@@ -598,7 +598,7 @@ export type paths = {
         readonly put?: never;
         /**
          * Create a private recipe draft
-         * @description Creates a blank original draft or copies one exact public immutable recipe snapshot. The required Idempotency-Key recovers the same active draft after an ambiguous response. Authorship always comes from the active member session.
+         * @description Creates a blank original, cross-recipe adaptation, or same-recipe revision draft. Revision sources must be the active owner's exact publicly readable current edition. The required Idempotency-Key recovers the same active draft after an ambiguous response. Authorship always comes from the active member session.
          */
         readonly post: operations["create_private_recipe_draft_api_recipe_drafts_post"];
         readonly delete?: never;
@@ -643,7 +643,7 @@ export type paths = {
         readonly put?: never;
         /**
          * Check a private draft for structural duplicates
-         * @description Fully validates one current draft and stores a bounded advisory comparison with public immutable recipes. Source-backed drafts also compare against their direct parent for the no-change warning. This does not publish or expose the draft.
+         * @description Fully validates one current draft and stores a bounded advisory comparison with public immutable recipes. Source-backed drafts also compare against their exact source for the no-change warning. This does not publish or expose the draft.
          */
         readonly post: operations["create_original_draft_duplicate_preflight_api_recipe_drafts__draft_id__duplicate_preflights_post"];
         readonly delete?: never;
@@ -663,7 +663,7 @@ export type paths = {
         readonly put?: never;
         /**
          * Publish a private draft as an immutable recipe version
-         * @description Revalidates the complete curated draft and duplicate evidence in one serialized transaction. Source-less drafts create roots; source-backed drafts create direct children in the source lineage and one fork preference event.
+         * @description Revalidates the complete curated draft and duplicate evidence in one serialized transaction. Originals and adaptations create new stable recipes; revisions append one immutable edition to an owned stable recipe. Only adaptations emit a fork preference event.
          */
         readonly post: operations["publish_original_draft_api_recipe_drafts__draft_id__publish_post"];
         readonly delete?: never;
@@ -679,7 +679,7 @@ export type paths = {
             readonly path?: never;
             readonly cookie?: never;
         };
-        /** Browse recipe versions */
+        /** Browse current recipes */
         readonly get: operations["browse_recipes_api_recipes_get"];
         readonly put?: never;
         readonly post?: never;
@@ -715,9 +715,29 @@ export type paths = {
         };
         /**
          * Compare structured recipe versions
-         * @description Compares a base snapshot with the target recipe version. When base_version_id is omitted, the target's direct parent is used. Explicit comparisons may select any version in the same lineage.
+         * @description Compares a base snapshot with the target recipe version. When base_version_id is omitted, a revision uses its previous same-recipe edition and an adaptation uses its exact cross-recipe source. Explicit comparisons may select any version in the same lineage.
          */
         readonly get: operations["recipe_diff_api_recipes__recipe_version_id__diff_get"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/recipes/{recipe_version_id}/history": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Read a stable recipe's public edition history
+         * @description Resolves one readable exact version to its stable recipe, then returns bounded readable same-recipe editions and readable current adaptations whose first edition was adapted from any exact edition of that recipe. Hidden versions are omitted as descriptive entries; exact predecessor and source identifiers remain topology, and a hidden current version never falls back to an older edition.
+         */
+        readonly get: operations["recipe_history_api_recipes__recipe_version_id__history_get"];
         readonly put?: never;
         readonly post?: never;
         readonly delete?: never;
@@ -819,6 +839,26 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/recipes/current/{recipe_id}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Read the current version of a stable recipe
+         * @description Resolves one stable recipe identifier to its explicitly selected current exact version. A hidden current version returns not found; older readable editions are never used as a fallback.
+         */
+        readonly get: operations["current_recipe_detail_api_recipes_current__recipe_id__get"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/recipes/featured": {
         readonly parameters: {
             readonly query?: never;
@@ -828,7 +868,7 @@ export type paths = {
         };
         /**
          * List globally featured recipes
-         * @description Returns one deploy-reviewed editorial selection in display order. The result is the same for every viewer, is not a recommendation, and silently omits any selected version that is no longer publicly readable.
+         * @description Returns one deploy-reviewed editorial selection in display order. The result is the same for every viewer, is not a recommendation, and silently omits any selected stable recipe whose current edition is not publicly readable.
          */
         readonly get: operations["featured_recipes_api_recipes_featured_get"];
         readonly put?: never;
@@ -865,7 +905,7 @@ export type paths = {
         };
         /**
          * Research preview: get deterministic baseline rankings
-         * @description Research-preview API only; Recipe Lab has no consumer recommendation surface. Ranks recipe versions with the deterministic baseline-v1 quality, popularity, and canonical-ingredient similarity formula. Every request uses aggregate activity for publicly readable recipes. Signed-in personalization additionally uses only the active member's private history; signed-out requests load no account-specific history.
+         * @description Research-preview API only; Recipe Lab has no consumer recommendation surface. Ranks recipe versions with the deterministic baseline-v1 quality, popularity, and canonical-ingredient similarity formula. Every request uses aggregate activity for publicly readable current recipe editions. Signed-in personalization additionally uses only the active member's private history; signed-out requests load no account-specific history.
          */
         readonly get: operations["get_recommendations_api_recommendations_get"];
         readonly put?: never;
@@ -1104,6 +1144,8 @@ export type components = {
          * @description Editorially selected recipe card with anonymous engagement totals.
          */
         readonly FeaturedRecipeSummary: {
+            /** @description The exact publicly readable source from which this stable recipe was adapted, or null for an original recipe or when that source is unavailable. This stays fixed across later same-recipe revisions. */
+            readonly adaptation_source: components["schemas"]["RecipeVersionReference"] | null;
             /** @description Public author of this exact immutable recipe version. */
             readonly author: components["schemas"]["PublicUserReference"];
             /**
@@ -1122,14 +1164,31 @@ export type components = {
              * @description Timestamp when this version was created.
              */
             readonly created_at: string;
+            /** @description The stable recipe's current exact version when it is publicly readable, or null when the current version is hidden. */
+            readonly current_version: components["schemas"]["RecipeVersionReference"] | null;
+            /**
+             * Declared Change Reason
+             * @description Author-declared reason for a revision. This label does not determine topology.
+             */
+            readonly declared_change_reason: ("correction" | "update") | null;
             /** Description */
             readonly description: string | null;
             /**
+             * Edition Number
+             * @description Recipe-local edition number, beginning at one.
+             */
+            readonly edition_number: number;
+            /**
              * Id
              * Format: uuid
-             * @description Stable identifier for this immutable recipe version.
+             * @description Exact identifier for this immutable recipe version.
              */
             readonly id: string;
+            /**
+             * Is Current
+             * @description Whether this exact version is the stable recipe's current edition.
+             */
+            readonly is_current: boolean;
             /**
              * Lineage Id
              * Format: uuid
@@ -1140,9 +1199,14 @@ export type components = {
             readonly parent: components["schemas"]["RecipeVersionReference"] | null;
             /**
              * Parent Version Id
-             * @description Direct parent version, or null for the original root.
+             * @description Exact source version for a cross-recipe adaptation, or null when this recipe was not adapted from another recipe. Same-recipe revisions use previous_version_id instead.
              */
             readonly parent_version_id: string | null;
+            /**
+             * Previous Version Id
+             * @description Exact preceding edition for a revision, or null for a first edition.
+             */
+            readonly previous_version_id: string | null;
             /**
              * Published At
              * Format: date-time
@@ -1154,6 +1218,18 @@ export type components = {
              * @description Number of ratings in the average.
              */
             readonly rating_count: number;
+            /**
+             * Recipe Id
+             * Format: uuid
+             * @description Stable recipe identifier shared by every edition of this recipe.
+             */
+            readonly recipe_id: string;
+            /**
+             * Relation Kind
+             * @description Stored publication topology: an original recipe, a cross-recipe adaptation, or a later edition of the same stable recipe.
+             * @enum {string}
+             */
+            readonly relation_kind: "original" | "adaptation" | "revision";
             /**
              * Save Count
              * @description Number of members who saved this recipe version.
@@ -1803,6 +1879,8 @@ export type components = {
         };
         /** RecipeCardSummary */
         readonly RecipeCardSummary: {
+            /** @description The exact publicly readable source from which this stable recipe was adapted, or null for an original recipe or when that source is unavailable. This stays fixed across later same-recipe revisions. */
+            readonly adaptation_source: components["schemas"]["RecipeVersionReference"] | null;
             /** @description Public author of this exact immutable recipe version. */
             readonly author: components["schemas"]["PublicUserReference"];
             /**
@@ -1821,14 +1899,31 @@ export type components = {
              * @description Timestamp when this version was created.
              */
             readonly created_at: string;
+            /** @description The stable recipe's current exact version when it is publicly readable, or null when the current version is hidden. */
+            readonly current_version: components["schemas"]["RecipeVersionReference"] | null;
+            /**
+             * Declared Change Reason
+             * @description Author-declared reason for a revision. This label does not determine topology.
+             */
+            readonly declared_change_reason: ("correction" | "update") | null;
             /** Description */
             readonly description: string | null;
             /**
+             * Edition Number
+             * @description Recipe-local edition number, beginning at one.
+             */
+            readonly edition_number: number;
+            /**
              * Id
              * Format: uuid
-             * @description Stable identifier for this immutable recipe version.
+             * @description Exact identifier for this immutable recipe version.
              */
             readonly id: string;
+            /**
+             * Is Current
+             * @description Whether this exact version is the stable recipe's current edition.
+             */
+            readonly is_current: boolean;
             /**
              * Lineage Id
              * Format: uuid
@@ -1839,9 +1934,14 @@ export type components = {
             readonly parent: components["schemas"]["RecipeVersionReference"] | null;
             /**
              * Parent Version Id
-             * @description Direct parent version, or null for the original root.
+             * @description Exact source version for a cross-recipe adaptation, or null when this recipe was not adapted from another recipe. Same-recipe revisions use previous_version_id instead.
              */
             readonly parent_version_id: string | null;
+            /**
+             * Previous Version Id
+             * @description Exact preceding edition for a revision, or null for a first edition.
+             */
+            readonly previous_version_id: string | null;
             /**
              * Published At
              * Format: date-time
@@ -1853,6 +1953,18 @@ export type components = {
              * @description Number of ratings in the average.
              */
             readonly rating_count: number;
+            /**
+             * Recipe Id
+             * Format: uuid
+             * @description Stable recipe identifier shared by every edition of this recipe.
+             */
+            readonly recipe_id: string;
+            /**
+             * Relation Kind
+             * @description Stored publication topology: an original recipe, a cross-recipe adaptation, or a later edition of the same stable recipe.
+             * @enum {string}
+             */
+            readonly relation_kind: "original" | "adaptation" | "revision";
             /**
              * Save Count
              * @description Number of members who saved this recipe version.
@@ -1909,6 +2021,8 @@ export type components = {
              * @description Hands-on cooking time in whole minutes, or null when not provided.
              */
             readonly active_time_minutes?: number | null;
+            /** @description The exact publicly readable source from which this stable recipe was adapted, or null for an original recipe or when that source is unavailable. This stays fixed across later same-recipe revisions. */
+            readonly adaptation_source: components["schemas"]["RecipeVersionReference"] | null;
             /** @description Public author of this exact immutable recipe version. */
             readonly author: components["schemas"]["PublicUserReference"];
             /**
@@ -1929,6 +2043,13 @@ export type components = {
              * @description Timestamp when this version was created.
              */
             readonly created_at: string;
+            /** @description The stable recipe's current exact version when it is publicly readable, or null when the current version is hidden. */
+            readonly current_version: components["schemas"]["RecipeVersionReference"] | null;
+            /**
+             * Declared Change Reason
+             * @description Author-declared reason for a revision. This label does not determine topology.
+             */
+            readonly declared_change_reason: ("correction" | "update") | null;
             /** Description */
             readonly description: string | null;
             /**
@@ -1937,15 +2058,25 @@ export type components = {
              */
             readonly difficulty?: ("easy" | "medium" | "hard") | null;
             /**
+             * Edition Number
+             * @description Recipe-local edition number, beginning at one.
+             */
+            readonly edition_number: number;
+            /**
              * Id
              * Format: uuid
-             * @description Stable identifier for this immutable recipe version.
+             * @description Exact identifier for this immutable recipe version.
              */
             readonly id: string;
             /** Ingredients */
             readonly ingredients: readonly components["schemas"]["RecipeIngredientResponse"][];
             /** Instructions */
             readonly instructions: readonly components["schemas"]["RecipeInstructionResponse"][];
+            /**
+             * Is Current
+             * @description Whether this exact version is the stable recipe's current edition.
+             */
+            readonly is_current: boolean;
             /**
              * Lineage Id
              * Format: uuid
@@ -1961,9 +2092,14 @@ export type components = {
             readonly parent: components["schemas"]["RecipeVersionReference"] | null;
             /**
              * Parent Version Id
-             * @description Direct parent version, or null for the original root.
+             * @description Exact source version for a cross-recipe adaptation, or null when this recipe was not adapted from another recipe. Same-recipe revisions use previous_version_id instead.
              */
             readonly parent_version_id: string | null;
+            /**
+             * Previous Version Id
+             * @description Exact preceding edition for a revision, or null for a first edition.
+             */
+            readonly previous_version_id: string | null;
             /**
              * Published At
              * Format: date-time
@@ -1975,6 +2111,18 @@ export type components = {
              * @description Number of ratings included in the aggregate.
              */
             readonly rating_count: number;
+            /**
+             * Recipe Id
+             * Format: uuid
+             * @description Stable recipe identifier shared by every edition of this recipe.
+             */
+            readonly recipe_id: string;
+            /**
+             * Relation Kind
+             * @description Stored publication topology: an original recipe, a cross-recipe adaptation, or a later edition of the same stable recipe.
+             * @enum {string}
+             */
+            readonly relation_kind: "original" | "adaptation" | "revision";
             /**
              * Save Count
              * @description Number of members who saved this recipe version.
@@ -2077,6 +2225,11 @@ export type components = {
         };
         /** RecipeDraftCreateRequest */
         readonly RecipeDraftCreateRequest: {
+            /**
+             * Draft Kind
+             * @enum {string}
+             */
+            readonly draft_kind: "original" | "adaptation" | "revision";
             /** Source Version Id */
             readonly source_version_id?: string | null;
         };
@@ -2095,6 +2248,11 @@ export type components = {
             readonly description: string | null;
             /** Difficulty */
             readonly difficulty: ("easy" | "medium" | "hard") | null;
+            /**
+             * Draft Kind
+             * @enum {string}
+             */
+            readonly draft_kind: "original" | "adaptation" | "revision";
             /**
              * Id
              * Format: uuid
@@ -2245,6 +2403,11 @@ export type components = {
              */
             readonly created_at: string;
             /**
+             * Draft Kind
+             * @enum {string}
+             */
+            readonly draft_kind: "original" | "adaptation" | "revision";
+            /**
              * Id
              * Format: uuid
              */
@@ -2378,6 +2541,104 @@ export type components = {
         /** @enum {string} */
         readonly RecipeFieldName: "title" | "description" | "servings" | "total_time_minutes" | "active_time_minutes" | "difficulty" | "notes";
         readonly RecipeFieldValue: string | number | null;
+        /**
+         * RecipeHistoryEntry
+         * @description One readable version in a stable recipe history or adaptation branch.
+         */
+        readonly RecipeHistoryEntry: {
+            /**
+             * Adaptation Source Version Id
+             * @description Exact first-edition adaptation source, retained across later revisions. The identifier remains available when the source is hidden, without exposing its description.
+             */
+            readonly adaptation_source_version_id: string | null;
+            readonly author: components["schemas"]["PublicUserReference"];
+            /**
+             * Declared Change Reason
+             * @description Optional author-declared revision reason; it does not determine topology.
+             */
+            readonly declared_change_reason: ("correction" | "update") | null;
+            /**
+             * Edition Number
+             * @description Recipe-local edition number.
+             */
+            readonly edition_number: number;
+            /**
+             * Id
+             * Format: uuid
+             * @description Exact immutable recipe-version identifier.
+             */
+            readonly id: string;
+            /**
+             * Is Current
+             * @description Whether this exact version is its stable recipe's current edition.
+             */
+            readonly is_current: boolean;
+            /**
+             * Previous Version Id
+             * @description Exact preceding same-recipe edition for a revision. The identifier remains available when that predecessor is hidden, without exposing its description.
+             */
+            readonly previous_version_id: string | null;
+            /**
+             * Published At
+             * Format: date-time
+             * @description Timestamp when this exact version became public.
+             */
+            readonly published_at: string;
+            /**
+             * Recipe Id
+             * Format: uuid
+             * @description Stable recipe identifier for this entry.
+             */
+            readonly recipe_id: string;
+            /**
+             * Relation Kind
+             * @description Stored topology for this exact edition.
+             * @enum {string}
+             */
+            readonly relation_kind: "original" | "adaptation" | "revision";
+            /** Title */
+            readonly title: string;
+        };
+        /** RecipeHistoryResponse */
+        readonly RecipeHistoryResponse: {
+            /**
+             * Adaptations
+             * @description Readable current versions of recipes adapted from any exact edition of this stable recipe. An entry may itself be a later revision; its branch membership comes from the stable recipe's first edition.
+             */
+            readonly adaptations: readonly components["schemas"]["RecipeHistoryEntry"][];
+            /**
+             * Adaptations Truncated
+             * @description Whether more readable current adaptations exist beyond this bounded list.
+             */
+            readonly adaptations_truncated: boolean;
+            /**
+             * Current Version Id
+             * @description Exact current version when publicly readable, or null when the stable recipe's current edition is hidden. No older fallback is selected.
+             */
+            readonly current_version_id: string | null;
+            /**
+             * Editions
+             * @description Readable same-recipe editions in ascending recipe-local order.
+             */
+            readonly editions: readonly components["schemas"]["RecipeHistoryEntry"][];
+            /**
+             * Editions Truncated
+             * @description Whether more readable same-recipe editions exist beyond this bounded list.
+             */
+            readonly editions_truncated: boolean;
+            /**
+             * Recipe Id
+             * Format: uuid
+             * @description Stable recipe selected by the exact request version.
+             */
+            readonly recipe_id: string;
+            /**
+             * Selected Version Id
+             * Format: uuid
+             * @description Exact readable version selected by the route.
+             */
+            readonly selected_version_id: string;
+        };
         /** @enum {string} */
         readonly RecipeIngredientChangedField: "ingredient" | "display_name" | "measure" | "preparation_notes";
         /**
@@ -2712,9 +2973,16 @@ export type components = {
              * @constant
              */
             readonly content_rights_confirmed: true;
+            /** Declared Change Reason */
+            readonly declared_change_reason?: ("correction" | "update") | null;
             readonly duplicate_review: components["schemas"]["RecipePublicationDuplicateReview"];
             /** Revision */
             readonly revision: number;
+            /**
+             * Withdraw Predecessor
+             * @default false
+             */
+            readonly withdraw_predecessor: boolean;
         };
         /** RecipeOriginalPublicationResponse */
         readonly RecipeOriginalPublicationResponse: {
@@ -2831,6 +3099,8 @@ export type components = {
         };
         /** RecipeSummary */
         readonly RecipeSummary: {
+            /** @description The exact publicly readable source from which this stable recipe was adapted, or null for an original recipe or when that source is unavailable. This stays fixed across later same-recipe revisions. */
+            readonly adaptation_source: components["schemas"]["RecipeVersionReference"] | null;
             /** @description Public author of this exact immutable recipe version. */
             readonly author: components["schemas"]["PublicUserReference"];
             /**
@@ -2844,14 +3114,31 @@ export type components = {
              * @description Timestamp when this version was created.
              */
             readonly created_at: string;
+            /** @description The stable recipe's current exact version when it is publicly readable, or null when the current version is hidden. */
+            readonly current_version: components["schemas"]["RecipeVersionReference"] | null;
+            /**
+             * Declared Change Reason
+             * @description Author-declared reason for a revision. This label does not determine topology.
+             */
+            readonly declared_change_reason: ("correction" | "update") | null;
             /** Description */
             readonly description: string | null;
             /**
+             * Edition Number
+             * @description Recipe-local edition number, beginning at one.
+             */
+            readonly edition_number: number;
+            /**
              * Id
              * Format: uuid
-             * @description Stable identifier for this immutable recipe version.
+             * @description Exact identifier for this immutable recipe version.
              */
             readonly id: string;
+            /**
+             * Is Current
+             * @description Whether this exact version is the stable recipe's current edition.
+             */
+            readonly is_current: boolean;
             /**
              * Lineage Id
              * Format: uuid
@@ -2862,15 +3149,32 @@ export type components = {
             readonly parent: components["schemas"]["RecipeVersionReference"] | null;
             /**
              * Parent Version Id
-             * @description Direct parent version, or null for the original root.
+             * @description Exact source version for a cross-recipe adaptation, or null when this recipe was not adapted from another recipe. Same-recipe revisions use previous_version_id instead.
              */
             readonly parent_version_id: string | null;
+            /**
+             * Previous Version Id
+             * @description Exact preceding edition for a revision, or null for a first edition.
+             */
+            readonly previous_version_id: string | null;
             /**
              * Published At
              * Format: date-time
              * @description Timestamp when this immutable version first became public.
              */
             readonly published_at: string;
+            /**
+             * Recipe Id
+             * Format: uuid
+             * @description Stable recipe identifier shared by every edition of this recipe.
+             */
+            readonly recipe_id: string;
+            /**
+             * Relation Kind
+             * @description Stored publication topology: an original recipe, a cross-recipe adaptation, or a later edition of the same stable recipe.
+             * @enum {string}
+             */
+            readonly relation_kind: "original" | "adaptation" | "revision";
             /**
              * Servings
              * @description Exact serving yield, serialized as a JSON string.
@@ -2907,6 +3211,11 @@ export type components = {
         };
         /** RecipeViewerStateResponse */
         readonly RecipeViewerStateResponse: {
+            /**
+             * Can Revise
+             * @description Whether the active member owns this stable recipe and this exact version is its publicly readable current edition.
+             */
+            readonly can_revise: boolean;
             /**
              * Rating
              * @description The signed-in member's current rating, or null when they have not rated it.
@@ -5724,6 +6033,8 @@ export interface operations {
     readonly my_private_recipe_drafts_api_recipe_drafts_get: {
         readonly parameters: {
             readonly query?: {
+                /** @description Return only active drafts of this authoring kind. */
+                readonly draft_kind?: ("original" | "adaptation" | "revision") | null;
                 readonly page?: number;
                 readonly page_size?: number;
                 /** @description Return only active drafts copied from this exact immutable recipe version. */
@@ -5813,7 +6124,7 @@ export interface operations {
         readonly parameters: {
             readonly query?: never;
             readonly header: {
-                /** @description Opaque UUID that binds one member to one blank-or-source draft creation intent. */
+                /** @description Opaque UUID that binds one member to one draft kind and exact source intent. */
                 readonly "Idempotency-Key": string;
                 readonly "X-CSRF-Token"?: string | null;
             };
@@ -6378,9 +6689,9 @@ export interface operations {
                 readonly category?: string | null;
                 /** @description Filter by an exact canonical ingredient name or alias. */
                 readonly ingredient?: string | null;
-                /** @description Use true for variants or false for original root versions. */
+                /** @description Use true for adapted recipes or false for original recipes. */
                 readonly is_variant?: boolean | null;
-                /** @description Return only versions in this lineage. */
+                /** @description Return only current recipe editions in this lineage. */
                 readonly lineage_id?: string | null;
                 /** @description One-based result page, up to 1,000,000. */
                 readonly page?: number;
@@ -6496,7 +6807,7 @@ export interface operations {
     readonly recipe_diff_api_recipes__recipe_version_id__diff_get: {
         readonly parameters: {
             readonly query?: {
-                /** @description Version to compare from. Omit this value to use the target's direct parent. */
+                /** @description Version to compare from. Omit this value to use the target's topology-aware default base. */
                 readonly base_version_id?: string | null;
             };
             readonly header?: never;
@@ -6535,6 +6846,64 @@ export interface operations {
                 };
             };
             /** @description An identifier is invalid, an implicit parent is unavailable, or the versions belong to different lineages. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly recipe_history_api_recipes__recipe_version_id__history_get: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly recipe_version_id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["RecipeHistoryResponse"];
+                };
+            };
+            /** @description The requested recipe does not exist or is not publicly available. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The request contains an invalid identifier or query parameter. */
             readonly 422: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -7191,6 +7560,64 @@ export interface operations {
                 };
             };
             /** @description The recipe identifier or desired visibility state is invalid. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly current_recipe_detail_api_recipes_current__recipe_id__get: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly recipe_id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["RecipeDetailResponse"];
+                };
+            };
+            /** @description The requested recipe does not exist or is not publicly available. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The request contains an invalid identifier or query parameter. */
             readonly 422: {
                 headers: {
                     readonly [name: string]: unknown;

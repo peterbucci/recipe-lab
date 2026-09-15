@@ -64,18 +64,36 @@ fail-closed legacy audit, and structured-measure migration are documented in
 
 ## Recipe read API
 
-The read-only recipe API exposes every immutable version rather than collapsing
-a lineage to one "latest" row:
+The read-only recipe API keeps exact immutable snapshots addressable while
+making the stable recipe identity explicit:
 
-- `GET /api/recipes` returns a paginated list of version summaries.
+- `GET /api/recipes` returns a paginated list containing only each stable
+  recipe's explicitly selected current edition.
 - `GET /api/recipes/{recipe_version_id}` returns one complete snapshot with
   ordered ingredients and instructions plus its direct parent and children.
+- `GET /api/recipes/current/{recipe_id}` resolves a stable recipe to its
+  explicitly selected current edition. If that edition is not publicly
+  readable, the route returns 404 and never falls back to an older edition.
+- `GET /api/recipes/{recipe_version_id}/history` resolves a readable exact
+  version to a bounded recipe-local edition history and the readable current
+  adaptations sourced from any of those exact editions. Hidden entries expose
+  no descriptive data, although their exact predecessor or adaptation-source
+  identifiers remain available as topology; a hidden current never falls back.
+
+Public summaries keep `id` as the exact immutable version ID and also expose
+the stable `recipe_id`, edition number and relation, exact previous revision,
+declared change reason, current status, and a bounded readable current
+reference. Adapted recipes also expose their exact readable adaptation source;
+that source remains fixed across later revisions and is null when it is hidden
+or unavailable.
 
 Browse requests support `page`, `page_size`, a literal case-insensitive `q`
 search over titles and descriptions, exact canonical-or-alias `ingredient`
 matching, `lineage_id`, and the optional `is_variant` filter. Filters combine
-with AND semantics. Results use a fixed title/version/ID order, and pages after
-the final page return an empty `items` list while preserving the total count.
+with AND semantics. Variant classification follows the stable recipe's first
+edition even when its current edition is a revision. Results use a fixed
+title/version/ID order, and pages after the final page return an empty `items`
+list while preserving the total count.
 
 Ingredient responses preserve the authored display name alongside the
 canonical ingredient name and ID. Decimal quantities and servings serialize as
@@ -94,8 +112,9 @@ Recipe browsing keeps its title order by default and accepts `sort=newest` for
 reverse publication order with a stable recipe-ID tie-break. `GET
 /api/recipes/featured` returns a small deploy-reviewed editorial selection in
 its declared order. Featured recipes are global rather than personalized or
-popularity-ranked, and both discovery reads apply the same public-visibility
-rule as recipe detail, so withdrawn or moderation-hidden versions are omitted.
+popularity-ranked, and both discovery reads apply the same current-edition and
+public-visibility rules as the stable current route, so withdrawn or
+moderation-hidden current editions are omitted without fallback.
 Public recipe summaries expose both version creation time and the actual first
 publication time used by the newest sort.
 
@@ -164,7 +183,8 @@ changing catalog decisions or audit evidence.
 
 `GET /api/recipes/{recipe_version_id}/diff` returns a deterministic,
 machine-readable comparison whose path identifier is the target version. By
-default the base is that target's direct parent. An optional
+default the base is a revision target's exact previous edition or a first
+adaptation edition's exact cross-recipe source. An optional
 `base_version_id` selects another version in the same lineage, including the
 target itself for an explicit no-change comparison.
 
@@ -342,9 +362,12 @@ request-resolution, editor, and publication boundaries.
 
 ## Recipe draft publication
 
-RCP-27 introduced source-less original publication and RCP-28 extends the same
-transaction to source-backed fork drafts. Both require a saved, active draft
-owned by the current onboarded member. The two author-only endpoints are:
+Drafts declare one explicit authoring intent: `original` has no source,
+`adaptation` copies one exact public version into a new stable recipe, and
+`revision` copies the exact public current edition of a stable recipe owned by
+the active member. Revision authorization and current-edition checks remain
+backend-owned. All three require a saved, active draft owned by the current
+onboarded member. The two author-only endpoints are:
 
 - `POST /api/recipe-drafts/{draft_id}/duplicate-preflights` with body
   `{ "revision": <saved_revision> }`; and
@@ -363,14 +386,18 @@ review. There is no publish-without-review path.
 Publication reloads and locks the draft, then atomically revalidates ownership,
 active state, revision, complete curated structure, current duplicate policy,
 result digest, bounded public candidates, exact optional source, and any
-required continue decision. A source-less draft creates one lineage and its
-parentless version-1 root. A source-backed draft rechecks that its exact source
-is still public, locks the source lineage, allocates the next lineage-wide
-version number, and retains that source as the direct parent. Concurrent
-siblings therefore receive distinct version numbers even when they start from
-different versions in the lineage.
+required continue decision. An original creates a new lineage and stable
+recipe. An adaptation creates another stable recipe in the source lineage and
+retains the exact cross-recipe source in `parent_version_id`. A revision locks
+its existing stable recipe, requires the draft source still to be its exact
+public current edition, appends the next recipe-local edition, leaves
+`parent_version_id` null, records the exact prior edition separately, and moves
+the current pointer in the same transaction. A lost current-pointer race
+returns `409 recipe_revision_source_stale` and preserves the losing private
+draft. Lineage-wide version numbers remain independently serialized for every
+path.
 
-In either case, the transaction copies fresh ordered ingredient, measure,
+In every case, the transaction copies fresh ordered ingredient, measure,
 instruction, action, and input rows, stores a fresh structural fingerprint,
 adds the immutable publication receipt, and marks the retained draft
 `published`. The session member is the version author and receipt actor. For a
@@ -379,7 +406,12 @@ source is the direct parent and whose related version is the new child. The
 lineage creator retains no edit, publication, withdrawal, or moderation rights
 over another member's child. RCP-29 presents that persisted attribution through
 an explicit public reference containing only stable ID, handle, and display
-name. Original publication appends no fork or other preference event.
+name. Original and same-recipe publication append no fork preference event.
+For a revision, the append-only `recipe_editions` row (`relation_kind =
+revision`, exact predecessor, and optional self-declared `correction` or
+`update`) plus the immutable publication receipt are the publication-domain
+revision/correction event and retry evidence; no parallel preference-event
+meaning is introduced.
 
 Draft validation and public-source copying both produce the same frozen
 `RecipeDocument`. Its mutable and immutable materializers preallocate local
@@ -395,7 +427,7 @@ idempotency key and request returns `201`, the original
 `{ "recipe_version_id": "<uuid>", "location": "/recipes/<uuid>" }` body,
 and the same `Location` header. Reusing the key for a different intent returns
 `409`; retrying the same completed draft with a new key and unchanged intent
-also returns the same child. If a fork's source is no longer publicly readable,
+also returns the same child. If an adaptation's source is no longer publicly readable,
 publication returns `409 recipe_fork_source_unavailable`, writes no partial
 child or event, and preserves the active draft. After success, active-list,
 read, edit, and discard draft operations no longer expose that draft; the
@@ -403,10 +435,13 @@ retained completed row and receipt prevent a second root or child from being
 created.
 
 Every seeded recipe version is backfilled with published state without changing
-its stable ID or lineage topology. Database guards reject update, delete, and
-truncate attempts against a published snapshot and its ordered child content.
-Corrections therefore require a new immutable version. Fork publication never
-rewrites its source or moves a child into a new lineage.
+its exact version ID or lineage topology. Database guards reject update, delete,
+and truncate attempts against a published snapshot and its ordered child
+content. Corrections therefore append a new immutable edition. A correction
+may atomically author-withdraw its exact predecessor; the existing independent
+moderation axis keeps precedence, and an ordinary author operation never
+restores moderation-hidden content. Adaptation publication never rewrites its
+source or moves a child into a new lineage.
 
 ## Cook profiles and member libraries
 

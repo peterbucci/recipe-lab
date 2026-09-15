@@ -10,6 +10,7 @@ from app.core.idempotency import (
     require_same_request,
 )
 from app.models import (
+    RECIPE_DRAFT_KINDS,
     RECIPE_DRAFT_STATUS_DISCARDED,
     RecipeCategory,
     RecipeDraft,
@@ -50,6 +51,7 @@ from app.schemas.recipe_drafts import (
     RecipeDraftIngredientResponse,
     RecipeDraftIngredientSelectionResponse,
     RecipeDraftInstructionResponse,
+    RecipeDraftKind,
     RecipeDraftRequestSelectionInput,
     RecipeDraftRequestSelectionResponse,
     RecipeDraftUpdateRequest,
@@ -103,7 +105,7 @@ class RecipeDraftCreationIdempotencyConflictError(IdempotencyConflictError):
 
 
 RECIPE_DRAFT_CREATION_FINGERPRINT_SCHEMA = "recipe-draft-creation"
-RECIPE_DRAFT_CREATION_FINGERPRINT_VERSION = 1
+RECIPE_DRAFT_CREATION_FINGERPRINT_VERSION = 2
 
 
 def _invalid(message: str) -> InvalidRecipeDraftError:
@@ -334,11 +336,20 @@ def create_recipe_draft(
     *,
     author_user_id: UUID,
     creation_action_id: UUID,
+    draft_kind: RecipeDraftKind,
     source_version_id: UUID | None,
 ) -> RecipeDraft | None:
-    """Create or recover one blank/or-source draft for a member-scoped action."""
+    """Create or recover one explicit original, adaptation, or revision draft."""
 
-    request_fingerprint = recipe_draft_creation_request_fingerprint(source_version_id)
+    if draft_kind not in RECIPE_DRAFT_KINDS:
+        raise _invalid("The requested recipe draft kind is not supported.")
+    if (draft_kind == "original") != (source_version_id is None):
+        raise _invalid("The requested recipe draft kind and source do not match.")
+
+    request_fingerprint = recipe_draft_creation_request_fingerprint(
+        draft_kind,
+        source_version_id,
+    )
     existing = get_owned_recipe_draft_by_creation_action(
         session,
         author_user_id=author_user_id,
@@ -352,7 +363,12 @@ def create_recipe_draft(
 
     source = None
     if source_version_id is not None:
-        source = get_public_recipe_snapshot_for_draft(session, source_version_id)
+        source = get_public_recipe_snapshot_for_draft(
+            session,
+            source_version_id,
+            draft_kind=draft_kind,
+            author_user_id=author_user_id,
+        )
         if source is None:
             return None
     document = (
@@ -364,6 +380,7 @@ def create_recipe_draft(
         author_user_id=author_user_id,
         creation_action_id=creation_action_id,
         creation_request_fingerprint=request_fingerprint,
+        draft_kind=draft_kind,
         source_version_id=source.id if source is not None else None,
         title=document.title,
         description=document.description,
@@ -401,11 +418,14 @@ def create_recipe_draft(
     return draft
 
 
-def recipe_draft_creation_request_fingerprint(source_version_id: UUID | None) -> str:
-    """Hash one versioned canonical blank-or-source creation intent."""
+def recipe_draft_creation_request_fingerprint(
+    draft_kind: RecipeDraftKind,
+    source_version_id: UUID | None,
+) -> str:
+    """Hash one versioned canonical draft-kind and exact-source intent."""
 
     fields = {
-        "intent": "blank" if source_version_id is None else "source",
+        "draft_kind": draft_kind,
         "source_version_id": str(source_version_id) if source_version_id is not None else None,
     }
     return canonical_request_fingerprint(
@@ -603,6 +623,7 @@ def _action_response(item: RecipeDraftInstructionAction) -> RecipeDraftActionRes
 def recipe_draft_detail_response(draft: RecipeDraft) -> RecipeDraftDetailResponse:
     return RecipeDraftDetailResponse(
         id=draft.id,
+        draft_kind=cast(RecipeDraftKind, draft.draft_kind),
         source_version_id=draft.source_version_id,
         status=cast(Literal["active"], draft.status),
         revision=draft.revision,

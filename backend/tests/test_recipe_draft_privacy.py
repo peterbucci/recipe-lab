@@ -68,6 +68,7 @@ def test_private_draft_is_absent_from_every_public_and_signal_query(
         db_session,
         author_user_id=author.id,
         creation_action_id=uuid4(),
+        draft_kind="original",
         source_version_id=None,
     )
     assert draft is not None

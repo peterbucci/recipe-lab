@@ -20,6 +20,12 @@ class RecipeViewerStateResponse(BaseModel):
     rating: RatingValue | None = Field(
         description="The signed-in member's current rating, or null when they have not rated it."
     )
+    can_revise: bool = Field(
+        description=(
+            "Whether the active member owns this stable recipe and this exact version is its "
+            "publicly readable current edition."
+        )
+    )
 
 
 class RecipeViewerStateListResponse(BaseModel):

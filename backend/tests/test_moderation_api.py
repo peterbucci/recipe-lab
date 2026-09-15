@@ -19,6 +19,8 @@ from app.models import (
     USER_STATUS_SUSPENDED,
     CatalogCurator,
     CommunityModerator,
+    Recipe,
+    RecipeEdition,
     RecipeLineage,
     RecipeModerationAuditEvent,
     RecipeModerationCase,
@@ -119,6 +121,29 @@ def _add_recipe(
             published_at=created_at,
             community_rules_version="community-rules-v1",
             publication_rights_confirmed_at=created_at,
+        )
+    )
+    session.flush()
+    stable_recipe_id = uuid4()
+    session.add(
+        Recipe(
+            id=stable_recipe_id,
+            lineage_id=lineage_id,
+            attributed_author_user_id=AUTHOR_ID,
+            owner_user_id=AUTHOR_ID,
+            current_recipe_version_id=recipe_id,
+            created_at=created_at,
+        )
+    )
+    session.flush()
+    session.add(
+        RecipeEdition(
+            recipe_version_id=recipe_id,
+            recipe_id=stable_recipe_id,
+            lineage_id=lineage_id,
+            attributed_author_user_id=AUTHOR_ID,
+            edition_number=1,
+            relation_kind="original",
         )
     )
 

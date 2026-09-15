@@ -5,7 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import Numeric, case, distinct, exists, func, select
 from sqlalchemy import cast as sql_cast
-from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
 from app.models import (
@@ -16,6 +16,7 @@ from app.models import (
     RecipeVersion,
 )
 from app.policies.recipe_visibility import publicly_readable_recipe_version_filter
+from app.repositories.recipes import current_recipe_version_filter, recipe_card_load_options
 from app.services.recommendation_scoring import (
     MAX_RECOMMENDATIONS,
     BaselineNormalization,
@@ -191,7 +192,10 @@ def _eligible_candidate_pool(user_id: UUID | None) -> Any:
         + Decimal("0.10") * normalized_views
     )
 
-    filters: list[Any] = [publicly_readable_recipe_version_filter()]
+    filters: list[Any] = [
+        publicly_readable_recipe_version_filter(),
+        current_recipe_version_filter(),
+    ]
     if user_id is not None:
         filters.extend(_member_has_not_interacted(user_id))
     return (
@@ -437,10 +441,18 @@ def _load_shortlist(
 def _load_candidate_details(
     session: Session,
     recipe_version_ids: tuple[UUID, ...],
+    *,
+    require_current: bool,
 ) -> tuple[RecommendationCandidateData, ...]:
     if not recipe_version_ids:
         return ()
     rating_aggregates, save_aggregates, event_aggregates = _aggregate_subqueries()
+    filters: list[Any] = [
+        RecipeVersion.id.in_(recipe_version_ids),
+        publicly_readable_recipe_version_filter(),
+    ]
+    if require_current:
+        filters.append(current_recipe_version_filter())
     statement = (
         select(
             RecipeVersion,
@@ -462,19 +474,10 @@ def _load_candidate_details(
             event_aggregates,
             event_aggregates.c.recipe_version_id == RecipeVersion.id,
         )
-        .where(
-            RecipeVersion.id.in_(recipe_version_ids),
-            publicly_readable_recipe_version_filter(),
-        )
+        .where(*filters)
         .options(
-            joinedload(RecipeVersion.author),
-            joinedload(RecipeVersion.publication),
-            selectinload(
-                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
-            ).joinedload(RecipeVersion.author),
-            selectinload(RecipeVersion.categories),
+            *recipe_card_load_options(),
             selectinload(RecipeVersion.ingredients),
-            raiseload("*"),
         )
         .order_by(
             func.lower(func.btrim(RecipeVersion.title)),
@@ -525,9 +528,24 @@ def load_recommendation_data(
         source_recipe_version_ids=source_recipe_version_ids,
         capacity=candidate_capacity,
     )
-    detail_ids = tuple(dict.fromkeys((*shortlist_ids, *source_recipe_version_ids)))
+    current_candidates = _load_candidate_details(
+        session,
+        shortlist_ids,
+        require_current=True,
+    )
+    current_candidate_ids = {item.recipe.id for item in current_candidates}
+    historical_source_ids = tuple(
+        recipe_version_id
+        for recipe_version_id in source_recipe_version_ids
+        if recipe_version_id not in current_candidate_ids
+    )
+    historical_sources = _load_candidate_details(
+        session,
+        historical_source_ids,
+        require_current=False,
+    )
     return RecommendationData(
-        candidates=_load_candidate_details(session, detail_ids),
+        candidates=(*current_candidates, *historical_sources),
         saved_recipe_version_ids=frozenset(profile.saved_recipe_version_ids),
         ratings=profile.ratings,
         events=profile.events,

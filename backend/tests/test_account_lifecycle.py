@@ -141,6 +141,7 @@ def test_account_deletion_tombstones_authorship_and_erases_private_member_state(
     )
     published_draft = RecipeDraft(
         author_user_id=deleting_user_id,
+        draft_kind="adaptation",
         source_version_id=version.id,
         status="published",
         title="Private publication workspace",

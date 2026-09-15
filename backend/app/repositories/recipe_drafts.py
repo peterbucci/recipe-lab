@@ -12,12 +12,14 @@ from app.models import (
     IngredientCatalogRequest,
     MeasurementConversionRule,
     MeasurementUnit,
+    Recipe,
     RecipeDraft,
     RecipeDraftCategory,
     RecipeDraftIngredient,
     RecipeDraftInstruction,
     RecipeDraftInstructionAction,
     RecipeDraftInstructionActionMeasure,
+    RecipeEdition,
     RecipeIngredient,
     RecipeInstruction,
     RecipeInstructionAction,
@@ -132,6 +134,7 @@ def insert_recipe_draft_shell(
     author_user_id: UUID,
     creation_action_id: UUID,
     creation_request_fingerprint: str,
+    draft_kind: str,
     source_version_id: UUID | None,
     title: str,
     description: str | None,
@@ -149,6 +152,7 @@ def insert_recipe_draft_shell(
         .values(
             id=draft_id,
             author_user_id=author_user_id,
+            draft_kind=draft_kind,
             source_version_id=source_version_id,
             creation_action_id=creation_action_id,
             creation_request_fingerprint=creation_request_fingerprint,
@@ -176,6 +180,7 @@ def browse_owned_recipe_drafts(
     session: Session,
     *,
     author_user_id: UUID,
+    draft_kind: str | None = None,
     source_version_id: UUID | None = None,
     offset: int,
     limit: int,
@@ -186,6 +191,8 @@ def browse_owned_recipe_drafts(
     )
     if source_version_id is not None:
         filters += (RecipeDraft.source_version_id == source_version_id,)
+    if draft_kind is not None:
+        filters += (RecipeDraft.draft_kind == draft_kind,)
     total = session.scalar(select(func.count()).select_from(RecipeDraft).where(*filters)) or 0
     ingredient_count = (
         select(func.count())
@@ -226,6 +233,9 @@ def browse_owned_recipe_drafts(
 def get_public_recipe_snapshot_for_draft(
     session: Session,
     source_version_id: UUID,
+    *,
+    draft_kind: str,
+    author_user_id: UUID,
 ) -> RecipeVersion | None:
     """Load one public immutable source without weakening the public-read predicate."""
 
@@ -253,4 +263,19 @@ def get_public_recipe_snapshot_for_draft(
             publicly_readable_recipe_version_filter(),
         )
     )
+    if draft_kind == "revision":
+        statement = (
+            statement.join(
+                RecipeEdition,
+                RecipeEdition.recipe_version_id == RecipeVersion.id,
+            )
+            .join(
+                Recipe,
+                Recipe.id == RecipeEdition.recipe_id,
+            )
+            .where(
+                Recipe.owner_user_id == author_user_id,
+                Recipe.current_recipe_version_id == source_version_id,
+            )
+        )
     return session.scalar(statement)

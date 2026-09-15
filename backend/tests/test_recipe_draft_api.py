@@ -16,8 +16,10 @@ from sqlalchemy.orm import Session
 from app.models import (
     IngredientPackageSize,
     MeasurementUnit,
+    Recipe,
     RecipeCategory,
     RecipeDraft,
+    RecipeEdition,
     RecipeIngredient,
     RecipeLineage,
     RecipeVersion,
@@ -130,7 +132,7 @@ def test_owner_scoped_revisioned_crud_and_immediate_discard(draft_api: DraftApi)
         draft_api.anonymous.post(
             "/api/recipe-drafts",
             headers=_creation_headers(),
-            json={"source_version_id": None},
+            json={"draft_kind": "original", "source_version_id": None},
         ).status_code
         == 401
     )
@@ -139,7 +141,7 @@ def test_owner_scoped_revisioned_crud_and_immediate_discard(draft_api: DraftApi)
     created = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(creation_action_id),
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     assert created.status_code == 201
     assert created.headers["cache-control"] == "private, no-store"
@@ -167,6 +169,7 @@ def test_owner_scoped_revisioned_crud_and_immediate_discard(draft_api: DraftApi)
         "/api/recipe-drafts",
         headers=_creation_headers(),
         json={
+            "draft_kind": "original",
             "source_version_id": None,
             "author_user_id": str(OTHER_MEMBER_ID),
             "owner_user_id": str(OTHER_MEMBER_ID),
@@ -241,7 +244,7 @@ def test_owner_scoped_revisioned_crud_and_immediate_discard(draft_api: DraftApi)
     replay_after_discard = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(creation_action_id),
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     assert replay_after_discard.status_code == 409
     assert _json_object(_json_object(replay_after_discard.json())["error"])["code"] == (
@@ -264,7 +267,7 @@ def test_source_filter_returns_most_recent_active_owned_drafts(
         created = client.post(
             "/api/recipe-drafts",
             headers=_creation_headers(),
-            json={"source_version_id": str(source_version_id)},
+            json={"draft_kind": "adaptation", "source_version_id": str(source_version_id)},
         )
         assert created.status_code == 201
         return cast(str, _json_object(created.json())["id"])
@@ -336,28 +339,28 @@ def test_creation_requires_uuid_key_and_replays_one_actor_scoped_intent(
 ) -> None:
     missing = draft_api.member.post(
         "/api/recipe-drafts",
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     malformed = draft_api.member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": "not-a-uuid"},
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     assert missing.status_code == malformed.status_code == 422
-    assert recipe_draft_creation_request_fingerprint(None) != (
-        recipe_draft_creation_request_fingerprint(CARROT_ROOT_ID)
+    assert recipe_draft_creation_request_fingerprint("original", None) != (
+        recipe_draft_creation_request_fingerprint("adaptation", CARROT_ROOT_ID)
     )
 
     action_id = uuid4()
     created = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(action_id),
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     replayed = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(action_id),
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     assert created.status_code == replayed.status_code == 201
     assert created.json() == replayed.json()
@@ -365,7 +368,7 @@ def test_creation_requires_uuid_key_and_replays_one_actor_scoped_intent(
     changed_intent = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(action_id),
-        json={"source_version_id": str(CARROT_ROOT_ID)},
+        json={"draft_kind": "adaptation", "source_version_id": str(CARROT_ROOT_ID)},
     )
     assert changed_intent.status_code == 409
     assert _json_object(_json_object(changed_intent.json())["error"])["code"] == (
@@ -375,7 +378,7 @@ def test_creation_requires_uuid_key_and_replays_one_actor_scoped_intent(
     other_actor = draft_api.other_member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(action_id),
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     assert other_actor.status_code == 201
     assert _json_object(other_actor.json())["id"] != _json_object(created.json())["id"]
@@ -405,7 +408,7 @@ def test_concurrent_identical_creation_retries_copy_one_source_draft(
         response = draft_api.member.post(
             "/api/recipe-drafts",
             headers=_creation_headers(action_id),
-            json={"source_version_id": str(CARROT_ROOT_ID)},
+            json={"draft_kind": "adaptation", "source_version_id": str(CARROT_ROOT_ID)},
         )
         return response.status_code, response.json()
 
@@ -440,6 +443,7 @@ def test_repository_creation_race_reuses_one_bound_shell(draft_api: DraftApi) ->
                 session,
                 author_user_id=MEMBER_ID,
                 creation_action_id=action_id,
+                draft_kind="adaptation",
                 source_version_id=CARROT_ROOT_ID,
             )
             assert draft is not None
@@ -461,7 +465,7 @@ def test_creation_replay_precedes_source_visibility_recheck(draft_api: DraftApi)
     created = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(action_id),
-        json={"source_version_id": str(CARROT_ROOT_ID)},
+        json={"draft_kind": "adaptation", "source_version_id": str(CARROT_ROOT_ID)},
     )
     assert created.status_code == 201
 
@@ -476,7 +480,7 @@ def test_creation_replay_precedes_source_visibility_recheck(draft_api: DraftApi)
     replayed = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(action_id),
-        json={"source_version_id": str(CARROT_ROOT_ID)},
+        json={"draft_kind": "adaptation", "source_version_id": str(CARROT_ROOT_ID)},
     )
     assert replayed.status_code == 201
     assert replayed.json() == created.json()
@@ -484,7 +488,7 @@ def test_creation_replay_precedes_source_visibility_recheck(draft_api: DraftApi)
     new_attempt = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(),
-        json={"source_version_id": str(CARROT_ROOT_ID)},
+        json={"draft_kind": "adaptation", "source_version_id": str(CARROT_ROOT_ID)},
     )
     assert new_attempt.status_code == 404
     assert _json_object(_json_object(new_attempt.json())["error"])["code"] == (
@@ -496,7 +500,7 @@ def test_exact_source_clone_and_curated_full_replacement(draft_api: DraftApi) ->
     created = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(),
-        json={"source_version_id": str(CARROT_ROOT_ID)},
+        json={"draft_kind": "adaptation", "source_version_id": str(CARROT_ROOT_ID)},
     )
     assert created.status_code == 201
     body = _json_object(created.json())
@@ -587,7 +591,7 @@ def test_optional_instruction_title_round_trips_through_private_draft_save(
     created = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(),
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     assert created.status_code == 201
     draft_id = _json_object(created.json())["id"]
@@ -622,7 +626,7 @@ def test_source_clone_preserves_optional_instruction_titles(draft_api: DraftApi)
     copied = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(),
-        json={"source_version_id": str(BANANA_ROOT_ID)},
+        json={"draft_kind": "adaptation", "source_version_id": str(BANANA_ROOT_ID)},
     )
 
     assert copied.status_code == 201
@@ -703,11 +707,33 @@ def test_source_clone_preserves_historical_package_metadata_but_rejects_reselect
                 state_changed_by_user_id=MEMBER_ID,
             )
         )
+        session.flush()
+        stable_recipe_id = uuid4()
+        session.add(
+            Recipe(
+                id=stable_recipe_id,
+                lineage_id=source_lineage_id,
+                attributed_author_user_id=MEMBER_ID,
+                owner_user_id=MEMBER_ID,
+                current_recipe_version_id=source_version_id,
+            )
+        )
+        session.flush()
+        session.add(
+            RecipeEdition(
+                recipe_version_id=source_version_id,
+                recipe_id=stable_recipe_id,
+                lineage_id=source_lineage_id,
+                attributed_author_user_id=MEMBER_ID,
+                edition_number=1,
+                relation_kind="original",
+            )
+        )
 
     copied = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(),
-        json={"source_version_id": str(source_version_id)},
+        json={"draft_kind": "adaptation", "source_version_id": str(source_version_id)},
     )
     assert copied.status_code == 201, copied.text
     copied_walnut = next(
@@ -724,7 +750,7 @@ def test_source_clone_preserves_historical_package_metadata_but_rejects_reselect
     blank = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(),
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     assert blank.status_code == 201
     blank_id = _json_object(blank.json())["id"]
@@ -773,7 +799,7 @@ def test_unresolved_requests_remain_separate_and_owner_scoped(draft_api: DraftAp
     created = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(),
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     draft_id = _json_object(created.json())["id"]
     unresolved_payload = {
@@ -870,7 +896,7 @@ def test_unknown_curated_identities_are_rejected_without_mutation(
     created = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(),
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     assert created.status_code == 201
     draft_id = _json_object(created.json())["id"]
@@ -981,7 +1007,7 @@ def test_recipe_category_authoring_enforces_active_unique_bounded_ids(
     created = draft_api.member.post(
         "/api/recipe-drafts",
         headers=_creation_headers(),
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     assert created.status_code == 201
     draft_id = _json_object(created.json())["id"]

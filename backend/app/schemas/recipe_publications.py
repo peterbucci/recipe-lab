@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.recipe_duplicates import PolicyVersion, Sha256Digest
 
@@ -27,6 +27,14 @@ class RecipeOriginalPublicationRequest(RecipePublicationSchema):
     duplicate_review: RecipePublicationDuplicateReview
     community_rules_accepted: Literal[True]
     content_rights_confirmed: Literal[True]
+    declared_change_reason: Literal["correction", "update"] | None = None
+    withdraw_predecessor: bool = False
+
+    @model_validator(mode="after")
+    def validate_withdrawal_reason(self) -> "RecipeOriginalPublicationRequest":
+        if self.withdraw_predecessor and self.declared_change_reason != "correction":
+            raise ValueError("a predecessor may be withdrawn only for a declared correction")
+        return self
 
 
 class RecipeOriginalPublicationResponse(RecipePublicationSchema):

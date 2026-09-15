@@ -11,7 +11,9 @@ from enum import StrEnum
 from typing import Final
 
 MANIFEST_SCHEMA_VERSION: Final[str] = "2"
-MANIFEST_REVIEW_REFERENCE: Final[str] = "RCP-33E / GitHub issue #93; RCP-53A / GitHub issue #246"
+MANIFEST_REVIEW_REFERENCE: Final[str] = (
+    "RCP-33E / GitHub issue #93; RCP-53A / GitHub issue #246; RCP-53B / GitHub issue #247"
+)
 
 
 class DataDisposition(StrEnum):
@@ -587,8 +589,9 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
     ),
     _table(
         "recipe_drafts",
-        "author_user_id source_version_id creation_action_id creation_request_fingerprint status "
-        "revision title description servings total_time_minutes active_time_minutes difficulty "
+        "author_user_id source_version_id draft_kind creation_action_id "
+        "creation_request_fingerprint status revision title description servings "
+        "total_time_minutes active_time_minutes difficulty "
         "notes id created_at updated_at",
         foreign_keys=(
             "recipe_drafts(author_user_id)->users(id)",
@@ -610,7 +613,7 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
                 "Erase private draft content from the published source shell.",
             ),
             _column_policy(
-                "author_user_id source_version_id creation_action_id "
+                "author_user_id source_version_id draft_kind creation_action_id "
                 "creation_request_fingerprint status revision id created_at updated_at",
                 DataDisposition.RETAIN,
                 "A content-free published shell preserves bounded creation/publication "

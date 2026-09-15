@@ -40,6 +40,15 @@ RECIPE_DRAFT_STATUSES = (
     RECIPE_DRAFT_STATUS_PUBLISHED,
 )
 
+RECIPE_DRAFT_KIND_ORIGINAL = "original"
+RECIPE_DRAFT_KIND_ADAPTATION = "adaptation"
+RECIPE_DRAFT_KIND_REVISION = "revision"
+RECIPE_DRAFT_KINDS = (
+    RECIPE_DRAFT_KIND_ORIGINAL,
+    RECIPE_DRAFT_KIND_ADAPTATION,
+    RECIPE_DRAFT_KIND_REVISION,
+)
+
 RECIPE_DRAFT_SELECTION_CATALOG = "catalog"
 RECIPE_DRAFT_SELECTION_REQUEST = "request"
 RECIPE_DRAFT_SELECTION_KINDS = (
@@ -56,6 +65,15 @@ class RecipeDraft(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
         CheckConstraint(
             f"status IN {RECIPE_DRAFT_STATUSES!r}",
             name="status_supported",
+        ),
+        CheckConstraint(
+            f"draft_kind IN {RECIPE_DRAFT_KINDS!r}",
+            name="draft_kind_supported",
+        ),
+        CheckConstraint(
+            "(draft_kind = 'original' AND source_version_id IS NULL) OR "
+            "(draft_kind IN ('adaptation', 'revision') AND source_version_id IS NOT NULL)",
+            name="draft_kind_source_shape_valid",
         ),
         CheckConstraint("revision >= 1", name="revision_positive"),
         CheckConstraint("char_length(title) <= 200", name="title_bounded"),
@@ -129,6 +147,12 @@ class RecipeDraft(UUIDPrimaryKeyMixin, CreatedAtMixin, UpdatedAtMixin, Base):
         Uuid(as_uuid=True),
         ForeignKey("recipe_versions.id", ondelete="RESTRICT"),
         nullable=True,
+    )
+    draft_kind: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=RECIPE_DRAFT_KIND_ORIGINAL,
+        server_default=text(f"'{RECIPE_DRAFT_KIND_ORIGINAL}'"),
     )
     creation_action_id: Mapped[UUID | None] = mapped_column(
         Uuid(as_uuid=True),

@@ -25,6 +25,7 @@ from app.repositories.member_follows import (
     is_following,
     unfollow_user,
 )
+from app.repositories.recipes import get_public_recipe_adaptation_sources
 from app.schemas.errors import ErrorResponse
 from app.schemas.member_follows import (
     CookFollowStateResponse,
@@ -311,8 +312,8 @@ def my_following(
     responses=PRIVATE_FOLLOW_ERROR_RESPONSES,
     summary="List publications from cooks I follow",
     description=(
-        "Returns publicly readable original recipes and new versions authored by active cooks "
-        "the signed-in member currently follows, ordered by publication time."
+        "Returns publicly readable current recipe editions authored by active cooks the "
+        "signed-in member currently follows, ordered by publication time."
     ),
 )
 def my_community_activity(
@@ -331,8 +332,18 @@ def my_community_activity(
         offset=pagination.offset,
         limit=page_size,
     )
+    adaptation_sources = get_public_recipe_adaptation_sources(
+        session,
+        stored.items,
+    )
     result = MyCommunityActivityResponse(
-        items=[recipe_summary_response(item) for item in stored.items],
+        items=[
+            recipe_summary_response(
+                item,
+                adaptation_source=adaptation_sources.get(item.id),
+            )
+            for item in stored.items
+        ],
         page=page,
         page_size=page_size,
         total=stored.total,

@@ -54,6 +54,7 @@ def build_recipe_draft(
     *,
     author_user_id: UUID,
     draft_id: UUID | None = None,
+    draft_kind: str | None = None,
     source_version_id: UUID | None = None,
     creation_action_id: UUID | None = None,
     creation_request_fingerprint: str | None = None,
@@ -71,6 +72,7 @@ def build_recipe_draft(
     return RecipeDraft(
         id=draft_id or uuid4(),
         author_user_id=author_user_id,
+        draft_kind=draft_kind or ("adaptation" if source_version_id is not None else "original"),
         source_version_id=source_version_id,
         creation_action_id=creation_action_id,
         creation_request_fingerprint=creation_request_fingerprint,

@@ -115,6 +115,7 @@ DraftServings = Annotated[
 ]
 DraftTimeMinutes = Annotated[int, Field(gt=0, le=525_600)]
 RecipeDifficulty = Literal["easy", "medium", "hard"]
+RecipeDraftKind = Literal["original", "adaptation", "revision"]
 
 
 class RecipeDraftSchema(BaseModel):
@@ -122,7 +123,16 @@ class RecipeDraftSchema(BaseModel):
 
 
 class RecipeDraftCreateRequest(RecipeDraftSchema):
+    draft_kind: RecipeDraftKind
     source_version_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_kind_source_shape(self) -> Self:
+        if self.draft_kind == "original" and self.source_version_id is not None:
+            raise ValueError("an original draft cannot have a source version")
+        if self.draft_kind != "original" and self.source_version_id is None:
+            raise ValueError("an adaptation or revision draft requires a source version")
+        return self
 
 
 class RecipeDraftCatalogSelectionInput(RecipeDraftSchema):
@@ -282,6 +292,7 @@ class RecipeDraftInstructionResponse(RecipeDraftSchema):
 
 class RecipeDraftSummaryResponse(RecipeDraftSchema):
     id: UUID
+    draft_kind: RecipeDraftKind
     source_version_id: UUID | None
     status: Literal["active"]
     revision: int = Field(ge=1)
@@ -294,6 +305,7 @@ class RecipeDraftSummaryResponse(RecipeDraftSchema):
 
 class RecipeDraftDetailResponse(RecipeDraftSchema):
     id: UUID
+    draft_kind: RecipeDraftKind
     source_version_id: UUID | None
     status: Literal["active"]
     revision: int = Field(ge=1)

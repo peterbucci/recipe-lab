@@ -65,11 +65,13 @@ def _expected_state(
     *,
     saved: bool,
     rating: int | None,
+    can_revise: bool = False,
 ) -> dict[str, object]:
     return {
         "recipe_version_id": str(recipe_version_id),
         "saved": saved,
         "rating": rating,
+        "can_revise": can_revise,
     }
 
 
@@ -689,7 +691,9 @@ def test_openapi_documents_member_viewer_state_and_interactions(
     } <= set(schemas)
 
     viewer_state_schema = schemas["RecipeViewerStateResponse"]
-    assert {"recipe_version_id", "saved", "rating"} == set(viewer_state_schema["required"])
+    assert {"recipe_version_id", "saved", "rating", "can_revise"} == set(
+        viewer_state_schema["required"]
+    )
     assert "user" not in viewer_state_schema["properties"]
     assert "viewer_state" in schemas["RecipeDetailResponse"]["required"]
 

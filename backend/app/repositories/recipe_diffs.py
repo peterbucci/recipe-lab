@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
 
 from app.models import (
     IngredientSubstitution,
+    RecipeEdition,
     RecipeIngredient,
     RecipeInstruction,
     RecipeInstructionAction,
@@ -20,6 +21,16 @@ class RecipeVersionDiffIdentity:
     id: UUID
     lineage_id: UUID
     parent_version_id: UUID | None
+    relation_kind: str
+    previous_version_id: UUID | None
+
+    @property
+    def default_base_version_id(self) -> UUID | None:
+        if self.relation_kind == "revision":
+            return self.previous_version_id
+        if self.relation_kind == "adaptation":
+            return self.parent_version_id
+        return None
 
 
 def get_recipe_version_diff_identity(
@@ -28,13 +39,22 @@ def get_recipe_version_diff_identity(
 ) -> RecipeVersionDiffIdentity | None:
     """Load only the topology fields needed to resolve a diff request."""
 
-    statement = select(
-        RecipeVersion.id,
-        RecipeVersion.lineage_id,
-        RecipeVersion.parent_version_id,
-    ).where(
-        RecipeVersion.id == recipe_version_id,
-        publicly_readable_recipe_version_filter(),
+    statement = (
+        select(
+            RecipeVersion.id,
+            RecipeVersion.lineage_id,
+            RecipeVersion.parent_version_id,
+            RecipeEdition.relation_kind,
+            RecipeEdition.previous_recipe_version_id,
+        )
+        .join(
+            RecipeEdition,
+            RecipeEdition.recipe_version_id == RecipeVersion.id,
+        )
+        .where(
+            RecipeVersion.id == recipe_version_id,
+            publicly_readable_recipe_version_filter(),
+        )
     )
     row = session.execute(statement).one_or_none()
     if row is None:

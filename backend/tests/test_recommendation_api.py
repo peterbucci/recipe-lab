@@ -621,7 +621,7 @@ def test_openapi_documents_the_bounded_read_only_recommendation_contract(
         "Research-preview API only; Recipe Lab has no consumer recommendation surface."
     )
     assert (
-        "Every request uses aggregate activity for publicly readable recipes."
+        "Every request uses aggregate activity for publicly readable current recipe editions."
         in operation["description"]
     )
     assert (

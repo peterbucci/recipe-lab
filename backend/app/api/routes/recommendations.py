@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query, Response
 
 from app.api.cache import apply_private_no_store
 from app.api.dependencies import OptionalAuthenticatedSessionDependency, SessionDependency
+from app.repositories.recipes import get_public_recipe_adaptation_sources
 from app.schemas.errors import ErrorResponse
 from app.schemas.recommendations import (
     RecipeRecommendationResponse,
@@ -49,8 +50,9 @@ RECOMMENDATION_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
         "Research-preview API only; Recipe Lab has no consumer recommendation surface. "
         "Ranks recipe versions with the deterministic baseline-v1 quality, popularity, "
         "and canonical-ingredient similarity formula. Every request uses aggregate activity for "
-        "publicly readable recipes. Signed-in personalization additionally uses only the active "
-        "member's private history; signed-out requests load no account-specific history."
+        "publicly readable current recipe editions. Signed-in personalization additionally "
+        "uses only the active member's private history; signed-out requests load no "
+        "account-specific history."
     ),
 )
 def get_recommendations(
@@ -72,6 +74,10 @@ def get_recommendations(
         authenticated.user_id if authenticated is not None else None,
         limit,
     )
+    adaptation_sources = get_public_recipe_adaptation_sources(
+        session,
+        [item.recipe for item in result.items],
+    )
     recommendations_response = RecipeRecommendationsResponse(
         strategy=BASELINE_STRATEGY,
         personalized=result.personalized,
@@ -87,7 +93,10 @@ def get_recommendations(
         ),
         items=[
             RecipeRecommendationResponse(
-                recipe=recipe_summary_response(item.recipe),
+                recipe=recipe_summary_response(
+                    item.recipe,
+                    adaptation_source=adaptation_sources.get(item.recipe.id),
+                ),
                 score=item.score,
                 components=RecommendationScoreBreakdown(
                     quality=item.quality,

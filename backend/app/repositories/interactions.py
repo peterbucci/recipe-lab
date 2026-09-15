@@ -1,18 +1,54 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import ColumnElement, delete, exists, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.models import RecipeRating, RecipeSave, RecipeVersion, User
-from app.policies.recipe_visibility import publicly_readable_recipe_version_filter
+from app.models import (
+    ACCOUNT_KIND_MEMBER,
+    USER_STATUS_ACTIVE,
+    Recipe,
+    RecipeEdition,
+    RecipeRating,
+    RecipeSave,
+    RecipeVersion,
+    RecipeVersionPublication,
+    User,
+)
+from app.policies.recipe_visibility import (
+    publicly_readable_recipe_publication_filter,
+    publicly_readable_recipe_version_filter,
+)
 
 
 @dataclass(frozen=True, slots=True)
 class RecipeViewerState:
     saved: bool
     rating: int | None
+    can_revise: bool
+
+
+def _can_revise_recipe_version_filter(*, user_id: UUID) -> ColumnElement[bool]:
+    return exists(
+        select(1)
+        .select_from(RecipeEdition)
+        .join(Recipe, Recipe.id == RecipeEdition.recipe_id)
+        .join(User, User.id == Recipe.owner_user_id)
+        .join(
+            RecipeVersionPublication,
+            RecipeVersionPublication.recipe_version_id == RecipeEdition.recipe_version_id,
+        )
+        .where(
+            RecipeEdition.recipe_version_id == RecipeVersion.id,
+            Recipe.current_recipe_version_id == RecipeVersion.id,
+            Recipe.owner_user_id == user_id,
+            User.account_kind == ACCOUNT_KIND_MEMBER,
+            User.status == USER_STATUS_ACTIVE,
+            publicly_readable_recipe_publication_filter(),
+        )
+        .correlate(RecipeVersion)
+    )
 
 
 def get_user(
@@ -60,7 +96,16 @@ def get_recipe_viewer_state(
             RecipeRating.recipe_version_id == recipe_version_id,
         )
     )
-    return RecipeViewerState(saved=saved, rating=rating)
+    can_revise = (
+        session.scalar(
+            select(RecipeVersion.id).where(
+                RecipeVersion.id == recipe_version_id,
+                _can_revise_recipe_version_filter(user_id=user_id),
+            )
+        )
+        is not None
+    )
+    return RecipeViewerState(saved=saved, rating=rating, can_revise=can_revise)
 
 
 def get_recipe_viewer_states(
@@ -98,10 +143,19 @@ def get_recipe_viewer_states(
             )
         )
     }
+    revisable_ids = set(
+        session.scalars(
+            select(RecipeVersion.id).where(
+                RecipeVersion.id.in_(unique_ids),
+                _can_revise_recipe_version_filter(user_id=user_id),
+            )
+        )
+    )
     return {
         recipe_version_id: RecipeViewerState(
             saved=recipe_version_id in saved_ids,
             rating=ratings.get(recipe_version_id),
+            can_revise=recipe_version_id in revisable_ids,
         )
         for recipe_version_id in unique_ids
     }

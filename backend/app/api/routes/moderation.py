@@ -1,3 +1,4 @@
+from datetime import UTC
 from typing import Annotated, cast
 from uuid import UUID
 
@@ -291,5 +292,5 @@ def moderate_recipe(
         changed=result.state == "created",
         case_status=cast(ModerationCaseStatus, result.event.status),
         visibility_state=cast(RecipeVisibilityState, result.event.visibility_state),
-        acted_at=result.event.occurred_at,
+        acted_at=result.event.occurred_at.astimezone(UTC),
     )

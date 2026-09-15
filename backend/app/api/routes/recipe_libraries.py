@@ -18,6 +18,7 @@ from app.repositories.recipe_libraries import (
 from app.repositories.recipes import (
     RecipeCardEngagementAggregate,
     browse_public_recipe_versions_by_author,
+    get_public_recipe_adaptation_sources,
     get_recipe_card_engagement_aggregates,
 )
 from app.schemas.errors import ErrorResponse
@@ -56,8 +57,12 @@ MY_RECIPE_LIBRARY_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
 def _card_summary(
     recipe: RecipeVersion,
     engagement: RecipeCardEngagementAggregate,
+    adaptation_source: RecipeVersion | None,
 ) -> RecipeCardSummary:
-    summary = recipe_summary_response(recipe)
+    summary = recipe_summary_response(
+        recipe,
+        adaptation_source=adaptation_source,
+    )
     average_rating = engagement.average_rating
     return RecipeCardSummary(
         **summary.model_dump(),
@@ -72,7 +77,7 @@ def _card_summary(
     response_model=PublicCookProfileResponse,
     responses=PUBLIC_PROFILE_ERROR_RESPONSES,
     summary="Read a public cook profile",
-    description="Returns only public identity fields and explicitly published recipe versions.",
+    description="Returns only public identity fields and readable current recipe editions.",
 )
 def public_cook_profile(
     handle: Annotated[
@@ -105,11 +110,22 @@ def public_cook_profile(
         session,
         [recipe.id for recipe in stored.items],
     )
+    adaptation_sources = get_public_recipe_adaptation_sources(
+        session,
+        stored.items,
+    )
     return PublicCookProfileResponse(
         cook=public_user_reference(cook),
         follower_count=count_followers(session, user_id=cook.id),
         description=cook.profile_description,
-        items=[_card_summary(recipe, engagement[recipe.id]) for recipe in stored.items],
+        items=[
+            _card_summary(
+                recipe,
+                engagement[recipe.id],
+                adaptation_sources.get(recipe.id),
+            )
+            for recipe in stored.items
+        ],
         page=page,
         page_size=page_size,
         total=stored.total,
@@ -145,6 +161,14 @@ def my_recipe_library(
         offset=pagination.offset,
         limit=page_size,
     )
+    adaptation_sources = get_public_recipe_adaptation_sources(
+        session,
+        [
+            item.recipe
+            for item in stored.items
+            if item.kind == "published" and item.recipe is not None
+        ],
+    )
     items: list[MyRecipeDraftItem | MyPublishedRecipeItem] = []
     for item in stored.items:
         if item.kind == "draft":
@@ -162,7 +186,10 @@ def my_recipe_library(
                 raise RuntimeError("Published library entry is missing visibility metadata.")
             items.append(
                 MyPublishedRecipeItem(
-                    recipe=recipe_summary_response(item.recipe),
+                    recipe=recipe_summary_response(
+                        item.recipe,
+                        adaptation_source=adaptation_sources.get(item.recipe.id),
+                    ),
                     visibility_state=item.visibility_state,
                 )
             )
@@ -199,14 +226,24 @@ def my_saved_recipe_library(
         offset=pagination.offset,
         limit=page_size,
     )
-    result = SavedRecipeLibraryResponse(
-        items=[
+    adaptation_sources = get_public_recipe_adaptation_sources(
+        session,
+        [item.recipe for item in stored.items],
+    )
+    items: list[SavedRecipeLibraryItem] = []
+    for item in stored.items:
+        summary = recipe_summary_response(
+            item.recipe,
+            adaptation_source=adaptation_sources.get(item.recipe.id),
+        )
+        items.append(
             SavedRecipeLibraryItem(
-                recipe=recipe_summary_response(item.recipe),
+                recipe=summary,
                 saved_at=item.saved_at,
             )
-            for item in stored.items
-        ],
+        )
+    result = SavedRecipeLibraryResponse(
+        items=items,
         page=page,
         page_size=page_size,
         total=stored.total,

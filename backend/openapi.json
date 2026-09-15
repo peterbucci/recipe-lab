@@ -577,6 +577,17 @@
       "FeaturedRecipeSummary": {
         "description": "Editorially selected recipe card with anonymous engagement totals.",
         "properties": {
+          "adaptation_source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecipeVersionReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The exact publicly readable source from which this stable recipe was adapted, or null for an original recipe or when that source is unavailable. This stays fixed across later same-recipe revisions."
+          },
           "author": {
             "$ref": "#/components/schemas/PublicUserReference",
             "description": "Public author of this exact immutable recipe version."
@@ -609,6 +620,33 @@
             "title": "Created At",
             "type": "string"
           },
+          "current_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecipeVersionReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The stable recipe's current exact version when it is publicly readable, or null when the current version is hidden."
+          },
+          "declared_change_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "correction",
+                  "update"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Author-declared reason for a revision. This label does not determine topology.",
+            "title": "Declared Change Reason"
+          },
           "description": {
             "anyOf": [
               {
@@ -620,11 +658,22 @@
             ],
             "title": "Description"
           },
+          "edition_number": {
+            "description": "Recipe-local edition number, beginning at one.",
+            "minimum": 1.0,
+            "title": "Edition Number",
+            "type": "integer"
+          },
           "id": {
-            "description": "Stable identifier for this immutable recipe version.",
+            "description": "Exact identifier for this immutable recipe version.",
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "is_current": {
+            "description": "Whether this exact version is the stable recipe's current edition.",
+            "title": "Is Current",
+            "type": "boolean"
           },
           "lineage_id": {
             "description": "Identifier shared by every version in the lineage.",
@@ -653,8 +702,21 @@
                 "type": "null"
               }
             ],
-            "description": "Direct parent version, or null for the original root.",
+            "description": "Exact source version for a cross-recipe adaptation, or null when this recipe was not adapted from another recipe. Same-recipe revisions use previous_version_id instead.",
             "title": "Parent Version Id"
+          },
+          "previous_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact preceding edition for a revision, or null for a first edition.",
+            "title": "Previous Version Id"
           },
           "published_at": {
             "description": "Timestamp when this immutable version first became public.",
@@ -667,6 +729,22 @@
             "minimum": 0.0,
             "title": "Rating Count",
             "type": "integer"
+          },
+          "recipe_id": {
+            "description": "Stable recipe identifier shared by every edition of this recipe.",
+            "format": "uuid",
+            "title": "Recipe Id",
+            "type": "string"
+          },
+          "relation_kind": {
+            "description": "Stored publication topology: an original recipe, a cross-recipe adaptation, or a later edition of the same stable recipe.",
+            "enum": [
+              "original",
+              "adaptation",
+              "revision"
+            ],
+            "title": "Relation Kind",
+            "type": "string"
           },
           "save_count": {
             "description": "Number of members who saved this recipe version.",
@@ -695,9 +773,17 @@
         },
         "required": [
           "id",
+          "recipe_id",
           "lineage_id",
           "parent_version_id",
           "version_number",
+          "edition_number",
+          "relation_kind",
+          "previous_version_id",
+          "declared_change_reason",
+          "is_current",
+          "current_version",
+          "adaptation_source",
           "title",
           "description",
           "servings",
@@ -2716,6 +2802,17 @@
       },
       "RecipeCardSummary": {
         "properties": {
+          "adaptation_source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecipeVersionReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The exact publicly readable source from which this stable recipe was adapted, or null for an original recipe or when that source is unavailable. This stays fixed across later same-recipe revisions."
+          },
           "author": {
             "$ref": "#/components/schemas/PublicUserReference",
             "description": "Public author of this exact immutable recipe version."
@@ -2748,6 +2845,33 @@
             "title": "Created At",
             "type": "string"
           },
+          "current_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecipeVersionReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The stable recipe's current exact version when it is publicly readable, or null when the current version is hidden."
+          },
+          "declared_change_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "correction",
+                  "update"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Author-declared reason for a revision. This label does not determine topology.",
+            "title": "Declared Change Reason"
+          },
           "description": {
             "anyOf": [
               {
@@ -2759,11 +2883,22 @@
             ],
             "title": "Description"
           },
+          "edition_number": {
+            "description": "Recipe-local edition number, beginning at one.",
+            "minimum": 1.0,
+            "title": "Edition Number",
+            "type": "integer"
+          },
           "id": {
-            "description": "Stable identifier for this immutable recipe version.",
+            "description": "Exact identifier for this immutable recipe version.",
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "is_current": {
+            "description": "Whether this exact version is the stable recipe's current edition.",
+            "title": "Is Current",
+            "type": "boolean"
           },
           "lineage_id": {
             "description": "Identifier shared by every version in the lineage.",
@@ -2792,8 +2927,21 @@
                 "type": "null"
               }
             ],
-            "description": "Direct parent version, or null for the original root.",
+            "description": "Exact source version for a cross-recipe adaptation, or null when this recipe was not adapted from another recipe. Same-recipe revisions use previous_version_id instead.",
             "title": "Parent Version Id"
+          },
+          "previous_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact preceding edition for a revision, or null for a first edition.",
+            "title": "Previous Version Id"
           },
           "published_at": {
             "description": "Timestamp when this immutable version first became public.",
@@ -2806,6 +2954,22 @@
             "minimum": 0.0,
             "title": "Rating Count",
             "type": "integer"
+          },
+          "recipe_id": {
+            "description": "Stable recipe identifier shared by every edition of this recipe.",
+            "format": "uuid",
+            "title": "Recipe Id",
+            "type": "string"
+          },
+          "relation_kind": {
+            "description": "Stored publication topology: an original recipe, a cross-recipe adaptation, or a later edition of the same stable recipe.",
+            "enum": [
+              "original",
+              "adaptation",
+              "revision"
+            ],
+            "title": "Relation Kind",
+            "type": "string"
           },
           "save_count": {
             "description": "Number of members who saved this recipe version.",
@@ -2834,9 +2998,17 @@
         },
         "required": [
           "id",
+          "recipe_id",
           "lineage_id",
           "parent_version_id",
           "version_number",
+          "edition_number",
+          "relation_kind",
+          "previous_version_id",
+          "declared_change_reason",
+          "is_current",
+          "current_version",
+          "adaptation_source",
           "title",
           "description",
           "servings",
@@ -2935,6 +3107,17 @@
             "description": "Hands-on cooking time in whole minutes, or null when not provided.",
             "title": "Active Time Minutes"
           },
+          "adaptation_source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecipeVersionReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The exact publicly readable source from which this stable recipe was adapted, or null for an original recipe or when that source is unavailable. This stays fixed across later same-recipe revisions."
+          },
           "author": {
             "$ref": "#/components/schemas/PublicUserReference",
             "description": "Public author of this exact immutable recipe version."
@@ -2974,6 +3157,33 @@
             "title": "Created At",
             "type": "string"
           },
+          "current_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecipeVersionReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The stable recipe's current exact version when it is publicly readable, or null when the current version is hidden."
+          },
+          "declared_change_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "correction",
+                  "update"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Author-declared reason for a revision. This label does not determine topology.",
+            "title": "Declared Change Reason"
+          },
           "description": {
             "anyOf": [
               {
@@ -3002,8 +3212,14 @@
             "description": "Author-selected difficulty, or null when not provided.",
             "title": "Difficulty"
           },
+          "edition_number": {
+            "description": "Recipe-local edition number, beginning at one.",
+            "minimum": 1.0,
+            "title": "Edition Number",
+            "type": "integer"
+          },
           "id": {
-            "description": "Stable identifier for this immutable recipe version.",
+            "description": "Exact identifier for this immutable recipe version.",
             "format": "uuid",
             "title": "Id",
             "type": "string"
@@ -3021,6 +3237,11 @@
             },
             "title": "Instructions",
             "type": "array"
+          },
+          "is_current": {
+            "description": "Whether this exact version is the stable recipe's current edition.",
+            "title": "Is Current",
+            "type": "boolean"
           },
           "lineage_id": {
             "description": "Identifier shared by every version in the lineage.",
@@ -3062,8 +3283,21 @@
                 "type": "null"
               }
             ],
-            "description": "Direct parent version, or null for the original root.",
+            "description": "Exact source version for a cross-recipe adaptation, or null when this recipe was not adapted from another recipe. Same-recipe revisions use previous_version_id instead.",
             "title": "Parent Version Id"
+          },
+          "previous_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact preceding edition for a revision, or null for a first edition.",
+            "title": "Previous Version Id"
           },
           "published_at": {
             "description": "Timestamp when this immutable version first became public.",
@@ -3076,6 +3310,22 @@
             "minimum": 0.0,
             "title": "Rating Count",
             "type": "integer"
+          },
+          "recipe_id": {
+            "description": "Stable recipe identifier shared by every edition of this recipe.",
+            "format": "uuid",
+            "title": "Recipe Id",
+            "type": "string"
+          },
+          "relation_kind": {
+            "description": "Stored publication topology: an original recipe, a cross-recipe adaptation, or a later edition of the same stable recipe.",
+            "enum": [
+              "original",
+              "adaptation",
+              "revision"
+            ],
+            "title": "Relation Kind",
+            "type": "string"
           },
           "save_count": {
             "description": "Number of members who saved this recipe version.",
@@ -3128,9 +3378,17 @@
         },
         "required": [
           "id",
+          "recipe_id",
           "lineage_id",
           "parent_version_id",
           "version_number",
+          "edition_number",
+          "relation_kind",
+          "previous_version_id",
+          "declared_change_reason",
+          "is_current",
+          "current_version",
+          "adaptation_source",
           "title",
           "description",
           "servings",
@@ -3419,6 +3677,15 @@
       "RecipeDraftCreateRequest": {
         "additionalProperties": false,
         "properties": {
+          "draft_kind": {
+            "enum": [
+              "original",
+              "adaptation",
+              "revision"
+            ],
+            "title": "Draft Kind",
+            "type": "string"
+          },
           "source_version_id": {
             "anyOf": [
               {
@@ -3432,6 +3699,9 @@
             "title": "Source Version Id"
           }
         },
+        "required": [
+          "draft_kind"
+        ],
         "title": "RecipeDraftCreateRequest",
         "type": "object"
       },
@@ -3489,6 +3759,15 @@
               }
             ],
             "title": "Difficulty"
+          },
+          "draft_kind": {
+            "enum": [
+              "original",
+              "adaptation",
+              "revision"
+            ],
+            "title": "Draft Kind",
+            "type": "string"
           },
           "id": {
             "format": "uuid",
@@ -3584,6 +3863,7 @@
         },
         "required": [
           "id",
+          "draft_kind",
           "source_version_id",
           "status",
           "revision",
@@ -3997,6 +4277,15 @@
             "title": "Created At",
             "type": "string"
           },
+          "draft_kind": {
+            "enum": [
+              "original",
+              "adaptation",
+              "revision"
+            ],
+            "title": "Draft Kind",
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -4047,6 +4336,7 @@
         },
         "required": [
           "id",
+          "draft_kind",
           "source_version_id",
           "status",
           "revision",
@@ -4435,6 +4725,182 @@
             "type": "null"
           }
         ]
+      },
+      "RecipeHistoryEntry": {
+        "description": "One readable version in a stable recipe history or adaptation branch.",
+        "properties": {
+          "adaptation_source_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact first-edition adaptation source, retained across later revisions. The identifier remains available when the source is hidden, without exposing its description.",
+            "title": "Adaptation Source Version Id"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PublicUserReference"
+          },
+          "declared_change_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "correction",
+                  "update"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional author-declared revision reason; it does not determine topology.",
+            "title": "Declared Change Reason"
+          },
+          "edition_number": {
+            "description": "Recipe-local edition number.",
+            "minimum": 1.0,
+            "title": "Edition Number",
+            "type": "integer"
+          },
+          "id": {
+            "description": "Exact immutable recipe-version identifier.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_current": {
+            "description": "Whether this exact version is its stable recipe's current edition.",
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "previous_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact preceding same-recipe edition for a revision. The identifier remains available when that predecessor is hidden, without exposing its description.",
+            "title": "Previous Version Id"
+          },
+          "published_at": {
+            "description": "Timestamp when this exact version became public.",
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "recipe_id": {
+            "description": "Stable recipe identifier for this entry.",
+            "format": "uuid",
+            "title": "Recipe Id",
+            "type": "string"
+          },
+          "relation_kind": {
+            "description": "Stored topology for this exact edition.",
+            "enum": [
+              "original",
+              "adaptation",
+              "revision"
+            ],
+            "title": "Relation Kind",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "recipe_id",
+          "edition_number",
+          "relation_kind",
+          "previous_version_id",
+          "adaptation_source_version_id",
+          "declared_change_reason",
+          "is_current",
+          "title",
+          "published_at",
+          "author"
+        ],
+        "title": "RecipeHistoryEntry",
+        "type": "object"
+      },
+      "RecipeHistoryResponse": {
+        "properties": {
+          "adaptations": {
+            "description": "Readable current versions of recipes adapted from any exact edition of this stable recipe. An entry may itself be a later revision; its branch membership comes from the stable recipe's first edition.",
+            "items": {
+              "$ref": "#/components/schemas/RecipeHistoryEntry"
+            },
+            "title": "Adaptations",
+            "type": "array"
+          },
+          "adaptations_truncated": {
+            "description": "Whether more readable current adaptations exist beyond this bounded list.",
+            "title": "Adaptations Truncated",
+            "type": "boolean"
+          },
+          "current_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact current version when publicly readable, or null when the stable recipe's current edition is hidden. No older fallback is selected.",
+            "title": "Current Version Id"
+          },
+          "editions": {
+            "description": "Readable same-recipe editions in ascending recipe-local order.",
+            "items": {
+              "$ref": "#/components/schemas/RecipeHistoryEntry"
+            },
+            "title": "Editions",
+            "type": "array"
+          },
+          "editions_truncated": {
+            "description": "Whether more readable same-recipe editions exist beyond this bounded list.",
+            "title": "Editions Truncated",
+            "type": "boolean"
+          },
+          "recipe_id": {
+            "description": "Stable recipe selected by the exact request version.",
+            "format": "uuid",
+            "title": "Recipe Id",
+            "type": "string"
+          },
+          "selected_version_id": {
+            "description": "Exact readable version selected by the route.",
+            "format": "uuid",
+            "title": "Selected Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recipe_id",
+          "selected_version_id",
+          "current_version_id",
+          "editions",
+          "adaptations",
+          "editions_truncated",
+          "adaptations_truncated"
+        ],
+        "title": "RecipeHistoryResponse",
+        "type": "object"
       },
       "RecipeIngredientChangedField": {
         "enum": [
@@ -5298,6 +5764,21 @@
             "title": "Content Rights Confirmed",
             "type": "boolean"
           },
+          "declared_change_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "correction",
+                  "update"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declared Change Reason"
+          },
           "duplicate_review": {
             "$ref": "#/components/schemas/RecipePublicationDuplicateReview"
           },
@@ -5305,6 +5786,11 @@
             "minimum": 1.0,
             "title": "Revision",
             "type": "integer"
+          },
+          "withdraw_predecessor": {
+            "default": false,
+            "title": "Withdraw Predecessor",
+            "type": "boolean"
           }
         },
         "required": [
@@ -5575,6 +6061,17 @@
       },
       "RecipeSummary": {
         "properties": {
+          "adaptation_source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecipeVersionReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The exact publicly readable source from which this stable recipe was adapted, or null for an original recipe or when that source is unavailable. This stays fixed across later same-recipe revisions."
+          },
           "author": {
             "$ref": "#/components/schemas/PublicUserReference",
             "description": "Public author of this exact immutable recipe version."
@@ -5593,6 +6090,33 @@
             "title": "Created At",
             "type": "string"
           },
+          "current_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecipeVersionReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The stable recipe's current exact version when it is publicly readable, or null when the current version is hidden."
+          },
+          "declared_change_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "correction",
+                  "update"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Author-declared reason for a revision. This label does not determine topology.",
+            "title": "Declared Change Reason"
+          },
           "description": {
             "anyOf": [
               {
@@ -5604,11 +6128,22 @@
             ],
             "title": "Description"
           },
+          "edition_number": {
+            "description": "Recipe-local edition number, beginning at one.",
+            "minimum": 1.0,
+            "title": "Edition Number",
+            "type": "integer"
+          },
           "id": {
-            "description": "Stable identifier for this immutable recipe version.",
+            "description": "Exact identifier for this immutable recipe version.",
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "is_current": {
+            "description": "Whether this exact version is the stable recipe's current edition.",
+            "title": "Is Current",
+            "type": "boolean"
           },
           "lineage_id": {
             "description": "Identifier shared by every version in the lineage.",
@@ -5637,13 +6172,42 @@
                 "type": "null"
               }
             ],
-            "description": "Direct parent version, or null for the original root.",
+            "description": "Exact source version for a cross-recipe adaptation, or null when this recipe was not adapted from another recipe. Same-recipe revisions use previous_version_id instead.",
             "title": "Parent Version Id"
+          },
+          "previous_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact preceding edition for a revision, or null for a first edition.",
+            "title": "Previous Version Id"
           },
           "published_at": {
             "description": "Timestamp when this immutable version first became public.",
             "format": "date-time",
             "title": "Published At",
+            "type": "string"
+          },
+          "recipe_id": {
+            "description": "Stable recipe identifier shared by every edition of this recipe.",
+            "format": "uuid",
+            "title": "Recipe Id",
+            "type": "string"
+          },
+          "relation_kind": {
+            "description": "Stored publication topology: an original recipe, a cross-recipe adaptation, or a later edition of the same stable recipe.",
+            "enum": [
+              "original",
+              "adaptation",
+              "revision"
+            ],
+            "title": "Relation Kind",
             "type": "string"
           },
           "servings": {
@@ -5667,9 +6231,17 @@
         },
         "required": [
           "id",
+          "recipe_id",
           "lineage_id",
           "parent_version_id",
           "version_number",
+          "edition_number",
+          "relation_kind",
+          "previous_version_id",
+          "declared_change_reason",
+          "is_current",
+          "current_version",
+          "adaptation_source",
           "title",
           "description",
           "servings",
@@ -5734,6 +6306,11 @@
       "RecipeViewerStateResponse": {
         "additionalProperties": false,
         "properties": {
+          "can_revise": {
+            "description": "Whether the active member owns this stable recipe and this exact version is its publicly readable current edition.",
+            "title": "Can Revise",
+            "type": "boolean"
+          },
           "rating": {
             "anyOf": [
               {
@@ -5763,7 +6340,8 @@
         "required": [
           "recipe_version_id",
           "saved",
-          "rating"
+          "rating",
+          "can_revise"
         ],
         "title": "RecipeViewerStateResponse",
         "type": "object"
@@ -7059,7 +7637,7 @@
     },
     "/api/cooks/{handle}": {
       "get": {
-        "description": "Returns only public identity fields and explicitly published recipe versions.",
+        "description": "Returns only public identity fields and readable current recipe editions.",
         "operationId": "public_cook_profile_api_cooks__handle__get",
         "parameters": [
           {
@@ -9194,7 +9772,7 @@
     },
     "/api/my/community-activity": {
       "get": {
-        "description": "Returns publicly readable original recipes and new versions authored by active cooks the signed-in member currently follows, ordered by publication time.",
+        "description": "Returns publicly readable current recipe editions authored by active cooks the signed-in member currently follows, ordered by publication time.",
         "operationId": "my_community_activity_api_my_community_activity_get",
         "parameters": [
           {
@@ -9985,6 +10563,29 @@
         "operationId": "my_private_recipe_drafts_api_recipe_drafts_get",
         "parameters": [
           {
+            "description": "Return only active drafts of this authoring kind.",
+            "in": "query",
+            "name": "draft_kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "original",
+                    "adaptation",
+                    "revision"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return only active drafts of this authoring kind.",
+              "title": "Draft Kind"
+            }
+          },
+          {
             "description": "Return only active drafts copied from this exact immutable recipe version.",
             "in": "query",
             "name": "source_version_id",
@@ -10122,16 +10723,16 @@
         "x-recipe-lab-reachability": "active"
       },
       "post": {
-        "description": "Creates a blank original draft or copies one exact public immutable recipe snapshot. The required Idempotency-Key recovers the same active draft after an ambiguous response. Authorship always comes from the active member session.",
+        "description": "Creates a blank original, cross-recipe adaptation, or same-recipe revision draft. Revision sources must be the active owner's exact publicly readable current edition. The required Idempotency-Key recovers the same active draft after an ambiguous response. Authorship always comes from the active member session.",
         "operationId": "create_private_recipe_draft_api_recipe_drafts_post",
         "parameters": [
           {
-            "description": "Opaque UUID that binds one member to one blank-or-source draft creation intent.",
+            "description": "Opaque UUID that binds one member to one draft kind and exact source intent.",
             "in": "header",
             "name": "Idempotency-Key",
             "required": true,
             "schema": {
-              "description": "Opaque UUID that binds one member to one blank-or-source draft creation intent.",
+              "description": "Opaque UUID that binds one member to one draft kind and exact source intent.",
               "format": "uuid",
               "title": "Idempotency-Key",
               "type": "string"
@@ -10640,7 +11241,7 @@
     },
     "/api/recipe-drafts/{draft_id}/duplicate-preflights": {
       "post": {
-        "description": "Fully validates one current draft and stores a bounded advisory comparison with public immutable recipes. Source-backed drafts also compare against their direct parent for the no-change warning. This does not publish or expose the draft.",
+        "description": "Fully validates one current draft and stores a bounded advisory comparison with public immutable recipes. Source-backed drafts also compare against their exact source for the no-change warning. This does not publish or expose the draft.",
         "operationId": "create_original_draft_duplicate_preflight_api_recipe_drafts__draft_id__duplicate_preflights_post",
         "parameters": [
           {
@@ -10798,7 +11399,7 @@
     },
     "/api/recipe-drafts/{draft_id}/publish": {
       "post": {
-        "description": "Revalidates the complete curated draft and duplicate evidence in one serialized transaction. Source-less drafts create roots; source-backed drafts create direct children in the source lineage and one fork preference event.",
+        "description": "Revalidates the complete curated draft and duplicate evidence in one serialized transaction. Originals and adaptations create new stable recipes; revisions append one immutable edition to an owned stable recipe. Only adaptations emit a fork preference event.",
         "operationId": "publish_original_draft_api_recipe_drafts__draft_id__publish_post",
         "parameters": [
           {
@@ -11018,7 +11619,7 @@
             }
           },
           {
-            "description": "Return only versions in this lineage.",
+            "description": "Return only current recipe editions in this lineage.",
             "in": "query",
             "name": "lineage_id",
             "required": false,
@@ -11032,7 +11633,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Return only versions in this lineage.",
+              "description": "Return only current recipe editions in this lineage.",
               "title": "Lineage Id"
             }
           },
@@ -11058,7 +11659,7 @@
             }
           },
           {
-            "description": "Use true for variants or false for original root versions.",
+            "description": "Use true for adapted recipes or false for original recipes.",
             "in": "query",
             "name": "is_variant",
             "required": false,
@@ -11071,7 +11672,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Use true for variants or false for original root versions.",
+              "description": "Use true for adapted recipes or false for original recipes.",
               "title": "Is Variant"
             }
           },
@@ -11155,7 +11756,7 @@
             "description": "A durable account, identity, or network rate limit was exceeded."
           }
         },
-        "summary": "Browse recipe versions",
+        "summary": "Browse current recipes",
         "tags": [
           "recipes"
         ],
@@ -11167,9 +11768,89 @@
         "x-recipe-lab-reachability": "active"
       }
     },
+    "/api/recipes/current/{recipe_id}": {
+      "get": {
+        "description": "Resolves one stable recipe identifier to its explicitly selected current exact version. A hidden current version returns not found; older readable editions are never used as a fallback.",
+        "operationId": "current_recipe_detail_api_recipes_current__recipe_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipe_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Recipe Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The requested recipe does not exist or is not publicly available."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The request contains an invalid identifier or query parameter."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "Read the current version of a stable recipe",
+        "tags": [
+          "recipes"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/features/recipes/detail/recipe-detail-server-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
+      }
+    },
     "/api/recipes/featured": {
       "get": {
-        "description": "Returns one deploy-reviewed editorial selection in display order. The result is the same for every viewer, is not a recommendation, and silently omits any selected version that is no longer publicly readable.",
+        "description": "Returns one deploy-reviewed editorial selection in display order. The result is the same for every viewer, is not a recommendation, and silently omits any selected stable recipe whose current edition is not publicly readable.",
         "operationId": "featured_recipes_api_recipes_featured_get",
         "responses": {
           "200": {
@@ -11390,7 +12071,7 @@
     },
     "/api/recipes/{recipe_version_id}/diff": {
       "get": {
-        "description": "Compares a base snapshot with the target recipe version. When base_version_id is omitted, the target's direct parent is used. Explicit comparisons may select any version in the same lineage.",
+        "description": "Compares a base snapshot with the target recipe version. When base_version_id is omitted, a revision uses its previous same-recipe edition and an adaptation uses its exact cross-recipe source. Explicit comparisons may select any version in the same lineage.",
         "operationId": "recipe_diff_api_recipes__recipe_version_id__diff_get",
         "parameters": [
           {
@@ -11404,7 +12085,7 @@
             }
           },
           {
-            "description": "Version to compare from. Omit this value to use the target's direct parent.",
+            "description": "Version to compare from. Omit this value to use the target's topology-aware default base.",
             "in": "query",
             "name": "base_version_id",
             "required": false,
@@ -11418,7 +12099,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Version to compare from. Omit this value to use the target's direct parent.",
+              "description": "Version to compare from. Omit this value to use the target's topology-aware default base.",
               "title": "Base Version Id"
             }
           }
@@ -11476,6 +12157,86 @@
           }
         },
         "summary": "Compare structured recipe versions",
+        "tags": [
+          "recipes"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/features/recipes/detail/recipe-detail-server-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
+      }
+    },
+    "/api/recipes/{recipe_version_id}/history": {
+      "get": {
+        "description": "Resolves one readable exact version to its stable recipe, then returns bounded readable same-recipe editions and readable current adaptations whose first edition was adapted from any exact edition of that recipe. Hidden versions are omitted as descriptive entries; exact predecessor and source identifiers remain topology, and a hidden current version never falls back to an older edition.",
+        "operationId": "recipe_history_api_recipes__recipe_version_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipe_version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Recipe Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The requested recipe does not exist or is not publicly available."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The request contains an invalid identifier or query parameter."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "Read a stable recipe's public edition history",
         "tags": [
           "recipes"
         ],
@@ -12535,7 +13296,7 @@
     },
     "/api/recommendations": {
       "get": {
-        "description": "Research-preview API only; Recipe Lab has no consumer recommendation surface. Ranks recipe versions with the deterministic baseline-v1 quality, popularity, and canonical-ingredient similarity formula. Every request uses aggregate activity for publicly readable recipes. Signed-in personalization additionally uses only the active member's private history; signed-out requests load no account-specific history.",
+        "description": "Research-preview API only; Recipe Lab has no consumer recommendation surface. Ranks recipe versions with the deterministic baseline-v1 quality, popularity, and canonical-ingredient similarity formula. Every request uses aggregate activity for publicly readable current recipe editions. Signed-in personalization additionally uses only the active member's private history; signed-out requests load no account-specific history.",
         "operationId": "get_recommendations_api_recommendations_get",
         "parameters": [
           {
