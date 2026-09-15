@@ -297,7 +297,7 @@ test.describe("cross-user fork publication acceptance", () => {
     const family = page.getByRole("tabpanel", { name: "Family", exact: true });
     await family
       .getByRole("button", {
-        name: `Show ${childTitle} in the family tree`,
+        name: `Show ${childTitle} in recipe history`,
         exact: true,
       })
       .click();

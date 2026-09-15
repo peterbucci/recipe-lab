@@ -65,6 +65,7 @@ describe("RecipeBrowser", () => {
             recipe(),
             recipe({
               id: "recipe-two",
+              recipe_id: "stable-recipe-two",
               parent_version_id: "recipe-one",
               version_number: 2,
               title: "Lower-Sugar Pecan Carrot Cake",
@@ -108,7 +109,7 @@ describe("RecipeBrowser", () => {
       screen.getByRole("link", {
         name: "Lower-Sugar Pecan Carrot Cake",
       }),
-    ).toHaveAttribute("href", "/recipes/recipe-two");
+    ).toHaveAttribute("href", "/recipes/current/stable-recipe-two");
     expect(screen.getByText("Original", { exact: true })).toBeVisible();
     expect(screen.queryByText(/^version 2$/i)).not.toBeInTheDocument();
     expect(screen.getAllByText("8 servings")).toHaveLength(2);

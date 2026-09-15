@@ -14,7 +14,10 @@ import type {
 type RecipePublicationOperation =
   operations["publish_original_draft_api_recipe_drafts__draft_id__publish_post"];
 type RecipePublicationInput =
-  RecipePublicationOperation["requestBody"]["content"]["application/json"];
+  RecipePublicationOperation["requestBody"]["content"]["application/json"] & {
+    declared_change_reason: DeclaredChangeReason;
+    withdraw_predecessor: boolean;
+  };
 type RecipePublicationWire =
   RecipePublicationOperation["responses"][201]["content"]["application/json"];
 
@@ -30,7 +33,11 @@ export interface RecipeDraftPublishRequest {
   duplicate_review: RecipeDraftDuplicateReviewInput;
   community_rules_accepted: true;
   content_rights_confirmed: true;
+  declared_change_reason: DeclaredChangeReason;
+  withdraw_predecessor: boolean;
 }
+
+export type DeclaredChangeReason = "correction" | "update" | null;
 
 export interface RecipeDraftPublication {
   recipe_version_id: string;
@@ -57,6 +64,7 @@ const KNOWN_RECIPE_PUBLICATION_ERROR_CODES = new Set([
   "recipe_draft_revision_conflict",
   "recipe_fork_source_unavailable",
   "recipe_not_found",
+  "recipe_revision_source_stale",
   "validation_error",
 ]);
 
@@ -127,6 +135,8 @@ const SAFE_DRAFT_ISSUE_PARTS = new Set([
   "inputs",
   "duration",
   "temperature",
+  "declared_change_reason",
+  "withdraw_predecessor",
 ]);
 
 function safeIssueLocation(value: unknown): Array<string | number> | null {
@@ -192,6 +202,9 @@ function safePublicationMessage(status: number, code: string): string {
   }
   if (status === 409 && code === "recipe_draft_revision_conflict") {
     return "This draft changed. Save or reload it before publishing.";
+  }
+  if (status === 409 && code === "recipe_revision_source_stale") {
+    return "A newer edition of this recipe was published before your changes. Your private draft is unchanged.";
   }
   if (
     status === 409 &&
@@ -289,7 +302,7 @@ export async function publishRecipeDraft(
       draft_id: draftId.toLowerCase(),
       payload: input,
       schema: "recipe-draft-publication",
-      version: 1,
+      version: 2,
     });
     const response = await browserApiRequest(
       `/api/recipe-drafts/${encodeURIComponent(draftId)}/publish`,

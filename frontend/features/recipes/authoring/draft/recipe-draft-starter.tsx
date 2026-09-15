@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   recipeDraftCreationIntent,
 } from "./recipe-draft-creation-attempt";
+import type { RecipeDraftKind } from "./recipe-draft-summary";
 import {
   recipeDraftEntryErrorMessage,
   startOrResumeRecipeDraft,
@@ -16,16 +17,19 @@ import { MemberRouteGate } from "../../../auth/member-route-gate";
 import { RecipeDraftLoadingView } from "./recipe-draft-route-states";
 
 interface RecipeDraftStarterProps {
+  draftKind: Extract<RecipeDraftKind, "original" | "adaptation">;
   sourceVersionId: string | null;
 }
 
 interface AuthenticatedRecipeDraftStarterProps {
   actorId: string;
+  draftKind: Extract<RecipeDraftKind, "original" | "adaptation">;
   sourceVersionId: string | null;
 }
 
 function AuthenticatedRecipeDraftStarter({
   actorId,
+  draftKind,
   sourceVersionId,
 }: AuthenticatedRecipeDraftStarterProps) {
   const { replace } = useRouter();
@@ -48,7 +52,11 @@ function AuthenticatedRecipeDraftStarter({
     pendingRef.current = true;
 
     try {
-      const draftId = await startOrResumeRecipeDraft(actorId, sourceVersionId);
+      const draftId = await startOrResumeRecipeDraft(
+        actorId,
+        draftKind,
+        sourceVersionId,
+      );
       if (!mountedRef.current) return;
       replace(`/recipes/drafts/${encodeURIComponent(draftId)}`);
     } catch (reason) {
@@ -59,7 +67,7 @@ function AuthenticatedRecipeDraftStarter({
       pendingRef.current = false;
       if (mountedRef.current) setRetrying(false);
     }
-  }, [actorId, replace, sourceVersionId]);
+  }, [actorId, draftKind, replace, sourceVersionId]);
 
   useEffect(() => {
     void start();
@@ -125,6 +133,7 @@ function AuthenticatedRecipeDraftStarter({
 }
 
 export function RecipeDraftStarter({
+  draftKind,
   sourceVersionId,
 }: RecipeDraftStarterProps) {
   const { state } = useAuthSession();
@@ -145,8 +154,9 @@ export function RecipeDraftStarter({
     >
       {actorId ? (
         <AuthenticatedRecipeDraftStarter
-          key={`${actorId}:${recipeDraftCreationIntent(sourceVersionId)}`}
+          key={`${actorId}:${recipeDraftCreationIntent(draftKind, sourceVersionId)}`}
           actorId={actorId}
+          draftKind={draftKind}
           sourceVersionId={sourceVersionId}
         />
       ) : null}

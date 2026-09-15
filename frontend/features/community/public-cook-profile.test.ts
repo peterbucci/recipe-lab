@@ -10,6 +10,7 @@ const PARENT_COOK_ID = "22222222-2222-4222-8222-222222222222";
 const RECIPE_ID = "33333333-3333-4333-8333-333333333333";
 const PARENT_ID = "44444444-4444-4444-8444-444444444444";
 const LINEAGE_ID = "55555555-5555-4555-8555-555555555555";
+const STABLE_RECIPE_ID = "66666666-6666-4666-8666-666666666666";
 const CATEGORY_ID = "77777777-7777-4777-8777-777777777777";
 
 const cook = {
@@ -19,9 +20,26 @@ const cook = {
 };
 
 const recipe = {
+  adaptation_source: {
+    id: PARENT_ID,
+    version_number: 1,
+    title: "Catalog carrot cake",
+    author: {
+      id: PARENT_COOK_ID,
+      handle: "recipe-lab",
+      display_name: "Recipe Lab catalog",
+    },
+  },
+  current_version: null,
+  declared_change_reason: null,
+  edition_number: 1,
   id: RECIPE_ID,
+  is_current: true,
   lineage_id: LINEAGE_ID,
   parent_version_id: PARENT_ID,
+  previous_version_id: null,
+  recipe_id: STABLE_RECIPE_ID,
+  relation_kind: "adaptation" as const,
   version_number: 2,
   title: "Alice’s carrot cake",
   description: "A public fork.",
@@ -184,12 +202,13 @@ describe("public cook profile parsing", () => {
     const result = parsePublicCookProfilePage({
       cook,
       follower_count: 4,
-      items: [{ ...recipe, parent: null }],
+      items: [{ ...recipe, adaptation_source: null, parent: null }],
       ...envelope,
     });
 
     expect(result.items[0]).toMatchObject({
       parent_version_id: PARENT_ID,
+      adaptation_source: null,
       parent: null,
     });
   });

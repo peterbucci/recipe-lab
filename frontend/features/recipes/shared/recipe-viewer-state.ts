@@ -5,7 +5,11 @@ export type RatingValue = 1 | 2 | 3 | 4 | 5;
 type RecipeViewerStateContract =
   components["schemas"]["RecipeViewerStateResponse"];
 
-export type RecipeViewerState = Omit<RecipeViewerStateContract, "rating"> & {
+export type RecipeViewerState = Omit<
+  RecipeViewerStateContract,
+  "rating" | "can_revise"
+> & {
+  can_revise: boolean;
   rating: RatingValue | null;
 };
 
@@ -21,19 +25,26 @@ export function parseRecipeViewerState(value: unknown): RecipeViewerState | null
   if (value === null) {
     return null;
   }
-  const expectedKeys = new Set(["recipe_version_id", "saved", "rating"]);
+  const expectedKeys = new Set([
+    "recipe_version_id",
+    "saved",
+    "rating",
+    "can_revise",
+  ]);
   if (
     !isRecord(value) ||
     Object.keys(value).length !== expectedKeys.size ||
     Object.keys(value).some((key) => !expectedKeys.has(key)) ||
     typeof value.recipe_version_id !== "string" ||
     typeof value.saved !== "boolean" ||
+    typeof value.can_revise !== "boolean" ||
     (value.rating !== null && !isRating(value.rating))
   ) {
     throw new TypeError("Recipe Lab received an invalid private recipe state.");
   }
 
   return {
+    can_revise: value.can_revise,
     recipe_version_id: value.recipe_version_id,
     saved: value.saved,
     rating: value.rating,

@@ -21,6 +21,7 @@ describe("cook profile and private recipe libraries", () => {
     document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
     const draft = {
       id: DRAFT_ID,
+      draft_kind: "original",
       source_version_id: null,
       status: "active",
       revision: 2,
@@ -98,6 +99,7 @@ describe("cook profile and private recipe libraries", () => {
               kind: "draft",
               draft: {
                 id: DRAFT_ID,
+                draft_kind: "original",
                 source_version_id: null,
                 status: "active",
                 revision: 2,
@@ -139,6 +141,7 @@ describe("cook profile and private recipe libraries", () => {
     let draftReads = 0;
     const draft = {
       id: DRAFT_ID,
+      draft_kind: "original",
       source_version_id: null,
       status: "active",
       revision: 2,
@@ -227,6 +230,7 @@ describe("cook profile and private recipe libraries", () => {
     document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
     const draft = {
       id: DRAFT_ID,
+      draft_kind: "original",
       source_version_id: null,
       status: "active",
       revision: 2,

@@ -78,7 +78,7 @@ describe("public product language policy", () => {
 
     expect(home).toContain("Featured recipes");
     expect(detail).toContain("Based on");
-    expect(detail).toContain("Recipe family");
+    expect(detail).toContain("Recipe history");
     expect(similarity).toMatch(/your version/i);
     expect(similarity).toMatch(/similar recipes/i);
   });

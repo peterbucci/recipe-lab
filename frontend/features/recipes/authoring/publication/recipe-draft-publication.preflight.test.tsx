@@ -86,7 +86,9 @@ describe("RecipeDraftPublication", () => {
       expect(mocks.publish).toHaveBeenCalledWith(
         DRAFT_ID,
         {
+          declared_change_reason: null,
           revision: 4,
+          withdraw_predecessor: false,
           community_rules_accepted: true,
           content_rights_confirmed: true,
           duplicate_review: {
@@ -132,6 +134,44 @@ describe("RecipeDraftPublication", () => {
       expect.anything(),
     );
     expect(mocks.replace).toHaveBeenCalledWith(`/recipes/${RECIPE_ID}`);
+  });
+
+  it("publishes author-declared correction controls as revision intent", async () => {
+    mocks.preflight.mockResolvedValue(distinctPreflight());
+    mocks.publish.mockResolvedValue({
+      recipe_version_id: RECIPE_ID,
+      location: `/recipes/${RECIPE_ID}`,
+    });
+    renderPublication({ draftKind: "revision", sourceVersionId: RECIPE_ID });
+
+    expect(screen.getByText(/current public edition/i)).toBeVisible();
+    expect(screen.queryByText(/^Based on/i)).toBeNull();
+    expect(
+      screen.getByText(/declared by you.*not independently verified/i),
+    ).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("radio", { name: "I’m correcting a mistake" }),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /withdraw the previous edition/i,
+      }),
+    );
+    confirmPublication();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review and publish changes" }),
+    );
+
+    await waitFor(() => expect(mocks.publish).toHaveBeenCalledOnce());
+    expect(mocks.publish).toHaveBeenCalledWith(
+      DRAFT_ID,
+      expect.objectContaining({
+        declared_change_reason: "correction",
+        withdraw_predecessor: true,
+      }),
+      "publish-key",
+      expect.anything(),
+    );
   });
 
   it("keeps duplicate acknowledgement visible while publication is pending", async () => {

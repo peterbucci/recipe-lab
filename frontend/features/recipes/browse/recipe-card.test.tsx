@@ -51,7 +51,10 @@ describe("RecipeCard", () => {
     expect(metadata).toContainElement(within(card).getByText("8 servings"));
     expect(metadata).toContainElement(within(card).getByText("Published"));
     expect(actions).toContainElement(saveButton);
-    expect(recipeLink).toHaveAttribute("href", "/recipes/recipe-one");
+    expect(recipeLink).toHaveAttribute(
+      "href",
+      "/recipes/current/stable-recipe-one",
+    );
     expect(authorLink).toHaveAttribute("href", "/cooks/alice");
     expect(recipeLink).not.toContainElement(authorLink);
     expect(recipeLink).not.toContainElement(saveButton);

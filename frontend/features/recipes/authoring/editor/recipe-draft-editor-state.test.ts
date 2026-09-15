@@ -26,6 +26,7 @@ const CATEGORY = {
 };
 
 const detail: RecipeDraftDetail = {
+  draft_kind: "original",
   id: DRAFT_ID,
   source_version_id: null,
   status: "active",

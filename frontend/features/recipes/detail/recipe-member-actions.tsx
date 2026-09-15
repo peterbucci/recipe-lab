@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { isAbortError } from "../../../shared/api/abort-error";
 import {
@@ -16,18 +16,23 @@ import { RecipeInteractionPanel } from "./recipe-interaction-panel";
 import { RecipeViewTracker } from "./recipe-view-tracker";
 
 export interface RecipeEditActionState {
+  activeDrafts: Readonly<Record<RecipeEditIntent, boolean>>;
   errorMessage: string | null;
-  hasActiveDraft: boolean;
-  pending: boolean;
+  pendingIntent: RecipeEditIntent | null;
 }
+
+export type RecipeEditIntent = "adaptation" | "revision";
 
 interface RecipeMemberActionsProps {
   averageRating: number | null;
   editAction: RecipeEditActionState;
-  onRequestEdit: () => void;
+  onEditActionFocusRestored?: () => void;
+  onRequestEdit: (intent: RecipeEditIntent) => void;
+  publicPath: string;
   ratingCount: number;
   recipeVersionId: string;
   saveCount: number;
+  restoreEditActionFocus?: boolean;
 }
 
 type PrivateState =
@@ -79,20 +84,24 @@ function SignedOutToolbar({ primaryAction, onPrompt }: SignedOutToolbarProps) {
 export function RecipeMemberActions({
   averageRating,
   editAction,
+  onEditActionFocusRestored,
   onRequestEdit,
+  publicPath,
   ratingCount,
   recipeVersionId,
   saveCount,
+  restoreEditActionFocus = false,
 }: RecipeMemberActionsProps) {
   const { state: authState, refreshSession } = useAuthSession();
-  const returnTo = `/recipes/${encodeURIComponent(recipeVersionId)}`;
-  const forkHref = `${returnTo}/fork`;
+  const returnTo = publicPath;
+  const forkHref = `/recipes/${encodeURIComponent(recipeVersionId)}/fork`;
   const [privateState, setPrivateState] = useState<PrivateState>({
     phase: "idle",
   });
   const [retryCount, setRetryCount] = useState(0);
   const [authPrompt, setAuthPrompt] = useState<AuthPrompt>(null);
   const [displayedSaveCount, setDisplayedSaveCount] = useState(saveCount);
+  const editActionRef = useRef<HTMLButtonElement>(null);
 
   const memberId =
     authState.phase === "ready" && authState.session.status === "authenticated"
@@ -138,22 +147,70 @@ export function RecipeMemberActions({
     memberId !== null &&
     privateState.phase === "error" &&
     privateState.ownerId === memberId;
-  const authenticatedPrimaryAction = (
-    <LoadingButton
-      className="recipe-action-button recipe-action-button--primary"
-      type="button"
-      pending={editAction.pending}
-      pendingLabel="Preparing your version…"
-      onClick={onRequestEdit}
-    >
-      <BranchIcon />
-      <span>
-        {editAction.hasActiveDraft
-          ? "Continue your version"
-          : "Make your own version"}
-      </span>
-    </LoadingButton>
-  );
+  const editIntent: RecipeEditIntent | null =
+    viewerState === null
+      ? null
+      : viewerState.can_revise
+        ? "revision"
+        : "adaptation";
+  useEffect(() => {
+    if (
+      !restoreEditActionFocus ||
+      editIntent === null ||
+      editAction.pendingIntent !== null
+    ) {
+      return;
+    }
+    const action = editActionRef.current;
+    if (action === null || action.disabled) return;
+    action.focus();
+    if (document.activeElement === action) onEditActionFocusRestored?.();
+  }, [
+    editAction.pendingIntent,
+    editIntent,
+    onEditActionFocusRestored,
+    restoreEditActionFocus,
+  ]);
+  const authenticatedPrimaryAction =
+    editIntent === null ? (
+      <LoadingButton
+        ref={editActionRef}
+        id="recipe-edit-action"
+        className="recipe-action-button recipe-action-button--primary is-disabled"
+        type="button"
+        disabled
+        pending={false}
+        pendingLabel="Checking editing options…"
+      >
+        <BranchIcon />
+        <span>Checking editing options…</span>
+      </LoadingButton>
+    ) : (
+      <LoadingButton
+        ref={editActionRef}
+        id="recipe-edit-action"
+        className="recipe-action-button recipe-action-button--primary"
+        type="button"
+        pending={editAction.pendingIntent === editIntent}
+        pendingLabel={
+          editIntent === "revision"
+            ? "Opening recipe editor…"
+            : "Preparing your version…"
+        }
+        onClick={() => onRequestEdit(editIntent)}
+      >
+        <BranchIcon />
+        <span>
+          {editIntent === "revision"
+            ? editAction.activeDrafts.revision
+              ? "Continue editing"
+              : "Edit recipe"
+            : editAction.activeDrafts.adaptation
+              ? "Continue your version"
+              : "Make your own version"}
+        </span>
+      </LoadingButton>
+    );
 
   let controls;
   let statusContent = null;
@@ -170,7 +227,7 @@ export function RecipeMemberActions({
             pendingLabel="Checking account…"
           >
             <BranchIcon />
-            <span>Make your own version</span>
+            <span>Checking editing options…</span>
           </LoadingButton>
         }
       />
@@ -246,7 +303,7 @@ export function RecipeMemberActions({
     );
     statusContent = privateStateFailed ? (
       <>
-        <p>We couldn’t load your saved and rating state.</p>
+        <p>We couldn’t load your saved, rating, and editing options.</p>
         <button
           className="button button--secondary"
           type="button"
@@ -257,11 +314,11 @@ export function RecipeMemberActions({
             }
           }}
         >
-          Retry saved and rating state
+          Retry recipe options
         </button>
       </>
     ) : (
-      <InlineLoading label="Loading your saved and rating state…" />
+      <InlineLoading label="Loading your saved, rating, and editing options…" />
     );
   }
 

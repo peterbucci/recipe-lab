@@ -8,12 +8,19 @@ import {
   fromRecipeTransportError,
 } from "../shared/recipe-api-error";
 import type { RecipeDetail, RecipeDiff } from "../shared/recipe-contracts";
+import { parseRecipeHistory, type RecipeHistory } from "../shared/recipe-history";
 
 type RecipeDetailWire =
   operations["recipe_detail_api_recipes__recipe_version_id__get"]["responses"][200]["content"]["application/json"];
 
 type RecipeDiffWire =
   operations["recipe_diff_api_recipes__recipe_version_id__diff_get"]["responses"][200]["content"]["application/json"];
+
+type CurrentRecipeDetailWire =
+  operations["current_recipe_detail_api_recipes_current__recipe_id__get"]["responses"][200]["content"]["application/json"];
+
+type RecipeHistoryWire =
+  operations["recipe_history_api_recipes__recipe_version_id__history_get"]["responses"][200]["content"]["application/json"];
 
 export async function fetchRecipe(
   recipeVersionId: string,
@@ -25,6 +32,43 @@ export async function fetchRecipe(
     );
     const payload = response.data as RecipeDetailWire;
     return { ...payload, viewer_state: null } as RecipeDetail;
+  } catch (error) {
+    if (error instanceof ApiTransportError) {
+      if (error.status === 404) return null;
+      throw fromRecipeTransportError(error);
+    }
+    throw error;
+  }
+}
+
+export async function fetchCurrentRecipe(
+  recipeId: string,
+): Promise<RecipeDetail | null> {
+  try {
+    const response = await serverApiRequest(
+      `/api/recipes/current/${encodeURIComponent(recipeId)}`,
+      { errorContract: RECIPE_ERROR_CONTRACT, kind: "query", retry: "never" },
+    );
+    const payload = response.data as CurrentRecipeDetailWire;
+    return { ...payload, viewer_state: null } as RecipeDetail;
+  } catch (error) {
+    if (error instanceof ApiTransportError) {
+      if (error.status === 404) return null;
+      throw fromRecipeTransportError(error);
+    }
+    throw error;
+  }
+}
+
+export async function fetchRecipeHistory(
+  recipeVersionId: string,
+): Promise<RecipeHistory | null> {
+  try {
+    const response = await serverApiRequest(
+      `/api/recipes/${encodeURIComponent(recipeVersionId)}/history`,
+      { errorContract: RECIPE_ERROR_CONTRACT, kind: "query", retry: "never" },
+    );
+    return parseRecipeHistory(response.data as RecipeHistoryWire);
   } catch (error) {
     if (error instanceof ApiTransportError) {
       if (error.status === 404) return null;

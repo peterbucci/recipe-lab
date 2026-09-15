@@ -15,6 +15,12 @@ export type RecipeCardSummary = RecipePage["items"][number];
 
 export type RecipeSummary = components["schemas"]["RecipeSummary"];
 
+export type RecipeRelationKind = RecipeSummary["relation_kind"];
+export type RecipeDeclaredChangeReason = RecipeSummary["declared_change_reason"];
+export type RecipePublicationIdentity = Pick<RecipeSummary, "recipe_id">;
+
+export type RecipeVersionReference = NonNullable<RecipeSummary["parent"]>;
+
 type RecipeCategoriesOperation =
   operations["recipe_categories_api_recipe_categories_get"];
 
@@ -32,8 +38,6 @@ export type FeaturedRecipeList =
 export type PublicUserReference = Omit<RecipeSummary["author"], "handle"> & {
   readonly handle: string | null;
 };
-
-export type RecipeVersionReference = NonNullable<RecipeSummary["parent"]>;
 
 export interface ActivePublicUserReference extends PublicUserReference {
   handle: string;

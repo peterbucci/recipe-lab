@@ -2,9 +2,11 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
 
 import { expect, test } from "./acceptance-draft-isolation";
+import {
+  exactRecipeVersionId,
+  publicRecipeDetailPathPattern,
+} from "./acceptance-recipe";
 import { useAcceptanceMember } from "./acceptance-session";
-
-const recipePathPattern = /^\/recipes\/([^/]+)$/;
 
 async function activateWithKeyboard(
   page: Page,
@@ -42,14 +44,6 @@ async function expectNoAccessibilityViolations(page: Page): Promise<void> {
   expect(results.violations, JSON.stringify(summary, null, 2)).toEqual([]);
 }
 
-function recipeVersionId(page: Page): string {
-  const match = new URL(page.url()).pathname.match(recipePathPattern);
-  if (!match) {
-    throw new Error(`Could not read the recipe version ID from ${page.url()}.`);
-  }
-  return decodeURIComponent(match[1]);
-}
-
 test.describe("MVP acceptance", () => {
   test.describe.configure({ retries: 0 });
 
@@ -61,7 +55,9 @@ test.describe("MVP acceptance", () => {
     await useAcceptanceMember(page, "alice");
     await page.goto("/recipes?q=carrot");
     await Promise.all([
-      page.waitForURL((url) => recipePathPattern.test(url.pathname)),
+      page.waitForURL((url) =>
+        publicRecipeDetailPathPattern.test(url.pathname),
+      ),
       page
         .getByRole("article", { name: "Carrot Walnut Snack Cake", exact: true })
         .filter({ has: page.getByText("Original", { exact: true }) })
@@ -71,7 +67,7 @@ test.describe("MVP acceptance", () => {
     await expect(
       page.getByRole("heading", { name: "Carrot Walnut Snack Cake", level: 1 }),
     ).toBeVisible();
-    const sourceRecipeVersionId = recipeVersionId(page);
+    const sourceRecipeVersionId = await exactRecipeVersionId(page);
     await sourceDrafts.assertFresh("alice", sourceRecipeVersionId);
 
     const saveButton = page.getByRole("button", {

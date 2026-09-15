@@ -16,11 +16,12 @@ function storedAttempt(
   sourceVersionId: string | null,
   actionId: string,
 ) {
+  const draftKind = sourceVersionId === null ? "original" : "adaptation";
   return {
     actor_id: actorId,
     idempotency_key: actionId,
-    intent: recipeDraftCreationIntent(sourceVersionId),
-    version: 1 as const,
+    intent: recipeDraftCreationIntent(draftKind, sourceVersionId),
+    version: 2 as const,
   };
 }
 
@@ -33,13 +34,18 @@ describe("recipe draft creation attempts", () => {
   it("reuses the exact versioned actor-and-intent record", () => {
     const storageKey = recipeDraftCreationAttemptStorageKey(
       "member-a",
+      "adaptation",
       SOURCE_ID,
     );
     const attempt = storedAttempt("member-a", SOURCE_ID, ACTION_ID);
     window.sessionStorage.setItem(storageKey, JSON.stringify(attempt));
 
     expect(
-      getOrCreateRecipeDraftCreationAttempt("member-a", SOURCE_ID),
+      getOrCreateRecipeDraftCreationAttempt(
+        "member-a",
+        "adaptation",
+        SOURCE_ID,
+      ),
     ).toEqual(attempt);
     expect(JSON.parse(window.sessionStorage.getItem(storageKey) ?? "null")).toEqual(
       attempt,
@@ -48,19 +54,59 @@ describe("recipe draft creation attempts", () => {
 
   it("canonicalizes source casing and isolates actors and creation intents", () => {
     expect(
-      recipeDraftCreationAttemptStorageKey("member-a", SOURCE_ID.toUpperCase()),
-    ).toBe(recipeDraftCreationAttemptStorageKey("member-a", SOURCE_ID));
-    expect(recipeDraftCreationAttemptStorageKey("member-a", null)).not.toBe(
-      recipeDraftCreationAttemptStorageKey("member-a", SOURCE_ID),
+      recipeDraftCreationAttemptStorageKey(
+        "member-a",
+        "adaptation",
+        SOURCE_ID.toUpperCase(),
+      ),
+    ).toBe(
+      recipeDraftCreationAttemptStorageKey(
+        "member-a",
+        "adaptation",
+        SOURCE_ID,
+      ),
     );
-    expect(recipeDraftCreationAttemptStorageKey("member-b", SOURCE_ID)).not.toBe(
-      recipeDraftCreationAttemptStorageKey("member-a", SOURCE_ID),
+    expect(
+      recipeDraftCreationAttemptStorageKey("member-a", "original", null),
+    ).not.toBe(
+      recipeDraftCreationAttemptStorageKey(
+        "member-a",
+        "adaptation",
+        SOURCE_ID,
+      ),
+    );
+    expect(
+      recipeDraftCreationAttemptStorageKey(
+        "member-b",
+        "adaptation",
+        SOURCE_ID,
+      ),
+    ).not.toBe(
+      recipeDraftCreationAttemptStorageKey(
+        "member-a",
+        "adaptation",
+        SOURCE_ID,
+      ),
+    );
+    expect(
+      recipeDraftCreationAttemptStorageKey(
+        "member-a",
+        "revision",
+        SOURCE_ID,
+      ),
+    ).not.toBe(
+      recipeDraftCreationAttemptStorageKey(
+        "member-a",
+        "adaptation",
+        SOURCE_ID,
+      ),
     );
   });
 
   it("replaces an invalid record before any request can use it", () => {
     const storageKey = recipeDraftCreationAttemptStorageKey(
       "member-a",
+      "adaptation",
       SOURCE_ID,
     );
     window.sessionStorage.setItem(
@@ -71,6 +117,7 @@ describe("recipe draft creation attempts", () => {
 
     const attempt = getOrCreateRecipeDraftCreationAttempt(
       "member-a",
+      "adaptation",
       SOURCE_ID,
     );
 
@@ -85,6 +132,7 @@ describe("recipe draft creation attempts", () => {
   it("clears only the matching action after its draft is known", () => {
     const storageKey = recipeDraftCreationAttemptStorageKey(
       "member-a",
+      "adaptation",
       SOURCE_ID,
     );
     const current = storedAttempt("member-a", SOURCE_ID, ACTION_ID);
@@ -92,11 +140,12 @@ describe("recipe draft creation attempts", () => {
 
     clearRecipeDraftCreationAttempt(
       storedAttempt("member-a", SOURCE_ID, NEXT_ACTION_ID),
+      "adaptation",
       SOURCE_ID,
     );
     expect(window.sessionStorage.getItem(storageKey)).not.toBeNull();
 
-    clearRecipeDraftCreationAttempt(current, SOURCE_ID);
+    clearRecipeDraftCreationAttempt(current, "adaptation", SOURCE_ID);
     expect(window.sessionStorage.getItem(storageKey)).toBeNull();
   });
 });

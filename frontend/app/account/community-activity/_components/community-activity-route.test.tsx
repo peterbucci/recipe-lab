@@ -18,7 +18,10 @@ vi.mock("../../../../features/community/community-activity-timeline", async (imp
   const actual = await importOriginal<typeof import("../../../../features/community/community-activity-timeline")>();
   return {
     ...actual,
-    CommunityActivityTimeline: (props: { userId: string }) => {
+    CommunityActivityTimeline: (props: {
+      recipeHref: (recipe: { recipe_id: string }) => string;
+      userId: string;
+    }) => {
       apiMocks.timeline(props);
       return <actual.CommunityActivityTimeline {...props} />;
     },
@@ -85,7 +88,10 @@ describe("CommunityActivityRoute", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "No community activity yet" })).toBeVisible();
-    expect(apiMocks.timeline).toHaveBeenCalledWith({ userId: "viewer" });
+    expect(apiMocks.timeline).toHaveBeenCalledWith({
+      recipeHref: expect.any(Function),
+      userId: "viewer",
+    });
     expect(apiMocks.fetchMyCommunityActivity).toHaveBeenCalledTimes(1);
   });
 });

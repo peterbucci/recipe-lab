@@ -6,9 +6,17 @@ import {
 } from "../../shared/recipe-summary-parser";
 
 export type RecipeDraftStatus = "active";
+export type RecipeDraftKind = "original" | "adaptation" | "revision";
+
+export function isRecipeDraftKind(value: unknown): value is RecipeDraftKind {
+  return (
+    value === "original" || value === "adaptation" || value === "revision"
+  );
+}
 
 export interface RecipeDraftListItem {
   id: string;
+  draft_kind: RecipeDraftKind;
   source_version_id: string | null;
   status: RecipeDraftStatus;
   revision: number;
@@ -25,8 +33,11 @@ export function parseRecipeDraftListItem(
   if (
     !isRecipeRecord(value) ||
     !isRecipeUuid(value.id) ||
+    !isRecipeDraftKind(value.draft_kind) ||
     (value.source_version_id !== null &&
       !isRecipeUuid(value.source_version_id)) ||
+    ((value.draft_kind === "original") !==
+      (value.source_version_id === null)) ||
     value.status !== "active" ||
     !Number.isInteger(value.revision) ||
     (value.revision as number) < 1 ||

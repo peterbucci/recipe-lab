@@ -12,6 +12,7 @@ const LINEAGE_ID = "55555555-5555-4555-8555-555555555555";
 const DRAFT_ID = "66666666-6666-4666-8666-666666666666";
 const CATEGORY_ID = "77777777-7777-4777-8777-777777777777";
 const ORIGINAL_DRAFT_ID = "88888888-8888-4888-8888-888888888888";
+const STABLE_RECIPE_ID = "99999999-9999-4999-8999-999999999999";
 
 const cook = {
   id: COOK_ID,
@@ -20,9 +21,26 @@ const cook = {
 };
 
 const recipe = {
+  adaptation_source: {
+    id: PARENT_ID,
+    version_number: 1,
+    title: "Catalog carrot cake",
+    author: {
+      id: PARENT_COOK_ID,
+      handle: "recipe-lab",
+      display_name: "Recipe Lab catalog",
+    },
+  },
+  current_version: null,
+  declared_change_reason: null,
+  edition_number: 1,
   id: RECIPE_ID,
+  is_current: true,
   lineage_id: LINEAGE_ID,
   parent_version_id: PARENT_ID,
+  previous_version_id: null,
+  recipe_id: STABLE_RECIPE_ID,
+  relation_kind: "adaptation",
   version_number: 2,
   title: "Alice’s carrot cake",
   description: "A public fork.",
@@ -64,6 +82,7 @@ describe("private recipe library API", () => {
   it("requests one server-filtered My Recipes view with independent pagination", async () => {
     const draft = {
       id: DRAFT_ID,
+      draft_kind: "adaptation",
       source_version_id: PARENT_ID,
       status: "active",
       revision: 2,
@@ -76,6 +95,7 @@ describe("private recipe library API", () => {
     };
     const originalDraft = {
       id: ORIGINAL_DRAFT_ID,
+      draft_kind: "original",
       source_version_id: null,
       status: "active",
       revision: 2,
@@ -119,6 +139,7 @@ describe("private recipe library API", () => {
           kind: "draft",
           draft: {
             id: DRAFT_ID,
+            draft_kind: "adaptation",
             source_version_id: PARENT_ID,
             status: "active",
             revision: 2,
@@ -204,6 +225,7 @@ describe("private recipe library API", () => {
   it("rejects items that do not belong to the requested server-filtered view", async () => {
     const draft = {
       id: DRAFT_ID,
+      draft_kind: "original",
       source_version_id: null,
       status: "active",
       revision: 2,

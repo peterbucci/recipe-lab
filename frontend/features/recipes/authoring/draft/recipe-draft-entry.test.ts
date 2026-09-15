@@ -46,8 +46,8 @@ function attempt(idempotencyKey: string) {
   return {
     actor_id: "member-one",
     idempotency_key: idempotencyKey,
-    intent: `source:${SOURCE_ID}`,
-    version: 1 as const,
+    intent: `adaptation:source:${SOURCE_ID}`,
+    version: 2 as const,
   };
 }
 
@@ -66,11 +66,12 @@ describe("recipe draft entry", () => {
     });
 
     await expect(
-      startOrResumeRecipeDraft("member-one", SOURCE_ID),
+      startOrResumeRecipeDraft("member-one", "adaptation", SOURCE_ID),
     ).resolves.toBe(ACTIVE_DRAFT_ID);
 
     expect(mocks.findActiveRecipeDraftForSource).toHaveBeenCalledWith(
       SOURCE_ID,
+      "adaptation",
     );
     expect(mocks.createRecipeDraft).not.toHaveBeenCalled();
     expect(mocks.getOrCreateRecipeDraftCreationAttempt).not.toHaveBeenCalled();
@@ -78,6 +79,7 @@ describe("recipe draft entry", () => {
 
   it("fetches and returns the full detail for an existing active draft", async () => {
     const detail = {
+      draft_kind: "adaptation" as const,
       id: ACTIVE_DRAFT_ID,
       source_version_id: SOURCE_ID,
       status: "active" as const,
@@ -101,11 +103,12 @@ describe("recipe draft entry", () => {
     mocks.fetchRecipeDraft.mockResolvedValue(detail);
 
     await expect(
-      startOrResumeRecipeDraftDetail("member-one", SOURCE_ID),
+      startOrResumeRecipeDraftDetail("member-one", "adaptation", SOURCE_ID),
     ).resolves.toBe(detail);
 
     expect(mocks.findActiveRecipeDraftForSource).toHaveBeenCalledWith(
       SOURCE_ID,
+      "adaptation",
     );
     expect(mocks.fetchRecipeDraft).toHaveBeenCalledWith(ACTIVE_DRAFT_ID);
     expect(mocks.createRecipeDraft).not.toHaveBeenCalled();
@@ -116,12 +119,17 @@ describe("recipe draft entry", () => {
     mocks.createRecipeDraft.mockResolvedValue({ id: CREATED_DRAFT_ID });
 
     await expect(
-      startOrResumeRecipeDraft("member-one", SOURCE_ID),
+      startOrResumeRecipeDraft("member-one", "adaptation", SOURCE_ID),
     ).resolves.toBe(CREATED_DRAFT_ID);
 
-    expect(mocks.createRecipeDraft).toHaveBeenCalledWith(SOURCE_ID, FIRST_KEY);
+    expect(mocks.createRecipeDraft).toHaveBeenCalledWith(
+      "adaptation",
+      SOURCE_ID,
+      FIRST_KEY,
+    );
     expect(mocks.clearRecipeDraftCreationAttempt).toHaveBeenCalledWith(
       attempt(FIRST_KEY),
+      "adaptation",
       SOURCE_ID,
     );
   });
@@ -141,27 +149,31 @@ describe("recipe draft entry", () => {
       .mockResolvedValueOnce({ id: CREATED_DRAFT_ID });
 
     await expect(
-      startOrResumeRecipeDraft("member-one", SOURCE_ID),
+      startOrResumeRecipeDraft("member-one", "adaptation", SOURCE_ID),
     ).resolves.toBe(CREATED_DRAFT_ID);
 
     expect(mocks.createRecipeDraft).toHaveBeenNthCalledWith(
       1,
+      "adaptation",
       SOURCE_ID,
       FIRST_KEY,
     );
     expect(mocks.createRecipeDraft).toHaveBeenNthCalledWith(
       2,
+      "adaptation",
       SOURCE_ID,
       SECOND_KEY,
     );
     expect(mocks.clearRecipeDraftCreationAttempt).toHaveBeenNthCalledWith(
       1,
       attempt(FIRST_KEY),
+      "adaptation",
       SOURCE_ID,
     );
     expect(mocks.clearRecipeDraftCreationAttempt).toHaveBeenNthCalledWith(
       2,
       attempt(SECOND_KEY),
+      "adaptation",
       SOURCE_ID,
     );
   });

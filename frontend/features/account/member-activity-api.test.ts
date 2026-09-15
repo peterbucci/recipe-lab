@@ -12,6 +12,7 @@ const RECIPE_ID = "22222222-2222-4222-8222-222222222222";
 
 const DRAFT = {
   created_at: "2026-08-29T12:00:00Z",
+  draft_kind: "original",
   id: DRAFT_ID,
   ingredient_count: 3,
   instruction_count: 2,

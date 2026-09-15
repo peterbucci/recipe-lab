@@ -26,10 +26,45 @@ export async function reachWithKeyboard(page: Page, control: Locator): Promise<v
 }
 
 export function carrotRootCard(page: Page): Locator {
-  return page.getByRole("article", {
-    name: "Carrot Walnut Snack Cake",
-    exact: true,
-  });
+  return page
+    .getByRole("article", {
+      name: "Carrot Walnut Snack Cake",
+      exact: true,
+    })
+    .filter({ has: page.getByText("Original", { exact: true }) });
+}
+
+export async function exactRecipeVersionIdFromPage(page: Page): Promise<string> {
+  const pathname = new URL(page.url()).pathname;
+  const exactMatch = pathname.match(
+    /^\/recipes\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
+  );
+  if (exactMatch) return decodeURIComponent(exactMatch[1]);
+
+  const currentMatch = pathname.match(
+    /^\/recipes\/current\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
+  );
+  if (!currentMatch) {
+    throw new Error("Could not identify the open recipe route.");
+  }
+  const stableRecipeId = decodeURIComponent(currentMatch[1]);
+  const response = await page.request.get(
+    `/api/recipes/current/${encodeURIComponent(stableRecipeId)}`,
+  );
+  if (!response.ok()) {
+    throw new Error(
+      `Could not resolve the current recipe version (status ${response.status()}).`,
+    );
+  }
+  const body = (await response.json()) as {
+    id?: unknown;
+    is_current?: unknown;
+    recipe_id?: unknown;
+  };
+  expect(body.recipe_id).toBe(stableRecipeId);
+  expect(body.is_current).toBe(true);
+  expect(body.id).toMatch(/^[0-9a-f-]{36}$/i);
+  return body.id as string;
 }
 
 export async function openCarrotRoot(page: Page): Promise<string> {
@@ -41,11 +76,7 @@ export async function openCarrotRoot(page: Page): Promise<string> {
     page.getByRole("heading", { name: "Carrot Walnut Snack Cake", level: 1 }),
   ).toBeVisible();
 
-  const match = new URL(page.url()).pathname.match(/^\/recipes\/([^/]+)$/);
-  if (!match) {
-    throw new Error("Could not read the current recipe version identifier.");
-  }
-  return decodeURIComponent(match[1]);
+  return exactRecipeVersionIdFromPage(page);
 }
 
 export async function expectCarrotComparisonToShowCompleteRecipe(
@@ -233,7 +264,7 @@ export async function expectCarrotComparisonToShowCompleteRecipe(
     "recipe-tab-family",
   );
   await expect(familyPanel).toBeHidden();
-  await expect(familyPanel).toContainText("Recipe family");
+  await expect(familyPanel).toContainText("Recipe history");
 
   await expect(
     page.getByRole("navigation", { name: "Recipe views" }),

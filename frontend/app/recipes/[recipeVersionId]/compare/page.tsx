@@ -8,13 +8,13 @@ import {
 import {
   fetchRecipe,
   fetchRecipeDiff,
+  fetchRecipeHistory,
 } from "../../../../features/recipes/detail/recipe-detail-server-api";
-import { fetchRecipePage } from "../../../../features/recipes/browse/recipe-browse-server-api";
 import type {
-  RecipeCardSummary,
   RecipeDetail,
   RecipeDiff,
 } from "../../../../features/recipes/shared/recipe-contracts";
+import type { RecipeHistory } from "../../../../features/recipes/shared/recipe-history";
 import { isRecipeVersionId } from "../../../../features/recipes/shared/recipe-id";
 import { buildRecipeComparisonModel } from "../../../../features/recipes/detail/recipe-comparison-model";
 import { RecipeDiffView } from "../../../../features/recipes/detail/recipe-diff-view";
@@ -97,17 +97,18 @@ export default async function RecipeComparePage({
   }
 
   const comparison = buildRecipeComparisonModel(recipe, diff);
-  let familyVersions: RecipeCardSummary[] = [];
+  let history: RecipeHistory | null = null;
   try {
-    const familyPage = await fetchRecipePage({
-      lineageId: recipe.lineage_id,
-      pageSize: 100,
-      sort: "title",
-    });
-    familyVersions = [...familyPage.items];
+    history = await fetchRecipeHistory(recipe.id);
+    if (
+      history !== null &&
+      (history.selected_version_id.toLowerCase() !== recipe.id.toLowerCase() ||
+        history.recipe_id.toLowerCase() !== recipe.recipe_id.toLowerCase())
+    ) {
+      history = null;
+    }
   } catch {
-    // The detail response still carries bounded parent/current/children
-    // context when the full lineage browse is unavailable.
+    // Comparison remains readable when optional public history fails.
   }
 
   return (
@@ -133,7 +134,7 @@ export default async function RecipeComparePage({
       </nav>
       <RecipeDiffView
         comparison={comparison}
-        familyVersions={familyVersions}
+        history={history}
       />
     </main>
   );

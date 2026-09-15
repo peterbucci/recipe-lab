@@ -153,7 +153,13 @@ function DraftCard({ draft }: { draft: RecipeDraftListItem }) {
           <h3 id={`member-home-draft-${draft.id}`}>
             {draft.title.trim() || "Untitled recipe"}
           </h3>
-          <span>{draft.source_version_id ? "Forked recipe" : "Original recipe"}</span>
+          <span>
+            {draft.draft_kind === "revision"
+              ? "Recipe changes"
+              : draft.draft_kind === "adaptation"
+                ? "Adapted recipe"
+                : "Original recipe"}
+          </span>
           <small>
             Edited{" "}
             <time dateTime={draft.updated_at} title={edited?.absoluteLabel}>

@@ -6,7 +6,6 @@ import {
   cleanupRecipeLibraryViewMocks,
   DRAFT_ID,
   fork,
-  FORK_ID,
   ORIGINAL_DRAFT_ID,
   ROOT_ID,
 } from "./recipe-library-test-support";
@@ -24,6 +23,7 @@ describe("cook profile and private recipe libraries", () => {
             description: "A silky tomato soup with a bright basil finish.",
             draft: {
               id: DRAFT_ID,
+              draft_kind: "adaptation",
               source_version_id: ROOT_ID,
               status: "active",
               revision: 2,
@@ -40,6 +40,7 @@ describe("cook profile and private recipe libraries", () => {
             description: null,
             draft: {
               id: ORIGINAL_DRAFT_ID,
+              draft_kind: "original",
               source_version_id: null,
               status: "active",
               revision: 1,
@@ -195,12 +196,12 @@ describe("cook profile and private recipe libraries", () => {
       "member-recipe-card--published",
     );
     expect(
-      within(publishedCard).getByText("Version", { exact: true }),
+      within(publishedCard).getByText("Adaptation", { exact: true }),
     ).toBeVisible();
     expect(within(publishedCard).queryByText("4 servings")).toBeNull();
     expect(
       within(publishedCard).getByRole("link", { name: "View recipe" }),
-    ).toHaveAttribute("href", `/recipes/${FORK_ID}`);
+    ).toHaveAttribute("href", `/recipes/current/${fork().recipe_id}`);
     expect(
       within(list).getByRole("link", { name: "Creamy tomato soup" }),
     ).toBeVisible();

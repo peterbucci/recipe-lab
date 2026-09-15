@@ -29,6 +29,7 @@ const SOURCE_ID = "11111111-1111-4111-8111-111111111111";
 const DRAFT_ID = "22222222-2222-4222-8222-222222222222";
 
 const detail: RecipeDraftDetail = {
+  draft_kind: "adaptation",
   id: DRAFT_ID,
   source_version_id: SOURCE_ID,
   status: "active",
@@ -48,6 +49,7 @@ const detail: RecipeDraftDetail = {
 };
 
 const activeDraft: RecipeDraftListItem = {
+  draft_kind: "adaptation",
   id: DRAFT_ID,
   source_version_id: SOURCE_ID,
   status: "active",
@@ -89,10 +91,11 @@ describe("recipe draft editor entry recovery", () => {
     mocks.fetchRecipeDraft.mockResolvedValue(detail);
 
     await expect(
-      prepareRecipeDraftEditorEntry("member-one", SOURCE_ID),
+      prepareRecipeDraftEditorEntry("member-one", SOURCE_ID, "adaptation"),
     ).rejects.toBeInstanceOf(RecipeDraftEditorEntryError);
     expect(mocks.createRecipeDraft).toHaveBeenCalledTimes(1);
     expect(mocks.createRecipeDraft).toHaveBeenCalledWith(
+      "adaptation",
       SOURCE_ID,
       expect.any(String),
     );
@@ -100,7 +103,7 @@ describe("recipe draft editor entry recovery", () => {
     catalogsAvailable = true;
 
     await expect(
-      prepareRecipeDraftEditorEntry("member-one", SOURCE_ID),
+      prepareRecipeDraftEditorEntry("member-one", SOURCE_ID, "adaptation"),
     ).resolves.toEqual({
       actionTypes: [],
       categories: [],

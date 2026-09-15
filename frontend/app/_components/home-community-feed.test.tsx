@@ -59,7 +59,20 @@ beforeEach(() => {
     items: [
       recipe(),
       recipe({
+        adaptation_source: {
+          id: "11111111-1111-4111-8111-111111111111",
+          version_number: 1,
+          title: "Garden Toast",
+          author: {
+            id: "33333333-3333-4333-8333-333333333333",
+            handle: "alice-cook",
+            display_name: "Alice Cook",
+          },
+        },
+        edition_number: 1,
         id: "44444444-4444-4444-8444-444444444444",
+        recipe_id: "55555555-5555-4555-8555-555555555555",
+        relation_kind: "adaptation",
         parent_version_id: "11111111-1111-4111-8111-111111111111",
         parent: {
           id: "11111111-1111-4111-8111-111111111111",
@@ -91,7 +104,7 @@ describe("HomeCommunityFeed", () => {
     expect(heading).toHaveClass("home-content-section__title");
     expect(heading).not.toHaveClass("eyebrow");
     expect(await within(region).findByText(/published an original recipe/i)).toBeVisible();
-    expect(within(region).getByText(/published a new version/i)).toBeVisible();
+    expect(within(region).getByText(/published a new adaptation/i)).toBeVisible();
     expect(within(region).getAllByRole("link", { name: "Alice Cook" })[0]).toHaveAttribute(
       "href",
       "/cooks/alice-cook",

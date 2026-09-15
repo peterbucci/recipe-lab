@@ -20,6 +20,7 @@ const ACTION_ID = "33333333-3333-4333-8333-333333333333";
 const CATEGORY_ID = "44444444-4444-4444-8444-444444444444";
 
 const blankDetail = {
+  draft_kind: "original",
   id: DRAFT_ID,
   source_version_id: null,
   status: "active",
@@ -41,6 +42,7 @@ const blankDetail = {
 };
 
 const sourcedSummary = {
+  draft_kind: "adaptation",
   id: DRAFT_ID,
   source_version_id: SOURCE_ID,
   status: "active",
@@ -110,6 +112,7 @@ describe("private recipe draft API", () => {
     ).toThrow(RecipeDraftApiError);
     expect(() => parseRecipeDraftPage({
       items: [{
+        draft_kind: "original",
         id: DRAFT_ID,
         source_version_id: null,
         status: "active",
@@ -140,10 +143,10 @@ describe("private recipe draft API", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      findActiveRecipeDraftForSource(SOURCE_ID.toUpperCase()),
+      findActiveRecipeDraftForSource(SOURCE_ID.toUpperCase(), "adaptation"),
     ).resolves.toEqual(sourcedSummary);
     expect(fetchMock).toHaveBeenCalledWith(
-      `/api/recipe-drafts?page=1&page_size=1&source_version_id=${SOURCE_ID}`,
+      `/api/recipe-drafts?page=1&page_size=1&draft_kind=adaptation&source_version_id=${SOURCE_ID}`,
       expect.objectContaining({
         cache: "no-store",
         credentials: "same-origin",
@@ -166,7 +169,7 @@ describe("private recipe draft API", () => {
     );
 
     await expect(
-      findActiveRecipeDraftForSource(SOURCE_ID),
+      findActiveRecipeDraftForSource(SOURCE_ID, "adaptation"),
     ).resolves.toBeNull();
   });
 
@@ -175,7 +178,7 @@ describe("private recipe draft API", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      findActiveRecipeDraftForSource("not-a-recipe-id"),
+      findActiveRecipeDraftForSource("not-a-recipe-id", "adaptation"),
     ).rejects.toMatchObject({
       code: "invalid_identifier",
       status: 0,
@@ -198,7 +201,7 @@ describe("private recipe draft API", () => {
     );
 
     await expect(
-      findActiveRecipeDraftForSource(SOURCE_ID),
+      findActiveRecipeDraftForSource(SOURCE_ID, "adaptation"),
     ).rejects.toMatchObject({
       code: "invalid_recipe_draft_response",
       status: 502,
@@ -230,7 +233,7 @@ describe("private recipe draft API", () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(Response.json(blankDetail, { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(createRecipeDraft(null, ACTION_ID)).resolves.toMatchObject({ id: DRAFT_ID });
+    await expect(createRecipeDraft("original", null, ACTION_ID)).resolves.toMatchObject({ id: DRAFT_ID });
     expect(fetchMock).toHaveBeenCalledOnce();
     const [target, init] = fetchMock.mock.calls[0];
     const headers = new Headers(init?.headers);
@@ -239,7 +242,10 @@ describe("private recipe draft API", () => {
       method: "POST",
       cache: "no-store",
       credentials: "same-origin",
-      body: JSON.stringify({ source_version_id: null }),
+      body: JSON.stringify({
+        draft_kind: "original",
+        source_version_id: null,
+      }),
     });
     expect(headers.get("Accept")).toBe("application/json");
     expect(headers.get("Content-Type")).toBe("application/json");
@@ -248,9 +254,13 @@ describe("private recipe draft API", () => {
   });
 
   it("keeps blank and source fingerprints distinct while canonicalizing UUID casing", async () => {
-    const blank = await recipeDraftCreationRequestFingerprint(null);
-    const source = await recipeDraftCreationRequestFingerprint(SOURCE_ID);
+    const blank = await recipeDraftCreationRequestFingerprint("original", null);
+    const source = await recipeDraftCreationRequestFingerprint(
+      "adaptation",
+      SOURCE_ID,
+    );
     const uppercaseSource = await recipeDraftCreationRequestFingerprint(
+      "adaptation",
       SOURCE_ID.toUpperCase(),
     );
 
@@ -264,16 +274,25 @@ describe("private recipe draft API", () => {
     document.cookie = "recipe_lab_csrf=test-token; path=/";
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json(
-        { ...blankDetail, source_version_id: SOURCE_ID },
+        {
+          ...blankDetail,
+          draft_kind: "adaptation",
+          source_version_id: SOURCE_ID,
+        },
         { status: 201 },
       ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await createRecipeDraft(SOURCE_ID.toUpperCase(), ACTION_ID);
+    await createRecipeDraft("adaptation", SOURCE_ID.toUpperCase(), ACTION_ID);
 
     const [, init] = fetchMock.mock.calls[0];
-    expect(init?.body).toBe(JSON.stringify({ source_version_id: SOURCE_ID }));
+    expect(init?.body).toBe(
+      JSON.stringify({
+        draft_kind: "adaptation",
+        source_version_id: SOURCE_ID,
+      }),
+    );
     expect(new Headers(init?.headers).get("Idempotency-Key")).toBe(ACTION_ID);
   });
 
@@ -285,7 +304,7 @@ describe("private recipe draft API", () => {
       .mockResolvedValueOnce(Response.json(blankDetail, { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const lost = await createRecipeDraft(null, ACTION_ID).catch(
+    const lost = await createRecipeDraft("original", null, ACTION_ID).catch(
       (reason: unknown) => reason,
     );
     expect(lost).toBeInstanceOf(RecipeDraftApiError);
@@ -294,7 +313,7 @@ describe("private recipe draft API", () => {
       outcome: "unknown",
       status: 0,
     });
-    await expect(createRecipeDraft(null, ACTION_ID)).resolves.toMatchObject({
+    await expect(createRecipeDraft("original", null, ACTION_ID)).resolves.toMatchObject({
       id: DRAFT_ID,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -312,7 +331,7 @@ describe("private recipe draft API", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(createRecipeDraft(null, ACTION_ID)).rejects.toMatchObject({
+    await expect(createRecipeDraft("original", null, ACTION_ID)).rejects.toMatchObject({
       code: "invalid_recipe_draft_response",
       outcome: "unknown",
       status: 502,
@@ -326,13 +345,17 @@ describe("private recipe draft API", () => {
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(
         Response.json(
-          { ...blankDetail, source_version_id: SOURCE_ID },
+          {
+            ...blankDetail,
+            draft_kind: "adaptation",
+            source_version_id: SOURCE_ID,
+          },
           { status: 201 },
         ),
       ),
     );
 
-    await expect(createRecipeDraft(null, ACTION_ID)).rejects.toMatchObject({
+    await expect(createRecipeDraft("original", null, ACTION_ID)).rejects.toMatchObject({
       code: "invalid_recipe_draft_response",
       outcome: "unknown",
     });
@@ -342,7 +365,7 @@ describe("private recipe draft API", () => {
     const fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(createRecipeDraft(null, "not-a-uuid")).rejects.toMatchObject({
+    await expect(createRecipeDraft("original", null, "not-a-uuid")).rejects.toMatchObject({
       code: "invalid_idempotency_key",
       outcome: "rejected",
       status: 0,

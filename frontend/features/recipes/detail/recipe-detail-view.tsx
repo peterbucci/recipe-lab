@@ -6,10 +6,9 @@ import {
   formatRecipeDuration,
   formatServings,
 } from "../shared/recipe-format";
-import type {
-  RecipeCardSummary,
-  RecipeDetail,
-} from "../shared/recipe-contracts";
+import type { RecipeDetail } from "../shared/recipe-contracts";
+import type { RecipeHistory } from "../shared/recipe-history";
+import { currentRecipePath, exactRecipePath } from "../shared/recipe-paths";
 import { relativeTimeLabel } from "../../../shared/time/relative-time";
 import { CookFollowControl } from "../../community/cook-follow-control";
 import { PublicCookAttribution } from "../../community/public-cook-attribution";
@@ -22,14 +21,18 @@ import { RecipeInstructionsPanel } from "./recipe-instructions-panel";
 import {
   RecipeMemberActions,
   type RecipeEditActionState,
+  type RecipeEditIntent,
 } from "./recipe-member-actions";
 import { RecipeReportAccess } from "../../moderation/reporting/recipe-report-access";
 
 interface RecipeDetailViewProps {
   editAction: RecipeEditActionState;
-  familyVersions?: RecipeCardSummary[];
-  onRequestEdit: () => void;
+  history?: RecipeHistory | null;
+  onEditActionFocusRestored?: () => void;
+  onRequestEdit: (intent: RecipeEditIntent) => void;
+  publicPath: string;
   recipe: RecipeDetail;
+  restoreEditActionFocus?: boolean;
 }
 
 function authorInitial(displayName: string): string {
@@ -38,17 +41,41 @@ function authorInitial(displayName: string): string {
 
 export function RecipeDetailView({
   editAction,
-  familyVersions = [],
+  history = null,
+  onEditActionFocusRestored,
   onRequestEdit,
+  publicPath,
   recipe,
+  restoreEditActionFocus = false,
 }: RecipeDetailViewProps) {
-  const isVariation = recipe.parent_version_id !== null;
+  const firstEdition = history?.editions.find(
+    (edition) =>
+      edition.recipe_id === recipe.recipe_id && edition.edition_number === 1,
+  );
+  const isAdaptation =
+    recipe.relation_kind === "adaptation" ||
+    recipe.adaptation_source !== null ||
+    firstEdition?.relation_kind === "adaptation";
+  const adaptationSource = recipe.adaptation_source ?? recipe.parent;
   const publication = relativeTimeLabel(
     recipe.published_at ?? recipe.created_at,
   );
 
   return (
     <article className="recipe-detail">
+      {!recipe.is_current ? (
+        <aside
+          className="recipe-detail__version-notice"
+          aria-label="Recipe version notice"
+        >
+          <p>You’re viewing an older published version of this recipe.</p>
+          {recipe.current_version ? (
+            <Link href={currentRecipePath(recipe.recipe_id)}>
+              View the current version
+            </Link>
+          ) : null}
+        </aside>
+      ) : null}
       <header className="recipe-detail__header">
         <div className="recipe-detail__hero">
           <RecipeArtwork
@@ -59,7 +86,11 @@ export function RecipeDetailView({
             <div className="recipe-detail__label-row">
               <div className="recipe-detail__publication-meta">
                 <p className="eyebrow recipe-detail__version-badge">
-                  {isVariation ? "Version" : "Original"}
+                  {isAdaptation
+                    ? `Adaptation · Published version ${recipe.edition_number}`
+                    : recipe.edition_number > 1
+                      ? `Published version ${recipe.edition_number}`
+                      : "Original"}
                 </p>
                 {publication ? (
                   <time
@@ -74,16 +105,16 @@ export function RecipeDetailView({
               <RecipeReportAccess recipeVersionId={recipe.id} />
             </div>
             <h1>{recipe.title}</h1>
-            {recipe.parent ? (
+            {adaptationSource ? (
               <p className="recipe-detail__parent-context">
                 Based on{" "}
-                <Link href={`/recipes/${recipe.parent.id}`}>
-                  {recipe.parent.title}
+                <Link href={exactRecipePath(adaptationSource.id)}>
+                  {adaptationSource.title}
                 </Link>
                 {" by "}
-                <PublicCookAttribution author={recipe.parent.author} />
+                <PublicCookAttribution author={adaptationSource.author} />
               </p>
-            ) : isVariation ? (
+            ) : isAdaptation ? (
               <p className="recipe-detail__parent-context">
                 Source unavailable
               </p>
@@ -116,7 +147,7 @@ export function RecipeDetailView({
                   displayName={recipe.author.display_name}
                   handle={recipe.author.handle}
                   initialFollowerCount={0}
-                  returnTo={`/recipes/${encodeURIComponent(recipe.id)}`}
+                  returnTo={publicPath}
                   showCount={false}
                   variant="inline"
                 />
@@ -150,10 +181,13 @@ export function RecipeDetailView({
                 averageRating={recipe.average_rating}
                 key={`${recipe.id}:${recipe.save_count}`}
                 editAction={editAction}
+                onEditActionFocusRestored={onEditActionFocusRestored}
                 onRequestEdit={onRequestEdit}
+                publicPath={publicPath}
                 ratingCount={recipe.rating_count}
                 recipeVersionId={recipe.id}
                 saveCount={recipe.save_count}
+                restoreEditActionFocus={restoreEditActionFocus}
               />
             </div>
           </div>
@@ -225,7 +259,11 @@ export function RecipeDetailView({
           </section>
         }
         family={
-          <RecipeFamilyNavigator recipe={recipe} versions={familyVersions} />
+          <RecipeFamilyNavigator
+            currentPath={publicPath}
+            history={history}
+            recipe={recipe}
+          />
         }
       />
     </article>

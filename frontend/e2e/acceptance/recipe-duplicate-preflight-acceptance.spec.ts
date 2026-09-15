@@ -2,6 +2,10 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
 import { expect, test, type SourceDraftScope } from "./acceptance-draft-isolation";
+import {
+  exactRecipeVersionId,
+  publicRecipeDetailPathPattern,
+} from "./acceptance-recipe";
 import { useAcceptanceMember } from "./acceptance-session";
 
 async function confirmPublicationRequirements(page: Page): Promise<void> {
@@ -18,8 +22,6 @@ async function confirmPublicationRequirements(page: Page): Promise<void> {
 const PREFLIGHT_ID = "77777777-7777-4777-8777-777777777777";
 const RESULT_DIGEST = "a".repeat(64);
 const PUBLIC_CANDIDATE_TITLE = "Lower-Sugar Pecan Carrot Cake";
-const recipePathPattern = /^\/recipes\/([0-9a-f-]+)$/i;
-
 async function publicRecipeVersionId(
   page: Page,
   title: string,
@@ -29,15 +31,12 @@ async function publicRecipeVersionId(
   const href = await page
     .getByRole("link", { name: title, exact: true })
     .getAttribute("href");
-  const match = href
-    ? new URL(href, page.url()).pathname.match(recipePathPattern)
-    : null;
-  if (!match?.[1]) {
+  if (!href) {
     throw new Error(
       `Could not resolve the public recipe version for ${title}.`,
     );
   }
-  return match[1];
+  return exactRecipeVersionId(page, href);
 }
 
 async function openCarrotFork(page: Page, sourceDrafts: SourceDraftScope): Promise<string> {
@@ -50,14 +49,15 @@ async function openCarrotFork(page: Page, sourceDrafts: SourceDraftScope): Promi
     .filter({ has: page.getByText("Original", { exact: true }) });
   await expect(rootRecipeCard).toHaveCount(1);
   await Promise.all([
-    page.waitForURL(/\/recipes\/[0-9a-f-]{36}$/i),
+    page.waitForURL((url) =>
+      publicRecipeDetailPathPattern.test(url.pathname),
+    ),
     rootRecipeCard
       .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
       .click(),
   ]);
   const sourceRecipeUrl = page.url();
-  const sourceVersionId = new URL(sourceRecipeUrl).pathname.split("/").at(-1);
-  if (!sourceVersionId) throw new Error("Could not resolve the source recipe.");
+  const sourceVersionId = await exactRecipeVersionId(page, sourceRecipeUrl);
   await sourceDrafts.assertFresh("alice", sourceVersionId);
   await page
     .getByRole("button", { name: "Make your own version", exact: true })
@@ -71,6 +71,7 @@ async function openCarrotFork(page: Page, sourceDrafts: SourceDraftScope): Promi
     const query = new URLSearchParams({
       page: "1",
       page_size: "1",
+      draft_kind: "adaptation",
       source_version_id: sourceId,
     });
     const response = await fetch(`/api/recipe-drafts?${query.toString()}`, {

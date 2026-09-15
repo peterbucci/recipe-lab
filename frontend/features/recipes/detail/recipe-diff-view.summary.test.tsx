@@ -152,7 +152,7 @@ describe("RecipeDiffView", () => {
     const familyPanel = screen.getByRole("tabpanel", { name: "Family" });
     expect(familyTab).toHaveAttribute("aria-selected", "true");
     expect(
-      within(familyPanel).getByRole("heading", { name: "Recipe family" }),
+      within(familyPanel).getByRole("heading", { name: "Recipe history" }),
     ).toBeVisible();
     expect(
       within(familyPanel).getByRole("link", {

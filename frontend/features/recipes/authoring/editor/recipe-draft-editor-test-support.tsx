@@ -60,6 +60,7 @@ export const category = {
   slug: "quick-easy",
 };
 export const detail: RecipeDraftDetail = {
+  draft_kind: "original",
   id: DRAFT_ID,
   source_version_id: null,
   status: "active",
@@ -135,9 +136,17 @@ export function publicSourceRecipe(
   title = "Public tomato soup",
 ): RecipeDetail {
   return {
+    adaptation_source: null,
+    current_version: null,
+    declared_change_reason: null,
+    edition_number: 1,
     id,
+    is_current: true,
     lineage_id: "33333333-3333-4333-8333-333333333333",
     parent_version_id: null,
+    previous_version_id: null,
+    recipe_id: "44444444-4444-4444-8444-444444444444",
+    relation_kind: "original",
     version_number: 1,
     title,
     description: "The public source recipe.",
@@ -145,7 +154,7 @@ export function publicSourceRecipe(
     created_at: "2026-08-20T12:00:00Z",
     published_at: "2026-08-20T12:00:00Z",
     author: {
-      id: "source-author",
+      id: "55555555-5555-4555-8555-555555555555",
       display_name: "Source Cook",
       handle: "source-cook",
     },
@@ -184,7 +193,7 @@ export function renderEditor(
           draftId={DRAFT_ID}
           embedded={embedded}
           familyRecipe={familyRecipe}
-          familyVersions={familyRecipe ? [] : undefined}
+          familyHistory={familyRecipe ? null : undefined}
           initialCategories={initialDetail === undefined ? undefined : []}
           initialDetail={initialDetail}
           measurementUnits={[]}

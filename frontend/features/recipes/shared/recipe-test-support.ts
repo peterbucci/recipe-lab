@@ -12,8 +12,16 @@ export function buildRecipeSummary(
     categories: [],
     created_at: "2026-08-20T00:00:00Z",
     description: null,
+    recipe_id: "stable-recipe-one",
     id: "recipe-one",
     lineage_id: "lineage-one",
+    edition_number: 1,
+    relation_kind: "original",
+    previous_version_id: null,
+    declared_change_reason: null,
+    is_current: true,
+    current_version: null,
+    adaptation_source: null,
     parent: null,
     parent_version_id: null,
     published_at: "2026-08-21T00:00:00Z",
@@ -43,6 +51,7 @@ export const FORK_ID = "44444444-4444-4444-8444-444444444444";
 export const LINEAGE_ID = "55555555-5555-4555-8555-555555555555";
 export const DRAFT_ID = "66666666-6666-4666-8666-666666666666";
 export const ORIGINAL_DRAFT_ID = "77777777-7777-4777-8777-777777777777";
+export const STABLE_RECIPE_ID = "99999999-9999-4999-8999-999999999999";
 
 export const alice = {
   id: ALICE_ID,
@@ -61,6 +70,7 @@ export function original(
 ): RecipeCardSummary {
   return buildRecipeCardSummary({
     id: ROOT_ID,
+    recipe_id: STABLE_RECIPE_ID,
     lineage_id: LINEAGE_ID,
     title: "Alice’s tomato soup",
     description: "A bright soup.",
@@ -77,8 +87,16 @@ export function original(
 
 export function fork(): RecipeCardSummary {
   return original({
+    adaptation_source: {
+      id: ROOT_ID,
+      version_number: 1,
+      title: "Catalog tomato soup",
+      author: catalog,
+    },
     id: FORK_ID,
+    recipe_id: "88888888-8888-4888-8888-888888888888",
     parent_version_id: ROOT_ID,
+    relation_kind: "adaptation",
     version_number: 2,
     title: "Creamy tomato soup",
     average_rating: null,

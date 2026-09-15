@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   activateWithKeyboard,
+  exactRecipeVersionIdFromPage,
   openCarrotRoot,
   reachWithKeyboard,
 } from "./home-support";
@@ -10,6 +11,7 @@ test("identifies a source and starts a private version with the keyboard on a ph
   page,
 }) => {
   const draftId = "99999999-9999-4999-8999-999999999996";
+  const expectedSourceVersionId = "1494c532-7bec-5208-8bf7-e5f48057697b";
   await page.setViewportSize({ width: 390, height: 844 });
   await page.context().addCookies([
     {
@@ -34,6 +36,87 @@ test("identifies a source and starts a private version with the keyboard on a ph
       }),
     });
   });
+  await page.route(/\/api\/recipes\/viewer-states(?:\?.*)?$/, async (route) => {
+    const recipeVersionIds = new URL(route.request().url()).searchParams.getAll(
+      "recipe_version_id",
+    );
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: recipeVersionIds.map((recipeVersionId) => ({
+          recipe_version_id: recipeVersionId,
+          saved: false,
+          rating: null,
+          can_revise: false,
+        })),
+      }),
+    });
+  });
+  const publicDetailResponse = await page.request.get(
+    `/api/recipes/${expectedSourceVersionId}`,
+  );
+  expect(publicDetailResponse.ok()).toBe(true);
+  const publicDetail = (await publicDetailResponse.json()) as Record<
+    string,
+    unknown
+  >;
+  await page.route(
+    `**/api/recipes/${expectedSourceVersionId}`,
+    async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ...publicDetail,
+          viewer_state: {
+            recipe_version_id: expectedSourceVersionId,
+            saved: false,
+            rating: null,
+            can_revise: false,
+          },
+        }),
+      });
+    },
+  );
+  await page.route(/\/api\/recipes\/[0-9a-f-]+\/view$/i, async (route) => {
+    await route.fulfill({ status: 204 });
+  });
+  await page.route(/\/api\/recipe-drafts(?:\?.*)?$/, async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: [],
+        page: 1,
+        page_size: 1,
+        total: 0,
+        total_pages: 0,
+      }),
+    });
+  });
+  await page.route(
+    "**/api/cooks/recipe-lab-catalog/follow",
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          cook_id: "16746db2-8776-5937-856c-252b72442671",
+          following: false,
+          follower_count: 0,
+        }),
+      });
+    },
+  );
 
   await page.goto("/recipes?q=carrot");
   await page
@@ -52,12 +135,12 @@ test("identifies a source and starts a private version with the keyboard on a ph
     "Based on Carrot Walnut Snack Cake by Recipe Lab Demo Catalog",
   );
 
-  const sourceVersionId = new URL(page.url()).pathname.split("/").at(-1);
-  if (!sourceVersionId) {
-    throw new Error("Could not read the source recipe version identifier.");
-  }
+  const publicRecipePath = new URL(page.url()).pathname;
+  const sourceVersionId = await exactRecipeVersionIdFromPage(page);
+  expect(sourceVersionId).toBe(expectedSourceVersionId);
   const draft = {
     id: draftId,
+    draft_kind: "adaptation",
     source_version_id: sourceVersionId,
     status: "active",
     revision: 1,
@@ -94,6 +177,7 @@ test("identifies a source and starts a private version with the keyboard on a ph
       /^[0-9a-f-]{36}$/i,
     );
     expect(route.request().postDataJSON()).toEqual({
+      draft_kind: "adaptation",
       source_version_id: sourceVersionId,
     });
     await route.fulfill({
@@ -124,13 +208,13 @@ test("identifies a source and starts a private version with the keyboard on a ph
     ),
   ).toBe(false);
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(`/recipes/${sourceVersionId}`);
+  await expect(page).toHaveURL(publicRecipePath);
   await expect(page.getByLabel("Title", { exact: true })).toBeVisible();
   await expect(
     page.getByText("Opening your recipe…", { exact: true }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Return", exact: true }).click();
-  await expect(page).toHaveURL(`/recipes/${sourceVersionId}`);
+  await expect(page).toHaveURL(publicRecipePath);
   await expect(
     page.getByRole("heading", {
       name: "Lower-Sugar Pecan Carrot Cake",
@@ -170,10 +254,20 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
   });
   await page.route(/\/api\/recipes\/viewer-states(?:\?.*)?$/, async (route) => {
     expect(route.request().method()).toBe("GET");
+    const recipeVersionIds = new URL(route.request().url()).searchParams.getAll(
+      "recipe_version_id",
+    );
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: "[]",
+      body: JSON.stringify({
+        items: recipeVersionIds.map((recipeVersionId) => ({
+          recipe_version_id: recipeVersionId,
+          saved: false,
+          rating: null,
+          can_revise: false,
+        })),
+      }),
     });
   });
   await page.route(/\/api\/recipe-drafts(?:\?.*)?$/, async (route) => {
@@ -213,6 +307,7 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
 
   const draftResponse = (sourceVersionId: string) => ({
     id: draftId,
+    draft_kind: "adaptation",
     source_version_id: sourceVersionId,
     status: "active",
     revision: 1,
@@ -235,6 +330,7 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
     if (route.request().method() === "GET") {
       const query = new URL(route.request().url()).searchParams;
       expect(query.get("source_version_id")).toBe(recipeVersionId);
+      expect(query.get("draft_kind")).toBe("adaptation");
       expect(query.get("page")).toBe("1");
       expect(query.get("page_size")).toBe("1");
       await route.fulfill({
@@ -255,6 +351,7 @@ test("selects a stable catalog ingredient in a private draft with the keyboard o
       /^[0-9a-f-]{36}$/i,
     );
     expect(route.request().postDataJSON()).toEqual({
+      draft_kind: "adaptation",
       source_version_id: recipeVersionId,
     });
     await route.fulfill({

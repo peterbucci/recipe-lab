@@ -122,6 +122,12 @@
   font-size: 0.57rem;
   display: flex;
 }
+
+.member-recipe-card__newer-version {
+  color: var(--text-subtle);
+  font-size: 0.64rem;
+  margin: 0;
+}
 .member-recipe-card__metadata span + span {
   position: relative;
 }

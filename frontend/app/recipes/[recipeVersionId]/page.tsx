@@ -3,15 +3,12 @@ import { notFound } from "next/navigation";
 
 import {
   fetchRecipe,
+  fetchRecipeHistory,
 } from "../../../features/recipes/detail/recipe-detail-server-api";
-import {
-  fetchRecipePage,
-} from "../../../features/recipes/browse/recipe-browse-server-api";
-import type {
-  RecipeCardSummary,
-} from "../../../features/recipes/shared/recipe-contracts";
 import { isRecipeVersionId } from "../../../features/recipes/shared/recipe-id";
-import { RecipeDetailExperience } from "./_components/recipe-detail-experience";
+import type { RecipeHistory } from "../../../features/recipes/shared/recipe-history";
+import { exactRecipePath } from "../../../features/recipes/shared/recipe-paths";
+import { RecipeDetailExperience } from "../_components/recipe-detail-experience";
 
 export const dynamic = "force-dynamic";
 
@@ -31,26 +28,31 @@ export default async function RecipeDetailPage({
     notFound();
   }
   const recipe = await fetchRecipe(recipeVersionId);
-  if (recipe === null) {
+  if (
+    recipe === null ||
+    recipe.id.toLowerCase() !== recipeVersionId.toLowerCase()
+  ) {
     notFound();
   }
 
-  let familyVersions: RecipeCardSummary[] = [];
+  let history: RecipeHistory | null = null;
   try {
-    const familyPage = await fetchRecipePage({
-      lineageId: recipe.lineage_id,
-      pageSize: 100,
-      sort: "title",
-    });
-    familyVersions = [...familyPage.items];
+    history = await fetchRecipeHistory(recipe.id);
+    if (
+      history !== null &&
+      (history.selected_version_id.toLowerCase() !== recipe.id.toLowerCase() ||
+        history.recipe_id.toLowerCase() !== recipe.recipe_id.toLowerCase())
+    ) {
+      history = null;
+    }
   } catch {
-    // The detail response still carries enough bounded context for a useful
-    // parent/current/children fallback when the lineage browse is unavailable.
+    // Recipe reading remains available when optional public history fails.
   }
 
   return (
     <RecipeDetailExperience
-      familyVersions={familyVersions}
+      history={history}
+      publicPath={exactRecipePath(recipe.id)}
       recipe={recipe}
     />
   );

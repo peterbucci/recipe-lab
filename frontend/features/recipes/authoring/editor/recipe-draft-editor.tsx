@@ -16,10 +16,10 @@ import type { CatalogActionType } from "../../shared/cooking-action-model";
 import { createIdempotencyKey } from "../../../../shared/api/idempotency-key";
 import type { CatalogUnit } from "../../shared/measurement-unit-model";
 import type {
-  RecipeCardSummary,
   RecipeCategory,
   RecipeDetail,
 } from "../../shared/recipe-contracts";
+import type { RecipeHistory } from "../../shared/recipe-history";
 import {
   fetchRecipeDraft,
   RecipeDraftApiError,
@@ -86,8 +86,8 @@ interface RecipeDraftEditorProps {
   actionTypes: readonly CatalogActionType[];
   draftId: string;
   embedded?: boolean;
+  familyHistory?: RecipeHistory | null;
   familyRecipe?: RecipeDetail;
-  familyVersions?: readonly RecipeCardSummary[];
   initialCategories?: readonly RecipeCategory[];
   initialDetail?: RecipeDraftDetail;
   measurementUnits: readonly CatalogUnit[];
@@ -143,12 +143,22 @@ function initialEditorDomainState(detail: RecipeDraftDetail | undefined) {
 type DraftLoadResult = "failed" | "loaded" | "skipped-newer-work";
 type DraftLookupFailure = "retryable" | "unavailable" | null;
 
+interface ScopedRecipeFamily {
+  draftKind: RecipeDraftDetail["draft_kind"];
+  family: LoadedRecipeFamily;
+}
+
+interface FailedRecipeFamily {
+  draftKind: RecipeDraftDetail["draft_kind"];
+  sourceVersionId: string;
+}
+
 function RecipeDraftEditorInner({
   actionTypes,
   draftId,
   embedded = false,
+  familyHistory,
   familyRecipe,
-  familyVersions,
   initialCategories,
   initialDetail,
   measurementUnits,
@@ -170,10 +180,9 @@ function RecipeDraftEditorInner({
   const [announcement, setAnnouncement] = useState("");
   const [finishOpen, setFinishOpen] = useState(false);
   const [loadedRecipeFamily, setLoadedRecipeFamily] =
-    useState<LoadedRecipeFamily | null>(null);
-  const [failedFamilySourceId, setFailedFamilySourceId] = useState<
-    string | null
-  >(null);
+    useState<ScopedRecipeFamily | null>(null);
+  const [failedRecipeFamily, setFailedRecipeFamily] =
+    useState<FailedRecipeFamily | null>(null);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const finishTriggerRef = useRef<HTMLButtonElement>(null);
   const pendingFocusId = useRef<string | null>(null);
@@ -280,18 +289,25 @@ function RecipeDraftEditorInner({
   );
 
   const sourceVersionId = detail?.source_version_id ?? null;
+  const draftKind = detail?.draft_kind ?? null;
   const hasProvidedRecipeFamily =
     sourceVersionId !== null && familyRecipe?.id === sourceVersionId;
 
   useEffect(() => {
-    if (sourceVersionId === null || hasProvidedRecipeFamily) return;
+    if (
+      sourceVersionId === null ||
+      draftKind === null ||
+      hasProvidedRecipeFamily
+    ) {
+      return;
+    }
 
     const controller = new AbortController();
     void fetchRecipeFamily(sourceVersionId, controller.signal)
       .then((family) => {
         if (controller.signal.aborted) return;
-        setLoadedRecipeFamily(family);
-        setFailedFamilySourceId(null);
+        setLoadedRecipeFamily({ draftKind, family });
+        setFailedRecipeFamily(null);
       })
       .catch((reason: unknown) => {
         if (
@@ -300,10 +316,10 @@ function RecipeDraftEditorInner({
         ) {
           return;
         }
-        setFailedFamilySourceId(sourceVersionId);
+        setFailedRecipeFamily({ draftKind, sourceVersionId });
       });
     return () => controller.abort();
-  }, [hasProvidedRecipeFamily, sourceVersionId]);
+  }, [draftKind, hasProvidedRecipeFamily, sourceVersionId]);
   useEffect(() => {
     setBlocked(dirty);
     return () => setBlocked(false);
@@ -567,27 +583,36 @@ function RecipeDraftEditorInner({
   const ingredientOptions = draftIngredientOptions(draft.ingredients);
   const editorDisabled = publicationBusy;
   const actionDisabled = pending !== null || publicationBusy;
-  const isVersion = detail.source_version_id !== null;
+  const isAdaptation = detail.draft_kind === "adaptation";
+  const isRevision = detail.draft_kind === "revision";
+  const isSourceBacked = detail.source_version_id !== null;
   const workspaceHref = `/recipes/drafts/${encodeURIComponent(draftId)}`;
   const doneForNowHref = detail.source_version_id
     ? `/recipes/${encodeURIComponent(detail.source_version_id)}`
     : "/account/recipes?view=drafts";
-  const finishLabel = isVersion ? "Publish draft" : "Finish recipe";
+  const finishLabel = isRevision
+    ? "Publish changes"
+    : isAdaptation
+      ? "Publish draft"
+      : "Finish recipe";
   const memberDisplayName = member?.display_name ?? "You";
   const resolvedFamilyRecipe = hasProvidedRecipeFamily
     ? familyRecipe
-    : loadedRecipeFamily?.sourceVersionId === detail.source_version_id
-      ? loadedRecipeFamily.recipe
+    : loadedRecipeFamily?.draftKind === detail.draft_kind &&
+        loadedRecipeFamily.family.sourceVersionId === detail.source_version_id
+      ? loadedRecipeFamily.family.recipe
       : undefined;
-  const resolvedFamilyVersions = hasProvidedRecipeFamily
-    ? familyVersions
-    : loadedRecipeFamily?.sourceVersionId === detail.source_version_id
-      ? loadedRecipeFamily.versions
+  const resolvedFamilyHistory = hasProvidedRecipeFamily
+    ? familyHistory
+    : loadedRecipeFamily?.draftKind === detail.draft_kind &&
+        loadedRecipeFamily.family.sourceVersionId === detail.source_version_id
+      ? loadedRecipeFamily.family.history
       : undefined;
   const familyLoadStatus =
-    !isVersion || resolvedFamilyRecipe
+    !isSourceBacked || resolvedFamilyRecipe
       ? "idle"
-      : failedFamilySourceId === detail.source_version_id
+      : failedRecipeFamily?.draftKind === detail.draft_kind &&
+          failedRecipeFamily.sourceVersionId === detail.source_version_id
         ? "failed"
         : "loading";
   const sourceRecipeTitle =
@@ -595,7 +620,9 @@ function RecipeDraftEditorInner({
     (familyLoadStatus === "failed"
       ? "Source recipe unavailable"
       : "Source recipe");
-  const sourceRecipeTitlePending = isVersion && familyLoadStatus === "loading";
+  const sourceRecipeTitlePending =
+    isAdaptation && familyLoadStatus === "loading";
+  const sourceRecipeId = resolvedFamilyRecipe?.recipe_id;
 
   const EditorPage = embedded ? "div" : "main";
 
@@ -618,7 +645,7 @@ function RecipeDraftEditorInner({
         <span aria-hidden="true">/</span>
         <span aria-current="page">
           {draft.title.trim() ||
-            (isVersion ? "Untitled version" : "Untitled recipe")}
+            (isAdaptation ? "Untitled version" : "Untitled recipe")}
         </span>
       </nav>
       <p className="visually-hidden" role="status" aria-live="polite">
@@ -714,10 +741,10 @@ function RecipeDraftEditorInner({
                       value: title,
                     })
                   }
-                  isVersion={isVersion}
+                  isVersion={isAdaptation}
                   title={draft.title}
                   titleContext={
-                    isVersion ? (
+                    isAdaptation ? (
                       <p className="recipe-detail__parent-context">
                         Based on{" "}
                         <GuardedLink
@@ -930,14 +957,18 @@ function RecipeDraftEditorInner({
             family={
               detail.source_version_id !== null && resolvedFamilyRecipe ? (
                 <RecipeFamilyNavigator
-                  draftPreview={{
-                    authorDisplayName: memberDisplayName,
-                    id: draftId,
-                    parentVersionId: detail.source_version_id,
-                    title: draft.title.trim() || "Untitled version",
-                  }}
+                  draftPreview={
+                    isAdaptation
+                      ? {
+                          authorDisplayName: memberDisplayName,
+                          id: draftId,
+                          parentVersionId: detail.source_version_id,
+                          title: draft.title.trim() || "Untitled version",
+                        }
+                      : undefined
+                  }
+                  history={resolvedFamilyHistory}
                   recipe={resolvedFamilyRecipe}
-                  versions={resolvedFamilyVersions}
                 />
               ) : (
                 <section
@@ -946,15 +977,15 @@ function RecipeDraftEditorInner({
                   aria-labelledby="recipe-workspace-family-title"
                 >
                   <h2 id="recipe-workspace-family-title">Recipe family</h2>
-                  {isVersion && familyLoadStatus === "loading" ? (
+                  {isSourceBacked && familyLoadStatus === "loading" ? (
                     <SectionLoading
                       count={3}
                       label="Loading recipe family…"
                       layout="cards"
                     />
                   ) : (
-                    <p role={isVersion ? "status" : undefined}>
-                      {isVersion
+                    <p role={isSourceBacked ? "status" : undefined}>
+                      {isSourceBacked
                         ? "The recipe family is temporarily unavailable. Your private draft is still safe."
                         : "This recipe will start a new family after you publish it."}
                     </p>
@@ -980,10 +1011,16 @@ function RecipeDraftEditorInner({
                 <div className="recipe-workspace__finish-heading">
                   <div>
                     <p className="eyebrow">
-                      {isVersion ? "Publish version" : "Publish recipe"}
+                      {isRevision
+                        ? "Publish changes"
+                        : isAdaptation
+                          ? "Publish version"
+                          : "Publish recipe"}
                     </p>
                     <h2 id="recipe-workspace-finish-title">
-                      Ready to share your {isVersion ? "version" : "recipe"}?
+                      {isRevision
+                        ? "Ready to publish your changes?"
+                        : `Ready to share your ${isAdaptation ? "version" : "recipe"}?`}
                     </h2>
                   </div>
                   <button
@@ -1001,6 +1038,7 @@ function RecipeDraftEditorInner({
                   actionTypes={actionTypes}
                   draft={draft}
                   draftId={draftId}
+                  draftKind={detail.draft_kind}
                   dirty={dirty}
                   measurementUnits={measurementUnits}
                   onRequestClose={closeFinishDialog}
@@ -1008,6 +1046,7 @@ function RecipeDraftEditorInner({
                   publicationDispatch={publicationDispatch}
                   publicationState={publicationState}
                   revision={detail.revision}
+                  sourceRecipeId={sourceRecipeId}
                   sourceRecipeTitle={sourceRecipeTitle}
                   sourceVersionId={detail.source_version_id}
                 />

@@ -15,6 +15,7 @@ import {
 const IDEMPOTENCY_KEY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 const viewerState: RecipeViewerState = {
+  can_revise: false,
   recipe_version_id: "29454eba-3a4e-5380-b48c-c49dc3697b17",
   saved: true,
   rating: 4,
@@ -292,6 +293,7 @@ describe("shared recipe interaction API client", () => {
 
   it("loads ordered private state for multiple recipe cards in one request", async () => {
     const secondState: RecipeViewerState = {
+      can_revise: false,
       recipe_version_id: "39454eba-3a4e-5380-b48c-c49dc3697b17",
       saved: false,
       rating: null,
@@ -324,6 +326,7 @@ describe("shared recipe interaction API client", () => {
 
   it("rejects a card-state batch that does not match the requested order", async () => {
     const secondState: RecipeViewerState = {
+      can_revise: false,
       recipe_version_id: "39454eba-3a4e-5380-b48c-c49dc3697b17",
       saved: false,
       rating: null,

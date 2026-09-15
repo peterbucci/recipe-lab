@@ -24,7 +24,9 @@ import type {
   VariantMeasureInput,
 } from "../shared/structured-measure";
 import {
+  isRecipeDraftKind,
   parseRecipeDraftListItem,
+  type RecipeDraftKind,
   type RecipeDraftListItem,
   type RecipeDraftStatus,
 } from "./recipe-draft-summary";
@@ -34,7 +36,9 @@ type RecipeDraftPageWire =
 type RecipeDraftCreateOperation =
   operations["create_private_recipe_draft_api_recipe_drafts_post"];
 type RecipeDraftCreateWireInput =
-  RecipeDraftCreateOperation["requestBody"]["content"]["application/json"];
+  RecipeDraftCreateOperation["requestBody"]["content"]["application/json"] & {
+    draft_kind: RecipeDraftKind;
+  };
 type RecipeDraftCreateWire =
   RecipeDraftCreateOperation["responses"][201]["content"]["application/json"];
 type RecipeDraftDetailWire =
@@ -99,6 +103,7 @@ export interface RecipeDraftInstruction {
 
 export interface RecipeDraftDetail {
   id: string;
+  draft_kind: RecipeDraftKind;
   source_version_id: string | null;
   status: RecipeDraftStatus;
   revision: number;
@@ -493,7 +498,10 @@ export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
   if (
     !isRecord(value) ||
     !isUuid(value.id) ||
+    !isRecipeDraftKind(value.draft_kind) ||
     (value.source_version_id !== null && !isUuid(value.source_version_id)) ||
+    ((value.draft_kind === "original") !==
+      (value.source_version_id === null)) ||
     value.status !== "active" ||
     !Number.isInteger(value.revision) ||
     (value.revision as number) < 1 ||
@@ -547,6 +555,7 @@ export function parseRecipeDraftDetail(value: unknown): RecipeDraftDetail {
   }
   return {
     id: value.id,
+    draft_kind: value.draft_kind,
     source_version_id: value.source_version_id as string | null,
     status: "active",
     revision: value.revision as number,
@@ -728,14 +737,15 @@ function fromDraftCreationTransportError(
 }
 
 export function recipeDraftCreationRequestFingerprint(
+  draftKind: RecipeDraftKind,
   sourceVersionId: string | null,
 ): Promise<string> {
   const normalizedSourceVersionId = sourceVersionId?.toLowerCase() ?? null;
   return createRequestFingerprint({
-    intent: normalizedSourceVersionId === null ? "blank" : "source",
+    draft_kind: draftKind,
     schema: "recipe-draft-creation",
     source_version_id: normalizedSourceVersionId,
-    version: 1,
+    version: 2,
   });
 }
 
@@ -787,6 +797,7 @@ function rethrowDraftTransportError(
 }
 
 export async function createRecipeDraft(
+  draftKind: RecipeDraftKind,
   sourceVersionId: string | null,
   idempotencyKey: string,
 ): Promise<RecipeDraftDetail> {
@@ -803,6 +814,7 @@ export async function createRecipeDraft(
   let requestFingerprint: string;
   try {
     requestFingerprint = await recipeDraftCreationRequestFingerprint(
+      draftKind,
       normalizedSourceVersionId,
     );
   } catch {
@@ -817,6 +829,7 @@ export async function createRecipeDraft(
 
   try {
     const input: RecipeDraftCreateWireInput = {
+      draft_kind: draftKind,
       source_version_id: normalizedSourceVersionId,
     };
     const response = await browserApiRequest("/api/recipe-drafts", {
@@ -830,7 +843,10 @@ export async function createRecipeDraft(
     });
     try {
       const draft = parseRecipeDraftDetail(response.data as RecipeDraftCreateWire);
-      if (draft.source_version_id !== normalizedSourceVersionId) {
+      if (
+        draft.draft_kind !== draftKind ||
+        draft.source_version_id !== normalizedSourceVersionId
+      ) {
         throw invalidResponse();
       }
       return draft;
@@ -862,11 +878,13 @@ export async function createRecipeDraft(
 }
 
 export async function browseRecipeDrafts({
+  draftKind,
   page = 1,
   pageSize = 20,
   sourceVersionId,
   signal,
 }: {
+  draftKind?: RecipeDraftKind;
   page?: number;
   pageSize?: number;
   sourceVersionId?: string;
@@ -876,6 +894,9 @@ export async function browseRecipeDrafts({
     page: String(page),
     page_size: String(pageSize),
   });
+  if (draftKind !== undefined) {
+    query.set("draft_kind", draftKind);
+  }
   if (sourceVersionId !== undefined) {
     query.set("source_version_id", sourceVersionId.toLowerCase());
   }
@@ -897,6 +918,7 @@ export async function browseRecipeDrafts({
 
 export async function findActiveRecipeDraftForSource(
   sourceVersionId: string,
+  draftKind: Exclude<RecipeDraftKind, "original">,
   signal?: AbortSignal,
 ): Promise<RecipeDraftListItem | null> {
   if (!isUuid(sourceVersionId)) {
@@ -908,6 +930,7 @@ export async function findActiveRecipeDraftForSource(
   }
   const normalizedSourceVersionId = sourceVersionId.toLowerCase();
   const page = await browseRecipeDrafts({
+    draftKind,
     pageSize: 1,
     sourceVersionId: normalizedSourceVersionId,
     signal,
@@ -915,7 +938,8 @@ export async function findActiveRecipeDraftForSource(
   const draft = page.items[0] ?? null;
   if (
     draft !== null &&
-    draft.source_version_id?.toLowerCase() !== normalizedSourceVersionId
+    (draft.draft_kind !== draftKind ||
+      draft.source_version_id?.toLowerCase() !== normalizedSourceVersionId)
   ) {
     throw invalidResponse();
   }

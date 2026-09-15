@@ -37,6 +37,7 @@ function savedPage(
 function removedRecipe(recipeVersionId: string) {
   return Response.json({
     recipe_version_id: recipeVersionId,
+    can_revise: false,
     saved: false,
     rating: null,
   });
@@ -120,7 +121,7 @@ describe("cook profile and private recipe libraries", () => {
     );
     expect(
       savedCard.querySelector(".member-recipe-card__status"),
-    ).toHaveTextContent("Version");
+    ).toHaveTextContent("Adaptation");
     expect(within(savedCard).queryByText("4 servings")).toBeNull();
     expect(
       within(savedCard).getByRole("button", {
@@ -187,6 +188,7 @@ describe("cook profile and private recipe libraries", () => {
       .mockResolvedValueOnce(
         Response.json({
           recipe_version_id: ROOT_ID,
+          can_revise: false,
           saved: false,
           rating: null,
         }),
