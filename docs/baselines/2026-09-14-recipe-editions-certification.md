@@ -2,13 +2,12 @@
 
 Evidence window: 2026-09-14 through 2026-09-15
 
-This record covers the RCP-53 working-tree implementation candidate on
+This record covers the RCP-53 implementation candidate on
 `codex/recipe-editions-and-corrections`. It records architectural ownership,
-story coverage, and the final merge-certification evidence gathered before the
-candidate was committed. The RCP-53 code, invariant, real-database, and browser
-gates described here passed. This is not a production-release certificate: the
-committed-ref source-package audit and the full RCP-33 production-image release
-rehearsal remain separate gates described below.
+story coverage, and final merge-certification evidence. The RCP-53 code,
+invariant, real-database, browser, and committed-source-package gates described
+here passed. This is not a production-release certificate: the full RCP-33
+production-image release rehearsal remains a separate gate described below.
 
 ## Story map
 
@@ -116,23 +115,24 @@ production-image rehearsal.
 | Canonical visual and accessibility gate | **Passed with zero pixel failures:** 100 cases passed and 92 expected cross-project cases skipped, for all 192 discovered project cases. The run used `mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac` and regenerated only RCP-53-affected PNGs before a final no-update pass. |
 | Stable RCP-32 PostgreSQL 17.11 community rehearsal | **Passed.** Migration down/up and drift checks, production build, release browser journey 1/1, live verification, dump/restore, restored drift verification, live/restored byte equality, and the nine-file privacy scan all passed with zero privacy findings. |
 | Repository source-package support tests | **Passed: 124 tests plus 71 subtests.** This verifies the packaging scripts and policy harness, but is not the deterministic audit of an eventual committed candidate ref. |
-| Deterministic source-package audit of the final committed ref | **Pending by construction.** The candidate was still an uncommitted working tree when this record was closed. Run the full archive/hash/policy audit against the exact committed ref after commits exist. |
+| Deterministic source-package audit of the final committed ref | **Passed.** The committed candidate was exported twice from a clean tree. Both independently generated archives were byte-identical, both manifests were byte-identical, all 100 tracked PNGs matched their reviewed Git object IDs, and both the commit-tree and completed-archive secret scans reported zero findings. |
 | Full RCP-33 production-image release rehearsal | **Not run.** Image identity, vulnerability scanning, deletion-ledger replay, compatible ancestor-image rollback, and compiled release evidence remain production-release requirements; this omission is not presented as a pass. |
 
 ## Release boundary
 
-The evidence above completes RCP-53 merge certification for this working-tree
+The evidence above completes RCP-53 merge certification for this committed
 candidate: the complete backend, ML, frontend, static, clean smoke, fresh
-real-stack acceptance, canonical visual, and stable RCP-32 community gates all
-passed. Normal review and creation of the intended commits may proceed without
-mislabeling the two remaining release-only checks as failed RCP-53 behavior.
+real-stack acceptance, canonical visual, deterministic source-package, and
+stable RCP-32 community gates all passed. Normal review and local integration
+may proceed without mislabeling the remaining release-only rehearsal as failed
+RCP-53 behavior.
 
-Before release or deployment, run the deterministic source-package audit
-against the exact committed candidate ref and complete the full RCP-33
-production-image release rehearsal. Any nonzero stable-recipe integrity query,
-lossy downgrade attempt, generated-contract drift, privacy finding, source-
-package mismatch, or release-rehearsal failure blocks release rather than
-authorizing a manual repair.
+Before release or deployment, complete the full RCP-33 production-image release
+rehearsal. If the release ref differs from this certified merge candidate,
+repeat the deterministic source-package audit for that exact ref. Any nonzero
+stable-recipe integrity query, lossy downgrade attempt, generated-contract
+drift, privacy finding, source-package mismatch, or release-rehearsal failure
+blocks release rather than authorizing a manual repair.
 
 RCP-54 exceptional privacy or security erasure remains a separate,
 unimplemented launch gate requiring legal/DPO policy and a strongly
