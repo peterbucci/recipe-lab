@@ -16,6 +16,7 @@ const draftPage: MyRecipeLibraryPage = {
       description: "A private work in progress.",
       draft: {
         created_at: "2026-08-20T12:00:00Z",
+        draft_kind: "original",
         id: DRAFT_ID,
         ingredient_count: 2,
         instruction_count: 1,

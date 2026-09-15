@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -73,6 +74,7 @@ def record_preference_event(
     intent: PreferenceEventIntent,
     *,
     related_recipe_version_id: UUID | None = None,
+    occurred_at: datetime | None = None,
 ) -> PreferenceEvent:
     """Write one validated event as part of the caller-owned product transaction."""
 
@@ -86,4 +88,5 @@ def record_preference_event(
         rating_value=intent.rating_value,
         related_recipe_version_id=related_recipe_version_id,
         request_fingerprint=intent.request_fingerprint,
+        occurred_at=occurred_at,
     )

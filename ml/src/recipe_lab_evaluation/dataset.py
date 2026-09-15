@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -16,7 +17,8 @@ from .json_codec import (
     load_json_document,
 )
 
-SNAPSHOT_SCHEMA_VERSION = "recipe-lab-evaluation-snapshot-v2"
+SNAPSHOT_SCHEMA_VERSION = "recipe-lab-evaluation-snapshot-v3"
+STRUCTURED_MEASURE_SNAPSHOT_SCHEMA_VERSION = "recipe-lab-evaluation-snapshot-v2"
 LEGACY_SNAPSHOT_SCHEMA_VERSION = "recipe-lab-evaluation-snapshot-v1"
 _SNAPSHOT_JSON_LIMITS = JsonDocumentLimits(
     maximum_utf8_bytes=512 * 1024 * 1024,
@@ -27,6 +29,8 @@ _SNAPSHOT_JSON_LIMITS = JsonDocumentLimits(
 type EventType = Literal["view", "save", "rating", "fork"]
 type MeasureKind = Literal["exact", "range", "qualitative"]
 type QualitativeMeasure = Literal["to_taste", "as_needed", "unspecified"]
+type RecipeRelationKind = Literal["original", "adaptation", "revision"]
+type DeclaredChangeReason = Literal["correction", "update"]
 
 
 class SnapshotValidationError(ValueError):
@@ -45,6 +49,12 @@ class SnapshotIngredientMeasure:
 
 
 @dataclass(frozen=True, slots=True)
+class SnapshotStructuralFingerprint:
+    algorithm_version: str
+    digest: str
+
+
+@dataclass(frozen=True, slots=True)
 class SnapshotRecipe:
     id: UUID
     created_at: datetime
@@ -52,6 +62,13 @@ class SnapshotRecipe:
     version_number: int
     ingredient_measures: tuple[SnapshotIngredientMeasure, ...]
     legacy_ingredient_ids: tuple[UUID, ...] = ()
+    recipe_id: UUID | None = None
+    edition_number: int | None = None
+    base_recipe_version_id: UUID | None = None
+    relation_kind: RecipeRelationKind | None = None
+    declared_change_reason: DeclaredChangeReason | None = None
+    published_at: datetime | None = None
+    structural_fingerprints: tuple[SnapshotStructuralFingerprint, ...] = ()
 
     @property
     def ingredient_ids(self) -> tuple[UUID, ...]:
@@ -151,13 +168,45 @@ def _normalized_document(
             }
             for recipe in recipes
         ]
-    else:
+    elif schema_version == STRUCTURED_MEASURE_SNAPSHOT_SCHEMA_VERSION:
         recipes_document = [
             {
                 "id": str(recipe.id),
                 "created_at": _timestamp(recipe.created_at),
                 "title": recipe.title,
                 "version_number": recipe.version_number,
+                "ingredient_measures": [
+                    _measure_document(measure) for measure in recipe.ingredient_measures
+                ],
+            }
+            for recipe in recipes
+        ]
+    else:
+        recipes_document = [
+            {
+                "id": str(recipe.id),
+                "recipe_id": str(recipe.recipe_id) if recipe.recipe_id is not None else None,
+                "created_at": _timestamp(recipe.created_at),
+                "published_at": (
+                    _timestamp(recipe.published_at) if recipe.published_at is not None else None
+                ),
+                "title": recipe.title,
+                "version_number": recipe.version_number,
+                "edition_number": recipe.edition_number,
+                "base_recipe_version_id": (
+                    str(recipe.base_recipe_version_id)
+                    if recipe.base_recipe_version_id is not None
+                    else None
+                ),
+                "relation_kind": recipe.relation_kind,
+                "declared_change_reason": recipe.declared_change_reason,
+                "structural_fingerprints": [
+                    {
+                        "algorithm_version": fingerprint.algorithm_version,
+                        "digest": fingerprint.digest,
+                    }
+                    for fingerprint in recipe.structural_fingerprints
+                ],
                 "ingredient_measures": [
                     _measure_document(measure) for measure in recipe.ingredient_measures
                 ],
@@ -293,6 +342,22 @@ _TOP_LEVEL_KEYS = frozenset(
 )
 _RECIPE_V1_KEYS = frozenset({"id", "created_at", "title", "version_number", "ingredient_ids"})
 _RECIPE_V2_KEYS = frozenset({"id", "created_at", "title", "version_number", "ingredient_measures"})
+_RECIPE_V3_KEYS = frozenset(
+    {
+        "id",
+        "recipe_id",
+        "created_at",
+        "published_at",
+        "title",
+        "version_number",
+        "edition_number",
+        "base_recipe_version_id",
+        "relation_kind",
+        "declared_change_reason",
+        "structural_fingerprints",
+        "ingredient_measures",
+    }
+)
 _INGREDIENT_MEASURE_KEYS = frozenset(
     {
         "ingredient_id",
@@ -304,6 +369,7 @@ _INGREDIENT_MEASURE_KEYS = frozenset(
         "qualitative_value",
     }
 )
+_STRUCTURAL_FINGERPRINT_KEYS = frozenset({"algorithm_version", "digest"})
 _EVENT_KEYS = frozenset(
     {
         "id",
@@ -316,6 +382,8 @@ _EVENT_KEYS = frozenset(
         "related_recipe_version_id",
     }
 )
+_FINGERPRINT_ALGORITHM_PATTERN = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+)*$")
+_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _parse_ingredient_measure(value: object, *, path: str) -> SnapshotIngredientMeasure:
@@ -378,9 +446,35 @@ def _parse_ingredient_measure(value: object, *, path: str) -> SnapshotIngredient
     )
 
 
+def _parse_structural_fingerprint(
+    value: object,
+    *,
+    path: str,
+) -> SnapshotStructuralFingerprint:
+    item = _object(value, path=path)
+    _exact_keys(item, expected=_STRUCTURAL_FINGERPRINT_KEYS, path=path)
+    algorithm_version = _string(item["algorithm_version"], path=f"{path}.algorithm_version")
+    if _FINGERPRINT_ALGORITHM_PATTERN.fullmatch(algorithm_version) is None:
+        raise SnapshotValidationError(f"{path}.algorithm_version has an unsupported format")
+    digest = _string(item["digest"], path=f"{path}.digest")
+    if _SHA256_PATTERN.fullmatch(digest) is None:
+        raise SnapshotValidationError(f"{path}.digest must be a lowercase SHA-256 digest")
+    return SnapshotStructuralFingerprint(
+        algorithm_version=algorithm_version,
+        digest=digest,
+    )
+
+
 def _parse_recipe(value: object, index: int, *, schema_version: str) -> SnapshotRecipe:
     path = f"recipes[{index}]"
     item = _object(value, path=path)
+    recipe_id: UUID | None = None
+    edition_number: int | None = None
+    base_recipe_version_id: UUID | None = None
+    relation_kind: RecipeRelationKind | None = None
+    declared_change_reason: DeclaredChangeReason | None = None
+    published_at: datetime | None = None
+    structural_fingerprints: tuple[SnapshotStructuralFingerprint, ...] = ()
     if schema_version == LEGACY_SNAPSHOT_SCHEMA_VERSION:
         _exact_keys(item, expected=_RECIPE_V1_KEYS, path=path)
         ingredient_values = _array(item["ingredient_ids"], path=f"{path}.ingredient_ids")
@@ -395,7 +489,12 @@ def _parse_recipe(value: object, index: int, *, schema_version: str) -> Snapshot
             sorted(ingredient_ids, key=lambda ingredient_id: ingredient_id.int)
         )
     else:
-        _exact_keys(item, expected=_RECIPE_V2_KEYS, path=path)
+        expected_keys = (
+            _RECIPE_V2_KEYS
+            if schema_version == STRUCTURED_MEASURE_SNAPSHOT_SCHEMA_VERSION
+            else _RECIPE_V3_KEYS
+        )
+        _exact_keys(item, expected=expected_keys, path=path)
         ingredient_measures = tuple(
             _parse_ingredient_measure(raw, path=f"{path}.ingredient_measures[{measure_index}]")
             for measure_index, raw in enumerate(
@@ -403,13 +502,90 @@ def _parse_recipe(value: object, index: int, *, schema_version: str) -> Snapshot
             )
         )
         legacy_ingredient_ids = ()
+        if schema_version == SNAPSHOT_SCHEMA_VERSION:
+            recipe_id = _uuid(item["recipe_id"], path=f"{path}.recipe_id")
+            edition_number = _integer(
+                item["edition_number"], path=f"{path}.edition_number", minimum=1
+            )
+            base_recipe_version_id = _optional_uuid(
+                item["base_recipe_version_id"], path=f"{path}.base_recipe_version_id"
+            )
+            relation_kind_raw = _string(item["relation_kind"], path=f"{path}.relation_kind")
+            if relation_kind_raw not in {"original", "adaptation", "revision"}:
+                raise SnapshotValidationError(f"{path}.relation_kind is unsupported")
+            relation_kind = cast(RecipeRelationKind, relation_kind_raw)
+            declared_reason_raw = item["declared_change_reason"]
+            if declared_reason_raw is not None:
+                declared_reason_text = _string(
+                    declared_reason_raw,
+                    path=f"{path}.declared_change_reason",
+                )
+                if declared_reason_text not in {"correction", "update"}:
+                    raise SnapshotValidationError(f"{path}.declared_change_reason is unsupported")
+                declared_change_reason = cast(DeclaredChangeReason, declared_reason_text)
+            published_at = _utc_datetime(item["published_at"], path=f"{path}.published_at")
+            structural_fingerprints = tuple(
+                _parse_structural_fingerprint(
+                    raw,
+                    path=f"{path}.structural_fingerprints[{fingerprint_index}]",
+                )
+                for fingerprint_index, raw in enumerate(
+                    _array(
+                        item["structural_fingerprints"],
+                        path=f"{path}.structural_fingerprints",
+                    )
+                )
+            )
+            if not structural_fingerprints:
+                raise SnapshotValidationError(
+                    f"{path}.structural_fingerprints must contain governed fingerprint metadata"
+                )
+            algorithms = [fingerprint.algorithm_version for fingerprint in structural_fingerprints]
+            if len(algorithms) != len(set(algorithms)):
+                raise SnapshotValidationError(
+                    f"{path}.structural_fingerprints must use unique algorithm versions"
+                )
+
+    exact_version_id = _uuid(item["id"], path=f"{path}.id")
+    created_at = _utc_datetime(item["created_at"], path=f"{path}.created_at")
+    if published_at is not None and published_at < created_at:
+        raise SnapshotValidationError(f"{path}.published_at precedes recipe creation")
+    if base_recipe_version_id == exact_version_id:
+        raise SnapshotValidationError(f"{path}.base_recipe_version_id must differ from id")
+    if relation_kind == "original" and not (
+        edition_number == 1 and base_recipe_version_id is None and declared_change_reason is None
+    ):
+        raise SnapshotValidationError(f"{path} fields do not match an original edition")
+    if relation_kind == "adaptation" and not (
+        edition_number == 1
+        and base_recipe_version_id is not None
+        and declared_change_reason is None
+    ):
+        raise SnapshotValidationError(f"{path} fields do not match an adaptation")
+    if relation_kind == "revision" and not (
+        edition_number is not None and edition_number > 1 and base_recipe_version_id is not None
+    ):
+        raise SnapshotValidationError(f"{path} fields do not match a revision")
+
     return SnapshotRecipe(
-        id=_uuid(item["id"], path=f"{path}.id"),
-        created_at=_utc_datetime(item["created_at"], path=f"{path}.created_at"),
+        id=exact_version_id,
+        created_at=created_at,
         title=_string(item["title"], path=f"{path}.title"),
         version_number=_integer(item["version_number"], path=f"{path}.version_number", minimum=1),
         ingredient_measures=ingredient_measures,
         legacy_ingredient_ids=legacy_ingredient_ids,
+        recipe_id=recipe_id,
+        edition_number=edition_number,
+        base_recipe_version_id=base_recipe_version_id,
+        relation_kind=relation_kind,
+        declared_change_reason=declared_change_reason,
+        published_at=published_at,
+        structural_fingerprints=tuple(
+            sorted(
+                structural_fingerprints,
+                key=lambda fingerprint: fingerprint.algorithm_version,
+            )
+        ),
     )
 
 
@@ -479,10 +655,15 @@ def _parse_snapshot_document(raw: object) -> EvaluationSnapshot:
     _exact_keys(document, expected=_TOP_LEVEL_KEYS, path="snapshot")
 
     schema_version = _string(document["schema_version"], path="schema_version")
-    if schema_version not in {SNAPSHOT_SCHEMA_VERSION, LEGACY_SNAPSHOT_SCHEMA_VERSION}:
+    supported_versions = {
+        SNAPSHOT_SCHEMA_VERSION,
+        STRUCTURED_MEASURE_SNAPSHOT_SCHEMA_VERSION,
+        LEGACY_SNAPSHOT_SCHEMA_VERSION,
+    }
+    if schema_version not in supported_versions:
         raise SnapshotValidationError(
             f"unsupported schema_version {schema_version!r}; expected "
-            f"{SNAPSHOT_SCHEMA_VERSION!r} or {LEGACY_SNAPSHOT_SCHEMA_VERSION!r}"
+            f"one of {sorted(supported_versions)!r}"
         )
     dataset_id = _string(document["dataset_id"], path="dataset_id")
     cutoff = _utc_datetime(document["cutoff"], path="cutoff")
@@ -507,6 +688,37 @@ def _parse_snapshot_document(raw: object) -> EvaluationSnapshot:
     recipe_ids = frozenset(recipes_by_id)
     if len(recipe_ids) != len(recipes):
         raise SnapshotValidationError("recipe IDs must be unique")
+    if schema_version == SNAPSHOT_SCHEMA_VERSION:
+        edition_keys = {(recipe.recipe_id, recipe.edition_number) for recipe in recipes}
+        if len(edition_keys) != len(recipes):
+            raise SnapshotValidationError("stable recipe IDs and edition numbers must be unique")
+        for index, recipe in enumerate(recipes):
+            base = (
+                recipes_by_id.get(recipe.base_recipe_version_id)
+                if recipe.base_recipe_version_id is not None
+                else None
+            )
+            if recipe.relation_kind == "revision" and base is not None:
+                if base.recipe_id != recipe.recipe_id:
+                    raise SnapshotValidationError(
+                        f"recipes[{index}] revision base belongs to another stable recipe"
+                    )
+                if (
+                    recipe.edition_number is None
+                    or base.edition_number is None
+                    or base.edition_number != recipe.edition_number - 1
+                ):
+                    raise SnapshotValidationError(
+                        f"recipes[{index}] revision base is not the preceding edition"
+                    )
+            if (
+                recipe.relation_kind == "adaptation"
+                and base is not None
+                and base.recipe_id == recipe.recipe_id
+            ):
+                raise SnapshotValidationError(
+                    f"recipes[{index}] adaptation base belongs to the same stable recipe"
+                )
 
     events = tuple(
         _parse_event(value, index)
@@ -518,9 +730,18 @@ def _parse_snapshot_document(raw: object) -> EvaluationSnapshot:
     for index, event in enumerate(events):
         if event.recipe_version_id not in recipe_ids:
             raise SnapshotValidationError(f"events[{index}] references an unknown recipe")
-        if recipes_by_id[event.recipe_version_id].created_at > event.occurred_at:
+        source = recipes_by_id[event.recipe_version_id]
+        if source.created_at > event.occurred_at:
             raise SnapshotValidationError(
                 f"events[{index}] occurs before its source recipe was created"
+            )
+        if (
+            schema_version == SNAPSHOT_SCHEMA_VERSION
+            and source.published_at is not None
+            and source.published_at > event.occurred_at
+        ):
+            raise SnapshotValidationError(
+                f"events[{index}] occurs before its source recipe was published"
             )
         if (
             event.related_recipe_version_id is not None
@@ -534,6 +755,24 @@ def _parse_snapshot_document(raw: object) -> EvaluationSnapshot:
             raise SnapshotValidationError(
                 f"events[{index}] occurs before its fork child was created"
             )
+        if (
+            schema_version == SNAPSHOT_SCHEMA_VERSION
+            and event.related_recipe_version_id is not None
+        ):
+            child = recipes_by_id[event.related_recipe_version_id]
+            if child.published_at is not None and child.published_at > event.occurred_at:
+                raise SnapshotValidationError(
+                    f"events[{index}] occurs before its fork child was published"
+                )
+        if schema_version == SNAPSHOT_SCHEMA_VERSION and event.event_type == "fork":
+            child = recipes_by_id[cast(UUID, event.related_recipe_version_id)]
+            if (
+                child.relation_kind != "adaptation"
+                or child.base_recipe_version_id != event.recipe_version_id
+            ):
+                raise SnapshotValidationError(
+                    f"events[{index}] fork child is not an adaptation of its source"
+                )
 
     normalized_recipes = tuple(sorted(recipes, key=lambda recipe: recipe.id.int))
     normalized_events = tuple(sorted(events, key=lambda event: (event.occurred_at, event.id.int)))
@@ -603,16 +842,43 @@ def create_snapshot(
     limitations: tuple[str, ...],
     recipes: tuple[SnapshotRecipe, ...],
     events: tuple[SnapshotEvent, ...],
+    schema_version: str | None = None,
 ) -> EvaluationSnapshot:
-    """Create a validated snapshot from trusted extraction records."""
+    """Create a validated snapshot from trusted extraction records.
+
+    Existing in-memory evaluators that do not yet carry governed publication metadata
+    continue to produce v2 documents. Database exports pass v3 explicitly so missing
+    lineage, fingerprint, or cutoff provenance fails closed rather than being inferred.
+    """
 
     if any(recipe.legacy_ingredient_ids for recipe in recipes):
         raise SnapshotValidationError(
-            "cannot create a v2 snapshot from legacy ID-only recipes; recapture the "
+            "cannot create a snapshot from legacy ID-only recipes; recapture the "
             "source so structured ingredient measures are available"
         )
+    selected_schema_version = schema_version
+    if selected_schema_version is None:
+        has_v3_metadata = bool(recipes) and all(
+            recipe.recipe_id is not None
+            and recipe.edition_number is not None
+            and recipe.relation_kind is not None
+            and recipe.published_at is not None
+            for recipe in recipes
+        )
+        selected_schema_version = (
+            SNAPSHOT_SCHEMA_VERSION
+            if has_v3_metadata
+            else STRUCTURED_MEASURE_SNAPSHOT_SCHEMA_VERSION
+        )
+    if selected_schema_version not in {
+        SNAPSHOT_SCHEMA_VERSION,
+        STRUCTURED_MEASURE_SNAPSHOT_SCHEMA_VERSION,
+    }:
+        raise SnapshotValidationError(
+            "new snapshots must use the current v3 or structured-measure v2 schema"
+        )
     document = _normalized_document(
-        schema_version=SNAPSHOT_SCHEMA_VERSION,
+        schema_version=selected_schema_version,
         dataset_id=dataset_id,
         cutoff=cutoff,
         limitations=tuple(sorted(limitations)),

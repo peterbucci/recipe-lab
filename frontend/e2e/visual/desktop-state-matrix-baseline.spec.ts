@@ -1,9 +1,12 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  CHILD_RECIPE_ID,
   DRAFT_ID,
   GRAM_UNIT_ID,
+  ROOT_RECIPE_ID,
   VARIANT_RECIPE_ID,
+  VARIANT_RECIPE_STABLE_ID,
   setScenario,
   gotoMemberHome,
   stabilizeVisuals,
@@ -194,13 +197,25 @@ test.describe("desktop visual state matrix", () => {
   });
 
   test("recipe detail normal", async ({ page }) => {
-    await page.goto(`/recipes/${VARIANT_RECIPE_ID}`);
+    await page.goto(`/recipes/current/${VARIANT_RECIPE_STABLE_ID}`);
+    await expect(page).toHaveURL(
+      `/recipes/current/${VARIANT_RECIPE_STABLE_ID}`,
+    );
     await expect(
       page.getByRole("heading", { name: "Garden Cream Tomato Soup", level: 1 }),
     ).toBeVisible();
     await expect(
       page.getByRole("region", { name: "Save and rate this recipe" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Edit recipe", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Make your own version", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("complementary", { name: "Recipe version notice" }),
+    ).toHaveCount(0);
     await stabilizeVisuals(page);
     await captureBaseline(page, "recipe-detail-normal");
 
@@ -217,14 +232,44 @@ test.describe("desktop visual state matrix", () => {
 
     await page.getByRole("tab", { name: "Family" }).click();
     const history = page.getByRole("heading", {
-      name: "Recipe family",
+      name: "Recipe history",
       level: 2,
     });
-    await history.evaluate((heading) =>
-      heading.scrollIntoView({ block: "start" }),
-    );
+    await history.evaluate((heading) => {
+      heading.scrollIntoView({ block: "start" });
+      window.scrollBy(0, -80);
+    });
     await expect(history).toBeInViewport();
+    const historyRegion = page.getByRole("region", { name: "Recipe history" });
+    await expect(
+      historyRegion.getByText(
+        "Recipe history is unavailable right now. The open recipe is still available.",
+      ),
+    ).toHaveCount(0);
+    await expect(
+      historyRegion.getByRole("link", {
+        name: "Sunlit Tomato Soup",
+        exact: true,
+      }),
+    ).toHaveAttribute("href", `/recipes/${ROOT_RECIPE_ID}`);
+    await expect(
+      historyRegion.getByRole("link", {
+        name: "Roasted Garden Tomato Soup",
+        exact: true,
+      }),
+    ).toHaveAttribute(
+      "href",
+      `/recipes/${CHILD_RECIPE_ID}`,
+    );
     await captureBaseline(page, "recipe-detail-history");
+
+    const childSelector = historyRegion.getByRole("button", {
+      name: "Show Roasted Garden Tomato Soup in recipe history",
+      exact: true,
+    });
+    await childSelector.focus();
+    await page.keyboard.press("Enter");
+    await expect(history).toBeFocused();
   });
 
   test("recipe comparison normal", async ({ page }) => {

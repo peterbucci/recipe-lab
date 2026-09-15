@@ -17,12 +17,53 @@ class RecipeSchema(BaseModel):
 
 
 class RecipeSummary(RecipeSchema):
-    id: UUID = Field(description="Stable identifier for this immutable recipe version.")
+    id: UUID = Field(description="Exact identifier for this immutable recipe version.")
+    recipe_id: UUID = Field(
+        description="Stable recipe identifier shared by every edition of this recipe."
+    )
     lineage_id: UUID = Field(description="Identifier shared by every version in the lineage.")
     parent_version_id: UUID | None = Field(
-        description="Direct parent version, or null for the original root."
+        description=(
+            "Exact source version for a cross-recipe adaptation, or null when this recipe "
+            "was not adapted from another recipe. Same-recipe revisions use "
+            "previous_version_id instead."
+        )
     )
     version_number: int = Field(ge=1, description="Lineage-wide version number.")
+    edition_number: int = Field(
+        ge=1,
+        description="Recipe-local edition number, beginning at one.",
+    )
+    relation_kind: Literal["original", "adaptation", "revision"] = Field(
+        description=(
+            "Stored publication topology: an original recipe, a cross-recipe adaptation, "
+            "or a later edition of the same stable recipe."
+        )
+    )
+    previous_version_id: UUID | None = Field(
+        description="Exact preceding edition for a revision, or null for a first edition."
+    )
+    declared_change_reason: Literal["correction", "update"] | None = Field(
+        description=(
+            "Author-declared reason for a revision. This label does not determine topology."
+        )
+    )
+    is_current: bool = Field(
+        description="Whether this exact version is the stable recipe's current edition."
+    )
+    current_version: "RecipeVersionReference | None" = Field(
+        description=(
+            "The stable recipe's current exact version when it is publicly readable, or "
+            "null when the current version is hidden."
+        )
+    )
+    adaptation_source: "RecipeVersionReference | None" = Field(
+        description=(
+            "The exact publicly readable source from which this stable recipe was adapted, "
+            "or null for an original recipe or when that source is unavailable. This stays "
+            "fixed across later same-recipe revisions."
+        )
+    )
     title: str = Field(min_length=1, max_length=200)
     description: str | None
     servings: Decimal = Field(
@@ -55,6 +96,66 @@ class RecipeVersionReference(RecipeSchema):
     version_number: int = Field(ge=1)
     title: str = Field(min_length=1, max_length=200)
     author: PublicUserReference
+
+
+class RecipeHistoryEntry(RecipeSchema):
+    """One readable version in a stable recipe history or adaptation branch."""
+
+    id: UUID = Field(description="Exact immutable recipe-version identifier.")
+    recipe_id: UUID = Field(description="Stable recipe identifier for this entry.")
+    edition_number: int = Field(ge=1, description="Recipe-local edition number.")
+    relation_kind: Literal["original", "adaptation", "revision"] = Field(
+        description="Stored topology for this exact edition."
+    )
+    previous_version_id: UUID | None = Field(
+        description=(
+            "Exact preceding same-recipe edition for a revision. The identifier remains "
+            "available when that predecessor is hidden, without exposing its description."
+        )
+    )
+    adaptation_source_version_id: UUID | None = Field(
+        description=(
+            "Exact first-edition adaptation source, retained across later revisions. The "
+            "identifier remains available when the source is hidden, without exposing its "
+            "description."
+        )
+    )
+    declared_change_reason: Literal["correction", "update"] | None = Field(
+        description="Optional author-declared revision reason; it does not determine topology."
+    )
+    is_current: bool = Field(
+        description="Whether this exact version is its stable recipe's current edition."
+    )
+    title: str = Field(min_length=1, max_length=200)
+    published_at: datetime = Field(description="Timestamp when this exact version became public.")
+    author: PublicUserReference
+
+
+class RecipeHistoryResponse(BaseModel):
+    recipe_id: UUID = Field(description="Stable recipe selected by the exact request version.")
+    selected_version_id: UUID = Field(description="Exact readable version selected by the route.")
+    current_version_id: UUID | None = Field(
+        description=(
+            "Exact current version when publicly readable, or null when the stable recipe's "
+            "current edition is hidden. No older fallback is selected."
+        )
+    )
+    editions: list[RecipeHistoryEntry] = Field(
+        description="Readable same-recipe editions in ascending recipe-local order."
+    )
+    adaptations: list[RecipeHistoryEntry] = Field(
+        description=(
+            "Readable current versions of recipes adapted from any exact edition of this "
+            "stable recipe. An entry may itself be a later revision; its branch membership "
+            "comes from the stable recipe's first edition."
+        )
+    )
+    editions_truncated: bool = Field(
+        description="Whether more readable same-recipe editions exist beyond this bounded list."
+    )
+    adaptations_truncated: bool = Field(
+        description="Whether more readable current adaptations exist beyond this bounded list."
+    )
 
 
 class RecipeIngredientResponse(RecipeSchema):

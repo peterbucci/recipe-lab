@@ -12,6 +12,16 @@ every account-linked foreign-key path known to the SQLAlchemy model as one of:
   stated reason; or
 - **prohibit**: do not create this kind of account-bearing artifact.
 
+The publication rule qualified by that privacy boundary is:
+
+> Published recipe content is immutable against ordinary product mutations,
+> subject to legally required privacy or security operations.
+
+The qualification does not turn account deletion, moderation, visibility, or
+database administration into a general snapshot-editing path. Ordinary recipe
+changes publish another exact edition; exceptional content erasure remains the
+separate RCP-54 gate described below.
+
 `backend/tests/test_account_data_manifest.py` independently walks the database
 metadata outward from `users.id`. It compares the complete discovered table
 set, every relationship between account-linked tables, and every column with
@@ -28,10 +38,11 @@ explain why its individual decisions differ:
 | --- | --- | --- |
 | Member identity, OIDC mappings, login transactions bound to a session, and sessions | Delete private identity and every session. Replace the user with the fixed `Deleted cook` tombstone. | The stable tombstone UUID alone preserves public authorship and audit foreign keys. |
 | Curator and moderator roles | Delete roles held by the member immediately. | A tombstoned `granted_by_user_id` may remain on somebody else's role grant as operator-audit attribution. It does not authorize the deleted member. |
-| Active drafts and structured draft children | Delete. | None. Drafts are private workspaces. |
-| Published draft receipts | Delete every content child and anonymize title, description, and servings on the required shell. | Receipt keys, revision, timestamps, author tombstone, and source version prevent duplicate publication and preserve replay evidence. |
+| Active original, adaptation, and revision drafts and structured draft children | Delete. | None. Drafts are private workspaces. |
+| Published draft receipts | Delete every content child and anonymize title, description, and servings on the required shell. | Receipt keys, draft kind, optimistic revision, timestamps, author tombstone, exact source version, and exact result version prevent duplicate publication and preserve replay evidence. |
 | Saves, ratings, and preference events | Delete. | None. These are private recommendation/activity signals. |
-| Public recipe lineages, immutable versions, structured ingredients/actions, fingerprints, publications, and visibility events | Retain. | Public content, fork topology, duplicate evidence, and withdrawal/moderation history must remain internally consistent. Attribution resolves only to `Deleted cook`; it never reassigns content to Demo Cook. |
+| Stable recipes | Clear nullable `owner_user_id`; retain stable ID, lineage, attributed author, current exact-version pointer, and creation time. | Active ownership is authorization and must disappear. Stable identity and current topology remain public under the attributed `Deleted cook` tombstone without identifying a new owner. |
+| Append-only recipe editions, public lineages, immutable exact versions, structured ingredients/actions, fingerprints, publications, and visibility events | Retain. | Same-recipe succession, exact adaptation topology, duplicate evidence, interactions, and withdrawal/moderation history must remain internally consistent. Attribution resolves only to `Deleted cook`; it never reassigns content to Demo Cook. |
 | Pending ingredient requests and their audit events | Delete. | Unreviewed member text never becomes catalog identity or governance evidence. |
 | Reviewed ingredient requests | Anonymize free-form request context and its submitted-event context; retain the reviewed proposal and terminal decision. | The catalog needs provenance, duplicate resolution, and curator-decision evidence. Actor IDs resolve only to tombstones when those members delete. |
 | Unbound similarity preflights, candidates, and decisions | Delete. | They are abandoned private workflow evidence. |
@@ -47,6 +58,36 @@ the request body. Provider-backed recent authentication, exact Origin and CSRF
 evidence, typed confirmation, and active-member status are all required before
 the tombstone is written. All sessions and held roles disappear in that same
 transaction, so a successful response cannot leave usable authority behind.
+
+## Exceptional privacy or security erasure
+
+RCP-54 is a separate, unimplemented launch gate for claiming or operating an
+exceptional erasure of published content. It is not part of the ordinary
+RCP-53 edit, correction, visibility, moderation, or account-deletion workflow.
+Until that gate is complete, operators must not disable immutability triggers,
+issue direct snapshot updates or deletes, or use the current pointer as a repair
+switch.
+
+RCP-54 requires, at minimum:
+
+1. a legal/DPO-approved field-by-field decision describing what must be erased,
+   what topology or audit evidence may remain, retention deadlines, and the
+   governing privacy or security basis;
+2. a named privacy authority behind strong recent authentication and least-
+   privilege access, separate from ordinary author and moderator authority;
+3. one audited, idempotent, fail-closed operation that cannot be invoked through
+   public recipe or account endpoints and does not reveal unavailable content;
+4. propagation rules for replicas, WAL, backups, restored copies, indexes,
+   caches, exports, and derived ML artifacts, including deletion-ledger evidence
+   that prevents later restoration from resurrecting erased material; and
+5. rehearsal and recovery evidence showing what happens to exact links,
+   stable-current selection, adaptations, interactions, moderation evidence,
+   attribution, and partially completed operations.
+
+These decisions cannot be inferred safely from the current schema. If a legal
+or security incident requires action before RCP-54 exists, isolate affected
+systems, preserve restricted evidence, and escalate to the designated legal/DPO
+and privacy authorities rather than improvising a product mutation.
 
 ## Files, logs, backups, and derived artifacts
 

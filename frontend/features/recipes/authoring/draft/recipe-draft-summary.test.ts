@@ -4,6 +4,7 @@ import { parseRecipeDraftListItem } from "./recipe-draft-summary";
 
 const VALID_SUMMARY = {
   id: "11111111-1111-4111-8111-111111111111",
+  draft_kind: "adaptation",
   source_version_id: "22222222-2222-4222-8222-222222222222",
   status: "active",
   revision: 3,
@@ -28,6 +29,7 @@ describe("recipe draft summary parser", () => {
     expect(
       parseRecipeDraftListItem({
         ...VALID_SUMMARY,
+        draft_kind: "original",
         source_version_id: null,
         title: "",
       }),

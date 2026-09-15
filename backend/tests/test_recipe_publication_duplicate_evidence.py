@@ -130,7 +130,7 @@ def _create_complete_draft(
     created = client.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     assert created.status_code == 201
     draft_id = UUID(cast(str, _json_object(created.json())["id"]))

@@ -14,6 +14,7 @@ const PREFLIGHT_ID = "33333333-3333-4333-8333-333333333333";
 const ACTION_ID = "44444444-4444-4444-8444-444444444444";
 const LOCATION = `/recipes/${RECIPE_ID}`;
 const request: RecipeDraftPublishRequest = {
+  declared_change_reason: null,
   revision: 4,
   community_rules_accepted: true,
   content_rights_confirmed: true,
@@ -23,6 +24,7 @@ const request: RecipeDraftPublishRequest = {
     result_digest: "a".repeat(64),
     decision: "continue",
   },
+  withdraw_predecessor: false,
 };
 
 beforeEach(() => {

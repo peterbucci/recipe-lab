@@ -479,22 +479,36 @@ export async function interactWithRootRecipe(
   journey: CommunityReleaseJourney,
 ): Promise<void> {
   const { alice, bob } = journey;
+  const exactRoot = await bob.request.get(
+    `/api/recipes/${journey.rootRecipeVersionId}`,
+  );
+  expect(exactRoot.status()).toBe(200);
+  const exactRootPayload = await jsonRecord(exactRoot);
+  expectPublicPayloadSafe(exactRootPayload);
+  const rootRecipeId = requireUuid(
+    exactRootPayload.recipe_id,
+    "root recipe ID",
+  );
+  const stableRootPath = `/recipes/current/${rootRecipeId}`;
   await bob.goto(`/recipes?q=${encodeURIComponent(rootTitle)}`);
   const rootCard = bob.getByRole("article", {
     name: rootTitle,
     exact: true,
   });
   await expect(rootCard).toBeVisible();
+  const rootLink = rootCard.getByRole("link", {
+    name: rootTitle,
+    exact: true,
+  });
+  await expect(rootLink).toHaveAttribute("href", stableRootPath);
   const viewResponse = bob.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
       response.url().endsWith(`/api/recipes/${journey.rootRecipeVersionId}/view`),
   );
   await Promise.all([
-    bob.waitForURL("/recipes/" + journey.rootRecipeVersionId),
-    rootCard
-      .getByRole("link", { name: rootTitle, exact: true })
-      .click(),
+    bob.waitForURL(stableRootPath),
+    rootLink.click(),
   ]);
   await expect(
     bob.getByRole("heading", { name: rootTitle, level: 1 }),
@@ -871,7 +885,7 @@ export async function verifyPublicLineage(
     });
     await family
       .getByRole("button", {
-        name: `Show ${childTitle} in the family tree`,
+        name: `Show ${childTitle} in recipe history`,
         exact: true,
       })
       .click();

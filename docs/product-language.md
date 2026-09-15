@@ -19,14 +19,30 @@ implementation and data-model vocabulary out of ordinary screens.
 | A recipe the member made from another recipe | **Your version** or **version** | fork, child, variant |
 | The direct recipe that a version started from | **Based on** or **starting recipe** | parent ID, source snapshot |
 | The relationship among published versions | **Recipe history** | lineage, topology |
+| Changing the current published recipe owned by the member | **Edit recipe** or **Continue editing** | revise, branch, commit |
+| Keeping mutable work private | **Save draft** | save snapshot, commit changes |
+| Publishing a same-recipe update | **Publish changes** | create successor, advance current |
+| One exact earlier publication by the same author | **Older version** or **Published version** | superseded node, revision object |
+| The readable destination selected for normal links | **Current version** or **View the current version** | current pointer, canonical snapshot |
 | Possible structural matches before publication | **Similar recipes** or **similarity review** | duplicate candidates, fingerprint matches |
 | A reviewed ingredient available to members | **Approved ingredient** or **catalog name** | canonical ID, canonical identity |
-| A published record that cannot be edited in place | **Published version** and **cannot be edited** | immutable snapshot, immutable child/root |
+| A published record that keeps its exact historical meaning | **Published version** and **editing creates a new published version** | immutable snapshot, immutable child/root |
 
 Use **This version** when referring to the recipe currently on screen and
 **Another version** for related recipes. Explain consequences directly: for
-example, “Publishing creates a separate public version and does not change the
-starting recipe.”
+example, “Publishing your version does not change the starting recipe.” For an
+author update, prefer “Publishing changes creates a new published version; the
+older version stays in recipe history.” Do not label an update **Published
+revision** in ordinary cards or screens.
+
+The workflow, not the author's answer to a prompt, determines whether a
+publication updates the same recipe or makes another cook's adaptation. When a
+stored weak reason is useful in history, say **Author marked this version as a
+correction** or **Author marked this version as an update**. Never shorten that
+to a verified **Correction**, **Fixed**, **Safe**, or **Improved** badge. A
+declared reason and an adaptation diff are observational provenance only: they
+do not prove that the recipe was cooked, that a change succeeded, or that one
+version is safer or better.
 
 ## Claims that are not product copy
 
@@ -49,6 +65,12 @@ Ordinary member screens also must not expose UUIDs, canonical IDs, ingredient
 occurrence IDs, policy versions, structural fingerprints, or immutable-snapshot
 terminology. Error and empty states follow the same rule.
 
+Recipe Lab also must not promise that deleting an account erases already
+published recipe content. Current account deletion removes private identity and
+activity, clears active recipe ownership, and retains public history under
+**Deleted cook**. RCP-54 exceptional privacy or security erasure is a separate,
+unimplemented launch gate; no ordinary screen may imply that capability exists.
+
 ## Staff, diagnostics, and engineering exceptions
 
 Exceptions are narrow and contextual, not a license to reuse internal language
@@ -61,6 +83,9 @@ in member copy:
   identifier when it is necessary to investigate or operate the system.
 - API schemas, code identifiers, migrations, architecture documents, tests of
   those contracts, and operator documentation may use exact technical terms.
+- Restricted privacy and incident procedures may discuss exceptional erasure
+  only after RCP-54 defines the approved legal/DPO decision and authoritative
+  operator boundary. This exception does not create a current mutation path.
 - The recommendation endpoint and offline evaluation documents may use model
   and ranking terminology only when they label the work **research preview** or
   **experimental**, state that no consumer recommendation surface exists, and
@@ -105,8 +130,9 @@ Before merging public-copy changes, verify that:
    do not imply a consumer recommendation experience;
 4. IDs and internal workflow terms are absent from ordinary member screens;
 5. any staff or diagnostic exception is explicit and remains access-controlled;
-   and
-6. research endpoints stay labeled as research preview and preserve the data
+6. author-declared reasons and adaptation evidence are not presented as
+   verified outcomes; and
+7. research endpoints stay labeled as research preview and preserve the data
    boundary above.
 
 The frontend policy test inventories ordinary UI modules automatically and

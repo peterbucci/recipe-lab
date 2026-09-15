@@ -69,7 +69,7 @@ describe("HomePublicDiscovery", () => {
     const featured = screen.getByRole("region", { name: "Featured recipes" });
     expect(
       within(featured).getByRole("link", { name: "Carrot Walnut Snack Cake" }),
-    ).toHaveAttribute("href", "/recipes/recipe-one");
+    ).toHaveAttribute("href", "/recipes/current/stable-recipe-one");
     expect(screen.getByRole("link", { name: "Breakfast" })).toHaveAttribute(
       "href",
       "/recipes?category=breakfast",
@@ -103,7 +103,10 @@ describe("HomePublicDiscovery", () => {
       screen.getByRole("link", {
         name: "Sign in to save Carrot Walnut Snack Cake",
       }),
-    ).toHaveAttribute("href", "/sign-in?return_to=%2Frecipes%2Frecipe-one");
+    ).toHaveAttribute(
+      "href",
+      "/sign-in?return_to=%2Frecipes%2Fcurrent%2Fstable-recipe-one",
+    );
     expect(
       within(featured).queryByText(/followers|cook time|minutes?|hours?/i),
     ).not.toBeInTheDocument();

@@ -393,6 +393,7 @@ describe("RecipeDraftEditor", () => {
     const sourceRecipe = publicSourceRecipe(sourceId);
     mocks.fetchRecipeDraft.mockResolvedValue({
       ...detail,
+      draft_kind: "adaptation",
       source_version_id: sourceId,
       title: "My tomato soup",
     });
@@ -448,7 +449,7 @@ describe("RecipeDraftEditor", () => {
       "Selected current draft: My tomato soup",
     );
     expect(draftPreview).toHaveTextContent("Selected");
-    expect(draftPreview).toHaveTextContent("Would become a version");
+    expect(draftPreview).toHaveTextContent("Would become an adaptation");
     expect(within(draftPreview).queryByRole("link")).toBeNull();
     expect(
       screen.queryByText(/will join that recipe family after you publish it/i),
@@ -477,6 +478,37 @@ describe("RecipeDraftEditor", () => {
     expect(screen.queryByText(/belongs to RCP-28/i)).toBeNull();
   });
 
+  it("reuses the editor for a revision without presenting it as an adaptation", async () => {
+    const sourceId = "22222222-2222-4222-8222-222222222222";
+    renderEditor(
+      {
+        ...detail,
+        draft_kind: "revision",
+        source_version_id: sourceId,
+        title: "Updated tomato soup",
+      },
+      undefined,
+      publicSourceRecipe(sourceId),
+    );
+
+    expect(screen.getByRole("button", { name: "Publish changes" })).toBeVisible();
+    expect(screen.queryByText(/^Based on/i)).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Family" }));
+    expect(screen.queryByLabelText(/selected current draft/i)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Publish changes" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ready to publish your changes?",
+    });
+    expect(within(dialog).getByText("Publish changes")).toBeVisible();
+    expect(
+      within(dialog).getByRole("group", {
+        name: "Why are you publishing changes? (optional)",
+      }),
+    ).toBeVisible();
+    expect(dialog).not.toHaveTextContent("Based on");
+  });
+
   it("waits for a reopened draft's source name before opening publication", async () => {
     const sourceId = "22222222-2222-4222-8222-222222222222";
     const sourceRecipe = publicSourceRecipe(sourceId, "Resolved source recipe");
@@ -495,6 +527,7 @@ describe("RecipeDraftEditor", () => {
 
     renderEditor({
       ...detail,
+      draft_kind: "adaptation",
       source_version_id: sourceId,
       title: "Reopened private version",
     });
@@ -543,6 +576,7 @@ describe("RecipeDraftEditor", () => {
 
     renderEditor({
       ...detail,
+      draft_kind: "adaptation",
       source_version_id: sourceId,
       title: "Reopened private version",
     });
@@ -571,6 +605,7 @@ describe("RecipeDraftEditor", () => {
     const sourceRecipe = publicSourceRecipe(sourceId, "Saved source recipe");
     mocks.fetchRecipeDraft.mockResolvedValue({
       ...detail,
+      draft_kind: "adaptation",
       source_version_id: sourceId,
       title: "Resumed private version",
     });
@@ -594,8 +629,8 @@ describe("RecipeDraftEditor", () => {
       .find((link) => link.closest(".recipe-detail__parent-context"));
     expect(sourceLink).toHaveAttribute("href", `/recipes/${sourceId}`);
     expect(familyFetch.mock.calls[0]?.[0]).toBe(`/api/recipes/${sourceId}`);
-    expect(familyFetch.mock.calls[1]?.[0]).toContain(
-      "/api/recipes?lineage_id=33333333-3333-4333-8333-333333333333",
+    expect(familyFetch.mock.calls[1]?.[0]).toBe(
+      `/api/recipes/${sourceId}/history`,
     );
 
     fireEvent.click(screen.getByRole("tab", { name: "Family" }));

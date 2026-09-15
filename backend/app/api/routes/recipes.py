@@ -13,7 +13,7 @@ from app.api.dependencies import (
 )
 from app.api.errors import ApiError
 from app.api.member_context import lock_active_member_actor, recipe_viewer_state_response
-from app.homepage_content import FEATURED_RECIPE_VERSION_IDS
+from app.homepage_content import FEATURED_RECIPE_IDS
 from app.models import RecipeVersion
 from app.pagination import PageParams
 from app.repositories.interactions import get_recipe_viewer_states
@@ -23,11 +23,15 @@ from app.repositories.recipe_diffs import (
     get_recipe_versions_for_diff,
 )
 from app.repositories.recipes import (
+    PublicRecipeHistoryEntry,
     RecipeCardEngagementAggregate,
     browse_recipe_versions,
+    get_current_recipe_version,
+    get_public_recipe_adaptation_sources,
+    get_public_recipe_history,
     get_recipe_card_engagement_aggregates,
     get_recipe_version,
-    list_public_recipe_versions_in_order,
+    list_public_current_recipe_versions_in_order,
 )
 from app.schemas.errors import ErrorResponse
 from app.schemas.interactions import (
@@ -40,10 +44,13 @@ from app.schemas.recipes import (
     FeaturedRecipeSummary,
     RecipeCardSummary,
     RecipeDetailResponse,
+    RecipeHistoryEntry,
+    RecipeHistoryResponse,
     RecipePageResponse,
 )
 from app.services.recipe_diffs import build_recipe_diff
 from app.services.recipe_responses import (
+    public_user_reference,
     recipe_ingredient_response,
     recipe_instruction_response,
     recipe_summary_response,
@@ -112,10 +119,14 @@ DIFF_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
 def _featured_summary(
     version: RecipeVersion,
     engagement: RecipeCardEngagementAggregate,
+    adaptation_source: RecipeVersion | None,
 ) -> FeaturedRecipeSummary:
     average_rating = engagement.average_rating
     return FeaturedRecipeSummary(
-        **recipe_summary_response(version).model_dump(),
+        **recipe_summary_response(
+            version,
+            adaptation_source=adaptation_source,
+        ).model_dump(),
         average_rating=float(average_rating) if average_rating is not None else None,
         rating_count=engagement.rating_count,
         save_count=engagement.save_count,
@@ -125,10 +136,14 @@ def _featured_summary(
 def _card_summary(
     version: RecipeVersion,
     engagement: RecipeCardEngagementAggregate,
+    adaptation_source: RecipeVersion | None,
 ) -> RecipeCardSummary:
     average_rating = engagement.average_rating
     return RecipeCardSummary(
-        **recipe_summary_response(version).model_dump(),
+        **recipe_summary_response(
+            version,
+            adaptation_source=adaptation_source,
+        ).model_dump(),
         average_rating=float(average_rating) if average_rating is not None else None,
         rating_count=engagement.rating_count,
         save_count=engagement.save_count,
@@ -142,8 +157,12 @@ def _detail_response(
     viewer_user_id: UUID | None,
 ) -> RecipeDetailResponse:
     engagement = get_recipe_card_engagement_aggregates(session, [version.id])[version.id]
+    adaptation_source = get_public_recipe_adaptation_sources(session, [version]).get(version.id)
     return RecipeDetailResponse(
-        **recipe_summary_response(version).model_dump(),
+        **recipe_summary_response(
+            version,
+            adaptation_source=adaptation_source,
+        ).model_dump(),
         total_time_minutes=version.total_time_minutes,
         active_time_minutes=version.active_time_minutes,
         difficulty=cast(Literal["easy", "medium", "hard"] | None, version.difficulty),
@@ -168,11 +187,27 @@ def _detail_response(
     )
 
 
+def _history_entry_response(entry: PublicRecipeHistoryEntry) -> RecipeHistoryEntry:
+    return RecipeHistoryEntry(
+        id=entry.recipe_version_id,
+        recipe_id=entry.recipe_id,
+        edition_number=entry.edition_number,
+        relation_kind=entry.relation_kind,
+        previous_version_id=entry.previous_recipe_version_id,
+        adaptation_source_version_id=entry.adaptation_source_version_id,
+        declared_change_reason=entry.declared_change_reason,
+        is_current=entry.is_current,
+        title=entry.title,
+        published_at=entry.published_at,
+        author=public_user_reference(entry.author),
+    )
+
+
 @router.get(
     "",
     response_model=RecipePageResponse,
     responses=VALIDATION_ERROR_RESPONSE,
-    summary="Browse recipe versions",
+    summary="Browse current recipes",
 )
 def browse_recipes(
     session: SessionDependency,
@@ -190,7 +225,7 @@ def browse_recipes(
     ] = None,
     lineage_id: Annotated[
         UUID | None,
-        Query(description="Return only versions in this lineage."),
+        Query(description="Return only current recipe editions in this lineage."),
     ] = None,
     ingredient: Annotated[
         IngredientName | None,
@@ -198,7 +233,7 @@ def browse_recipes(
     ] = None,
     is_variant: Annotated[
         bool | None,
-        Query(description="Use true for variants or false for original root versions."),
+        Query(description="Use true for adapted recipes or false for original recipes."),
     ] = None,
     category: Annotated[
         RecipeCategorySlug | None,
@@ -230,8 +265,19 @@ def browse_recipes(
         session,
         [item.id for item in result.items],
     )
+    adaptation_sources = get_public_recipe_adaptation_sources(
+        session,
+        result.items,
+    )
     return RecipePageResponse(
-        items=[_card_summary(item, engagement[item.id]) for item in result.items],
+        items=[
+            _card_summary(
+                item,
+                engagement[item.id],
+                adaptation_sources.get(item.id),
+            )
+            for item in result.items
+        ],
         page=page,
         page_size=page_size,
         total=result.total,
@@ -246,20 +292,31 @@ def browse_recipes(
     description=(
         "Returns one deploy-reviewed editorial selection in display order. The result is "
         "the same for every viewer, is not a recommendation, and silently omits any selected "
-        "version that is no longer publicly readable."
+        "stable recipe whose current edition is not publicly readable."
     ),
 )
 def featured_recipes(session: SessionDependency) -> FeaturedRecipeListResponse:
-    recipes = list_public_recipe_versions_in_order(
+    recipes = list_public_current_recipe_versions_in_order(
         session,
-        FEATURED_RECIPE_VERSION_IDS,
+        FEATURED_RECIPE_IDS,
     )
     engagement = get_recipe_card_engagement_aggregates(
         session,
         [recipe.id for recipe in recipes],
     )
+    adaptation_sources = get_public_recipe_adaptation_sources(
+        session,
+        recipes,
+    )
     return FeaturedRecipeListResponse(
-        items=[_featured_summary(item, engagement[item.id]) for item in recipes]
+        items=[
+            _featured_summary(
+                item,
+                engagement[item.id],
+                adaptation_sources.get(item.id),
+            )
+            for item in recipes
+        ]
     )
 
 
@@ -300,6 +357,7 @@ def recipe_viewer_states_for_current_user(
                 recipe_version_id=recipe_version_id,
                 saved=state.saved,
                 rating=state.rating,
+                can_revise=state.can_revise,
             )
             for recipe_version_id, state in states.items()
         ]
@@ -307,6 +365,76 @@ def recipe_viewer_states_for_current_user(
     session.commit()
     apply_private_no_store(response)
     return result
+
+
+@router.get(
+    "/current/{recipe_id}",
+    response_model=RecipeDetailResponse,
+    responses=DETAIL_ERROR_RESPONSES,
+    summary="Read the current version of a stable recipe",
+    description=(
+        "Resolves one stable recipe identifier to its explicitly selected current exact "
+        "version. A hidden current version returns not found; older readable editions are "
+        "never used as a fallback."
+    ),
+)
+def current_recipe_detail(
+    recipe_id: UUID,
+    response: Response,
+    session: SessionDependency,
+    authenticated: OptionalAuthenticatedSessionDependency,
+) -> RecipeDetailResponse:
+    apply_private_no_store(response)
+    version = get_current_recipe_version(session, recipe_id)
+    if version is None:
+        raise ApiError(
+            status_code=404,
+            code="recipe_not_found",
+            message="The recipe was not found or its current version is not publicly available.",
+        )
+
+    detail = _detail_response(
+        session,
+        version=version,
+        viewer_user_id=authenticated.user_id if authenticated is not None else None,
+    )
+    session.commit()
+    return detail
+
+
+@router.get(
+    "/{recipe_version_id}/history",
+    response_model=RecipeHistoryResponse,
+    responses=DETAIL_ERROR_RESPONSES,
+    summary="Read a stable recipe's public edition history",
+    description=(
+        "Resolves one readable exact version to its stable recipe, then returns bounded "
+        "readable same-recipe editions and readable current adaptations whose first edition "
+        "was adapted from any exact edition of that recipe. Hidden versions are omitted as "
+        "descriptive entries; exact predecessor and source identifiers remain topology, and "
+        "a hidden current version never falls back to an older edition."
+    ),
+)
+def recipe_history(
+    recipe_version_id: UUID,
+    session: SessionDependency,
+) -> RecipeHistoryResponse:
+    history = get_public_recipe_history(session, recipe_version_id)
+    if history is None:
+        raise ApiError(
+            status_code=404,
+            code="recipe_not_found",
+            message="The recipe was not found or is not publicly available.",
+        )
+    return RecipeHistoryResponse(
+        recipe_id=history.recipe_id,
+        selected_version_id=history.selected_recipe_version_id,
+        current_version_id=history.current_recipe_version_id,
+        editions=[_history_entry_response(item) for item in history.editions],
+        adaptations=[_history_entry_response(item) for item in history.adaptations],
+        editions_truncated=history.editions_truncated,
+        adaptations_truncated=history.adaptations_truncated,
+    )
 
 
 @router.get(
@@ -346,8 +474,9 @@ def recipe_detail(
     summary="Compare structured recipe versions",
     description=(
         "Compares a base snapshot with the target recipe version. When base_version_id is "
-        "omitted, the target's direct parent is used. Explicit comparisons may select any "
-        "version in the same lineage."
+        "omitted, a revision uses its previous same-recipe edition and an adaptation uses "
+        "its exact cross-recipe source. Explicit comparisons may select any version in the "
+        "same lineage."
     ),
 )
 def recipe_diff(
@@ -357,7 +486,8 @@ def recipe_diff(
         UUID | None,
         Query(
             description=(
-                "Version to compare from. Omit this value to use the target's direct parent."
+                "Version to compare from. Omit this value to use the target's topology-aware "
+                "default base."
             )
         ),
     ] = None,
@@ -370,7 +500,7 @@ def recipe_diff(
             message="The recipe was not found or is not publicly available.",
         )
 
-    resolved_base_id = base_version_id or target_identity.parent_version_id
+    resolved_base_id = base_version_id or target_identity.default_base_version_id
     if resolved_base_id is None:
         raise ApiError(
             status_code=422,

@@ -43,8 +43,10 @@ function seedAttempt(
   sourceVersionId: string | null,
   idempotencyKey: string,
 ) {
+  const draftKind = sourceVersionId === null ? "original" : "adaptation";
   const storageKey = recipeDraftCreationAttemptStorageKey(
     actorId,
+    draftKind,
     sourceVersionId,
   );
   window.sessionStorage.setItem(
@@ -52,8 +54,8 @@ function seedAttempt(
     JSON.stringify({
       actor_id: actorId,
       idempotency_key: idempotencyKey,
-      intent: recipeDraftCreationIntent(sourceVersionId),
-      version: 1,
+      intent: recipeDraftCreationIntent(draftKind, sourceVersionId),
+      version: 2,
     }),
   );
   return storageKey;
@@ -86,7 +88,10 @@ function renderStarter({
               }
         }
       >
-        <RecipeDraftStarter sourceVersionId={sourceVersionId} />
+        <RecipeDraftStarter
+          draftKind={sourceVersionId === null ? "original" : "adaptation"}
+          sourceVersionId={sourceVersionId}
+        />
       </AuthSessionProvider>
     </NavigationBlockerProvider>
   );
@@ -173,6 +178,7 @@ describe("RecipeDraftStarter", () => {
     expect(screen.queryByRole("link", { name: "Cancel" })).toBeNull();
     await waitFor(() =>
       expect(mocks.createRecipeDraft).toHaveBeenCalledWith(
+        "adaptation",
         SOURCE_ID,
         FORK_ATTEMPT_ID,
       ),
@@ -185,6 +191,7 @@ describe("RecipeDraftStarter", () => {
 
   it("resumes an existing exact-source private draft without creating another", async () => {
     mocks.findActiveRecipeDraftForSource.mockResolvedValue({
+      draft_kind: "adaptation",
       id: DRAFT_ID,
       source_version_id: SOURCE_ID,
       status: "active",
@@ -201,6 +208,7 @@ describe("RecipeDraftStarter", () => {
     await waitFor(() =>
       expect(mocks.findActiveRecipeDraftForSource).toHaveBeenCalledWith(
         SOURCE_ID,
+        "adaptation",
       ),
     );
     expect(mocks.replace).toHaveBeenCalledWith(
@@ -221,6 +229,7 @@ describe("RecipeDraftStarter", () => {
     );
     await waitFor(() =>
       expect(mocks.createRecipeDraft).toHaveBeenCalledWith(
+        "original",
         null,
         BLANK_ATTEMPT_ID,
       ),
@@ -239,6 +248,7 @@ describe("RecipeDraftStarter", () => {
 
     await waitFor(() => expect(mocks.createRecipeDraft).toHaveBeenCalledOnce());
     expect(mocks.createRecipeDraft).toHaveBeenCalledWith(
+      "adaptation",
       SOURCE_ID,
       FORK_ATTEMPT_ID,
     );
@@ -261,8 +271,8 @@ describe("RecipeDraftStarter", () => {
 
     await waitFor(() => expect(mocks.createRecipeDraft).toHaveBeenCalledTimes(2));
     expect(mocks.createRecipeDraft.mock.calls).toEqual([
-      [SOURCE_ID, FORK_ATTEMPT_ID],
-      [SOURCE_ID, FORK_ATTEMPT_ID],
+      ["adaptation", SOURCE_ID, FORK_ATTEMPT_ID],
+      ["adaptation", SOURCE_ID, FORK_ATTEMPT_ID],
     ]);
     expect(window.sessionStorage.getItem(storageKey)).toBeNull();
     expect(mocks.replace).toHaveBeenCalledWith(
@@ -281,8 +291,8 @@ describe("RecipeDraftStarter", () => {
 
     await waitFor(() => expect(mocks.createRecipeDraft).toHaveBeenCalledTimes(2));
     expect(mocks.createRecipeDraft.mock.calls).toEqual([
-      [SOURCE_ID, FORK_ATTEMPT_ID],
-      [SOURCE_ID, OTHER_ATTEMPT_ID],
+      ["adaptation", SOURCE_ID, FORK_ATTEMPT_ID],
+      ["adaptation", SOURCE_ID, OTHER_ATTEMPT_ID],
     ]);
     expect(window.sessionStorage.getItem(storageKey)).toBeNull();
     expect(mocks.replace).toHaveBeenCalledWith(
@@ -310,10 +320,10 @@ describe("RecipeDraftStarter", () => {
     await screen.findByRole("button", { name: "Try again" });
 
     expect(mocks.createRecipeDraft.mock.calls).toEqual([
-      [SOURCE_ID, FORK_ATTEMPT_ID],
-      [null, BLANK_ATTEMPT_ID],
-      [OTHER_SOURCE_ID, OTHER_ATTEMPT_ID],
-      [SOURCE_ID, OTHER_ACTOR_ATTEMPT_ID],
+      ["adaptation", SOURCE_ID, FORK_ATTEMPT_ID],
+      ["original", null, BLANK_ATTEMPT_ID],
+      ["adaptation", OTHER_SOURCE_ID, OTHER_ATTEMPT_ID],
+      ["adaptation", SOURCE_ID, OTHER_ACTOR_ATTEMPT_ID],
     ]);
   });
 
@@ -343,8 +353,8 @@ describe("RecipeDraftStarter", () => {
     renderStarter();
     await waitFor(() => expect(mocks.createRecipeDraft).toHaveBeenCalledTimes(2));
     expect(mocks.createRecipeDraft.mock.calls).toEqual([
-      [SOURCE_ID, FORK_ATTEMPT_ID],
-      [SOURCE_ID, FORK_ATTEMPT_ID],
+      ["adaptation", SOURCE_ID, FORK_ATTEMPT_ID],
+      ["adaptation", SOURCE_ID, FORK_ATTEMPT_ID],
     ]);
   });
 

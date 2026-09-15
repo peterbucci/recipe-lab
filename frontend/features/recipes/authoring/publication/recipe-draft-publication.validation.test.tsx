@@ -104,6 +104,8 @@ describe("RecipeDraftPublication", () => {
           revision: 4,
           community_rules_accepted: true,
           content_rights_confirmed: true,
+          declared_change_reason: null,
+          withdraw_predecessor: false,
           duplicate_review: {
             preflight_id: PREFLIGHT_ID,
             policy_version: "recipe-duplicate-preflight-policy-v1",

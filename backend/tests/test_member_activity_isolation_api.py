@@ -163,7 +163,7 @@ def test_anonymous_reads_are_public_but_every_mutation_is_rejected_without_rows(
         member_activity_api.anonymous.post(
             "/api/recipe-drafts",
             headers=_headers(),
-            json={"source_version_id": str(CARROT_ROOT_ID)},
+            json={"draft_kind": "adaptation", "source_version_id": str(CARROT_ROOT_ID)},
         ),
     ]
     assert {response.status_code for response in mutations} == {401}
@@ -210,6 +210,7 @@ def test_member_scoped_state_and_idempotency_are_isolated_by_member_and_operatio
         "recipe_version_id": str(CARROT_ROOT_ID),
         "saved": True,
         "rating": None,
+        "can_revise": False,
     }
     member_b_rating = member_activity_api.member_b.put(
         f"/api/recipes/{CARROT_ROOT_ID}/rating",
@@ -308,6 +309,7 @@ def test_actor_spoof_payloads_and_incomplete_accounts_cannot_mutate(
         "/api/recipe-drafts",
         headers=_headers(),
         json={
+            "draft_kind": "adaptation",
             "source_version_id": str(CARROT_ROOT_ID),
             "created_by_user_id": str(MEMBER_B_ID),
         },
@@ -321,7 +323,7 @@ def test_actor_spoof_payloads_and_incomplete_accounts_cannot_mutate(
     incomplete_draft = member_activity_api.incomplete.post(
         "/api/recipe-drafts",
         headers=_headers(),
-        json={"source_version_id": str(CARROT_ROOT_ID)},
+        json={"draft_kind": "adaptation", "source_version_id": str(CARROT_ROOT_ID)},
     )
     assert incomplete_view.status_code == 403
     assert incomplete_draft.status_code == 403
@@ -356,7 +358,7 @@ def test_private_activity_and_dashboard_use_one_bounded_member_read_model(
     created = member_activity_api.member_a.post(
         "/api/recipe-drafts",
         headers=_headers(),
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     saved = member_activity_api.member_a.put(
         f"/api/recipes/{CARROT_ROOT_ID}/save",

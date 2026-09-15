@@ -9,12 +9,13 @@ import {
 } from "../../../shared/api/core";
 import type {
   PublicUserReference,
-  RecipeCardSummary,
   RecipeDetail,
   RecipeIngredient,
   RecipeInstruction,
   RecipeVersionReference,
 } from "./recipe-contracts";
+import { parseRecipeHistory, type RecipeHistory } from "./recipe-history";
+import { parseRecipeSummary } from "./recipe-summary-parser";
 import { parseRecipeViewerState } from "./recipe-viewer-state";
 import type {
   RecipeInstructionAction,
@@ -24,8 +25,8 @@ import type {
 
 type RecipeDetailWire =
   operations["recipe_detail_api_recipes__recipe_version_id__get"]["responses"][200]["content"]["application/json"];
-type RecipePageWire =
-  operations["browse_recipes_api_recipes_get"]["responses"][200]["content"]["application/json"];
+type RecipeHistoryWire =
+  operations["recipe_history_api_recipes__recipe_version_id__history_get"]["responses"][200]["content"]["application/json"];
 type PublicUserReferenceWire = components["schemas"]["PublicUserReference"];
 type RecipeVersionReferenceWire = components["schemas"]["RecipeVersionReference"];
 type RecipeIngredientWire = components["schemas"]["RecipeIngredientResponse"];
@@ -37,9 +38,9 @@ type NumericMeasureWire =
   | components["schemas"]["RangeMeasureResponse"];
 
 export interface LoadedRecipeFamily {
+  history: RecipeHistory | null;
   recipe: RecipeDetail;
   sourceVersionId: string;
-  versions: readonly RecipeCardSummary[];
 }
 
 const RECIPE_FAMILY_ERROR_CONTRACT: PublicApiErrorContract = {
@@ -162,31 +163,22 @@ function recipeInstructionFromWire(
 }
 
 function recipeDetailFromWire(value: RecipeDetailWire): RecipeDetail {
+  const summary = parseRecipeSummary(value);
+  if (summary === null) {
+    throw new TypeError("Recipe Lab received an invalid recipe response.");
+  }
   return {
+    ...summary,
     active_time_minutes: value.active_time_minutes ?? null,
-    author: publicUserReferenceFromWire(value.author),
     average_rating: value.average_rating,
-    categories: value.categories.map((category) => ({ ...category })),
     children: value.children.map(recipeVersionReferenceFromWire),
-    created_at: value.created_at,
-    description: value.description,
     difficulty: value.difficulty ?? null,
-    id: value.id,
     ingredients: value.ingredients.map(recipeIngredientFromWire),
     instructions: value.instructions.map(recipeInstructionFromWire),
-    lineage_id: value.lineage_id,
     notes: value.notes ?? null,
-    parent: value.parent
-      ? recipeVersionReferenceFromWire(value.parent)
-      : null,
-    parent_version_id: value.parent_version_id,
-    published_at: value.published_at,
     rating_count: value.rating_count,
     save_count: value.save_count,
-    servings: value.servings,
-    title: value.title,
     total_time_minutes: value.total_time_minutes ?? null,
-    version_number: value.version_number,
     viewer_state: parseRecipeViewerState(value.viewer_state),
   };
 }
@@ -219,21 +211,18 @@ export async function fetchRecipeFamily(
       },
     );
     recipe = recipeDetailFromWire(response.data as RecipeDetailWire);
+    if (recipe.id.toLowerCase() !== sourceVersionId.toLowerCase()) {
+      throw new TypeError("Recipe Lab received a different source recipe.");
+    }
   } catch (error) {
     rethrowRecipeFamilyAbort(error, signal);
     throw new Error("Recipe family unavailable");
   }
 
-  const query = new URLSearchParams({
-    lineage_id: recipe.lineage_id,
-    page: "1",
-    page_size: "100",
-    sort: "title",
-  });
-  let versions: readonly RecipeCardSummary[] = [];
+  let history: RecipeHistory | null = null;
   try {
     const response = await browserApiRequest(
-      `/api/recipes?${query.toString()}`,
+      `/api/recipes/${encodeURIComponent(sourceVersionId)}/history`,
       {
         errorContract: RECIPE_FAMILY_ERROR_CONTRACT,
         kind: "query",
@@ -241,11 +230,16 @@ export async function fetchRecipeFamily(
         signal,
       },
     );
-    const family = response.data as RecipePageWire;
-    versions = family.items;
+    history = parseRecipeHistory(response.data as RecipeHistoryWire);
+    if (
+      history.selected_version_id.toLowerCase() !== sourceVersionId.toLowerCase() ||
+      history.recipe_id.toLowerCase() !== recipe.recipe_id.toLowerCase()
+    ) {
+      throw new TypeError("Recipe Lab received history for a different recipe version.");
+    }
   } catch (error) {
     rethrowRecipeFamilyAbort(error, signal);
   }
 
-  return { recipe, sourceVersionId, versions };
+  return { history, recipe, sourceVersionId };
 }

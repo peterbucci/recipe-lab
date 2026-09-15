@@ -123,12 +123,18 @@ $env:OIDC_CLIENT_ID = "recipe-lab-rcp32"
 $env:OIDC_REDIRECT_URI = "http://127.0.0.1:3200/api/auth/callback"
 $env:OIDC_SCOPES = "openid email profile"
 $env:OIDC_ALLOWED_SIGNING_ALGORITHMS = "RS256"
+$env:ABUSE_RATE_LIMIT_SECRET = "rcp32-local-" + [Guid]::NewGuid().ToString("N")
 $env:INTERNAL_NETWORK_SIGNAL_SECRET = "recipe-lab-rcp32-local-network-signal-secret-2026"
 $env:RCP32_MANIFEST_PATH = Join-Path ([System.IO.Path]::GetTempPath()) "recipe-lab-rcp32-manifest.json"
 $env:RCP32_PROVIDER_LOG = Join-Path ([System.IO.Path]::GetTempPath()) "recipe-lab-rcp32-provider.log"
 $env:RCP32_BACKEND_LOG = Join-Path ([System.IO.Path]::GetTempPath()) "recipe-lab-rcp32-backend.log"
 $env:RCP32_BROWSER_LOG = Join-Path ([System.IO.Path]::GetTempPath()) "recipe-lab-rcp32-browser.log"
 ```
+
+Generate a new private `ABUSE_RATE_LIMIT_SECRET` for each local run. The
+production frontend launches the bounded role-operator commands as child
+processes, so those commands inherit the production environment and enforce the
+same minimum 32-character secret policy.
 
 Keep the loopback provider and backend in local mode so the guarded HTTP flow
 can use its local cookie contract:

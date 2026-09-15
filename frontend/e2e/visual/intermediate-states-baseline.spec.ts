@@ -6,6 +6,7 @@ import {
   DRAFT_ID,
   ROOT_RECIPE_ID,
   VARIANT_RECIPE_ID,
+  VARIANT_RECIPE_STABLE_ID,
   setScenario,
   installMemberSession,
   gotoMemberHome,
@@ -226,6 +227,80 @@ test("authoring entry desktop normal", async ({ page }, testInfo) => {
   await expectNoHorizontalOverflow(forkPage);
   await expectNoAccessibilityViolations(forkPage);
   await forkPage.close();
+});
+
+test("the current owner opens a revision in the private editor", async ({
+  page,
+}, testInfo) => {
+  const phone = testInfo.project.name === PHONE_PROJECT;
+  await page.setViewportSize(
+    phone ? { width: 390, height: 844 } : { width: 1_440, height: 900 },
+  );
+  await setScenario("revision-edit");
+  await page.goto(`/recipes/current/${VARIANT_RECIPE_STABLE_ID}`);
+
+  const edit = page.getByRole("button", { name: "Edit recipe", exact: true });
+  await expect(edit).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Make your own version", exact: true }),
+  ).toHaveCount(0);
+  const creation = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/api/recipe-drafts",
+  );
+  await edit.focus();
+  await page.keyboard.press("Enter");
+  expect((await creation).postDataJSON()).toEqual({
+    draft_kind: "revision",
+    source_version_id: VARIANT_RECIPE_ID,
+  });
+
+  const editor = page.getByRole("form", {
+    name: "Private recipe draft editor",
+  });
+  await expect(editor).toBeVisible();
+  await expect(editor.getByLabel("Title", { exact: true })).toHaveValue(
+    "Garden Cream Tomato Soup",
+  );
+  const publishChanges = editor.getByRole("button", {
+    name: "Publish changes",
+    exact: true,
+  });
+  await expect(publishChanges).toBeVisible();
+  await expect(
+    editor.getByRole("button", { name: "Publish draft", exact: true }),
+  ).toHaveCount(0);
+  await publishChanges.click();
+
+  const dialog = page.getByRole("dialog", {
+    name: "Ready to publish your changes?",
+  });
+  await expect(dialog).toBeVisible();
+  const reasonGroup = dialog.getByRole("group", {
+    name: "Why are you publishing changes? (optional)",
+  });
+  await expect(
+    reasonGroup.getByRole("radio", { name: "No change reason" }),
+  ).toBeChecked();
+  await reasonGroup
+    .getByRole("radio", { name: "I’m correcting a mistake" })
+    .check();
+  await expect(
+    dialog.getByRole("checkbox", {
+      name: /Withdraw the previous edition when these changes publish/i,
+    }),
+  ).toBeVisible();
+  await stabilizeVisuals(page);
+  await captureBaseline(page, "revision-publication-options");
+
+  await dialog.getByRole("button", { name: "Close publish dialog" }).click();
+  await expect(publishChanges).toBeFocused();
+  await editor.getByRole("button", { name: "Return", exact: true }).click();
+  await expect(page).toHaveURL(
+    `/recipes/current/${VARIANT_RECIPE_STABLE_ID}`,
+  );
+  await expect(edit).toBeFocused();
 });
 
 test("draft editor intermediate normal", async ({ page }, testInfo) => {

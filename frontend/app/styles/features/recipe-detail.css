@@ -38,6 +38,23 @@
 .recipe-detail__header {
   margin: 0;
 }
+
+.recipe-detail__version-notice {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+}
+
+.recipe-detail__version-notice p {
+  margin: 0;
+}
 .recipe-detail__hero {
   grid-template-columns: minmax(0, 0.93fr) minmax(26.25rem, 1fr);
   grid-template-areas: "artwork intro";

@@ -20,11 +20,22 @@ const IDS = Object.freeze({
   recipeRoot: "20000000-0000-4000-8000-000000000001",
   recipeVariant: "20000000-0000-4000-8000-000000000002",
   recipeChild: "20000000-0000-4000-8000-000000000003",
+  recipeHistorical: "20000000-0000-4000-8000-000000000004",
+  recipeHistoricalCurrent: "20000000-0000-4000-8000-000000000005",
+  recipeRootStable: "21000000-0000-4000-8000-000000000001",
+  recipeVariantStable: "21000000-0000-4000-8000-000000000002",
+  recipeChildStable: "21000000-0000-4000-8000-000000000003",
+  recipeHistoricalStable: "21000000-0000-4000-8000-000000000004",
   lineage: "20000000-0000-4000-8000-000000000010",
+  historicalLineage: "20000000-0000-4000-8000-000000000011",
   activityPublishedRecipe: "20000000-0000-4000-8000-000000000021",
   activityWithdrawnRecipe: "20000000-0000-4000-8000-000000000022",
   activitySavedShrimp: "20000000-0000-4000-8000-000000000023",
   activitySavedBread: "20000000-0000-4000-8000-000000000024",
+  activityPublishedRecipeStable: "21000000-0000-4000-8000-000000000021",
+  activityWithdrawnRecipeStable: "21000000-0000-4000-8000-000000000022",
+  activitySavedShrimpStable: "21000000-0000-4000-8000-000000000023",
+  activitySavedBreadStable: "21000000-0000-4000-8000-000000000024",
   draft: "30000000-0000-4000-8000-000000000001",
   activityDraftCarrot: "30000000-0000-4000-8000-000000000002",
   activityDraftCurry: "30000000-0000-4000-8000-000000000003",
@@ -216,19 +227,48 @@ const recipeCategories = Object.freeze([
 
 function recipeSummary({
   id,
+  recipeId,
   parentVersionId,
   versionNumber,
   title,
   description,
   author = user,
   parent = null,
+  adaptationSource = parent,
   categories = [recipeCategories[1], recipeCategories[5]],
+  currentVersion,
+  declaredChangeReason = null,
+  editionNumber = 1,
+  isCurrent = true,
+  lineageId = IDS.lineage,
   publishedAt = FIXED_TIME,
+  previousVersionId = null,
+  relationKind = parentVersionId === null ? "original" : "adaptation",
 }) {
-  return {
+  const selfReference = {
     id,
-    lineage_id: IDS.lineage,
+    version_number: versionNumber,
+    title,
+    author,
+  };
+  return {
+    adaptation_source:
+      relationKind === "adaptation" ? adaptationSource : null,
+    current_version:
+      currentVersion === undefined
+        ? isCurrent
+          ? selfReference
+          : null
+        : currentVersion,
+    declared_change_reason: declaredChangeReason,
+    edition_number: editionNumber,
+    id,
+    is_current: isCurrent,
+    recipe_id: recipeId,
+    lineage_id: lineageId,
     parent_version_id: parentVersionId,
+    previous_version_id: previousVersionId,
+    relation_kind: relationKind,
     version_number: versionNumber,
     title,
     description,
@@ -244,6 +284,7 @@ function recipeSummary({
 const rootSummary = Object.freeze(
   recipeSummary({
     id: IDS.recipeRoot,
+    recipeId: IDS.recipeRootStable,
     parentVersionId: null,
     versionNumber: 1,
     title: "Sunlit Tomato Soup",
@@ -261,6 +302,7 @@ const rootReference = Object.freeze({
 const variantSummary = Object.freeze(
   recipeSummary({
     id: IDS.recipeVariant,
+    recipeId: IDS.recipeVariantStable,
     parentVersionId: IDS.recipeRoot,
     versionNumber: 2,
     title: "Garden Cream Tomato Soup",
@@ -273,6 +315,7 @@ const variantSummary = Object.freeze(
 const childSummary = Object.freeze(
   recipeSummary({
     id: IDS.recipeChild,
+    recipeId: IDS.recipeChildStable,
     parentVersionId: IDS.recipeVariant,
     versionNumber: 3,
     title: "Roasted Garden Tomato Soup",
@@ -286,6 +329,97 @@ const childSummary = Object.freeze(
     },
   }),
 );
+
+const historicalCurrentReference = Object.freeze({
+  id: IDS.recipeHistoricalCurrent,
+  version_number: 2,
+  title: "Corrected Summer Tomato Soup",
+  author: user,
+});
+const historicalSummary = Object.freeze(
+  recipeSummary({
+    id: IDS.recipeHistorical,
+    recipeId: IDS.recipeHistoricalStable,
+    parentVersionId: null,
+    versionNumber: 1,
+    title: "Summer Tomato Soup",
+    description: "The first published edition of a seasonal tomato soup.",
+    currentVersion: historicalCurrentReference,
+    isCurrent: false,
+    lineageId: IDS.historicalLineage,
+    publishedAt: "2026-08-24T12:00:00.000Z",
+  }),
+);
+const historicalCurrentSummary = Object.freeze(
+  recipeSummary({
+    id: IDS.recipeHistoricalCurrent,
+    recipeId: IDS.recipeHistoricalStable,
+    parentVersionId: null,
+    previousVersionId: IDS.recipeHistorical,
+    versionNumber: 2,
+    editionNumber: 2,
+    relationKind: "revision",
+    declaredChangeReason: "correction",
+    title: historicalCurrentReference.title,
+    description: "A corrected second published edition of the seasonal soup.",
+    lineageId: IDS.historicalLineage,
+    publishedAt: "2026-08-27T10:00:00.000Z",
+  }),
+);
+
+function historyEntry(summary) {
+  return {
+    id: summary.id,
+    recipe_id: summary.recipe_id,
+    edition_number: summary.edition_number,
+    relation_kind: summary.relation_kind,
+    previous_version_id: summary.previous_version_id,
+    adaptation_source_version_id:
+      summary.relation_kind === "adaptation"
+        ? summary.adaptation_source?.id ?? summary.parent_version_id
+        : null,
+    declared_change_reason: summary.declared_change_reason,
+    is_current: summary.is_current,
+    title: summary.title,
+    published_at: summary.published_at,
+    author: summary.author,
+  };
+}
+
+function recipeHistory(selected) {
+  if (
+    selected.id === IDS.recipeHistorical ||
+    selected.id === IDS.recipeHistoricalCurrent
+  ) {
+    return {
+      recipe_id: IDS.recipeHistoricalStable,
+      selected_version_id: selected.id,
+      current_version_id: IDS.recipeHistoricalCurrent,
+      editions: [
+        historyEntry(historicalSummary),
+        historyEntry(historicalCurrentSummary),
+      ],
+      adaptations: [],
+      editions_truncated: false,
+      adaptations_truncated: false,
+    };
+  }
+  const adaptations =
+    selected.recipe_id === IDS.recipeRootStable
+      ? [historyEntry(variantSummary)]
+      : selected.recipe_id === IDS.recipeVariantStable
+        ? [historyEntry(childSummary)]
+        : [];
+  return {
+    recipe_id: selected.recipe_id,
+    selected_version_id: selected.id,
+    current_version_id: selected.id,
+    editions: [historyEntry(selected)],
+    adaptations,
+    editions_truncated: false,
+    adaptations_truncated: false,
+  };
+}
 
 const featuredSummaries = Object.freeze([
   Object.freeze({
@@ -337,6 +471,7 @@ function detailFor(summary) {
       recipe_version_id: summary.id,
       saved: summary.id === IDS.recipeVariant,
       rating: summary.id === IDS.recipeVariant ? 4 : null,
+      can_revise: summary.author.id === user.id && summary.is_current,
     },
     children:
       summary.id === IDS.recipeVariant
@@ -348,14 +483,16 @@ function detailFor(summary) {
               author: user,
             },
           ]
-        : [
+        : summary.id === IDS.recipeRoot
+          ? [
             {
               id: IDS.recipeVariant,
               version_number: 2,
               title: variantSummary.title,
               author: user,
             },
-          ],
+          ]
+          : [],
     ingredients: [
       {
         id: "41000000-0000-4000-8000-000000000001",
@@ -577,19 +714,44 @@ const diff = Object.freeze({
   has_changes: true,
 });
 
-function draftDetail(complete, unresolvedIngredient = false) {
+function draftDetail(
+  complete,
+  unresolvedIngredient = false,
+  draftKind = scenario === "fork-draft"
+    ? "adaptation"
+    : scenario === "revision-edit"
+      ? "revision"
+      : "original",
+  sourceVersionId =
+    draftKind === "adaptation"
+      ? IDS.recipeRoot
+      : draftKind === "revision"
+        ? IDS.recipeVariant
+        : null,
+) {
+  const revisionSource =
+    draftKind === "revision" && sourceVersionId
+      ? summaryByVersionId(sourceVersionId)
+      : null;
   return {
     id: IDS.draft,
-    source_version_id: scenario === "fork-draft" ? IDS.recipeRoot : null,
+    draft_kind: draftKind,
+    source_version_id: sourceVersionId,
     status: "active",
     revision: 4,
-    title: complete ? "Late-Summer Tomato Pot" : "",
-    description: complete ? "A small-batch soup for a shared table." : null,
-    servings: complete ? "4" : null,
-    total_time_minutes: complete ? 35 : null,
-    active_time_minutes: complete ? 15 : null,
+    title: complete
+      ? revisionSource?.title ?? "Late-Summer Tomato Pot"
+      : "",
+    description: complete
+      ? revisionSource?.description ?? "A small-batch soup for a shared table."
+      : null,
+    servings: complete ? revisionSource?.servings ?? "4" : null,
+    total_time_minutes: complete ? (revisionSource ? 45 : 35) : null,
+    active_time_minutes: complete ? (revisionSource ? 20 : 15) : null,
     difficulty: complete ? "easy" : null,
-    notes: null,
+    notes: revisionSource
+      ? "Taste before serving and adjust the seasoning if needed."
+      : null,
     ingredients: complete
       ? [
           {
@@ -652,7 +814,9 @@ function draftDetail(complete, unresolvedIngredient = false) {
           },
         ]
       : [],
-    categories: complete ? [recipeCategories[1], recipeCategories[5]] : [],
+    categories: complete
+      ? revisionSource?.categories ?? [recipeCategories[1], recipeCategories[5]]
+      : [],
     created_at: FIXED_TIME,
     updated_at: FIXED_TIME,
   };
@@ -660,6 +824,7 @@ function draftDetail(complete, unresolvedIngredient = false) {
 
 const draftListItem = Object.freeze({
   id: IDS.draft,
+  draft_kind: "original",
   source_version_id: null,
   status: "active",
   revision: 4,
@@ -708,6 +873,7 @@ const activityDraftItems = Object.freeze([
 const activityPublishedRecipe = Object.freeze(
   recipeSummary({
     id: IDS.activityPublishedRecipe,
+    recipeId: IDS.activityPublishedRecipeStable,
     parentVersionId: null,
     versionNumber: 1,
     title: "Red Lentil Coconut Stew",
@@ -718,6 +884,7 @@ const activityPublishedRecipe = Object.freeze(
 const activityWithdrawnRecipe = Object.freeze(
   recipeSummary({
     id: IDS.activityWithdrawnRecipe,
+    recipeId: IDS.activityWithdrawnRecipeStable,
     parentVersionId: null,
     versionNumber: 1,
     title: "Pecan Banana Oat Pancakes",
@@ -728,6 +895,7 @@ const activityWithdrawnRecipe = Object.freeze(
 const activitySavedShrimp = Object.freeze(
   recipeSummary({
     id: IDS.activitySavedShrimp,
+    recipeId: IDS.activitySavedShrimpStable,
     parentVersionId: null,
     versionNumber: 1,
     title: "Garlic Butter Shrimp Pasta",
@@ -738,6 +906,7 @@ const activitySavedShrimp = Object.freeze(
 const activitySavedBread = Object.freeze(
   recipeSummary({
     id: IDS.activitySavedBread,
+    recipeId: IDS.activitySavedBreadStable,
     parentVersionId: null,
     versionNumber: 1,
     title: "Sourdough Bread",
@@ -745,6 +914,30 @@ const activitySavedBread = Object.freeze(
     publishedAt: "2026-08-18T12:00:00.000Z",
   }),
 );
+
+const allRecipeSummaries = Object.freeze([
+  rootSummary,
+  variantSummary,
+  childSummary,
+  historicalSummary,
+  historicalCurrentSummary,
+  activityPublishedRecipe,
+  activityWithdrawnRecipe,
+  activitySavedShrimp,
+  activitySavedBread,
+]);
+
+function summaryByVersionId(versionId) {
+  return allRecipeSummaries.find((summary) => summary.id === versionId) ?? null;
+}
+
+function summaryByStableId(recipeId) {
+  return (
+    allRecipeSummaries.find(
+      (summary) => summary.recipe_id === recipeId && summary.is_current,
+    ) ?? null
+  );
+}
 
 const activityRecipeItems = Object.freeze({
   drafts: activityDraftItems,
@@ -1075,6 +1268,8 @@ const allowedScenarios = new Set([
   "library-failure",
   "expired-library",
   "public-context-failure",
+  "revision-edit",
+  "saved-old-version",
   "sparse-own-profile",
   "slow-session",
 ]);
@@ -1229,6 +1424,21 @@ function sendError(response, status, code, message) {
   });
 }
 
+async function readJsonObject(request, maximumBytes = 4_096) {
+  let body = "";
+  for await (const chunk of request) {
+    body += chunk;
+    if (Buffer.byteLength(body) > maximumBytes) {
+      throw new TypeError("Synthetic request body exceeded its reviewed bound.");
+    }
+  }
+  const value = JSON.parse(body);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError("Synthetic request body must be an object.");
+  }
+  return value;
+}
+
 function requestHasPrivateMaterial(request) {
   const authorization = request.headers.authorization;
   const proxyAuthorization = request.headers["proxy-authorization"];
@@ -1349,16 +1559,23 @@ async function handleApi(request, response, url) {
 
   if (method === "GET" && path === "/api/recipes/viewer-states") {
     countRoute("recipe-viewer-states");
-    if (requireActiveMember(response) === null) return;
+    const activeSession = requireActiveMember(response);
+    if (activeSession === null) return;
     const recipeVersionIds = [
       ...new Set(url.searchParams.getAll("recipe_version_id")),
     ];
     sendJson(response, 200, {
-      items: recipeVersionIds.map((recipeVersionId) => ({
-        recipe_version_id: recipeVersionId,
-        saved: recipeVersionId === IDS.recipeVariant,
-        rating: recipeVersionId === IDS.recipeVariant ? 4 : null,
-      })),
+      items: recipeVersionIds.map((recipeVersionId) => {
+        const summary = summaryByVersionId(recipeVersionId);
+        return {
+          recipe_version_id: recipeVersionId,
+          saved: recipeVersionId === IDS.recipeVariant,
+          rating: recipeVersionId === IDS.recipeVariant ? 4 : null,
+          can_revise:
+            summary?.author.id === activeSession.user.id &&
+            summary.is_current === true,
+        };
+      }),
     });
     return;
   }
@@ -1463,11 +1680,56 @@ async function handleApi(request, response, url) {
     return;
   }
 
+  const currentRecipeMatch = path.match(
+    /^\/api\/recipes\/current\/([0-9a-f-]+)$/i,
+  );
+  if (method === "GET" && currentRecipeMatch) {
+    const summary = summaryByStableId(currentRecipeMatch[1]);
+    if (summary) {
+      countRoute("current-recipe-detail");
+      if (scenario === "public-context-failure") {
+        sendError(
+          response,
+          503,
+          "recipe_service_unavailable",
+          "The synthetic public recipe is temporarily unavailable.",
+        );
+        return;
+      }
+      sendJson(
+        response,
+        200,
+        scenario === "comparison-actions"
+          ? comparisonDetailFor(summary)
+          : detailFor(summary),
+      );
+    } else {
+      countRoute("current-recipe-missing");
+      sendError(response, 404, "recipe_not_found", "The recipe was not found.");
+    }
+    return;
+  }
+
+  const historyMatch = path.match(
+    /^\/api\/recipes\/([0-9a-f-]+)\/history$/i,
+  );
+  if (method === "GET" && historyMatch) {
+    const summary = summaryByVersionId(historyMatch[1]);
+    if (summary) {
+      countRoute("recipe-history");
+      sendJson(response, 200, recipeHistory(summary));
+    } else {
+      countRoute("recipe-history-missing");
+      sendError(response, 404, "recipe_not_found", "The recipe was not found.");
+    }
+    return;
+  }
+
   const viewMatch = path.match(/^\/api\/recipes\/([0-9a-f-]+)\/view$/i);
   if (
     method === "POST" &&
     viewMatch &&
-    [IDS.recipeRoot, IDS.recipeVariant, IDS.recipeChild].includes(viewMatch[1])
+    summaryByVersionId(viewMatch[1])
   ) {
     countRoute("recipe-view");
     sendJson(response, 200, { recorded: true });
@@ -1476,12 +1738,7 @@ async function handleApi(request, response, url) {
 
   const recipeMatch = path.match(/^\/api\/recipes\/([0-9a-f-]+)$/i);
   if (method === "GET" && recipeMatch) {
-    const summaries = new Map([
-      [IDS.recipeRoot, rootSummary],
-      [IDS.recipeVariant, variantSummary],
-      [IDS.recipeChild, childSummary],
-    ]);
-    const summary = summaries.get(recipeMatch[1]);
+    const summary = summaryByVersionId(recipeMatch[1]);
     if (summary) {
       countRoute("recipe-detail");
       if (scenario === "public-context-failure") {
@@ -1762,7 +2019,19 @@ async function handleApi(request, response, url) {
         ? []
         : scenario === "activity-normal"
           ? activitySavedItems
-          : [{ recipe: variantSummary, saved_at: FIXED_TIME }];
+          : scenario === "saved-old-version"
+            ? [
+                {
+                  recipe: historicalSummary,
+                  saved_at: FIXED_TIME,
+                },
+              ]
+            : [
+                {
+                  recipe: variantSummary,
+                  saved_at: FIXED_TIME,
+                },
+              ];
     const requestedPageSize = Number.parseInt(
       url.searchParams.get("page_size") ?? "12",
       10,
@@ -1803,7 +2072,40 @@ async function handleApi(request, response, url) {
     if (scenario === "slow-draft-creation") {
       await new Promise((resolve) => setTimeout(resolve, 8_000));
     }
-    sendJson(response, 201, draftDetail(true));
+    let input;
+    try {
+      input = await readJsonObject(request);
+    } catch {
+      sendError(
+        response,
+        422,
+        "validation_error",
+        "The synthetic draft request was invalid.",
+      );
+      return;
+    }
+    const draftKind = input.draft_kind;
+    const sourceVersionId = input.source_version_id;
+    if (
+      !["original", "adaptation", "revision"].includes(draftKind) ||
+      (draftKind === "original") !== (sourceVersionId === null) ||
+      (sourceVersionId !== null &&
+        (typeof sourceVersionId !== "string" ||
+          summaryByVersionId(sourceVersionId) === null))
+    ) {
+      sendError(
+        response,
+        422,
+        "validation_error",
+        "The synthetic draft request was invalid.",
+      );
+      return;
+    }
+    sendJson(
+      response,
+      201,
+      draftDetail(true, false, draftKind, sourceVersionId),
+    );
     return;
   }
 

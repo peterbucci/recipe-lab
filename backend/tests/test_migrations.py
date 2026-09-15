@@ -59,6 +59,7 @@ DOMAIN_TABLES = {
     "recipe_moderation_audit_events",
     "recipe_moderation_cases",
     "recipe_reports",
+    "recipes",
     "recipe_duplicate_candidates",
     "recipe_duplicate_decisions",
     "recipe_duplicate_preflights",
@@ -69,6 +70,7 @@ DOMAIN_TABLES = {
     "recipe_draft_instruction_actions",
     "recipe_draft_instructions",
     "recipe_drafts",
+    "recipe_editions",
     "recipe_instruction_action_inputs",
     "recipe_instruction_action_measures",
     "recipe_instruction_actions",
@@ -86,6 +88,52 @@ DOMAIN_TABLES = {
     "users",
     "user_sessions",
 }
+
+
+def _add_single_edition_recipe_membership(
+    connection: Connection,
+    *,
+    recipe_version_id: UUID,
+    lineage_id: UUID,
+    author_user_id: UUID,
+) -> UUID:
+    """Complete one intentionally published head-schema migration fixture."""
+    recipe_id = uuid4()
+    connection.execute(
+        sa.text(
+            "INSERT INTO recipes ("
+            "id, lineage_id, attributed_author_user_id, owner_user_id, "
+            "current_recipe_version_id"
+            ") VALUES ("
+            ":recipe_id, :lineage_id, :author_user_id, :author_user_id, "
+            ":recipe_version_id"
+            ")"
+        ),
+        {
+            "recipe_id": recipe_id,
+            "recipe_version_id": recipe_version_id,
+            "lineage_id": lineage_id,
+            "author_user_id": author_user_id,
+        },
+    )
+    connection.execute(
+        sa.text(
+            "INSERT INTO recipe_editions ("
+            "recipe_version_id, recipe_id, lineage_id, attributed_author_user_id, "
+            "edition_number, relation_kind"
+            ") VALUES ("
+            ":recipe_version_id, :recipe_id, :lineage_id, :author_user_id, 1, 'original'"
+            ")"
+        ),
+        {
+            "recipe_id": recipe_id,
+            "recipe_version_id": recipe_version_id,
+            "lineage_id": lineage_id,
+            "author_user_id": author_user_id,
+        },
+    )
+    return recipe_id
+
 
 INGREDIENT_TABLES = {
     "allergens",
@@ -487,6 +535,12 @@ def test_recipe_category_migration_uses_only_explicit_demo_assignments(
                 recipe_version_id=unrelated_version_id,
                 actor_user_id=author_id,
             )
+        )
+        _add_single_edition_recipe_membership(
+            connection,
+            recipe_version_id=unrelated_version_id,
+            lineage_id=unrelated_lineage_id,
+            author_user_id=author_id,
         )
         breakfast_id = seed_uuid(
             catalog.metadata.dataset_id,
@@ -1626,6 +1680,12 @@ def test_community_moderation_migration_enforces_attestations_and_append_only_au
                 publication_rights_confirmed_at=sa.func.now(),
             )
         )
+        _add_single_edition_recipe_membership(
+            connection,
+            recipe_version_id=recipe_version_id,
+            lineage_id=lineage_id,
+            author_user_id=author_id,
+        )
         connection.execute(
             moderators.insert().values(
                 user_id=moderator_id,
@@ -1698,7 +1758,7 @@ def test_community_moderation_downgrade_refuses_durable_attestation_evidence(
 
     with empty_postgres_engine.connect() as connection:
         alembic_config.attributes["connection"] = connection
-        command.upgrade(alembic_config, "head")
+        command.upgrade(alembic_config, "20260911_0031")
         with connection.begin():
             metadata = sa.MetaData()
             users = sa.Table("users", metadata, autoload_with=connection)
@@ -1739,6 +1799,7 @@ def test_community_moderation_downgrade_refuses_durable_attestation_evidence(
                     publication_rights_confirmed_at=sa.func.now(),
                 )
             )
+        command.upgrade(alembic_config, "head")
 
         with pytest.raises(ProgrammingError, match="cannot downgrade community moderation"):
             command.downgrade(alembic_config, "20260826_0017")

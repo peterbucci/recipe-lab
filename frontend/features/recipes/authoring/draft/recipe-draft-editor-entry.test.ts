@@ -79,6 +79,7 @@ const breakfastCategory = {
 };
 
 const detail: RecipeDraftDetail = {
+  draft_kind: "adaptation",
   id: DRAFT_ID,
   source_version_id: SOURCE_ID,
   status: "active",
@@ -150,6 +151,7 @@ describe("recipe draft editor entry", () => {
     const entryPromise = prepareRecipeDraftEditorEntry(
       "member-one",
       SOURCE_ID,
+      "adaptation",
     );
     void entryPromise.finally(() => {
       settled = true;
@@ -159,6 +161,7 @@ describe("recipe draft editor entry", () => {
 
     expect(mocks.startOrResumeRecipeDraftDetail).toHaveBeenCalledWith(
       "member-one",
+      "adaptation",
       SOURCE_ID,
     );
     expect(fetchMock.mock.calls.map(([target]) => String(target))).toEqual([
@@ -222,6 +225,7 @@ describe("recipe draft editor entry", () => {
     const entryPromise = prepareRecipeDraftEditorEntry(
       "member-one",
       SOURCE_ID,
+      "adaptation",
     );
     void entryPromise.finally(() => {
       settled = true;
@@ -251,6 +255,7 @@ describe("recipe draft editor entry", () => {
     const error = await prepareRecipeDraftEditorEntry(
       "member-one",
       SOURCE_ID,
+      "adaptation",
     ).catch((reason: unknown) => reason);
 
     expect(error).toBeInstanceOf(RecipeDraftEditorEntryError);

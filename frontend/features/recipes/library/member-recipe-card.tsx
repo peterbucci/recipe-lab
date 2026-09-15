@@ -1,13 +1,16 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import type {
-  RecipeSummary,
-} from "../shared/recipe-contracts";
+import type { RecipeSummary } from "../shared/recipe-contracts";
 import { formatMemberRecipeDate } from "./member-recipe-presentation";
 import { PublicCookAttribution } from "../../community/public-cook-attribution";
 import { RecipeArtwork } from "../shared/recipe-artwork";
 import { RecipeCardShell } from "../shared/recipe-card-shell";
+import {
+  currentRecipePath,
+  exactRecipePath,
+  ordinaryRecipePath,
+} from "../shared/recipe-paths";
 
 export type MemberRecipeCardState =
   | "published"
@@ -29,6 +32,7 @@ function RecipeContext({
   recipe: RecipeSummary;
   state: MemberRecipeCardState;
 }) {
+  const adaptationSource = recipe.adaptation_source ?? recipe.parent;
   if (state === "saved") {
     return (
       <p className="member-recipe-card__context member-recipe-card__context--saved">
@@ -36,11 +40,11 @@ function RecipeContext({
           {recipe.author.display_name.trim().slice(0, 1).toUpperCase() || "R"}
         </span>
         <span>
-          {recipe.parent ? (
+          {adaptationSource ? (
             <>
               Based on{" "}
-              <Link href={`/recipes/${recipe.parent.id}`}>
-                {recipe.parent.title}
+              <Link href={exactRecipePath(adaptationSource.id)}>
+                {adaptationSource.title}
               </Link>
               <span aria-hidden="true"> · </span>
             </>
@@ -51,13 +55,15 @@ function RecipeContext({
     );
   }
 
-  if (recipe.parent) {
+  if (adaptationSource) {
     return (
       <p className="member-recipe-card__context">
         Based on{" "}
-        <Link href={`/recipes/${recipe.parent.id}`}>{recipe.parent.title}</Link>
+        <Link href={exactRecipePath(adaptationSource.id)}>
+          {adaptationSource.title}
+        </Link>
         {" by "}
-        <PublicCookAttribution author={recipe.parent.author} />
+        <PublicCookAttribution author={adaptationSource.author} />
       </p>
     );
   }
@@ -142,7 +148,14 @@ export function MemberRecipeCard({
   state,
 }: MemberRecipeCardProps) {
   const publiclyAccessible = state === "published" || state === "saved";
-  const lineageLabel = recipe.parent_version_id ? "Version" : "Original";
+  const publicPath =
+    state === "saved" ? exactRecipePath(recipe.id) : ordinaryRecipePath(recipe);
+  const lineageLabel =
+    recipe.relation_kind === "adaptation"
+      ? "Adaptation"
+      : recipe.edition_number > 1
+        ? `Published version ${recipe.edition_number}`
+        : "Original";
   const titleId = `member-recipe-card-${recipe.id}`;
   const artwork = (
     <RecipeArtwork
@@ -159,7 +172,7 @@ export function MemberRecipeCard({
           <Link
             aria-label={`View ${recipe.title}`}
             className="member-recipe-card__artwork"
-            href={`/recipes/${recipe.id}`}
+            href={publicPath}
           >
             {artwork}
           </Link>
@@ -181,7 +194,7 @@ export function MemberRecipeCard({
 
       <h3 id={titleId}>
         {publiclyAccessible ? (
-          <Link href={`/recipes/${recipe.id}`}>{recipe.title}</Link>
+          <Link href={publicPath}>{recipe.title}</Link>
         ) : (
           recipe.title
         )}
@@ -189,12 +202,23 @@ export function MemberRecipeCard({
       <RecipeContext recipe={recipe} state={state} />
       <CardDescription recipe={recipe} state={state} />
       <CardMetadata recipe={recipe} savedAt={savedAt} state={state} />
+      {state === "saved" && !recipe.is_current ? (
+        <p className="member-recipe-card__newer-version">
+          {recipe.current_version ? (
+            <Link href={currentRecipePath(recipe.recipe_id)}>
+              Newer version available
+            </Link>
+          ) : (
+            "Newer version available"
+          )}
+        </p>
+      ) : null}
 
       <div className="member-recipe-card__actions">
         {publiclyAccessible ? (
           <Link
             className="button button--secondary member-recipe-card__view"
-            href={`/recipes/${recipe.id}`}
+            href={publicPath}
           >
             View recipe
           </Link>

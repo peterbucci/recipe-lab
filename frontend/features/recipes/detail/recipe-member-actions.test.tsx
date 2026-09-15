@@ -3,6 +3,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -60,9 +61,9 @@ const bob: AuthSession = {
 };
 const recipeVersionId = "11111111-1111-4111-8111-111111111111";
 const idleEditAction: RecipeEditActionState = {
+  activeDrafts: { adaptation: false, revision: false },
   errorMessage: null,
-  hasActiveDraft: false,
-  pending: false,
+  pendingIntent: null,
 };
 
 function SessionSwitches() {
@@ -78,11 +79,17 @@ function renderActions(
   session: AuthSession,
   {
     editAction = idleEditAction,
+    onEditActionFocusRestored,
     onRequestEdit = vi.fn(),
+    publicPath = `/recipes/${recipeVersionId}`,
+    restoreEditActionFocus = false,
     switches = false,
   }: {
     editAction?: RecipeEditActionState;
+    onEditActionFocusRestored?: () => void;
     onRequestEdit?: () => void;
+    publicPath?: string;
+    restoreEditActionFocus?: boolean;
     switches?: boolean;
   } = {},
 ) {
@@ -92,10 +99,13 @@ function renderActions(
       <RecipeMemberActions
         averageRating={4.5}
         editAction={editAction}
+        onEditActionFocusRestored={onEditActionFocusRestored}
         onRequestEdit={onRequestEdit}
+        publicPath={publicPath}
         recipeVersionId={recipeVersionId}
         ratingCount={2}
         saveCount={876}
+        restoreEditActionFocus={restoreEditActionFocus}
       />
     </AuthSessionProvider>,
   );
@@ -104,6 +114,7 @@ function renderActions(
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.fetchRecipeViewerState.mockResolvedValue({
+    can_revise: false,
     recipe_version_id: recipeVersionId,
     saved: false,
     rating: null,
@@ -156,25 +167,26 @@ describe("RecipeMemberActions", () => {
     expect(mocks.fetchRecipeViewerState).not.toHaveBeenCalled();
   });
 
-  it("keeps the route edit action available while viewer state loads", async () => {
+  it("does not choose an edit intent while viewer authorization loads", async () => {
     const viewerState = deferred<RecipeViewerState | null>();
     mocks.fetchRecipeViewerState.mockReturnValueOnce(viewerState.promise);
     const onRequestEdit = vi.fn();
     renderActions(alice, { onRequestEdit });
 
     const edit = screen.getByRole("button", {
-      name: "Make your own version",
+      name: "Checking editing options…",
     });
-    expect(edit).toBeEnabled();
+    expect(edit).toBeDisabled();
     fireEvent.click(edit);
-    expect(onRequestEdit).toHaveBeenCalledTimes(1);
+    expect(onRequestEdit).not.toHaveBeenCalled();
     expect(screen.getByRole("status")).toHaveTextContent(
-      /loading your saved and rating state/i,
+      /loading your saved, rating, and editing options/i,
     );
     expect(screen.queryByTestId("view-tracker")).toBeNull();
 
     await act(async () => {
       viewerState.resolve({
+        can_revise: false,
         recipe_version_id: recipeVersionId,
         saved: false,
         rating: null,
@@ -183,22 +195,28 @@ describe("RecipeMemberActions", () => {
     });
 
     expect(await screen.findByText(/not saved; rating none/i)).toBeVisible();
+    const makeVersion = screen.getByRole("button", {
+      name: "Make your own version",
+    });
+    expect(makeVersion).toBeEnabled();
+    fireEvent.click(makeVersion);
+    expect(onRequestEdit).toHaveBeenCalledWith("adaptation");
     expect(screen.getByTestId("view-tracker")).toHaveTextContent(recipeVersionId);
   });
 
-  it("presents the route-owned continue, pending, and error states", () => {
+  it("presents the route-owned continue, pending, and error states", async () => {
     const onRequestEdit = vi.fn();
     const { rerender } = renderActions(alice, {
       editAction: {
+        activeDrafts: { adaptation: true, revision: false },
         errorMessage: null,
-        hasActiveDraft: true,
-        pending: false,
+        pendingIntent: null,
       },
       onRequestEdit,
     });
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Continue your version" }),
+      await screen.findByRole("button", { name: "Continue your version" }),
     );
     expect(onRequestEdit).toHaveBeenCalledTimes(1);
 
@@ -207,11 +225,12 @@ describe("RecipeMemberActions", () => {
         <RecipeMemberActions
           averageRating={4.5}
           editAction={{
+            activeDrafts: { adaptation: true, revision: false },
             errorMessage: "Safe preparation failure",
-            hasActiveDraft: true,
-            pending: true,
+            pendingIntent: "adaptation",
           }}
           onRequestEdit={onRequestEdit}
+          publicPath={`/recipes/${recipeVersionId}`}
           recipeVersionId={recipeVersionId}
           ratingCount={2}
           saveCount={876}
@@ -227,10 +246,79 @@ describe("RecipeMemberActions", () => {
     );
   });
 
+  it("preserves a stable detail route for save and rating authentication", () => {
+    const stablePath = "/recipes/current/22222222-2222-4222-8222-222222222222";
+    renderActions({ status: "anonymous" }, { publicPath: stablePath });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save recipe" }));
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      `/sign-in?return_to=${encodeURIComponent(stablePath)}`,
+    );
+    expect(screen.getByRole("link", { name: /make your own version/i })).toHaveAttribute(
+      "href",
+      `/sign-in?return_to=%2Frecipes%2F${recipeVersionId}%2Ffork`,
+    );
+  });
+
+  it("uses backend revision authority for the owner edit action", async () => {
+    mocks.fetchRecipeViewerState.mockResolvedValueOnce({
+      can_revise: true,
+      recipe_version_id: recipeVersionId,
+      saved: false,
+      rating: null,
+    });
+    const onRequestEdit = vi.fn();
+    renderActions(alice, {
+      editAction: {
+        activeDrafts: { adaptation: true, revision: false },
+        errorMessage: null,
+        pendingIntent: null,
+      },
+      onRequestEdit,
+    });
+
+    const edit = await screen.findByRole("button", { name: "Edit recipe" });
+    fireEvent.click(edit);
+    expect(onRequestEdit).toHaveBeenCalledWith("revision");
+    expect(
+      screen.queryByRole("button", { name: "Continue your version" }),
+    ).toBeNull();
+  });
+
+  it("restores edit focus after viewer authorization finishes loading", async () => {
+    const viewerState = deferred<RecipeViewerState | null>();
+    mocks.fetchRecipeViewerState.mockReturnValueOnce(viewerState.promise);
+    const onEditActionFocusRestored = vi.fn();
+    renderActions(alice, {
+      onEditActionFocusRestored,
+      restoreEditActionFocus: true,
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Checking editing options…" }),
+    ).not.toHaveFocus();
+
+    await act(async () => {
+      viewerState.resolve({
+        can_revise: true,
+        recipe_version_id: recipeVersionId,
+        saved: false,
+        rating: null,
+      });
+      await viewerState.promise;
+    });
+
+    const edit = await screen.findByRole("button", { name: "Edit recipe" });
+    await waitFor(() => expect(edit).toHaveFocus());
+    expect(onEditActionFocusRestored).toHaveBeenCalledOnce();
+  });
+
   it("keeps version creation available when viewer state fails and retries it", async () => {
     mocks.fetchRecipeViewerState
       .mockRejectedValueOnce(new Error("viewer state unavailable"))
       .mockResolvedValueOnce({
+        can_revise: false,
         recipe_version_id: recipeVersionId,
         saved: true,
         rating: 4,
@@ -239,15 +327,15 @@ describe("RecipeMemberActions", () => {
     renderActions(alice);
 
     expect(
-      await screen.findByText(/couldn’t load your saved and rating state/i),
+      await screen.findByText(/couldn’t load your saved, rating, and editing options/i),
     ).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "Make your own version" }),
-    ).toBeEnabled();
+      screen.getByRole("button", { name: "Checking editing options…" }),
+    ).toBeDisabled();
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: /retry saved and rating state/i,
+        name: /retry recipe options/i,
       }),
     );
 
@@ -260,6 +348,7 @@ describe("RecipeMemberActions", () => {
     const bobState = deferred<RecipeViewerState | null>();
     mocks.fetchRecipeViewerState
       .mockResolvedValueOnce({
+        can_revise: false,
         recipe_version_id: recipeVersionId,
         saved: true,
         rating: 5,
@@ -276,10 +365,11 @@ describe("RecipeMemberActions", () => {
     expect(screen.queryByTestId("view-tracker")).toBeNull();
     expect(
       screen.getByRole("region", { name: /member recipe actions/i }),
-    ).toHaveTextContent(/loading your saved and rating state/i);
+    ).toHaveTextContent(/loading your saved, rating, and editing options/i);
 
     await act(async () => {
       bobState.resolve({
+        can_revise: false,
         recipe_version_id: recipeVersionId,
         saved: false,
         rating: 2,

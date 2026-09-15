@@ -29,6 +29,7 @@ from app.models import (
     IngredientCatalogRequest,
     OIDCIdentity,
     PreferenceEvent,
+    Recipe,
     RecipeDraft,
     RecipeDraftCategory,
     RecipeDraftIngredient,
@@ -338,6 +339,7 @@ def _verify_deleted_members(
             raise _fail()
 
     direct_private_criteria = (
+        Recipe.owner_user_id.in_(user_ids),
         OIDCIdentity.user_id.in_(user_ids),
         UserSession.user_id.in_(user_ids),
         RecipeSave.user_id.in_(user_ids),

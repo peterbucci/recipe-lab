@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import uuid4
 
@@ -8,7 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, delete, event
 from sqlalchemy.orm import Session
 
-from app.homepage_content import FEATURED_RECIPE_VERSION_IDS
+from app.homepage_content import FEATURED_RECIPE_IDS
 from app.models import CookingActionType, RecipeCategory, RecipeRating, RecipeSave, User
 from app.seeds.identifiers import action_uuid, seed_uuid
 from app.services.recipe_visibility import set_authored_recipe_visibility
@@ -111,9 +112,17 @@ def test_browse_defaults_list_every_version_in_stable_order(api_client: TestClie
     assert len(items) == 20
     assert set(items[0]) == {
         "id",
+        "recipe_id",
         "lineage_id",
         "parent_version_id",
         "version_number",
+        "edition_number",
+        "relation_kind",
+        "previous_version_id",
+        "declared_change_reason",
+        "is_current",
+        "current_version",
+        "adaptation_source",
         "title",
         "description",
         "servings",
@@ -154,7 +163,9 @@ def test_newest_browse_uses_recipe_id_as_the_stable_publication_tie_break(
     )
 
     assert [item["id"] for item in items] == sorted(item["id"] for item in items)
-    assert {item["published_at"] for item in items} == {"2026-08-20T00:00:00Z"}
+    assert {
+        datetime.fromisoformat(cast(str, item["published_at"])).astimezone(UTC) for item in items
+    } == {datetime(2026, 8, 20, tzinfo=UTC)}
 
 
 def test_browse_recipes_include_anonymous_rating_and_save_totals(
@@ -233,9 +244,7 @@ def test_featured_recipes_are_global_editorial_public_summaries(
     assert response.status_code == 200
     body = _json_object(response.json())
     items = cast(list[dict[str, Any]], body["items"])
-    assert [item["id"] for item in items] == [
-        str(recipe_version_id) for recipe_version_id in FEATURED_RECIPE_VERSION_IDS
-    ]
+    assert [item["id"] for item in items] == [str(recipe_id) for recipe_id in FEATURED_RECIPE_IDS]
     assert [item["title"] for item in items] == [
         "Banana Oat Pancakes",
         "Red Lentil Coconut Stew",
@@ -244,7 +253,11 @@ def test_featured_recipes_are_global_editorial_public_summaries(
     ]
     assert set(body) == {"items"}
     assert all("score" not in item and "reason" not in item for item in items)
-    assert all(item["published_at"] == "2026-08-20T00:00:00Z" for item in items)
+    assert all(
+        datetime.fromisoformat(cast(str, item["published_at"])).astimezone(UTC)
+        == datetime(2026, 8, 20, tzinfo=UTC)
+        for item in items
+    )
     assert all(item["average_rating"] is None for item in items)
     assert all(item["rating_count"] == 0 for item in items)
     assert all(item["save_count"] == 0 for item in items)
@@ -254,7 +267,7 @@ def test_featured_recipes_include_anonymous_rating_and_save_totals(
     api_client: TestClient,
     seeded_api_engine: Engine,
 ) -> None:
-    recipe_version_id = FEATURED_RECIPE_VERSION_IDS[0]
+    recipe_version_id = FEATURED_RECIPE_IDS[0]
     user_ids = [uuid4(), uuid4()]
     with Session(bind=seeded_api_engine) as session, session.begin():
         session.add_all(
@@ -308,7 +321,7 @@ def test_featured_recipes_omit_a_selection_that_is_no_longer_public(
     api_client: TestClient,
     seeded_api_engine: Engine,
 ) -> None:
-    withdrawn_id = FEATURED_RECIPE_VERSION_IDS[0]
+    withdrawn_id = FEATURED_RECIPE_IDS[0]
     try:
         with Session(bind=seeded_api_engine) as session, session.begin():
             set_authored_recipe_visibility(
@@ -324,7 +337,7 @@ def test_featured_recipes_omit_a_selection_that_is_no_longer_public(
         items = cast(list[dict[str, Any]], _json_object(response.json())["items"])
         assert str(withdrawn_id) not in {item["id"] for item in items}
         assert [item["id"] for item in items] == [
-            str(recipe_version_id) for recipe_version_id in FEATURED_RECIPE_VERSION_IDS[1:]
+            str(recipe_id) for recipe_id in FEATURED_RECIPE_IDS[1:]
         ]
     finally:
         with Session(bind=seeded_api_engine) as session, session.begin():
@@ -769,6 +782,7 @@ def test_openapi_documents_recipe_and_error_schemas(api_client: TestClient) -> N
     assert "/api/recipes" in paths
     assert "/api/recipe-categories" in paths
     assert "/api/recipes/featured" in paths
+    assert "/api/recipes/current/{recipe_id}" in paths
     assert "/api/recipes/{recipe_version_id}" in paths
     assert {
         "RecipePageResponse",
@@ -787,6 +801,16 @@ def test_openapi_documents_recipe_and_error_schemas(api_client: TestClient) -> N
         "ErrorResponse",
     } <= set(schemas)
     detail_properties = schemas["RecipeDetailResponse"]["properties"]
+    assert {
+        "recipe_id",
+        "edition_number",
+        "relation_kind",
+        "previous_version_id",
+        "declared_change_reason",
+        "is_current",
+        "current_version",
+        "adaptation_source",
+    } <= set(detail_properties)
     assert detail_properties["average_rating"]["anyOf"][0]["minimum"] == 1
     assert detail_properties["average_rating"]["anyOf"][0]["maximum"] == 5
     assert detail_properties["rating_count"]["minimum"] == 0
@@ -798,6 +822,7 @@ def test_openapi_documents_recipe_and_error_schemas(api_client: TestClient) -> N
     browse_responses = paths["/api/recipes"]["get"]["responses"]
     category_responses = paths["/api/recipe-categories"]["get"]["responses"]
     featured_responses = paths["/api/recipes/featured"]["get"]["responses"]
+    current_responses = paths["/api/recipes/current/{recipe_id}"]["get"]["responses"]
     detail_responses = paths["/api/recipes/{recipe_version_id}"]["get"]["responses"]
     assert browse_responses["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/RecipePageResponse"
@@ -839,6 +864,12 @@ def test_openapi_documents_recipe_and_error_schemas(api_client: TestClient) -> N
     assert featured_properties["save_count"]["minimum"] == 0
     assert category_responses["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/RecipeCategoryListResponse"
+    )
+    assert current_responses["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/RecipeDetailResponse"
+    )
+    assert current_responses["404"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/ErrorResponse"
     )
     assert detail_responses["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/RecipeDetailResponse"

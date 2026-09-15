@@ -8,7 +8,7 @@ import { LoadingButton } from "../../../../shared/ui/loading-ui";
 
 interface RecipeDuplicatePreflightReviewProps {
   result: RecipeDuplicatePreflight;
-  publicationKind: "original" | "fork";
+  publicationKind: "original" | "fork" | "revision";
   acknowledged: boolean;
   pendingDecision: "continue" | null;
   confirmationSlot?: ReactNode;
@@ -55,7 +55,12 @@ export function RecipeDuplicatePreflightReview({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const pending = pendingDecision !== null;
   const publishingFork = publicationKind === "fork";
-  const publicationSubject = publishingFork ? "version" : "recipe";
+  const publishingRevision = publicationKind === "revision";
+  const publicationSubject = publishingFork
+    ? "version"
+    : publishingRevision
+      ? "revision"
+      : "recipe";
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -161,6 +166,8 @@ export function RecipeDuplicatePreflightReview({
               ? result.same_lineage_no_change
                 ? "I understand this version closely matches its source and want to publish it separately."
                 : "I reviewed these similar recipes and want to publish my version anyway."
+              : publishingRevision
+                ? "I reviewed these similar recipes and want to publish my changes anyway."
               : "I reviewed these similar recipes and want to publish my recipe anyway."}
           </span>
         </label>
@@ -173,11 +180,17 @@ export function RecipeDuplicatePreflightReview({
             pendingLabel={
               publishingFork
                 ? "Publishing your version…"
+                : publishingRevision
+                  ? "Publishing your changes…"
                 : "Publishing your recipe…"
             }
             onClick={onContinue}
           >
-            {publishingFork ? "Publish version" : "Publish recipe"}
+            {publishingFork
+              ? "Publish version"
+              : publishingRevision
+                ? "Publish changes"
+                : "Publish recipe"}
           </LoadingButton>
           <button
             className="button button--secondary"

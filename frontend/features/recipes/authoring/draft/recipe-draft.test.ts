@@ -22,6 +22,7 @@ const DRAFT_ID = "44444444-4444-4444-8444-444444444444";
 const CATEGORY_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 const detail: RecipeDraftDetail = {
+  draft_kind: "original",
   id: DRAFT_ID,
   source_version_id: null,
   status: "active",

@@ -6,13 +6,12 @@ import type {
   RecipeDetail,
   RecipeDiff,
 } from "../../../../features/recipes/shared/recipe-contracts";
-import { buildRecipeCardSummary } from "../../../../features/recipes/shared/recipe-test-support";
 import RecipeComparePage from "./page";
 
 const mocks = vi.hoisted(() => ({
   fetchRecipe: vi.fn(),
   fetchRecipeDiff: vi.fn(),
-  fetchRecipePage: vi.fn(),
+  fetchRecipeHistory: vi.fn(),
   notFound: vi.fn(() => {
     throw new Error("not-found");
   }),
@@ -29,16 +28,7 @@ vi.mock("../../../../features/recipes/detail/recipe-detail-server-api", async (i
     ...actual,
     fetchRecipe: mocks.fetchRecipe,
     fetchRecipeDiff: mocks.fetchRecipeDiff,
-  };
-});
-
-vi.mock("../../../../features/recipes/browse/recipe-browse-server-api", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("../../../../features/recipes/browse/recipe-browse-server-api")
-  >();
-  return {
-    ...actual,
-    fetchRecipePage: mocks.fetchRecipePage,
+    fetchRecipeHistory: mocks.fetchRecipeHistory,
   };
 });
 
@@ -68,16 +58,24 @@ const explicitDiff: RecipeDiff = {
 };
 
 const explicitRecipe: RecipeDetail = {
+  adaptation_source: explicitDiff.base_version,
   author: explicitDiff.target_version.author,
   categories: [],
   created_at: "2026-08-20T00:00:00Z",
   description: "A nutty version of the original pancakes.",
+  current_version: null,
+  declared_change_reason: null,
+  edition_number: 1,
   id: SELECTED_ID,
+  is_current: true,
   lineage_id: explicitDiff.lineage_id,
   parent: explicitDiff.base_version,
   parent_version_id: RECIPE_ID,
+  previous_version_id: null,
   published_at: "2026-08-21T00:00:00Z",
   servings: "4.00",
+  recipe_id: "44444444-4444-4444-8444-444444444444",
+  relation_kind: "adaptation",
   title: explicitDiff.target_version.title,
   version_number: 2,
   average_rating: null,
@@ -93,25 +91,20 @@ const explicitRecipe: RecipeDetail = {
   instructions: [],
 };
 
-const familyVersion = buildRecipeCardSummary({
-  id: RECIPE_ID,
-  lineage_id: explicitDiff.lineage_id,
-  title: "Banana Oat Pancakes",
-  version_number: 1,
-});
-
 describe("RecipeComparePage", () => {
   beforeEach(() => {
     window.history.replaceState(null, "", "/recipes/target/compare");
     mocks.fetchRecipe.mockReset();
     mocks.fetchRecipe.mockResolvedValue(explicitRecipe);
     mocks.fetchRecipeDiff.mockReset();
-    mocks.fetchRecipePage.mockReset().mockResolvedValue({
-      items: [familyVersion],
-      page: 1,
-      page_size: 100,
-      total: 1,
-      total_pages: 1,
+    mocks.fetchRecipeHistory.mockReset().mockResolvedValue({
+      adaptations: [],
+      adaptations_truncated: false,
+      current_version_id: SELECTED_ID,
+      editions: [],
+      editions_truncated: false,
+      recipe_id: explicitRecipe.recipe_id,
+      selected_version_id: SELECTED_ID,
     });
     mocks.notFound.mockClear();
   });
@@ -168,11 +161,7 @@ describe("RecipeComparePage", () => {
 
     expect(mocks.fetchRecipeDiff).toHaveBeenCalledWith(SELECTED_ID, RECIPE_ID);
     expect(mocks.fetchRecipe).toHaveBeenCalledWith(SELECTED_ID);
-    expect(mocks.fetchRecipePage).toHaveBeenCalledWith({
-      lineageId: explicitDiff.lineage_id,
-      pageSize: 100,
-      sort: "title",
-    });
+    expect(mocks.fetchRecipeHistory).toHaveBeenCalledWith(SELECTED_ID);
     expect(
       screen.getByRole("heading", {
         name: "Pecan Banana Oat Pancakes",
@@ -207,7 +196,7 @@ describe("RecipeComparePage", () => {
 
   it("keeps the comparison available when the optional family request fails", async () => {
     mocks.fetchRecipeDiff.mockResolvedValueOnce(explicitDiff);
-    mocks.fetchRecipePage.mockRejectedValueOnce(
+    mocks.fetchRecipeHistory.mockRejectedValueOnce(
       new Error("family service unavailable"),
     );
 
@@ -227,7 +216,7 @@ describe("RecipeComparePage", () => {
     expect(
       within(screen.getByRole("tabpanel", { name: "Family" })).getByRole(
         "heading",
-        { name: "Recipe family" },
+        { name: "Recipe history" },
       ),
     ).toBeVisible();
   });
@@ -262,7 +251,7 @@ describe("RecipeComparePage", () => {
       expect(mocks.notFound).toHaveBeenCalledOnce();
       expect(mocks.fetchRecipe).not.toHaveBeenCalled();
       expect(mocks.fetchRecipeDiff).not.toHaveBeenCalled();
-      expect(mocks.fetchRecipePage).not.toHaveBeenCalled();
+      expect(mocks.fetchRecipeHistory).not.toHaveBeenCalled();
     },
   );
 
@@ -276,7 +265,7 @@ describe("RecipeComparePage", () => {
     ).rejects.toThrow("not-found");
 
     expect(mocks.notFound).toHaveBeenCalledOnce();
-    expect(mocks.fetchRecipePage).not.toHaveBeenCalled();
+    expect(mocks.fetchRecipeHistory).not.toHaveBeenCalled();
   });
 
   it("uses the not-found boundary when the target recipe is unavailable", async () => {
@@ -292,7 +281,7 @@ describe("RecipeComparePage", () => {
     expect(mocks.notFound).toHaveBeenCalledOnce();
     expect(mocks.fetchRecipe).toHaveBeenCalledWith(SELECTED_ID);
     expect(mocks.fetchRecipeDiff).toHaveBeenCalledWith(SELECTED_ID, undefined);
-    expect(mocks.fetchRecipePage).not.toHaveBeenCalled();
+    expect(mocks.fetchRecipeHistory).not.toHaveBeenCalled();
   });
 
   it("lets ordinary comparison failures reach the route error boundary", async () => {
@@ -307,6 +296,6 @@ describe("RecipeComparePage", () => {
     ).rejects.toThrow("comparison service unavailable");
 
     expect(mocks.notFound).not.toHaveBeenCalled();
-    expect(mocks.fetchRecipePage).not.toHaveBeenCalled();
+    expect(mocks.fetchRecipeHistory).not.toHaveBeenCalled();
   });
 });

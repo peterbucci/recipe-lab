@@ -18,6 +18,7 @@ import {
 import { createUnspecifiedMeasureDraft } from "../shared/structured-measure";
 import { NavigationBlockerProvider } from "../../../../shared/navigation/navigation-blocker-provider";
 import { RecipeDraftPublication } from "./recipe-draft-publication";
+import type { RecipeDraftKind } from "../draft/recipe-draft-summary";
 
 const mocks = vi.hoisted(() => ({
   preflight: vi.fn(),
@@ -149,18 +150,22 @@ export function directParentNoChangePreflight() {
 }
 
 export function renderPublication({
+  draftKind,
   dirty = false,
   draft = completeDraft(),
   onBusyChange = vi.fn(),
   onValidation = vi.fn(),
   sourceRecipeTitle,
+  sourceRecipeId,
   sourceVersionId = null,
 }: {
+  draftKind?: RecipeDraftKind;
   dirty?: boolean;
   draft?: RecipeDraftEditorState;
   onBusyChange?: (busy: boolean) => void;
   onValidation?: (validation: RecipeDraftValidation) => void;
   sourceRecipeTitle?: string;
+  sourceRecipeId?: string;
   sourceVersionId?: string | null;
 } = {}) {
   function PublicationHarness({
@@ -182,12 +187,16 @@ export function renderPublication({
         actionTypes={[actionType]}
         draft={draft}
         draftId={DRAFT_ID}
+        draftKind={
+          draftKind ?? (sourceVersionId === null ? "original" : "adaptation")
+        }
         dirty={dirty}
         measurementUnits={[]}
         onValidation={onValidation}
         publicationDispatch={publicationDispatch}
         publicationState={publicationState}
         revision={4}
+        sourceRecipeId={sourceRecipeId}
         sourceRecipeTitle={sourceRecipeTitle}
         sourceVersionId={sourceVersionId}
       />

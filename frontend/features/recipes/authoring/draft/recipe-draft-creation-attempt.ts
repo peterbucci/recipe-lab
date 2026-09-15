@@ -1,9 +1,10 @@
 "use client";
 
 import { createIdempotencyKey } from "../../../../shared/api/idempotency-key";
+import type { RecipeDraftKind } from "./recipe-draft-summary";
 
 export const RECIPE_DRAFT_CREATION_ATTEMPT_STORAGE_PREFIX =
-  "recipe-lab:draft-creation-attempt:v1";
+  "recipe-lab:draft-creation-attempt:v2";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -12,7 +13,7 @@ export interface RecipeDraftCreationAttempt {
   actor_id: string;
   idempotency_key: string;
   intent: string;
-  version: 1;
+  version: 2;
 }
 
 export class RecipeDraftCreationAttemptError extends Error {
@@ -27,18 +28,20 @@ export class RecipeDraftCreationAttemptError extends Error {
 }
 
 export function recipeDraftCreationIntent(
+  draftKind: RecipeDraftKind,
   sourceVersionId: string | null,
 ): string {
   return sourceVersionId === null
-    ? "blank"
-    : `source:${sourceVersionId.toLowerCase()}`;
+    ? draftKind
+    : `${draftKind}:source:${sourceVersionId.toLowerCase()}`;
 }
 
 export function recipeDraftCreationAttemptStorageKey(
   actorId: string,
+  draftKind: RecipeDraftKind,
   sourceVersionId: string | null,
 ): string {
-  const intent = recipeDraftCreationIntent(sourceVersionId);
+  const intent = recipeDraftCreationIntent(draftKind, sourceVersionId);
   return `${RECIPE_DRAFT_CREATION_ATTEMPT_STORAGE_PREFIX}:${encodeURIComponent(actorId)}:${encodeURIComponent(intent)}`;
 }
 
@@ -53,7 +56,7 @@ function isAttempt(
   const attempt = value as Record<string, unknown>;
   return (
     Object.keys(attempt).length === 4 &&
-    attempt.version === 1 &&
+    attempt.version === 2 &&
     attempt.actor_id === actorId &&
     attempt.intent === intent &&
     typeof attempt.idempotency_key === "string" &&
@@ -79,14 +82,16 @@ function readAttempt(
 
 export function getOrCreateRecipeDraftCreationAttempt(
   actorId: string,
+  draftKind: RecipeDraftKind,
   sourceVersionId: string | null,
 ): RecipeDraftCreationAttempt {
   if (typeof actorId !== "string" || actorId.trim().length === 0) {
     throw new RecipeDraftCreationAttemptError();
   }
-  const intent = recipeDraftCreationIntent(sourceVersionId);
+  const intent = recipeDraftCreationIntent(draftKind, sourceVersionId);
   const storageKey = recipeDraftCreationAttemptStorageKey(
     actorId,
+    draftKind,
     sourceVersionId,
   );
 
@@ -99,7 +104,7 @@ export function getOrCreateRecipeDraftCreationAttempt(
       actor_id: actorId,
       idempotency_key: createIdempotencyKey(),
       intent,
-      version: 1,
+      version: 2,
     };
     storage.setItem(storageKey, JSON.stringify(attempt));
     return attempt;
@@ -110,10 +115,12 @@ export function getOrCreateRecipeDraftCreationAttempt(
 
 export function clearRecipeDraftCreationAttempt(
   attempt: RecipeDraftCreationAttempt,
+  draftKind: RecipeDraftKind,
   sourceVersionId: string | null,
 ): void {
   const storageKey = recipeDraftCreationAttemptStorageKey(
     attempt.actor_id,
+    draftKind,
     sourceVersionId,
   );
   try {

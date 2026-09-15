@@ -23,8 +23,11 @@ const RECIPE_ID = "55555555-5555-4555-8555-555555555555";
 const CANDIDATE_ID = "66666666-6666-4666-8666-666666666666";
 
 const scope: PublicationScope = {
+  declaredChangeReason: null,
+  draftKind: "original",
   fingerprint: "saved-draft-fingerprint",
   revision: 4,
+  withdrawPredecessor: false,
 };
 
 const probableResult: RecipeDuplicatePreflight = {
@@ -120,6 +123,27 @@ describe("recipe draft publication domain state", () => {
       publicationScopeMatches(
         scope,
         { ...scope, fingerprint: "different-draft" },
+        false,
+      ),
+    ).toBe(false);
+    expect(
+      publicationScopeMatches(
+        scope,
+        { ...scope, declaredChangeReason: "update" },
+        false,
+      ),
+    ).toBe(false);
+    expect(
+      publicationScopeMatches(
+        scope,
+        { ...scope, draftKind: "revision" },
+        false,
+      ),
+    ).toBe(false);
+    expect(
+      publicationScopeMatches(
+        scope,
+        { ...scope, withdrawPredecessor: true },
         false,
       ),
     ).toBe(false);

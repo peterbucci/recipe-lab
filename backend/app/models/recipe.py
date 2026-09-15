@@ -53,6 +53,88 @@ RECIPE_DIFFICULTIES = (
     RECIPE_DIFFICULTY_HARD,
 )
 
+RECIPE_RELATION_KIND_ORIGINAL = "original"
+RECIPE_RELATION_KIND_ADAPTATION = "adaptation"
+RECIPE_RELATION_KIND_REVISION = "revision"
+RECIPE_RELATION_KINDS = (
+    RECIPE_RELATION_KIND_ORIGINAL,
+    RECIPE_RELATION_KIND_ADAPTATION,
+    RECIPE_RELATION_KIND_REVISION,
+)
+RECIPE_DECLARED_CHANGE_REASON_CORRECTION = "correction"
+RECIPE_DECLARED_CHANGE_REASON_UPDATE = "update"
+RECIPE_DECLARED_CHANGE_REASONS = (
+    RECIPE_DECLARED_CHANGE_REASON_CORRECTION,
+    RECIPE_DECLARED_CHANGE_REASON_UPDATE,
+)
+
+
+class Recipe(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
+    """Stable recipe identity above immutable published-version snapshots."""
+
+    __tablename__ = "recipes"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["id", "current_recipe_version_id"],
+            ["recipe_editions.recipe_id", "recipe_editions.recipe_version_id"],
+            name="fk_recipes_current_edition_same_recipe",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+            use_alter=True,
+        ),
+        CheckConstraint(
+            "owner_user_id IS NULL OR owner_user_id = attributed_author_user_id",
+            name="owner_matches_attributed_author",
+        ),
+        UniqueConstraint("id", "lineage_id", name="uq_recipes_id_lineage_id"),
+        UniqueConstraint(
+            "id",
+            "attributed_author_user_id",
+            name="uq_recipes_id_attributed_author",
+        ),
+        Index("ix_recipes_lineage_id", "lineage_id"),
+        Index("ix_recipes_attributed_author_user_id", "attributed_author_user_id"),
+        Index("ix_recipes_owner_user_id", "owner_user_id"),
+    )
+
+    lineage_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("recipe_lineages.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    attributed_author_user_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    owner_user_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    current_recipe_version_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=False,
+    )
+
+    lineage: Mapped["RecipeLineage"] = relationship(back_populates="recipes")
+    attributed_author: Mapped["User"] = relationship(foreign_keys=[attributed_author_user_id])
+    owner: Mapped["User | None"] = relationship(foreign_keys=[owner_user_id])
+    editions: Mapped[list["RecipeEdition"]] = relationship(
+        back_populates="recipe",
+        primaryjoin="Recipe.id == RecipeEdition.recipe_id",
+        foreign_keys="RecipeEdition.recipe_id",
+        order_by="RecipeEdition.edition_number",
+        passive_deletes="all",
+    )
+    current_edition: Mapped["RecipeEdition"] = relationship(
+        primaryjoin="Recipe.current_recipe_version_id == RecipeEdition.recipe_version_id",
+        foreign_keys=[current_recipe_version_id],
+        uselist=False,
+        viewonly=True,
+    )
+
 
 class RecipeLineage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     __tablename__ = "recipe_lineages"
@@ -67,6 +149,11 @@ class RecipeLineage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     versions: Mapped[list["RecipeVersion"]] = relationship(
         back_populates="lineage",
         order_by="RecipeVersion.version_number",
+        passive_deletes="all",
+    )
+    recipes: Mapped[list[Recipe]] = relationship(
+        back_populates="lineage",
+        order_by="Recipe.created_at",
         passive_deletes="all",
     )
 
@@ -115,12 +202,6 @@ class RecipeVersion(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
             "lineage_id",
             "version_number",
             name="uq_recipe_versions_lineage_id_version_number",
-        ),
-        Index(
-            "uq_recipe_versions_one_root_per_lineage",
-            "lineage_id",
-            unique=True,
-            postgresql_where=text("parent_version_id IS NULL"),
         ),
         Index("ix_recipe_versions_parent_version_id", "parent_version_id"),
         Index(
@@ -173,6 +254,13 @@ class RecipeVersion(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
         order_by="RecipeVersion.version_number",
         passive_deletes="all",
     )
+    edition: Mapped["RecipeEdition | None"] = relationship(
+        back_populates="recipe_version",
+        primaryjoin="RecipeVersion.id == RecipeEdition.recipe_version_id",
+        foreign_keys="RecipeEdition.recipe_version_id",
+        uselist=False,
+        passive_deletes="all",
+    )
     ingredients: Mapped[list["RecipeIngredient"]] = relationship(
         back_populates="recipe_version",
         order_by="RecipeIngredient.display_order",
@@ -205,6 +293,117 @@ class RecipeVersion(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
         back_populates="recipe_version",
         order_by="RecipeVersionCategory.display_order",
         passive_deletes="all",
+    )
+
+
+class RecipeEdition(Base):
+    """Stable-recipe membership and succession for one exact published version."""
+
+    __tablename__ = "recipe_editions"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["recipe_id", "lineage_id"],
+            ["recipes.id", "recipes.lineage_id"],
+            name="fk_recipe_editions_recipe_same_lineage",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["recipe_id", "attributed_author_user_id"],
+            ["recipes.id", "recipes.attributed_author_user_id"],
+            name="fk_recipe_editions_recipe_same_author",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["lineage_id", "recipe_version_id"],
+            ["recipe_versions.lineage_id", "recipe_versions.id"],
+            name="fk_recipe_editions_version_same_lineage",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["recipe_version_id", "attributed_author_user_id"],
+            ["recipe_versions.id", "recipe_versions.created_by_user_id"],
+            name="fk_recipe_editions_version_same_author",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["recipe_version_id"],
+            ["recipe_version_publications.recipe_version_id"],
+            name="fk_recipe_editions_published_version",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        ForeignKeyConstraint(
+            ["recipe_id", "previous_recipe_version_id"],
+            ["recipe_editions.recipe_id", "recipe_editions.recipe_version_id"],
+            name="fk_recipe_editions_previous_same_recipe",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        CheckConstraint("edition_number >= 1", name="edition_number_positive"),
+        CheckConstraint(
+            f"relation_kind IN {RECIPE_RELATION_KINDS!r}",
+            name="relation_kind_supported",
+        ),
+        CheckConstraint(
+            "declared_change_reason IS NULL OR (relation_kind = 'revision' "
+            f"AND declared_change_reason IN {RECIPE_DECLARED_CHANGE_REASONS!r})",
+            name="declared_change_reason_supported",
+        ),
+        CheckConstraint(
+            "(relation_kind IN ('original', 'adaptation') AND edition_number = 1 "
+            "AND previous_recipe_version_id IS NULL) OR "
+            "(relation_kind = 'revision' AND edition_number > 1 "
+            "AND previous_recipe_version_id IS NOT NULL)",
+            name="topology_shape_valid",
+        ),
+        UniqueConstraint(
+            "recipe_id",
+            "recipe_version_id",
+            name="uq_recipe_editions_recipe_id_version_id",
+        ),
+        UniqueConstraint(
+            "recipe_id",
+            "edition_number",
+            name="uq_recipe_editions_recipe_id_edition_number",
+        ),
+        Index(
+            "uq_recipe_editions_one_revision_successor",
+            "recipe_id",
+            "previous_recipe_version_id",
+            unique=True,
+            postgresql_where=text("previous_recipe_version_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_recipe_editions_one_origin_per_lineage",
+            "lineage_id",
+            unique=True,
+            postgresql_where=text("relation_kind = 'original'"),
+        ),
+    )
+
+    recipe_version_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    recipe_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    lineage_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    attributed_author_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    edition_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    relation_kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    previous_recipe_version_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+    )
+    declared_change_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+    recipe: Mapped[Recipe] = relationship(
+        back_populates="editions",
+        primaryjoin="RecipeEdition.recipe_id == Recipe.id",
+        foreign_keys=[recipe_id],
+    )
+    recipe_version: Mapped[RecipeVersion] = relationship(
+        back_populates="edition",
+        primaryjoin="RecipeEdition.recipe_version_id == RecipeVersion.id",
+        foreign_keys=[recipe_version_id],
     )
 
 

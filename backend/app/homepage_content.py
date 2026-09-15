@@ -7,9 +7,12 @@ from app.seeds.identifiers import seed_uuid
 _DEMO_DATASET_ID = "recipe-lab-demo-v1"
 
 # This list is intentionally editorial and globally identical for every viewer. It is
-# not a popularity ranking or a personalized recommendation. A selected recipe that is
-# no longer public is omitted by the repository query rather than leaked from this list.
-FEATURED_RECIPE_VERSION_IDS: tuple[UUID, ...] = tuple(
+# not a popularity ranking or a personalized recommendation. These are stable recipe
+# identities; a selected recipe whose current edition is hidden is omitted by the
+# repository query rather than falling back to an older edition.
+# The deterministic stable-identity backfill intentionally reused each catalog snapshot's
+# exact version ID, so the original seed namespace remains the source of these IDs.
+FEATURED_RECIPE_IDS: tuple[UUID, ...] = tuple(
     seed_uuid(_DEMO_DATASET_ID, "recipe-version", key)
     for key in (
         "banana-oat-pancakes-v1",

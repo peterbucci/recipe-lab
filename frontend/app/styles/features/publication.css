@@ -41,6 +41,55 @@
   width: 0.9375rem;
   height: 0.9375rem;
 }
+.draft-publication__change-options {
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  border-radius: 0.625rem;
+  margin: 0 0 1.25rem;
+  padding: 0.75rem;
+}
+.draft-publication__change-options legend {
+  color: #39384a;
+  padding: 0 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 780;
+}
+.draft-publication__change-help {
+  color: var(--muted);
+  margin: 0 0 0.625rem;
+  font-size: 0.625rem;
+  line-height: 1.45;
+}
+.draft-publication__change-option,
+.draft-publication__withdraw-option {
+  color: #4f4e60;
+  cursor: pointer;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.5625rem;
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  display: grid;
+}
+.draft-publication__change-option + .draft-publication__change-option {
+  margin-top: 0.5rem;
+}
+.draft-publication__change-option input,
+.draft-publication__withdraw-option input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--leaf);
+  margin: 0.0625rem 0 0;
+}
+.draft-publication__withdraw-option {
+  border-top: 1px solid var(--line);
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+}
+.draft-publication__change-options:disabled label {
+  cursor: default;
+  opacity: 0.65;
+}
 .draft-publication__confirmation {
   border-top: 1px solid var(--line);
   grid-template-columns: auto minmax(0, 1fr);
@@ -301,7 +350,8 @@
 @media (forced-colors: active) {
   .recipe-workspace__finish-panel,
   .recipe-workspace__finish-close,
-  .draft-publication__source-summary {
+  .draft-publication__source-summary,
+  .draft-publication__change-options {
     color: canvastext;
     background: canvas;
     border: 1px solid canvastext;

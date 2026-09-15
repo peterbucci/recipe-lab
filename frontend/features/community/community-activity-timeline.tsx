@@ -22,7 +22,13 @@ type CommunityActivityState =
     }
   | { phase: "error" };
 
-export function CommunityActivityTimeline({ userId }: { userId: string }) {
+export function CommunityActivityTimeline({
+  recipeHref,
+  userId,
+}: {
+  recipeHref: (recipe: MyCommunityActivityPage["items"][number]) => string;
+  userId: string;
+}) {
   const [reload, setReload] = useState(0);
   const [state, setState] = useState<CommunityActivityState>({
     phase: "loading",
@@ -147,7 +153,10 @@ export function CommunityActivityTimeline({ userId }: { userId: string }) {
             className="member-activity-page__shell community-activity-page__shell workspace-panel-shell workspace-panel-shell--mobile-bleed"
             aria-label="Community activity"
           >
-            <CommunityPublicationList items={state.data.items} />
+            <CommunityPublicationList
+              items={state.data.items}
+              recipeHref={recipeHref}
+            />
             {state.loadMoreFailed ? (
               <p className="community-activity-page__load-error" role="alert">
                 Older activity could not be loaded. Try again.

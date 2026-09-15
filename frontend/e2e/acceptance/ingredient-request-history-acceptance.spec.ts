@@ -2,6 +2,10 @@ import AxeBuilder from "@axe-core/playwright";
 import type { APIResponse, Locator, Page } from "@playwright/test";
 
 import { expect, test } from "./acceptance-draft-isolation";
+import {
+  exactRecipeVersionId,
+  publicRecipeDetailPathPattern,
+} from "./acceptance-recipe";
 
 import {
   type MemberName,
@@ -452,7 +456,9 @@ test.describe("member ingredient-request acceptance", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/recipes?q=carrot");
     await Promise.all([
-      page.waitForURL(/\/recipes\/[0-9a-f-]{36}$/i),
+      page.waitForURL((url) =>
+        publicRecipeDetailPathPattern.test(url.pathname),
+      ),
       page
         .getByRole("article", {
           name: "Carrot Walnut Snack Cake",
@@ -463,7 +469,7 @@ test.describe("member ingredient-request acceptance", () => {
         .click(),
     ]);
     const sourceRecipeUrl = page.url();
-    const sourceId = new URL(sourceRecipeUrl).pathname.split("/").at(-1)!;
+    const sourceId = await exactRecipeVersionId(page, sourceRecipeUrl);
     await sourceDrafts.assertFresh("alice", sourceId);
     const createdDraft = page.waitForResponse(
       (response) =>

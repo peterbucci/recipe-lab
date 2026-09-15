@@ -1,6 +1,9 @@
+from typing import Literal, cast
+
 from app.core.demo_identity import DEMO_USER_DISPLAY_NAME, DEMO_USER_ID
 from app.models import (
     ACCOUNT_KIND_DEMO,
+    RECIPE_PUBLICATION_STATE_PUBLISHED,
     USER_STATUS_DELETED,
     RecipeIngredient,
     RecipeInstruction,
@@ -10,7 +13,7 @@ from app.models import (
 )
 from app.repositories.recipe_drafts import RecipeDraftBrowseItem
 from app.schemas.recipe_categories import RecipeCategorySummary
-from app.schemas.recipe_drafts import RecipeDraftSummaryResponse
+from app.schemas.recipe_drafts import RecipeDraftKind, RecipeDraftSummaryResponse
 from app.schemas.recipes import (
     RecipeIngredientResponse,
     RecipeInstructionResponse,
@@ -63,15 +66,66 @@ def recipe_category_summary(item: RecipeVersionCategory) -> RecipeCategorySummar
     )
 
 
-def recipe_summary_response(version: RecipeVersion) -> RecipeSummary:
+def recipe_summary_response(
+    version: RecipeVersion,
+    *,
+    adaptation_source: RecipeVersion | None = None,
+) -> RecipeSummary:
     publication = version.publication
     if publication is None:
         raise RuntimeError(f"Public recipe version {version.id} has no publication record.")
+    edition = version.edition
+    if edition is None:
+        raise RuntimeError(f"Public recipe version {version.id} has no stable recipe edition.")
+    stable_recipe = edition.recipe
+    current_edition = stable_recipe.current_edition
+    if current_edition is None:
+        raise RuntimeError(f"Stable recipe {stable_recipe.id} has no current edition.")
+    readable_current_version = getattr(current_edition, "recipe_version", None)
+    if readable_current_version is not None and (
+        readable_current_version.publication is None
+        or readable_current_version.publication.state != RECIPE_PUBLICATION_STATE_PUBLISHED
+    ):
+        readable_current_version = None
+    readable_adaptation_source = adaptation_source
+    if (
+        readable_adaptation_source is None
+        and edition.relation_kind == "adaptation"
+        and version.parent is not None
+    ):
+        readable_adaptation_source = version.parent
+    if readable_adaptation_source is not None and (
+        readable_adaptation_source.publication is None
+        or readable_adaptation_source.publication.state != RECIPE_PUBLICATION_STATE_PUBLISHED
+    ):
+        readable_adaptation_source = None
     return RecipeSummary(
         id=version.id,
+        recipe_id=edition.recipe_id,
         lineage_id=version.lineage_id,
         parent_version_id=version.parent_version_id,
         version_number=version.version_number,
+        edition_number=edition.edition_number,
+        relation_kind=cast(
+            Literal["original", "adaptation", "revision"],
+            edition.relation_kind,
+        ),
+        previous_version_id=edition.previous_recipe_version_id,
+        declared_change_reason=cast(
+            Literal["correction", "update"] | None,
+            edition.declared_change_reason,
+        ),
+        is_current=stable_recipe.current_recipe_version_id == version.id,
+        current_version=(
+            recipe_version_reference(readable_current_version)
+            if readable_current_version is not None
+            else None
+        ),
+        adaptation_source=(
+            recipe_version_reference(readable_adaptation_source)
+            if readable_adaptation_source is not None
+            else None
+        ),
         title=version.title,
         description=version.description,
         servings=version.servings,
@@ -124,6 +178,7 @@ def recipe_draft_summary_response(
 
     return RecipeDraftSummaryResponse(
         id=item.draft.id,
+        draft_kind=cast(RecipeDraftKind, item.draft.draft_kind),
         source_version_id=item.draft.source_version_id,
         status="active",
         revision=item.draft.revision,

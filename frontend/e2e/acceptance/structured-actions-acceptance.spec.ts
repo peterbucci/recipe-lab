@@ -2,6 +2,10 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "./acceptance-draft-isolation";
+import {
+  exactRecipeVersionId,
+  publicRecipeDetailPathPattern,
+} from "./acceptance-recipe";
 import { useAcceptanceMember } from "./acceptance-session";
 
 async function confirmPublicationRequirements(page: Page): Promise<void> {
@@ -56,13 +60,15 @@ test.describe("structured cooking action acceptance", () => {
       .filter({ has: page.getByText("Original", { exact: true }) });
     await expect(rootRecipeCard).toHaveCount(1);
     await Promise.all([
-      page.waitForURL(/\/recipes\/[0-9a-f-]{36}$/i),
+      page.waitForURL((url) =>
+        publicRecipeDetailPathPattern.test(url.pathname),
+      ),
       rootRecipeCard
         .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
         .click(),
     ]);
     const sourceRecipeUrl = page.url();
-    const sourceId = new URL(sourceRecipeUrl).pathname.split("/").at(-1)!;
+    const sourceId = await exactRecipeVersionId(page, sourceRecipeUrl);
     await sourceDrafts.assertFresh("alice", sourceId);
     await page
       .getByRole("button", { name: "Make your own version", exact: true })
@@ -482,12 +488,12 @@ test.describe("structured cooking action acceptance", () => {
       .locator(".recipe-detail__parent-context")
       .getByRole("link", { name: "Carrot Walnut Snack Cake", exact: true })
       .click();
-    await expect(page).toHaveURL(sourceRecipeUrl);
+    await expect(page).toHaveURL(`/recipes/${sourceId}`);
     await page.getByRole("tab", { name: "Family", exact: true }).click();
     const family = page.getByRole("tabpanel", { name: "Family", exact: true });
     await family
       .getByRole("button", {
-        name: `Show ${draftTitle} in the family tree`,
+        name: `Show ${draftTitle} in recipe history`,
         exact: true,
       })
       .click();

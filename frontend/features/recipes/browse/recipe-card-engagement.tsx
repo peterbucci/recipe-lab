@@ -30,6 +30,7 @@ interface RecipeCardEngagementProps {
   lineageLabel: ReactNode;
   ratingCount: number;
   recipeVersionId: string;
+  returnTo: string;
   saveCount: number;
   servings: string;
   title: string;
@@ -180,9 +181,8 @@ export function RecipeCardViewerStateProvider({
 
 function accountHref(
   path: "/onboarding" | "/sign-in",
-  recipeVersionId: string,
+  returnTo: string,
 ): string {
-  const returnTo = `/recipes/${encodeURIComponent(recipeVersionId)}`;
   return `${path}?${new URLSearchParams({ return_to: returnTo }).toString()}`;
 }
 
@@ -219,6 +219,7 @@ export function RecipeCardEngagement({
   lineageLabel,
   ratingCount,
   recipeVersionId,
+  returnTo,
   saveCount,
   servings,
   title,
@@ -371,7 +372,7 @@ export function RecipeCardEngagement({
     saveControl = (
       <Link
         className="recipe-card-engagement__heart"
-        href={accountHref("/sign-in", recipeVersionId)}
+        href={accountHref("/sign-in", returnTo)}
         aria-label={`Sign in to save ${title}`}
       >
         <HeartIcon />
@@ -381,7 +382,7 @@ export function RecipeCardEngagement({
     saveControl = (
       <Link
         className="recipe-card-engagement__heart"
-        href={accountHref("/onboarding", recipeVersionId)}
+        href={accountHref("/onboarding", returnTo)}
         aria-label={`Finish account setup to save ${title}`}
       >
         <HeartIcon />

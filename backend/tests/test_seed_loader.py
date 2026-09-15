@@ -75,6 +75,7 @@ SEEDED_TABLE_COUNTS = {
     "measurement_unit_aliases": 21,
     "measurement_units": 19,
     "preference_events": 0,
+    "recipe_editions": 34,
     "recipe_lineages": 25,
     "recipe_categories": 7,
     "recipe_version_categories": 82,
@@ -86,6 +87,7 @@ SEEDED_TABLE_COUNTS = {
     "recipe_structural_fingerprints": 34,
     "recipe_version_publications": 34,
     "recipe_versions": 34,
+    "recipes": 34,
     "users": 2,
 }
 

@@ -10,6 +10,7 @@ import {
 } from "../../features/community/member-follow-api";
 import { useAuthSession } from "../../features/auth/auth-session-provider";
 import { CommunityPublicationList } from "../../features/community/community-publication-list";
+import { ordinaryRecipePath } from "../../features/recipes/shared/recipe-paths";
 import { useHomeLoadIssue } from "./home-load-state";
 import { SectionLoading } from "../../shared/ui/loading-ui";
 
@@ -124,7 +125,12 @@ export function HomeCommunityFeed() {
       </div>
     );
   } else {
-    content = <CommunityPublicationList items={feedState.data.items} />;
+    content = (
+      <CommunityPublicationList
+        items={feedState.data.items}
+        recipeHref={ordinaryRecipePath}
+      />
+    );
   }
 
   return (

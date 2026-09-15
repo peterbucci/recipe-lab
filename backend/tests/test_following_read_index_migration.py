@@ -30,14 +30,18 @@ def test_following_read_index_matches_orm_metadata() -> None:
     ]
 
 
-def test_following_read_index_migration_is_the_single_linear_head(
+def test_migrations_keep_one_linear_head_after_the_following_index(
     alembic_config: Config,
 ) -> None:
     script = ScriptDirectory.from_config(alembic_config)
-    revision = script.get_revision("20260911_0031")
+    following_revision = script.get_revision("20260911_0031")
+    edition_revision = script.get_revision("20260914_0032")
+    draft_kind_revision = script.get_revision("20260914_0033")
 
-    assert script.get_heads() == ["20260911_0031"]
-    assert revision.down_revision == "20260902_0030"
+    assert script.get_heads() == ["20260914_0033"]
+    assert following_revision.down_revision == "20260902_0030"
+    assert edition_revision.down_revision == "20260911_0031"
+    assert draft_kind_revision.down_revision == "20260914_0032"
 
 
 def test_following_read_index_migration_upgrades_and_downgrades(

@@ -293,7 +293,7 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
     const draftBeforeWithdrawal = await page.request.post(
       "/api/recipe-drafts",
       {
-        data: { source_version_id: sourceId },
+        data: { draft_kind: "adaptation", source_version_id: sourceId },
         headers: { ...bobHeaders, "Idempotency-Key": withdrawnReplayKey },
       },
     );
@@ -357,7 +357,7 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
     const replayAfterWithdrawal = await page.request.post(
       "/api/recipe-drafts",
       {
-        data: { source_version_id: sourceId },
+        data: { draft_kind: "adaptation", source_version_id: sourceId },
         headers: { ...replayHeaders, "Idempotency-Key": withdrawnReplayKey },
       },
     );
@@ -371,7 +371,7 @@ test.describe("recipe visibility and account lifecycle acceptance", () => {
     const newIntentAfterWithdrawal = await page.request.post(
       "/api/recipe-drafts",
       {
-        data: { source_version_id: sourceId },
+        data: { draft_kind: "adaptation", source_version_id: sourceId },
         headers: { ...replayHeaders, "Idempotency-Key": crypto.randomUUID() },
       },
     );

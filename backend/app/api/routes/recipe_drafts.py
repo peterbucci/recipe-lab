@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Header, Query, Response, status
@@ -18,6 +18,7 @@ from app.schemas.errors import ErrorResponse
 from app.schemas.recipe_drafts import (
     RecipeDraftCreateRequest,
     RecipeDraftDetailResponse,
+    RecipeDraftKind,
     RecipeDraftPageResponse,
     RecipeDraftSummaryResponse,
     RecipeDraftUpdateRequest,
@@ -36,7 +37,7 @@ DraftCreationActionHeader = Annotated[
     Header(
         alias="Idempotency-Key",
         description=(
-            "Opaque UUID that binds one member to one blank-or-source draft creation intent."
+            "Opaque UUID that binds one member to one draft kind and exact source intent."
         ),
     ),
 ]
@@ -83,7 +84,8 @@ def _draft_not_found(draft_id: UUID) -> ApiError:
     responses=DRAFT_CREATE_RESPONSES,
     summary="Create a private recipe draft",
     description=(
-        "Creates a blank original draft or copies one exact public immutable recipe snapshot. "
+        "Creates a blank original, cross-recipe adaptation, or same-recipe revision draft. "
+        "Revision sources must be the active owner's exact publicly readable current edition. "
         "The required Idempotency-Key recovers the same active draft after an ambiguous "
         "response. Authorship always comes from the active member session."
     ),
@@ -101,6 +103,7 @@ def create_private_recipe_draft(
             session,
             author_user_id=actor_id,
             creation_action_id=creation_action_id,
+            draft_kind=payload.draft_kind,
             source_version_id=payload.source_version_id,
         )
     except DomainError:
@@ -141,6 +144,10 @@ def my_private_recipe_drafts(
     response: Response,
     session: SessionDependency,
     authenticated: RequiredAuthenticatedSessionDependency,
+    draft_kind: Annotated[
+        RecipeDraftKind | None,
+        Query(description="Return only active drafts of this authoring kind."),
+    ] = None,
     source_version_id: Annotated[
         UUID | None,
         Query(
@@ -157,6 +164,7 @@ def my_private_recipe_drafts(
     stored = browse_owned_recipe_drafts(
         session,
         author_user_id=actor_id,
+        draft_kind=draft_kind,
         source_version_id=source_version_id,
         offset=pagination.offset,
         limit=page_size,
@@ -165,6 +173,7 @@ def my_private_recipe_drafts(
         items=[
             RecipeDraftSummaryResponse(
                 id=item.draft.id,
+                draft_kind=cast(RecipeDraftKind, item.draft.draft_kind),
                 source_version_id=item.draft.source_version_id,
                 status="active",
                 revision=item.draft.revision,

@@ -86,6 +86,13 @@ The isolated rehearsal job runs these phases in order:
 8. **Evidence compilation.** Only after every prior phase passes does the
    reviewed compiler produce one bounded, canonical report.
 
+For databases at or beyond stable-recipe migrations `20260914_0032` and
+`20260914_0033`, the ancestor-image selection in phase 7 must also satisfy the
+[stable recipe edition rollback compatibility](recipe-edition-operations.md#application-rollback-compatibility)
+contract. An image that merely boots but cannot write edition membership,
+preserve explicit draft intent, or enforce current-only reads is not a
+compatible rollback target.
+
 Every command is fail-fast. The ordinary CI workflow continues to own the
 stable RCP-32 community gate, application, accessibility, safe-source, and
 baseline checks; they remain independent evidence reviewed alongside this

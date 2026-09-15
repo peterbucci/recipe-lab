@@ -1,9 +1,14 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
+  HISTORICAL_CURRENT_RECIPE_ID,
+  HISTORICAL_RECIPE_ID,
+  HISTORICAL_RECIPE_STABLE_ID,
   REVIEWED_SHELL_VIEWPORTS,
   ROOT_RECIPE_ID,
+  ROOT_RECIPE_STABLE_ID,
   VARIANT_RECIPE_ID,
+  VARIANT_RECIPE_STABLE_ID,
   setScenario,
   readAudit,
   gotoMemberHome,
@@ -376,7 +381,7 @@ async function expectComparisonTabsAndActions(
   await expect(notesPanel).toBeHidden();
   await expect(familyPanel).toBeVisible();
   await expect(
-    familyPanel.getByRole("heading", { name: "Recipe family", level: 2 }),
+    familyPanel.getByRole("heading", { name: "Recipe history", level: 2 }),
   ).toBeVisible();
   await expect(page).toHaveURL(
     `/recipes/${VARIANT_RECIPE_ID}/compare#recipe-family`,
@@ -478,6 +483,35 @@ test("recipe discovery reflows without hiding results at reviewed widths", async
       for (let index = 0; index < cardCount; index += 1) {
         await expect(cards.nth(index)).toBeVisible();
       }
+      const rootCard = page.getByRole("article", {
+        name: "Sunlit Tomato Soup",
+        exact: true,
+      });
+      const variantCard = page.getByRole("article", {
+        name: "Garden Cream Tomato Soup",
+        exact: true,
+      });
+      await expect(
+        rootCard.getByRole("link", {
+          name: "Sunlit Tomato Soup",
+          exact: true,
+        }),
+      ).toHaveAttribute("href", `/recipes/current/${ROOT_RECIPE_STABLE_ID}`);
+      await expect(
+        variantCard.getByRole("link", {
+          name: "Garden Cream Tomato Soup",
+          exact: true,
+        }),
+      ).toHaveAttribute(
+        "href",
+        `/recipes/current/${VARIANT_RECIPE_STABLE_ID}`,
+      );
+      await expect(
+        variantCard.getByRole("link", {
+          name: "Sunlit Tomato Soup",
+          exact: true,
+        }).first(),
+      ).toHaveAttribute("href", `/recipes/${ROOT_RECIPE_ID}`);
 
       await expectGridColumnCount(results, expectedColumns[viewport.label]);
       await expect(results.getByText(/^original$/i).first()).toBeVisible();
@@ -581,7 +615,9 @@ test("community View all opens every followed-cook publication", async ({
   await expect(
     page.getByText(/published an original recipe/i),
   ).toBeVisible();
-  await expect(page.getByText(/published a new version/i).first()).toBeVisible();
+  await expect(
+    page.getByText(/published a new adaptation/i).first(),
+  ).toBeVisible();
 
   const audit = await readAudit();
   expect(audit.route_counts["community-activity"] ?? 0).toBe(2);
@@ -943,6 +979,145 @@ test("recipe comparison switches both primary grids at the 900px boundary", asyn
       await expectNoHorizontalOverflow(page);
     });
   }
+});
+
+test("stable current and exact historical routes keep publication identity clear", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+
+  for (const viewport of REVIEWED_SHELL_VIEWPORTS) {
+    await test.step(viewport.label, async () => {
+      await setScenario("normal");
+      await page.setViewportSize({
+        width: viewport.width,
+        height: viewport.height,
+      });
+      await page.goto(`/recipes/${HISTORICAL_RECIPE_ID}`);
+
+      await expect(
+        page.getByRole("heading", { name: "Summer Tomato Soup", level: 1 }),
+      ).toBeVisible();
+      const versionNotice = page.getByRole("complementary", {
+        name: "Recipe version notice",
+      });
+      await expect(versionNotice).toContainText(
+        "You’re viewing an older published version of this recipe.",
+      );
+      await expect(
+        versionNotice.getByRole("link", { name: "View the current version" }),
+      ).toHaveAttribute(
+        "href",
+        `/recipes/current/${HISTORICAL_RECIPE_STABLE_ID}`,
+      );
+      await expect(
+        page.getByRole("button", {
+          name: "Make your own version",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Edit recipe", exact: true }),
+      ).toHaveCount(0);
+
+      await page.getByRole("tab", { name: "Family", exact: true }).click();
+      const history = page.getByRole("region", { name: "Recipe history" });
+      await expect(history).toContainText("Published version 1");
+      await expect(history).toContainText("Published version 2");
+      await expect(history).toContainText(
+        "Author marked this version as a correction.",
+      );
+      const currentSelector = history.getByRole("button", {
+        name: "Show Corrected Summer Tomato Soup in recipe history",
+        exact: true,
+      });
+      await currentSelector.focus();
+      await page.keyboard.press("Enter");
+      await expect(
+        history.getByRole("heading", { name: "Recipe history", level: 2 }),
+      ).toBeFocused();
+      await expect(
+        history.getByRole("link", {
+          name: "Compare with Summer Tomato Soup →",
+          exact: true,
+        }),
+      ).toHaveAttribute(
+        "href",
+        `/recipes/${HISTORICAL_CURRENT_RECIPE_ID}/compare?base_version_id=${HISTORICAL_RECIPE_ID}`,
+      );
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
+
+      await page.goto(`/recipes/current/${HISTORICAL_RECIPE_STABLE_ID}`);
+      await expect(
+        page.getByRole("heading", {
+          name: "Corrected Summer Tomato Soup",
+          level: 1,
+        }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("complementary", { name: "Recipe version notice" }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: "Edit recipe", exact: true }),
+      ).toBeVisible();
+      const visibleCopy = await page.locator("body").innerText();
+      expect(visibleCopy).not.toMatch(
+        /\b(?:git|commit|branch|fork|supersede|immutable snapshot)\b/i,
+      );
+      await expectNoHorizontalOverflow(page);
+      await expectNoAccessibilityViolations(page);
+    });
+  }
+});
+
+test("saved recipes keep their exact edition and offer the readable current edition", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+  await setScenario("saved-old-version");
+  await page.goto("/account/recipes?view=saved");
+
+  const savedRecipe = page.getByRole("article", {
+    name: "Summer Tomato Soup",
+    exact: true,
+  });
+  await expect(savedRecipe).toBeVisible();
+  await expect(
+    savedRecipe.getByRole("link", {
+      name: "Summer Tomato Soup",
+      exact: true,
+    }),
+  ).toHaveAttribute("href", `/recipes/${HISTORICAL_RECIPE_ID}`);
+  await expect(
+    savedRecipe.getByRole("link", {
+      name: "Newer version available",
+      exact: true,
+    }),
+  ).toHaveAttribute(
+    "href",
+    `/recipes/current/${HISTORICAL_RECIPE_STABLE_ID}`,
+  );
+  await expectNoHorizontalOverflow(page);
+  await expectNoAccessibilityViolations(page);
+});
+
+test("recipe history remains distinguishable in forced colors", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+  await page.emulateMedia({ forcedColors: "active" });
+  await page.goto(`/recipes/${HISTORICAL_RECIPE_ID}`);
+  await page.getByRole("tab", { name: "Family", exact: true }).click();
+
+  const history = page.getByRole("region", { name: "Recipe history" });
+  await expect(history.getByText("Current published version")).toBeVisible();
+  await expect(history.getByText("Published version", { exact: true })).toBeVisible();
+  await expect(history).toContainText(
+    "Author marked this version as a correction.",
+  );
+  await expectNoHorizontalOverflow(page);
+  await expectNoAccessibilityViolations(page);
 });
 
 test("recipe comparison remains understandable in forced colors", async ({

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.models import (
@@ -15,7 +15,7 @@ from app.models import (
     User,
     UserFollow,
 )
-from app.policies.recipe_visibility import publicly_readable_recipe_version_filter
+from app.repositories.recipes import current_recipe_version_filter, recipe_card_load_options
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,9 +190,11 @@ def browse_community_activity(
 ) -> CommunityActivityResult:
     """List public recipe publications from cooks one active member follows."""
 
+    publication = aliased(RecipeVersionPublication)
     filters = (
         UserFollow.follower_user_id == follower_user_id,
-        RecipeVersionPublication.state == RECIPE_PUBLICATION_STATE_PUBLISHED,
+        publication.state == RECIPE_PUBLICATION_STATE_PUBLISHED,
+        current_recipe_version_filter(),
         User.status == USER_STATUS_ACTIVE,
         User.handle.is_not(None),
     )
@@ -205,8 +207,8 @@ def browse_community_activity(
                 RecipeVersion.created_by_user_id == UserFollow.followed_user_id,
             )
             .join(
-                RecipeVersionPublication,
-                RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+                publication,
+                publication.recipe_version_id == RecipeVersion.id,
             )
             .join(User, User.id == UserFollow.followed_user_id)
             .where(*filters)
@@ -220,22 +222,14 @@ def browse_community_activity(
             UserFollow.followed_user_id == RecipeVersion.created_by_user_id,
         )
         .join(
-            RecipeVersionPublication,
-            RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+            publication,
+            publication.recipe_version_id == RecipeVersion.id,
         )
         .join(User, User.id == UserFollow.followed_user_id)
-        .options(
-            joinedload(RecipeVersion.author),
-            joinedload(RecipeVersion.publication),
-            selectinload(
-                RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
-            ).joinedload(RecipeVersion.author),
-            selectinload(RecipeVersion.categories),
-            raiseload("*"),
-        )
+        .options(*recipe_card_load_options())
         .where(*filters)
         .order_by(
-            RecipeVersionPublication.published_at.desc(),
+            publication.published_at.desc(),
             RecipeVersion.id,
         )
         .offset(offset)

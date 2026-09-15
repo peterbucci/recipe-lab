@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -35,6 +36,7 @@ def add_preference_event(
     rating_value: int | None = None,
     related_recipe_version_id: UUID | None = None,
     request_fingerprint: str | None = None,
+    occurred_at: datetime | None = None,
 ) -> PreferenceEvent:
     """Stage and flush one server-authored event without committing the transaction."""
 
@@ -48,6 +50,8 @@ def add_preference_event(
         related_recipe_version_id=related_recipe_version_id,
         request_fingerprint=request_fingerprint,
     )
+    if occurred_at is not None:
+        event.occurred_at = occurred_at
     session.add(event)
     session.flush()
     return event

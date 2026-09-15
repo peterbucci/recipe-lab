@@ -29,11 +29,11 @@ from app.openapi_contract import (
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPOSITORY_ROOT / "backend"
 EXPECTED_CLASSIFICATION_COUNTS = {
-    "active_consumer": 45,
+    "active_consumer": 47,
     "research_experimental": 2,
     "staff_internal": 8,
 }
-EXPECTED_REACHABILITY_COUNTS = {"active": 45, "internal": 10}
+EXPECTED_REACHABILITY_COUNTS = {"active": 47, "internal": 10}
 
 
 def _operations(document: dict[str, object]) -> list[dict[str, object]]:
@@ -80,9 +80,9 @@ def test_registry_freezes_every_operation_with_stable_unique_metadata() -> None:
     document = create_app().openapi()
     operations = _operations(document)
 
-    assert len(OPERATION_CONTRACTS) == 55
-    assert len(operations) == 55
-    assert len({operation["operationId"] for operation in operations}) == 55
+    assert len(OPERATION_CONTRACTS) == 57
+    assert len(operations) == 57
+    assert len({operation["operationId"] for operation in operations}) == 57
     assert (
         Counter(operation["x-recipe-lab-classification"] for operation in operations)
         == EXPECTED_CLASSIFICATION_COUNTS
@@ -102,6 +102,59 @@ def test_registry_freezes_every_operation_with_stable_unique_metadata() -> None:
             assert isinstance(relative_path, str)
             assert not Path(relative_path).is_absolute()
             assert (REPOSITORY_ROOT / relative_path).is_file()
+
+
+def test_recipe_history_contract_exposes_bounded_exact_topology() -> None:
+    document = create_app().openapi()
+    paths = document["paths"]
+    assert isinstance(paths, dict)
+    path_item = paths["/api/recipes/{recipe_version_id}/history"]
+    assert isinstance(path_item, dict)
+    operation = path_item["get"]
+    assert isinstance(operation, dict)
+
+    assert operation["operationId"] == "recipe_history_api_recipes__recipe_version_id__history_get"
+    assert operation["x-recipe-lab-classification"] == "active_consumer"
+    responses = operation["responses"]
+    assert isinstance(responses, dict)
+    success = responses["200"]
+    assert isinstance(success, dict)
+    content = success["content"]
+    assert isinstance(content, dict)
+    json_response = content["application/json"]
+    assert isinstance(json_response, dict)
+    assert json_response["schema"] == {"$ref": "#/components/schemas/RecipeHistoryResponse"}
+
+    components = document["components"]
+    assert isinstance(components, dict)
+    schemas = components["schemas"]
+    assert isinstance(schemas, dict)
+    history_schema = schemas["RecipeHistoryResponse"]
+    entry_schema = schemas["RecipeHistoryEntry"]
+    assert isinstance(history_schema, dict)
+    assert isinstance(entry_schema, dict)
+    assert set(history_schema["required"]) == {
+        "recipe_id",
+        "selected_version_id",
+        "current_version_id",
+        "editions",
+        "adaptations",
+        "editions_truncated",
+        "adaptations_truncated",
+    }
+    assert set(entry_schema["required"]) == {
+        "id",
+        "recipe_id",
+        "edition_number",
+        "relation_kind",
+        "previous_version_id",
+        "adaptation_source_version_id",
+        "declared_change_reason",
+        "is_current",
+        "title",
+        "published_at",
+        "author",
+    }
 
 
 def test_retired_operations_and_legacy_only_schemas_are_absent() -> None:

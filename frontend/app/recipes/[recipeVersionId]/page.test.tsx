@@ -1,75 +1,43 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  RecipeCardSummary,
-  RecipeDetail,
-} from "../../../features/recipes/shared/recipe-contracts";
-import {
-  buildRecipeCardSummary,
-  buildRecipeSummary,
-} from "../../../features/recipes/shared/recipe-test-support";
+import type { RecipeDetail } from "../../../features/recipes/shared/recipe-contracts";
+import type { RecipeHistory } from "../../../features/recipes/shared/recipe-history";
+import { buildRecipeSummary } from "../../../features/recipes/shared/recipe-test-support";
 import RecipeDetailPage from "./page";
 
 const mocks = vi.hoisted(() => ({
   fetchRecipe: vi.fn(),
-  fetchRecipePage: vi.fn(),
+  fetchRecipeHistory: vi.fn(),
   notFound: vi.fn(() => {
     throw new Error("not-found");
   }),
 }));
 
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
-
-vi.mock("../../../features/recipes/detail/recipe-detail-server-api", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("../../../features/recipes/detail/recipe-detail-server-api")
-  >();
-  return {
-    ...actual,
-    fetchRecipe: mocks.fetchRecipe,
-  };
-});
-
-vi.mock("../../../features/recipes/browse/recipe-browse-server-api", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("../../../features/recipes/browse/recipe-browse-server-api")
-  >();
-  return {
-    ...actual,
-    fetchRecipePage: mocks.fetchRecipePage,
-  };
-});
-
-vi.mock("./_components/recipe-detail-experience", () => ({
-  RecipeDetailExperience: ({
-    familyVersions,
-    recipe,
-  }: {
-    familyVersions: RecipeCardSummary[];
+vi.mock("../../../features/recipes/detail/recipe-detail-server-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../features/recipes/detail/recipe-detail-server-api")>()),
+  fetchRecipe: mocks.fetchRecipe,
+  fetchRecipeHistory: mocks.fetchRecipeHistory,
+}));
+vi.mock("../_components/recipe-detail-experience", () => ({
+  RecipeDetailExperience: ({ history, publicPath, recipe }: {
+    history: RecipeHistory | null;
+    publicPath: string;
     recipe: RecipeDetail;
   }) => (
     <article aria-label="Recipe detail">
       <h1>{recipe.title}</h1>
-      <ul aria-label="Recipe family">
-        {familyVersions.map((version) => (
-          <li key={version.id}>{version.title}</li>
-        ))}
-      </ul>
+      <p>{publicPath}</p>
+      <p>{history ? "History available" : "History unavailable"}</p>
     </article>
   ),
 }));
 
 const RECIPE_ID = "11111111-1111-4111-8111-111111111111";
-const FAMILY_ID = "22222222-2222-4222-8222-222222222222";
-const LINEAGE_ID = "33333333-3333-4333-8333-333333333333";
-
+const STABLE_ID = "22222222-2222-4222-8222-222222222222";
 const recipe: RecipeDetail = {
-  ...buildRecipeSummary({
-    id: RECIPE_ID,
-    lineage_id: LINEAGE_ID,
-    title: "Banana oat pancakes",
-  }),
+  ...buildRecipeSummary({ id: RECIPE_ID, recipe_id: STABLE_ID, title: "Banana oat pancakes" }),
   active_time_minutes: 15,
   average_rating: 4.5,
   children: [],
@@ -82,116 +50,52 @@ const recipe: RecipeDetail = {
   total_time_minutes: 25,
   viewer_state: null,
 };
-
-const familyVersion = buildRecipeCardSummary({
-  id: FAMILY_ID,
-  lineage_id: LINEAGE_ID,
-  title: "Pecan banana oat pancakes",
-  version_number: 2,
-});
+const history = {
+  adaptations: [],
+  adaptations_truncated: false,
+  current_version_id: RECIPE_ID,
+  editions: [],
+  editions_truncated: false,
+  recipe_id: STABLE_ID,
+  selected_version_id: RECIPE_ID,
+} satisfies RecipeHistory;
 
 describe("RecipeDetailPage", () => {
   beforeEach(() => {
-    mocks.fetchRecipe.mockReset();
-    mocks.fetchRecipePage.mockReset();
-    mocks.notFound.mockClear();
+    vi.clearAllMocks();
+    mocks.fetchRecipe.mockResolvedValue(recipe);
+    mocks.fetchRecipeHistory.mockResolvedValue(history);
   });
 
-  it("loads the recipe family and renders the public detail", async () => {
-    mocks.fetchRecipe.mockResolvedValue(recipe);
-    mocks.fetchRecipePage.mockResolvedValue({
-      items: [familyVersion],
-      page: 1,
-      page_size: 100,
-      total: 1,
-      total_pages: 1,
-    });
-
-    render(
-      await RecipeDetailPage({
-        params: Promise.resolve({ recipeVersionId: RECIPE_ID }),
-      }),
-    );
-
+  it("loads dedicated history and preserves the exact route identity", async () => {
+    render(await RecipeDetailPage({ params: Promise.resolve({ recipeVersionId: RECIPE_ID }) }));
     expect(mocks.fetchRecipe).toHaveBeenCalledWith(RECIPE_ID);
-    expect(mocks.fetchRecipePage).toHaveBeenCalledWith({
-      lineageId: LINEAGE_ID,
-      pageSize: 100,
-      sort: "title",
-    });
-    expect(
-      screen.getByRole("heading", {
-        name: "Banana oat pancakes",
-        level: 1,
-      }),
-    ).toBeVisible();
-    expect(
-      within(screen.getByRole("list", { name: "Recipe family" })).getByText(
-        "Pecan banana oat pancakes",
-      ),
-    ).toBeVisible();
+    expect(mocks.fetchRecipeHistory).toHaveBeenCalledWith(RECIPE_ID);
+    expect(screen.getByRole("heading", { name: recipe.title })).toBeVisible();
+    expect(screen.getByText(`/recipes/${RECIPE_ID}`)).toBeVisible();
+    expect(screen.getByText("History available")).toBeVisible();
   });
 
-  it("keeps the recipe available when the optional family request fails", async () => {
-    mocks.fetchRecipe.mockResolvedValue(recipe);
-    mocks.fetchRecipePage.mockRejectedValue(
-      new Error("family service unavailable"),
-    );
-
-    render(
-      await RecipeDetailPage({
-        params: Promise.resolve({ recipeVersionId: RECIPE_ID }),
-      }),
-    );
-
-    expect(
-      screen.getByRole("heading", {
-        name: "Banana oat pancakes",
-        level: 1,
-      }),
-    ).toBeVisible();
-    expect(
-      within(screen.getByRole("list", { name: "Recipe family" })).queryAllByRole(
-        "listitem",
-      ),
-    ).toEqual([]);
+  it("keeps the exact recipe available when optional history fails", async () => {
+    mocks.fetchRecipeHistory.mockRejectedValue(new Error("history unavailable"));
+    render(await RecipeDetailPage({ params: Promise.resolve({ recipeVersionId: RECIPE_ID }) }));
+    expect(screen.getByText("History unavailable")).toBeVisible();
   });
 
-  it("rejects an invalid recipe ID before fetching public data", async () => {
-    await expect(
-      RecipeDetailPage({
-        params: Promise.resolve({ recipeVersionId: "not-a-recipe-id" }),
-      }),
-    ).rejects.toThrow("not-found");
-
-    expect(mocks.notFound).toHaveBeenCalledOnce();
+  it("rejects an invalid ID before fetching", async () => {
+    await expect(RecipeDetailPage({ params: Promise.resolve({ recipeVersionId: "invalid" }) })).rejects.toThrow("not-found");
     expect(mocks.fetchRecipe).not.toHaveBeenCalled();
-    expect(mocks.fetchRecipePage).not.toHaveBeenCalled();
   });
 
-  it("uses the not-found boundary for a missing recipe", async () => {
+  it("uses not found for a missing exact recipe", async () => {
     mocks.fetchRecipe.mockResolvedValue(null);
-
-    await expect(
-      RecipeDetailPage({
-        params: Promise.resolve({ recipeVersionId: RECIPE_ID }),
-      }),
-    ).rejects.toThrow("not-found");
-
-    expect(mocks.notFound).toHaveBeenCalledOnce();
-    expect(mocks.fetchRecipePage).not.toHaveBeenCalled();
+    await expect(RecipeDetailPage({ params: Promise.resolve({ recipeVersionId: RECIPE_ID }) })).rejects.toThrow("not-found");
+    expect(mocks.fetchRecipeHistory).not.toHaveBeenCalled();
   });
 
   it("lets ordinary detail failures reach the route error boundary", async () => {
     mocks.fetchRecipe.mockRejectedValue(new Error("recipe service unavailable"));
-
-    await expect(
-      RecipeDetailPage({
-        params: Promise.resolve({ recipeVersionId: RECIPE_ID }),
-      }),
-    ).rejects.toThrow("recipe service unavailable");
-
+    await expect(RecipeDetailPage({ params: Promise.resolve({ recipeVersionId: RECIPE_ID }) })).rejects.toThrow("recipe service unavailable");
     expect(mocks.notFound).not.toHaveBeenCalled();
-    expect(mocks.fetchRecipePage).not.toHaveBeenCalled();
   });
 });

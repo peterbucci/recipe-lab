@@ -4,6 +4,7 @@ import {
   DRAFT_ID,
   GRAM_UNIT_ID,
   VARIANT_RECIPE_ID,
+  VARIANT_RECIPE_STABLE_ID,
   setScenario,
   gotoMemberHome,
   stabilizeVisuals,
@@ -172,13 +173,22 @@ test.describe("phone visual state matrix", () => {
   });
 
   test("recipe detail normal", async ({ page }) => {
-    await page.goto(`/recipes/${VARIANT_RECIPE_ID}`);
+    await page.goto(`/recipes/current/${VARIANT_RECIPE_STABLE_ID}`);
+    await expect(page).toHaveURL(
+      `/recipes/current/${VARIANT_RECIPE_STABLE_ID}`,
+    );
     await expect(
       page.getByRole("heading", { name: "Garden Cream Tomato Soup", level: 1 }),
     ).toBeVisible();
     await expect(
       page.getByRole("region", { name: "Save and rate this recipe" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Edit recipe", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("complementary", { name: "Recipe version notice" }),
+    ).toHaveCount(0);
     await stabilizeVisuals(page);
     await captureBaseline(page, "recipe-detail-normal");
 
@@ -195,13 +205,22 @@ test.describe("phone visual state matrix", () => {
 
     await page.getByRole("tab", { name: "Family" }).click();
     const history = page.getByRole("heading", {
-      name: "Recipe family",
+      name: "Recipe history",
       level: 2,
     });
-    await history.evaluate((heading) =>
-      heading.scrollIntoView({ block: "start" }),
-    );
+    await history.evaluate((heading) => {
+      heading.scrollIntoView({ block: "start" });
+      window.scrollBy(0, -64);
+    });
     await expect(history).toBeInViewport();
+    await expect(
+      page
+        .getByRole("region", { name: "Recipe history" })
+        .getByRole("button", {
+          name: "Show Roasted Garden Tomato Soup in recipe history",
+          exact: true,
+        }),
+    ).toBeVisible();
     await captureBaseline(page, "recipe-detail-history");
   });
 

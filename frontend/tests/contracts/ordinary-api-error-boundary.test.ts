@@ -49,7 +49,7 @@ const cases: Array<{
   {
     name: "private recipe drafts",
     fallbackCode: "recipe_draft_api_error",
-    request: () => createRecipeDraft(null, RECIPE_ID),
+    request: () => createRecipeDraft("original", null, RECIPE_ID),
   },
   {
     name: "recipe libraries",
@@ -63,6 +63,7 @@ const cases: Array<{
       publishRecipeDraft(
         DRAFT_ID,
         {
+          declared_change_reason: null,
           revision: 1,
           duplicate_review: {
             preflight_id: RECIPE_ID,
@@ -72,6 +73,7 @@ const cases: Array<{
           },
           community_rules_accepted: true,
           content_rights_confirmed: true,
+          withdraw_predecessor: false,
         },
         "publication-key",
       ),

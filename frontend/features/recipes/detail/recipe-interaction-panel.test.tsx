@@ -41,6 +41,7 @@ function viewerState(
   overrides: Partial<RecipeViewerState> = {},
 ): RecipeViewerState {
   return {
+    can_revise: false,
     recipe_version_id: "29454eba-3a4e-5380-b48c-c49dc3697b17",
     saved: false,
     rating: null,

@@ -72,12 +72,12 @@ test("compares a selected family recipe with the open recipe without signing in"
   ).toHaveAttribute("aria-selected", "true");
   await expect(page).toHaveURL(openRecipeUrl + "#recipe-family");
   const childSelector = page.getByRole("button", {
-    name: "Show Lower-Sugar Pecan Carrot Cake in the family tree",
+    name: "Show Lower-Sugar Pecan Carrot Cake in recipe history",
   });
   await childSelector.press("Enter");
   await expect(page).toHaveURL(openRecipeUrl + "#recipe-family");
   await expect(
-    page.getByLabel("Selected family recipe: Lower-Sugar Pecan Carrot Cake"),
+    page.getByLabel("Selected published recipe: Lower-Sugar Pecan Carrot Cake"),
   ).toBeVisible();
   const childRecipeLink = page.getByRole("link", {
     name: "Lower-Sugar Pecan Carrot Cake",
@@ -102,7 +102,7 @@ test("compares a selected family recipe with the open recipe without signing in"
   await expect(page).toHaveURL(openRecipeUrl + "#recipe-family");
   await page
     .getByRole("button", {
-      name: "Show Lower-Sugar Pecan Carrot Cake in the family tree",
+      name: "Show Lower-Sugar Pecan Carrot Cake in recipe history",
     })
     .press("Enter");
   const compareLink = page.getByRole("link", {
@@ -189,7 +189,7 @@ test("compares a selected family recipe with the open recipe without signing in"
   await expect(comparison.familyPanel).toBeVisible();
   await expect(
     comparison.familyPanel.getByRole("heading", {
-      name: "Recipe family",
+      name: "Recipe history",
       level: 2,
     }),
   ).toBeVisible();
@@ -224,7 +224,7 @@ test("keeps the selected family comparison usable at a phone viewport", async ({
   await page.getByRole("tab", { name: "Family", exact: true }).click();
   await page
     .getByRole("button", {
-      name: "Show Lower-Sugar Pecan Carrot Cake in the family tree",
+      name: "Show Lower-Sugar Pecan Carrot Cake in recipe history",
     })
     .press("Enter");
   const childRecipeLink = page.getByRole("link", {
@@ -321,6 +321,7 @@ test("requires sign-in for save, rate, recorded-view, and fork actions", async (
     }
   });
   const recipeVersionId = await openCarrotRoot(page);
+  const publicRecipePath = new URL(page.url()).pathname;
 
   await expect(
     page.getByRole("button", { name: "Save recipe", exact: true }),
@@ -347,7 +348,7 @@ test("requires sign-in for save, rate, recorded-view, and fork actions", async (
       .getByRole("link", { name: "Sign in", exact: true }),
   ).toHaveAttribute(
     "href",
-    `/sign-in?return_to=%2Frecipes%2F${recipeVersionId}`,
+    `/sign-in?return_to=${encodeURIComponent(publicRecipePath)}`,
   );
   expect(recordedViews).toBe(0);
 

@@ -183,6 +183,15 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/recipes/[recipeVersionId]",
     family: "public-context",
     reachability: "active",
+    consumerEvidence: [
+      "frontend/features/recipes/shared/recipe-family-navigator.tsx",
+    ],
+  },
+  {
+    file: "app/recipes/current/[recipeId]/page.tsx",
+    route: "/recipes/current/[recipeId]",
+    family: "public-context",
+    reachability: "active",
     consumerEvidence: ["frontend/features/recipes/browse/recipe-card.tsx"],
   },
   {

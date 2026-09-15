@@ -5,6 +5,7 @@ import type { AuthSession } from "../../auth/auth-api";
 import type {
   RecipeDetail,
 } from "../shared/recipe-contracts";
+import type { RecipeHistory } from "../shared/recipe-history";
 import type { RecipeInstructionAction } from "../shared/recipe-structure";
 import { AuthSessionProvider } from "../../auth/auth-session-provider";
 import { RecipeDetailView } from "./recipe-detail-view";
@@ -48,9 +49,17 @@ const member: AuthSession = {
 
 function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
   return {
+    adaptation_source: null,
+    current_version: null,
+    declared_change_reason: null,
+    edition_number: 1,
     id: "carrot-v2",
+    is_current: true,
     lineage_id: "carrot-lineage",
     parent_version_id: "carrot-v1",
+    previous_version_id: null,
+    recipe_id: "carrot-recipe",
+    relation_kind: "adaptation",
     version_number: 2,
     title: "Lower-Sugar Pecan Carrot Cake",
     description: "The original snack cake with less sugar and pecans.",
@@ -160,16 +169,20 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
 function renderDetail(
   recipe: RecipeDetail,
   session: AuthSession = { status: "anonymous" },
+  publicPath = `/recipes/${recipe.id}`,
+  history: RecipeHistory | null = null,
 ) {
   return render(
     <AuthSessionProvider initialSession={session}>
       <RecipeDetailView
         editAction={{
+          activeDrafts: { adaptation: false, revision: false },
           errorMessage: null,
-          hasActiveDraft: false,
-          pending: false,
+          pendingIntent: null,
         }}
+        history={history}
         onRequestEdit={vi.fn()}
+        publicPath={publicPath}
         recipe={recipe}
       />
     </AuthSessionProvider>,
@@ -201,6 +214,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   window.history.replaceState(null, "", "/");
   mocks.fetchRecipeViewerState.mockResolvedValue({
+    can_revise: false,
     recipe_version_id: "carrot-v2",
     saved: false,
     rating: null,
@@ -223,14 +237,11 @@ describe("RecipeDetailView", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Version", {
+      screen.getByText("Adaptation · Published version 1", {
         selector: ".recipe-detail__version-badge",
       }),
     ).toBeVisible();
     expect(screen.queryByText("Recipe", { selector: ".eyebrow" })).toBeNull();
-    expect(
-      container.querySelector(".recipe-detail__intro"),
-    ).not.toHaveTextContent(/version \d+/i);
     expect(container.querySelector(".recipe-detail__artwork")).toHaveAttribute(
       "aria-hidden",
       "true",
@@ -339,42 +350,17 @@ describe("RecipeDetailView", () => {
     const familyPanel = screen.getByRole("tabpanel", { name: "Family" });
     expect(
       within(familyPanel).getByLabelText(
-        "Selected family recipe: Lower-Sugar Pecan Carrot Cake",
+        "Selected published recipe: Lower-Sugar Pecan Carrot Cake",
       ),
     ).toHaveTextContent("Lower-Sugar Pecan Carrot Cake");
     expect(
-      within(familyPanel).getByRole("button", {
-        name: "Show Carrot Walnut Snack Cake in the family tree",
-      }),
-    ).toBeVisible();
-    expect(
-      within(familyPanel).getByRole("link", {
-        name: "Carrot Walnut Snack Cake",
-      }),
-    ).toHaveAttribute("href", "/recipes/carrot-v1");
-    fireEvent.click(
-      within(familyPanel).getByRole("button", {
-        name: "Show Orange Raisin Carrot Cake in the family tree",
-      }),
-    );
-    expect(
-      within(familyPanel).getByLabelText(
-        "Selected family recipe: Orange Raisin Carrot Cake",
+      within(familyPanel).getByText(
+        "Recipe history is unavailable right now. The open recipe is still available.",
       ),
     ).toBeVisible();
     expect(
-      within(familyPanel).getByRole("link", {
-        name: "Orange Raisin Carrot Cake",
-      }),
-    ).toHaveAttribute("href", "/recipes/carrot-v3");
-    expect(
-      within(familyPanel).getByRole("link", {
-        name: "Compare with Lower-Sugar Pecan Carrot Cake →",
-      }),
-    ).toHaveAttribute(
-      "href",
-      "/recipes/carrot-v3/compare?base_version_id=carrot-v2",
-    );
+      within(familyPanel).getByRole("link", { name: "Carrot Walnut Snack Cake" }),
+    ).toHaveAttribute("href", "/recipes/carrot-v1");
   });
 
   it("renders deleted attribution and an unavailable parent without leaking links or comparison", () => {
@@ -409,7 +395,7 @@ describe("RecipeDetailView", () => {
     expect(within(familyPanel).getByText("Source unavailable")).toBeVisible();
     expect(
       within(familyPanel).getByLabelText(
-        "Selected family recipe: Lower-Sugar Pecan Carrot Cake",
+        "Selected published recipe: Lower-Sugar Pecan Carrot Cake",
       ),
     ).toBeInTheDocument();
   });
@@ -436,7 +422,7 @@ describe("RecipeDetailView", () => {
 
     expect(
       screen.getByRole("region", { name: /member recipe actions/i }),
-    ).toHaveTextContent(/loading your saved and rating state/i);
+    ).toHaveTextContent(/loading your saved, rating, and editing options/i);
     expect(
       await screen.findByRole("region", { name: /save and rate this recipe/i }),
     ).toBeVisible();
@@ -557,13 +543,127 @@ describe("RecipeDetailView", () => {
     ).toBeNull();
   });
 
+  it("derives an adapted revision's unavailable source from readable history", () => {
+    const revisedAdaptation = detail({
+      adaptation_source: null,
+      declared_change_reason: "update",
+      edition_number: 2,
+      parent: null,
+      parent_version_id: null,
+      previous_version_id: "carrot-v1",
+      relation_kind: "revision",
+    });
+    const history: RecipeHistory = {
+      adaptations: [],
+      adaptations_truncated: false,
+      current_version_id: "carrot-v2",
+      editions: [
+        {
+          adaptation_source_version_id: "hidden-source-v1",
+          author: revisedAdaptation.author,
+          declared_change_reason: null,
+          edition_number: 1,
+          id: "carrot-v1",
+          is_current: false,
+          previous_version_id: null,
+          published_at: "2026-08-20T12:00:00Z",
+          recipe_id: revisedAdaptation.recipe_id,
+          relation_kind: "adaptation",
+          title: "First adapted carrot cake",
+        },
+        {
+          adaptation_source_version_id: "hidden-source-v1",
+          author: revisedAdaptation.author,
+          declared_change_reason: "update",
+          edition_number: 2,
+          id: revisedAdaptation.id,
+          is_current: true,
+          previous_version_id: "carrot-v1",
+          published_at: revisedAdaptation.published_at,
+          recipe_id: revisedAdaptation.recipe_id,
+          relation_kind: "revision",
+          title: revisedAdaptation.title,
+        },
+      ],
+      editions_truncated: false,
+      recipe_id: revisedAdaptation.recipe_id,
+      selected_version_id: revisedAdaptation.id,
+    };
+
+    renderDetail(
+      revisedAdaptation,
+      { status: "anonymous" },
+      `/recipes/${revisedAdaptation.id}`,
+      history,
+    );
+
+    expect(
+      screen.getByText("Adaptation · Published version 2", {
+        selector: ".recipe-detail__version-badge",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Source unavailable", {
+        selector: ".recipe-detail__parent-context",
+      }),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Family" }));
+    const familyPanel = screen.getByRole("tabpanel", { name: "Family" });
+    fireEvent.click(
+      within(familyPanel).getByRole("button", {
+        name: "Show First adapted carrot cake in recipe history",
+      }),
+    );
+    expect(within(familyPanel).getByText("Source unavailable")).toBeVisible();
+    expect(within(familyPanel).queryByText("hidden-source-v1")).toBeNull();
+  });
+
+  it("labels an exact older edition and links to the readable stable current route", () => {
+    const current = {
+      id: "carrot-v3",
+      version_number: 3,
+      title: "Current carrot cake",
+      author: detail().author,
+    };
+    renderDetail(detail({ current_version: current, is_current: false }));
+
+    const notice = screen.getByRole("complementary", {
+      name: "Recipe version notice",
+    });
+    expect(notice).toHaveTextContent("older published version");
+    expect(within(notice).getByRole("link", { name: "View the current version" })).toHaveAttribute(
+      "href",
+      "/recipes/current/carrot-recipe",
+    );
+  });
+
+  it("preserves the stable detail path in follow authentication", () => {
+    renderDetail(
+      detail(),
+      { status: "anonymous" },
+      "/recipes/current/carrot-recipe",
+    );
+    expect(screen.getByRole("link", { name: "Follow" })).toHaveAttribute(
+      "href",
+      "/sign-in?return_to=%2Frecipes%2Fcurrent%2Fcarrot-recipe",
+    );
+    expect(screen.queryByRole("complementary", { name: "Recipe version notice" })).toBeNull();
+  });
+
   it("renders honest empty aggregate and recipe-history states without exposing private controls", () => {
     renderDetail(
       detail({
         average_rating: null,
+        adaptation_source: null,
+        declared_change_reason: null,
+        edition_number: 1,
+        is_current: true,
         rating_count: 0,
         parent_version_id: null,
         parent: null,
+        previous_version_id: null,
+        relation_kind: "original",
         children: [],
         version_number: 1,
       }),
@@ -575,10 +675,9 @@ describe("RecipeDetailView", () => {
         selector: ".recipe-detail__version-badge",
       }),
     ).toBeVisible();
-    expect(screen.queryByText(/version \d+/i)).toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "Family" }));
     expect(
-      screen.getByText(/no versions have been created from this recipe yet/i),
+      screen.getByText(/no readable later versions or adaptations are available/i),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /see what changed/i }),

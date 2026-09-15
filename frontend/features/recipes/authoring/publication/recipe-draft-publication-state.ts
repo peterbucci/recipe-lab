@@ -1,9 +1,16 @@
 import type { RecipeDuplicatePreflight } from "../duplicate/recipe-duplicate-api";
-import type { RecipeDraftPublication } from "./recipe-publication-api";
+import type { RecipeDraftKind } from "../draft/recipe-draft-summary";
+import type {
+  DeclaredChangeReason,
+  RecipeDraftPublication,
+} from "./recipe-publication-api";
 
 export interface PublicationScope {
+  declaredChangeReason: DeclaredChangeReason;
+  draftKind: RecipeDraftKind;
   fingerprint: string;
   revision: number;
+  withdrawPredecessor: boolean;
 }
 
 export interface PublicationAttempt {
@@ -25,12 +32,14 @@ export type PublicationFailureStatus =
   | "authentication-interruption"
   | "failed-retryable"
   | "revision-conflict"
+  | "source-stale"
   | "source-unavailable";
 
 export type PublicationFailureRecovery =
   | "latest-draft"
   | "publish"
   | "review"
+  | "stale-source"
   | "source";
 
 export type PublicationWorkflow =
@@ -111,7 +120,11 @@ export const initialRecipeDraftPublicationState: RecipeDraftPublicationState = {
 
 function sameScope(left: PublicationScope, right: PublicationScope): boolean {
   return (
-    left.fingerprint === right.fingerprint && left.revision === right.revision
+    left.declaredChangeReason === right.declaredChangeReason &&
+    left.draftKind === right.draftKind &&
+    left.fingerprint === right.fingerprint &&
+    left.revision === right.revision &&
+    left.withdrawPredecessor === right.withdrawPredecessor
   );
 }
 
@@ -298,6 +311,8 @@ export function recipeDraftPublicationReducer(
       const recovery: PublicationFailureRecovery =
         event.kind === "revision-conflict"
           ? "latest-draft"
+          : event.kind === "source-stale"
+            ? "stale-source"
           : event.kind === "source-unavailable"
             ? "source"
             : event.operation === "publish" && context !== null

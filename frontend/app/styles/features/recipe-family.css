@@ -140,6 +140,16 @@
   font-size: 0.5rem;
   display: flex;
 }
+
+.recipe-family-nav__declared-reason,
+.recipe-family-nav__history-status {
+  color: var(--text-subtle);
+  font-size: 0.67rem;
+}
+
+.recipe-family-nav__history-status {
+  margin: 0.75rem 0;
+}
 .recipe-family-nav__node-meta > span + span:before {
   color: #a1a2b0;
   content: "·";

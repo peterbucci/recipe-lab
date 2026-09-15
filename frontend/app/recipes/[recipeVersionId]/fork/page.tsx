@@ -21,5 +21,10 @@ export default async function RecipeForkPage({ params }: RecipeForkPageProps) {
     notFound();
   }
 
-  return <RecipeDraftStarter sourceVersionId={recipeVersionId.toLowerCase()} />;
+  return (
+    <RecipeDraftStarter
+      draftKind="adaptation"
+      sourceVersionId={recipeVersionId.toLowerCase()}
+    />
+  );
 }

@@ -14,6 +14,7 @@ from app.models import (
     IngredientCatalogRequest,
     OIDCIdentity,
     PreferenceEvent,
+    Recipe,
     RecipeDraft,
     RecipeDraftCategory,
     RecipeDraftIngredient,
@@ -109,6 +110,14 @@ def purge_member_private_data(
         RecipeDraftInstructionAction.recipe_draft_id.in_(draft_ids)
     )
     execution_options = {"synchronize_session": False}
+    # Stable attribution and edition history remain public, but a tombstoned
+    # account no longer has authority to publish another edition.
+    session.execute(
+        update(Recipe)
+        .where(Recipe.owner_user_id == user_id)
+        .values(owner_user_id=None)
+        .execution_options(**execution_options)
+    )
     session.execute(
         delete(RecipeDraftCategory)
         .where(RecipeDraftCategory.recipe_draft_id.in_(draft_ids))

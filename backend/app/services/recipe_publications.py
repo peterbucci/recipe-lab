@@ -22,16 +22,21 @@ from app.core.idempotency import (
     require_same_request,
 )
 from app.models import (
+    RECIPE_DRAFT_KIND_ADAPTATION,
+    RECIPE_DRAFT_KIND_ORIGINAL,
+    RECIPE_DRAFT_KIND_REVISION,
     RECIPE_DRAFT_SELECTION_CATALOG,
     RECIPE_DRAFT_STATUS_ACTIVE,
     RECIPE_DRAFT_STATUS_PUBLISHED,
     RECIPE_PUBLICATION_STATE_PUBLISHED,
+    Recipe,
     RecipeDraft,
     RecipeDraftIngredient,
     RecipeDraftInstructionAction,
     RecipeDraftInstructionActionMeasure,
     RecipeDuplicateDecision,
     RecipeDuplicatePreflight,
+    RecipeEdition,
     RecipeVersion,
     RecipeVersionPublication,
 )
@@ -40,6 +45,7 @@ from app.repositories.ingredients import curated_display_label, get_ingredient
 from app.repositories.preference_events import get_preference_event
 from app.repositories.recipe_drafts import get_owned_recipe_draft_for_publication
 from app.repositories.recipe_publications import (
+    get_owned_current_revision_source_for_update,
     get_recipe_publication_by_action,
     get_recipe_publication_by_draft,
     lock_recipe_publication_guard,
@@ -83,6 +89,7 @@ from app.services.recipe_publication_snapshots import (
     RecipeForkSourceUnavailableError as RecipeForkSourceUnavailableError,
 )
 from app.services.recipe_publication_snapshots import create_recipe_version_identity
+from app.services.recipe_visibility import set_authored_recipe_visibility
 
 CURRENT_COMMUNITY_RULES_VERSION = "community-rules-v1"
 
@@ -93,6 +100,7 @@ type PublicationWritePhase = Literal[
     "structural_fingerprint",
     "publication_receipt",
     "fork_preference_event",
+    "predecessor_withdrawal",
     "draft_terminal_state",
 ]
 
@@ -103,6 +111,7 @@ _PUBLICATION_WRITE_PHASES: tuple[PublicationWritePhase, ...] = (
     "structural_fingerprint",
     "publication_receipt",
     "fork_preference_event",
+    "predecessor_withdrawal",
     "draft_terminal_state",
 )
 
@@ -138,6 +147,15 @@ class RecipePublicationRevisionConflictError(DomainConflictError):
 
     code = "recipe_draft_revision_conflict"
     public_message = "This draft has a newer saved revision. Reload it before trying again."
+
+
+class RecipeRevisionSourceStaleError(DomainConflictError):
+    """A revision draft no longer targets its owned, readable current edition."""
+
+    code = "recipe_revision_source_stale"
+    public_message = (
+        "This recipe has a newer or unavailable current edition. Your private draft is unchanged."
+    )
 
 
 class InvalidRecipeDraftPublicationError(DomainValidationError):
@@ -364,13 +382,19 @@ def _preflight_request_fingerprint(
     }
     if draft.source_version_id is not None:
         fields["source_version_id"] = str(draft.source_version_id)
+    if draft.draft_kind == RECIPE_DRAFT_KIND_REVISION:
+        fields["draft_kind"] = draft.draft_kind
     return canonical_request_fingerprint(
         schema=(
-            "recipe-lab.original-draft-preflight-request"
-            if draft.source_version_id is None
-            else "recipe-lab.variant-draft-preflight-request"
+            "recipe-lab.revision-draft-preflight-request"
+            if draft.draft_kind == RECIPE_DRAFT_KIND_REVISION
+            else (
+                "recipe-lab.original-draft-preflight-request"
+                if draft.source_version_id is None
+                else "recipe-lab.variant-draft-preflight-request"
+            )
         ),
-        version=2,
+        version=3 if draft.draft_kind == RECIPE_DRAFT_KIND_REVISION else 2,
         fields=fields,
     )
 
@@ -379,20 +403,38 @@ def recipe_draft_publication_request_fingerprint(
     draft_id: UUID,
     payload: RecipeDraftPublicationRequest,
     *,
+    draft_kind: str = RECIPE_DRAFT_KIND_ORIGINAL,
     source_version_id: UUID | None = None,
 ) -> str:
+    if draft_kind != RECIPE_DRAFT_KIND_REVISION:
+        legacy_payload = payload.model_dump(
+            mode="json",
+            exclude={"declared_change_reason", "withdraw_predecessor"},
+        )
+        fields = {
+            "draft_id": str(draft_id),
+            "payload": legacy_payload,
+        }
+        if source_version_id is not None:
+            fields["source_version_id"] = str(source_version_id)
+        return canonical_request_fingerprint(
+            schema=(
+                "recipe-lab.original-recipe-publication-request"
+                if source_version_id is None
+                else "recipe-lab.variant-recipe-publication-request"
+            ),
+            version=1,
+            fields=fields,
+        )
+
     fields = {
         "draft_id": str(draft_id),
+        "draft_kind": draft_kind,
         "payload": payload.model_dump(mode="json"),
+        "source_version_id": str(source_version_id),
     }
-    if source_version_id is not None:
-        fields["source_version_id"] = str(source_version_id)
     return canonical_request_fingerprint(
-        schema=(
-            "recipe-lab.original-recipe-publication-request"
-            if source_version_id is None
-            else "recipe-lab.variant-recipe-publication-request"
-        ),
+        schema="recipe-lab.revision-recipe-publication-request",
         version=1,
         fields=fields,
     )
@@ -468,7 +510,7 @@ def _prepare_locked_recipe_draft(
             expected_revision=expected_revision,
         )
     except InvalidRecipeDraftPublicationError as error:
-        if draft.source_version_id is None:
+        if draft.draft_kind == RECIPE_DRAFT_KIND_ORIGINAL:
             raise InvalidOriginalRecipePublicationError(str(error)) from error
         raise
 
@@ -517,12 +559,22 @@ def _materialize_draft_snapshot(
     draft: RecipeDraft,
     document: RecipeDocument,
     author_user_id: UUID,
+    revision_source: tuple[Recipe, RecipeEdition] | None,
+    declared_change_reason: str | None,
 ) -> RecipeVersion:
+    revision_recipe: Recipe | None = None
+    revision_source_edition: RecipeEdition | None = None
+    if revision_source is not None:
+        revision_recipe, revision_source_edition = revision_source
     version = create_recipe_version_identity(
         session,
         source_version_id=draft.source_version_id,
+        draft_kind=draft.draft_kind,
         document=document,
         author_user_id=author_user_id,
+        revision_recipe=revision_recipe,
+        revision_source_edition=revision_source_edition,
+        declared_change_reason=declared_change_reason,
     )
     _finish_publication_write_phase(session, "version_identity")
     materialize_immutable_recipe_document(
@@ -586,7 +638,7 @@ def _reused_publication(
         conflict_error=RecipePublicationIdempotencyConflictError,
         detail="The publication action or completed draft is bound to another request.",
     )
-    if draft.source_version_id is not None:
+    if draft.draft_kind == RECIPE_DRAFT_KIND_ADAPTATION:
         if publication.action_id is None:
             raise RuntimeError("A published recipe fork is missing its operation identifier.")
         event = get_preference_event(
@@ -671,7 +723,7 @@ def _write_publication_receipt_phase(
     action_id: UUID,
     request_fingerprint: str,
     evidence: RevalidatedPublicationEvidence,
-) -> None:
+) -> datetime:
     published_at = datetime.now(UTC)
     session.add(
         RecipeVersionPublication(
@@ -694,6 +746,7 @@ def _write_publication_receipt_phase(
         )
     )
     _finish_publication_write_phase(session, "publication_receipt")
+    return published_at
 
 
 def _write_fork_preference_event_phase(
@@ -704,9 +757,10 @@ def _write_fork_preference_event_phase(
     author_user_id: UUID,
     action_id: UUID,
     request_fingerprint: str,
+    occurred_at: datetime,
 ) -> None:
     source_version_id = draft.source_version_id
-    if source_version_id is None:
+    if draft.draft_kind != RECIPE_DRAFT_KIND_ADAPTATION or source_version_id is None:
         return
     record_preference_event(
         session,
@@ -718,8 +772,42 @@ def _write_fork_preference_event_phase(
             request_fingerprint=request_fingerprint,
         ),
         related_recipe_version_id=version.id,
+        occurred_at=occurred_at,
     )
     _finish_publication_write_phase(session, "fork_preference_event")
+
+
+def _withdraw_corrected_predecessor_phase(
+    session: Session,
+    *,
+    draft: RecipeDraft,
+    author_user_id: UUID,
+    withdraw_predecessor: bool,
+) -> None:
+    if not withdraw_predecessor:
+        return
+    source_version_id = draft.source_version_id
+    if draft.draft_kind != RECIPE_DRAFT_KIND_REVISION or source_version_id is None:
+        raise RuntimeError("Only a revision can withdraw its corrected predecessor.")
+    set_authored_recipe_visibility(
+        session,
+        actor_user_id=author_user_id,
+        recipe_version_id=source_version_id,
+        desired_state="author_withdrawn",
+    )
+    _finish_publication_write_phase(session, "predecessor_withdrawal")
+
+
+def _validate_publication_intent(
+    draft: RecipeDraft,
+    payload: RecipeDraftPublicationRequest,
+) -> None:
+    if draft.draft_kind != RECIPE_DRAFT_KIND_REVISION and (
+        payload.declared_change_reason is not None or payload.withdraw_predecessor
+    ):
+        raise _invalid("Only a revision may declare a change reason or withdraw its predecessor.")
+    if payload.withdraw_predecessor and payload.declared_change_reason != "correction":
+        raise _invalid("A predecessor may be withdrawn only for a declared correction.")
 
 
 def _complete_draft_phase(session: Session, draft: RecipeDraft) -> None:
@@ -744,9 +832,11 @@ def publish_recipe_draft(
     )
     if draft is None:
         raise RecipePublicationNotFoundError(draft_id)
+    _validate_publication_intent(draft, payload)
     request_fingerprint = recipe_draft_publication_request_fingerprint(
         draft_id,
         payload,
+        draft_kind=draft.draft_kind,
         source_version_id=draft.source_version_id,
     )
 
@@ -774,7 +864,7 @@ def publish_recipe_draft(
         return reused
 
     if (
-        draft.source_version_id is not None
+        draft.draft_kind == RECIPE_DRAFT_KIND_ADAPTATION
         and get_preference_event(
             session,
             user_id=author_user_id,
@@ -787,7 +877,21 @@ def publish_recipe_draft(
             "The publication action is already bound to another fork request."
         )
 
-    if draft.source_version_id is not None:
+    revision_source = None
+    if draft.draft_kind == RECIPE_DRAFT_KIND_REVISION:
+        source_version_id = draft.source_version_id
+        if source_version_id is None:
+            raise RuntimeError("A revision draft is missing its exact source.")
+        revision_source = get_owned_current_revision_source_for_update(
+            session,
+            actor_user_id=author_user_id,
+            source_version_id=source_version_id,
+        )
+        if revision_source is None:
+            raise RecipeRevisionSourceStaleError(
+                "The revision source is no longer the owned, readable current edition."
+            )
+    elif draft.draft_kind == RECIPE_DRAFT_KIND_ADAPTATION:
         source_is_public = session.scalar(
             select(RecipeVersion.id).where(
                 RecipeVersion.id == draft.source_version_id,
@@ -821,13 +925,15 @@ def publish_recipe_draft(
         draft=draft,
         document=prepared.document,
         author_user_id=author_user_id,
+        revision_source=revision_source,
+        declared_change_reason=payload.declared_change_reason,
     )
     _fingerprint_snapshot_phase(
         session,
         version=version,
         expected=prepared.structural_fingerprint,
     )
-    _write_publication_receipt_phase(
+    published_at = _write_publication_receipt_phase(
         session,
         version=version,
         draft=draft,
@@ -843,6 +949,13 @@ def publish_recipe_draft(
         author_user_id=author_user_id,
         action_id=action_id,
         request_fingerprint=request_fingerprint,
+        occurred_at=published_at,
+    )
+    _withdraw_corrected_predecessor_phase(
+        session,
+        draft=draft,
+        author_user_id=author_user_id,
+        withdraw_predecessor=payload.withdraw_predecessor,
     )
     _complete_draft_phase(session, draft)
     return RecipeDraftPublicationResult(recipe_version_id=version.id, state="created")

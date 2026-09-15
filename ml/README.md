@@ -49,9 +49,10 @@ recipe-lab-eval readiness `
 
 The simulator emits only opaque profile/event IDs and typed view, save, and
 rating context. It refuses catalogs with recorded activity and omits fork events
-because the snapshot has no lineage contract. The default cohort deterministically
-produces 640 training events across 64 profiles and 320 distinct profile-item
-pairs, plus 64 supported temporal profiles and 128 eligible holdout items.
+because it creates no adaptations and never invents recipe topology. The
+default cohort deterministically produces 640 training events across 64
+profiles and 320 distinct profile-item pairs, plus 64 supported temporal
+profiles and 128 eligible holdout items.
 Generation is capped at 1,000,000 events. Training and holdout phases stream
 drafts and timestamps into the final event tuple instead of retaining parallel
 event-sized working collections.
@@ -223,16 +224,32 @@ recipe-lab-eval snapshot `
   --output snapshots/local-2026-08-21.json
 ```
 
-The exporter reads recipe versions, occurrence-preserving structured ingredient
-measures, and typed preference events in one repeatable-read transaction. Each
-measure retains canonical ingredient identity, exact/range/qualitative shape,
-decimal bounds, curated unit identity, and optional reviewed package-size
-identity; display text is omitted. It also excludes user names and emails,
-request fingerprints, network/device metadata, and free-form context. Opaque
-activity IDs remain necessary for state reconstruction, so local snapshots are
-ignored by Git. Reports contain aggregate metrics rather than those raw IDs,
-but are also ignored as generated run artifacts and can include caller-supplied
-dataset labels and limitation text.
+The exporter writes strict snapshot v3 in one repeatable-read transaction. It
+includes only currently published versions. Versions published by the UTC
+training cutoff must also have been published under their latest audited state
+at that boundary. Later versions are retained only when currently eligible so
+post-cutoff references and holdout context remain truthful; the temporal split
+keeps them out of the training catalog. Each record retains its opaque stable
+recipe and exact version IDs, series-local edition number, exact base version,
+topology-derived relation kind, optional weak author-declared revision reason,
+publication time, and structural-fingerprint algorithm/digest metadata. It does
+not export the fingerprint's canonical payload. Existing v1 and v2 snapshots
+remain readable and are not reinterpreted as v3.
+
+Occurrence-preserving structured ingredient measures retain canonical identity,
+exact/range/qualitative shape, decimal bounds, curated unit identity, and an
+optional reviewed package-size identity; display text is omitted. Events on
+both sides of the training cutoff are retained for the existing temporal split;
+activity from deleted or otherwise ineligible accounts and events whose exact
+recipes are ineligible are excluded before serialization. Fork
+events remain adaptation signals only: a same-recipe revision or correction is
+never exported as a fork. The exporter also excludes user names and emails,
+request fingerprints, network/device metadata, canonical fingerprint payloads,
+and free-form context. Opaque activity IDs remain necessary for state
+reconstruction, so local snapshots are ignored by Git. Reports contain
+aggregate metrics rather than those raw IDs, but are also ignored as generated
+run artifacts and can include caller-supplied dataset labels and limitation
+text.
 
 This command is a disposable local research tool, not a production export
 path. Do not point it at production or real-member data until Recipe Lab has an
@@ -241,9 +258,12 @@ expiry. Delete local observed-data snapshots and their reports after the run;
 only deliberately synthetic fixtures may be retained. See
 [account-data governance](../docs/account-data-governance.md).
 
-The snapshot embeds one UTC cutoff. Training uses only recipes and events
-strictly before it; events at or after it are held out. Changing the file after
-capture changes its canonical SHA-256 fingerprint.
+The snapshot embeds one UTC cutoff. The exporter captures currently eligible
+recipe context on both sides of that boundary, and the evaluator keeps only
+recipes published strictly before it in the frozen training catalog. Events
+strictly before the cutoff are training; events at or after it are held-out
+context. Changing a snapshot after capture changes its canonical SHA-256
+fingerprint.
 
 ## Built-in content model
 

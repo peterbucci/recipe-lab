@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from alembic import command
@@ -16,6 +16,8 @@ from app.models import (
     RECIPE_PUBLICATION_STATE_PUBLISHED,
     USER_STATUS_ACTIVE,
     USER_STATUS_SUSPENDED,
+    Recipe,
+    RecipeEdition,
     RecipeLineage,
     RecipeVersion,
     RecipeVersionPublication,
@@ -55,6 +57,30 @@ def _store_recipe_publication(
             title=title,
             description=None,
             servings=Decimal("4.00"),
+            created_at=published_at,
+        )
+    )
+    session.flush()
+    stable_recipe_id = uuid4()
+    session.add(
+        Recipe(
+            id=stable_recipe_id,
+            lineage_id=lineage_id,
+            attributed_author_user_id=author_id,
+            owner_user_id=author_id,
+            current_recipe_version_id=recipe_id,
+            created_at=published_at,
+        )
+    )
+    session.flush()
+    session.add(
+        RecipeEdition(
+            recipe_version_id=recipe_id,
+            recipe_id=stable_recipe_id,
+            lineage_id=lineage_id,
+            attributed_author_user_id=author_id,
+            edition_number=1,
+            relation_kind="original" if parent_version_id is None else "adaptation",
         )
     )
     session.flush()

@@ -238,7 +238,7 @@ test.describe("private recipe draft acceptance", () => {
     const discardedReplay = await page.request.post(
       new URL("/api/recipe-drafts", baseUrl).toString(),
       {
-        data: { source_version_id: null },
+        data: { draft_kind: "original", source_version_id: null },
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -254,8 +254,8 @@ test.describe("private recipe draft acceptance", () => {
     });
 
     const terminalStorageKey =
-      `recipe-lab:draft-creation-attempt:v1:${encodeURIComponent(alice.user_id)}:` +
-      encodeURIComponent("blank");
+      `recipe-lab:draft-creation-attempt:v2:${encodeURIComponent(alice.user_id)}:` +
+      encodeURIComponent("original");
     await page.evaluate(
       ({ actorId, key, storageKey }) => {
         window.sessionStorage.setItem(
@@ -263,8 +263,8 @@ test.describe("private recipe draft acceptance", () => {
           JSON.stringify({
             actor_id: actorId,
             idempotency_key: key,
-            intent: "blank",
-            version: 1,
+            intent: "original",
+            version: 2,
           }),
         );
       },
@@ -322,7 +322,10 @@ test.describe("private recipe draft acceptance", () => {
     );
     expect(attempts[0]?.key).toMatch(/^[0-9a-f-]{36}$/i);
     for (const attempt of attempts) {
-      expect(attempt.body).toEqual({ source_version_id: null });
+      expect(attempt.body).toEqual({
+        draft_kind: "original",
+        source_version_id: null,
+      });
     }
 
     const after = await activeDraftIds(page);
@@ -470,7 +473,7 @@ test.describe("private recipe draft acceptance", () => {
     const persistedKeys = await page.evaluate(() =>
       Object.entries(window.sessionStorage)
         .filter(([key]) =>
-          key.startsWith("recipe-lab:draft-creation-attempt:v1:"),
+          key.startsWith("recipe-lab:draft-creation-attempt:v2:"),
         )
         .map(([, value]) => {
           const parsed = JSON.parse(value) as { idempotency_key?: unknown };

@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildRecipeCardSummary } from "./recipe-test-support";
 import type {
   RecipeDetail,
 } from "./recipe-contracts";
@@ -8,8 +7,10 @@ import { fetchRecipeFamily } from "./recipe-family-client-api";
 
 const SOURCE_ID = "11111111-1111-4111-8111-111111111111";
 const LINEAGE_ID = "22222222-2222-4222-8222-222222222222";
+const RECIPE_ID = "55555555-5555-4555-8555-555555555555";
 
 const sourceRecipe: RecipeDetail = {
+  adaptation_source: null,
   active_time_minutes: null,
   author: {
     display_name: "Source Cook",
@@ -20,16 +21,23 @@ const sourceRecipe: RecipeDetail = {
   categories: [],
   children: [],
   created_at: "2026-08-20T12:00:00Z",
+  current_version: null,
+  declared_change_reason: null,
   description: "The immutable public source.",
   difficulty: null,
+  edition_number: 1,
   id: SOURCE_ID,
+  is_current: true,
   ingredients: [],
   instructions: [],
   lineage_id: LINEAGE_ID,
   notes: null,
   parent: null,
   parent_version_id: null,
+  previous_version_id: null,
   published_at: "2026-08-20T12:00:00Z",
+  recipe_id: RECIPE_ID,
+  relation_kind: "original",
   rating_count: 0,
   save_count: 0,
   servings: "4.00",
@@ -44,37 +52,47 @@ afterEach(() => {
 });
 
 describe("recipe family client API", () => {
-  it("loads the encoded source and its bounded lineage page in order", async () => {
-    const familyRecipe = buildRecipeCardSummary({
-      id: "44444444-4444-4444-8444-444444444444",
-      lineage_id: LINEAGE_ID,
-      title: "Another family recipe",
-    });
+  it("loads the exact source and its bounded history in order", async () => {
+    const history = {
+      adaptations: [],
+      adaptations_truncated: false,
+      current_version_id: SOURCE_ID,
+      editions: [{
+        adaptation_source_version_id: null,
+        author: sourceRecipe.author,
+        declared_change_reason: null,
+        edition_number: 1,
+        id: SOURCE_ID,
+        is_current: true,
+        previous_version_id: null,
+        published_at: sourceRecipe.published_at,
+        recipe_id: RECIPE_ID,
+        relation_kind: "original",
+        title: sourceRecipe.title,
+      }],
+      editions_truncated: false,
+      recipe_id: RECIPE_ID,
+      selected_version_id: SOURCE_ID,
+    } as const;
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json(sourceRecipe))
       .mockResolvedValueOnce(
-        Response.json({
-          items: [familyRecipe],
-          page: 1,
-          page_size: 100,
-          total: 1,
-          total_pages: 1,
-        }),
+        Response.json(history),
       );
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      fetchRecipeFamily(`${SOURCE_ID}/encoded`, new AbortController().signal),
+      fetchRecipeFamily(SOURCE_ID, new AbortController().signal),
     ).resolves.toEqual({
       recipe: sourceRecipe,
-      sourceVersionId: `${SOURCE_ID}/encoded`,
-      versions: [familyRecipe],
+      history,
+      sourceVersionId: SOURCE_ID,
     });
 
     expect(fetchMock.mock.calls.map(([target]) => String(target))).toEqual([
-      `/api/recipes/${SOURCE_ID}%2Fencoded`,
-      `/api/recipes?lineage_id=${LINEAGE_ID}&page=1&page_size=100&sort=title`,
+      `/api/recipes/${SOURCE_ID}`,
+      `/api/recipes/${SOURCE_ID}/history`,
     ]);
     for (const [, init] of fetchMock.mock.calls) {
       expect(init).toMatchObject({
@@ -101,7 +119,7 @@ describe("recipe family client API", () => {
     ).resolves.toEqual({
       recipe: sourceRecipe,
       sourceVersionId: SOURCE_ID,
-      versions: [],
+      history: null,
     });
   });
 

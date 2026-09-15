@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Literal, cast
+from typing import Literal, cast
 from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, joinedload, raiseload, selectinload
+from sqlalchemy.orm import Session, aliased
 
 from app.models import (
     RecipeDraft,
@@ -16,6 +16,7 @@ from app.models import (
 )
 from app.policies.recipe_visibility import publicly_readable_recipe_version_filter
 from app.repositories.recipe_drafts import RecipeDraftBrowseItem
+from app.repositories.recipes import current_recipe_version_filter, recipe_card_load_options
 
 type RecipeVisibilityState = Literal[
     "published",
@@ -49,18 +50,6 @@ class SavedRecipeLibraryEntry:
 class SavedRecipeLibraryResult:
     items: list[SavedRecipeLibraryEntry]
     total: int
-
-
-def _recipe_card_options() -> tuple[Any, ...]:
-    return (
-        joinedload(RecipeVersion.author),
-        joinedload(RecipeVersion.publication),
-        selectinload(
-            RecipeVersion.parent.and_(publicly_readable_recipe_version_filter())
-        ).joinedload(RecipeVersion.author),
-        selectinload(RecipeVersion.categories),
-        raiseload("*"),
-    )
 
 
 def browse_my_recipes(
@@ -180,25 +169,23 @@ def _browse_my_publications(
     offset: int,
     limit: int,
 ) -> MyRecipeLibraryResult:
+    publication = aliased(RecipeVersionPublication)
     publication_states = (
         ("published", "moderation_hidden") if view == "published" else ("author_withdrawn",)
     )
-    activity_at = (
-        RecipeVersionPublication.published_at
-        if view == "published"
-        else RecipeVersionPublication.state_changed_at
-    )
+    activity_at = publication.published_at if view == "published" else publication.state_changed_at
     filters = (
         RecipeVersion.created_by_user_id == actor_user_id,
-        RecipeVersionPublication.state.in_(publication_states),
+        publication.state.in_(publication_states),
+        current_recipe_version_filter(),
     )
     total = (
         session.scalar(
             select(func.count())
             .select_from(RecipeVersion)
             .join(
-                RecipeVersionPublication,
-                RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+                publication,
+                publication.recipe_version_id == RecipeVersion.id,
             )
             .where(*filters)
         )
@@ -208,8 +195,8 @@ def _browse_my_publications(
         session.scalars(
             select(RecipeVersion.id)
             .join(
-                RecipeVersionPublication,
-                RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+                publication,
+                publication.recipe_version_id == RecipeVersion.id,
             )
             .where(*filters)
             .order_by(activity_at.desc(), RecipeVersion.id)
@@ -222,16 +209,18 @@ def _browse_my_publications(
     statement = (
         select(
             RecipeVersion,
-            RecipeVersionPublication.state,
+            publication.state,
         )
         .join(
-            RecipeVersionPublication,
-            RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+            publication,
+            publication.recipe_version_id == RecipeVersion.id,
         )
-        .options(*_recipe_card_options())
+        .options(*recipe_card_load_options())
         .where(
             RecipeVersion.id.in_(recipe_ids),
             RecipeVersion.created_by_user_id == actor_user_id,
+            publication.state.in_(publication_states),
+            current_recipe_version_filter(),
         )
     )
     recipes = {
@@ -277,7 +266,7 @@ def browse_my_saved_recipes(
     statement = (
         select(RecipeVersion, RecipeSave.created_at)
         .join(RecipeVersion, RecipeVersion.id == RecipeSave.recipe_version_id)
-        .options(*_recipe_card_options())
+        .options(*recipe_card_load_options())
         .where(*filters)
         .order_by(RecipeSave.created_at.desc(), RecipeSave.recipe_version_id)
         .offset(offset)

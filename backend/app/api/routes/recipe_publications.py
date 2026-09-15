@@ -1,3 +1,4 @@
+from datetime import UTC
 from typing import Annotated
 from uuid import UUID
 
@@ -136,7 +137,7 @@ def update_authored_recipe_visibility(
     return RecipeVisibilityResponse(
         recipe_version_id=result.recipe_version_id,
         state=result.state,
-        updated_at=result.state_changed_at,
+        updated_at=result.state_changed_at.astimezone(UTC),
     )
 
 
@@ -148,8 +149,8 @@ def update_authored_recipe_visibility(
     summary="Check a private draft for structural duplicates",
     description=(
         "Fully validates one current draft and stores a bounded advisory comparison with "
-        "public immutable recipes. Source-backed drafts also compare against their direct "
-        "parent for the no-change warning. This does not publish or expose the draft."
+        "public immutable recipes. Source-backed drafts also compare against their exact "
+        "source for the no-change warning. This does not publish or expose the draft."
     ),
 )
 def create_original_draft_duplicate_preflight(
@@ -186,8 +187,9 @@ def create_original_draft_duplicate_preflight(
     summary="Publish a private draft as an immutable recipe version",
     description=(
         "Revalidates the complete curated draft and duplicate evidence in one serialized "
-        "transaction. Source-less drafts create roots; source-backed drafts create direct "
-        "children in the source lineage and one fork preference event."
+        "transaction. Originals and adaptations create new stable recipes; revisions append "
+        "one immutable edition to an owned stable recipe. Only adaptations emit a fork "
+        "preference event."
     ),
 )
 def publish_original_draft(

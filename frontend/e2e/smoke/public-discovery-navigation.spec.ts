@@ -113,7 +113,9 @@ test("redirects signed-out home visitors to the recipe catalog and supports disc
     { x: artworkBox.x + 12, y: artworkBox.y + 12 },
   );
   expect(artworkHitTarget).toEqual({
-    href: expect.stringMatching(/^\/recipes\//),
+    href: expect.stringMatching(
+      /^\/recipes\/current\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    ),
     label: "Carrot Walnut Snack Cake",
   });
 
@@ -172,7 +174,9 @@ test("reaches a chosen recipe from signed-out home using only the keyboard", asy
   await expect(chosenRecipe).toBeFocused();
   await page.keyboard.press("Enter");
 
-  await expect(page).toHaveURL(/\/recipes\/[^/]+$/);
+  await expect(page).toHaveURL(
+    /\/recipes\/current\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  );
   await expect(
     page.getByRole("heading", {
       name: "Carrot Walnut Snack Cake",

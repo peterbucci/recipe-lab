@@ -74,7 +74,7 @@ export function parsePublicUserReference(
   };
 }
 
-function parseVersionReference(
+export function parseVersionReference(
   value: unknown,
 ): RecipeVersionReference | null {
   if (
@@ -100,10 +100,22 @@ export function parseRecipeSummary(value: unknown): RecipeSummary | null {
   if (
     !isRecipeRecord(value) ||
     !isRecipeUuid(value.id) ||
+    !isRecipeUuid(value.recipe_id) ||
     !isRecipeUuid(value.lineage_id) ||
     (value.parent_version_id !== null && !isRecipeUuid(value.parent_version_id)) ||
+    (value.previous_version_id !== null &&
+      !isRecipeUuid(value.previous_version_id)) ||
     !Number.isInteger(value.version_number) ||
     (value.version_number as number) < 1 ||
+    !Number.isInteger(value.edition_number) ||
+    (value.edition_number as number) < 1 ||
+    (value.relation_kind !== "original" &&
+      value.relation_kind !== "adaptation" &&
+      value.relation_kind !== "revision") ||
+    (value.declared_change_reason !== null &&
+      value.declared_change_reason !== "correction" &&
+      value.declared_change_reason !== "update") ||
+    typeof value.is_current !== "boolean" ||
     !isBoundedRecipeText(value.title, 200) ||
     (value.description !== null && !isBoundedRecipeText(value.description, 2_000)) ||
     !isBoundedRecipeText(value.servings, 64) ||
@@ -114,20 +126,59 @@ export function parseRecipeSummary(value: unknown): RecipeSummary | null {
   }
   const author = parsePublicUserReference(value.author);
   const parent = value.parent === null ? null : parseVersionReference(value.parent);
+  const currentVersion =
+    value.current_version === null
+      ? null
+      : parseVersionReference(value.current_version);
+  const adaptationSource =
+    value.adaptation_source === null
+      ? null
+      : parseVersionReference(value.adaptation_source);
   const categories = parseRecipeCategories(value.categories, MAX_RECIPE_CATEGORIES);
+  const relationKind = value.relation_kind as RecipeSummary["relation_kind"];
+  const editionNumber = value.edition_number as number;
+  const parentVersionId = value.parent_version_id as string | null;
+  const previousVersionId = value.previous_version_id as string | null;
   if (
     !author ||
     !categories ||
     (value.parent !== null && !parent) ||
-    (value.parent_version_id === null && parent !== null) ||
-    (parent && parent.id !== value.parent_version_id)
+    (value.current_version !== null && !currentVersion) ||
+    (value.adaptation_source !== null && !adaptationSource) ||
+    (parentVersionId === null && parent !== null) ||
+    (parent && parent.id !== parentVersionId) ||
+    (relationKind === "adaptation" &&
+      adaptationSource &&
+      adaptationSource.id !== parentVersionId) ||
+    (relationKind === "original" &&
+      (editionNumber !== 1 ||
+        parentVersionId !== null ||
+        previousVersionId !== null ||
+        adaptationSource !== null)) ||
+    (relationKind === "adaptation" &&
+      (editionNumber !== 1 ||
+        parentVersionId === null ||
+        previousVersionId !== null)) ||
+    (relationKind === "revision" &&
+      (editionNumber <= 1 ||
+        parentVersionId !== null ||
+        previousVersionId === null)) ||
+    (relationKind !== "revision" && value.declared_change_reason !== null)
   ) {
     return null;
   }
   return {
+    adaptation_source: adaptationSource,
+    current_version: currentVersion,
+    declared_change_reason: value.declared_change_reason as RecipeSummary["declared_change_reason"],
+    edition_number: editionNumber,
     id: value.id,
+    is_current: value.is_current,
     lineage_id: value.lineage_id,
-    parent_version_id: value.parent_version_id as string | null,
+    parent_version_id: parentVersionId,
+    previous_version_id: previousVersionId,
+    recipe_id: value.recipe_id,
+    relation_kind: relationKind,
     version_number: value.version_number as number,
     title: value.title,
     description: value.description as string | null,

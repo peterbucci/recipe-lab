@@ -505,6 +505,7 @@ def _stage_release_gate(session: Session) -> CommunityReleaseManifest:
     )
     exact_draft = RecipeDraft(
         author_user_id=bob.id,
+        draft_kind="adaptation",
         source_version_id=root.id,
         status="published",
         revision=1,
@@ -514,6 +515,7 @@ def _stage_release_gate(session: Session) -> CommunityReleaseManifest:
     )
     child_draft = RecipeDraft(
         author_user_id=bob.id,
+        draft_kind="adaptation",
         source_version_id=root.id,
         status="published",
         revision=1,

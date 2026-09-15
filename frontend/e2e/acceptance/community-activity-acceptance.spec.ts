@@ -353,7 +353,7 @@ test.describe("cross-account community activity acceptance", () => {
         });
       await expect(versionPublication).toHaveCount(1);
       await expect(versionPublication).toContainText(
-        "Bob Cook published a new version.",
+        "Bob Cook published a new adaptation.",
       );
 
       await openMemberAccountPage(

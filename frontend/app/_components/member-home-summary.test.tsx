@@ -20,6 +20,7 @@ vi.mock("../../features/account/member-activity-api", async (importOriginal) => 
 
 const DRAFT: RecipeDraftListItem = {
   created_at: "2026-08-28T09:00:00Z",
+  draft_kind: "adaptation",
   id: "44444444-4444-4444-8444-444444444444",
   ingredient_count: 6,
   instruction_count: 4,

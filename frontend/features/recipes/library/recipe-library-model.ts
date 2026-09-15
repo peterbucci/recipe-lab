@@ -32,9 +32,23 @@ export type RecipeVisibilityState = MyPublishedRecipeItem["visibility_state"];
 export type MyRecipeLibraryView =
   MyRecipeLibraryOperation["parameters"]["query"]["view"];
 
-export type MyRecipeLibraryItem = MyRecipeLibraryContractPage["items"][number];
+type MyRecipeLibraryContractItem = MyRecipeLibraryContractPage["items"][number];
 
-export type MyRecipeLibraryPage = MyRecipeLibraryContractPage;
+export type MyRecipeLibraryItem =
+  | Exclude<MyRecipeLibraryContractItem, { readonly kind: "draft" }>
+  | {
+      kind: "draft";
+      draft: RecipeDraftListItem;
+      source_recipe_title: string | null;
+      description: string | null;
+    };
+
+export type MyRecipeLibraryPage = Omit<
+  MyRecipeLibraryContractPage,
+  "items"
+> & {
+  items: MyRecipeLibraryItem[];
+};
 
 export interface SavedRecipeLibraryItem {
   recipe: RecipeSummary;
@@ -53,6 +67,7 @@ function parseDraft(value: unknown): RecipeDraftListItem | null {
   const draft = parseRecipeDraftListItem(value);
   if (draft === null) return null;
   return {
+    draft_kind: draft.draft_kind,
     id: draft.id,
     source_version_id: draft.source_version_id,
     status: draft.status,

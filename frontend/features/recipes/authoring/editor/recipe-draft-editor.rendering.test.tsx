@@ -22,6 +22,7 @@ describe("RecipeDraftEditor", () => {
   it("renders a prepared draft immediately without showing the editor loading screen", () => {
     renderEditor({
       ...detail,
+      draft_kind: "adaptation",
       title: "Prepared tomato soup",
       source_version_id: "99999999-9999-4999-8999-999999999999",
     });
@@ -148,7 +149,7 @@ describe("RecipeDraftEditor", () => {
   it("does not borrow the source recipe's saves for a private version draft", () => {
     const sourceId = "88888888-8888-4888-8888-888888888888";
     renderEditor(
-      { ...detail, source_version_id: sourceId },
+      { ...detail, draft_kind: "adaptation", source_version_id: sourceId },
       undefined,
       { ...publicSourceRecipe(sourceId), save_count: 876 },
     );

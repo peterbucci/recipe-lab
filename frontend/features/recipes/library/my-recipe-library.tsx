@@ -485,11 +485,17 @@ export function MyRecipeLibrary({ pageNumber, view }: MyRecipeLibraryProps) {
                       >
                         <div className="member-recipe-card__topline">
                           <span className="member-recipe-card__status member-recipe-card__status--draft">
-                            {draft.source_version_id ? "Version" : "Original"}
+                            {draft.draft_kind === "revision"
+                              ? "Changes"
+                              : draft.draft_kind === "adaptation"
+                                ? "Version"
+                                : "Original"}
                           </span>
                         </div>
                         <h3 id={`my-draft-${draft.id}`}>{title}</h3>
-                        {draft.source_version_id && item.source_recipe_title ? (
+                        {draft.draft_kind === "adaptation" &&
+                        draft.source_version_id &&
+                        item.source_recipe_title ? (
                           <p className="member-recipe-card__context">
                             Based on{" "}
                             <GuardedLink

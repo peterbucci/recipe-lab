@@ -19,6 +19,38 @@ const mocks = getRecipeDraftPublicationMocks();
 beforeEach(resetRecipeDraftPublicationMocks);
 
 describe("RecipeDraftPublication", () => {
+  it("preserves a stale revision and links only to its stable current recipe", async () => {
+    mocks.preflight.mockResolvedValue(distinctPreflight());
+    mocks.publish.mockRejectedValue(
+      new RecipePublicationApiError(
+        "A newer recipe edition exists.",
+        409,
+        "recipe_revision_source_stale",
+      ),
+    );
+    renderPublication({
+      draftKind: "revision",
+      sourceRecipeId: RECIPE_ID,
+      sourceVersionId: DRAFT_ID,
+    });
+
+    confirmPublication();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review and publish changes" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /newer edition.*private draft is unchanged/i,
+    );
+    expect(
+      screen.getByRole("link", { name: "Review the current edition" }),
+    ).toHaveAttribute("href", `/recipes/current/${RECIPE_ID}`);
+    expect(
+      screen.queryByRole("button", { name: /try publishing|check similar/i }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Keep editing" })).toBeEnabled();
+  });
+
   it("explains that publication waits for an unavailable similarity check and only offers retry", async () => {
     mocks.preflight.mockRejectedValue(
       new RecipeDuplicateApiError(
@@ -137,6 +169,45 @@ describe("RecipeDraftPublication", () => {
 
     await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(2));
     expect(mocks.preflight).toHaveBeenCalledOnce();
+    expect(mocks.publish.mock.calls.map((call) => call[2])).toEqual([
+      "publish-key",
+      "publish-key",
+    ]);
+  });
+
+  it("locks revision publication intent while an ambiguous publish is recovered", async () => {
+    mocks.preflight.mockResolvedValue(distinctPreflight());
+    mocks.publish
+      .mockRejectedValueOnce(new TypeError("private network detail"))
+      .mockResolvedValueOnce({
+        recipe_version_id: RECIPE_ID,
+        location: `/recipes/${RECIPE_ID}`,
+      });
+    renderPublication({ draftKind: "revision", sourceVersionId: DRAFT_ID });
+
+    const updateReason = screen.getByRole("radio", {
+      name: "I’m updating how I make this recipe",
+    });
+    fireEvent.click(updateReason);
+    confirmPublication();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review and publish changes" }),
+    );
+
+    const retry = await screen.findByRole("button", {
+      name: "Check publication result",
+    });
+    expect(updateReason).toBeDisabled();
+    expect(
+      screen.getByRole("radio", { name: "No change reason" }),
+    ).toBeDisabled();
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(2));
+    expect(mocks.publish.mock.calls.map((call) => call[1])).toEqual([
+      expect.objectContaining({ declared_change_reason: "update" }),
+      expect.objectContaining({ declared_change_reason: "update" }),
+    ]);
     expect(mocks.publish.mock.calls.map((call) => call[2])).toEqual([
       "publish-key",
       "publish-key",

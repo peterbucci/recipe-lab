@@ -30,7 +30,12 @@ function recipe(id: string, title: string): RecipeSummary {
 }
 
 function renderTimeline() {
-  return render(<CommunityActivityTimeline userId="viewer" />);
+  return render(
+    <CommunityActivityTimeline
+      recipeHref={(item) => `/recipe-target/${item.recipe_id}`}
+      userId="viewer"
+    />,
+  );
 }
 
 beforeEach(() => {

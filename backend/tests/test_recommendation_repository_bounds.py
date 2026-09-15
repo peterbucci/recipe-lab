@@ -33,6 +33,7 @@ def test_global_shortlist_is_bounded_and_orders_by_the_baseline_score() -> None:
     assert "global_score DESC" in sql
     assert "maximum_save_count" in sql
     assert "recipe_version_publications.state = 'published'" in sql
+    assert "recipes.current_recipe_version_id = recipe_versions.id" in sql
     assert "LIMIT 38" not in sql
 
 
@@ -63,6 +64,7 @@ def test_personalized_lane_uses_public_canonical_ingredient_overlap() -> None:
     assert "count(DISTINCT recipe_version_ingredients.ingredient_id)" in sql
     assert "overlap_count DESC" in sql
     assert "recipe_version_publications.state = 'published'" in sql
+    assert "recipes.current_recipe_version_id = recipe_versions.id" in sql
     assert "LIMIT 25" in sql
 
 
@@ -181,3 +183,34 @@ def test_personalized_lane_precedes_global_lane_and_global_rows_fill_capacity() 
 
 def test_shortlist_policy_version_is_explicit_and_stable() -> None:
     assert repository.RECOMMENDATION_SHORTLIST_POLICY == "baseline-v1-shortlist-v1"
+
+
+class _CandidateDetailSession:
+    def __init__(self) -> None:
+        self.statements: list[Any] = []
+
+    def execute(self, statement: Any) -> tuple[object, ...]:
+        self.statements.append(statement)
+        return ()
+
+
+def test_candidate_detail_reload_revalidates_current_only_for_ranked_candidates() -> None:
+    session = _CandidateDetailSession()
+
+    repository._load_candidate_details(
+        cast(Session, session),
+        (FIRST_ID,),
+        require_current=True,
+    )
+    repository._load_candidate_details(
+        cast(Session, session),
+        (SECOND_ID,),
+        require_current=False,
+    )
+
+    ranked_sql = _literal_sql(session.statements[0])
+    historical_source_sql = _literal_sql(session.statements[1])
+    assert "recipe_version_publications.state = 'published'" in ranked_sql
+    assert "recipes.current_recipe_version_id = recipe_versions.id" in ranked_sql
+    assert "recipe_version_publications.state = 'published'" in historical_source_sql
+    assert "recipes.current_recipe_version_id = recipe_versions.id" not in (historical_source_sql)

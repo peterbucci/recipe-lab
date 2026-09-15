@@ -6,19 +6,19 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AuthSession } from "../../../../features/auth/auth-api";
+import type { AuthSession } from "../../../features/auth/auth-api";
 import {
   AuthSessionProvider,
   useAuthSession,
-} from "../../../../features/auth/auth-session-provider";
-import type { RecipeDraftListItem } from "../../../../features/recipes/authoring/draft/recipe-draft-summary";
-import type { RecipeDraftEditorEntry } from "../../../../features/recipes/authoring/draft/recipe-draft-editor-entry";
-import type { RecipeEditActionState } from "../../../../features/recipes/detail/recipe-member-actions";
-import type { RecipeDetail } from "../../../../features/recipes/shared/recipe-contracts";
-import { deferred } from "../../../../tests/support/deferred";
+} from "../../../features/auth/auth-session-provider";
+import type { RecipeDraftListItem } from "../../../features/recipes/authoring/draft/recipe-draft-summary";
+import type { RecipeDraftEditorEntry } from "../../../features/recipes/authoring/draft/recipe-draft-editor-entry";
+import type { RecipeEditActionState } from "../../../features/recipes/detail/recipe-member-actions";
+import type { RecipeDetail } from "../../../features/recipes/shared/recipe-contracts";
+import { deferred } from "../../../tests/support/deferred";
 import { RecipeDetailExperience } from "./recipe-detail-experience";
 
 const SOURCE_A = "11111111-1111-4111-8111-111111111111";
@@ -27,17 +27,18 @@ const DRAFT_A = "33333333-3333-4333-8333-333333333333";
 const DRAFT_B = "44444444-4444-4444-8444-444444444444";
 
 const mocks = vi.hoisted(() => ({
+  editActionReady: true,
   findActiveRecipeDraftForSource: vi.fn(),
   prepareRecipeDraftEditorEntry: vi.fn(),
   recipeDraftEntryErrorMessage: vi.fn(),
 }));
 
 vi.mock(
-  "../../../../features/recipes/authoring/draft/recipe-draft-api",
+  "../../../features/recipes/authoring/draft/recipe-draft-api",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("../../../../features/recipes/authoring/draft/recipe-draft-api")
+        typeof import("../../../features/recipes/authoring/draft/recipe-draft-api")
       >();
     return {
       ...actual,
@@ -47,11 +48,11 @@ vi.mock(
 );
 
 vi.mock(
-  "../../../../features/recipes/authoring/draft/recipe-draft-editor-entry",
+  "../../../features/recipes/authoring/draft/recipe-draft-editor-entry",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("../../../../features/recipes/authoring/draft/recipe-draft-editor-entry")
+        typeof import("../../../features/recipes/authoring/draft/recipe-draft-editor-entry")
       >();
     return {
       ...actual,
@@ -61,52 +62,84 @@ vi.mock(
 );
 
 vi.mock(
-  "../../../../features/recipes/authoring/draft/recipe-draft-entry",
+  "../../../features/recipes/authoring/draft/recipe-draft-entry",
   () => ({
     recipeDraftEntryErrorMessage: mocks.recipeDraftEntryErrorMessage,
   }),
 );
 
-vi.mock("../../../../features/recipes/detail/recipe-detail-view", () => ({
+vi.mock("../../../features/recipes/detail/recipe-detail-view", () => ({
   RecipeDetailView: ({
     editAction,
+    onEditActionFocusRestored,
     onRequestEdit,
     recipe,
+    restoreEditActionFocus,
   }: {
     editAction: RecipeEditActionState;
-    onRequestEdit: () => void;
+    onEditActionFocusRestored: () => void;
+    onRequestEdit: (intent: "adaptation" | "revision") => void;
     recipe: RecipeDetail;
-  }) => (
-    <article className="recipe-detail">
-      <h1>{recipe.title}</h1>
-      <p>Public ingredients stay here while preparation runs.</p>
-      <button
-        disabled={editAction.pending}
-        type="button"
-        onClick={onRequestEdit}
-      >
-        {editAction.pending
-          ? "Preparing your version…"
-          : editAction.hasActiveDraft
-            ? "Continue your version"
-            : "Make your own version"}
-      </button>
-      {editAction.errorMessage !== null ? (
-        <p role="alert">{editAction.errorMessage}</p>
-      ) : null}
-    </article>
-  ),
+    restoreEditActionFocus: boolean;
+  }) => {
+    useEffect(() => {
+      const action = document.querySelector<HTMLButtonElement>(
+        "#recipe-edit-action",
+      );
+      if (
+        restoreEditActionFocus &&
+        action !== null &&
+        !action.disabled
+      ) {
+        action.focus();
+        onEditActionFocusRestored();
+      }
+    }, [editAction, onEditActionFocusRestored, restoreEditActionFocus]);
+
+    return (
+      <article className="recipe-detail">
+        <h1>{recipe.title}</h1>
+        <p>Public ingredients stay here while preparation runs.</p>
+        <button
+          id="recipe-edit-action"
+          disabled={editAction.pendingIntent !== null || !mocks.editActionReady}
+          type="button"
+          onClick={() => onRequestEdit("adaptation")}
+        >
+          {editAction.pendingIntent !== null
+            ? "Preparing your version…"
+            : editAction.activeDrafts.adaptation
+              ? "Continue your version"
+              : "Make your own version"}
+        </button>
+        <button
+          disabled={editAction.pendingIntent !== null}
+          type="button"
+          onClick={() => onRequestEdit("revision")}
+        >
+          {editAction.pendingIntent === "revision"
+            ? "Opening recipe editor…"
+            : editAction.activeDrafts.revision
+              ? "Continue editing"
+              : "Edit recipe"}
+        </button>
+        {editAction.errorMessage !== null ? (
+          <p role="alert">{editAction.errorMessage}</p>
+        ) : null}
+      </article>
+    );
+  },
 }));
 
-vi.mock("../../../../features/recipes/authoring/editor/recipe-draft-editor", () => ({
+vi.mock("../../../features/recipes/authoring/editor/recipe-draft-editor", () => ({
   RecipeDraftEditor: ({
+    familyHistory,
     familyRecipe,
-    familyVersions,
     initialDetail,
     onDoneForNow,
   }: {
+    familyHistory: unknown;
     familyRecipe: RecipeDetail;
-    familyVersions: unknown[];
     initialDetail: { title: string };
     onDoneForNow: () => void;
   }) => {
@@ -114,10 +147,11 @@ vi.mock("../../../../features/recipes/authoring/editor/recipe-draft-editor", () 
     return (
       <form aria-label="Private recipe draft editor">
         <p>Family source: {familyRecipe.title}</p>
-        <p>Family versions: {familyVersions.length}</p>
+        <p>Family history: {familyHistory ? "available" : "unavailable"}</p>
         <label>
           Recipe title
           <input
+            id="draft-title"
             value={title}
             onChange={(event) => setTitle(event.currentTarget.value)}
           />
@@ -153,8 +187,10 @@ const recipeB = recipe(SOURCE_B, "Blueberry oat pancakes");
 function draftListItem(
   id: string,
   sourceVersionId: string,
+  draftKind: "adaptation" | "revision" = "adaptation",
 ): RecipeDraftListItem {
   return {
+    draft_kind: draftKind,
     id,
     source_version_id: sourceVersionId,
     status: "active",
@@ -171,11 +207,13 @@ function editorEntry(
   sourceVersionId: string,
   draftId: string,
   title: string,
+  draftKind: "adaptation" | "revision" = "adaptation",
 ): RecipeDraftEditorEntry {
   return {
     actionTypes: [],
     categories: [],
     detail: {
+      draft_kind: draftKind,
       id: draftId,
       source_version_id: sourceVersionId,
       title,
@@ -209,12 +247,17 @@ function SessionSwitches() {
   );
 }
 
-function experience(recipeDetail: RecipeDetail, session: AuthSession = alice) {
+function experience(
+  recipeDetail: RecipeDetail,
+  session: AuthSession = alice,
+  publicPath = `/recipes/${recipeDetail.id}`,
+) {
   return (
     <AuthSessionProvider initialSession={session}>
       <SessionSwitches />
       <RecipeDetailExperience
-        familyVersions={[]}
+        history={null}
+        publicPath={publicPath}
         recipe={recipeDetail}
       />
     </AuthSessionProvider>
@@ -231,6 +274,7 @@ async function settle<T>(pending: ReturnType<typeof deferred<T>>, value: T) {
 describe("RecipeDetailExperience", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.editActionReady = true;
     mocks.findActiveRecipeDraftForSource.mockResolvedValue(null);
     mocks.recipeDraftEntryErrorMessage.mockReturnValue(
       "Recipe Lab could not prepare your private version. Try again.",
@@ -245,9 +289,41 @@ describe("RecipeDetailExperience", () => {
     vi.restoreAllMocks();
   });
 
+  it("keeps the exact adaptation source in a revised recipe breadcrumb", () => {
+    const revisedAdaptation = {
+      ...recipeA,
+      adaptation_source: {
+        author: {
+          display_name: "Source Cook",
+          handle: "source-cook",
+          id: "55555555-5555-4555-8555-555555555555",
+        },
+        id: SOURCE_B,
+        title: "Original blueberry pancakes",
+        version_number: 1,
+      },
+      parent: null,
+      relation_kind: "revision",
+    } as RecipeDetail;
+
+    render(experience(revisedAdaptation));
+
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(
+      within(breadcrumb).getByRole("link", {
+        name: "Original blueberry pancakes",
+      }),
+    ).toHaveAttribute("href", `/recipes/${SOURCE_B}`);
+  });
+
   it("derives the breadcrumb and edit action from the route-owned active draft result", async () => {
-    mocks.findActiveRecipeDraftForSource.mockResolvedValue(
-      draftListItem(DRAFT_A, SOURCE_A),
+    mocks.findActiveRecipeDraftForSource.mockImplementation(
+      (_sourceVersionId: string, draftKind: string) =>
+        Promise.resolve(
+          draftKind === "adaptation"
+            ? draftListItem(DRAFT_A, SOURCE_A)
+            : null,
+        ),
     );
 
     render(experience(recipeA));
@@ -265,8 +341,55 @@ describe("RecipeDetailExperience", () => {
     ).toHaveAttribute("href", "/account/recipes?view=drafts");
     expect(mocks.findActiveRecipeDraftForSource).toHaveBeenCalledWith(
       SOURCE_A,
+      "adaptation",
       expect.any(AbortSignal),
     );
+  });
+
+  it("keeps revision and adaptation drafts separate and opens the requested kind", async () => {
+    mocks.findActiveRecipeDraftForSource.mockImplementation(
+      (_sourceVersionId: string, draftKind: string) =>
+        Promise.resolve(
+          draftListItem(
+            draftKind === "revision" ? DRAFT_B : DRAFT_A,
+            SOURCE_A,
+            draftKind as "adaptation" | "revision",
+          ),
+        ),
+    );
+    mocks.prepareRecipeDraftEditorEntry.mockResolvedValue(
+      editorEntry(SOURCE_A, DRAFT_B, "Owner revision", "revision"),
+    );
+
+    render(experience(recipeA));
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Continue editing" }),
+    );
+    expect(mocks.prepareRecipeDraftEditorEntry).toHaveBeenCalledWith(
+      "alice-id",
+      SOURCE_A,
+      "revision",
+    );
+    expect(await screen.findByLabelText("Recipe title")).toHaveValue(
+      "Owner revision",
+    );
+  });
+
+  it("rejects a completed editor entry for a different draft kind", async () => {
+    mocks.prepareRecipeDraftEditorEntry.mockResolvedValue(
+      editorEntry(SOURCE_A, DRAFT_A, "Wrong intent", "adaptation"),
+    );
+
+    render(experience(recipeA));
+    fireEvent.click(screen.getByRole("button", { name: "Edit recipe" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /could not prepare the editable version/i,
+    );
+    expect(
+      screen.queryByRole("form", { name: "Private recipe draft editor" }),
+    ).toBeNull();
   });
 
   it("keeps the public detail mounted until preparation completes", async () => {
@@ -290,6 +413,7 @@ describe("RecipeDetailExperience", () => {
     expect(mocks.prepareRecipeDraftEditorEntry).toHaveBeenCalledWith(
       "alice-id",
       SOURCE_A,
+      "adaptation",
     );
 
     await settle(
@@ -306,23 +430,27 @@ describe("RecipeDetailExperience", () => {
     expect(screen.getByLabelText("Recipe title")).toHaveValue(
       "My banana pancakes",
     );
+    expect(screen.getByLabelText("Recipe title")).toHaveFocus();
     expect(window.scrollTo).toHaveBeenLastCalledWith(4, 36);
     expect(window.location.pathname).toBe(`/recipes/${SOURCE_A}`);
   });
 
   it("revalidates the active draft and restores history and scroll on return", async () => {
+    const refreshedDraft = deferred<RecipeDraftListItem | null>();
     mocks.findActiveRecipeDraftForSource
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(draftListItem(DRAFT_A, SOURCE_A));
+      .mockResolvedValueOnce(null)
+      .mockReturnValueOnce(refreshedDraft.promise);
     mocks.prepareRecipeDraftEditorEntry.mockResolvedValue(
       editorEntry(SOURCE_A, DRAFT_A, "My banana pancakes"),
     );
     Object.defineProperty(window, "scrollX", { configurable: true, value: 3 });
     Object.defineProperty(window, "scrollY", { configurable: true, value: 24 });
-    render(experience(recipeA));
+    const stablePath = "/recipes/current/99999999-9999-4999-8999-999999999999";
+    render(experience(recipeA, alice, stablePath));
 
     await waitFor(() =>
-      expect(mocks.findActiveRecipeDraftForSource).toHaveBeenCalledTimes(1),
+      expect(mocks.findActiveRecipeDraftForSource).toHaveBeenCalledTimes(2),
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Make your own version" }),
@@ -342,13 +470,24 @@ describe("RecipeDetailExperience", () => {
     );
     Object.defineProperty(window, "scrollX", { configurable: true, value: 8 });
     Object.defineProperty(window, "scrollY", { configurable: true, value: 64 });
+    mocks.editActionReady = false;
     fireEvent.click(screen.getByRole("button", { name: "Return" }));
 
-    expect(window.location.pathname).toBe(`/recipes/${SOURCE_A}`);
+    expect(window.location.pathname).toBe(stablePath);
     expect(window.history.state).toEqual({ keep: "preserved" });
     expect(window.scrollTo).toHaveBeenLastCalledWith(8, 64);
+    expect(
+      screen.getByRole("button", { name: "Continue your version" }),
+    ).toBeDisabled();
+    mocks.editActionReady = true;
+    await settle(refreshedDraft, draftListItem(DRAFT_A, SOURCE_A));
     await waitFor(() =>
-      expect(mocks.findActiveRecipeDraftForSource).toHaveBeenCalledTimes(2),
+      expect(mocks.findActiveRecipeDraftForSource).toHaveBeenCalledTimes(3),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Continue your version" }),
+      ).toHaveFocus(),
     );
     expect(
       await screen.findByRole("link", { name: "My recipes" }),
@@ -363,11 +502,12 @@ describe("RecipeDetailExperience", () => {
       );
     mocks.findActiveRecipeDraftForSource
       .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(draftListItem(DRAFT_A, SOURCE_A));
 
     render(experience(recipeA));
     await waitFor(() =>
-      expect(mocks.findActiveRecipeDraftForSource).toHaveBeenCalledTimes(1),
+      expect(mocks.findActiveRecipeDraftForSource).toHaveBeenCalledTimes(2),
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Make your own version" }),
@@ -499,6 +639,7 @@ describe("RecipeDetailExperience", () => {
       2,
       "bob-id",
       SOURCE_A,
+      "adaptation",
     );
   });
 

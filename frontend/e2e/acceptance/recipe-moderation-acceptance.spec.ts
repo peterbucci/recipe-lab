@@ -52,7 +52,7 @@ test.describe("recipe reporting and moderation acceptance", () => {
     const draftBeforeHiding = await page.request.post(
       new URL("/api/recipe-drafts", baseUrl).toString(),
       {
-        data: { source_version_id: recipe.id },
+        data: { draft_kind: "adaptation", source_version_id: recipe.id },
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -151,7 +151,7 @@ test.describe("recipe reporting and moderation acceptance", () => {
     const replayAfterHiding = await page.request.post(
       new URL("/api/recipe-drafts", baseUrl).toString(),
       {
-        data: { source_version_id: recipe.id },
+        data: { draft_kind: "adaptation", source_version_id: recipe.id },
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -166,7 +166,7 @@ test.describe("recipe reporting and moderation acceptance", () => {
     const newIntentAfterHiding = await page.request.post(
       new URL("/api/recipe-drafts", baseUrl).toString(),
       {
-        data: { source_version_id: recipe.id },
+        data: { draft_kind: "adaptation", source_version_id: recipe.id },
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",

@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -11,11 +11,15 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, event, text
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import Session
 
 from app.models import (
     ACCOUNT_KIND_MEMBER,
+    Recipe,
     RecipeDraft,
+    RecipeEdition,
     RecipeLineage,
     RecipeRating,
     RecipeSave,
@@ -23,6 +27,7 @@ from app.models import (
     RecipeVersionPublication,
     User,
 )
+from app.repositories import recipe_libraries as recipe_library_repository
 from app.services.recipe_visibility import set_authored_recipe_visibility
 from tests.application import application_with_database
 from tests.conftest import make_alembic_config
@@ -41,6 +46,10 @@ PUBLIC_CHILD_ID = UUID("7d000000-0000-4000-8000-000000000022")
 DRAFT_A_ID = UUID("7d000000-0000-4000-8000-000000000031")
 DRAFT_B_ID = UUID("7d000000-0000-4000-8000-000000000032")
 DRAFT_A_SECOND_ID = UUID("7d000000-0000-4000-8000-000000000033")
+ROOT_RECIPE_ID = UUID("7d000000-0000-4000-8000-000000000041")
+CHILD_RECIPE_ID = UUID("7d000000-0000-4000-8000-000000000042")
+GRANDCHILD_RECIPE_ID = UUID("7d000000-0000-4000-8000-000000000043")
+PUBLIC_CHILD_RECIPE_ID = UUID("7d000000-0000-4000-8000-000000000044")
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,11 +263,86 @@ def recipe_library_api(empty_postgres_engine: Engine) -> Iterator[RecipeLibraryA
                     published_at=published_at,
                 )
             )
+        session.flush()
+        session.add_all(
+            [
+                Recipe(
+                    id=ROOT_RECIPE_ID,
+                    lineage_id=LINEAGE_ID,
+                    attributed_author_user_id=MEMBER_A_ID,
+                    owner_user_id=MEMBER_A_ID,
+                    current_recipe_version_id=ROOT_ID,
+                    created_at=root.created_at,
+                ),
+                Recipe(
+                    id=CHILD_RECIPE_ID,
+                    lineage_id=LINEAGE_ID,
+                    attributed_author_user_id=MEMBER_B_ID,
+                    owner_user_id=MEMBER_B_ID,
+                    current_recipe_version_id=CHILD_ID,
+                    created_at=child.created_at,
+                ),
+                Recipe(
+                    id=GRANDCHILD_RECIPE_ID,
+                    lineage_id=LINEAGE_ID,
+                    attributed_author_user_id=MEMBER_A_ID,
+                    owner_user_id=MEMBER_A_ID,
+                    current_recipe_version_id=GRANDCHILD_ID,
+                    created_at=grandchild.created_at,
+                ),
+                Recipe(
+                    id=PUBLIC_CHILD_RECIPE_ID,
+                    lineage_id=HIDDEN_LINEAGE_ID,
+                    attributed_author_user_id=MEMBER_A_ID,
+                    owner_user_id=MEMBER_A_ID,
+                    current_recipe_version_id=PUBLIC_CHILD_ID,
+                    created_at=public_child.created_at,
+                ),
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                RecipeEdition(
+                    recipe_version_id=ROOT_ID,
+                    recipe_id=ROOT_RECIPE_ID,
+                    lineage_id=LINEAGE_ID,
+                    attributed_author_user_id=MEMBER_A_ID,
+                    edition_number=1,
+                    relation_kind="original",
+                ),
+                RecipeEdition(
+                    recipe_version_id=CHILD_ID,
+                    recipe_id=CHILD_RECIPE_ID,
+                    lineage_id=LINEAGE_ID,
+                    attributed_author_user_id=MEMBER_B_ID,
+                    edition_number=1,
+                    relation_kind="adaptation",
+                ),
+                RecipeEdition(
+                    recipe_version_id=GRANDCHILD_ID,
+                    recipe_id=GRANDCHILD_RECIPE_ID,
+                    lineage_id=LINEAGE_ID,
+                    attributed_author_user_id=MEMBER_A_ID,
+                    edition_number=1,
+                    relation_kind="adaptation",
+                ),
+                RecipeEdition(
+                    recipe_version_id=PUBLIC_CHILD_ID,
+                    recipe_id=PUBLIC_CHILD_RECIPE_ID,
+                    lineage_id=HIDDEN_LINEAGE_ID,
+                    attributed_author_user_id=MEMBER_A_ID,
+                    edition_number=1,
+                    relation_kind="adaptation",
+                ),
+            ]
+        )
         session.add_all(
             [
                 RecipeDraft(
                     id=DRAFT_A_ID,
                     author_user_id=MEMBER_A_ID,
+                    draft_kind="adaptation",
                     source_version_id=ROOT_ID,
                     title="Alpha private draft",
                     description="A private draft description for its owner.",
@@ -437,11 +521,14 @@ def test_public_browse_newest_sort_combines_with_filters_and_visibility(
         str(CHILD_ID),
         str(ROOT_ID),
     ]
-    assert [item["published_at"] for item in newest_items] == [
-        "2026-08-26T00:05:00Z",
-        "2026-08-26T00:03:00Z",
-        "2026-08-26T00:02:00Z",
-        "2026-08-26T00:01:00Z",
+    assert [
+        datetime.fromisoformat(cast(str, item["published_at"])).astimezone(UTC)
+        for item in newest_items
+    ] == [
+        datetime(2026, 8, 26, 0, 5, tzinfo=UTC),
+        datetime(2026, 8, 26, 0, 3, tzinfo=UTC),
+        datetime(2026, 8, 26, 0, 2, tzinfo=UTC),
+        datetime(2026, 8, 26, 0, 1, tzinfo=UTC),
     ]
     assert str(HIDDEN_PARENT_ID) not in {item["id"] for item in newest_items}
 
@@ -1052,6 +1139,7 @@ def test_openapi_documents_public_identity_and_private_library_contracts(
         "MyFollowStatsResponse",
         "MyRecipeLibraryView",
         "MyRecipeLibraryResponse",
+        "SavedRecipeLibraryItem",
         "SavedRecipeLibraryResponse",
     } <= set(schemas)
     assert set(schemas["PublicUserReference"]["properties"]) == {
@@ -1077,3 +1165,57 @@ def test_openapi_documents_public_identity_and_private_library_contracts(
     ]
     assert "401" in paths["/api/my/recipes"]["get"]["responses"]
     assert "401" in paths["/api/my/saved-recipes"]["get"]["responses"]
+    assert "newer_current_version" not in schemas["SavedRecipeLibraryItem"]["properties"]
+    assert "newer_current_version" not in schemas["SavedRecipeLibraryItem"]["required"]
+    assert "current_version" in schemas["RecipeSummary"]["properties"]
+
+
+def _literal_sql(statement: Any) -> str:
+    dialect_factory = cast(Callable[[], Dialect], postgresql.dialect)
+    return str(
+        statement.compile(
+            dialect=dialect_factory(),
+            compile_kwargs={"literal_binds": True},
+        )
+    )
+
+
+class _PublicationLibrarySession:
+    def __init__(self) -> None:
+        self.detail_statement: Any = None
+
+    def scalar(self, _statement: Any) -> int:
+        return 1
+
+    def scalars(self, _statement: Any) -> tuple[UUID]:
+        return (ROOT_ID,)
+
+    def execute(self, statement: Any) -> tuple[object, ...]:
+        self.detail_statement = statement
+        return ()
+
+
+@pytest.mark.parametrize(
+    ("view", "expected_state"),
+    [
+        pytest.param("published", "moderation_hidden", id="published-view"),
+        pytest.param("withdrawn", "author_withdrawn", id="withdrawn-view"),
+    ],
+)
+def test_authored_library_detail_reload_revalidates_current_state_and_view(
+    view: str,
+    expected_state: str,
+) -> None:
+    session = _PublicationLibrarySession()
+
+    recipe_library_repository._browse_my_publications(
+        cast(Session, session),
+        actor_user_id=MEMBER_A_ID,
+        view=cast(Any, view),
+        offset=0,
+        limit=20,
+    )
+
+    sql = _literal_sql(session.detail_statement)
+    assert "recipes.current_recipe_version_id = recipe_versions.id" in sql
+    assert expected_state in sql

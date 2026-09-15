@@ -10,6 +10,7 @@ import {
 } from "../../shared/measurement-unit-model";
 import type { RecipeDraftDetail } from "./recipe-draft-api";
 import { startOrResumeRecipeDraftDetail } from "./recipe-draft-entry";
+import type { RecipeDraftKind } from "./recipe-draft-summary";
 import type {
   RecipeCategory,
 } from "../../shared/recipe-contracts";
@@ -72,6 +73,7 @@ async function recipeCategories(): Promise<RecipeCategory[]> {
 export async function prepareRecipeDraftEditorEntry(
   actorId: string,
   sourceVersionId: string,
+  draftKind: Exclude<RecipeDraftKind, "original">,
 ): Promise<RecipeDraftEditorEntry> {
   try {
     const [
@@ -83,7 +85,7 @@ export async function prepareRecipeDraftEditorEntry(
       categories,
     ] =
       await Promise.all([
-        startOrResumeRecipeDraftDetail(actorId, sourceVersionId),
+        startOrResumeRecipeDraftDetail(actorId, draftKind, sourceVersionId),
         measurementUnits("ingredient_amount"),
         measurementUnits("action_duration"),
         measurementUnits("temperature"),

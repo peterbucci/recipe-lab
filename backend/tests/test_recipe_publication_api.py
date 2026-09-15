@@ -3,6 +3,7 @@ import logging
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from hashlib import sha256
 from threading import Barrier
@@ -20,6 +21,7 @@ import app.services.recipe_duplicate_preflights as duplicate_preflight_service
 import app.services.recipe_publications as publication_service
 from app.models import (
     PreferenceEvent,
+    Recipe,
     RecipeDraft,
     RecipeDraftCategory,
     RecipeDraftIngredient,
@@ -30,12 +32,15 @@ from app.models import (
     RecipeDuplicateCandidate,
     RecipeDuplicateDecision,
     RecipeDuplicatePreflight,
+    RecipeEdition,
     RecipeIngredient,
     RecipeInstruction,
     RecipeInstructionAction,
     RecipeInstructionActionInput,
     RecipeInstructionActionMeasure,
     RecipeLineage,
+    RecipeRating,
+    RecipeSave,
     RecipeStructuralFingerprint,
     RecipeVersion,
     RecipeVersionCategory,
@@ -77,13 +82,15 @@ class PublicationApi:
 _ROOT_PUBLICATION_WRITE_PHASES = tuple(
     phase
     for phase in publication_service._PUBLICATION_WRITE_PHASES
-    if phase != "fork_preference_event"
+    if phase not in {"fork_preference_event", "predecessor_withdrawal"}
 )
 
 
 def _publication_row_counts(session: Session) -> dict[str, int]:
     return {
         "lineages": session.scalar(select(func.count()).select_from(RecipeLineage)) or 0,
+        "recipes": session.scalar(select(func.count()).select_from(Recipe)) or 0,
+        "editions": session.scalar(select(func.count()).select_from(RecipeEdition)) or 0,
         "versions": session.scalar(select(func.count()).select_from(RecipeVersion)) or 0,
         "categories": session.scalar(select(func.count()).select_from(RecipeVersionCategory)) or 0,
         "ingredients": session.scalar(select(func.count()).select_from(RecipeIngredient)) or 0,
@@ -265,7 +272,7 @@ def _create_complete_draft(api: PublicationApi) -> str:
     created = api.member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     assert created.status_code == 201
     created_body = _json_object(created.json())
@@ -338,6 +345,32 @@ def _publish_complete_original(api: PublicationApi) -> UUID:
     return UUID(cast(str, _json_object(response.json())["recipe_version_id"]))
 
 
+def _create_revision_draft(client: TestClient, source_id: UUID) -> str:
+    response = client.post(
+        "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={"draft_kind": "revision", "source_version_id": str(source_id)},
+    )
+    assert response.status_code == 201, response.text
+    body = _json_object(response.json())
+    assert body["draft_kind"] == "revision"
+    assert body["source_version_id"] == str(source_id)
+    return cast(str, body["id"])
+
+
+def _publishable_payload(
+    evidence: dict[str, Any],
+    *,
+    revision: int,
+) -> dict[str, object]:
+    acknowledgement = _json_object(evidence["acknowledgement"])
+    return _publication_payload(
+        evidence,
+        revision=revision,
+        decision="continue" if acknowledgement["required"] else None,
+    )
+
+
 def test_real_publication_unavailability_emits_only_a_correlated_fixed_event(
     publication_api: PublicationApi,
     monkeypatch: pytest.MonkeyPatch,
@@ -405,14 +438,14 @@ def test_publication_succeeds_with_more_than_five_hundred_public_fingerprints(
         )
         filler_digest = sha256(filler_canonical_payload.encode("utf-8")).hexdigest()
 
-        filler_ids = [(uuid4(), uuid4()) for _index in range(filler_count)]
+        filler_ids = [(uuid4(), uuid4(), uuid4()) for _index in range(filler_count)]
         session.add_all(
             [
                 RecipeLineage(
                     id=lineage_id,
                     created_by_user_id=OTHER_MEMBER_ID,
                 )
-                for lineage_id, _version_id in filler_ids
+                for lineage_id, _recipe_id, _version_id in filler_ids
             ]
         )
         session.flush()
@@ -428,7 +461,7 @@ def test_publication_succeeds_with_more_than_five_hundred_public_fingerprints(
                     description=None,
                     servings=Decimal("1.00"),
                 )
-                for index, (lineage_id, version_id) in enumerate(filler_ids)
+                for index, (lineage_id, _recipe_id, version_id) in enumerate(filler_ids)
             ]
         )
         session.flush()
@@ -447,7 +480,7 @@ def test_publication_succeeds_with_more_than_five_hundred_public_fingerprints(
                     preparation_notes=None,
                     display_order=0,
                 )
-                for _lineage_id, version_id in filler_ids
+                for _lineage_id, _recipe_id, version_id in filler_ids
             ]
         )
         session.add_all(
@@ -458,7 +491,7 @@ def test_publication_succeeds_with_more_than_five_hundred_public_fingerprints(
                     digest=filler_digest,
                     canonical_payload=filler_canonical_payload,
                 )
-                for _lineage_id, version_id in filler_ids
+                for _lineage_id, _recipe_id, version_id in filler_ids
             ]
         )
         session.add_all(
@@ -469,7 +502,34 @@ def test_publication_succeeds_with_more_than_five_hundred_public_fingerprints(
                     state_changed_by_user_id=OTHER_MEMBER_ID,
                     actor_user_id=OTHER_MEMBER_ID,
                 )
-                for _lineage_id, version_id in filler_ids
+                for _lineage_id, _recipe_id, version_id in filler_ids
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                Recipe(
+                    id=recipe_id,
+                    lineage_id=lineage_id,
+                    attributed_author_user_id=OTHER_MEMBER_ID,
+                    owner_user_id=OTHER_MEMBER_ID,
+                    current_recipe_version_id=version_id,
+                )
+                for lineage_id, recipe_id, version_id in filler_ids
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                RecipeEdition(
+                    recipe_version_id=version_id,
+                    recipe_id=recipe_id,
+                    lineage_id=lineage_id,
+                    attributed_author_user_id=OTHER_MEMBER_ID,
+                    edition_number=1,
+                    relation_kind="original",
+                )
+                for lineage_id, recipe_id, version_id in filler_ids
             ]
         )
 
@@ -797,7 +857,7 @@ def test_cross_user_fork_publication_preserves_lineage_authorship_and_event(
     created = publication_api.other_member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": str(source_id)},
+        json={"draft_kind": "adaptation", "source_version_id": str(source_id)},
     )
     assert created.status_code == 201
     fork_body = _json_object(created.json())
@@ -885,7 +945,7 @@ def test_cross_user_fork_publication_preserves_lineage_authorship_and_event(
     second_draft = publication_api.other_member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": str(source_id)},
+        json={"draft_kind": "adaptation", "source_version_id": str(source_id)},
     )
     second_draft_id = str(_json_object(second_draft.json())["id"])
     second_evidence = _run_draft_preflight(
@@ -1042,6 +1102,608 @@ def test_cross_user_fork_publication_preserves_lineage_authorship_and_event(
         assert event.action_id == action_id
         assert event.related_recipe_version_id == child_id
         assert event.request_fingerprint == receipt.request_fingerprint
+        source_receipt = session.get(RecipeVersionPublication, source_id)
+        assert source_receipt is not None
+        assert source_receipt.published_at <= receipt.published_at == event.occurred_at
+
+
+def test_two_cook_correction_journey_preserves_the_adaptation_exact_source(
+    publication_api: PublicationApi,
+) -> None:
+    original_v1_id = _publish_complete_original(publication_api)
+    original_v1 = publication_api.member.get(f"/api/recipes/{original_v1_id}")
+    assert original_v1.status_code == 200
+    original_v1_body = _json_object(original_v1.json())
+    stable_recipe_id = UUID(cast(str, original_v1_body["recipe_id"]))
+    assert _json_object(original_v1_body["author"])["id"] == str(MEMBER_ID)
+
+    adaptation_draft = publication_api.other_member.post(
+        "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={"draft_kind": "adaptation", "source_version_id": str(original_v1_id)},
+    )
+    assert adaptation_draft.status_code == 201
+    adaptation_draft_id = cast(str, _json_object(adaptation_draft.json())["id"])
+    adaptation_evidence = _run_draft_preflight(
+        publication_api.other_member,
+        adaptation_draft_id,
+        revision=1,
+    )
+    adaptation = publication_api.other_member.post(
+        f"/api/recipe-drafts/{adaptation_draft_id}/publish",
+        headers={"Idempotency-Key": str(uuid4())},
+        json=_publishable_payload(adaptation_evidence, revision=1),
+    )
+    assert adaptation.status_code == 201, adaptation.text
+    adaptation_id = UUID(cast(str, _json_object(adaptation.json())["recipe_version_id"]))
+
+    public_comparison = publication_api.other_member.get(f"/api/recipes/{adaptation_id}/diff")
+    assert public_comparison.status_code == 200
+    public_comparison_body = _json_object(public_comparison.json())
+    assert _json_object(public_comparison_body["base_version"])["id"] == str(original_v1_id)
+    assert _json_object(public_comparison_body["target_version"])["id"] == str(adaptation_id)
+
+    correction_draft_id = _create_revision_draft(publication_api.member, original_v1_id)
+    correction_document = _complete_original_payload(revision=1)
+    correction_document["title"] = "Publication test chickpeas, corrected"
+    saved_correction = publication_api.member.put(
+        f"/api/recipe-drafts/{correction_draft_id}",
+        json=correction_document,
+    )
+    assert saved_correction.status_code == 200
+    assert _json_object(saved_correction.json())["revision"] == 2
+    correction_evidence = _run_draft_preflight(
+        publication_api.member,
+        correction_draft_id,
+        revision=2,
+    )
+    correction = publication_api.member.post(
+        f"/api/recipe-drafts/{correction_draft_id}/publish",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={
+            **_publishable_payload(correction_evidence, revision=2),
+            "declared_change_reason": "correction",
+            "withdraw_predecessor": True,
+        },
+    )
+    assert correction.status_code == 201, correction.text
+    correction_v2_id = UUID(cast(str, _json_object(correction.json())["recipe_version_id"]))
+
+    current = publication_api.member.get(f"/api/recipes/current/{stable_recipe_id}")
+    assert current.status_code == 200
+    current_body = _json_object(current.json())
+    assert current_body["id"] == str(correction_v2_id)
+    assert current_body["recipe_id"] == str(stable_recipe_id)
+
+    unavailable_v1 = publication_api.member.get(f"/api/recipes/{original_v1_id}")
+    unknown_version = publication_api.member.get(f"/api/recipes/{uuid4()}")
+    assert unavailable_v1.status_code == unknown_version.status_code == 404
+    unavailable_error = _json_object(_json_object(unavailable_v1.json())["error"])
+    unknown_error = _json_object(_json_object(unknown_version.json())["error"])
+    assert {key: value for key, value in unavailable_error.items() if key != "correlation_id"} == {
+        key: value for key, value in unknown_error.items() if key != "correlation_id"
+    }
+    assert str(original_v1_id) not in unavailable_v1.text
+    assert cast(str, original_v1_body["title"]) not in unavailable_v1.text
+
+    adaptation_after_correction = publication_api.other_member.get(f"/api/recipes/{adaptation_id}")
+    assert adaptation_after_correction.status_code == 200
+    adaptation_body = _json_object(adaptation_after_correction.json())
+    assert adaptation_body["id"] == str(adaptation_id)
+    assert adaptation_body["parent_version_id"] == str(original_v1_id)
+    assert adaptation_body["parent"] is None
+    assert adaptation_body["adaptation_source"] is None
+    unavailable_default_comparison = publication_api.other_member.get(
+        f"/api/recipes/{adaptation_id}/diff"
+    )
+    assert unavailable_default_comparison.status_code == 404
+    assert (
+        _json_object(_json_object(unavailable_default_comparison.json())["error"])["code"]
+        == "recipe_not_found"
+    )
+
+    with Session(bind=publication_api.engine) as session:
+        v1 = session.get(RecipeVersion, original_v1_id)
+        v1_publication = session.get(RecipeVersionPublication, original_v1_id)
+        adapted = session.get(RecipeVersion, adaptation_id)
+        adapted_edition = session.get(RecipeEdition, adaptation_id)
+        assert v1 is not None and v1_publication is not None
+        assert adapted is not None and adapted_edition is not None
+        stable_recipe = session.get(Recipe, stable_recipe_id)
+        assert stable_recipe is not None
+        assert v1.title == "Publication test chickpeas"
+        assert v1_publication.state == "author_withdrawn"
+        assert stable_recipe.current_recipe_version_id == correction_v2_id
+        assert adapted.created_by_user_id == OTHER_MEMBER_ID
+        assert adapted.parent_version_id == original_v1_id
+        assert adapted_edition.relation_kind == "adaptation"
+
+
+def test_revision_draft_creation_is_owner_current_scoped_and_resumable_by_kind(
+    publication_api: PublicationApi,
+) -> None:
+    source_id = _publish_complete_original(publication_api)
+
+    denied = publication_api.other_member.post(
+        "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={"draft_kind": "revision", "source_version_id": str(source_id)},
+    )
+    assert denied.status_code == 404
+    assert _json_object(_json_object(denied.json())["error"])["code"] == ("recipe_source_not_found")
+
+    creation_action_id = uuid4()
+    created = publication_api.member.post(
+        "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(creation_action_id)},
+        json={"draft_kind": "revision", "source_version_id": str(source_id)},
+    )
+    assert created.status_code == 201
+    body = _json_object(created.json())
+    draft_id = cast(str, body["id"])
+    assert body["draft_kind"] == "revision"
+    assert body["source_version_id"] == str(source_id)
+    assert publication_api.member.get(f"/api/recipe-drafts/{draft_id}").json() == body
+
+    changed_kind = publication_api.member.post(
+        "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(creation_action_id)},
+        json={"draft_kind": "adaptation", "source_version_id": str(source_id)},
+    )
+    assert changed_kind.status_code == 409
+    assert _json_object(_json_object(changed_kind.json())["error"])["code"] == (
+        "idempotency_key_conflict"
+    )
+
+    revisions = publication_api.member.get(
+        "/api/recipe-drafts",
+        params={"draft_kind": "revision"},
+    )
+    adaptations = publication_api.member.get(
+        "/api/recipe-drafts",
+        params={"draft_kind": "adaptation"},
+    )
+    assert revisions.status_code == adaptations.status_code == 200
+    assert [item["id"] for item in _json_object(revisions.json())["items"]] == [draft_id]
+    assert _json_object(adaptations.json())["items"] == []
+
+
+def test_revision_publication_advances_one_stable_recipe_and_stales_sibling_draft(
+    publication_api: PublicationApi,
+) -> None:
+    source_id = _publish_complete_original(publication_api)
+    first_draft_id = _create_revision_draft(publication_api.member, source_id)
+    stale_draft_id = _create_revision_draft(publication_api.member, source_id)
+    first_evidence = _run_draft_preflight(
+        publication_api.member,
+        first_draft_id,
+        revision=1,
+    )
+    stale_evidence = _run_draft_preflight(
+        publication_api.member,
+        stale_draft_id,
+        revision=1,
+    )
+    payload = {
+        **_publishable_payload(first_evidence, revision=1),
+        "declared_change_reason": "update",
+    }
+    action_id = uuid4()
+
+    published = publication_api.member.post(
+        f"/api/recipe-drafts/{first_draft_id}/publish",
+        headers={"Idempotency-Key": str(action_id)},
+        json=payload,
+    )
+    assert published.status_code == 201, published.text
+    successor_id = UUID(cast(str, _json_object(published.json())["recipe_version_id"]))
+    assert successor_id != source_id
+
+    replayed = publication_api.member.post(
+        f"/api/recipe-drafts/{first_draft_id}/publish",
+        headers={"Idempotency-Key": str(action_id)},
+        json=payload,
+    )
+    assert replayed.status_code == 201
+    assert replayed.json() == published.json()
+    changed_intent = publication_api.member.post(
+        f"/api/recipe-drafts/{first_draft_id}/publish",
+        headers={"Idempotency-Key": str(action_id)},
+        json={**payload, "declared_change_reason": "correction"},
+    )
+    assert changed_intent.status_code == 409
+    assert _json_object(_json_object(changed_intent.json())["error"])["code"] == (
+        "idempotency_key_conflict"
+    )
+
+    stale = publication_api.member.post(
+        f"/api/recipe-drafts/{stale_draft_id}/publish",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={
+            **_publishable_payload(stale_evidence, revision=1),
+            "declared_change_reason": "update",
+        },
+    )
+    assert stale.status_code == 409
+    assert _json_object(_json_object(stale.json())["error"])["code"] == (
+        "recipe_revision_source_stale"
+    )
+    stale_detail = publication_api.member.get(f"/api/recipe-drafts/{stale_draft_id}")
+    assert stale_detail.status_code == 200
+    assert _json_object(stale_detail.json())["status"] == "active"
+    obsolete_source_creation = publication_api.member.post(
+        "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={"draft_kind": "revision", "source_version_id": str(source_id)},
+    )
+    assert obsolete_source_creation.status_code == 404
+
+    source_detail = publication_api.member.get(f"/api/recipes/{source_id}")
+    successor_detail = publication_api.member.get(f"/api/recipes/{successor_id}")
+    other_detail = publication_api.other_member.get(f"/api/recipes/{successor_id}")
+    assert {
+        source_detail.status_code,
+        successor_detail.status_code,
+        other_detail.status_code,
+    } == {200}
+    assert _json_object(_json_object(source_detail.json())["viewer_state"])["can_revise"] is False
+    successor_body = _json_object(successor_detail.json())
+    assert _json_object(successor_body["viewer_state"])["can_revise"] is True
+    assert successor_body["rating_count"] == 0
+    assert successor_body["save_count"] == 0
+    assert _json_object(_json_object(other_detail.json())["viewer_state"])["can_revise"] is False
+    batch = publication_api.member.get(
+        "/api/recipes/viewer-states",
+        params=[
+            ("recipe_version_id", str(source_id)),
+            ("recipe_version_id", str(successor_id)),
+        ],
+    )
+    assert batch.status_code == 200
+    assert [item["can_revise"] for item in _json_object(batch.json())["items"]] == [
+        False,
+        True,
+    ]
+
+    with Session(bind=publication_api.engine) as session:
+        source = session.get(RecipeVersion, source_id)
+        successor = session.get(RecipeVersion, successor_id)
+        source_edition = session.get(RecipeEdition, source_id)
+        successor_edition = session.get(RecipeEdition, successor_id)
+        successor_receipt = session.get(RecipeVersionPublication, successor_id)
+        assert source is not None and successor is not None
+        assert source_edition is not None and successor_edition is not None
+        assert successor_receipt is not None
+        stable_recipe = session.get(Recipe, source_edition.recipe_id)
+        assert stable_recipe is not None
+        assert successor.lineage_id == source.lineage_id
+        assert successor.parent_version_id is None
+        assert successor.version_number == source.version_number + 1
+        assert successor_edition.recipe_id == source_edition.recipe_id
+        assert successor_edition.edition_number == 2
+        assert successor_edition.relation_kind == "revision"
+        assert successor_edition.previous_recipe_version_id == source_id
+        assert successor_edition.declared_change_reason == "update"
+        assert stable_recipe.current_recipe_version_id == successor_id
+        # RecipeEdition + the existing immutable publication receipt are the
+        # publication-domain revision event; preference events remain fork-only.
+        assert successor_receipt.source_draft_id == UUID(first_draft_id)
+        assert successor_receipt.action_id == action_id
+        assert successor_receipt.actor_user_id == MEMBER_ID
+        assert (
+            session.get(
+                RecipeSave,
+                {"user_id": MEMBER_ID, "recipe_version_id": successor_id},
+            )
+            is None
+        )
+        assert (
+            session.get(
+                RecipeRating,
+                {"user_id": MEMBER_ID, "recipe_version_id": successor_id},
+            )
+            is None
+        )
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(PreferenceEvent)
+                .where(PreferenceEvent.related_recipe_version_id == successor_id)
+            )
+            or 0
+        ) == 0
+
+
+def test_concurrent_revision_publications_choose_one_current_successor(
+    publication_api: PublicationApi,
+) -> None:
+    source_id = _publish_complete_original(publication_api)
+    draft_ids = [
+        _create_revision_draft(publication_api.member, source_id),
+        _create_revision_draft(publication_api.member, source_id),
+    ]
+    evidence = [
+        _run_draft_preflight(publication_api.member, draft_id, revision=1) for draft_id in draft_ids
+    ]
+    payloads = [
+        {
+            **_publishable_payload(item, revision=1),
+            "declared_change_reason": "update",
+        }
+        for item in evidence
+    ]
+    with Session(bind=publication_api.engine) as session:
+        before_versions = session.scalar(select(func.count()).select_from(RecipeVersion)) or 0
+        source_edition = session.get(RecipeEdition, source_id)
+        assert source_edition is not None
+        recipe_id = source_edition.recipe_id
+
+    barrier = Barrier(3)
+
+    def publish(index: int) -> tuple[str, int, object]:
+        barrier.wait()
+        response = publication_api.member.post(
+            f"/api/recipe-drafts/{draft_ids[index]}/publish",
+            headers={"Idempotency-Key": str(uuid4())},
+            json=payloads[index],
+        )
+        return draft_ids[index], response.status_code, response.json()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        requests = [executor.submit(publish, index) for index in range(2)]
+        barrier.wait()
+        results = [request.result(timeout=20) for request in requests]
+
+    assert sorted(status for _draft_id, status, _body in results) == [201, 409]
+    losing_draft_id, _status, losing_body = next(result for result in results if result[1] == 409)
+    assert _json_object(_json_object(losing_body)["error"])["code"] == (
+        "recipe_revision_source_stale"
+    )
+    winning_body = _json_object(next(result[2] for result in results if result[1] == 201))
+    successor_id = UUID(cast(str, winning_body["recipe_version_id"]))
+    assert publication_api.member.get(f"/api/recipe-drafts/{losing_draft_id}").status_code == 200
+
+    with Session(bind=publication_api.engine) as session:
+        stable_recipe = session.get(Recipe, recipe_id)
+        assert stable_recipe is not None
+        assert stable_recipe.current_recipe_version_id == successor_id
+        assert (session.scalar(select(func.count()).select_from(RecipeVersion)) or 0) == (
+            before_versions + 1
+        )
+        editions = list(
+            session.scalars(
+                select(RecipeEdition)
+                .where(RecipeEdition.recipe_id == recipe_id)
+                .order_by(RecipeEdition.edition_number)
+            )
+        )
+        assert [edition.recipe_version_id for edition in editions] == [source_id, successor_id]
+        assert [edition.relation_kind for edition in editions] == ["original", "revision"]
+        assert editions[-1].previous_recipe_version_id == source_id
+        active_drafts = list(
+            session.scalars(select(RecipeDraft).where(RecipeDraft.id.in_(map(UUID, draft_ids))))
+        )
+        assert sorted(draft.status for draft in active_drafts) == ["active", "published"]
+
+
+def test_revision_of_adaptation_keeps_the_cross_recipe_source_pinned(
+    publication_api: PublicationApi,
+) -> None:
+    root_id = _publish_complete_original(publication_api)
+    adaptation = publication_api.other_member.post(
+        "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={"draft_kind": "adaptation", "source_version_id": str(root_id)},
+    )
+    assert adaptation.status_code == 201
+    adaptation_draft_id = cast(str, _json_object(adaptation.json())["id"])
+    adaptation_evidence = _run_draft_preflight(
+        publication_api.other_member,
+        adaptation_draft_id,
+        revision=1,
+    )
+    adapted = publication_api.other_member.post(
+        f"/api/recipe-drafts/{adaptation_draft_id}/publish",
+        headers={"Idempotency-Key": str(uuid4())},
+        json=_publishable_payload(adaptation_evidence, revision=1),
+    )
+    assert adapted.status_code == 201, adapted.text
+    adapted_id = UUID(cast(str, _json_object(adapted.json())["recipe_version_id"]))
+
+    revision_draft_id = _create_revision_draft(publication_api.other_member, adapted_id)
+    revision_evidence = _run_draft_preflight(
+        publication_api.other_member,
+        revision_draft_id,
+        revision=1,
+    )
+    revised = publication_api.other_member.post(
+        f"/api/recipe-drafts/{revision_draft_id}/publish",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={
+            **_publishable_payload(revision_evidence, revision=1),
+            "declared_change_reason": "update",
+        },
+    )
+    assert revised.status_code == 201, revised.text
+    revised_id = UUID(cast(str, _json_object(revised.json())["recipe_version_id"]))
+
+    detail = publication_api.other_member.get(f"/api/recipes/{revised_id}")
+    assert detail.status_code == 200
+    detail_body = _json_object(detail.json())
+    assert detail_body["parent_version_id"] is None
+    assert _json_object(detail_body["adaptation_source"])["id"] == str(root_id)
+
+    with Session(bind=publication_api.engine) as session:
+        root = session.get(RecipeVersion, root_id)
+        adapted_version = session.get(RecipeVersion, adapted_id)
+        revised_version = session.get(RecipeVersion, revised_id)
+        adapted_edition = session.get(RecipeEdition, adapted_id)
+        revised_edition = session.get(RecipeEdition, revised_id)
+        assert root is not None and adapted_version is not None and revised_version is not None
+        assert adapted_edition is not None and revised_edition is not None
+        assert adapted_version.parent_version_id == root_id
+        assert revised_version.parent_version_id is None
+        assert revised_version.lineage_id == adapted_version.lineage_id == root.lineage_id
+        assert adapted_edition.relation_kind == "adaptation"
+        assert adapted_edition.edition_number == 1
+        assert revised_edition.recipe_id == adapted_edition.recipe_id
+        assert revised_edition.relation_kind == "revision"
+        assert revised_edition.edition_number == 2
+        assert revised_edition.previous_recipe_version_id == adapted_id
+        events = list(
+            session.scalars(
+                select(PreferenceEvent)
+                .where(
+                    PreferenceEvent.user_id == OTHER_MEMBER_ID,
+                    PreferenceEvent.event_type == "fork",
+                    PreferenceEvent.related_recipe_version_id.in_((adapted_id, revised_id)),
+                )
+                .order_by(PreferenceEvent.id)
+            )
+        )
+        assert [(event.recipe_version_id, event.related_recipe_version_id) for event in events] == [
+            (root_id, adapted_id)
+        ]
+
+
+def test_correction_withdrawal_is_atomic_audited_and_replay_safe(
+    publication_api: PublicationApi,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = _publish_complete_original(publication_api)
+    draft_id = _create_revision_draft(publication_api.member, source_id)
+    evidence = _run_draft_preflight(publication_api.member, draft_id, revision=1)
+    payload = {
+        **_publishable_payload(evidence, revision=1),
+        "declared_change_reason": "correction",
+        "withdraw_predecessor": True,
+    }
+    action_id = uuid4()
+    with Session(bind=publication_api.engine) as session:
+        before = _publication_row_counts(session)
+
+    def fail_after_predecessor_withdrawal(phase: str) -> None:
+        if phase == "predecessor_withdrawal":
+            raise RuntimeError("injected failure after predecessor withdrawal")
+
+    monkeypatch.setattr(
+        publication_service,
+        "_test_publication_write_checkpoint",
+        fail_after_predecessor_withdrawal,
+    )
+    failed = publication_api.member.post(
+        f"/api/recipe-drafts/{draft_id}/publish",
+        headers={"Idempotency-Key": str(action_id)},
+        json=payload,
+    )
+    assert failed.status_code == 500
+    with Session(bind=publication_api.engine) as session:
+        source_publication = session.get(RecipeVersionPublication, source_id)
+        source_edition = session.get(RecipeEdition, source_id)
+        draft = session.get(RecipeDraft, UUID(draft_id))
+        assert source_publication is not None and source_publication.state == "published"
+        assert source_edition is not None
+        stable_recipe = session.get(Recipe, source_edition.recipe_id)
+        assert stable_recipe is not None and stable_recipe.current_recipe_version_id == source_id
+        assert draft is not None and draft.status == "active"
+        assert _publication_row_counts(session) == before
+
+    monkeypatch.setattr(
+        publication_service,
+        "_test_publication_write_checkpoint",
+        lambda _phase: None,
+    )
+    published = publication_api.member.post(
+        f"/api/recipe-drafts/{draft_id}/publish",
+        headers={"Idempotency-Key": str(action_id)},
+        json=payload,
+    )
+    assert published.status_code == 201, published.text
+    successor_id = UUID(cast(str, _json_object(published.json())["recipe_version_id"]))
+    replayed = publication_api.member.post(
+        f"/api/recipe-drafts/{draft_id}/publish",
+        headers={"Idempotency-Key": str(action_id)},
+        json=payload,
+    )
+    assert replayed.status_code == 201
+    assert replayed.json() == published.json()
+    assert publication_api.member.get(f"/api/recipes/{source_id}").status_code == 404
+
+    with Session(bind=publication_api.engine) as session:
+        source_publication = session.get(RecipeVersionPublication, source_id)
+        successor_publication = session.get(RecipeVersionPublication, successor_id)
+        successor_edition = session.get(RecipeEdition, successor_id)
+        assert source_publication is not None
+        assert source_publication.state == "author_withdrawn"
+        assert source_publication.author_withdrawn_at is not None
+        assert successor_publication is not None and successor_publication.state == "published"
+        assert successor_edition is not None
+        assert successor_edition.declared_change_reason == "correction"
+        assert successor_edition.previous_recipe_version_id == source_id
+        visibility_events = list(
+            session.scalars(
+                select(RecipeVersionVisibilityEvent)
+                .where(RecipeVersionVisibilityEvent.recipe_version_id == source_id)
+                .order_by(
+                    RecipeVersionVisibilityEvent.occurred_at,
+                    RecipeVersionVisibilityEvent.id,
+                )
+            )
+        )
+        assert [event.state for event in visibility_events][-2:] == [
+            "published",
+            "author_withdrawn",
+        ]
+        assert visibility_events[-1].previous_state == "published"
+
+
+def test_revision_publish_never_restores_a_moderation_hidden_source(
+    publication_api: PublicationApi,
+) -> None:
+    source_id = _publish_complete_original(publication_api)
+    draft_id = _create_revision_draft(publication_api.member, source_id)
+    evidence = _run_draft_preflight(publication_api.member, draft_id, revision=1)
+    payload = {
+        **_publishable_payload(evidence, revision=1),
+        "declared_change_reason": "correction",
+        "withdraw_predecessor": True,
+    }
+    hidden_at = datetime.now(UTC)
+    with Session(bind=publication_api.engine) as session, session.begin():
+        before_versions = session.scalar(select(func.count()).select_from(RecipeVersion)) or 0
+        publication = session.get(RecipeVersionPublication, source_id)
+        assert publication is not None
+        publication.state = "moderation_hidden"
+        publication.moderation_hidden_at = hidden_at
+        publication.state_changed_at = hidden_at
+        publication.state_changed_by_user_id = OTHER_MEMBER_ID
+
+    viewer_states = publication_api.member.get(
+        "/api/recipes/viewer-states",
+        params={"recipe_version_id": str(source_id)},
+    )
+    assert viewer_states.status_code == 200
+    assert _json_object(_json_object(viewer_states.json())["items"][0])["can_revise"] is False
+
+    response = publication_api.member.post(
+        f"/api/recipe-drafts/{draft_id}/publish",
+        headers={"Idempotency-Key": str(uuid4())},
+        json=payload,
+    )
+    assert response.status_code == 409
+    assert _json_object(_json_object(response.json())["error"])["code"] == (
+        "recipe_revision_source_stale"
+    )
+    assert publication_api.member.get(f"/api/recipe-drafts/{draft_id}").status_code == 200
+
+    with Session(bind=publication_api.engine) as session:
+        publication = session.get(RecipeVersionPublication, source_id)
+        assert publication is not None
+        assert publication.state == "moderation_hidden"
+        assert publication.moderation_hidden_at == hidden_at
+        assert (session.scalar(select(func.count()).select_from(RecipeVersion)) or 0) == (
+            before_versions
+        )
 
 
 def test_source_unavailable_conflict_preserves_private_fork_draft(
@@ -1052,7 +1714,7 @@ def test_source_unavailable_conflict_preserves_private_fork_draft(
     created = publication_api.other_member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": str(source_id)},
+        json={"draft_kind": "adaptation", "source_version_id": str(source_id)},
     )
     draft_id = str(_json_object(created.json())["id"])
     evidence = _run_draft_preflight(
@@ -1113,7 +1775,7 @@ def test_source_unavailable_preflight_replay_returns_stable_conflict(
     created = publication_api.other_member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": str(source_id)},
+        json={"draft_kind": "adaptation", "source_version_id": str(source_id)},
     )
     draft_id = str(_json_object(created.json())["id"])
     action_id = uuid4()
@@ -1173,7 +1835,7 @@ def test_existing_fork_event_action_conflicts_without_partial_publication(
     created = publication_api.other_member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": str(source_id)},
+        json={"draft_kind": "adaptation", "source_version_id": str(source_id)},
     )
     draft_id = str(_json_object(created.json())["id"])
     evidence = _run_draft_preflight(
@@ -1235,7 +1897,7 @@ def test_fork_publication_rolls_back_staged_event_and_retries_once(
     created = publication_api.other_member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": str(source_id)},
+        json={"draft_kind": "adaptation", "source_version_id": str(source_id)},
     )
     draft_id = str(_json_object(created.json())["id"])
     evidence = _run_draft_preflight(
@@ -1308,7 +1970,7 @@ def test_seeded_source_fork_normalizes_curated_measurement_labels_before_publica
     created = publication_api.other_member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": str(CARROT_ROOT_ID)},
+        json={"draft_kind": "adaptation", "source_version_id": str(CARROT_ROOT_ID)},
     )
     assert created.status_code == 201, created.text
     draft_id = UUID(cast(str, _json_object(created.json())["id"]))
@@ -1357,7 +2019,7 @@ def test_concurrent_sibling_publications_allocate_distinct_lineage_numbers(
     first_child_draft = publication_api.other_member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": str(root_id)},
+        json={"draft_kind": "adaptation", "source_version_id": str(root_id)},
     )
     first_child_draft_id = str(_json_object(first_child_draft.json())["id"])
     first_evidence = _run_draft_preflight(
@@ -1376,12 +2038,12 @@ def test_concurrent_sibling_publications_allocate_distinct_lineage_numbers(
     root_sibling_draft = publication_api.member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": str(root_id)},
+        json={"draft_kind": "adaptation", "source_version_id": str(root_id)},
     )
     child_sibling_draft = publication_api.other_member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": str(root_id)},
+        json={"draft_kind": "adaptation", "source_version_id": str(root_id)},
     )
     root_sibling_draft_id = str(_json_object(root_sibling_draft.json())["id"])
     child_sibling_draft_id = str(_json_object(child_sibling_draft.json())["id"])
@@ -1488,7 +2150,7 @@ def test_publication_rejects_incomplete_and_stale_drafts(
     blank = publication_api.member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     blank_id = _json_object(blank.json())["id"]
     incomplete = publication_api.member.post(
@@ -1504,7 +2166,7 @@ def test_publication_rejects_incomplete_and_stale_drafts(
     missing_action = publication_api.member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": None},
+        json={"draft_kind": "original", "source_version_id": None},
     )
     assert missing_action.status_code == 201
     missing_action_id = str(_json_object(missing_action.json())["id"])
@@ -1542,7 +2204,7 @@ def test_publication_rejects_incomplete_and_stale_drafts(
     sourceful = publication_api.member.post(
         "/api/recipe-drafts",
         headers={"Idempotency-Key": str(uuid4())},
-        json={"source_version_id": str(CARROT_ROOT_ID)},
+        json={"draft_kind": "adaptation", "source_version_id": str(CARROT_ROOT_ID)},
     )
     sourceful_id = str(_json_object(sourceful.json())["id"])
     incomplete_fork_payload = _single_ingredient_payload(
@@ -1578,6 +2240,13 @@ def test_publication_openapi_documents_only_current_draft_operations(
     assert "RecipeOriginalPublicationResponse" in schemas
     assert "RecipeDraftPublicationRequest" not in schemas
     assert "RecipeDraftPublicationResponse" not in schemas
+    publication_request = _json_object(schemas["RecipeOriginalPublicationRequest"])
+    request_properties = _json_object(publication_request["properties"])
+    assert set(request_properties) >= {
+        "declared_change_reason",
+        "withdraw_predecessor",
+    }
+    assert _json_object(request_properties["withdraw_predecessor"])["default"] is False
     paths = _json_object(document["paths"])
     preflight_operation = _json_object(
         _json_object(paths["/api/recipe-drafts/{draft_id}/duplicate-preflights"])["post"]

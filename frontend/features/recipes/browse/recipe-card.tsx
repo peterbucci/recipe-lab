@@ -10,6 +10,7 @@ import { RecipeArtwork } from "../shared/recipe-artwork";
 import { RecipeCardShell } from "../shared/recipe-card-shell";
 import { RecipeCardEngagement } from "./recipe-card-engagement";
 import { RecipeCategoryList } from "../shared/recipe-category-list";
+import { exactRecipePath, ordinaryRecipePath } from "../shared/recipe-paths";
 
 export interface RecipeCardEngagementSummary {
   averageRating: number | null;
@@ -35,8 +36,9 @@ export function RecipeCard({
   visibilityLabel,
 }: RecipeCardProps) {
   const titleId = `recipe-card-title-${recipe.id}`;
+  const adaptationSource = recipe.adaptation_source ?? recipe.parent;
   const recipeTitle = publiclyAccessible ? (
-    <Link href={`/recipes/${recipe.id}`}>{recipe.title}</Link>
+    <Link href={ordinaryRecipePath(recipe)}>{recipe.title}</Link>
   ) : (
     recipe.title
   );
@@ -55,29 +57,29 @@ export function RecipeCard({
         categories={recipe.categories}
         label={`Categories for ${recipe.title}`}
       />
-      {recipe.parent ? (
+      {adaptationSource ? (
         <p className="recipe-card__parent">
           Based on{" "}
-          <Link href={`/recipes/${recipe.parent.id}`}>
-            {recipe.parent.title}
+          <Link href={exactRecipePath(adaptationSource.id)}>
+            {adaptationSource.title}
           </Link>
           {" by "}
-          <PublicCookAttribution author={recipe.parent.author} />
+          <PublicCookAttribution author={adaptationSource.author} />
         </p>
       ) : recipe.parent_version_id ? (
         <p className="recipe-card__parent">Source unavailable</p>
       ) : null}
     </>
   );
-  const engagementLineage = recipe.parent ? (
+  const engagementLineage = adaptationSource ? (
     <>
       Based on{" "}
-      <Link href={`/recipes/${recipe.parent.id}`}>{recipe.parent.title}</Link>
+      <Link href={exactRecipePath(adaptationSource.id)}>{adaptationSource.title}</Link>
     </>
-  ) : recipe.parent_version_id ? (
+  ) : recipe.parent_version_id || recipe.relation_kind === "adaptation" ? (
     "Based on unavailable source"
   ) : (
-    "Original"
+    recipe.relation_kind === "revision" ? "Published version" : "Original"
   );
 
   return (
@@ -96,6 +98,7 @@ export function RecipeCard({
           lineageLabel={engagementLineage}
           ratingCount={engagement.ratingCount}
           recipeVersionId={recipe.id}
+          returnTo={ordinaryRecipePath(recipe)}
           saveCount={engagement.saveCount}
           servings={formatServings(recipe.servings)}
           title={recipe.title}

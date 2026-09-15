@@ -1,4 +1,4 @@
-import type { RecipeCardSummary } from "../shared/recipe-contracts";
+import type { RecipeHistory } from "../shared/recipe-history";
 import { RecipeDetailTabs } from "../shared/recipe-detail-tabs";
 import { RecipeFamilyNavigator } from "../shared/recipe-family-navigator";
 import type { RecipeComparisonModel } from "./recipe-comparison-model";
@@ -9,7 +9,7 @@ import { RecipeComparisonNotes } from "./recipe-comparison-notes";
 
 interface RecipeDiffViewProps {
   comparison: RecipeComparisonModel;
-  familyVersions?: readonly RecipeCardSummary[];
+  history?: RecipeHistory | null;
 }
 
 function RecipeComparisonLegend() {
@@ -52,7 +52,7 @@ function RecipeComparisonLegend() {
 
 export function RecipeDiffView({
   comparison,
-  familyVersions = [],
+  history = null,
 }: RecipeDiffViewProps) {
   const pageHeadingId = `recipe-diff-heading-${comparison.recipe.id}`;
 
@@ -85,9 +85,8 @@ export function RecipeDiffView({
         }
         family={
           <RecipeFamilyNavigator
-            currentRecipeIsPage={false}
+            history={history}
             recipe={comparison.recipe}
-            versions={familyVersions}
           />
         }
       />

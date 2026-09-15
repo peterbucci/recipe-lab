@@ -101,4 +101,5 @@ def recipe_viewer_state_response(
         recipe_version_id=recipe_version_id,
         saved=state.saved,
         rating=state.rating,
+        can_revise=state.can_revise,
     )

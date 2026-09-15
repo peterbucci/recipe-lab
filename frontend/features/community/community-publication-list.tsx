@@ -1,15 +1,15 @@
 import Link from "next/link";
 
-import type {
-  RecipeSummary,
-} from "../recipes/shared/recipe-contracts";
+import type { RecipeSummary } from "../recipes/shared/recipe-contracts";
 import { communityPublicationTimeLabel } from "../../shared/time/relative-time";
 import { PublicCookAttribution } from "./public-cook-attribution";
 
 export function CommunityPublicationList({
   items,
+  recipeHref,
 }: {
   items: readonly RecipeSummary[];
+  recipeHref: (recipe: RecipeSummary) => string;
 }) {
   return (
     <ol className="home-community-feed__list">
@@ -23,14 +23,16 @@ export function CommunityPublicationList({
             <div className="home-community-feed__copy">
               <p className="home-community-feed__action">
                 <PublicCookAttribution author={recipe.author} /> published{" "}
-                {recipe.parent_version_id
-                  ? "a new version"
-                  : "an original recipe"}
+                {recipe.relation_kind === "original"
+                  ? "an original recipe"
+                  : recipe.relation_kind === "adaptation"
+                    ? "a new adaptation"
+                    : `changes as published version ${recipe.edition_number}`}
                 .
               </p>
               <Link
                 className="home-community-feed__recipe"
-                href={`/recipes/${recipe.id}`}
+                href={recipeHref(recipe)}
               >
                 {recipe.title}
               </Link>
@@ -45,7 +47,7 @@ export function CommunityPublicationList({
             </div>
             <Link
               className="button button--secondary home-community-feed__view"
-              href={`/recipes/${recipe.id}`}
+              href={recipeHref(recipe)}
               aria-label={`View ${recipe.title}`}
             >
               View
