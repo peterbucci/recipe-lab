@@ -730,7 +730,9 @@ test.describe("member ingredient-request acceptance", () => {
       const response = await submitted;
       expect(response.status(), await response.text()).toBe(201);
       await expect(input).toHaveValue(proposedName);
-      await expect(row.getByRole("status")).toContainText("Pending review");
+      await expect(
+        row.getByText("Pending review", { exact: true }),
+      ).toBeVisible();
       return (await response.json()) as CreatedRequest;
     };
 
@@ -834,7 +836,9 @@ test.describe("member ingredient-request acceptance", () => {
       exact: true,
     });
     await expect(rejectedInput).toHaveValue(rejectedName);
-    await expect(rejectedRow.getByRole("status")).toContainText("Not approved");
+    await expect(
+      rejectedRow.getByText("Not approved", { exact: true }),
+    ).toBeVisible();
     await rejectedInput.focus();
     await expect(
       rejectedRow.getByRole("button", {
@@ -849,9 +853,9 @@ test.describe("member ingredient-request acceptance", () => {
       exact: true,
     });
     await expect(pendingInput).toHaveValue(pendingName);
-    await expect(pendingRow.getByRole("status")).toContainText(
-      "Pending review",
-    );
+    await expect(
+      pendingRow.getByText("Pending review", { exact: true }),
+    ).toBeVisible();
     await pendingInput.focus();
     const pendingResults = pendingRow.getByRole("region", {
       name: "Pending ingredient requests",
