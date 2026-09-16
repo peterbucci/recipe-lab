@@ -162,9 +162,9 @@ export async function requestMissingIngredient(
     "ingredient request ID",
   );
   await expect(search).toHaveValue(requestedIngredient);
-  await expect(ingredient.getByRole("status")).toContainText(
-    "Pending review",
-  );
+  await expect(
+    ingredient.getByText("Pending review", { exact: true }),
+  ).toBeVisible();
   await expect(alice.getByLabel("Title", { exact: true })).toHaveValue(
     rootTitle,
   );
@@ -203,8 +203,8 @@ export async function requestMissingIngredient(
   );
   await expect(persistedSearch).toHaveValue(requestedIngredient);
   await expect(
-    persistedPendingIngredient.getByRole("status"),
-  ).toContainText("Pending review");
+    persistedPendingIngredient.getByText("Pending review", { exact: true }),
+  ).toBeVisible();
   await persistedSearch.focus();
   await expect(
     persistedPendingIngredient.getByRole("region", {

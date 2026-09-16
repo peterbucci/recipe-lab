@@ -359,9 +359,9 @@ test("unresolved ingredient validation phone", async ({ page }, testInfo) => {
   await expect(
     unresolved.getByRole("combobox", { name: "Ingredient" }),
   ).toHaveValue("Sunberry tomato");
-  await expect(unresolved.getByRole("status")).toContainText(
-    "Pending review",
-  );
+  await expect(
+    unresolved.getByText("Pending review", { exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: /^(?:Finish recipe|Publish draft)$/ })
     .click();
