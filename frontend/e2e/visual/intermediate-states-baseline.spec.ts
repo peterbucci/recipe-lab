@@ -180,6 +180,7 @@ test("account access intermediate normal", async ({ page }, testInfo) => {
   await expect(
     page.getByRole("heading", { name: "Sign in to Recipe Lab", level: 1 }),
   ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Continue to sign in", exact: true })).toBeVisible();
   await stabilizeVisuals(page, false);
   await expectNoVisiblePrivateMaterial(page);
   await captureBaseline(page, "account-access-intermediate-normal");

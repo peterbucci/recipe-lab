@@ -85,6 +85,8 @@ DOMAIN_TABLES = {
     "recipe_version_visibility_events",
     "recipe_versions",
     "recipe_categories",
+    "sandbox_generations",
+    "sandbox_visitor_entries",
     "users",
     "user_sessions",
 }

@@ -13,7 +13,7 @@ import {
 } from "react";
 
 import { AUTH_SESSION_EXPIRED_EVENT } from "../../shared/api/browser-session";
-import { type AuthSession, fetchAuthSession } from "./auth-api";
+import { type AuthSession, fetchAuthSession, startDemoSession } from "./auth-api";
 import { isAbortError } from "../../shared/api/abort-error";
 import { LoadingButton } from "../../shared/ui/loading-ui";
 
@@ -27,7 +27,8 @@ interface AuthSessionContextValue {
   sessionExpired: boolean;
   recoverSession: () => Promise<SessionRecoveryResult>;
   refreshSession: () => Promise<AuthSession | null>;
-  replaceSession: (session: AuthSession) => void;
+  replaceSession: (session: AuthSession, expectedUserId?: string) => boolean;
+  enterDemo: (generation: string, signal: AbortSignal) => Promise<AuthSession | null>;
 }
 
 type SessionRecoveryResult =
@@ -94,9 +95,11 @@ export function AuthSessionProvider({
     [],
   );
 
-  const replaceSession = useCallback((session: AuthSession) => {
+  const replaceSession = useCallback((session: AuthSession, expectedUserId?: string) => {
+    if (expectedUserId !== undefined && activeAuthenticatedUserIdRef.current !== expectedUserId) return false;
     abortPendingRequests();
     applySession(session);
+    return true;
   }, [abortPendingRequests, applySession]);
 
   const startSessionRequest = useCallback(() => {
@@ -128,6 +131,19 @@ export function AuthSessionProvider({
     setState({ phase: "loading" });
     return startSessionRequest().result;
   }, [startSessionRequest]);
+
+  const enterDemo = useCallback(async (generation: string, signal: AbortSignal) => {
+    const request = beginSessionRequest();
+    const combined = AbortSignal.any([signal, request.controller.signal]);
+    try {
+      const session = await startDemoSession(generation, combined);
+      if (combined.aborted || !isCurrentRequest(request.controller, request.version)) return null;
+      applySession(session);
+      return session;
+    } finally {
+      requestControllersRef.current.delete(request.controller);
+    }
+  }, [applySession, beginSessionRequest, isCurrentRequest]);
 
   const recoverSession = useCallback(async () => {
     const request = beginSessionRequest();
@@ -191,8 +207,8 @@ export function AuthSessionProvider({
   }, []);
 
   const value = useMemo(
-    () => ({ state, sessionExpired, recoverSession, refreshSession, replaceSession }),
-    [recoverSession, refreshSession, replaceSession, sessionExpired, state],
+    () => ({ state, sessionExpired, recoverSession, refreshSession, replaceSession, enterDemo }),
+    [recoverSession, refreshSession, replaceSession, sessionExpired, state, enterDemo],
   );
 
   return (
@@ -243,7 +259,7 @@ function sessionRecoveryMessage(
 
 export function SessionRecoveryNotice() {
   const pathname = usePathname();
-  const { recoverSession, sessionExpired } = useAuthSession();
+  const { recoverSession, sessionExpired, state } = useAuthSession();
   const sameTabSignIn = isDraftCreationRoute(pathname);
   const [checking, setChecking] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -312,7 +328,10 @@ export function SessionRecoveryNotice() {
 
   const returnTo = pathname || "/recipes";
   const signInHref = `/sign-in?${new URLSearchParams({ return_to: returnTo }).toString()}`;
-  const message = sessionRecoveryMessage(feedback, sameTabSignIn);
+  const temporary = state.phase === "ready" && state.session.status !== "anonymous" && state.session.temporary;
+  const message = temporary
+    ? "Temporary identities cannot be recovered after sign-out or expiry. Starting fresh will not transfer this draft or restore old work. You can keep this tab open to read your unsaved changes."
+    : sessionRecoveryMessage(feedback, sameTabSignIn);
 
   if (dismissed) {
     return (

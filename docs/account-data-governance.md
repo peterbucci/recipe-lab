@@ -89,6 +89,20 @@ or security incident requires action before RCP-54 exists, isolate affected
 systems, preserve restricted evidence, and escalate to the designated legal/DPO
 and privacy authorities rather than improvising a product mutation.
 
+### Bounded public portfolio profile
+
+The [interactive portfolio sandbox](portfolio-sandbox.md) defers RCP-54 within a
+specific temporary demonstration scope. This owner-reviewed product boundary is
+not a finding that privacy law is inapplicable. Each isolated environment lasts
+at most 24 hours, with separate visitor identities and ordinary published-content
+immutability throughout that lifetime. Reset replaces the entire environment;
+neither account deletion nor seed loading is an exceptional erasure mechanism.
+This profile prohibits backups, replicas, observed-member research exports, and
+durable content caches instead of using the longer maxima below. Its executable
+lifetime controls and remaining platform verification are recorded in the
+runbook. RCP-54 remains required before a persistent public community launch or
+claiming support for exceptional erasure of immutable published content.
+
 ## Files, logs, backups, and derived artifacts
 
 Non-database data is governed even when it has no SQL foreign key:

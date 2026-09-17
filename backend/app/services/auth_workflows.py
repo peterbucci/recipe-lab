@@ -31,6 +31,7 @@ from app.services.account_lifecycle import (
 from app.services.auth import (
     AccountCannotAuthenticateError,
     AuthenticatedSession,
+    DemoSensitiveOperationUnavailableError,
     HandleUnavailableError,
     IssuedSession,
     LoginStart,
@@ -38,6 +39,9 @@ from app.services.auth import (
     begin_oidc_reauthentication,
     issue_member_session,
     issue_reauthenticated_session,
+    issue_sandbox_session,
+    require_current_sandbox_generation,
+    resolve_authenticated_session,
     revoke_authenticated_session,
     update_member_profile,
     utc_now,
@@ -107,6 +111,50 @@ class MemberSessionSnapshot:
     authenticated: AuthenticatedSession
     can_review_ingredient_requests: bool
     can_moderate_recipe_reports: bool
+
+
+@dataclass(frozen=True, slots=True)
+class DemoEntryResult:
+    snapshot: MemberSessionSnapshot
+    issued_session: IssuedSession | None
+
+
+def enter_demo_workflow(
+    session: Session,
+    *,
+    settings: Settings,
+    authenticated: AuthenticatedSession | None,
+    entry_key: str,
+    generation_id: UUID,
+) -> DemoEntryResult:
+    """Commit one bounded visitor entry without replacing an active identity."""
+
+    try:
+        require_current_sandbox_generation(settings, generation_id=generation_id, now=utc_now())
+        if authenticated is not None:
+            session.commit()
+            return DemoEntryResult(member_session_snapshot(session, authenticated), None)
+        issued = issue_sandbox_session(
+            session,
+            settings=settings,
+            entry_key=entry_key,
+            generation_id=generation_id,
+            now=utc_now(),
+        )
+        resolved = resolve_authenticated_session(
+            session,
+            raw_session_token=issued.session_token,
+            settings=settings,
+            now=utc_now(),
+            touch=False,
+        )
+        if resolved is None:
+            raise AuthenticationRequiredWorkflowError("The demo visit has expired.")
+        session.commit()
+        return DemoEntryResult(member_session_snapshot(session, resolved), issued)
+    except Exception:
+        session.rollback()
+        raise
 
 
 def login_state_matches(flow_cookie: str | None, state_value: str) -> bool:
@@ -357,6 +405,8 @@ def delete_account_workflow(
     authenticated: AuthenticatedSession,
     confirmation: str,
 ) -> None:
+    if authenticated.temporary:
+        raise DemoSensitiveOperationUnavailableError()
     try:
         delete_member_account(
             session,

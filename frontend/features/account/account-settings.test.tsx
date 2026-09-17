@@ -59,6 +59,15 @@ afterEach(() => {
 });
 
 describe("AccountSettings", () => {
+  it("does not offer provider-backed deletion to a temporary visitor", () => {
+    render(<AuthSessionProvider initialSession={{ ...member, temporary: true, expires_at: "2026-09-17T12:00:00Z" }}><AccountSettings /></AuthSessionProvider>);
+    expect(screen.getByPlaceholderText("Use fictional demo details only.")).toBeVisible();
+    fireEvent.click(screen.getByRole("tab", { name: "Danger zone" }));
+    expect(screen.getByRole("heading", { name: "Temporary demo identity" })).toBeVisible();
+    expect(screen.getByText(/Signing out does not erase it early/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Permanently delete account" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Verify identity" })).toBeNull();
+  });
   it("defaults to Profile and keeps its live preview draft mounted between tabs", () => {
     renderSettings();
 

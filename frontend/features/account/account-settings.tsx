@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   type FormEvent,
+  useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -25,14 +27,20 @@ type SettingsSection = "profile" | "danger";
 interface PublicProfileSettingsProps {
   hidden: boolean;
   user: AccountUser & { handle: string };
+  temporary?: boolean;
 }
 
-function PublicProfileSettings({ hidden, user }: PublicProfileSettingsProps) {
+function PublicProfileSettings({ hidden, user, temporary }: PublicProfileSettingsProps) {
   const { replaceSession } = useAuthSession();
   const [description, setDescription] = useState(user.description ?? "");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,7 +56,7 @@ function PublicProfileSettings({ hidden, user }: PublicProfileSettingsProps) {
         display_name: user.display_name,
         description: normalizedDescription || null,
       });
-      replaceSession(updatedSession);
+      if (!mounted.current || !replaceSession(updatedSession, user.id)) return;
       setDescription(updatedSession.user.description ?? "");
       setSaved("Profile saved.");
     } catch (reason) {
@@ -88,7 +96,7 @@ function PublicProfileSettings({ hidden, user }: PublicProfileSettingsProps) {
               name="description"
               rows={4}
               maxLength={500}
-              placeholder="Tell other cooks a little about yourself."
+              placeholder={temporary ? "Use fictional demo details only." : "Tell other cooks a little about yourself."}
               value={description}
               disabled={pending}
               aria-describedby="profile-description-help profile-description-count"
@@ -98,7 +106,7 @@ function PublicProfileSettings({ hidden, user }: PublicProfileSettingsProps) {
               }}
             />
             <span className="public-profile-settings__field-meta">
-              <span id="profile-description-help">Optional</span>
+              <span id="profile-description-help">{temporary ? "Optional · Fictional details only; no personal information" : "Optional"}</span>
               <span id="profile-description-count">{description.length} / 500</span>
             </span>
           </div>
@@ -210,7 +218,8 @@ export function AccountSettings() {
   const expectedHandle = state.session.user.handle;
   const confirmationPhrase = expectedHandle ?? "DELETE";
   const confirmationMatches = handleConfirmation === confirmationPhrase;
-  const canDelete = acknowledged && confirmationMatches && !pending;
+  const temporary = state.session.temporary === true;
+  const canDelete = !temporary && acknowledged && confirmationMatches && !pending;
   const availableSections: SettingsSection[] = expectedHandle
     ? ["profile", "danger"]
     : ["danger"];
@@ -297,6 +306,7 @@ export function AccountSettings() {
             key={state.session.user.id}
             hidden={activeSection !== "profile"}
             user={{ ...state.session.user, handle: expectedHandle }}
+            temporary={temporary}
           />
         ) : null}
 
@@ -313,6 +323,14 @@ export function AccountSettings() {
           />
 
           <div className="account-settings__danger-content">
+            {temporary ? (
+              <section aria-labelledby="demo-account-title">
+                <h3 id="demo-account-title">Temporary demo identity</h3>
+                <p>Provider identity verification and account deletion are not available for this temporary identity. Demo entry does not verify your real identity.</p>
+                <p>Sign out from the account menu to end access. All work expires with the sandbox; published work stays visible until reset. Signing out does not erase it early.</p>
+                <p><Link href="/sign-in">See expiry and contact the operator</Link> if demo data needs attention sooner.</p>
+              </section>
+            ) : (
             <section className="account-deletion" aria-labelledby="delete-account-title">
               <div className="account-settings__danger-heading">
                 <span className="account-settings__danger-icon" aria-hidden="true">
@@ -425,6 +443,7 @@ export function AccountSettings() {
                 <p className="form-alert account-deletion__error" role="alert">{error}</p>
               ) : null}
             </section>
+            )}
           </div>
         </section>
       </div>

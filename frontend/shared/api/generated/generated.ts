@@ -41,6 +41,24 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/auth/demo": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Read the temporary portfolio demo availability */
+        readonly get: operations["demo_status_api_auth_demo_get"];
+        readonly put?: never;
+        /** Enter the isolated portfolio demo with a temporary identity */
+        readonly post: operations["enter_demo_api_auth_demo_post"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/auth/login": {
         readonly parameters: {
             readonly query?: never;
@@ -1055,6 +1073,27 @@ export type components = {
              */
             readonly submitted_at: string;
         };
+        /** DemoEntryRequest */
+        readonly DemoEntryRequest: {
+            /** Entry Key */
+            readonly entry_key: string;
+            /**
+             * Generation Id
+             * Format: uuid
+             */
+            readonly generation_id: string;
+        };
+        /** DemoStatusResponse */
+        readonly DemoStatusResponse: {
+            /** Contact Url */
+            readonly contact_url?: string | null;
+            /** Enabled */
+            readonly enabled: boolean;
+            /** Expires At */
+            readonly expires_at?: string | null;
+            /** Generation Id */
+            readonly generation_id?: string | null;
+        };
         /** DuplicateIngredientCatalogRequest */
         readonly DuplicateIngredientCatalogRequest: {
             /**
@@ -1629,11 +1668,18 @@ export type components = {
         /** MemberSessionResponse */
         readonly MemberSessionResponse: {
             readonly capabilities?: components["schemas"]["AccountCapabilitiesResponse"];
+            /** Expires At */
+            readonly expires_at?: string | null;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
             readonly status: "authenticated" | "onboarding_required";
+            /**
+             * Temporary
+             * @default false
+             */
+            readonly temporary: boolean;
             readonly user: components["schemas"]["AccountUserResponse"];
         };
         /** MyCommunityActivityResponse */
@@ -3538,6 +3584,149 @@ export interface operations {
             };
             /** @description CSRF or Origin evidence is invalid. */
             readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The selected handle is unavailable. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The request parameters are invalid. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The authentication rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Authentication is unavailable. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly demo_status_api_auth_demo_get: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["DemoStatusResponse"];
+                };
+            };
+            /** @description The raw request body exceeds the configured maximum size. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A durable account, identity, or network rate limit was exceeded. */
+            readonly 429: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly enter_demo_api_auth_demo_post: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["DemoEntryRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Successful Response */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["MemberSessionResponse"];
+                };
+            };
+            /** @description The authentication request is invalid. */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Authentication is required. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description CSRF or Origin evidence is invalid. */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            readonly 404: {
                 headers: {
                     readonly [name: string]: unknown;
                 };

@@ -37,12 +37,16 @@ export interface OnboardingAuthSession {
   status: "onboarding_required";
   user: AccountUser;
   capabilities?: AccountCapabilities;
+  temporary?: boolean;
+  expires_at?: string | null;
 }
 
 export interface AuthenticatedAuthSession {
   status: "authenticated";
   user: AccountUser & { handle: string };
   capabilities?: AccountCapabilities;
+  temporary?: boolean;
+  expires_at?: string | null;
 }
 
 export type AuthSession =
@@ -133,18 +137,27 @@ export function parseAuthSession(value: unknown): AuthSession {
 
   const user = parseUser(value.user);
   const capabilities = parseCapabilities(value.capabilities);
-  if (capabilities === null) {
+  if (capabilities === null ||
+    (value.temporary !== undefined && typeof value.temporary !== "boolean") ||
+    (value.expires_at !== undefined && value.expires_at !== null &&
+      (typeof value.expires_at !== "string" || !Number.isFinite(Date.parse(value.expires_at)))) ||
+    (value.temporary === true && typeof value.expires_at !== "string")) {
     throw new AuthApiError(
       "Recipe Lab received an invalid account response.",
       502,
       "invalid_auth_response",
     );
   }
+  const temporary = {
+    ...(value.temporary !== undefined ? { temporary: value.temporary as boolean } : {}),
+    ...(value.expires_at !== undefined ? { expires_at: value.expires_at as string | null } : {}),
+  };
   if (value.status === "onboarding_required" && user) {
     return {
       status: value.status,
       user,
       ...(capabilities ? { capabilities } : {}),
+      ...temporary,
     };
   }
   if (value.status === "authenticated" && user?.handle) {
@@ -152,6 +165,7 @@ export function parseAuthSession(value: unknown): AuthSession {
       status: value.status,
       user: { ...user, handle: user.handle },
       ...(capabilities ? { capabilities } : {}),
+      ...temporary,
     };
   }
 
@@ -163,6 +177,11 @@ export function parseAuthSession(value: unknown): AuthSession {
 }
 
 const KNOWN_AUTH_ERROR_CODES = new Set([
+  "demo_unavailable",
+  "demo_entry_expired",
+  "demo_generation_changed",
+  "demo_capacity_reached",
+  "sandbox_unavailable",
   "account_confirmation_invalid",
   "account_setup_required",
   "abuse_protection_unavailable",
@@ -235,6 +254,12 @@ function parseValidationIssues(value: unknown): ApiValidationIssue[] {
 }
 
 function safeAuthErrorMessage(status: number, code: string): string {
+  if (code === "demo_entry_expired" || code === "demo_generation_changed") {
+    return "This demo session has ended. Reload the page to start fresh; previous work cannot be restored.";
+  }
+  if (code === "demo_unavailable" || code === "sandbox_unavailable") {
+    return "The demo is unavailable or resetting. Please try again later.";
+  }
   if (status === 401 || code === "authentication_required") {
     return "Your session expired. Sign in again to continue.";
   }
@@ -355,13 +380,68 @@ export function memberMutationHeaders(): Record<string, string> {
   }
 }
 
-export async function signOut(): Promise<void> {
-  await authRequest("/api/auth/logout", {
-    kind: "mutation",
-    method: "POST",
-    headers: memberMutationHeaders(),
-    responseBody: "empty",
+const DEMO_SESSION_LOCK = "recipe-lab-demo-session";
+// A retry credential exists only in memory, never in URL/browser storage.
+let pendingDemoEntry: { generation: string; key: string } | null = null;
+
+export type DemoAvailability = Required<
+  operations["demo_status_api_auth_demo_get"]["responses"][200]["content"]["application/json"]
+>;
+
+export async function fetchDemoAvailability(signal?: AbortSignal): Promise<DemoAvailability> {
+  const { data } = await authRequest("/api/auth/demo", { kind: "query", method: "GET", signal });
+  if (!isRecord(data) || typeof data.enabled !== "boolean" ||
+    (data.enabled && (
+      typeof data.generation_id !== "string" ||
+      typeof data.expires_at !== "string" || !Number.isFinite(Date.parse(data.expires_at)) ||
+      typeof data.contact_url !== "string" || !/^https:\/\//.test(data.contact_url)
+    ))) {
+    throw new AuthApiError("Recipe Lab received an invalid demo response.", 502, "invalid_auth_response");
+  }
+  return data.enabled ? {
+    enabled: true,
+    generation_id: data.generation_id as string,
+    expires_at: data.expires_at as string,
+    contact_url: data.contact_url as string,
+  } : { enabled: false, generation_id: null, expires_at: null, contact_url: null };
+}
+
+export async function startDemoSession(generation: string, signal: AbortSignal): Promise<AuthSession> {
+  if (!navigator.locks) {
+    throw new AuthApiError("Try the demo in a current browser over a secure connection.", 503);
+  }
+  return navigator.locks.request(DEMO_SESSION_LOCK, { signal }, async () => {
+    const existing = await fetchAuthSession(signal);
+    if (existing.status !== "anonymous") {
+      pendingDemoEntry = null;
+      return existing;
+    }
+    if (pendingDemoEntry?.generation !== generation) {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      const key = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      pendingDemoEntry = { generation, key };
+    }
+    const { data } = await authRequest("/api/auth/demo", {
+      kind: "mutation", method: "POST", signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entry_key: pendingDemoEntry.key, generation_id: generation }),
+    });
+    const session = parseAuthSession(data);
+    if (session.status === "anonymous") throw new AuthApiError("Demo entry was not confirmed.", 502);
+    pendingDemoEntry = null;
+    return session;
   });
+}
+
+export async function signOut(): Promise<void> {
+  const revoke = async () => {
+    await authRequest("/api/auth/logout", {
+      kind: "mutation", method: "POST", headers: memberMutationHeaders(), responseBody: "empty",
+    });
+    pendingDemoEntry = null;
+  };
+  if (navigator.locks) await navigator.locks.request(DEMO_SESSION_LOCK, revoke);
+  else await revoke();
 }
 
 export function safeReturnTo(value: string | null | undefined): string {

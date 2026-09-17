@@ -43,6 +43,14 @@ const modes = [
     },
   ],
   ["visual", {}],
+  ["sandbox", {
+    ...loopbackEnvironment,
+    SANDBOX_ACCEPTANCE: "1",
+    SANDBOX_ENABLED: "1",
+    OIDC_ISSUER: "",
+    OIDC_CLIENT_ID: "",
+    DATABASE_URL: "postgresql+psycopg://recipe_lab:recipe_lab@127.0.0.1:5432/recipe_lab_sandbox_acceptance",
+  }],
 ];
 
 for (const [mode, environment] of modes) {

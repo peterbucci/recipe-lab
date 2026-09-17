@@ -51,6 +51,7 @@ def get_optional_authenticated_session(
         raw_session_token=raw_session_token,
         now=utc_now(),
         touch_interval_seconds=settings.session.touch_interval_seconds,
+        settings=settings,
     )
 
 
@@ -63,6 +64,7 @@ OptionalAuthenticatedSessionDependency = Annotated[
 def get_optional_untouched_authenticated_session(
     request: Request,
     session: SessionDependency,
+    settings: SettingsDependency,
 ) -> AuthenticatedSession | None:
     """Resolve sensitive lifecycle requests without locking the session row early."""
 
@@ -74,6 +76,7 @@ def get_optional_untouched_authenticated_session(
         raw_session_token=raw_session_token,
         now=utc_now(),
         touch=False,
+        settings=settings,
     )
 
 
@@ -119,15 +122,9 @@ RequiredUntouchedAuthenticatedSessionDependency = Annotated[
 ]
 
 
-def _validate_csrf(
-    request: Request,
-    authenticated: AuthenticatedSession,
-    settings: Settings,
-    csrf_header: str | None,
-) -> AuthenticatedSession:
-    """Validate same-origin and session-bound double-submit evidence."""
+def require_trusted_request_origin(request: Request, settings: Settings) -> None:
+    """Enforce the shared exact-Origin boundary for browser mutations."""
 
-    raw_csrf_cookie = request.cookies.get(AUTH_CSRF_COOKIE_NAME)
     origin = request.headers.get("origin")
     fetch_site = request.headers.get("sec-fetch-site")
     allowed_origins: set[str] = set()
@@ -137,11 +134,30 @@ def _validate_csrf(
     except ValueError:
         normalized_origin = None
 
-    valid = (
+    if not (
         normalized_origin is not None
         and normalized_origin in allowed_origins
         and (fetch_site is None or fetch_site.casefold() != "cross-site")
-        and csrf_header is not None
+    ):
+        raise ApiError(
+            status_code=403,
+            code="invalid_csrf",
+            message="The request could not be verified.",
+        )
+
+
+def _validate_csrf(
+    request: Request,
+    authenticated: AuthenticatedSession,
+    settings: Settings,
+    csrf_header: str | None,
+) -> AuthenticatedSession:
+    """Validate same-origin and session-bound double-submit evidence."""
+
+    require_trusted_request_origin(request, settings)
+    raw_csrf_cookie = request.cookies.get(AUTH_CSRF_COOKIE_NAME)
+    valid = (
+        csrf_header is not None
         and raw_csrf_cookie is not None
         and len(csrf_header) <= 512
         and len(raw_csrf_cookie) <= 512

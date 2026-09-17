@@ -29,11 +29,11 @@ from app.openapi_contract import (
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPOSITORY_ROOT / "backend"
 EXPECTED_CLASSIFICATION_COUNTS = {
-    "active_consumer": 47,
+    "active_consumer": 49,
     "research_experimental": 2,
     "staff_internal": 8,
 }
-EXPECTED_REACHABILITY_COUNTS = {"active": 47, "internal": 10}
+EXPECTED_REACHABILITY_COUNTS = {"active": 49, "internal": 10}
 
 
 def _operations(document: dict[str, object]) -> list[dict[str, object]]:
@@ -80,9 +80,9 @@ def test_registry_freezes_every_operation_with_stable_unique_metadata() -> None:
     document = create_app().openapi()
     operations = _operations(document)
 
-    assert len(OPERATION_CONTRACTS) == 57
-    assert len(operations) == 57
-    assert len({operation["operationId"] for operation in operations}) == 57
+    assert len(OPERATION_CONTRACTS) == 59
+    assert len(operations) == 59
+    assert len({operation["operationId"] for operation in operations}) == 59
     assert (
         Counter(operation["x-recipe-lab-classification"] for operation in operations)
         == EXPECTED_CLASSIFICATION_COUNTS

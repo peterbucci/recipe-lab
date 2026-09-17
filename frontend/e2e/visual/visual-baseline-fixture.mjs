@@ -1481,6 +1481,17 @@ async function handleApi(request, response, url) {
   const method = request.method ?? "GET";
   const path = url.pathname;
 
+  if (method === "GET" && path === "/api/auth/demo") {
+    countRoute("demo-availability");
+    sendJson(response, 200, {
+      enabled: false,
+      generation_id: null,
+      expires_at: null,
+      contact_url: null,
+    });
+    return;
+  }
+
   if (method === "GET" && path === "/api/auth/session") {
     countRoute("auth-session");
     if (scenario === "auth-error") {

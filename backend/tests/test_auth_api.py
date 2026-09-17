@@ -255,6 +255,8 @@ def test_onboarding_requires_origin_and_session_bound_csrf_then_logout_revokes(
     assert updated.status_code == 200
     assert updated.json() == {
         "status": "authenticated",
+        "temporary": False,
+        "expires_at": None,
         "user": {
             "id": updated.json()["user"]["id"],
             "handle": "test-cook",

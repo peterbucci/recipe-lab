@@ -1,8 +1,12 @@
+from datetime import datetime, timedelta
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlparse
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
 
 class ConcernSettings(BaseModel):
@@ -66,6 +70,15 @@ class ResearchSettings(ConcernSettings):
     recommendation_max_profile_records: int
 
 
+class SandboxSettings(ConcernSettings):
+    enabled: bool
+    generation_id: UUID | None
+    started_at: datetime | None
+    expires_at: datetime | None
+    contact_url: str
+    entry_global_limit: int
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -77,6 +90,13 @@ class Settings(BaseSettings):
     database_operation_timeout_seconds: int = Field(default=5, ge=1, le=30)
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     app_environment: Literal["local", "test", "production"] = "local"
+
+    sandbox_enabled: bool = False
+    sandbox_generation_id: UUID | None = None
+    sandbox_started_at: datetime | None = None
+    sandbox_expires_at: datetime | None = None
+    sandbox_contact_url: str = ""
+    sandbox_entry_global_limit: int = Field(default=1_000, ge=1, le=10_000)
 
     auth_allowed_origins: str = ""
     auth_session_ttl_seconds: int = Field(default=14 * 24 * 60 * 60, ge=60)
@@ -136,6 +156,39 @@ class Settings(BaseSettings):
         return value
 
     @model_validator(mode="after")
+    def sandbox_has_bounded_isolated_configuration(self) -> "Settings":
+        database_name = make_url(self.database_url).database or ""
+        if not self.sandbox_enabled:
+            if database_name.startswith("recipe_lab_sandbox_"):
+                raise ValueError("A sandbox database requires SANDBOX_ENABLED=true.")
+            return self
+        if self.sandbox_generation_id is None:
+            raise ValueError("SANDBOX_GENERATION_ID is required for the sandbox.")
+        start, end = self.sandbox_started_at, self.sandbox_expires_at
+        if (
+            start is None
+            or end is None
+            or start.utcoffset() is None
+            or end.utcoffset() is None
+            or not timedelta(0) < end - start <= timedelta(hours=24)
+        ):
+            raise ValueError("Sandbox timestamps must be aware and span at most 24 hours.")
+        if not database_name.startswith("recipe_lab_sandbox_"):
+            raise ValueError("The sandbox requires a dedicated recipe_lab_sandbox_ database.")
+        if self.oidc_issuer or self.oidc_client_id or self.oidc_client_secret:
+            raise ValueError("OIDC authentication must be disabled in the sandbox.")
+        contact = urlparse(self.sandbox_contact_url)
+        if (
+            contact.scheme != "https"
+            or not contact.netloc
+            or contact.username
+            or contact.password
+            or contact.fragment
+        ):
+            raise ValueError("SANDBOX_CONTACT_URL must be a public HTTPS contact page.")
+        return self
+
+    @model_validator(mode="after")
     def production_uses_private_abuse_secrets(self) -> "Settings":
         if (
             self.app_environment == "production"
@@ -183,6 +236,17 @@ class Settings(BaseSettings):
         return DatabaseSettings(
             url=self.database_url,
             operation_timeout_seconds=self.database_operation_timeout_seconds,
+        )
+
+    @property
+    def sandbox(self) -> SandboxSettings:
+        return SandboxSettings(
+            enabled=self.sandbox_enabled,
+            generation_id=self.sandbox_generation_id,
+            started_at=self.sandbox_started_at,
+            expires_at=self.sandbox_expires_at,
+            contact_url=self.sandbox_contact_url,
+            entry_global_limit=self.sandbox_entry_global_limit,
         )
 
     @property
