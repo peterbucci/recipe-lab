@@ -38,7 +38,7 @@ def test_migrations_keep_one_linear_head_after_the_following_index(
     edition_revision = script.get_revision("20260914_0032")
     draft_kind_revision = script.get_revision("20260914_0033")
 
-    assert script.get_heads() == ["20260914_0033"]
+    assert len(script.get_heads()) == 1
     assert following_revision.down_revision == "20260902_0030"
     assert edition_revision.down_revision == "20260911_0031"
     assert draft_kind_revision.down_revision == "20260914_0032"

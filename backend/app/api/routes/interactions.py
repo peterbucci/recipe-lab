@@ -5,7 +5,11 @@ from fastapi import APIRouter, Body, Header, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.cache import private_no_store_headers
-from app.api.dependencies import CsrfProtectedSessionDependency, SessionDependency
+from app.api.dependencies import (
+    CsrfProtectedSessionDependency,
+    SessionDependency,
+    SettingsDependency,
+)
 from app.api.member_context import (
     ensure_recipe_exists,
     lock_active_member_actor,
@@ -84,6 +88,7 @@ def record_recipe_view_for_current_user(
     action_id: ActionIdHeader,
     session: SessionDependency,
     authenticated: CsrfProtectedSessionDependency,
+    settings: SettingsDependency,
     _payload: Annotated[EmptyInteractionRequest | None, Body()] = None,
 ) -> Response:
     actor_id = lock_active_member_actor(session, authenticated)
@@ -95,7 +100,7 @@ def record_recipe_view_for_current_user(
     )
     replay = _is_replay_or_error(session, intent)
     ensure_recipe_exists(session, recipe_version_id)
-    if not replay:
+    if not replay and not settings.sandbox.enabled:
         record_preference_event(session, intent)
     session.commit()
     return Response(

@@ -1,6 +1,7 @@
 import os
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -22,6 +23,7 @@ from app.models import (
 from app.seeds.identifiers import measurement_uuid
 from app.services.account_lifecycle import tombstone_member_from_durable_deletion_evidence
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
 from recipe_lab_evaluation.dataset import SNAPSHOT_SCHEMA_VERSION, create_snapshot
@@ -36,6 +38,16 @@ from recipe_lab_evaluation.split import split_snapshot
 INGREDIENT_ID = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
 UNIT_ID = UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
 PACKAGE_SIZE_ID = UUID("cccccccc-cccc-4ccc-8ccc-cccccccccccc")
+
+
+def test_export_rejects_sandbox_provenance_before_reading_recipes_or_events() -> None:
+    connection = MagicMock(spec=Connection)
+    connection.execute.return_value.scalar.side_effect = ["sandbox_generations", True]
+    with pytest.raises(SnapshotExportError, match="sandbox data"):
+        _extract_from_connection(connection, cutoff=datetime.now(UTC))
+    statements = [str(call.args[0]) for call in connection.execute.call_args_list]
+    assert len(statements) == 2
+    assert all("sandbox_generations" in statement for statement in statements)
 
 
 def test_postgres_exact_and_range_modes_keep_all_structured_fields() -> None:

@@ -128,6 +128,7 @@ def test_unrelated_reads_and_removed_variant_route_are_not_counted() -> None:
 
 def test_route_policy_declarations_are_named_unique_and_resolve_configured_limits() -> None:
     assert [policy.name for policy in RATE_LIMIT_ROUTE_POLICIES] == [
+        "demo_auth_entry",
         "account_auth_entry",
         "draft_creation",
         "draft_mutation",

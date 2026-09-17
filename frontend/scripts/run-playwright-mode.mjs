@@ -7,13 +7,14 @@ export const PLAYWRIGHT_MODES = Object.freeze([
   "acceptance",
   "performance",
   "release",
+  "sandbox",
   "visual",
 ]);
 
 export function playwrightInvocation(mode, forwardedArguments = []) {
   if (!PLAYWRIGHT_MODES.includes(mode)) {
     throw new Error(
-      "Choose one explicit Playwright mode: smoke, acceptance, performance, release, or visual.",
+      "Choose one explicit Playwright mode: smoke, acceptance, performance, release, sandbox, or visual.",
     );
   }
   return {

@@ -6,11 +6,19 @@ recommendation history now derive their principal exclusively from the active
 application session. Anonymous visitors retain public recipe browsing, details,
 comparisons, and deterministic global recommendations.
 
+The explicitly isolated [portfolio sandbox](portfolio-sandbox.md) is the narrow
+exception to provider-only entry. It generates temporary member identities;
+research rankings and passive view recording are disabled in that profile.
+
 ## Public contract
 
 Anonymous visitors can continue to browse recipes, open details, and compare
 versions. The account surface adds:
 
+- `GET /api/auth/demo` to read sandbox availability, generation, expiry, and
+  operator contact; disabled environments disclose no sandbox configuration;
+- `POST /api/auth/demo` with an in-memory random `entry_key` and the observed
+  `generation_id` to enter that isolated environment;
 - `GET /api/auth/login?return_to=/relative-path` to begin sign-in;
 - `GET /api/auth/callback?code=...&state=...` for the provider callback;
 - `GET /api/auth/session` to read anonymous, onboarding-required, or
@@ -26,18 +34,44 @@ versions. The account surface adds:
 
 The browser calls these endpoints through the same-origin Next.js `/api`
 proxy. Browser session responses contain only the local user ID, handle,
-display name, optional public profile description, and narrow boolean
+display name, optional public profile description, temporary-session/expiry
+metadata, and narrow boolean
 catalog-review and recipe-moderation
 capabilities. Those capability flags are derived from live, separate database
 grants and confer no role-management authority. Session responses never contain the private email, OIDC issuer or subject,
 provider tokens, application session token, or token digests.
 
+## Temporary portfolio entry
+
+The sandbox path extends the same auth service, workflow transaction, repository,
+opaque HttpOnly session cookies, and backend member authorization. It never logs
+in the seeded Demo Cook or invokes the test provider/session provisioner. A
+generated visitor is an ordinary active member with no staff grants and no
+provider assurance (`authenticated_at` remains null). Provider reauthentication
+and account deletion return `demo_sensitive_operation_unavailable`; whole
+environment expiry/reset, not account deletion, disposes of sandbox content.
+
+The browser keeps one 256-bit retry key in memory only and sends it through the
+same-origin proxy as JSON. Exact Origin verification protects initial entry;
+subsequent writes retain normal session-bound CSRF. The database stores a digest
+and serializes allocation to coalesce retries and enforce a generation-wide cap,
+alongside existing network rate limits. Active-session entry never replaces its
+identity; revoked retry bindings cannot resurrect it. Web Locks serialize entry
+and logout across browser tabs, and the existing auth provider rejects stale
+completion. Session lifetime is capped by the immutable generation deadline.
+
+There are no local-storage/session-storage credentials, real-identity sign-up
+fields, fake provider authentication times, or separate recipe permissions.
+Sign-out ends access; a new visitor cannot recover another identity's drafts.
+Public activation also requires the lifecycle and certification controls in the
+sandbox runbook; configuration alone is not deployment evidence.
+
 ## OIDC flow
 
-Recipe Lab delegates authentication to a configurable hosted OpenID Connect
-provider. It uses Authorization Code flow with PKCE (`S256`), a one-time state
-value, and a nonce. The backend discovers the provider, exchanges the code
-server-side, and validates the ID token signature, configured algorithm,
+Outside the sandbox, Recipe Lab delegates authentication to a configurable hosted
+OpenID Connect provider. It uses Authorization Code flow with PKCE (`S256`), a
+one-time state value, and a nonce. The backend discovers the provider, exchanges
+the code server-side, and validates the ID token signature, configured algorithm,
 issuer, audience, expiry, nonce, and verified-email claim.
 
 The callback is accepted only when all of these are true:

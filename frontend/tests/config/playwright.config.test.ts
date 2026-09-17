@@ -27,6 +27,10 @@ function environmentFor(mode: PlaywrightMode): Environment {
   if (mode === "smoke") {
     return { CI: "1" };
   }
+  if (mode === "sandbox") {
+    return { ...guardedStack, SANDBOX_ACCEPTANCE: "1", SANDBOX_ENABLED: "1",
+      DATABASE_URL: "postgresql+psycopg://recipe_lab:recipe_lab@127.0.0.1:5432/recipe_lab_sandbox_acceptance" };
+  }
   if (mode === "acceptance") {
     return {
       ...guardedStack,
@@ -70,6 +74,7 @@ describe("explicit Playwright execution modes", () => {
     ["acceptance", "acceptance/**/*.spec.ts"],
     ["performance", "performance/**/*.spec.ts"],
     ["release", "release/**/*.spec.ts"],
+    ["sandbox", "sandbox/**/*.spec.ts"],
   ] as const)("selects only the %s directory", (mode, expectedMatch) => {
     const config = createPlaywrightModeConfig(mode, environmentFor(mode));
     expect(MODE_TEST_MATCH[mode]).toBe(expectedMatch);
@@ -97,7 +102,7 @@ describe("explicit Playwright execution modes", () => {
   it("preserves diagnostics only for controlled smoke data", () => {
     expect(traceModeForRun("smoke")).toBe("on-first-retry");
     expect(screenshotModeForRun("smoke")).toBe("only-on-failure");
-    for (const mode of ["acceptance", "performance", "release"] as const) {
+    for (const mode of ["acceptance", "performance", "release", "sandbox"] as const) {
       expect(traceModeForRun(mode)).toBe("off");
       expect(screenshotModeForRun(mode)).toBe("off");
       const config = createPlaywrightModeConfig(mode, environmentFor(mode));
@@ -122,6 +127,9 @@ describe("explicit Playwright execution modes", () => {
   });
 
   it("fails guarded modes before discovery when their attestations are missing", () => {
+    expect(() => validatePlaywrightModeEnvironment("sandbox", guardedStack)).toThrow(/SANDBOX_ACCEPTANCE=1/);
+    expect(() => validatePlaywrightModeEnvironment("sandbox", { ...environmentFor("sandbox"), DATABASE_URL: guardedStack.DATABASE_URL })).toThrow(/sandbox acceptance/);
+    expect(() => validatePlaywrightModeEnvironment("sandbox", { ...environmentFor("sandbox"), OIDC_ISSUER: "https://identity.test" })).toThrow(/identity provider/);
     expect(() =>
       validatePlaywrightModeEnvironment("acceptance", guardedStack),
     ).toThrow(/MVP_ACCEPTANCE=1/);

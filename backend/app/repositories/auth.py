@@ -1,10 +1,58 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import delete, or_, select, text
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import OIDCIdentity, OIDCLoginTransaction, User, UserSession
+from app.models.auth import SandboxVisitorEntry
+
+
+def lock_sandbox_entry_allocation(session: Session, generation_id: UUID) -> None:
+    """Serialize retry lookup and the generation-wide visitor allocation bound."""
+
+    session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, CAST(0 AS bigint)))"),
+        {"key": f"sandbox-entry:{generation_id}"},
+    )
+
+
+def get_sandbox_entry(session: Session, entry_digest: str) -> SandboxVisitorEntry | None:
+    return session.scalar(
+        select(SandboxVisitorEntry)
+        .options(joinedload(SandboxVisitorEntry.user_session).joinedload(UserSession.user))
+        .where(SandboxVisitorEntry.entry_digest == entry_digest)
+    )
+
+
+def count_sandbox_entries(session: Session, generation_id: UUID) -> int:
+    return int(
+        session.scalar(
+            select(func.count())
+            .select_from(SandboxVisitorEntry)
+            .where(SandboxVisitorEntry.generation_id == generation_id)
+        )
+        or 0
+    )
+
+
+def create_sandbox_entry(
+    session: Session,
+    *,
+    entry_digest: str,
+    generation_id: UUID,
+    user_session: UserSession,
+    now: datetime,
+) -> None:
+    session.add(
+        SandboxVisitorEntry(
+            entry_digest=entry_digest,
+            generation_id=generation_id,
+            user_session=user_session,
+            created_at=now,
+        )
+    )
+    session.flush()
 
 
 def lock_oidc_identity_key(
@@ -124,7 +172,7 @@ def get_user_session_by_token_digest(
 ) -> UserSession | None:
     statement = (
         select(UserSession)
-        .options(joinedload(UserSession.user))
+        .options(joinedload(UserSession.user), joinedload(UserSession.sandbox_entry))
         .where(UserSession.token_digest == token_digest)
     )
     if for_update:
@@ -140,7 +188,7 @@ def get_user_session_by_id(
 ) -> UserSession | None:
     statement = (
         select(UserSession)
-        .options(joinedload(UserSession.user))
+        .options(joinedload(UserSession.user), joinedload(UserSession.sandbox_entry))
         .where(UserSession.id == session_id)
     )
     if for_update:

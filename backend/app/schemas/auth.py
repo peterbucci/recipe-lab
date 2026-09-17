@@ -1,4 +1,5 @@
 import unicodedata
+from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -44,6 +45,24 @@ class MemberSessionResponse(BaseModel):
     status: Literal["onboarding_required", "authenticated"]
     user: AccountUserResponse
     capabilities: AccountCapabilitiesResponse = Field(default_factory=AccountCapabilitiesResponse)
+    temporary: bool = False
+    expires_at: datetime | None = None
+
+
+class DemoStatusResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+    generation_id: UUID | None = None
+    expires_at: datetime | None = None
+    contact_url: str | None = None
+
+
+class DemoEntryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    entry_key: str = Field(min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$")
+    generation_id: UUID
 
 
 AccountSessionResponse = Annotated[

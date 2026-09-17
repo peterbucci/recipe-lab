@@ -1,7 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from sqlalchemy import text
 
 from app.api.dependencies import SessionDependency
+from app.api.sandbox import require_active_sandbox
 from app.schemas.errors import ErrorResponse
 from app.schemas.health import HealthResponse, ReadinessResponse
 
@@ -15,6 +16,7 @@ def health_check() -> HealthResponse:
 
 @router.get(
     "/readiness",
+    dependencies=[Depends(require_active_sandbox)],
     response_model=ReadinessResponse,
     responses={
         503: {

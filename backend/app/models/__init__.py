@@ -136,6 +136,7 @@ from app.models.recipe_duplicate import (
     RecipeDuplicatePreflight,
 )
 from app.models.recipe_fingerprint import RecipeStructuralFingerprint
+from app.models.sandbox import SandboxGeneration
 from app.models.social import UserFollow
 from app.models.user import (
     ACCOUNT_KIND_DEMO,
@@ -150,6 +151,7 @@ from app.models.user import (
 )
 
 __all__ = [
+    "SandboxGeneration",
     "ACTION_PARAMETER_DURATION",
     "ACTION_PARAMETER_SEMANTICS",
     "ACTION_PARAMETER_TEMPERATURE",
