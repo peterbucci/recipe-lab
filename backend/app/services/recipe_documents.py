@@ -89,7 +89,7 @@ class RecipeDocumentIngredient:
     ingredient_id: UUID | None
     ingredient_request_id: UUID | None
     name: str | None
-    measure: RecipeDocumentIngredientMeasure
+    measure: RecipeDocumentIngredientMeasure | None
     preparation_notes: str | None
     display_order: int
 
@@ -408,15 +408,19 @@ def recipe_document_from_draft(draft: RecipeDraft) -> RecipeDocument:
                 ingredient_id=item.ingredient_id,
                 ingredient_request_id=item.ingredient_request_id,
                 name=item.name,
-                measure=_ingredient_measure(
-                    mode=item.measure_mode,
-                    quantity_min=item.quantity_min,
-                    quantity_max=item.quantity_max,
-                    measurement_unit_id=item.measurement_unit_id,
-                    unit_display=item.unit_display,
-                    package_size_id=item.package_size_id,
-                    measurement_unit=item.measurement_unit,
-                    include_canonical_unit=True,
+                measure=(
+                    None
+                    if item.measure_mode is None
+                    else _ingredient_measure(
+                        mode=item.measure_mode,
+                        quantity_min=item.quantity_min,
+                        quantity_max=item.quantity_max,
+                        measurement_unit_id=item.measurement_unit_id,
+                        unit_display=item.unit_display,
+                        package_size_id=item.package_size_id,
+                        measurement_unit=item.measurement_unit,
+                        include_canonical_unit=True,
+                    )
                 ),
                 preparation_notes=item.preparation_notes,
                 display_order=item.display_order,
@@ -478,7 +482,7 @@ def materialize_mutable_recipe_document(
     draft: RecipeDraft,
     document: RecipeDocument,
 ) -> MutableRecipeDocumentRows:
-    """Stage a complete mutable document without flushing or committing."""
+    """Stage a mutable document without flushing or committing."""
 
     ingredient_ids, instruction_ids, action_ids = _document_ids(document)
     ingredient_kinds = {item.ref: item.selection_kind for item in document.ingredients}
@@ -513,12 +517,14 @@ def materialize_mutable_recipe_document(
                 ingredient_id=item.ingredient_id,
                 ingredient_request_id=item.ingredient_request_id,
                 name=item.name,
-                measure_mode=item.measure.mode,
-                quantity_min=item.measure.quantity_min,
-                quantity_max=item.measure.quantity_max,
-                measurement_unit_id=item.measure.measurement_unit_id,
-                unit_display=item.measure.unit_display,
-                package_size_id=item.measure.package_size_id,
+                measure_mode=item.measure.mode if item.measure is not None else None,
+                quantity_min=item.measure.quantity_min if item.measure is not None else None,
+                quantity_max=item.measure.quantity_max if item.measure is not None else None,
+                measurement_unit_id=(
+                    item.measure.measurement_unit_id if item.measure is not None else None
+                ),
+                unit_display=item.measure.unit_display if item.measure is not None else None,
+                package_size_id=item.measure.package_size_id if item.measure is not None else None,
                 preparation_notes=item.preparation_notes,
                 display_order=item.display_order,
             )
@@ -585,15 +591,24 @@ def materialize_immutable_recipe_document(
     """Stage a complete immutable snapshot without flushing or committing."""
 
     ingredient_ids, instruction_ids, action_ids = _document_ids(document)
+    complete_ingredients: list[
+        tuple[RecipeDocumentIngredient, RecipeDocumentIngredientMeasure]
+    ] = []
     for item in document.ingredients:
         if (
             item.selection_kind != RECIPE_DRAFT_SELECTION_CATALOG
             or item.ingredient_id is None
             or item.name is None
+            or item.measure is None
         ):
             raise RecipeDocumentMaterializationError(
-                "Immutable recipe documents require catalog-backed ingredients."
+                "Immutable recipe documents require complete catalog-backed ingredients."
             )
+        complete_ingredients.append((item, item.measure))
+    if any(not instruction.text.strip() for instruction in document.instructions):
+        raise RecipeDocumentMaterializationError(
+            "Immutable recipe documents require nonblank instruction text."
+        )
     rows = ImmutableRecipeDocumentRows(
         categories=tuple(
             RecipeVersionCategory(
@@ -611,16 +626,16 @@ def materialize_immutable_recipe_document(
                 recipe_version_id=recipe_version_id,
                 ingredient_id=cast(UUID, item.ingredient_id),
                 name=cast(str, item.name),
-                measure_mode=item.measure.mode,
-                quantity_min=item.measure.quantity_min,
-                quantity_max=item.measure.quantity_max,
-                measurement_unit_id=item.measure.measurement_unit_id,
-                unit_display=item.measure.unit_display,
-                package_size_id=item.measure.package_size_id,
+                measure_mode=measure.mode,
+                quantity_min=measure.quantity_min,
+                quantity_max=measure.quantity_max,
+                measurement_unit_id=measure.measurement_unit_id,
+                unit_display=measure.unit_display,
+                package_size_id=measure.package_size_id,
                 preparation_notes=item.preparation_notes,
                 display_order=item.display_order,
             )
-            for item in document.ingredients
+            for item, measure in complete_ingredients
         ),
         instructions=tuple(
             RecipeInstruction(
@@ -696,16 +711,20 @@ def recipe_structure_from_document(document: RecipeDocument) -> RecipeStructure:
         StructuralIngredient(
             occurrence_key=item.ref,
             ingredient_identity=(str(item.ingredient_id) if item.ingredient_id else None),
-            measure=StructuralMeasure(
-                mode=item.measure.mode,
-                quantity_min=item.measure.quantity_min,
-                quantity_max=item.measure.quantity_max,
-                unit=item.measure.canonical_unit,
-                package_size_identity=(
-                    str(item.measure.package_size_id)
-                    if item.measure.package_size_id is not None
-                    else None
-                ),
+            measure=(
+                None
+                if item.measure is None
+                else StructuralMeasure(
+                    mode=item.measure.mode,
+                    quantity_min=item.measure.quantity_min,
+                    quantity_max=item.measure.quantity_max,
+                    unit=item.measure.canonical_unit,
+                    package_size_identity=(
+                        str(item.measure.package_size_id)
+                        if item.measure.package_size_id is not None
+                        else None
+                    ),
+                )
             ),
         )
         for item in document.ingredients

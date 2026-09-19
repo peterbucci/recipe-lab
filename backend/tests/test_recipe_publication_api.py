@@ -2231,6 +2231,68 @@ def test_publication_rejects_incomplete_and_stale_drafts(
     )
 
 
+def test_publication_rejects_saved_rows_with_incomplete_private_content(
+    publication_api: PublicationApi,
+) -> None:
+    missing_measure = publication_api.member.post(
+        "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={"draft_kind": "original", "source_version_id": None},
+    )
+    assert missing_measure.status_code == 201
+    missing_measure_id = str(_json_object(missing_measure.json())["id"])
+    missing_measure_payload = _complete_original_payload()
+    _json_object(cast(list[object], missing_measure_payload["ingredients"])[0])["measure"] = None
+    saved_missing_measure = publication_api.member.put(
+        f"/api/recipe-drafts/{missing_measure_id}",
+        json=missing_measure_payload,
+    )
+    assert saved_missing_measure.status_code == 200, saved_missing_measure.text
+    assert (
+        _json_object(cast(list[object], saved_missing_measure.json()["ingredients"])[0])["measure"]
+        is None
+    )
+
+    measure_preflight = publication_api.member.post(
+        f"/api/recipe-drafts/{missing_measure_id}/duplicate-preflights",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={"revision": 2},
+    )
+    assert measure_preflight.status_code == 422
+    measure_error = _json_object(_json_object(measure_preflight.json())["error"])
+    assert measure_error["code"] == "invalid_original_recipe_draft"
+    assert measure_error["message"] == "Ingredient amount is required before publication."
+
+    blank_instruction = publication_api.member.post(
+        "/api/recipe-drafts",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={"draft_kind": "original", "source_version_id": None},
+    )
+    assert blank_instruction.status_code == 201
+    blank_instruction_id = str(_json_object(blank_instruction.json())["id"])
+    blank_instruction_payload = _complete_original_payload()
+    _json_object(cast(list[object], blank_instruction_payload["instructions"])[0])["text"] = "   "
+    saved_blank_instruction = publication_api.member.put(
+        f"/api/recipe-drafts/{blank_instruction_id}",
+        json=blank_instruction_payload,
+    )
+    assert saved_blank_instruction.status_code == 200, saved_blank_instruction.text
+    assert (
+        _json_object(cast(list[object], saved_blank_instruction.json()["instructions"])[0])["text"]
+        == ""
+    )
+
+    instruction_preflight = publication_api.member.post(
+        f"/api/recipe-drafts/{blank_instruction_id}/duplicate-preflights",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={"revision": 2},
+    )
+    assert instruction_preflight.status_code == 422
+    instruction_error = _json_object(_json_object(instruction_preflight.json())["error"])
+    assert instruction_error["code"] == "invalid_original_recipe_draft"
+    assert instruction_error["message"] == "Instruction is required before publication."
+
+
 def test_publication_openapi_documents_only_current_draft_operations(
     publication_api: PublicationApi,
 ) -> None:

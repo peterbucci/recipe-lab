@@ -237,17 +237,22 @@ class RecipeDraftIngredient(UUIDPrimaryKeyMixin, Base):
             name="selection_shape_valid",
         ),
         CheckConstraint(
-            "(measure_mode = 'exact' "
+            "(measure_mode IS NULL "
+            "AND quantity_min IS NULL AND quantity_max IS NULL "
+            "AND measurement_unit_id IS NULL AND unit_display IS NULL "
+            "AND package_size_id IS NULL) "
+            "OR (measure_mode IS NOT NULL AND measure_mode = 'exact' "
             "AND quantity_min IS NOT NULL AND quantity_min > 0 "
             "AND quantity_max IS NULL "
             "AND measurement_unit_id IS NOT NULL "
             "AND NULLIF(btrim(unit_display), '') IS NOT NULL) "
-            "OR (measure_mode = 'range' "
+            "OR (measure_mode IS NOT NULL AND measure_mode = 'range' "
             "AND quantity_min IS NOT NULL AND quantity_min > 0 "
             "AND quantity_max IS NOT NULL AND quantity_max > quantity_min "
             "AND measurement_unit_id IS NOT NULL "
             "AND NULLIF(btrim(unit_display), '') IS NOT NULL) "
-            "OR (measure_mode IN ('to_taste', 'as_needed', 'unspecified') "
+            "OR (measure_mode IS NOT NULL "
+            "AND measure_mode IN ('to_taste', 'as_needed', 'unspecified') "
             "AND quantity_min IS NULL AND quantity_max IS NULL "
             "AND measurement_unit_id IS NULL AND unit_display IS NULL "
             "AND package_size_id IS NULL)",
@@ -293,7 +298,7 @@ class RecipeDraftIngredient(UUIDPrimaryKeyMixin, Base):
         nullable=True,
     )
     name: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    measure_mode: Mapped[str] = mapped_column(String(16), nullable=False)
+    measure_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
     quantity_min: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
     quantity_max: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
     measurement_unit_id: Mapped[UUID | None] = mapped_column(
@@ -316,7 +321,6 @@ class RecipeDraftIngredient(UUIDPrimaryKeyMixin, Base):
 class RecipeDraftInstruction(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "recipe_draft_instructions"
     __table_args__ = (
-        CheckConstraint("btrim(instruction) <> ''", name="instruction_not_blank"),
         CheckConstraint(
             "title IS NULL OR (NULLIF(btrim(title), '') IS NOT NULL AND char_length(title) <= 200)",
             name="title_valid",

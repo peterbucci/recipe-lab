@@ -94,7 +94,6 @@ DraftInstructionText = Annotated[
     str,
     StringConstraints(
         strip_whitespace=True,
-        min_length=1,
         max_length=5_000,
         pattern=r"^[^\x00]*$",
     ),
@@ -155,7 +154,7 @@ RecipeDraftIngredientSelectionInput = Annotated[
 class RecipeDraftIngredientInput(RecipeDraftSchema):
     ref: DraftReference
     selection: RecipeDraftIngredientSelectionInput
-    measure: StructuredMeasureInput
+    measure: StructuredMeasureInput | None
     preparation_notes: DraftPreparationNotes | None = None
 
 
@@ -208,6 +207,8 @@ class RecipeDraftUpdateRequest(RecipeDraftSchema):
             raise ValueError("category_ids values must be unique within a draft")
         for ingredient in self.ingredients:
             measure = ingredient.measure
+            if measure is None:
+                continue
             if isinstance(measure, ExactMeasureInput):
                 _validate_recipe_quantity_precision(measure.value)
             elif isinstance(measure, RangeMeasureInput):
@@ -268,7 +269,7 @@ RecipeDraftIngredientSelectionResponse = Annotated[
 class RecipeDraftIngredientResponse(RecipeDraftSchema):
     id: UUID
     selection: RecipeDraftIngredientSelectionResponse
-    measure: StructuredMeasureResponse
+    measure: StructuredMeasureResponse | None
     preparation_notes: str | None
     display_order: int = Field(ge=0)
 
@@ -285,7 +286,7 @@ class RecipeDraftActionResponse(RecipeDraftSchema):
 class RecipeDraftInstructionResponse(RecipeDraftSchema):
     id: UUID
     title: str | None = Field(min_length=1, max_length=200)
-    text: str = Field(min_length=1, max_length=5_000)
+    text: str = Field(max_length=5_000)
     actions: list[RecipeDraftActionResponse]
     display_order: int = Field(ge=0)
 

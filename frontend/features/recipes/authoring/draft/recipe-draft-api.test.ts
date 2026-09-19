@@ -72,6 +72,43 @@ describe("private recipe draft API", () => {
     });
   });
 
+  it("accepts a saved ingredient without an amount and a blank instruction", () => {
+    expect(
+      parseRecipeDraftDetail({
+        ...blankDetail,
+        ingredients: [
+          {
+            id: SOURCE_ID,
+            display_order: 0,
+            selection: {
+              kind: "catalog",
+              ingredient: {
+                id: CATEGORY_ID,
+                canonical_name: "sage",
+                aliases: [],
+              },
+              display_name: "Sage",
+            },
+            measure: null,
+            preparation_notes: null,
+          },
+        ],
+        instructions: [
+          {
+            id: ACTION_ID,
+            display_order: 0,
+            title: null,
+            text: "",
+            actions: [],
+          },
+        ],
+      }),
+    ).toMatchObject({
+      ingredients: [{ measure: null }],
+      instructions: [{ text: "" }],
+    });
+  });
+
   it("accepts validated cooking metadata and notes", () => {
     expect(
       parseRecipeDraftDetail({
