@@ -31,7 +31,11 @@ Members can read only their own request history and status through
 `GET /api/ingredient-requests/mine` and
 `GET /api/ingredient-requests/{request_id}`. These responses are private and
 not cacheable. History is paginated with a maximum page size of 100 and accepts
-optional `status` and literal `q` filters; counts and results remain scoped to
+optional `status` and literal `q` filters. Each page includes member-wide totals
+for All, Pending, Approved, Duplicate, and Rejected requests so every status tab
+retains its count. Those tab totals remain independent of pagination, status,
+search, and the reviewed-only activity filter; the page `total` continues to
+describe the currently filtered result set. Counts and results remain scoped to
 the signed-in member. Member search covers their proposed names and current
 resolved catalog names or aliases, never curator-only approval snapshots.
 Requests owned by another member are omitted from history and indistinguishable

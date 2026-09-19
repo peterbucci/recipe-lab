@@ -17,6 +17,7 @@ from app.models import Ingredient, IngredientCatalogRequest
 from app.pagination import PageParams
 from app.repositories.catalog_requests import (
     browse_catalog_requests,
+    count_catalog_requests_by_status,
     find_catalog_request_candidates,
     get_catalog_request,
     is_catalog_curator,
@@ -28,6 +29,7 @@ from app.schemas.ingredient_catalog import (
     IngredientCatalogItem,
     IngredientCatalogPage,
     IngredientCatalogRequestCandidate,
+    IngredientCatalogRequestCounts,
     IngredientCatalogRequestCreate,
     IngredientCatalogRequester,
     IngredientCatalogRequestPage,
@@ -199,6 +201,7 @@ def create_ingredient_request(
         "Returns only requests submitted by the active member. Optional status and literal "
         "text filters remain inside that member scope. The reviewed-only view excludes pending "
         "requests and orders terminal decisions by review time for bounded activity surfaces. "
+        "Member-wide status counts ignore status, text, reviewed-only, and pagination filters. "
         "Approved and duplicate requests carry a trusted current catalog identity; pending and "
         "rejected request text is never selectable."
     ),
@@ -226,8 +229,13 @@ def my_ingredient_requests(
         include_approval_snapshot_matches=False,
         reviewed_only=reviewed_only,
     )
+    stored_counts = count_catalog_requests_by_status(
+        session,
+        requester_user_id=actor_id,
+    )
     page_response = IngredientCatalogRequestPage(
         items=[_member_request_response(item) for item in result.items],
+        counts=IngredientCatalogRequestCounts.model_validate(stored_counts),
         page=page,
         page_size=page_size,
         total=result.total,

@@ -10,6 +10,13 @@ import {
 const PECAN_ID = "33333333-3333-4333-8333-333333333333";
 const REQUEST_ID = "66666666-6666-4666-8666-666666666666";
 const REQUESTER_ID = "77777777-7777-4777-8777-777777777777";
+const REQUEST_COUNTS = {
+  all: 11,
+  approved: 4,
+  duplicate: 2,
+  pending: 3,
+  rejected: 2,
+};
 
 
 beforeEach(() => {
@@ -139,6 +146,7 @@ describe("member ingredient request API client", () => {
     };
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
       Response.json({
+        counts: REQUEST_COUNTS,
         items: [approvedRequest],
         page: 2,
         page_size: 10,
@@ -157,6 +165,7 @@ describe("member ingredient request API client", () => {
         query: "  dragon & fruit  ",
       }),
     ).resolves.toMatchObject({
+      counts: REQUEST_COUNTS,
       page: 2,
       items: [{ resolved_ingredient: { canonical_name: "Pitaya" } }],
     });
@@ -228,6 +237,7 @@ describe("member ingredient request API client", () => {
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(
         Response.json({
+          counts: REQUEST_COUNTS,
           items: [
             {
               id: REQUEST_ID,
@@ -243,6 +253,44 @@ describe("member ingredient request API client", () => {
           page_size: 20,
           total: 1,
           total_pages: 1,
+        }),
+      ),
+    );
+
+    await expect(browseMyIngredientRequests()).rejects.toMatchObject({
+      status: 502,
+      code: "invalid_ingredient_request_response",
+    });
+  });
+
+  it.each([
+    {
+      counts: { ...REQUEST_COUNTS, pending: -1 },
+      name: "negative status count",
+    },
+    {
+      counts: { ...REQUEST_COUNTS, approved: 1.5 },
+      name: "fractional status count",
+    },
+    {
+      counts: { ...REQUEST_COUNTS, all: 99 },
+      name: "inconsistent all count",
+    },
+    {
+      counts: undefined,
+      name: "missing counts",
+    },
+  ])("rejects $name", async ({ counts }) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          counts,
+          items: [],
+          page: 1,
+          page_size: 20,
+          total: 0,
+          total_pages: 0,
         }),
       ),
     );

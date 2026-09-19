@@ -1046,6 +1046,45 @@
         "title": "IngredientCatalogRequestCandidate",
         "type": "object"
       },
+      "IngredientCatalogRequestCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "all": {
+            "minimum": 0.0,
+            "title": "All",
+            "type": "integer"
+          },
+          "approved": {
+            "minimum": 0.0,
+            "title": "Approved",
+            "type": "integer"
+          },
+          "duplicate": {
+            "minimum": 0.0,
+            "title": "Duplicate",
+            "type": "integer"
+          },
+          "pending": {
+            "minimum": 0.0,
+            "title": "Pending",
+            "type": "integer"
+          },
+          "rejected": {
+            "minimum": 0.0,
+            "title": "Rejected",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "all",
+          "pending",
+          "approved",
+          "duplicate",
+          "rejected"
+        ],
+        "title": "IngredientCatalogRequestCounts",
+        "type": "object"
+      },
       "IngredientCatalogRequestCreate": {
         "additionalProperties": false,
         "properties": {
@@ -1080,6 +1119,9 @@
       "IngredientCatalogRequestPage": {
         "additionalProperties": false,
         "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/IngredientCatalogRequestCounts"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/MemberIngredientCatalogRequestResponse"
@@ -1110,6 +1152,7 @@
         },
         "required": [
           "items",
+          "counts",
           "page",
           "page_size",
           "total",
@@ -8744,7 +8787,7 @@
     },
     "/api/ingredient-requests/mine": {
       "get": {
-        "description": "Returns only requests submitted by the active member. Optional status and literal text filters remain inside that member scope. The reviewed-only view excludes pending requests and orders terminal decisions by review time for bounded activity surfaces. Approved and duplicate requests carry a trusted current catalog identity; pending and rejected request text is never selectable.",
+        "description": "Returns only requests submitted by the active member. Optional status and literal text filters remain inside that member scope. The reviewed-only view excludes pending requests and orders terminal decisions by review time for bounded activity surfaces. Member-wide status counts ignore status, text, reviewed-only, and pagination filters. Approved and duplicate requests carry a trusted current catalog identity; pending and rejected request text is never selectable.",
         "operationId": "my_ingredient_requests_api_ingredient_requests_mine_get",
         "parameters": [
           {
