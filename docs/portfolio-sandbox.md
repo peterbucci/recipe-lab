@@ -37,8 +37,9 @@ intentional save, rating, and fork operations keep their existing transactional
 records. Research recommendations are disabled in sandbox mode. The offline
 research exporter refuses databases carrying a generation binding, even after
 the database is renamed. Visitors should never enter private or sensitive
-information. Display the configured HTTPS contact page alongside demo entry so
-an operator can take the entire sandbox offline or replace it early when needed.
+information. Display the configured HTTPS contact page or direct email link
+alongside demo entry so an operator can take the entire sandbox offline or
+replace it early when needed.
 
 ## Concrete isolated supervisor
 
@@ -48,7 +49,7 @@ Run `python -m scripts.run_portfolio_sandbox` from the repository root with:
 --backend-image sha256:<verified-backend-image-id>
 --frontend-image sha256:<verified-frontend-image-id>
 --origin https://<portfolio-demo-origin>
---contact-url https://<owner-contact-page>
+--contact-url mailto:me@peterbucci.com
 --port 3100
 ```
 

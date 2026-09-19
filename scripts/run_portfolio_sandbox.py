@@ -27,6 +27,10 @@ from scripts.verify_production_images import DATABASE_IMAGE
 
 LABEL = "org.recipe-lab.portfolio-generation"
 IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}\Z")
+CONTACT_EMAIL = re.compile(
+    r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
+    r"[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,63}\Z"
+)
 # PID 1 exits when PostgreSQL exits. --rm then destroys its tmpfs, including WAL.
 # The deadline guard is inside the container, independent of the host supervisor.
 DATABASE_DEADLINE_COMMAND = (
@@ -354,6 +358,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     origin = urlparse(arguments.origin)
     contact = urlparse(arguments.contact_url)
+    https_contact = (
+        contact.scheme == "https"
+        and bool(contact.netloc)
+        and not contact.username
+        and not contact.password
+        and not contact.fragment
+    )
+    email_contact = (
+        contact.scheme == "mailto"
+        and not contact.netloc
+        and not contact.params
+        and not contact.query
+        and not contact.fragment
+        and CONTACT_EMAIL.fullmatch(contact.path) is not None
+    )
     if (
         not 60 <= arguments.lifetime_seconds <= 86_400
         or not 1024 <= arguments.port <= 65535
@@ -364,13 +383,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         or origin.path not in ("", "/")
         or origin.query
         or origin.fragment
-        or contact.scheme != "https"
-        or not contact.netloc
-        or contact.username
-        or contact.password
-        or contact.fragment
+        or not (https_contact or email_contact)
     ):
-        parser.error("Use a HTTPS origin/contact, unprivileged port, and 60–86400 second lifetime.")
+        parser.error(
+            "Use a HTTPS origin, HTTPS or mailto contact, unprivileged port, "
+            "and 60–86400 second lifetime."
+        )
 
     def stop_supervisor(_signum: int, _frame: object) -> None:
         raise KeyboardInterrupt

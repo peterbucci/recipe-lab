@@ -5,6 +5,7 @@ import { deferred } from "../../tests/support/deferred";
 import {
   AuthApiError,
   fetchAuthSession,
+  fetchDemoAvailability,
   parseAuthSession,
   reauthenticateHref,
   safeReturnTo,
@@ -223,6 +224,33 @@ describe("temporary demo entry protocol", () => {
     vi.stubGlobal("navigator", { locks: { request } });
     return request;
   }
+
+  it("accepts the configured direct email contact and rejects unsafe mail links", async () => {
+    const valid = {
+      enabled: true,
+      generation_id: generation,
+      expires_at: "2026-09-17T12:00:00Z",
+      contact_url: "mailto:me@peterbucci.com",
+    };
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(valid))
+      .mockResolvedValueOnce(Response.json({
+        ...valid,
+        contact_url: "https://portfolio.example.test/contact",
+      }))
+      .mockResolvedValueOnce(Response.json({
+        ...valid,
+        contact_url: "mailto:me@peterbucci.com?subject=private-data",
+      })));
+
+    await expect(fetchDemoAvailability()).resolves.toEqual(valid);
+    await expect(fetchDemoAvailability()).resolves.toMatchObject({
+      contact_url: "https://portfolio.example.test/contact",
+    });
+    await expect(fetchDemoAvailability()).rejects.toMatchObject({
+      code: "invalid_auth_response",
+    });
+  });
 
   it("reuses only the pending memory credential after an uncertain entry response", async () => {
     installSerialLocks();
