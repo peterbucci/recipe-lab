@@ -57,7 +57,9 @@ export async function fetchMyRecipeLibrary({
         ? item.visibility_state === "author_withdrawn"
         : item.visibility_state === "published" || item.visibility_state === "moderation_hidden";
     });
-    if (!matchesView) throw invalidResponse();
+    if (!matchesView || result.counts[view] !== result.total) {
+      throw invalidResponse();
+    }
     return result;
   } catch (error) {
     if (error instanceof RecipeLibraryApiError) throw error;
@@ -93,7 +95,11 @@ export async function fetchSavedRecipeLibrary({
         signal,
       },
     );
-    return parseSavedRecipeLibraryPage(response.data as SavedRecipeLibraryWire);
+    const result = parseSavedRecipeLibraryPage(
+      response.data as SavedRecipeLibraryWire,
+    );
+    if (result.counts.saved !== result.total) throw invalidResponse();
+    return result;
   } catch (error) {
     if (error instanceof RecipeLibraryApiError) throw error;
     if (error instanceof ApiTransportError) {

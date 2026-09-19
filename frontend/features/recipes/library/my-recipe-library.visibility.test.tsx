@@ -6,6 +6,7 @@ import {
   authenticated,
   cleanupRecipeLibraryViewMocks,
   original,
+  recipeLibraryCounts,
   ROOT_ID,
 } from "./recipe-library-test-support";
 import { MyRecipeLibrary } from "./my-recipe-library";
@@ -15,6 +16,7 @@ describe("cook profile and private recipe libraries", () => {
   it("moves a withdrawn recipe out of Published and keeps the success announcement", async () => {
     document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
     const publicPage = {
+      counts: recipeLibraryCounts("published", 1),
       items: [
         {
           kind: "published",
@@ -28,6 +30,7 @@ describe("cook profile and private recipe libraries", () => {
       total_pages: 1,
     };
     const emptyPublishedPage = {
+      counts: recipeLibraryCounts("published", 0, { withdrawn: 1 }),
       items: [],
       page: 1,
       page_size: 12,
@@ -102,6 +105,7 @@ describe("cook profile and private recipe libraries", () => {
   it("moves a restored recipe out of Withdrawn and keeps the success announcement", async () => {
     document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
     const withdrawnPage = {
+      counts: recipeLibraryCounts("withdrawn", 1),
       items: [
         {
           kind: "published",
@@ -126,6 +130,7 @@ describe("cook profile and private recipe libraries", () => {
       )
       .mockResolvedValueOnce(
         Response.json({
+          counts: recipeLibraryCounts("withdrawn", 0, { published: 1 }),
           items: [],
           page: 1,
           page_size: 12,
@@ -144,7 +149,21 @@ describe("cook profile and private recipe libraries", () => {
     expect(withdrawnHeader).toHaveTextContent(
       "Withdrawn recipes are no longer public, but you can review or restore them here.",
     );
-    expect(withdrawnHeader).toHaveTextContent("1 withdrawn recipe");
+    expect(
+      withdrawnHeader?.querySelector(".workspace-panel-header__meta"),
+    ).toBeNull();
+    expect(withdrawnHeader).not.toHaveTextContent("1 withdrawn recipe");
+    const withdrawnView = within(
+      screen.getByRole("navigation", { name: "My recipe views" }),
+    ).getByRole("link", { name: "Withdrawn" });
+    expect(
+      withdrawnView.querySelector(".workspace-tab-menu__count"),
+    ).toHaveTextContent("1");
+    const withdrawnTotal = screen.getByText("1 withdrawn recipe", {
+      exact: true,
+    });
+    expect(withdrawnTotal).toHaveClass("visually-hidden");
+    expect(withdrawnTotal).toHaveAttribute("aria-live", "polite");
     const withdrawnCard = within(list).getByRole("article", {
       name: "Alice’s tomato soup",
     });
@@ -177,6 +196,7 @@ describe("cook profile and private recipe libraries", () => {
   it("keeps visibility failures cook-facing without exposing service details", async () => {
     document.cookie = `${CSRF_COOKIE_NAME}=csrf-value; Path=/`;
     const publicPage = {
+      counts: recipeLibraryCounts("published", 1),
       items: [
         {
           kind: "published",
@@ -234,6 +254,7 @@ describe("cook profile and private recipe libraries", () => {
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(
         Response.json({
+          counts: recipeLibraryCounts("published", 1),
           items: [
             {
               kind: "published",
@@ -266,6 +287,7 @@ describe("cook profile and private recipe libraries", () => {
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(
         Response.json({
+          counts: recipeLibraryCounts("published", 1),
           items: [
             {
               kind: "published",

@@ -42,8 +42,16 @@ MyRecipeLibraryItem = Annotated[
 ]
 
 
+class MyRecipeLibraryCounts(RecipeLibrarySchema):
+    drafts: int = Field(ge=0)
+    published: int = Field(ge=0)
+    saved: int = Field(ge=0)
+    withdrawn: int = Field(ge=0)
+
+
 class MyRecipeLibraryResponse(RecipeLibrarySchema):
     items: list[MyRecipeLibraryItem]
+    counts: MyRecipeLibraryCounts
     page: int = Field(ge=1)
     page_size: int = Field(ge=1, le=100)
     total: int = Field(ge=0)
@@ -57,6 +65,7 @@ class SavedRecipeLibraryItem(RecipeLibrarySchema):
 
 class SavedRecipeLibraryResponse(RecipeLibrarySchema):
     items: list[SavedRecipeLibraryItem]
+    counts: MyRecipeLibraryCounts
     page: int = Field(ge=1)
     page_size: int = Field(ge=1, le=100)
     total: int = Field(ge=0)

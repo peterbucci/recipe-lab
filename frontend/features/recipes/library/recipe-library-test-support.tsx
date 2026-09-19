@@ -4,6 +4,8 @@ import { vi } from "vitest";
 import { CSRF_COOKIE_NAME } from "../../../shared/api/browser-session";
 import { AuthSessionProvider } from "../../auth/auth-session-provider";
 import { alice } from "../shared/recipe-test-support";
+import type { MyRecipeLibraryCounts } from "./recipe-library-model";
+import type { MyRecipesHubView } from "./my-recipes-route";
 
 export {
   DRAFT_ID,
@@ -32,6 +34,21 @@ export function authenticatedTree(children: React.ReactNode) {
 
 export function authenticated(children: React.ReactNode) {
   return render(authenticatedTree(children));
+}
+
+export function recipeLibraryCounts(
+  view: MyRecipesHubView,
+  total: number,
+  overrides: Partial<MyRecipeLibraryCounts> = {},
+): MyRecipeLibraryCounts {
+  return {
+    drafts: 0,
+    published: 0,
+    saved: 0,
+    withdrawn: 0,
+    ...overrides,
+    [view]: total,
+  };
 }
 
 export function getRecipeLibraryRouterMocks() {

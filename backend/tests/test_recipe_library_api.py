@@ -608,6 +608,13 @@ def test_private_libraries_are_actor_scoped_paginated_and_do_not_leak_account_da
     assert drafts_page_one.headers["cache-control"] == "private, no-store"
     assert "Cookie" in drafts_page_one.headers["vary"]
     drafts_page_one_body = _json_object(drafts_page_one.json())
+    member_a_counts = {
+        "drafts": 2,
+        "published": 3,
+        "saved": 2,
+        "withdrawn": 0,
+    }
+    assert drafts_page_one_body["counts"] == member_a_counts
     assert drafts_page_one_body["total"] == 2
     assert drafts_page_one_body["total_pages"] == 2
     assert [item["draft"]["id"] for item in drafts_page_one_body["items"]] == [str(DRAFT_A_ID)]
@@ -624,6 +631,7 @@ def test_private_libraries_are_actor_scoped_paginated_and_do_not_leak_account_da
         ).json()
     )
     assert drafts_page_two_body["total"] == 2
+    assert drafts_page_two_body["counts"] == member_a_counts
     assert [item["draft"]["id"] for item in drafts_page_two_body["items"]] == [
         str(DRAFT_A_SECOND_ID)
     ]
@@ -637,6 +645,7 @@ def test_private_libraries_are_actor_scoped_paginated_and_do_not_leak_account_da
         ).json()
     )
     assert published_page_one_body["total"] == 3
+    assert published_page_one_body["counts"] == member_a_counts
     assert published_page_one_body["total_pages"] == 2
     assert [item["recipe"]["id"] for item in published_page_one_body["items"]] == [
         str(PUBLIC_CHILD_ID),
@@ -649,6 +658,7 @@ def test_private_libraries_are_actor_scoped_paginated_and_do_not_leak_account_da
         ).json()
     )
     assert [item["recipe"]["id"] for item in published_page_two_body["items"]] == [str(ROOT_ID)]
+    assert published_page_two_body["counts"] == member_a_counts
     published_items = [
         *published_page_one_body["items"],
         *published_page_two_body["items"],
@@ -668,6 +678,7 @@ def test_private_libraries_are_actor_scoped_paginated_and_do_not_leak_account_da
         ).json()
     )
     assert withdrawn_body["items"] == []
+    assert withdrawn_body["counts"] == member_a_counts
     assert withdrawn_body["total"] == 0
     assert withdrawn_body["total_pages"] == 0
 
@@ -681,6 +692,13 @@ def test_private_libraries_are_actor_scoped_paginated_and_do_not_leak_account_da
     )
     assert other_drafts.status_code == 200
     other_drafts_body = _json_object(other_drafts.json())
+    member_b_counts = {
+        "drafts": 1,
+        "published": 1,
+        "saved": 1,
+        "withdrawn": 0,
+    }
+    assert other_drafts_body["counts"] == member_b_counts
     assert other_drafts_body["total"] == 1
     assert [item["draft"]["id"] for item in other_drafts_body["items"]] == [str(DRAFT_B_ID)]
     other_published_body = _json_object(
@@ -694,6 +712,7 @@ def test_private_libraries_are_actor_scoped_paginated_and_do_not_leak_account_da
         ).json()
     )
     assert other_published_body["total"] == 1
+    assert other_published_body["counts"] == member_b_counts
     assert {item["recipe"]["id"] for item in other_published_body["items"]} == {str(CHILD_ID)}
 
     saves = recipe_library_api.member_a.get(
@@ -702,12 +721,14 @@ def test_private_libraries_are_actor_scoped_paginated_and_do_not_leak_account_da
     )
     assert saves.status_code == 200
     saves_body = _json_object(saves.json())
+    assert saves_body["counts"] == member_a_counts
     assert saves_body["total"] == 2
     assert saves_body["total_pages"] == 2
     assert saves_body["items"][0]["recipe"]["id"] == str(ROOT_ID)
     assert saves_body["items"][0]["recipe"]["author"]["id"] == str(MEMBER_A_ID)
 
     other_saves = _json_object(recipe_library_api.member_b.get("/api/my/saved-recipes").json())
+    assert other_saves["counts"] == member_b_counts
     assert other_saves["total"] == 1
     assert other_saves["items"][0]["recipe"]["id"] == str(GRANDCHILD_ID)
 
@@ -882,6 +903,12 @@ def test_author_visibility_is_idempotent_and_applies_across_public_surfaces(
         ).json()
     )
     assert mine["total"] == 1
+    assert mine["counts"] == {
+        "drafts": 2,
+        "published": 2,
+        "saved": 1,
+        "withdrawn": 1,
+    }
     root_item = next(
         item
         for item in mine["items"]
@@ -897,6 +924,7 @@ def test_author_visibility_is_idempotent_and_applies_across_public_surfaces(
     assert str(ROOT_ID) not in {
         item["recipe"]["id"] for item in published_after_withdrawal["items"]
     }
+    assert published_after_withdrawal["counts"] == mine["counts"]
     saves = _json_object(
         recipe_library_api.member_a.get(
             "/api/my/saved-recipes",
@@ -905,6 +933,7 @@ def test_author_visibility_is_idempotent_and_applies_across_public_surfaces(
     )
     assert str(ROOT_ID) not in {item["recipe"]["id"] for item in saves["items"]}
     assert saves["total"] == 1
+    assert saves["counts"] == mine["counts"]
 
     replayed_rating = recipe_library_api.member_a.put(
         f"/api/recipes/{ROOT_ID}/rating",
@@ -935,6 +964,12 @@ def test_author_visibility_is_idempotent_and_applies_across_public_surfaces(
         ).json()
     )
     assert str(ROOT_ID) in {item["recipe"]["id"] for item in restored_saves["items"]}
+    assert restored_saves["counts"] == {
+        "drafts": 2,
+        "published": 3,
+        "saved": 2,
+        "withdrawn": 0,
+    }
     with recipe_library_api.engine.connect() as connection:
         assert (
             connection.scalar(
@@ -1032,6 +1067,12 @@ def test_author_cannot_restore_moderation_hidden_recipe_or_clear_withdrawal_axis
         if item["kind"] == "published" and item["recipe"]["id"] == str(ROOT_ID)
     )
     assert root_item["visibility_state"] == "moderation_hidden"
+    assert mine["counts"] == {
+        "drafts": 2,
+        "published": 3,
+        "saved": 1,
+        "withdrawn": 0,
+    }
     withdrawn_view = _json_object(
         recipe_library_api.member_a.get(
             "/api/my/recipes",
@@ -1039,6 +1080,7 @@ def test_author_cannot_restore_moderation_hidden_recipe_or_clear_withdrawal_axis
         ).json()
     )
     assert str(ROOT_ID) not in {item["recipe"]["id"] for item in withdrawn_view["items"]}
+    assert withdrawn_view["counts"] == mine["counts"]
 
 
 @contextmanager
@@ -1138,6 +1180,7 @@ def test_openapi_documents_public_identity_and_private_library_contracts(
         "CookFollowStateResponse",
         "MyFollowStatsResponse",
         "MyRecipeLibraryView",
+        "MyRecipeLibraryCounts",
         "MyRecipeLibraryResponse",
         "SavedRecipeLibraryItem",
         "SavedRecipeLibraryResponse",
@@ -1158,6 +1201,12 @@ def test_openapi_documents_public_identity_and_private_library_contracts(
     assert view_parameter["in"] == "query"
     assert view_parameter["required"] is True
     assert view_parameter["schema"] == {"$ref": "#/components/schemas/MyRecipeLibraryView"}
+    for response_schema_name in ("MyRecipeLibraryResponse", "SavedRecipeLibraryResponse"):
+        response_schema = schemas[response_schema_name]
+        assert response_schema["properties"]["counts"] == {
+            "$ref": "#/components/schemas/MyRecipeLibraryCounts"
+        }
+        assert "counts" in response_schema["required"]
     assert schemas["MyRecipeLibraryView"]["enum"] == [
         "drafts",
         "published",
@@ -1211,6 +1260,12 @@ def test_authored_library_detail_reload_revalidates_current_state_and_view(
     recipe_library_repository._browse_my_publications(
         cast(Session, session),
         actor_user_id=MEMBER_A_ID,
+        counts=recipe_library_repository.MyRecipeLibraryCounts(
+            drafts=0,
+            published=1,
+            saved=0,
+            withdrawn=1,
+        ),
         view=cast(Any, view),
         offset=0,
         limit=20,

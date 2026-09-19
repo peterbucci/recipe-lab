@@ -1,4 +1,7 @@
-import type { MyRecipeLibraryPage } from "./recipe-library-model";
+import type {
+  MyRecipeLibraryPage,
+  MyRecipeLibraryView,
+} from "./recipe-library-model";
 
 interface KeyedMessage {
   key: string;
@@ -45,6 +48,10 @@ export type MyRecipeLibraryAction =
   | { type: "status_set"; key: string; message: string; focus: boolean }
   | {
       type: "item_removed";
+      countTransition: {
+        from: MyRecipeLibraryView;
+        to?: MyRecipeLibraryView;
+      };
       itemKey: string;
       message: string;
       originKey: string;
@@ -172,10 +179,28 @@ export function myRecipeLibraryReducer(
               state.result.page.total -
                 (items.length < state.result.page.items.length ? 1 : 0),
             );
+            const removed = items.length < state.result.page.items.length;
+            const counts = removed
+              ? {
+                  ...state.result.page.counts,
+                  [action.countTransition.from]: Math.max(
+                    0,
+                    state.result.page.counts[action.countTransition.from] - 1,
+                  ),
+                }
+              : state.result.page.counts;
+            if (
+              removed &&
+              action.countTransition.to !== undefined &&
+              action.countTransition.to !== action.countTransition.from
+            ) {
+              counts[action.countTransition.to] += 1;
+            }
             return {
               key: state.result.key,
               page: {
                 ...state.result.page,
+                counts,
                 items,
                 total,
                 total_pages: Math.ceil(total / state.result.page.page_size),
