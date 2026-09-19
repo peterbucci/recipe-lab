@@ -12,6 +12,7 @@ import {
   myRecipesHref,
   type MyRecipesHubView,
 } from "./my-recipes-route";
+import type { MyRecipeLibraryCounts } from "./recipe-library-model";
 
 export { myRecipesHref } from "./my-recipes-route";
 export type { MyRecipesHubView } from "./my-recipes-route";
@@ -43,11 +44,11 @@ export function MyRecipesHubHeader() {
 }
 
 export function MyRecipesHubNavigation({
-  activeCount,
   activeView,
+  counts,
 }: {
-  activeCount?: number | null;
   activeView: MyRecipesHubView;
+  counts: MyRecipeLibraryCounts | null;
 }) {
   return (
     <WorkspaceTabMenu
@@ -64,9 +65,7 @@ export function MyRecipesHubNavigation({
           key={view}
         >
           {viewLabel(view)}
-          {view === activeView && activeCount !== null && activeCount !== undefined ? (
-            <WorkspaceTabCount>{activeCount}</WorkspaceTabCount>
-          ) : null}
+          <WorkspaceTabCount>{counts?.[view] ?? 0}</WorkspaceTabCount>
         </GuardedLink>
       ))}
     </WorkspaceTabMenu>

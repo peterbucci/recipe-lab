@@ -227,6 +227,10 @@ export function MyRecipeLibrary({ pageNumber, view }: MyRecipeLibraryProps) {
     itemKey: string,
     message: string,
     originKey: string,
+    countTransition: {
+      from: MyRecipeLibraryView;
+      to?: MyRecipeLibraryView;
+    },
   ) {
     const location = currentLocation.current;
     if (location.key !== originKey) {
@@ -249,6 +253,7 @@ export function MyRecipeLibrary({ pageNumber, view }: MyRecipeLibraryProps) {
       message,
       originKey,
       targetKey,
+      countTransition,
     });
     discardReturnFocusRef.current = null;
     if (targetPage !== pageNumber) {
@@ -274,6 +279,7 @@ export function MyRecipeLibrary({ pageNumber, view }: MyRecipeLibraryProps) {
         `draft:${draft.id}`,
         `${title} was permanently discarded.`,
         originKey,
+        { from: "drafts" },
       );
     } catch (reason) {
       if (currentLocation.current.key !== originKey) return;
@@ -323,6 +329,13 @@ export function MyRecipeLibrary({ pageNumber, view }: MyRecipeLibraryProps) {
         ? `${title} moved to Withdrawn.`
         : `${title} moved to Published.`,
       key,
+      {
+        from: view,
+        to:
+          visibilityState === "author_withdrawn"
+            ? "withdrawn"
+            : "published",
+      },
     );
   }
 
@@ -335,20 +348,18 @@ export function MyRecipeLibrary({ pageNumber, view }: MyRecipeLibraryProps) {
 
       <div className="member-library__frame workspace-panel-shell workspace-panel-shell--mobile-bleed">
         <MyRecipesHubNavigation
-          activeCount={page && !beyondLastPage ? page.total : null}
           activeView={view}
+          counts={page?.counts ?? null}
         />
+        {page && !beyondLastPage ? (
+          <p className="visually-hidden" aria-live="polite">
+            {page.total} {copy.resultName}
+            {page.total === 1 ? "" : "s"}
+          </p>
+        ) : null}
         <WorkspacePanelHeader
           description={copy.privacy}
           headingId="my-recipes-list-heading"
-          meta={
-            page && !beyondLastPage ? (
-              <span aria-live="polite">
-                {page.total} {copy.resultName}
-                {page.total === 1 ? "" : "s"}
-              </span>
-            ) : null
-          }
           title={copy.heading}
         />
 

@@ -10,6 +10,7 @@ import {
   DRAFT_ID,
   getRecipeLibraryRouterMocks,
   original,
+  recipeLibraryCounts,
 } from "./recipe-library-test-support";
 import { MyRecipeLibrary } from "./my-recipe-library";
 
@@ -35,6 +36,7 @@ describe("cook profile and private recipe libraries", () => {
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
         Response.json({
+          counts: recipeLibraryCounts("drafts", 1),
           items: [{ kind: "draft", draft }],
           page: 1,
           page_size: 12,
@@ -45,6 +47,7 @@ describe("cook profile and private recipe libraries", () => {
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(
         Response.json({
+          counts: recipeLibraryCounts("drafts", 0),
           items: [],
           page: 1,
           page_size: 12,
@@ -94,6 +97,7 @@ describe("cook profile and private recipe libraries", () => {
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(
         Response.json({
+          counts: recipeLibraryCounts("drafts", 1),
           items: [
             {
               kind: "draft",
@@ -156,6 +160,7 @@ describe("cook profile and private recipe libraries", () => {
       if (url.includes("/api/my/recipes?view=drafts")) {
         draftReads += 1;
         return Response.json({
+          counts: recipeLibraryCounts("drafts", 1, { published: 1 }),
           items: [{ kind: "draft", draft }],
           page: 1,
           page_size: 12,
@@ -165,6 +170,7 @@ describe("cook profile and private recipe libraries", () => {
       }
       if (url.includes("/api/my/recipes?view=published")) {
         return Response.json({
+          counts: recipeLibraryCounts("published", 1, { drafts: 1 }),
           items: [
             {
               kind: "published",
@@ -246,6 +252,7 @@ describe("cook profile and private recipe libraries", () => {
         .fn<typeof fetch>()
         .mockResolvedValueOnce(
           Response.json({
+            counts: recipeLibraryCounts("drafts", 1),
             items: [{ kind: "draft", draft }],
             page: 1,
             page_size: 12,

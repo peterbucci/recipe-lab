@@ -11,6 +11,7 @@ const DRAFT_ID = "11111111-1111-4111-8111-111111111111";
 const FIRST_KEY = "drafts:1";
 
 const draftPage: MyRecipeLibraryPage = {
+  counts: { drafts: 1, published: 2, saved: 3, withdrawn: 4 },
   items: [
     {
       description: "A private work in progress.",
@@ -122,6 +123,7 @@ describe("My Recipes library state", () => {
     });
     state = myRecipeLibraryReducer(state, {
       type: "item_removed",
+      countTransition: { from: "drafts" },
       itemKey: `draft:${DRAFT_ID}`,
       message: "Soup in progress was permanently discarded.",
       originKey: FIRST_KEY,
@@ -135,6 +137,7 @@ describe("My Recipes library state", () => {
       status: "Soup in progress was permanently discarded.",
     });
     expect(currentMyRecipeLibraryState(state, FIRST_KEY).page).toMatchObject({
+      counts: { drafts: 0, published: 2, saved: 3, withdrawn: 4 },
       items: [],
       total: 0,
       total_pages: 0,
@@ -161,5 +164,33 @@ describe("My Recipes library state", () => {
     expect(currentMyRecipeLibraryState(state, FIRST_KEY).discardingId).toBe(
       "newer-draft",
     );
+  });
+
+  it("moves a count between publication views with an optimistic removal", () => {
+    const key = "published:1";
+    let state = createMyRecipeLibraryState(key);
+    state = myRecipeLibraryReducer(state, {
+      type: "load_succeeded",
+      key,
+      page: {
+        ...draftPage,
+        counts: { drafts: 2, published: 1, saved: 3, withdrawn: 4 },
+      },
+    });
+    state = myRecipeLibraryReducer(state, {
+      type: "item_removed",
+      countTransition: { from: "published", to: "withdrawn" },
+      itemKey: `draft:${DRAFT_ID}`,
+      message: "Soup moved to Withdrawn.",
+      originKey: key,
+      targetKey: key,
+    });
+
+    expect(currentMyRecipeLibraryState(state, key).page?.counts).toEqual({
+      drafts: 2,
+      published: 0,
+      saved: 3,
+      withdrawn: 5,
+    });
   });
 });

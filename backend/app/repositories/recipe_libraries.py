@@ -35,8 +35,17 @@ class MyRecipeLibraryEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class MyRecipeLibraryCounts:
+    drafts: int
+    published: int
+    saved: int
+    withdrawn: int
+
+
+@dataclass(frozen=True, slots=True)
 class MyRecipeLibraryResult:
     items: list[MyRecipeLibraryEntry]
+    counts: MyRecipeLibraryCounts
     total: int
 
 
@@ -49,7 +58,69 @@ class SavedRecipeLibraryEntry:
 @dataclass(frozen=True, slots=True)
 class SavedRecipeLibraryResult:
     items: list[SavedRecipeLibraryEntry]
+    counts: MyRecipeLibraryCounts
     total: int
+
+
+def _my_recipe_library_counts(
+    session: Session,
+    *,
+    actor_user_id: UUID,
+) -> MyRecipeLibraryCounts:
+    active_drafts = (
+        select(func.count())
+        .select_from(RecipeDraft)
+        .where(
+            RecipeDraft.author_user_id == actor_user_id,
+            RecipeDraft.status == "active",
+        )
+        .scalar_subquery()
+    )
+    published = (
+        select(func.count())
+        .select_from(RecipeVersion)
+        .join(
+            RecipeVersionPublication,
+            RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+        )
+        .where(
+            RecipeVersion.created_by_user_id == actor_user_id,
+            RecipeVersionPublication.state.in_(("published", "moderation_hidden")),
+            current_recipe_version_filter(),
+        )
+        .scalar_subquery()
+    )
+    saved = (
+        select(func.count())
+        .select_from(RecipeSave)
+        .join(RecipeVersion, RecipeVersion.id == RecipeSave.recipe_version_id)
+        .where(
+            RecipeSave.user_id == actor_user_id,
+            publicly_readable_recipe_version_filter(),
+        )
+        .scalar_subquery()
+    )
+    withdrawn = (
+        select(func.count())
+        .select_from(RecipeVersion)
+        .join(
+            RecipeVersionPublication,
+            RecipeVersionPublication.recipe_version_id == RecipeVersion.id,
+        )
+        .where(
+            RecipeVersion.created_by_user_id == actor_user_id,
+            RecipeVersionPublication.state == "author_withdrawn",
+            current_recipe_version_filter(),
+        )
+        .scalar_subquery()
+    )
+    row = session.execute(select(active_drafts, published, saved, withdrawn)).one()
+    return MyRecipeLibraryCounts(
+        drafts=int(row[0] or 0),
+        published=int(row[1] or 0),
+        saved=int(row[2] or 0),
+        withdrawn=int(row[3] or 0),
+    )
 
 
 def browse_my_recipes(
@@ -62,16 +133,19 @@ def browse_my_recipes(
 ) -> MyRecipeLibraryResult:
     """Database-page one explicit view of a member's authored recipe work."""
 
+    counts = _my_recipe_library_counts(session, actor_user_id=actor_user_id)
     if view == "drafts":
         return _browse_my_drafts(
             session,
             actor_user_id=actor_user_id,
+            counts=counts,
             offset=offset,
             limit=limit,
         )
     return _browse_my_publications(
         session,
         actor_user_id=actor_user_id,
+        counts=counts,
         view=view,
         offset=offset,
         limit=limit,
@@ -82,6 +156,7 @@ def _browse_my_drafts(
     session: Session,
     *,
     actor_user_id: UUID,
+    counts: MyRecipeLibraryCounts,
     offset: int,
     limit: int,
 ) -> MyRecipeLibraryResult:
@@ -89,7 +164,6 @@ def _browse_my_drafts(
         RecipeDraft.author_user_id == actor_user_id,
         RecipeDraft.status == "active",
     )
-    total = session.scalar(select(func.count()).select_from(RecipeDraft).where(*filters)) or 0
     draft_ids = list(
         session.scalars(
             select(RecipeDraft.id)
@@ -100,7 +174,7 @@ def _browse_my_drafts(
         )
     )
     if not draft_ids:
-        return MyRecipeLibraryResult(items=[], total=total)
+        return MyRecipeLibraryResult(items=[], counts=counts, total=counts.drafts)
 
     ingredient_count = (
         select(func.count())
@@ -157,7 +231,8 @@ def _browse_my_drafts(
             for draft_id in draft_ids
             if draft_id in drafts
         ],
-        total=total,
+        counts=counts,
+        total=counts.drafts,
     )
 
 
@@ -165,6 +240,7 @@ def _browse_my_publications(
     session: Session,
     *,
     actor_user_id: UUID,
+    counts: MyRecipeLibraryCounts,
     view: Literal["published", "withdrawn"],
     offset: int,
     limit: int,
@@ -179,18 +255,7 @@ def _browse_my_publications(
         publication.state.in_(publication_states),
         current_recipe_version_filter(),
     )
-    total = (
-        session.scalar(
-            select(func.count())
-            .select_from(RecipeVersion)
-            .join(
-                publication,
-                publication.recipe_version_id == RecipeVersion.id,
-            )
-            .where(*filters)
-        )
-        or 0
-    )
+    total = counts.published if view == "published" else counts.withdrawn
     recipe_ids = list(
         session.scalars(
             select(RecipeVersion.id)
@@ -205,7 +270,7 @@ def _browse_my_publications(
         )
     )
     if not recipe_ids:
-        return MyRecipeLibraryResult(items=[], total=total)
+        return MyRecipeLibraryResult(items=[], counts=counts, total=total)
     statement = (
         select(
             RecipeVersion,
@@ -237,6 +302,7 @@ def _browse_my_publications(
             for recipe_id in recipe_ids
             if recipe_id in recipes
         ],
+        counts=counts,
         total=total,
     )
 
@@ -250,18 +316,10 @@ def browse_my_saved_recipes(
 ) -> SavedRecipeLibraryResult:
     """List only one member's saves that still resolve to public snapshots."""
 
+    counts = _my_recipe_library_counts(session, actor_user_id=actor_user_id)
     filters = (
         RecipeSave.user_id == actor_user_id,
         publicly_readable_recipe_version_filter(),
-    )
-    total = (
-        session.scalar(
-            select(func.count())
-            .select_from(RecipeSave)
-            .join(RecipeVersion, RecipeVersion.id == RecipeSave.recipe_version_id)
-            .where(*filters)
-        )
-        or 0
     )
     statement = (
         select(RecipeVersion, RecipeSave.created_at)
@@ -277,5 +335,6 @@ def browse_my_saved_recipes(
             SavedRecipeLibraryEntry(recipe=recipe, saved_at=saved_at)
             for recipe, saved_at in session.execute(statement)
         ],
-        total=total,
+        counts=counts,
+        total=counts.saved,
     )
