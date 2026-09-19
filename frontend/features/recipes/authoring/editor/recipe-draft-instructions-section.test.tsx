@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import type { CatalogActionType } from "../../shared/cooking-action-model";
 import {
   draftInstructionActionFieldKey,
+  draftInstructionFieldKey,
   type RecipeDraftInstructionState,
 } from "../draft/recipe-draft";
 import {
@@ -173,6 +174,25 @@ describe("RecipeDraftInstructionsSection", () => {
     expect(prose?.closest(".draft-editor__instruction-field")).not.toBeNull();
   });
 
+  it("keeps instruction errors accessible without repeating them inline", () => {
+    const message = "Step 1 needs instruction text before publication.";
+    render(
+      <Harness
+        initialInstructions={[instruction("step-one", "Mix", "")]}
+        errors={{ [draftInstructionFieldKey("step-one")]: message }}
+      />,
+    );
+
+    const prose = screen.getByLabelText("Instruction");
+    expect(prose).toHaveAttribute("aria-invalid", "true");
+    expect(prose).toHaveAccessibleDescription(message);
+    expect(
+      document.getElementById(
+        prose.getAttribute("aria-describedby") as string,
+      ),
+    ).toHaveClass("visually-hidden");
+  });
+
   it("shows cooking-detail pills directly beneath the editable step text", () => {
     render(
       <Harness
@@ -266,7 +286,7 @@ describe("RecipeDraftInstructionsSection", () => {
     expect(steps).toHaveFocus();
   });
 
-  it("forces validation into the breakdown without losing the requested view", () => {
+  it("reveals cooking-detail errors once without locking the requested view", () => {
     const actionError = draftInstructionActionFieldKey(
       "step-one",
       "actions",
@@ -285,6 +305,15 @@ describe("RecipeDraftInstructionsSection", () => {
     expect(document.getElementById("draft-instructions-steps-panel")).toHaveAttribute(
       "hidden",
     );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Steps" }));
+    expect(screen.getByRole("tab", { name: "Steps" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      document.getElementById("draft-instructions-breakdown-panel"),
+    ).toHaveAttribute("hidden");
 
     rerender(<Harness />);
     expect(screen.getByRole("tab", { name: "Steps" })).toHaveAttribute(

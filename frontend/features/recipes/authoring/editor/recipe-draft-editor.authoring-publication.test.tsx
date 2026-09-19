@@ -11,6 +11,7 @@ import {
   detailWithBoundCookingAction,
   getRecipeDraftEditorMocks,
   publicSourceRecipe,
+  RecipeDraftApiError,
   renderEditor,
   resetRecipeDraftEditorMocks,
 } from "./recipe-draft-editor-test-support";
@@ -65,6 +66,108 @@ describe("RecipeDraftEditor", () => {
     ).toBeNull();
     expect(document.body).not.toHaveStyle({ overflow: "hidden" });
     await waitFor(() => expect(finish).toHaveFocus());
+    expect(mocks.updateRecipeDraft).not.toHaveBeenCalled();
+  });
+
+  it("saves the exact dirty draft before opening publication review", async () => {
+    const save = deferred<typeof detail>();
+    mocks.updateRecipeDraft.mockReturnValue(save.promise);
+    renderEditor(detail);
+
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Saved before publication" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Finish recipe" }));
+
+    const preparing = await screen.findByRole("button", {
+      name: "Preparing to publish…",
+    });
+    expect(preparing).toBeDisabled();
+    expect(preparing).toHaveAttribute("aria-busy", "true");
+    expect(
+      screen.queryByRole("dialog", { name: "Ready to share your recipe?" }),
+    ).toBeNull();
+    expect(mocks.updateRecipeDraft).toHaveBeenCalledWith(
+      detail.id,
+      expect.objectContaining({
+        revision: detail.revision,
+        title: "Saved before publication",
+      }),
+      "draft-save-key",
+      expect.anything(),
+    );
+
+    save.resolve({
+      ...detail,
+      revision: 4,
+      title: "Saved before publication",
+      updated_at: "2026-08-25T12:01:00Z",
+    });
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Ready to share your recipe?",
+      }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Draft saved" })).toBeDisabled();
+  });
+
+  it("does not open publication review when the draft changes during its automatic save", async () => {
+    const save = deferred<typeof detail>();
+    mocks.updateRecipeDraft.mockReturnValue(save.promise);
+    renderEditor(detail);
+
+    const title = screen.getByLabelText("Title");
+    fireEvent.change(title, { target: { value: "Submitted title" } });
+    fireEvent.click(screen.getByRole("button", { name: "Finish recipe" }));
+    await waitFor(() => expect(mocks.updateRecipeDraft).toHaveBeenCalledOnce());
+
+    fireEvent.change(title, { target: { value: "Newer local title" } });
+    save.resolve({
+      ...detail,
+      revision: 4,
+      title: "Submitted title",
+      updated_at: "2026-08-25T12:01:00Z",
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          "Earlier changes saved. Your newer edits are still unsaved.",
+        ),
+      ).toBeInTheDocument(),
+    );
+    expect(title).toHaveValue("Newer local title");
+    expect(
+      screen.queryByRole("dialog", { name: "Ready to share your recipe?" }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Finish recipe" })).toBeEnabled();
+  });
+
+  it("keeps edited input and publication closed when the automatic save conflicts", async () => {
+    mocks.updateRecipeDraft.mockRejectedValue(
+      new RecipeDraftApiError(
+        "The draft has a newer saved revision.",
+        409,
+        "recipe_draft_revision_conflict",
+      ),
+    );
+    renderEditor(detail);
+
+    const title = screen.getByLabelText("Title");
+    fireEvent.change(title, { target: { value: "My unsaved publication" } });
+    fireEvent.click(screen.getByRole("button", { name: "Finish recipe" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("This draft changed in another tab");
+    expect(title).toHaveValue("My unsaved publication");
+    expect(
+      screen.queryByRole("dialog", { name: "Ready to share your recipe?" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Reload saved version" }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Finish recipe" })).toBeEnabled();
   });
 
   it("opens the affected cooking breakdown without losing a prose-only saved draft", async () => {
@@ -88,17 +191,23 @@ describe("RecipeDraftEditor", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
 
-    expect(
-      await screen.findByRole("heading", {
-        name: "Your draft needs attention",
-      }),
-    ).toBeVisible();
+    const validationHeading = await screen.findByRole("heading", {
+      name: "Your draft needs attention",
+    });
+    expect(validationHeading).toBeVisible();
+    const validationSummary = validationHeading.closest('[role="alert"]');
+    expect(validationSummary).not.toBeNull();
     expect(instruction).toHaveValue("Stir in the tomato.");
     expect(
-      screen.getByText(
-        "Add at least one cooking detail to this step so Recipe Lab can compare similar recipes before publishing.",
+      within(validationSummary as HTMLElement).getByText(
+        "Step 1 needs at least one cooking detail so Recipe Lab can compare similar recipes before publishing.",
       ),
     ).toBeVisible();
+    expect(
+      within(validationSummary as HTMLElement).queryByText(
+        /fields? need attention/i,
+      ),
+    ).toBeNull();
     expect(screen.getByRole("tab", { name: "Steps" })).toHaveAttribute(
       "aria-selected",
       "false",
@@ -111,6 +220,15 @@ describe("RecipeDraftEditor", () => {
       name: "Add cooking detail to Step 1",
     });
     expect(addDetail).toBeVisible();
+    expect(addDetail).toHaveAttribute("data-invalid", "true");
+    expect(addDetail).toHaveAccessibleDescription(
+      "Step 1 needs at least one cooking detail so Recipe Lab can compare similar recipes before publishing.",
+    );
+    expect(
+      document.getElementById(
+        addDetail.getAttribute("aria-describedby") as string,
+      ),
+    ).toHaveClass("visually-hidden");
     expect(
       screen.queryByRole("dialog", { name: "Cooking detail 1 for Step 1" }),
     ).toBeNull();
@@ -126,6 +244,69 @@ describe("RecipeDraftEditor", () => {
         within(dialog).getByRole("combobox", { name: "Cooking action" }),
       ).toHaveFocus(),
     );
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    expect(
+      screen.queryByRole("dialog", { name: "Cooking detail 1 for Step 1" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Steps" }));
+    expect(screen.getByRole("tab", { name: "Steps" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(instruction).toBeVisible();
+    expect(instruction).toHaveValue("Stir in the tomato.");
+  });
+
+  it("names each missing publication field in the error summary", async () => {
+    mocks.fetchRecipeDraft.mockResolvedValue({
+      ...detailWithBoundCookingAction,
+      title: "",
+      servings: null,
+    });
+    renderEditor();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Finish recipe" }),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /right to share this recipe.*community rules/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Review and publish" }));
+
+    const heading = await screen.findByRole("heading", {
+      name: "Your draft needs attention",
+    });
+    const summary = heading.closest('[role="alert"]');
+    expect(summary).not.toBeNull();
+    expect(
+      within(summary as HTMLElement).getByText(
+        "Title is required before publication.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(summary as HTMLElement).getByText(
+        "Servings are required before publication.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(summary as HTMLElement).queryByText(/fields? need attention/i),
+    ).toBeNull();
+    const title = screen.getByLabelText("Title");
+    const servings = screen.getByLabelText("Makes");
+    expect(title).toHaveAttribute("aria-invalid", "true");
+    expect(servings).toHaveAttribute("aria-invalid", "true");
+    expect(
+      document.getElementById(title.getAttribute("aria-describedby") as string),
+    ).toHaveClass("visually-hidden");
+    expect(
+      document.getElementById(
+        servings.getAttribute("aria-describedby") as string,
+      ),
+    ).toHaveClass("visually-hidden");
   });
 
   it("focuses an ingredient added immediately after the draft loads", async () => {

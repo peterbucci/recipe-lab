@@ -4,5 +4,9 @@ interface RecipeDraftFieldErrorProps {
 }
 
 export function RecipeDraftFieldError({ id, message }: RecipeDraftFieldErrorProps) {
-  return message ? <p id={id} className="recipe-form-field-error">{message}</p> : null;
+  return message ? (
+    <p id={id} className="recipe-form-field-error visually-hidden">
+      {message}
+    </p>
+  ) : null;
 }

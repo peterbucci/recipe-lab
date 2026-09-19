@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RecipeDraftDetail } from "../draft/recipe-draft-api";
@@ -120,6 +120,7 @@ describe("RecipeDraftEditor", () => {
     const recipeNotes = screen.getByLabelText("Recipe notes");
     expect(recipeNotes).toHaveValue("Rest before serving.");
     expect(recipeNotes).toHaveClass("recipe-workspace__editable-text");
+    expect(screen.getByText("Optional", { exact: true })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Total time"), {
       target: { value: "60" },
@@ -175,13 +176,21 @@ describe("RecipeDraftEditor", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
 
+    const alert = await screen.findByRole("alert");
     expect(
-      await screen.findByText("Review the recipe categories."),
+      within(alert).getByText("Review the recipe categories."),
     ).toBeVisible();
+    const category = screen.getByRole("checkbox", { name: "Quick & easy" });
+    expect(category).toBeChecked();
+    const categoryOptions = screen.getByRole("group", {
+      name: "Curated recipe categories",
+    });
+    const categoryDescriptions =
+      categoryOptions.getAttribute("aria-describedby")?.split(" ") ?? [];
     expect(
-      screen.getByRole("checkbox", { name: "Quick & easy" }),
-    ).toBeChecked();
-    expect(screen.getByRole("alert")).toHaveTextContent(
+      document.getElementById(categoryDescriptions.at(-1) as string),
+    ).toHaveClass("visually-hidden");
+    expect(alert).toHaveTextContent(
       "Review the highlighted fields. Your edits are still here.",
     );
   });
