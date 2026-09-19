@@ -117,10 +117,25 @@ class IngredientCatalogRequestReviewResponse(IngredientCatalogRequestResponse):
     approval_provenance: DecisionText | None
 
 
+class IngredientCatalogRequestCounts(CatalogSchema):
+    all: int = Field(ge=0)
+    pending: int = Field(ge=0)
+    approved: int = Field(ge=0)
+    duplicate: int = Field(ge=0)
+    rejected: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def all_is_the_status_sum(self) -> Self:
+        if self.all != self.pending + self.approved + self.duplicate + self.rejected:
+            raise ValueError("The all-request count must equal the sum of status counts.")
+        return self
+
+
 class IngredientCatalogRequestPage(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     items: list[MemberIngredientCatalogRequestResponse]
+    counts: IngredientCatalogRequestCounts
     page: int = Field(ge=1)
     page_size: int = Field(ge=1)
     total: int = Field(ge=0)

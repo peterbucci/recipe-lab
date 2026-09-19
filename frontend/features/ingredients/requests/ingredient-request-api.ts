@@ -30,7 +30,16 @@ export interface MemberIngredientRequest extends MissingIngredientRequest {
   resolved_ingredient: CatalogIngredient | null;
 }
 
+export interface MemberIngredientRequestCounts {
+  all: number;
+  pending: number;
+  approved: number;
+  duplicate: number;
+  rejected: number;
+}
+
 export interface MemberIngredientRequestPage {
+  counts: MemberIngredientRequestCounts;
   items: MemberIngredientRequest[];
   page: number;
   page_size: number;
@@ -97,7 +106,9 @@ function parseMemberIngredientRequestPage(
   }
 
   const items = value.items.map(parseMemberIngredientRequest);
+  const counts = parseMemberIngredientRequestCounts(value.counts);
   if (
+    counts === null ||
     (value.page as number) < 1 ||
     (value.page_size as number) < 1 ||
     (value.page_size as number) > 100 ||
@@ -108,12 +119,41 @@ function parseMemberIngredientRequestPage(
   }
 
   return {
+    counts,
     items,
     page: value.page as number,
     page_size: value.page_size as number,
     total: value.total as number,
     total_pages: value.total_pages as number,
   };
+}
+
+function parseMemberIngredientRequestCounts(
+  value: unknown,
+): MemberIngredientRequestCounts | null {
+  if (
+    !isRecord(value) ||
+    !isNonnegativeInteger(value.all) ||
+    !isNonnegativeInteger(value.pending) ||
+    !isNonnegativeInteger(value.approved) ||
+    !isNonnegativeInteger(value.duplicate) ||
+    !isNonnegativeInteger(value.rejected) ||
+    value.all !==
+      value.pending + value.approved + value.duplicate + value.rejected
+  ) {
+    return null;
+  }
+  return {
+    all: value.all,
+    pending: value.pending,
+    approved: value.approved,
+    duplicate: value.duplicate,
+    rejected: value.rejected,
+  };
+}
+
+function isNonnegativeInteger(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) >= 0;
 }
 
 export async function submitMissingIngredientRequest(

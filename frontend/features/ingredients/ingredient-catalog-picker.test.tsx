@@ -132,6 +132,7 @@ beforeEach(() => {
   mocks.submitMissingIngredientRequest.mockReset();
   mocks.searchCatalogIngredients.mockResolvedValue(page());
   mocks.browseMyIngredientRequests.mockResolvedValue({
+    counts: { all: 0, approved: 0, duplicate: 0, pending: 0, rejected: 0 },
     items: [],
     page: 1,
     page_size: 8,
@@ -393,6 +394,7 @@ describe("IngredientCatalogPicker", () => {
     ).toBeNull();
 
     mocks.browseMyIngredientRequests.mockResolvedValue({
+      counts: { all: 0, approved: 0, duplicate: 0, pending: 0, rejected: 0 },
       items: [],
       page: 1,
       page_size: 8,

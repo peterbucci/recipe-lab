@@ -770,6 +770,14 @@ def test_member_request_history_is_private_filterable_and_returns_trusted_resolu
         "Origin",
     }
     history = _json_object(history_response.json())
+    expected_counts = {
+        "all": 4,
+        "pending": 1,
+        "approved": 1,
+        "duplicate": 1,
+        "rejected": 1,
+    }
+    assert history["counts"] == expected_counts
     assert history["total"] == 4
     assert history["total_pages"] == 1
     assert history["page"] == 1
@@ -841,6 +849,7 @@ def test_member_request_history_is_private_filterable_and_returns_trusted_resolu
         )
         filtered_body = _json_object(filtered.json())
         assert filtered.status_code == 200
+        assert filtered_body["counts"] == expected_counts
         assert filtered_body["total"] == 1
         assert filtered_body["items"][0]["id"] == expected_id
 
@@ -852,15 +861,15 @@ def test_member_request_history_is_private_filterable_and_returns_trusted_resolu
     assert [item["id"] for item in _json_object(resolved_search.json())["items"]] == [
         duplicate_request["id"]
     ]
-    assert (
-        _json_object(
-            catalog_api.member.get(
-                "/api/ingredient-requests/mine",
-                params={"q": "%", "page_size": 100},
-            ).json()
-        )["items"]
-        == []
+    no_match_search = _json_object(
+        catalog_api.member.get(
+            "/api/ingredient-requests/mine",
+            params={"q": "%", "page_size": 100},
+        ).json()
     )
+    assert no_match_search["items"] == []
+    assert no_match_search["total"] == 0
+    assert no_match_search["counts"] == expected_counts
     for invalid_params in ({"status": "unknown"}, {"q": ""}, {"q": "x" * 101}):
         assert (
             catalog_api.member.get(
@@ -873,6 +882,13 @@ def test_member_request_history_is_private_filterable_and_returns_trusted_resolu
     other_history = _json_object(
         catalog_api.other_member.get("/api/ingredient-requests/mine").json()
     )
+    assert other_history["counts"] == {
+        "all": 1,
+        "pending": 1,
+        "approved": 0,
+        "duplicate": 0,
+        "rejected": 0,
+    }
     assert other_history["total"] == 1
     assert [item["id"] for item in other_history["items"]] == [other_request["id"]]
     approved_detail_path = f"/api/ingredient-requests/{approved_request['id']}"
@@ -1157,3 +1173,17 @@ def test_catalog_openapi_documents_stable_ids_requests_and_curator_review(
     resolution_variants = member_request["resolved_ingredient"]["anyOf"]
     assert {"$ref": "#/components/schemas/IngredientCatalogItem"} in resolution_variants
     assert "never becomes selectable" in member_request["resolved_ingredient"]["description"]
+    member_request_page = schemas["IngredientCatalogRequestPage"]
+    assert member_request_page["properties"]["counts"] == {
+        "$ref": "#/components/schemas/IngredientCatalogRequestCounts"
+    }
+    assert "counts" in member_request_page["required"]
+    request_counts = schemas["IngredientCatalogRequestCounts"]
+    assert set(request_counts["properties"]) == {
+        "all",
+        "pending",
+        "approved",
+        "duplicate",
+        "rejected",
+    }
+    assert set(request_counts["required"]) == set(request_counts["properties"])
