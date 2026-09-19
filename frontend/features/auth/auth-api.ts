@@ -388,13 +388,29 @@ export type DemoAvailability = Required<
   operations["demo_status_api_auth_demo_get"]["responses"][200]["content"]["application/json"]
 >;
 
+const DEMO_CONTACT_EMAIL = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,63}$/;
+
+function isSafeDemoContact(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    const contact = new URL(value);
+    if (contact.protocol === "https:") {
+      return Boolean(contact.hostname) && !contact.username && !contact.password && !contact.hash;
+    }
+    return contact.protocol === "mailto:" && !contact.host && !contact.search && !contact.hash
+      && DEMO_CONTACT_EMAIL.test(contact.pathname);
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchDemoAvailability(signal?: AbortSignal): Promise<DemoAvailability> {
   const { data } = await authRequest("/api/auth/demo", { kind: "query", method: "GET", signal });
   if (!isRecord(data) || typeof data.enabled !== "boolean" ||
     (data.enabled && (
       typeof data.generation_id !== "string" ||
       typeof data.expires_at !== "string" || !Number.isFinite(Date.parse(data.expires_at)) ||
-      typeof data.contact_url !== "string" || !/^https:\/\//.test(data.contact_url)
+      !isSafeDemoContact(data.contact_url)
     ))) {
     throw new AuthApiError("Recipe Lab received an invalid demo response.", 502, "invalid_auth_response");
   }
@@ -408,7 +424,7 @@ export async function fetchDemoAvailability(signal?: AbortSignal): Promise<DemoA
 
 export async function startDemoSession(generation: string, signal: AbortSignal): Promise<AuthSession> {
   if (!navigator.locks) {
-    throw new AuthApiError("Try the demo in a current browser over a secure connection.", 503);
+    throw new AuthApiError("Start the demo in a current browser over a secure connection.", 503);
   }
   return navigator.locks.request(DEMO_SESSION_LOCK, { signal }, async () => {
     const existing = await fetchAuthSession(signal);

@@ -38,7 +38,7 @@ def sandbox_settings(**overrides: object) -> Settings:
             "sandbox_generation_id": uuid4(),
             "sandbox_started_at": START,
             "sandbox_expires_at": END,
-            "sandbox_contact_url": "https://portfolio.example/contact",
+            "sandbox_contact_url": "mailto:me@peterbucci.com",
             **overrides,
         }
     )
@@ -56,11 +56,23 @@ def sandbox_settings(**overrides: object) -> Settings:
         {"oidc_issuer": "https://accounts.example"},
         {"sandbox_contact_url": "http://portfolio.example/contact"},
         {"sandbox_contact_url": "https://secret@example.test/contact"},
+        {"sandbox_contact_url": "mailto:me@peterbucci.com?subject=private-data"},
+        {"sandbox_contact_url": "mailto:not-an-email"},
     ],
 )
 def test_sandbox_requires_bounded_isolated_configuration(overrides: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         sandbox_settings(**overrides)
+
+
+def test_sandbox_accepts_direct_email_and_legacy_https_contacts() -> None:
+    assert sandbox_settings().sandbox.contact_url == "mailto:me@peterbucci.com"
+    assert (
+        sandbox_settings(
+            sandbox_contact_url="https://portfolio.example/contact"
+        ).sandbox.contact_url
+        == "https://portfolio.example/contact"
+    )
 
 
 def _bind(session: Session, settings: Settings) -> None:

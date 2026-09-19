@@ -91,7 +91,7 @@ class PortfolioSandboxTests(unittest.TestCase):
                 backend_image="sha256:" + "a" * 64,
                 frontend_image="sha256:" + "b" * 64,
                 origin="https://portfolio.example",
-                contact_url="https://portfolio.example/contact",
+                contact_url="mailto:me@peterbucci.com",
                 port=3100,
             )
         listener.assert_called_once_with(3100)
@@ -110,6 +110,13 @@ class PortfolioSandboxTests(unittest.TestCase):
             db_env["SANDBOX_EXPIRES_EPOCH"],
             str(int(self.generation.expires_at.timestamp())),
         )
+        backend_env = next(
+            env
+            for args, env in commands
+            if args[0] == "run" and args[args.index("--name") + 1].endswith("-backend")
+        )
+        assert backend_env is not None
+        self.assertEqual(backend_env["SANDBOX_CONTACT_URL"], "mailto:me@peterbucci.com")
         self.assertIn("kill -KILL", sandbox.DATABASE_DEADLINE_COMMAND)
         self.assertTrue(
             any(args[:3] == ["network", "create", "--internal"] for args, _ in commands)
@@ -214,7 +221,7 @@ class PortfolioSandboxTests(unittest.TestCase):
                     "--origin",
                     "https://portfolio.example",
                     "--contact-url",
-                    "https://portfolio.example/contact",
+                    "mailto:me@peterbucci.com",
                 ]
             )
         self.assertEqual(result, 1)
