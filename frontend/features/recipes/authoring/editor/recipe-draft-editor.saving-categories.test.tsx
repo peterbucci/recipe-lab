@@ -8,6 +8,7 @@ import {
   CATEGORY_ID,
   cleanupRecipeDraftEditorMocks,
   detail,
+  detailWithBoundCookingAction,
   DRAFT_ID,
   getRecipeDraftEditorMocks,
   RecipeDraftApiError,
@@ -20,6 +21,47 @@ afterEach(cleanupRecipeDraftEditorMocks);
 
 describe("RecipeDraftEditor", () => {
   beforeEach(resetRecipeDraftEditorMocks);
+
+  it("saves unfinished ingredient amounts and instruction text privately", async () => {
+    const incompleteDetail: RecipeDraftDetail = {
+      ...detailWithBoundCookingAction,
+      ingredients: detailWithBoundCookingAction.ingredients.map((ingredient) => ({
+        ...ingredient,
+        measure: null,
+      })),
+      instructions: detailWithBoundCookingAction.instructions.map(
+        (instruction) => ({
+          ...instruction,
+          text: "",
+          actions: [],
+        }),
+      ),
+    };
+    mocks.updateRecipeDraft.mockResolvedValue({
+      ...incompleteDetail,
+      revision: 4,
+      title: "Still working on this",
+    });
+    renderEditor(incompleteDetail);
+
+    fireEvent.change(await screen.findByLabelText("Title"), {
+      target: { value: "Still working on this" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() =>
+      expect(mocks.updateRecipeDraft).toHaveBeenCalledWith(
+        DRAFT_ID,
+        expect.objectContaining({
+          ingredients: [expect.objectContaining({ measure: null })],
+          instructions: [expect.objectContaining({ text: "" })],
+        }),
+        "draft-save-key",
+        expect.anything(),
+      ),
+    );
+  });
+
   it("saves only curated category identifiers with the private draft", async () => {
     mocks.updateRecipeDraft.mockResolvedValue({
       ...detail,

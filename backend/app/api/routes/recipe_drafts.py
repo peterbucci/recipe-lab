@@ -226,7 +226,7 @@ def private_recipe_draft_detail(
     "/recipe-drafts/{draft_id}",
     response_model=RecipeDraftDetailResponse,
     responses=DRAFT_ERROR_RESPONSES,
-    summary="Save a complete private recipe draft revision",
+    summary="Save a private recipe draft revision",
     description=(
         "Atomically replaces the member-owned draft document when the submitted revision "
         "matches. The source, author, status, and server-controlled ordering remain outside "

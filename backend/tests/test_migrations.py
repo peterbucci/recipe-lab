@@ -231,6 +231,10 @@ def test_migrations_round_trip_on_empty_postgres_schema(
         column["name"]: column
         for column in upgraded_inspector.get_columns("recipe_version_ingredients")
     }
+    draft_ingredient_columns = {
+        column["name"]: column
+        for column in upgraded_inspector.get_columns("recipe_draft_ingredients")
+    }
     ingredient_indexes = {
         index["name"]: index
         for index in upgraded_inspector.get_indexes("recipe_version_ingredients")
@@ -242,6 +246,17 @@ def test_migrations_round_trip_on_empty_postgres_schema(
     assert ingredient_indexes["ix_recipe_version_ingredients_ingredient_version"]["unique"] is False
     assert ingredient_columns["ingredient_id"]["nullable"] is False
     assert ingredient_columns["measure_mode"]["nullable"] is False
+    assert draft_ingredient_columns["measure_mode"]["nullable"] is True
+    draft_instruction_checks = {
+        check["name"]
+        for check in upgraded_inspector.get_check_constraints("recipe_draft_instructions")
+    }
+    published_instruction_checks = {
+        check["name"]
+        for check in upgraded_inspector.get_check_constraints("recipe_version_instructions")
+    }
+    assert "ck_recipe_draft_instructions_instruction_not_blank" not in draft_instruction_checks
+    assert "ck_recipe_version_instructions_instruction_not_blank" in published_instruction_checks
     action_input_foreign_keys = {
         foreign_key["name"]: (
             tuple(foreign_key["constrained_columns"]),
@@ -304,6 +319,141 @@ def test_migrations_round_trip_on_empty_postgres_schema(
 
     assert current_revision == script.get_current_head()
     assert DOMAIN_TABLES <= set(inspect(empty_postgres_engine).get_table_names())
+
+
+def test_private_draft_completion_migration_enforces_all_or_nothing_amounts(
+    empty_postgres_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    author_id = uuid4()
+    ingredient_id = uuid4()
+    draft_id = uuid4()
+    incomplete_ingredient_id = uuid4()
+    blank_instruction_id = uuid4()
+
+    with empty_postgres_engine.begin() as connection:
+        alembic_config.attributes["connection"] = connection
+        command.upgrade(alembic_config, "20260916_0035")
+
+        metadata = sa.MetaData()
+        users = sa.Table("users", metadata, autoload_with=connection)
+        ingredients = sa.Table("ingredients", metadata, autoload_with=connection)
+        catalog_names = sa.Table(
+            "ingredient_catalog_names",
+            metadata,
+            autoload_with=connection,
+        )
+        drafts = sa.Table("recipe_drafts", metadata, autoload_with=connection)
+        connection.execute(
+            users.insert().values(
+                id=author_id,
+                email=f"draft-completion-{author_id}@example.test",
+                display_name="Draft completion migration",
+            )
+        )
+        connection.execute(
+            ingredients.insert().values(
+                id=ingredient_id,
+                canonical_name="Migration test ingredient",
+            )
+        )
+        normalized_name = "migration test ingredient"
+        connection.execute(
+            catalog_names.insert().values(
+                id=uuid4(),
+                name_kind="canonical",
+                display_name="Migration test ingredient",
+                normalized_name=normalized_name,
+                normalized_name_digest=sha256(normalized_name.encode("utf-8")).hexdigest(),
+                canonical_ingredient_id=ingredient_id,
+                ingredient_alias_id=None,
+            )
+        )
+        connection.execute(
+            drafts.insert().values(
+                id=draft_id,
+                author_user_id=author_id,
+                draft_kind="original",
+                title="Incomplete private draft",
+            )
+        )
+
+        command.upgrade(alembic_config, "20260919_0036")
+        draft_ingredients = sa.Table(
+            "recipe_draft_ingredients",
+            sa.MetaData(),
+            autoload_with=connection,
+        )
+        draft_instructions = sa.Table(
+            "recipe_draft_instructions",
+            sa.MetaData(),
+            autoload_with=connection,
+        )
+        incomplete_amount = {
+            "id": incomplete_ingredient_id,
+            "recipe_draft_id": draft_id,
+            "selection_kind": "catalog",
+            "ingredient_id": ingredient_id,
+            "ingredient_request_id": None,
+            "name": "Migration test ingredient",
+            "measure_mode": None,
+            "quantity_min": None,
+            "quantity_max": None,
+            "measurement_unit_id": None,
+            "unit_display": None,
+            "package_size_id": None,
+            "preparation_notes": None,
+            "display_order": 0,
+        }
+        connection.execute(draft_ingredients.insert().values(**incomplete_amount))
+        connection.execute(
+            draft_instructions.insert().values(
+                id=blank_instruction_id,
+                recipe_draft_id=draft_id,
+                instruction="",
+                display_order=0,
+            )
+        )
+
+        with (
+            pytest.raises(IntegrityError, match="measure_shape_valid"),
+            connection.begin_nested(),
+        ):
+            connection.execute(
+                draft_ingredients.insert().values(
+                    **{
+                        **incomplete_amount,
+                        "id": uuid4(),
+                        "quantity_min": Decimal("1"),
+                        "measurement_unit_id": frozen_measurement_uuid("unit", "g"),
+                        "unit_display": "g",
+                        "display_order": 1,
+                    }
+                )
+            )
+
+        with pytest.raises(RuntimeError, match="incomplete rows exist"):
+            command.downgrade(alembic_config, "20260916_0035")
+
+        connection.execute(
+            draft_instructions.delete().where(draft_instructions.c.id == blank_instruction_id)
+        )
+        connection.execute(
+            draft_ingredients.delete().where(draft_ingredients.c.id == incomplete_ingredient_id)
+        )
+        command.downgrade(alembic_config, "20260916_0035")
+
+        assert MigrationContext.configure(connection).get_current_revision() == "20260916_0035"
+        downgraded_columns = {
+            column["name"]: column
+            for column in inspect(connection).get_columns("recipe_draft_ingredients")
+        }
+        downgraded_instruction_checks = {
+            check["name"]
+            for check in inspect(connection).get_check_constraints("recipe_draft_instructions")
+        }
+        assert downgraded_columns["measure_mode"]["nullable"] is False
+        assert "ck_recipe_draft_instructions_instruction_not_blank" in downgraded_instruction_checks
 
 
 def test_catalog_name_namespace_migration_backfills_normalized_canonical_and_alias_rows(

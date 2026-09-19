@@ -110,7 +110,9 @@ export function hydrateRecipeDraft(detail: RecipeDraftDetail): RecipeDraftEditor
             },
           }
         : { kind: "request", request: row.selection.request },
-    measure: createStructuredMeasureDraft(row.measure),
+    measure: row.measure
+      ? createStructuredMeasureDraft(row.measure)
+      : createBlankExactMeasureDraft(),
     preparationNotes: row.preparation_notes ?? "",
   }));
   const ingredientKeyByOccurrenceId = new Map(
@@ -178,6 +180,19 @@ export function draftIngredientOptions(
       removed: false,
     }];
   });
+}
+
+function ingredientMeasureIsBlank(
+  measure: StructuredMeasureDraft,
+): boolean {
+  return (
+    measure.mode === "exact" &&
+    !measure.exactValue.trim() &&
+    !measure.rangeMinimum.trim() &&
+    !measure.rangeMaximum.trim() &&
+    measure.unit === null &&
+    measure.packageSizeId === null
+  );
 }
 
 function textError(value: string, label: string, max: number, required: boolean): string | null {
@@ -284,17 +299,24 @@ export function validateRecipeDraft(
     if (notesError) {
       fieldErrors[draftIngredientFieldKey(ingredient.key, "preparationNotes")] = notesError;
     }
-    const measure = validateStructuredMeasureDraft(
-      ingredient.measure,
-      ingredientAmountPolicy,
-      units,
-    );
+    const blankMeasure = ingredientMeasureIsBlank(ingredient.measure);
+    const measure = blankMeasure
+      ? { fieldErrors: {}, measure: null }
+      : validateStructuredMeasureDraft(
+          ingredient.measure,
+          ingredientAmountPolicy,
+          units,
+        );
     for (const [field, message] of Object.entries(measure.fieldErrors)) {
       if (message) {
         fieldErrors[draftIngredientMeasureFieldKey(ingredient.key, field as StructuredMeasureField)] = message;
       }
     }
-    if (ingredient.selection && measure.measure && !notesError) {
+    if (
+      ingredient.selection &&
+      (blankMeasure || measure.measure) &&
+      !notesError
+    ) {
       const common = {
         ref: ingredient.key,
         measure: measure.measure,
@@ -328,7 +350,12 @@ export function validateRecipeDraft(
     if (titleError) {
       fieldErrors[draftInstructionTitleFieldKey(instruction.key)] = titleError;
     }
-    const instructionError = textError(instruction.text, "Instruction", 5_000, true);
+    const instructionError = textError(
+      instruction.text,
+      "Instruction",
+      5_000,
+      false,
+    );
     if (instructionError) fieldErrors[draftInstructionFieldKey(instruction.key)] = instructionError;
     const actionValidation =
       instruction.actions.length === 0
@@ -401,16 +428,24 @@ export function validateRecipeDraftForPublication(
     formErrors.push("Add at least one instruction before publication.");
   }
 
-  for (const ingredient of state.ingredients) {
+  for (const [index, ingredient] of state.ingredients.entries()) {
+    if (ingredientMeasureIsBlank(ingredient.measure)) {
+      fieldErrors[draftIngredientMeasureFieldKey(ingredient.key, "amount")] =
+        `Ingredient ${index + 1} needs an amount before publication.`;
+    }
     if (ingredient.selection?.kind === "request") {
       fieldErrors[draftIngredientFieldKey(ingredient.key, "selection")] =
         "Choose the request’s approved catalog ingredient before publication.";
     }
   }
-  for (const instruction of state.instructions) {
+  for (const [index, instruction] of state.instructions.entries()) {
+    if (!instruction.text.trim()) {
+      fieldErrors[draftInstructionFieldKey(instruction.key)] =
+        `Step ${index + 1} needs instruction text before publication.`;
+    }
     if (instruction.actions.length === 0) {
       fieldErrors[draftInstructionActionFieldKey(instruction.key, "actions")] =
-        "Add at least one cooking detail to this step so Recipe Lab can compare similar recipes before publishing.";
+        `Step ${index + 1} needs at least one cooking detail so Recipe Lab can compare similar recipes before publishing.`;
     }
   }
 

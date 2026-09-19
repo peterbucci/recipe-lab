@@ -622,6 +622,58 @@ def test_optional_instruction_title_round_trips_through_private_draft_save(
     assert reloaded_instruction["title"] == "Make the batter"
 
 
+def test_incomplete_amount_and_instruction_text_round_trip_in_private_draft(
+    draft_api: DraftApi,
+) -> None:
+    created = draft_api.member.post(
+        "/api/recipe-drafts",
+        headers=_creation_headers(),
+        json={"draft_kind": "original", "source_version_id": None},
+    )
+    assert created.status_code == 201
+    draft_id = _json_object(created.json())["id"]
+    payload = {
+        **_blank_update(revision=1, title="Private work in progress"),
+        "ingredients": [
+            {
+                "ref": "chickpea-slot",
+                "selection": {
+                    "kind": "catalog",
+                    "ingredient_id": str(CHICKPEA_ID),
+                    "display_name": "Chickpea",
+                },
+                "measure": None,
+                "preparation_notes": "amount still undecided",
+            }
+        ],
+        "instructions": [
+            {
+                "ref": "unfinished-step",
+                "title": "Finish this step later",
+                "text": "   ",
+                "actions": [],
+            }
+        ],
+    }
+
+    saved = draft_api.member.put(f"/api/recipe-drafts/{draft_id}", json=payload)
+
+    assert saved.status_code == 200, saved.text
+    saved_body = _json_object(saved.json())
+    saved_ingredient = _json_object(cast(list[object], saved_body["ingredients"])[0])
+    saved_instruction = _json_object(cast(list[object], saved_body["instructions"])[0])
+    assert saved_ingredient["measure"] is None
+    assert saved_ingredient["preparation_notes"] == "amount still undecided"
+    assert saved_instruction["title"] == "Finish this step later"
+    assert saved_instruction["text"] == ""
+
+    reloaded = draft_api.member.get(f"/api/recipe-drafts/{draft_id}")
+    assert reloaded.status_code == 200
+    reloaded_body = _json_object(reloaded.json())
+    assert _json_object(cast(list[object], reloaded_body["ingredients"])[0])["measure"] is None
+    assert _json_object(cast(list[object], reloaded_body["instructions"])[0])["text"] == ""
+
+
 def test_source_clone_preserves_optional_instruction_titles(draft_api: DraftApi) -> None:
     copied = draft_api.member.post(
         "/api/recipe-drafts",

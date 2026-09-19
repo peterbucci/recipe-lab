@@ -126,6 +126,22 @@ describe("private recipe draft state", () => {
     expect(state.ingredients[0]?.measure.exactValue).toBe("2");
   });
 
+  it("hydrates an omitted ingredient amount as blank exact editor fields", () => {
+    const state = hydrateRecipeDraft({
+      ...detail,
+      ingredients: [{ ...detail.ingredients[0]!, measure: null }],
+    });
+
+    expect(state.ingredients[0]?.measure).toEqual({
+      mode: "exact",
+      exactValue: "",
+      rangeMinimum: "",
+      rangeMaximum: "",
+      unit: null,
+      packageSizeId: null,
+    });
+  });
+
   it("hydrates fixed-scale servings as a human-friendly editor value", () => {
     const state = hydrateRecipeDraft({
       ...detail,
@@ -421,7 +437,104 @@ describe("private recipe draft state", () => {
     });
   });
 
-  it("persists unresolved request identity and rejects incomplete populated rows", () => {
+  it("saves blank ingredient amounts and instructions but blocks publication", () => {
+    const ingredient = createDraftIngredientState("ingredient-ref");
+    ingredient.selection = {
+      kind: "catalog",
+      ingredient: {
+        ingredientId: INGREDIENT_ID,
+        canonicalName: "sage",
+        displayName: "Sage",
+      },
+    };
+    const secondIngredient = createDraftIngredientState("second-ingredient-ref");
+    secondIngredient.selection = ingredient.selection;
+    const instruction = createDraftInstructionState("instruction-ref");
+    const secondInstruction = createDraftInstructionState(
+      "second-instruction-ref",
+    );
+    const state: RecipeDraftEditorState = {
+      title: "Unfinished soup",
+      description: "",
+      servings: "2",
+      totalTimeMinutes: "",
+      activeTimeMinutes: "",
+      difficulty: "",
+      notes: "",
+      categories: [],
+      ingredients: [ingredient, secondIngredient],
+      instructions: [instruction, secondInstruction],
+    };
+
+    expect(validateRecipeDraft(state, 1, [], [])).toMatchObject({
+      fieldErrors: {},
+      formErrors: [],
+      payload: {
+        ingredients: [
+          { ref: "ingredient-ref", measure: null },
+          { ref: "second-ingredient-ref", measure: null },
+        ],
+        instructions: [
+          { ref: "instruction-ref", text: "" },
+          { ref: "second-instruction-ref", text: "" },
+        ],
+      },
+    });
+    expect(
+      validateRecipeDraftForPublication(state, 1, [], []),
+    ).toMatchObject({
+      payload: null,
+      fieldErrors: {
+        "ingredient.ingredient-ref.measure.amount":
+          "Ingredient 1 needs an amount before publication.",
+        "ingredient.second-ingredient-ref.measure.amount":
+          "Ingredient 2 needs an amount before publication.",
+        "instruction.instruction-ref.text":
+          "Step 1 needs instruction text before publication.",
+        "instruction.second-instruction-ref.text":
+          "Step 2 needs instruction text before publication.",
+        "instruction.instruction-ref.action.actions":
+          "Step 1 needs at least one cooking detail so Recipe Lab can compare similar recipes before publishing.",
+        "instruction.second-instruction-ref.action.actions":
+          "Step 2 needs at least one cooking detail so Recipe Lab can compare similar recipes before publishing.",
+      },
+    });
+  });
+
+  it("continues to reject a partially entered ingredient amount", () => {
+    const ingredient = createDraftIngredientState("ingredient-ref");
+    ingredient.selection = {
+      kind: "catalog",
+      ingredient: {
+        ingredientId: INGREDIENT_ID,
+        canonicalName: "sage",
+        displayName: "Sage",
+      },
+    };
+    ingredient.measure.exactValue = "2";
+    const state: RecipeDraftEditorState = {
+      title: "Unfinished soup",
+      description: "",
+      servings: "2",
+      totalTimeMinutes: "",
+      activeTimeMinutes: "",
+      difficulty: "",
+      notes: "",
+      categories: [],
+      ingredients: [ingredient],
+      instructions: [],
+    };
+
+    expect(validateRecipeDraft(state, 1, [], [])).toMatchObject({
+      payload: null,
+      fieldErrors: {
+        "ingredient.ingredient-ref.measure.unit":
+          "Choose a unit from the curated catalog.",
+      },
+    });
+  });
+
+  it("persists unresolved request identity and rejects a missing selection", () => {
     const ingredient = createDraftIngredientState("ingredient-ref");
     const instruction = createDraftInstructionState("instruction-ref");
     const incomplete: RecipeDraftEditorState = {
@@ -438,9 +551,9 @@ describe("private recipe draft state", () => {
     };
     const invalid = validateRecipeDraft(incomplete, 1, [], []);
     expect(invalid.payload).toBeNull();
-    expect(invalid.fieldErrors).toMatchObject({
-      "ingredient.ingredient-ref.selection": expect.any(String),
-      "instruction.instruction-ref.text": expect.any(String),
+    expect(invalid.fieldErrors).toEqual({
+      "ingredient.ingredient-ref.selection":
+        "Choose a catalog ingredient or attach a submitted request.",
     });
 
     ingredient.selection = {
@@ -465,7 +578,7 @@ describe("private recipe draft state", () => {
       "ingredient.ingredient-ref.selection":
         "Choose the request’s approved catalog ingredient before publication.",
       "instruction.instruction-ref.action.actions":
-        "Add at least one cooking detail to this step so Recipe Lab can compare similar recipes before publishing.",
+        "Step 1 needs at least one cooking detail so Recipe Lab can compare similar recipes before publishing.",
     });
   });
 

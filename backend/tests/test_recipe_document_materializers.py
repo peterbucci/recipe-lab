@@ -172,6 +172,64 @@ def test_mutable_materializer_stages_complete_graph_without_a_flush() -> None:
         assert len(session.new) == len(rows.all_rows)
 
 
+def test_only_mutable_materializer_accepts_incomplete_private_rows() -> None:
+    base = _document()
+    partial_ingredient = replace(base.ingredients[0], measure=None)
+    partial_instruction = replace(base.instructions[0], text="")
+    document = replace(
+        base,
+        ingredients=(partial_ingredient,),
+        instructions=(partial_instruction,),
+    )
+    draft = _draft()
+
+    with Session() as session:
+        rows = materialize_mutable_recipe_document(
+            session,
+            draft=draft,
+            document=document,
+        )
+
+        assert rows.ingredients[0].measure_mode is None
+        assert rows.ingredients[0].quantity_min is None
+        assert rows.ingredients[0].measurement_unit_id is None
+        assert rows.instructions[0].instruction == ""
+        assert recipe_structure_from_document(document).ingredients[0].measure is None
+
+    with Session() as session:
+        with pytest.raises(
+            RecipeDocumentMaterializationError,
+            match="complete catalog-backed ingredients",
+        ):
+            materialize_immutable_recipe_document(
+                session,
+                recipe_version_id=uuid4(),
+                document=document,
+            )
+        assert len(session.new) == 0
+
+
+def test_immutable_materializer_rejects_blank_instruction_before_staging() -> None:
+    base = _document()
+    document = replace(
+        base,
+        ingredients=(base.ingredients[0],),
+        instructions=(replace(base.instructions[0], text=""),),
+    )
+
+    with Session() as session:
+        with pytest.raises(
+            RecipeDocumentMaterializationError,
+            match="nonblank instruction text",
+        ):
+            materialize_immutable_recipe_document(
+                session,
+                recipe_version_id=uuid4(),
+                document=document,
+            )
+        assert len(session.new) == 0
+
+
 def test_immutable_materializer_remaps_same_document_to_fresh_ordered_rows() -> None:
     mutable_document = _document()
     document = replace(mutable_document, ingredients=(mutable_document.ingredients[0],))
