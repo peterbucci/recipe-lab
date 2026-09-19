@@ -35,7 +35,7 @@ export interface IngredientAmountControlProps {
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   return message ? (
-    <p id={id} className="structured-measure__error">
+    <p id={id} className="structured-measure__error visually-hidden">
       {message}
     </p>
   ) : null;
@@ -149,6 +149,7 @@ export function IngredientAmountControl({
 
   const unitErrorId = errors.unit ? `${idPrefix}-unit-error` : undefined;
   const advancedId = `${idPrefix}-advanced`;
+  const triggerErrorId = `${idPrefix}-trigger-error`;
 
   const unitOptions = (
     <>
@@ -241,7 +242,11 @@ export function IngredientAmountControl({
               {value.packageSizeId ? " · package details preserved" : ""}
             </p>
           ) : null}
-          <div className="structured-measure__modes" aria-label="Amount type">
+          <div
+            className="structured-measure__modes"
+            aria-label="Amount type"
+            data-invalid={Boolean(errors.mode) || undefined}
+          >
             {modes.map((mode) => (
               <label key={mode.value}>
                 <input
@@ -349,12 +354,16 @@ export function IngredientAmountControl({
           className="ingredient-amount__trigger"
           aria-label={`Edit amount${contextLabel ? ` for ${contextLabel.toLowerCase()}` : ""}`}
           aria-haspopup="dialog"
+          aria-describedby={hasErrors ? triggerErrorId : undefined}
           data-invalid={hasErrors || undefined}
         >
           {amountTriggerText}
         </PopoverTrigger>
-        {!showPopover && firstError ? (
-          <p className="ingredient-amount__trigger-error" role="alert">
+        {firstError ? (
+          <p
+            id={triggerErrorId}
+            className="ingredient-amount__trigger-error visually-hidden"
+          >
             {firstError}
           </p>
         ) : null}

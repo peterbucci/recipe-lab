@@ -33,7 +33,7 @@ type WrapperProps = Omit<StructuredMeasureControlProps, "policy">;
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   return message ? (
-    <p id={id} className="structured-measure__error">
+    <p id={id} className="structured-measure__error visually-hidden">
       {message}
     </p>
   ) : null;
@@ -115,7 +115,10 @@ export function StructuredMeasureControl({
         {label}
         {contextLabel ? <span className="visually-hidden"> for {contextLabel}</span> : null}
       </legend>
-      <div className="structured-measure__modes">
+      <div
+        className="structured-measure__modes"
+        data-invalid={Boolean(errors.mode) || undefined}
+      >
         {modes.map((mode) => (
           <label key={mode.value}>
             <input

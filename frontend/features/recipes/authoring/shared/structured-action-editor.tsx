@@ -38,7 +38,7 @@ interface StructuredActionEditorProps {
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   return message ? (
-    <p id={id} className="structured-action__error">
+    <p id={id} className="structured-action__error visually-hidden">
       {message}
     </p>
   ) : null;
@@ -126,6 +126,7 @@ export function StructuredActionEditor({
   const activeTriggerRef = useRef<HTMLButtonElement>(null);
   const [announcement, setAnnouncement] = useState("");
   const [openActionKey, setOpenActionKey] = useState<string | null>(null);
+  const previousErrorActionKey = useRef<string | null>(null);
   const activeActionTypes = actionTypes.filter((item) => item.active);
   const addButtonId = `${idPrefix}-add-action`;
   const actionsErrorId = `${idPrefix}-actions-error`;
@@ -135,13 +136,23 @@ export function StructuredActionEditor({
       (errors.actions && value[0] ? value[0].key : null),
     [errors, value],
   );
-  const visibleActionKey = openActionKey ?? firstErrorActionKey;
+  const visibleActionKey = openActionKey;
   const popoverPlacement = useFloatingPanelPlacement({
     contentKey: visibleActionKey,
     open: Boolean(visibleActionKey),
     panelRef: activePopoverRef,
     triggerRef: activeTriggerRef,
   });
+
+  useEffect(() => {
+    if (
+      firstErrorActionKey &&
+      firstErrorActionKey !== previousErrorActionKey.current
+    ) {
+      setOpenActionKey(firstErrorActionKey);
+    }
+    previousErrorActionKey.current = firstErrorActionKey;
+  }, [firstErrorActionKey]);
 
   useEffect(() => {
     if (!pendingFocusId.current) {
@@ -344,6 +355,7 @@ export function StructuredActionEditor({
 
                     <fieldset
                       className="structured-action__inputs"
+                      data-invalid={Boolean(inputError) || undefined}
                       aria-describedby={
                         inputError ? `${actionId}-inputs-error` : undefined
                       }
@@ -519,6 +531,8 @@ export function StructuredActionEditor({
         className="cooking-details__add"
         type="button"
         aria-label={`Add cooking detail to ${stepLabel}`}
+        aria-describedby={errors.actions ? actionsErrorId : undefined}
+        data-invalid={Boolean(errors.actions) || undefined}
         disabled={
           disabled || value.length >= MAX_STRUCTURED_ACTIONS_PER_INSTRUCTION
         }

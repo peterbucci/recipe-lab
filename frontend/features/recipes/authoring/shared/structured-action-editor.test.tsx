@@ -461,7 +461,14 @@ describe("StructuredActionEditor", () => {
       />,
     );
 
-    expect(screen.getByText("Add at least one action.")).toBeVisible();
+    const addDetail = screen.getByRole("button", {
+      name: "Add cooking detail to Step 1",
+    });
+    expect(addDetail).toHaveAttribute("data-invalid", "true");
+    expect(addDetail).toHaveAccessibleDescription("Add at least one action.");
+    expect(screen.getByText("Add at least one action.")).toHaveClass(
+      "visually-hidden",
+    );
     const detail = screen.getByRole("button", {
       name: "Edit cooking detail 1 for Step 1",
     });
@@ -483,5 +490,39 @@ describe("StructuredActionEditor", () => {
     expect(
       screen.getByRole("textbox", { name: "Duration" }),
     ).toHaveAccessibleDescription("Enter a duration.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(
+      screen.queryByRole("dialog", { name: "Cooking detail 1 for Step 1" }),
+    ).toBeNull();
+    expect(detail).toHaveAttribute("aria-expanded", "false");
+    expect(detail).toHaveFocus();
+  });
+
+  it("lets a newly added detail close while an aggregate error remains", () => {
+    render(
+      <Harness
+        initial={[]}
+        errors={{ actions: "Add at least one cooking detail." }}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add cooking detail to Step 1" }),
+    );
+    const trigger = screen.getByRole("button", {
+      name: "Edit cooking detail 1 for Step 1",
+    });
+    expect(
+      screen.getByRole("dialog", { name: "Cooking detail 1 for Step 1" }),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(
+      screen.queryByRole("dialog", { name: "Cooking detail 1 for Step 1" }),
+    ).toBeNull();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveFocus();
   });
 });

@@ -223,11 +223,29 @@ describe("structured measure controls", () => {
         onChange={() => undefined}
       />,
     );
+    const trigger = screen.getByRole("button", { name: "Edit amount" });
+    expect(trigger).toHaveAttribute("data-invalid", "true");
+    expect(trigger).toHaveAccessibleDescription(
+      "Maximum must follow minimum.",
+    );
+    expect(
+      document.getElementById(
+        trigger.getAttribute("aria-describedby") as string,
+      ),
+    ).toHaveClass("visually-hidden");
     const editor = openIngredientAmountEditor();
-    expect(within(editor).getByRole("textbox", { name: "Maximum amount" })).toHaveAttribute(
+    const maximum = within(editor).getByRole("textbox", {
+      name: "Maximum amount",
+    });
+    expect(maximum).toHaveAttribute(
       "aria-invalid",
       "true",
     );
+    expect(
+      document.getElementById(
+        maximum.getAttribute("aria-describedby") as string,
+      ),
+    ).toHaveClass("visually-hidden");
     expect(within(editor).getByRole("combobox", { name: "Unit" })).toHaveAccessibleDescription(
       "Choose a unit.",
     );

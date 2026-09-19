@@ -8,7 +8,10 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CatalogUnit } from "../../shared/measurement-unit-model";
-import type { RecipeDraftIngredientState } from "../draft/recipe-draft";
+import {
+  draftIngredientFieldKey,
+  type RecipeDraftIngredientState,
+} from "../draft/recipe-draft";
 import { RecipeDraftIngredientsSection } from "./recipe-draft-ingredients-section";
 
 const GRAM_ID = "11111111-1111-4111-8111-111111111111";
@@ -107,6 +110,7 @@ function pendingIngredient(proposedName: string): RecipeDraftIngredientState {
 
 function renderSection({
   disabled = false,
+  errors = {},
   rows = [ingredient()],
   onAdd = vi.fn(),
   onMove = vi.fn(),
@@ -114,6 +118,7 @@ function renderSection({
   onReplace = vi.fn<ReplaceIngredient>(),
 }: {
   disabled?: boolean;
+  errors?: Readonly<Record<string, string>>;
   rows?: RecipeDraftIngredientState[];
   onAdd?: () => void;
   onMove?: (index: number, direction: -1 | 1) => void;
@@ -123,7 +128,7 @@ function renderSection({
   const renderRows = (nextRows: RecipeDraftIngredientState[]) => (
     <RecipeDraftIngredientsSection
       disabled={disabled}
-      errors={{}}
+      errors={errors}
       ingredients={nextRows}
       measurementUnits={[gram]}
       onAdd={onAdd}
@@ -216,6 +221,28 @@ describe("RecipeDraftIngredientsSection", () => {
     expect(input).not.toHaveClass("has-request-state");
     expect(combobox).not.toContainElement(status);
     expect(combobox?.nextElementSibling).toBe(status);
+  });
+
+  it("keeps ingredient selection errors accessible without repeating them inline", () => {
+    const row = ingredient();
+    const message =
+      "Choose a catalog ingredient or attach a submitted request.";
+    renderSection({
+      rows: [row],
+      errors: {
+        [draftIngredientFieldKey(row.key, "selection")]: message,
+      },
+    });
+
+    const input = screen.getByRole("combobox", { name: "Ingredient" });
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription(
+      /Choose a catalog ingredient or attach a submitted request\./,
+    );
+    const descriptions = input.getAttribute("aria-describedby")?.split(" ") ?? [];
+    expect(
+      document.getElementById(descriptions.at(-1) as string),
+    ).toHaveClass("visually-hidden");
   });
 
   it("opens amount, unit, and amount-type controls in a floating editor", () => {
