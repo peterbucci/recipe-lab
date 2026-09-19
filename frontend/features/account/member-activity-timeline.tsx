@@ -254,6 +254,7 @@ export function MemberActivityTimeline({ userId }: { userId: string }) {
   const activityGroups = useMemo(() => groupActivities(activities), [activities]);
   const activeFilter =
     ACTIVITY_FILTERS.find((item) => item.id === filter) ?? ACTIVITY_FILTERS[0]!;
+  const hasSearchQuery = query.trim().length > 0;
 
   return (
     <main id="main-content" className="member-activity-page member-activity-page--timeline">
@@ -316,12 +317,20 @@ export function MemberActivityTimeline({ userId }: { userId: string }) {
           <WorkspacePanelHeader
             description={activeFilter.description}
             meta={
-              <span aria-live="polite">
-                {counts[filter]} activity item{counts[filter] === 1 ? "" : "s"}
-              </span>
+              state.phase === "ready" && hasSearchQuery && activities.length > 0 ? (
+                <span aria-live="polite">
+                  Showing {activities.length} matching activity item
+                  {activities.length === 1 ? "" : "s"}
+                </span>
+              ) : undefined
             }
             title={activeFilter.title}
           />
+          <span className="visually-hidden" aria-live="polite">
+            {state.phase === "ready" && !hasSearchQuery
+              ? `${counts[filter]} activity item${counts[filter] === 1 ? "" : "s"}`
+              : ""}
+          </span>
 
           {state.phase === "loading" ? (
             <SectionLoading
