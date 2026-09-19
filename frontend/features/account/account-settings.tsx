@@ -139,7 +139,12 @@ function PublicProfileSettings({ hidden, user, temporary }: PublicProfileSetting
             </span>
             <div className="account-settings__preview-identity">
               <strong>{user.display_name}</strong>
-              <span>@{user.handle}</span>
+              <span
+                className="account-settings__preview-handle"
+                title={`@${user.handle}`}
+              >
+                @{user.handle}
+              </span>
               <p className="account-settings__preview-description">
                 {description.trim() || "Your description will appear here."}
               </p>

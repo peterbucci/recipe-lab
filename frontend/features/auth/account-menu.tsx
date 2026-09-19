@@ -158,7 +158,9 @@ export function AccountMenu() {
             </div>
             <div className="account-menu__identity-copy">
               <strong>{user.display_name}</strong>
-              <span>@{user.handle}</span>
+              <span className="account-menu__handle" title={`@${user.handle}`}>
+                @{user.handle}
+              </span>
               <GuardedLink
                 className="account-menu__identity-action"
                 href={profileHref}
