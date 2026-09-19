@@ -69,14 +69,11 @@
 }
 
 .account-access-page--sign-in .sign-in-card__content {
-  align-self: center;
+  align-self: stretch;
+  flex-direction: column;
   min-width: 0;
   padding: clamp(1.75rem, 4vw, 2.5rem);
-}
-
-.account-access-page--sign-in .sign-in-card__content > .eyebrow {
-  margin-bottom: 0.45rem;
-  font-size: 0.68rem;
+  display: flex;
 }
 
 .account-access-page--sign-in .sign-in-card__content h1 {
@@ -92,62 +89,13 @@
   line-height: 1.5;
 }
 
-.account-access-page--sign-in .sign-in-benefits {
-  gap: 0.7rem;
-  margin: 1.15rem 0 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-}
-
-.account-access-page--sign-in .sign-in-benefits li {
-  grid-template-columns: 1.65rem minmax(0, 1fr);
-  align-items: start;
-  gap: 0.65rem;
-  display: grid;
-}
-
-.account-access-page--sign-in .sign-in-benefits__icon {
-  border-radius: 0.45rem;
-  background: var(--leaf-soft);
-  color: var(--leaf-dark);
-  place-items: center;
-  width: 1.65rem;
-  height: 1.65rem;
-  display: grid;
-}
-
-.account-access-page--sign-in .sign-in-benefits__icon svg {
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
-  width: 0.9rem;
-  height: 0.9rem;
-}
-
-.account-access-page--sign-in .sign-in-benefits strong,
-.account-access-page--sign-in .sign-in-benefits small {
-  overflow-wrap: anywhere;
-  display: block;
-}
-
-.account-access-page--sign-in .sign-in-benefits strong {
-  margin-top: 0.05rem;
-  font-size: 0.76rem;
-  line-height: 1.3;
-}
-
-.account-access-page--sign-in .sign-in-benefits small {
-  color: var(--muted);
-  margin-top: 0.12rem;
-  font-size: 0.66rem;
-  line-height: 1.4;
-}
-
 .account-access-page--sign-in .sign-in-card__actions {
+  grid-template-columns: minmax(0, 1fr);
+  align-self: stretch;
   gap: 0.55rem;
-  margin-top: 1.25rem;
+  width: 100%;
+  margin-top: auto;
+  padding-top: 1.25rem;
   display: grid;
 }
 
@@ -237,7 +185,6 @@
 @media (forced-colors: active) {
   .account-access-page--sign-in .account-access-card--sign-in,
   .account-access-page--sign-in .sign-in-visual,
-  .account-access-page--sign-in .sign-in-benefits__icon,
   .account-access-page--sign-in .sign-in-security-note__icon {
     border-color: canvastext;
     background: canvas;

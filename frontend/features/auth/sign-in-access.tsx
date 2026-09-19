@@ -1,14 +1,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { AuthApiError, fetchDemoAvailability, safeReturnTo, signInHref, type DemoAvailability } from "./auth-api";
 import { useAuthSession } from "./auth-session-provider";
+import { DemoSandboxInformation } from "./demo-sandbox-information";
 import { GuardedLink, useNavigationBlocker } from "../../shared/navigation/navigation-blocker-provider";
 import { LoadingButton } from "../../shared/ui/loading-ui";
 
-export function SignInAccess({ returnTo }: { returnTo: string }) {
+interface SignInAccessProps {
+  artwork: ReactNode;
+  returnTo: string;
+}
+
+export function SignInAccess({ artwork, returnTo }: SignInAccessProps) {
   const router = useRouter();
   const { state, enterDemo } = useAuthSession();
   const { confirmNavigation } = useNavigationBlocker();
@@ -17,6 +23,9 @@ export function SignInAccess({ returnTo }: { returnTo: string }) {
   const [pending, setPending] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const entryController = useRef<AbortController | null>(null);
+  const authenticated = state.phase === "ready" && state.session.status !== "anonymous";
+  const showAnonymousChrome = state.phase !== "loading" && !authenticated;
+  const demoEnabled = availability?.enabled === true;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -53,39 +62,66 @@ export function SignInAccess({ returnTo }: { returnTo: string }) {
 
   return (
     <>
-      {availability?.enabled ? (
-        <div className="auth-card__fine-print">
-          <p><strong>Public portfolio sandbox.</strong> Try publishing, revising, forking, saving, rating, and following with your own temporary identity. No email or real name needed.</p>
-          <p>Published recipes and profiles are public. Don’t enter personal or sensitive information. No uploads. Demo activity is not used for advertising, profiling, or ML training.</p>
-          <p>All demo work is temporary and this environment closes by <time dateTime={availability.expires_at!}>{new Date(availability.expires_at!).toUTCString()}</time> (at most 24 hours). It may reset sooner. Signing out ends access to this identity; starting fresh does not restore earlier work.</p>
-          <p><a href={availability.contact_url!} rel="noreferrer">Contact the operator about demo data</a>. Don’t include private information in a public report.</p>
+      <aside
+        className="sign-in-visual"
+        aria-label={demoEnabled ? "About the Recipe Lab demo" : "Why sign in"}
+      >
+        {artwork}
+        <div className="sign-in-visual__copy">
+          <strong>
+            {demoEnabled
+              ? "Explore Recipe Lab for yourself."
+              : "Your recipes, saved for later."}
+          </strong>
+          <p>
+            {demoEnabled
+              ? "Save recipes, create your own versions, publish, and come back to your work while your demo account is active."
+              : "Sign in when you want to save, adapt, publish, or come back to something you're cooking."}
+          </p>
         </div>
-      ) : null}
-      <div className="auth-card__actions sign-in-card__actions">
-        {!availability && !error ? <p role="status">Checking sign-in options…</p> : null}
-        {availability?.enabled ? (
-          <LoadingButton className="button button--primary" type="button" pending={pending}
-            pendingLabel="Starting demo…" disabled={state.phase === "loading"}
-            onClick={() => void startDemo()}>
-            {state.phase === "ready" && state.session.status !== "anonymous" ? "Continue to the app" : "Try the demo"}
-          </LoadingButton>
-        ) : availability ? (
-          <a aria-label="Continue to sign in" className="button button--primary" href={signInHref(returnTo)}>
-            <span aria-hidden="true">Continue to secure sign in</span><span aria-hidden="true">→</span>
-          </a>
-        ) : error ? (
-          <button className="button button--primary" type="button" onClick={() => { setError(""); setAttempt((value) => value + 1); }}>Retry sign-in options</button>
+      </aside>
+
+      <div className="sign-in-card__content">
+        {showAnonymousChrome ? (
+          <h1>{demoEnabled ? "Try Recipe Lab" : "Sign in to Recipe Lab"}</h1>
         ) : null}
-        <GuardedLink className="button button--secondary" href="/recipes">Keep browsing</GuardedLink>
-      </div>
-      {error ? <p role="alert">{error}</p> : null}
-      {availability && !availability.enabled ? (
-        <div className="auth-card__fine-print sign-in-security-note">
-          <span className="sign-in-security-note__icon" aria-hidden="true">✓</span>
-          <p><strong>Recipe Lab doesn&apos;t collect your password on this page.</strong>{" "}
-            Sign-in is handled by our secure identity provider, and you&apos;ll return to Recipe Lab when you&apos;re done.</p>
+        {availability?.enabled ? (
+          <div className="auth-card__fine-print">
+            <DemoSandboxInformation
+              contactUrl={availability.contact_url!}
+              expiresAt={availability.expires_at!}
+              variant="entry"
+            />
+          </div>
+        ) : null}
+        {error ? <p role="alert">{error}</p> : null}
+        <div className="auth-card__actions sign-in-card__actions">
+          {!availability && !error ? <p role="status">Checking sign-in options…</p> : null}
+          {availability?.enabled ? (
+            <LoadingButton className="button button--primary" type="button" pending={pending}
+              pendingLabel="Starting demo…" disabled={state.phase === "loading"}
+              onClick={() => void startDemo()}>
+              {state.phase === "ready" && state.session.status !== "anonymous" ? "Continue to the app" : "Start the demo"}
+            </LoadingButton>
+          ) : availability && authenticated ? (
+            <GuardedLink className="button button--primary" href={safeReturnTo(returnTo)}>Continue to the app</GuardedLink>
+          ) : availability ? (
+            <a aria-label="Continue to sign in" className="button button--primary" href={signInHref(returnTo)}>
+              <span aria-hidden="true">Continue to secure sign in</span><span aria-hidden="true">→</span>
+            </a>
+          ) : error ? (
+            <button className="button button--primary" type="button" onClick={() => { setError(""); setAttempt((value) => value + 1); }}>Retry sign-in options</button>
+          ) : null}
+          {showAnonymousChrome ? <GuardedLink className="button button--secondary" href="/recipes">Keep browsing</GuardedLink> : null}
         </div>
-      ) : null}
+        {availability && !availability.enabled ? (
+          <div className="auth-card__fine-print sign-in-security-note">
+            <span className="sign-in-security-note__icon" aria-hidden="true">✓</span>
+            <p><strong>Recipe Lab doesn&apos;t collect your password on this page.</strong>{" "}
+              Sign-in is handled by our secure identity provider, and you&apos;ll return to Recipe Lab when you&apos;re done.</p>
+          </div>
+        ) : null}
+      </div>
     </>
   );
 }
