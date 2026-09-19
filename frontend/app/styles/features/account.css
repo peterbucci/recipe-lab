@@ -452,16 +452,20 @@
   padding-top: 0.125rem;
 }
 .account-settings__preview-identity > strong,
-.account-settings__preview-identity > span {
+.account-settings__preview-handle {
   display: block;
 }
 .account-settings__preview-user strong {
   font-size: 0.82rem;
 }
-.account-settings__preview-identity > span {
+.account-settings__preview-handle {
   color: var(--muted);
   margin-top: 0.125rem;
+  min-width: 0;
+  overflow: hidden;
   font-size: 0.64rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .account-settings__preview-description {
   color: var(--muted);

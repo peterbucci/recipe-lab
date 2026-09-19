@@ -81,6 +81,25 @@ afterEach(() => {
 });
 
 describe("AccountSettings", () => {
+  it("keeps a long public-preview handle on one truncatable line with its full value available", () => {
+    const longHandle = "demo_8aa1d1a3ad44f19bc48755d";
+    render(
+      <AuthSessionProvider
+        initialSession={{
+          ...member,
+          user: { ...member.user, handle: longHandle },
+        }}
+      >
+        <AccountSettings />
+      </AuthSessionProvider>,
+    );
+
+    const preview = screen.getByLabelText("Public profile preview");
+    const handle = within(preview).getByText(`@${longHandle}`);
+    expect(handle).toHaveClass("account-settings__preview-handle");
+    expect(handle).toHaveAttribute("title", `@${longHandle}`);
+  });
+
   it("omits the danger zone for a temporary demo account", () => {
     render(<AuthSessionProvider initialSession={{ ...member, temporary: true, expires_at: "2026-09-17T12:00:00Z" }}><AccountSettings /></AuthSessionProvider>);
     expect(
