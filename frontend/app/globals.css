@@ -20,6 +20,7 @@
 @import "./styles/features/catalog-public-pages.css";
 @import "./styles/features/recipe-comparison.css";
 @import "./styles/features/account.css";
+@import "./styles/features/demo-session.css";
 @import "./styles/features/authoring.css";
 @import "./styles/features/staff-workspace.css";
 @import "./styles/features/home.css";
