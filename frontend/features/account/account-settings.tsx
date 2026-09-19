@@ -96,7 +96,7 @@ function PublicProfileSettings({ hidden, user, temporary }: PublicProfileSetting
               name="description"
               rows={4}
               maxLength={500}
-              placeholder={temporary ? "Use fictional demo details only." : "Tell other cooks a little about yourself."}
+              placeholder={temporary ? "Tell other cooks a little about your demo profile." : "Tell other cooks a little about yourself."}
               value={description}
               disabled={pending}
               aria-describedby="profile-description-help profile-description-count"
@@ -106,7 +106,7 @@ function PublicProfileSettings({ hidden, user, temporary }: PublicProfileSetting
               }}
             />
             <span className="public-profile-settings__field-meta">
-              <span id="profile-description-help">{temporary ? "Optional · Fictional details only; no personal information" : "Optional"}</span>
+              <span id="profile-description-help">{temporary ? "No personal information" : "Optional"}</span>
               <span id="profile-description-count">{description.length} / 500</span>
             </span>
           </div>
@@ -220,12 +220,14 @@ export function AccountSettings() {
   const confirmationMatches = handleConfirmation === confirmationPhrase;
   const temporary = state.session.temporary === true;
   const canDelete = !temporary && acknowledged && confirmationMatches && !pending;
-  const availableSections: SettingsSection[] = expectedHandle
-    ? ["profile", "danger"]
-    : ["danger"];
+  const availableSections: SettingsSection[] = temporary
+    ? ["profile"]
+    : expectedHandle
+      ? ["profile", "danger"]
+      : ["danger"];
   const activeSection = availableSections.includes(requestedSection)
     ? requestedSection
-    : "danger";
+    : (availableSections[0] ?? "profile");
 
   async function completeDeletion() {
     replaceSession({ status: "anonymous" });
@@ -310,27 +312,20 @@ export function AccountSettings() {
           />
         ) : null}
 
-        <section
-          id="account-settings-danger-panel"
-          className="account-settings__panel account-settings__panel--danger"
-          role="tabpanel"
-          aria-labelledby="account-settings-danger-tab"
-          hidden={activeSection !== "danger"}
-        >
-          <WorkspacePanelHeader
-            description="Permanent account actions that cannot be undone."
-            title="Danger zone"
-          />
+        {!temporary ? (
+          <section
+            id="account-settings-danger-panel"
+            className="account-settings__panel account-settings__panel--danger"
+            role="tabpanel"
+            aria-labelledby="account-settings-danger-tab"
+            hidden={activeSection !== "danger"}
+          >
+            <WorkspacePanelHeader
+              description="Permanent account actions that cannot be undone."
+              title="Danger zone"
+            />
 
-          <div className="account-settings__danger-content">
-            {temporary ? (
-              <section aria-labelledby="demo-account-title">
-                <h3 id="demo-account-title">Temporary demo identity</h3>
-                <p>Provider identity verification and account deletion are not available for this temporary identity. Demo entry does not verify your real identity.</p>
-                <p>Sign out from the account menu to end access. All work expires with the sandbox; published work stays visible until reset. Signing out does not erase it early.</p>
-                <p><Link href="/sign-in">See expiry and contact the operator</Link> if demo data needs attention sooner.</p>
-              </section>
-            ) : (
+            <div className="account-settings__danger-content">
             <section className="account-deletion" aria-labelledby="delete-account-title">
               <div className="account-settings__danger-heading">
                 <span className="account-settings__danger-icon" aria-hidden="true">
@@ -442,10 +437,10 @@ export function AccountSettings() {
               {error && !recentAuthenticationRequired ? (
                 <p className="form-alert account-deletion__error" role="alert">{error}</p>
               ) : null}
-            </section>
-            )}
-          </div>
-        </section>
+              </section>
+            </div>
+          </section>
+        ) : null}
       </div>
     </main>
   );
