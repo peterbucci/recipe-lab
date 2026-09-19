@@ -41,6 +41,28 @@ function SessionDescriptionProbe() {
   return <output aria-label="Saved session description">{description}</output>;
 }
 
+function SwitchToTemporaryDemoAccount() {
+  const { replaceSession } = useAuthSession();
+
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        replaceSession(
+          {
+            ...member,
+            temporary: true,
+            expires_at: "2026-09-17T12:00:00Z",
+          },
+          member.user.id,
+        )
+      }
+    >
+      Switch to demo account
+    </button>
+  );
+}
+
 function confirmDeletion() {
   fireEvent.click(screen.getByRole("tab", { name: "Danger zone" }));
   fireEvent.click(
@@ -59,14 +81,42 @@ afterEach(() => {
 });
 
 describe("AccountSettings", () => {
-  it("does not offer provider-backed deletion to a temporary visitor", () => {
+  it("omits the danger zone for a temporary demo account", () => {
     render(<AuthSessionProvider initialSession={{ ...member, temporary: true, expires_at: "2026-09-17T12:00:00Z" }}><AccountSettings /></AuthSessionProvider>);
-    expect(screen.getByPlaceholderText("Use fictional demo details only.")).toBeVisible();
-    fireEvent.click(screen.getByRole("tab", { name: "Danger zone" }));
-    expect(screen.getByRole("heading", { name: "Temporary demo identity" })).toBeVisible();
-    expect(screen.getByText(/Signing out does not erase it early/)).toBeVisible();
+    expect(
+      screen.getByPlaceholderText("Tell other cooks a little about your demo profile."),
+    ).toBeVisible();
+    expect(screen.getByText("No personal information")).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Profile" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.queryByRole("tab", { name: "Danger zone" })).toBeNull();
+    expect(document.getElementById("account-settings-danger-panel")).toBeNull();
     expect(screen.queryByRole("button", { name: "Permanently delete account" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Verify identity" })).toBeNull();
+  });
+
+  it("returns to Profile when an active account becomes a demo account", () => {
+    render(
+      <AuthSessionProvider initialSession={member}>
+        <AccountSettings />
+        <SwitchToTemporaryDemoAccount />
+      </AuthSessionProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Danger zone" }));
+    expect(screen.getByRole("tabpanel", { name: "Danger zone" })).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to demo account" }));
+
+    expect(screen.getByRole("tab", { name: "Profile" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("tabpanel", { name: "Profile" })).toBeVisible();
+    expect(screen.queryByRole("tab", { name: "Danger zone" })).toBeNull();
+    expect(document.getElementById("account-settings-danger-panel")).toBeNull();
   });
   it("defaults to Profile and keeps its live preview draft mounted between tabs", () => {
     renderSettings();
