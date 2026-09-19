@@ -45,18 +45,10 @@ def count_catalog_requests_by_status(
     row = session.execute(
         select(
             func.count(),
-            func.count().filter(
-                IngredientCatalogRequest.status == CATALOG_REQUEST_PENDING
-            ),
-            func.count().filter(
-                IngredientCatalogRequest.status == CATALOG_REQUEST_APPROVED
-            ),
-            func.count().filter(
-                IngredientCatalogRequest.status == CATALOG_REQUEST_DUPLICATE
-            ),
-            func.count().filter(
-                IngredientCatalogRequest.status == CATALOG_REQUEST_REJECTED
-            ),
+            func.count().filter(IngredientCatalogRequest.status == CATALOG_REQUEST_PENDING),
+            func.count().filter(IngredientCatalogRequest.status == CATALOG_REQUEST_APPROVED),
+            func.count().filter(IngredientCatalogRequest.status == CATALOG_REQUEST_DUPLICATE),
+            func.count().filter(IngredientCatalogRequest.status == CATALOG_REQUEST_REJECTED),
         )
         .select_from(IngredientCatalogRequest)
         .where(IngredientCatalogRequest.requester_user_id == requester_user_id)
