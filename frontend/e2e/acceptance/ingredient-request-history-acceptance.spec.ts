@@ -37,13 +37,30 @@ interface MemberIngredientRequest extends CreatedRequest {
   status: RequestStatus;
 }
 
+interface MemberRequestCounts {
+  all: number;
+  pending: number;
+  approved: number;
+  duplicate: number;
+  rejected: number;
+}
+
 interface MemberRequestPage {
+  counts: MemberRequestCounts;
   items: MemberIngredientRequest[];
   page: number;
   page_size: number;
   total: number;
   total_pages: number;
 }
+
+const requestStatusTabs = [
+  { key: "all", label: "All" },
+  { key: "pending", label: "Pending" },
+  { key: "approved", label: "Approved" },
+  { key: "duplicate", label: "Matched" },
+  { key: "rejected", label: "Rejected" },
+] as const;
 
 interface ReviewResult {
   resolved_ingredient_id: string | null;
@@ -163,6 +180,19 @@ async function expectNoAccessibilityViolations(page: Page): Promise<void> {
   expect(results.violations, JSON.stringify(summary, null, 2)).toEqual([]);
 }
 
+async function expectRequestTabCounts(
+  statusFilters: Locator,
+  counts: MemberRequestCounts,
+): Promise<void> {
+  for (const tab of requestStatusTabs) {
+    await expect(
+      statusFilters
+        .getByRole("button", { name: tab.label, exact: true })
+        .locator(".workspace-tab-menu__count"),
+    ).toHaveText(String(counts[tab.key]));
+  }
+}
+
 async function activateWithKeyboard(
   page: Page,
   control: Locator,
@@ -220,6 +250,21 @@ test.describe("member ingredient-request acceptance", () => {
     const rejectedReason =
       "The proposal is not specific enough to curate safely.";
 
+    const initialAliceResponse = await memberGet(
+      page,
+      "alice",
+      "/api/ingredient-requests/mine?page=1&page_size=1",
+    );
+    expect(initialAliceResponse.status(), await initialAliceResponse.text()).toBe(200);
+    const initialAliceCounts = ((await initialAliceResponse.json()) as MemberRequestPage).counts;
+    const initialBobResponse = await memberGet(
+      page,
+      "bob",
+      "/api/ingredient-requests/mine?page=1&page_size=1",
+    );
+    expect(initialBobResponse.status(), await initialBobResponse.text()).toBe(200);
+    const initialBobCounts = ((await initialBobResponse.json()) as MemberRequestPage).counts;
+
     const approved = await submitRequest(page, approvedName, approvedContext);
     const duplicate = await submitRequest(
       page,
@@ -252,6 +297,13 @@ test.describe("member ingredient-request acceptance", () => {
       pending,
       rejected,
     };
+    const expectedAliceCounts: MemberRequestCounts = {
+      all: initialAliceCounts.all + 4,
+      approved: initialAliceCounts.approved + 1,
+      duplicate: initialAliceCounts.duplicate + 1,
+      pending: initialAliceCounts.pending + 1,
+      rejected: initialAliceCounts.rejected + 1,
+    };
     const memberRequests = new Map<RequestStatus, MemberIngredientRequest>();
     for (const status of [
       "pending",
@@ -268,6 +320,8 @@ test.describe("member ingredient-request acceptance", () => {
       expect(response.headers()["cache-control"]).toContain("no-store");
       const payload = (await response.json()) as MemberRequestPage;
       expect(payload.items).toHaveLength(1);
+      expect(payload.total).toBe(1);
+      expect(payload.counts).toEqual(expectedAliceCounts);
       expect(payload.items[0]).toMatchObject({
         id: expectedByStatus[status].id,
         proposed_name: expectedByStatus[status].proposed_name,
@@ -276,6 +330,28 @@ test.describe("member ingredient-request acceptance", () => {
       expectSafeMemberRequestShape(payload.items[0]);
       memberRequests.set(status, payload.items[0]);
     }
+
+    const reviewedResponse = await memberGet(
+      page,
+      "alice",
+      `/api/ingredient-requests/mine?reviewed_only=true&page=1&page_size=1&q=${encodeURIComponent(searchPrefix)}`,
+    );
+    expect(reviewedResponse.status(), await reviewedResponse.text()).toBe(200);
+    const reviewedPage = (await reviewedResponse.json()) as MemberRequestPage;
+    expect(reviewedPage.items).toHaveLength(1);
+    expect(reviewedPage.total).toBe(3);
+    expect(reviewedPage.counts).toEqual(expectedAliceCounts);
+
+    const noMatchesResponse = await memberGet(
+      page,
+      "alice",
+      `/api/ingredient-requests/mine?q=${encodeURIComponent(`${searchPrefix} no such request`)}`,
+    );
+    expect(noMatchesResponse.status(), await noMatchesResponse.text()).toBe(200);
+    const noMatchesPage = (await noMatchesResponse.json()) as MemberRequestPage;
+    expect(noMatchesPage.items).toEqual([]);
+    expect(noMatchesPage.total).toBe(0);
+    expect(noMatchesPage.counts).toEqual(expectedAliceCounts);
 
     expect(memberRequests.get("approved")?.resolved_ingredient).toEqual({
       aliases: [approvedAlias],
@@ -307,8 +383,10 @@ test.describe("member ingredient-request acceptance", () => {
     const statusFilters = page.getByRole("group", {
       name: "Ingredient request status",
     });
-    for (const label of ["All", "Pending", "Approved", "Matched", "Rejected"]) {
-      await expect(statusFilters.getByRole("button", { name: label, exact: true })).toBeVisible();
+    for (const tab of requestStatusTabs) {
+      await expect(
+        statusFilters.getByRole("button", { name: tab.label, exact: true }),
+      ).toBeVisible();
     }
     await search.fill(searchPrefix);
     await search.press("Enter");
@@ -317,6 +395,7 @@ test.describe("member ingredient-request acceptance", () => {
       name: "My ingredient requests",
     });
     await expect(results.getByRole("article")).toHaveCount(4);
+    await expectRequestTabCounts(statusFilters, expectedAliceCounts);
     await expect(search).toBeFocused();
     const visibleRequests = [
       {
@@ -395,6 +474,7 @@ test.describe("member ingredient-request acceptance", () => {
     }
     await statusFilters.getByRole("button", { name: "All", exact: true }).click();
     await expect(results.getByRole("article")).toHaveCount(4);
+    await expectRequestTabCounts(statusFilters, expectedAliceCounts);
 
     await page.setViewportSize({ width: 390, height: 844 });
     expect(
@@ -428,7 +508,14 @@ test.describe("member ingredient-request acceptance", () => {
       `/api/ingredient-requests/mine?q=${encodeURIComponent(searchPrefix)}`,
     );
     expect(bobList.status(), await bobList.text()).toBe(200);
-    expect(((await bobList.json()) as MemberRequestPage).items).toEqual([]);
+    const bobPage = (await bobList.json()) as MemberRequestPage;
+    expect(bobPage.items).toEqual([]);
+    expect(bobPage.total).toBe(0);
+    expect(bobPage.counts).toEqual(initialBobCounts);
+    await expectRequestTabCounts(
+      page.getByRole("group", { name: "Ingredient request status" }),
+      initialBobCounts,
+    );
 
     const bobDetail = await memberGet(
       page,

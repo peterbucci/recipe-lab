@@ -3,6 +3,7 @@
 import { Search } from "lucide-react";
 
 import type { IngredientCatalogRequestStatus } from "../ingredient-model";
+import type { MemberIngredientRequestCounts } from "./ingredient-request-api";
 import { MemberIngredientRequestList } from "./member-ingredient-request-list";
 import { useMemberIngredientRequestHistory } from "./use-member-ingredient-request-history";
 import { WorkspaceEmptyState } from "../../../shared/ui/workspace-empty-state";
@@ -24,6 +25,7 @@ interface MemberIngredientRequestHistoryProps {
 }
 
 const STANDALONE_STATUS_TABS: Array<{
+  countKey: keyof MemberIngredientRequestCounts;
   description: string;
   emptyDescription: string;
   emptyTitle: string;
@@ -32,6 +34,7 @@ const STANDALONE_STATUS_TABS: Array<{
   value: IngredientCatalogRequestStatus | "";
 }> = [
   {
+    countKey: "all",
     description: "Review every ingredient request you’ve submitted and its latest status.",
     emptyDescription: "Request an ingredient and its review status will appear here.",
     emptyTitle: "You have no ingredient requests yet.",
@@ -40,6 +43,7 @@ const STANDALONE_STATUS_TABS: Array<{
     value: "",
   },
   {
+    countKey: "pending",
     description: "Requests waiting for curator review.",
     emptyDescription: "New ingredient requests will appear here while they wait for curator review.",
     emptyTitle: "You have no pending requests.",
@@ -48,6 +52,7 @@ const STANDALONE_STATUS_TABS: Array<{
     value: "pending",
   },
   {
+    countKey: "approved",
     description: "Requests that a curator added to the catalog.",
     emptyDescription: "Requests will appear here after a curator adds them to the catalog.",
     emptyTitle: "You have no approved requests.",
@@ -56,6 +61,7 @@ const STANDALONE_STATUS_TABS: Array<{
     value: "approved",
   },
   {
+    countKey: "duplicate",
     description: "Requests a curator matched to ingredients already in the catalog.",
     emptyDescription: "Requests will appear here after a curator matches them to an existing ingredient.",
     emptyTitle: "You have no matched requests.",
@@ -64,6 +70,7 @@ const STANDALONE_STATUS_TABS: Array<{
     value: "duplicate",
   },
   {
+    countKey: "rejected",
     description: "Requests that were not added to the catalog.",
     emptyDescription: "Requests will appear here if a curator decides not to add them.",
     emptyTitle: "You have no rejected requests.",
@@ -72,6 +79,14 @@ const STANDALONE_STATUS_TABS: Array<{
     value: "rejected",
   },
 ];
+
+const EMPTY_REQUEST_COUNTS: MemberIngredientRequestCounts = {
+  all: 0,
+  approved: 0,
+  duplicate: 0,
+  pending: 0,
+  rejected: 0,
+};
 
 export function MemberIngredientRequestHistory({
   idPrefix,
@@ -96,6 +111,7 @@ export function MemberIngredientRequestHistory({
   const activeStandaloneTab =
     STANDALONE_STATUS_TABS.find((tab) => tab.value === statusFilter) ??
     STANDALONE_STATUS_TABS[0]!;
+  const requestCounts = requestPage?.counts ?? EMPTY_REQUEST_COUNTS;
 
   const standaloneEmptyAction = query ? (
     <button className="button button--primary" type="button" onClick={clearSearch}>
@@ -140,11 +156,7 @@ export function MemberIngredientRequestHistory({
               className="member-request-history__status-tab"
               type="button"
               active={statusFilter === tab.value}
-              count={
-                statusFilter === tab.value && !loading && requestPage
-                  ? requestPage.total
-                  : null
-              }
+              count={requestCounts[tab.countKey]}
               onClick={() => changeStatusFilter(tab.value)}
             >
               {tab.label}
@@ -175,14 +187,23 @@ export function MemberIngredientRequestHistory({
         description={activeStandaloneTab.description}
         headingId={`${idPrefix}-selected-status-heading`}
         meta={
-          !loading && requestPage ? (
+          !loading && query && requestPage && requestPage.items.length > 0 ? (
             <span aria-live="polite">
-              {requestPage.total} request{requestPage.total === 1 ? "" : "s"}
+              Showing {requestPage.total} matching request
+              {requestPage.total === 1 ? "" : "s"}
             </span>
-          ) : null
+          ) : undefined
         }
         title={activeStandaloneTab.title}
       />
+      {!loading && requestPage && !query ? (
+        <p
+          className="member-request-history__total visually-hidden"
+          aria-live="polite"
+        >
+          {requestPage.total} request{requestPage.total === 1 ? "" : "s"}
+        </p>
+      ) : null}
 
       {loadError ? (
         <WorkspaceErrorState

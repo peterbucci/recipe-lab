@@ -8,6 +8,10 @@ from sqlalchemy.orm import Session, selectinload
 from app.catalog_names import normalize_catalog_name
 from app.db.query import LIKE_ESCAPE, literal_contains_pattern
 from app.models import (
+    CATALOG_REQUEST_APPROVED,
+    CATALOG_REQUEST_DUPLICATE,
+    CATALOG_REQUEST_PENDING,
+    CATALOG_REQUEST_REJECTED,
     CatalogCurator,
     Ingredient,
     IngredientAlias,
@@ -20,6 +24,42 @@ from app.models import (
 class IngredientRequestBrowseResult:
     items: list[IngredientCatalogRequest]
     total: int
+
+
+@dataclass(frozen=True, slots=True)
+class IngredientRequestStatusCounts:
+    all: int
+    pending: int
+    approved: int
+    duplicate: int
+    rejected: int
+
+
+def count_catalog_requests_by_status(
+    session: Session,
+    *,
+    requester_user_id: UUID,
+) -> IngredientRequestStatusCounts:
+    """Return member-wide request totals independently of browse filters."""
+
+    row = session.execute(
+        select(
+            func.count(),
+            func.count().filter(IngredientCatalogRequest.status == CATALOG_REQUEST_PENDING),
+            func.count().filter(IngredientCatalogRequest.status == CATALOG_REQUEST_APPROVED),
+            func.count().filter(IngredientCatalogRequest.status == CATALOG_REQUEST_DUPLICATE),
+            func.count().filter(IngredientCatalogRequest.status == CATALOG_REQUEST_REJECTED),
+        )
+        .select_from(IngredientCatalogRequest)
+        .where(IngredientCatalogRequest.requester_user_id == requester_user_id)
+    ).one()
+    return IngredientRequestStatusCounts(
+        all=int(row[0]),
+        pending=int(row[1]),
+        approved=int(row[2]),
+        duplicate=int(row[3]),
+        rejected=int(row[4]),
+    )
 
 
 def is_catalog_curator(

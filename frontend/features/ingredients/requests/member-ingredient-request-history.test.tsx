@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   MemberIngredientRequest,
+  MemberIngredientRequestCounts,
   MemberIngredientRequestPage,
 } from "./ingredient-request-api";
 import { IngredientCatalogApiError } from "../ingredient-api-error";
@@ -82,11 +83,26 @@ const duplicate = memberRequest({
   },
 });
 
+function requestCounts(
+  items: MemberIngredientRequest[],
+): MemberIngredientRequestCounts {
+  const counts: MemberIngredientRequestCounts = {
+    all: items.length,
+    approved: 0,
+    duplicate: 0,
+    pending: 0,
+    rejected: 0,
+  };
+  for (const item of items) counts[item.status] += 1;
+  return counts;
+}
+
 function requestPage(
   items: MemberIngredientRequest[] = [memberRequest(), approved, rejected, duplicate],
   overrides: Partial<MemberIngredientRequestPage> = {},
 ): MemberIngredientRequestPage {
   return {
+    counts: requestCounts(items),
     items,
     page: 1,
     page_size: 20,
@@ -125,9 +141,15 @@ describe("MemberIngredientRequestHistory", () => {
     const statusTabs = within(region).getByRole("group", {
       name: "Ingredient request status",
     });
-    expect(within(statusTabs).getByRole("button", { name: "All" })).toHaveAttribute(
+    const allRequestsTab = within(statusTabs).getByRole("button", { name: "All" });
+    expect(allRequestsTab).toHaveAttribute(
       "aria-pressed",
       "true",
+    );
+    await waitFor(() =>
+      expect(
+        allRequestsTab.querySelector(".workspace-tab-menu__count"),
+      ).toHaveTextContent("4"),
     );
     const allRequestsHeader = within(region)
       .getByRole("heading", { level: 2, name: "All requests" })
@@ -136,9 +158,27 @@ describe("MemberIngredientRequestHistory", () => {
     expect(allRequestsHeader).toHaveTextContent(
       "Review every ingredient request you’ve submitted and its latest status.",
     );
-    expect(allRequestsHeader).toHaveTextContent("4 requests");
-    for (const label of ["Pending", "Approved", "Matched", "Rejected"]) {
-      expect(within(statusTabs).getByRole("button", { name: label })).toBeVisible();
+    expect(
+      allRequestsHeader?.querySelector(".workspace-panel-header__meta"),
+    ).toBeNull();
+    expect(allRequestsHeader).not.toHaveTextContent("4 requests");
+    const allRequestsTotal = within(region).getByText("4 requests", {
+      selector: ".member-request-history__total",
+    });
+    expect(allRequestsTotal).toHaveClass("visually-hidden");
+    expect(allRequestsTotal).toHaveAttribute("aria-live", "polite");
+    for (const [label, count] of [
+      ["All", "4"],
+      ["Pending", "1"],
+      ["Approved", "1"],
+      ["Matched", "1"],
+      ["Rejected", "1"],
+    ] as const) {
+      const tab = within(statusTabs).getByRole("button", { name: label });
+      expect(tab).toBeVisible();
+      expect(
+        tab.querySelector(".workspace-tab-menu__count"),
+      ).toHaveTextContent(count);
     }
     expect(
       within(region).getByRole("searchbox", { name: "Search my ingredient requests" }),
@@ -189,9 +229,17 @@ describe("MemberIngredientRequestHistory", () => {
   });
 
   it("sends status, search, and paging to the complete member-history endpoint", async () => {
+    const counts: MemberIngredientRequestCounts = {
+      all: 21,
+      approved: 11,
+      duplicate: 2,
+      pending: 3,
+      rejected: 5,
+    };
     mocks.browseMyIngredientRequests.mockImplementation(
       async ({ page = 1 }: { page?: number } = {}) =>
         requestPage([approved], {
+          counts,
           page,
           page_size: 20,
           total: 11,
@@ -203,11 +251,40 @@ describe("MemberIngredientRequestHistory", () => {
       name: "Ingredient request: Dragon fruit request text",
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Approved" }));
+    const approvedTab = screen.getByRole("button", { name: "Approved" });
+    const statusTabs = screen.getByRole("group", {
+      name: "Ingredient request status",
+    });
+    expect(
+      within(within(statusTabs).getByRole("button", { name: "All" })).getByText(
+        "21",
+      ),
+    ).toHaveAttribute("aria-hidden", "true");
+    expect(
+      within(
+        within(statusTabs).getByRole("button", { name: "Pending" }),
+      ).getByText("3"),
+    ).toHaveAttribute("aria-hidden", "true");
+    expect(
+      within(within(statusTabs).getByRole("button", { name: "Matched" })).getByText(
+        "2",
+      ),
+    ).toHaveAttribute("aria-hidden", "true");
+    expect(
+      within(within(statusTabs).getByRole("button", { name: "Rejected" })).getByText(
+        "5",
+      ),
+    ).toHaveAttribute("aria-hidden", "true");
+    fireEvent.click(approvedTab);
     await waitFor(() =>
       expect(browseMyIngredientRequests).toHaveBeenLastCalledWith(
         expect.objectContaining({ status: "approved", page: 1, query: "" }),
       ),
+    );
+    await waitFor(() =>
+      expect(
+        approvedTab.querySelector(".workspace-tab-menu__count"),
+      ).toHaveTextContent("11"),
     );
     const approvedHeader = screen
       .getByRole("heading", { level: 2, name: "Approved requests" })
@@ -216,7 +293,15 @@ describe("MemberIngredientRequestHistory", () => {
     expect(approvedHeader).toHaveTextContent(
       "Requests that a curator added to the catalog.",
     );
-    expect(approvedHeader).toHaveTextContent("11 requests");
+    expect(
+      approvedHeader?.querySelector(".workspace-panel-header__meta"),
+    ).toBeNull();
+    expect(approvedHeader).not.toHaveTextContent("11 requests");
+    const approvedTotal = screen.getByText("11 requests", {
+      selector: ".member-request-history__total",
+    });
+    expect(approvedTotal).toHaveClass("visually-hidden");
+    expect(approvedTotal).toHaveAttribute("aria-live", "polite");
     const search = screen.getByRole("searchbox", { name: "Search my ingredient requests" });
     fireEvent.change(search, { target: { value: "  dragon fruit  " } });
     fireEvent.submit(search.closest("form")!);
@@ -231,6 +316,14 @@ describe("MemberIngredientRequestHistory", () => {
         }),
       ),
     );
+    const searchSummary = await screen.findByText(
+      "Showing 11 matching requests",
+    );
+    expect(searchSummary).toBeVisible();
+    expect(searchSummary).toHaveAttribute("aria-live", "polite");
+    expect(
+      approvedTab.querySelector(".workspace-tab-menu__count"),
+    ).toHaveTextContent("11");
     fireEvent.click(await screen.findByRole("button", { name: "Next →" }));
     await waitFor(() =>
       expect(browseMyIngredientRequests).toHaveBeenLastCalledWith(
