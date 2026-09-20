@@ -106,12 +106,13 @@ describe("AccountMenu", () => {
   });
 
   it("keeps member content in My recipes and account navigation in the menu", () => {
+    const longHandle = "demo_a6a0477df0ee4b4ea2609d6a";
     const { rerender } = render(
       <AuthSessionProvider
         key="member"
         initialSession={{
           status: "authenticated",
-          user: { id: "cook-id", display_name: "Alice Cook", handle: "alice" },
+          user: { id: "cook-id", display_name: "Alice Cook", handle: longHandle },
           capabilities: { review_ingredient_requests: false, moderate_recipe_reports: false },
         }}
       >
@@ -121,12 +122,15 @@ describe("AccountMenu", () => {
 
     fireEvent.click(screen.getByLabelText("Account menu for Alice Cook"));
     const profileLink = screen.getByRole("link", { name: "View profile" });
-    expect(profileLink).toHaveAttribute("href", "/cooks/alice");
+    expect(profileLink).toHaveAttribute("href", `/cooks/${longHandle}`);
     expect(profileLink).toHaveTextContent(/^View profile$/);
     const identity = profileLink.closest<HTMLElement>(".account-menu__identity");
     expect(identity).not.toBeNull();
     expect(within(identity!).getByText("Alice Cook").closest("a")).toBeNull();
-    expect(within(identity!).getByText("@alice").closest("a")).toBeNull();
+    const handle = within(identity!).getByText(`@${longHandle}`);
+    expect(handle).toHaveClass("account-menu__handle");
+    expect(handle).toHaveAttribute("title", `@${longHandle}`);
+    expect(handle.closest("a")).toBeNull();
     expect(
       document.querySelector(".account-menu__identity .account-menu__avatar"),
     ).toHaveTextContent("A");

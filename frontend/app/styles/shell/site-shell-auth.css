@@ -458,6 +458,14 @@ h3 {
   font-size: 0.75rem;
 }
 
+.account-menu__handle {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .account-menu__identity-action {
   width: fit-content;
   color: var(--leaf);
