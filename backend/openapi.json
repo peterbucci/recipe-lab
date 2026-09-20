@@ -2497,9 +2497,45 @@
         "title": "MyRecipeDraftItem",
         "type": "object"
       },
+      "MyRecipeLibraryCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "drafts": {
+            "minimum": 0.0,
+            "title": "Drafts",
+            "type": "integer"
+          },
+          "published": {
+            "minimum": 0.0,
+            "title": "Published",
+            "type": "integer"
+          },
+          "saved": {
+            "minimum": 0.0,
+            "title": "Saved",
+            "type": "integer"
+          },
+          "withdrawn": {
+            "minimum": 0.0,
+            "title": "Withdrawn",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "drafts",
+          "published",
+          "saved",
+          "withdrawn"
+        ],
+        "title": "MyRecipeLibraryCounts",
+        "type": "object"
+      },
       "MyRecipeLibraryResponse": {
         "additionalProperties": false,
         "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/MyRecipeLibraryCounts"
+          },
           "items": {
             "items": {
               "discriminator": {
@@ -2545,6 +2581,7 @@
         },
         "required": [
           "items",
+          "counts",
           "page",
           "page_size",
           "total",
@@ -6656,6 +6693,9 @@
       "SavedRecipeLibraryResponse": {
         "additionalProperties": false,
         "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/MyRecipeLibraryCounts"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/SavedRecipeLibraryItem"
@@ -6687,6 +6727,7 @@
         },
         "required": [
           "items",
+          "counts",
           "page",
           "page_size",
           "total",

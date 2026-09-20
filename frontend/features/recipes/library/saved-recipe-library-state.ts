@@ -194,6 +194,10 @@ export function savedRecipeLibraryReducer(
           ...state.result,
           page: {
             ...state.result.page,
+            counts: {
+              ...state.result.page.counts,
+              saved: total,
+            },
             items,
             total,
             total_pages: Math.ceil(total / state.result.page.page_size),

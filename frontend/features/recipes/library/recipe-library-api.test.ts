@@ -67,6 +67,7 @@ const recipe = {
 };
 
 const envelope = {
+  counts: { drafts: 1, published: 1, saved: 1, withdrawn: 1 },
   page: 1,
   page_size: 12,
   total: 1,
@@ -122,6 +123,7 @@ describe("private recipe library API", () => {
           },
         ],
         ...envelope,
+        counts: { ...envelope.counts, drafts: 2 },
         total: 2,
       }),
     );
@@ -285,6 +287,41 @@ describe("private recipe library API", () => {
       "/api/my/saved-recipes?page=1&page_size=12",
       expect.objectContaining({ credentials: "same-origin" }),
     );
+  });
+
+  it("rejects tab counts that disagree with the selected page total", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          Response.json({
+            items: [
+              { kind: "published", recipe, visibility_state: "published" },
+            ],
+            ...envelope,
+            counts: { ...envelope.counts, published: 2 },
+          }),
+        )
+        .mockResolvedValueOnce(
+          Response.json({
+            items: [{ recipe, saved_at: "2026-08-25T13:00:00Z" }],
+            ...envelope,
+            counts: { ...envelope.counts, saved: 2 },
+          }),
+        ),
+    );
+
+    await expect(
+      fetchMyRecipeLibrary({ view: "published" }),
+    ).rejects.toMatchObject({
+      code: "invalid_recipe_library_response",
+      status: 502,
+    });
+    await expect(fetchSavedRecipeLibrary()).rejects.toMatchObject({
+      code: "invalid_recipe_library_response",
+      status: 502,
+    });
   });
 
   it("announces an expired session and rejects malformed library responses", async () => {

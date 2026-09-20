@@ -115,6 +115,12 @@ no-store`, and vary on the session cookie:
 - `GET /api/my/saved-recipes` database-pages only public versions currently
   saved by the current member, ordered by the server-recorded save time.
 
+Both responses include the same member-wide counts for Drafts, Published,
+Saved, and Withdrawn so every workspace tab can display its total on any view
+or page. Published counts include moderation-hidden current recipes, while the
+Saved count includes only saves that still resolve to a publicly readable
+recipe. Pagination changes the returned items, not these tab totals.
+
 The matching member workspace is `/account/recipes?view=...`, with Drafts,
 Published, Saved, and Withdrawn views. Saved continues to use its separate
 private API contract, while the old `/account/saved-recipes` route redirects to

@@ -7,6 +7,7 @@ import {
   DRAFT_ID,
   fork,
   ORIGINAL_DRAFT_ID,
+  recipeLibraryCounts,
   ROOT_ID,
 } from "./recipe-library-test-support";
 import { MyRecipeLibrary } from "./my-recipe-library";
@@ -16,6 +17,11 @@ describe("cook profile and private recipe libraries", () => {
   it("labels version and original drafts while showing source names only for versions", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
+        counts: recipeLibraryCounts("drafts", 2, {
+          published: 3,
+          saved: 4,
+          withdrawn: 5,
+        }),
         items: [
           {
             kind: "draft",
@@ -66,10 +72,8 @@ describe("cook profile and private recipe libraries", () => {
       "workspace-panel-shell",
       "workspace-panel-shell--mobile-bleed",
     );
-    expect(within(views).getByRole("link", { name: "Drafts" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    const draftsView = within(views).getByRole("link", { name: "Drafts" });
+    expect(draftsView).toHaveAttribute("aria-current", "page");
     expect(
       within(views).getByRole("link", { name: "Published" }),
     ).toHaveAttribute("href", "/account/recipes?view=published");
@@ -99,7 +103,31 @@ describe("cook profile and private recipe libraries", () => {
     expect(draftsHeader).toHaveTextContent(
       "Only you can see these drafts. They never appear in public recipes or search.",
     );
-    expect(draftsHeader).toHaveTextContent("2 drafts");
+    expect(
+      draftsView.querySelector(".workspace-tab-menu__count"),
+    ).toHaveTextContent("2");
+    expect(
+      within(views)
+        .getByRole("link", { name: "Published" })
+        .querySelector(".workspace-tab-menu__count"),
+    ).toHaveTextContent("3");
+    expect(
+      within(views)
+        .getByRole("link", { name: "Saved" })
+        .querySelector(".workspace-tab-menu__count"),
+    ).toHaveTextContent("4");
+    expect(
+      within(views)
+        .getByRole("link", { name: "Withdrawn" })
+        .querySelector(".workspace-tab-menu__count"),
+    ).toHaveTextContent("5");
+    expect(
+      draftsHeader?.querySelector(".workspace-panel-header__meta"),
+    ).toBeNull();
+    expect(draftsHeader).not.toHaveTextContent("2 drafts");
+    const draftsTotal = screen.getByText("2 drafts", { exact: true });
+    expect(draftsTotal).toHaveClass("visually-hidden");
+    expect(draftsTotal).toHaveAttribute("aria-live", "polite");
     const workspace = list.closest("main");
     expect(workspace).toHaveClass(
       "account-workspace-page",
@@ -163,6 +191,7 @@ describe("cook profile and private recipe libraries", () => {
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(
         Response.json({
+          counts: recipeLibraryCounts("published", 25),
           items: [
             {
               kind: "published",
@@ -187,7 +216,10 @@ describe("cook profile and private recipe libraries", () => {
     expect(publishedHeader).toHaveTextContent(
       "These recipes have been published. A recipe hidden by moderation remains visible to you here with its current status.",
     );
-    expect(publishedHeader).toHaveTextContent("25 published recipes");
+    expect(
+      publishedHeader?.querySelector(".workspace-panel-header__meta"),
+    ).toBeNull();
+    expect(publishedHeader).not.toHaveTextContent("25 published recipes");
     const publishedCard = within(list).getByRole("article", {
       name: "Creamy tomato soup",
     });
@@ -209,9 +241,18 @@ describe("cook profile and private recipe libraries", () => {
       within(list).getByText("Based on", { exact: false }).closest("p"),
     ).toHaveTextContent("Based on Catalog tomato soup by Recipe Lab catalog");
     const views = screen.getByRole("navigation", { name: "My recipe views" });
+    const publishedView = within(views).getByRole("link", {
+      name: "Published",
+    });
+    expect(publishedView).toHaveAttribute("aria-current", "page");
     expect(
-      within(views).getByRole("link", { name: "Published" }),
-    ).toHaveAttribute("aria-current", "page");
+      publishedView.querySelector(".workspace-tab-menu__count"),
+    ).toHaveTextContent("25");
+    const publishedTotal = screen.getByText("25 published recipes", {
+      exact: true,
+    });
+    expect(publishedTotal).toHaveClass("visually-hidden");
+    expect(publishedTotal).toHaveAttribute("aria-live", "polite");
     const pages = screen.getByRole("navigation", {
       name: "Published recipe pages",
     });
@@ -276,6 +317,7 @@ describe("cook profile and private recipe libraries", () => {
         "fetch",
         vi.fn<typeof fetch>().mockResolvedValue(
           Response.json({
+            counts: recipeLibraryCounts(view, 0),
             items: [],
             page: 1,
             page_size: 12,
@@ -311,6 +353,7 @@ describe("cook profile and private recipe libraries", () => {
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(
         Response.json({
+          counts: recipeLibraryCounts("withdrawn", 13),
           items: [],
           page: 3,
           page_size: 12,

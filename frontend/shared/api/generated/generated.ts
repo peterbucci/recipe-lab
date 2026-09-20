@@ -1789,8 +1789,20 @@ export type components = {
             /** Source Recipe Title */
             readonly source_recipe_title: string | null;
         };
+        /** MyRecipeLibraryCounts */
+        readonly MyRecipeLibraryCounts: {
+            /** Drafts */
+            readonly drafts: number;
+            /** Published */
+            readonly published: number;
+            /** Saved */
+            readonly saved: number;
+            /** Withdrawn */
+            readonly withdrawn: number;
+        };
         /** MyRecipeLibraryResponse */
         readonly MyRecipeLibraryResponse: {
+            readonly counts: components["schemas"]["MyRecipeLibraryCounts"];
             /** Items */
             readonly items: readonly (components["schemas"]["MyRecipeDraftItem"] | components["schemas"]["MyPublishedRecipeItem"])[];
             /** Page */
@@ -3403,6 +3415,7 @@ export type components = {
         };
         /** SavedRecipeLibraryResponse */
         readonly SavedRecipeLibraryResponse: {
+            readonly counts: components["schemas"]["MyRecipeLibraryCounts"];
             /** Items */
             readonly items: readonly components["schemas"]["SavedRecipeLibraryItem"][];
             /** Page */

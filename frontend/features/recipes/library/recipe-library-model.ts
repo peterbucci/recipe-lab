@@ -5,7 +5,10 @@ import {
 } from "../authoring/draft/recipe-draft-summary";
 import type { RecipeSummary } from "../shared/recipe-contracts";
 import { invalidRecipeLibraryResponse } from "./recipe-library-error";
-import { parseRecipeLibraryPageEnvelope } from "./recipe-library-page-parser";
+import {
+  parseRecipeLibraryPageEnvelope,
+  type MyRecipeLibraryCounts,
+} from "./recipe-library-page-parser";
 import {
   isBoundedRecipeText,
   isRecipeRecord,
@@ -45,10 +48,13 @@ export type MyRecipeLibraryItem =
 
 export type MyRecipeLibraryPage = Omit<
   MyRecipeLibraryContractPage,
-  "items"
+  "counts" | "items"
 > & {
+  counts: MyRecipeLibraryCounts;
   items: MyRecipeLibraryItem[];
 };
+
+export type { MyRecipeLibraryCounts } from "./recipe-library-page-parser";
 
 export interface SavedRecipeLibraryItem {
   recipe: RecipeSummary;
@@ -56,6 +62,7 @@ export interface SavedRecipeLibraryItem {
 }
 
 export interface SavedRecipeLibraryPage {
+  counts: MyRecipeLibraryCounts;
   items: SavedRecipeLibraryItem[];
   page: number;
   page_size: number;

@@ -11,6 +11,9 @@ from app.pagination import PageParams
 from app.repositories.auth import get_user_by_handle
 from app.repositories.member_follows import count_followers
 from app.repositories.recipe_libraries import (
+    MyRecipeLibraryCounts as StoredMyRecipeLibraryCounts,
+)
+from app.repositories.recipe_libraries import (
     MyRecipeLibraryView,
     browse_my_recipes,
     browse_my_saved_recipes,
@@ -25,6 +28,7 @@ from app.schemas.errors import ErrorResponse
 from app.schemas.recipe_libraries import (
     MyPublishedRecipeItem,
     MyRecipeDraftItem,
+    MyRecipeLibraryCounts,
     MyRecipeLibraryResponse,
     PublicCookProfileResponse,
     SavedRecipeLibraryItem,
@@ -52,6 +56,15 @@ MY_RECIPE_LIBRARY_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     **PRIVATE_LIBRARY_ERROR_RESPONSES,
     422: {"model": ErrorResponse, "description": "A view or page parameter is invalid."},
 }
+
+
+def _library_counts(counts: StoredMyRecipeLibraryCounts) -> MyRecipeLibraryCounts:
+    return MyRecipeLibraryCounts(
+        drafts=counts.drafts,
+        published=counts.published,
+        saved=counts.saved,
+        withdrawn=counts.withdrawn,
+    )
 
 
 def _card_summary(
@@ -195,6 +208,7 @@ def my_recipe_library(
             )
     result = MyRecipeLibraryResponse(
         items=items,
+        counts=_library_counts(stored.counts),
         page=page,
         page_size=page_size,
         total=stored.total,
@@ -244,6 +258,7 @@ def my_saved_recipe_library(
         )
     result = SavedRecipeLibraryResponse(
         items=items,
+        counts=_library_counts(stored.counts),
         page=page,
         page_size=page_size,
         total=stored.total,

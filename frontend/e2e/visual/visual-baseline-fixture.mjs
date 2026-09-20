@@ -1466,6 +1466,31 @@ function apiPage(items, pageSize = 12, page = 1) {
   };
 }
 
+function recipeLibraryCounts() {
+  if (scenario === "homepage-empty") {
+    return { drafts: 0, published: 0, saved: 0, withdrawn: 0 };
+  }
+  if (scenario === "activity-normal") {
+    return {
+      drafts: activityRecipeItems.drafts.length,
+      published: activityRecipeItems.published.length,
+      saved: activitySavedItems.length,
+      withdrawn: activityRecipeItems.withdrawn.length,
+    };
+  }
+  return { drafts: 1, published: 2, saved: 1, withdrawn: 1 };
+}
+
+function ingredientRequestCounts(items) {
+  return {
+    all: items.length,
+    pending: items.filter((item) => item.status === "pending").length,
+    approved: items.filter((item) => item.status === "approved").length,
+    duplicate: items.filter((item) => item.status === "duplicate").length,
+    rejected: items.filter((item) => item.status === "rejected").length,
+  };
+}
+
 async function handleApi(request, response, url) {
   if (requestHasPrivateMaterial(request)) {
     audit.privacy_rejections += 1;
@@ -2005,6 +2030,7 @@ async function handleApi(request, response, url) {
       10,
     );
     sendJson(response, 200, {
+      counts: recipeLibraryCounts(),
       items: responseItems,
       page: 1,
       page_size: requestedPageSize,
@@ -2048,6 +2074,7 @@ async function handleApi(request, response, url) {
       10,
     );
     sendJson(response, 200, {
+      counts: recipeLibraryCounts(),
       items: savedItems,
       page: 1,
       page_size: requestedPageSize,
@@ -2145,18 +2172,25 @@ async function handleApi(request, response, url) {
 
   if (method === "GET" && path === "/api/ingredient-requests/mine") {
     countRoute("member-ingredient-requests");
-    const requestItems =
+    const allRequestItems =
       scenario === "homepage-empty"
         ? []
-        : scenario === "activity-normal" &&
-            url.searchParams.get("reviewed_only") === "true"
+        : scenario === "activity-normal"
           ? activityIngredientRequests
           : [memberIngredientRequest];
+    const status = url.searchParams.get("status");
+    const requestItems = allRequestItems.filter(
+      (item) =>
+        (!status || item.status === status) &&
+        (url.searchParams.get("reviewed_only") !== "true" ||
+          item.reviewed_at !== null),
+    );
     const requestedPageSize = Number.parseInt(
       url.searchParams.get("page_size") ?? "20",
       10,
     );
     sendJson(response, 200, {
+      counts: ingredientRequestCounts(allRequestItems),
       items: requestItems,
       page: 1,
       page_size: requestedPageSize,

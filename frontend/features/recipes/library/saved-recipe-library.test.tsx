@@ -11,6 +11,7 @@ import {
   FORK_ID,
   getRecipeLibraryRouterMocks,
   original,
+  recipeLibraryCounts,
   ROOT_ID,
 } from "./recipe-library-test-support";
 import { SavedRecipeLibrary } from "./saved-recipe-library";
@@ -26,6 +27,7 @@ function savedPage(
   totalPages: number,
 ) {
   return Response.json({
+    counts: recipeLibraryCounts("saved", total),
     items: [{ recipe, saved_at: "2026-08-25T12:00:00Z" }],
     page,
     page_size: 12,
@@ -43,12 +45,43 @@ function removedRecipe(recipeVersionId: string) {
   });
 }
 
+function expectSavedRecipeTotal(total: number) {
+  const label = `${total} saved ${total === 1 ? "recipe" : "recipes"}`;
+  const savedHeader = screen
+    .getByRole("heading", { level: 2, name: "Saved recipes" })
+    .closest("header");
+  const views = within(
+    screen.getByRole("navigation", { name: "My recipe views" }),
+  );
+  const savedView = views.getByRole("link", { name: "Saved" });
+
+  expect(savedView).toHaveAttribute("aria-current", "page");
+  expect(
+    savedView.querySelector(".workspace-tab-menu__count"),
+  ).toHaveTextContent(String(total));
+  for (const view of ["Drafts", "Published", "Withdrawn"]) {
+    expect(
+      views
+        .getByRole("link", { name: view })
+        .querySelector(".workspace-tab-menu__count"),
+    ).toHaveTextContent("0");
+  }
+  expect(
+    savedHeader?.querySelector(".workspace-panel-header__meta"),
+  ).toBeNull();
+  expect(savedHeader).not.toHaveTextContent(label);
+  const savedTotal = screen.getByText(label, { exact: true });
+  expect(savedTotal).toHaveClass("visually-hidden");
+  expect(savedTotal).toHaveAttribute("aria-live", "polite");
+}
+
 describe("cook profile and private recipe libraries", () => {
   it("uses URL pages for deep links and back-forward navigation", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
         Response.json({
+          counts: recipeLibraryCounts("saved", 13),
           items: [{ recipe: fork(), saved_at: "2026-08-25T12:00:00Z" }],
           page: 1,
           page_size: 12,
@@ -58,6 +91,7 @@ describe("cook profile and private recipe libraries", () => {
       )
       .mockResolvedValueOnce(
         Response.json({
+          counts: recipeLibraryCounts("saved", 13),
           items: [{ recipe: original(), saved_at: "2026-08-24T12:00:00Z" }],
           page: 2,
           page_size: 12,
@@ -67,6 +101,7 @@ describe("cook profile and private recipe libraries", () => {
       )
       .mockResolvedValueOnce(
         Response.json({
+          counts: recipeLibraryCounts("saved", 13),
           items: [{ recipe: fork(), saved_at: "2026-08-25T12:00:00Z" }],
           page: 1,
           page_size: 12,
@@ -87,13 +122,6 @@ describe("cook profile and private recipe libraries", () => {
       screen.queryByRole("heading", { name: "Ingredient requests" }),
     ).toBeNull();
     expect(
-      within(
-        screen.getByRole("navigation", { name: "My recipe views" }),
-      ).getByRole("link", {
-        name: "Saved",
-      }),
-    ).toHaveAttribute("aria-current", "page");
-    expect(
       await screen.findByRole("list", { name: "Saved recipes" }),
     ).toHaveTextContent("Creamy tomato soup");
     const savedHeader = screen
@@ -103,7 +131,7 @@ describe("cook profile and private recipe libraries", () => {
     expect(savedHeader).toHaveTextContent(
       "Recipes you’ve saved to come back to later.",
     );
-    expect(savedHeader).toHaveTextContent("13 saved recipes");
+    expectSavedRecipeTotal(13);
     const savedList = screen.getByRole("list", { name: "Saved recipes" });
     expect(savedList.closest(".member-library__content")).toHaveClass(
       "workspace-panel-body",
@@ -178,6 +206,7 @@ describe("cook profile and private recipe libraries", () => {
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
         Response.json({
+          counts: recipeLibraryCounts("saved", 1),
           items: [{ recipe: original(), saved_at: "2026-08-25T12:00:00Z" }],
           page: 1,
           page_size: 12,
@@ -310,10 +339,7 @@ describe("cook profile and private recipe libraries", () => {
     expect(
       screen.getByRole("list", { name: "Saved recipes" }),
     ).toHaveTextContent("Creamy tomato soup");
-    expect(
-      screen.getByRole("heading", { level: 2, name: "Saved recipes" })
-        .closest("header"),
-    ).toHaveTextContent("12 saved recipes");
+    expectSavedRecipeTotal(12);
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(currentRecipe).toHaveFocus();
@@ -449,10 +475,7 @@ describe("cook profile and private recipe libraries", () => {
     expect(
       screen.getByRole("list", { name: "Saved recipes" }),
     ).toHaveTextContent("Fresh page two recipe");
-    expect(
-      screen.getByRole("heading", { level: 2, name: "Saved recipes" })
-        .closest("header"),
-    ).toHaveTextContent("24 saved recipes");
+    expectSavedRecipeTotal(24);
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(routerMocks.replace).not.toHaveBeenCalled();
@@ -534,6 +557,7 @@ describe("cook profile and private recipe libraries", () => {
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
         Response.json({
+          counts: recipeLibraryCounts("saved", 1),
           items: [{ recipe: original(), saved_at: "2026-08-25T12:00:00Z" }],
           page: 1,
           page_size: 12,
@@ -595,6 +619,7 @@ describe("cook profile and private recipe libraries", () => {
       )
       .mockResolvedValueOnce(
         Response.json({
+          counts: recipeLibraryCounts("saved", 0),
           items: [],
           page: 1,
           page_size: 12,
@@ -637,6 +662,7 @@ describe("cook profile and private recipe libraries", () => {
   it("recovers from a stale private-library page without claiming the account is empty", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
       Response.json({
+        counts: recipeLibraryCounts("saved", 13),
         items: [],
         page: 2,
         page_size: 12,

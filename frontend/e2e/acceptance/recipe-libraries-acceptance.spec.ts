@@ -21,7 +21,15 @@ interface FollowState {
 
 type MyRecipeLibraryView = "drafts" | "published" | "withdrawn";
 
+interface RecipeLibraryCounts {
+  drafts: number;
+  published: number;
+  saved: number;
+  withdrawn: number;
+}
+
 interface MyRecipePage {
+  counts: RecipeLibraryCounts;
   total: number;
   items: Array<
     | {
@@ -36,6 +44,18 @@ interface MyRecipePage {
       }
   >;
 }
+
+interface SavedRecipePage {
+  counts: RecipeLibraryCounts;
+  total: number;
+}
+
+const recipeLibraryTabs = [
+  { key: "drafts", label: "Drafts" },
+  { key: "published", label: "Published" },
+  { key: "saved", label: "Saved" },
+  { key: "withdrawn", label: "Withdrawn" },
+] as const;
 
 const libraryViewCopy: Record<
   MyRecipeLibraryView,
@@ -83,10 +103,25 @@ async function expectNoAccessibilityViolations(page: Page): Promise<void> {
   expect(results.violations).toEqual([]);
 }
 
+async function expectRecipeLibraryTabCounts(
+  page: Page,
+  counts: RecipeLibraryCounts,
+): Promise<void> {
+  const navigation = page.getByRole("navigation", { name: "My recipe views" });
+  for (const tab of recipeLibraryTabs) {
+    await expect(
+      navigation
+        .getByRole("link", { name: tab.label, exact: true })
+        .locator(".workspace-tab-menu__count"),
+    ).toHaveText(String(counts[tab.key]));
+  }
+}
+
 async function expectLibraryView(
   page: Page,
   view: MyRecipeLibraryView,
   total: number,
+  counts: RecipeLibraryCounts,
 ): Promise<void> {
   const responsePromise = page.waitForResponse((response) => {
     const url = new URL(response.url());
@@ -103,6 +138,7 @@ async function expectLibraryView(
     "aria-current",
     "page",
   );
+  await expectRecipeLibraryTabCounts(page, counts);
   const copy = libraryViewCopy[view];
   if (total > 0) {
     await expect(page.getByRole("heading", { name: copy.heading, level: 2 })).toBeVisible();
@@ -128,6 +164,18 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
 
     try {
       const headers = await csrfHeaders(page, "alice");
+      const initialAliceLibraryResponse = await memberGet(
+        page,
+        "alice",
+        "/api/my/recipes?view=drafts&page=1&page_size=1",
+      );
+      expect(
+        initialAliceLibraryResponse.status(),
+        await initialAliceLibraryResponse.text(),
+      ).toBe(200);
+      const initialAliceCounts = (
+        (await initialAliceLibraryResponse.json()) as MyRecipePage
+      ).counts;
       const created = await page.request.post(apiUrl("/api/recipe-drafts"), {
         data: { draft_kind: "original", source_version_id: null },
         headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
@@ -149,6 +197,11 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
       expect(saved.status(), await saved.text()).toBe(200);
       draft = (await saved.json()) as DraftResponse;
 
+      const expectedAliceCounts: RecipeLibraryCounts = {
+        ...initialAliceCounts,
+        drafts: initialAliceCounts.drafts + 1,
+      };
+
       const aliceDraftsResponse = await memberGet(
         page,
         "alice",
@@ -164,6 +217,8 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
         }),
       );
       expect(aliceDrafts.items.every((item) => item.kind === "draft")).toBe(true);
+      expect(aliceDrafts.total).toBe(expectedAliceCounts.drafts);
+      expect(aliceDrafts.counts).toEqual(expectedAliceCounts);
 
       const alicePublishedResponse = await memberGet(
         page,
@@ -183,6 +238,8 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
       expect(alicePublished.items).not.toContainEqual(
         expect.objectContaining({ kind: "draft", draft: expect.objectContaining({ id: draft.id }) }),
       );
+      expect(alicePublished.total).toBe(expectedAliceCounts.published);
+      expect(alicePublished.counts).toEqual(expectedAliceCounts);
 
       const aliceWithdrawnResponse = await memberGet(
         page,
@@ -197,8 +254,21 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
         ),
       ).toBe(true);
 
+      expect(aliceWithdrawn.total).toBe(expectedAliceCounts.withdrawn);
+      expect(aliceWithdrawn.counts).toEqual(expectedAliceCounts);
+
+      const aliceSavedResponse = await memberGet(
+        page,
+        "alice",
+        "/api/my/saved-recipes?page=1&page_size=1",
+      );
+      expect(aliceSavedResponse.status(), await aliceSavedResponse.text()).toBe(200);
+      const aliceSaved = (await aliceSavedResponse.json()) as SavedRecipePage;
+      expect(aliceSaved.total).toBe(expectedAliceCounts.saved);
+      expect(aliceSaved.counts).toEqual(expectedAliceCounts);
+
       await page.setViewportSize({ width: 390, height: 844 });
-      await expectLibraryView(page, "drafts", aliceDrafts.total);
+      await expectLibraryView(page, "drafts", aliceDrafts.total, expectedAliceCounts);
       const aliceList = page.getByRole("list", { name: "Private recipe drafts" });
       const aliceDraftHeading = aliceList.getByRole("heading", { name: title, exact: true });
       const aliceDraftCard = aliceList.getByRole("article", { name: title, exact: true });
@@ -209,9 +279,9 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
       await expect(aliceDraftCard.getByText("Original recipe", { exact: true })).toHaveCount(0);
       await expect(aliceDraftCard.getByRole("link", { name: "View source" })).toHaveCount(0);
 
-      await expectLibraryView(page, "published", alicePublished.total);
+      await expectLibraryView(page, "published", alicePublished.total, expectedAliceCounts);
       await expect(page.getByText(title, { exact: true })).toHaveCount(0);
-      await expectLibraryView(page, "withdrawn", aliceWithdrawn.total);
+      await expectLibraryView(page, "withdrawn", aliceWithdrawn.total, expectedAliceCounts);
       await expect(page.getByText(title, { exact: true })).toHaveCount(0);
 
       const bobLibrary = await memberGet(
@@ -224,7 +294,8 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
       expect(bobDrafts.items).not.toContainEqual(
         expect.objectContaining({ kind: "draft", draft: expect.objectContaining({ id: draft.id }) }),
       );
-      await expectLibraryView(page, "drafts", bobDrafts.total);
+      expect(bobDrafts.counts.drafts).toBe(bobDrafts.total);
+      await expectLibraryView(page, "drafts", bobDrafts.total, bobDrafts.counts);
       await expect(page.getByText(title, { exact: true })).toHaveCount(0);
 
       let perCardHydrationRequests = 0;
@@ -278,6 +349,7 @@ test.describe("cook profiles and member recipe libraries acceptance", () => {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto("/account/recipes?view=saved");
       await expect(page.getByRole("heading", { name: "My recipes", level: 1 })).toBeVisible();
+      await expectRecipeLibraryTabCounts(page, expectedAliceCounts);
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth > document.documentElement.clientWidth,

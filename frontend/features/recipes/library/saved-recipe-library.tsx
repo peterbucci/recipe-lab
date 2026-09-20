@@ -261,19 +261,17 @@ export function SavedRecipeLibrary({ pageNumber }: SavedRecipeLibraryProps) {
 
       <div className="member-library__frame workspace-panel-shell workspace-panel-shell--mobile-bleed">
         <MyRecipesHubNavigation
-          activeCount={page && !beyondLastPage ? page.total : null}
           activeView="saved"
+          counts={page?.counts ?? null}
         />
+        {page && !beyondLastPage ? (
+          <p className="visually-hidden" aria-live="polite">
+            {page.total} saved {page.total === 1 ? "recipe" : "recipes"}
+          </p>
+        ) : null}
         <WorkspacePanelHeader
           description="Recipes you’ve saved to come back to later."
           headingId="saved-recipes-list-heading"
-          meta={
-            page && !beyondLastPage ? (
-              <span aria-live="polite">
-                {page.total} saved {page.total === 1 ? "recipe" : "recipes"}
-              </span>
-            ) : null
-          }
           title="Saved recipes"
         />
 
