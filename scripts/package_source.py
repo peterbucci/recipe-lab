@@ -125,23 +125,23 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-access-intermediate-normal.png",
-            "9e4e3497680a1f17d4fdee862c6f5e1622fcaf02",
+            "9828462e2ad3302dfd7e8b337dae8f6d199ac594",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-activity-no-matches.png",
-            "dc5d91e1dfc5f73606c02b854a10de92e2c033ed",
+            "df1137ebe8563a70d69458857a9cd1892f2c2916",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-activity-normal-intermediate.png",
-            "57dc3be36872ecd466f46ef27834e784ea773e23",
+            "242be1012862bd8636536baabc64d543a4617daf",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-activity-normal.png",
-            "74f8603ac6b7c37b38551614a77ed4ba7ce50fde",
+            "0f0185a100efcfe530492c8e6346ba07a85ba2b3",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-activity-saved-filtered.png",
-            "58e3b1fe02f52f2334fb0940b1698d8f51c5f666",
+            "3f0e9515bc5a07d4b3eddb0e0e0b3815fd293f59",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-connections-followers-normal.png",
@@ -213,7 +213,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-editor-validation.png",
-            "2403b22ea22df7e61bc3dbbdaeaf1a0db7b4c7f7",
+            "7eef789785200e09e7ab784b4da3b23f3040bd0b",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/draft-fork-header-normal.png",
@@ -261,19 +261,19 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/my-ingredient-requests-intermediate.png",
-            "eec9ef7921eedca6789250b9257d5ef597ed5165",
+            "af1c9de44bca280aa821a9b078aa2af6b671504e",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/my-ingredient-requests.png",
-            "7ebb1e806cce1d42e9520e8086a2c0060840a18f",
+            "9131aa420828642a706a6755192dd196f24c9456",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/my-recipes-intermediate-normal.png",
-            "01fdcf8535f867f13e1a485d7557375a711212a5",
+            "06c06073187c9678269b8fd3b00a8c56b70ab466",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/my-recipes-normal.png",
-            "9dfc3f31113f77f1a6895c7a5214e5180dc9ecb3",
+            "287c3b58d6b5bbf05917e5be9f0e1b73118beba9",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/onboarding-form-normal.png",
@@ -369,11 +369,11 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/account-activity-normal.png",
-            "03efd6a5c71146ae3f7a4e169e33ce3fa9fbc003",
+            "b409ea2078e305e0cffe0321eec050abcbe7a35e",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/account-activity-requests-filtered.png",
-            "0c8a8ca278830a3ce2e52052c5eddf7afc858e32",
+            "843769c9b9e5b9ac6151e8e0ea5e6ea9f79859a7",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/account-connections-followers-normal.png",
@@ -409,7 +409,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-editor-validation.png",
-            "397590b85f63dd3cf4e0891b9e384586b0ff667b",
+            "5c3f9a52b1184406805098d437cf7dd07a442eb3",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-fork-header-normal.png",
@@ -433,7 +433,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/draft-unresolved-ingredient-validation.png",
-            "8a435b78407f677622b750cc07a7a57b91fc5d61",
+            "4940d43060bdcba98145c8cacc5ec84241a17ad0",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/global-not-found.png",
@@ -453,11 +453,11 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/my-ingredient-requests.png",
-            "28ebc715dfeb3cde1e04bfa1955e200eb232740a",
+            "dc0b8c5bf7d554393c20586c6267e6778bbb0374",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/my-recipes-normal.png",
-            "b276779cbf356bcf2a1231759eebed56660a23d0",
+            "37ab007450a40772a1a7a963b03a4d063b02f0f9",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/recipe-comparison-cooking-breakdown.png",
