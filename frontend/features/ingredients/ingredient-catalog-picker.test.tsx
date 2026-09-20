@@ -487,9 +487,11 @@ describe("IngredientCatalogPicker", () => {
 
   it("closes the request modal and surfaces the submission as pending review", async () => {
     const unsafeName = '<img src=x onerror="alert(1)"> fruit';
-    vi.mocked(searchCatalogIngredients).mockResolvedValue(
-      page({ items: [], total: 0, total_pages: 0 }),
-    );
+    const emptyPage = page({ items: [], total: 0, total_pages: 0 });
+    const refocusedLookup = deferred<CatalogIngredientPage>();
+    vi.mocked(searchCatalogIngredients)
+      .mockResolvedValueOnce(emptyPage)
+      .mockReturnValueOnce(refocusedLookup.promise);
     vi.mocked(submitMissingIngredientRequest).mockResolvedValue(
       submittedRequest(unsafeName),
     );
@@ -525,12 +527,24 @@ describe("IngredientCatalogPicker", () => {
     expect(onRequest).toHaveBeenCalledWith(
       expect.objectContaining({ id: REQUEST_ID, proposed_name: unsafeName, status: "pending" }),
     );
-    expect(screen.getByRole("status")).toHaveTextContent(/pending review/i);
+    const requestStatus = screen.getByText("Pending review", {
+      exact: true,
+      selector: "span",
+    });
+    expect(requestStatus).toBeVisible();
     await waitFor(() => expect(input).toHaveFocus());
-    fireEvent.focus(input);
+    await waitFor(() => expect(searchCatalogIngredients).toHaveBeenCalledTimes(2));
+    expect(input).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toHaveTextContent("Searching ingredients…");
+    expect(requestStatus).toBeVisible();
     expect(screen.getByText(unsafeName, { selector: "strong" }).parentElement).toHaveTextContent(
       /not available yet/i,
     );
+
+    await act(async () => {
+      refocusedLookup.resolve(emptyPage);
+      await refocusedLookup.promise;
+    });
   });
 
   it("preserves unfinished request fields after a failed submission", async () => {
