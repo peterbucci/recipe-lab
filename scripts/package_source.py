@@ -129,7 +129,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-activity-no-matches.png",
-            "df1137ebe8563a70d69458857a9cd1892f2c2916",
+            "5a106623fd15cc58039c4507ebd19efa10e46614",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-activity-normal-intermediate.png",
@@ -141,7 +141,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-activity-saved-filtered.png",
-            "3f0e9515bc5a07d4b3eddb0e0e0b3815fd293f59",
+            "1065fa3b3efb1c1a4f902e62614a04768fd75e32",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-connections-followers-normal.png",
@@ -373,7 +373,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/account-activity-requests-filtered.png",
-            "843769c9b9e5b9ac6151e8e0ea5e6ea9f79859a7",
+            "e22a686367ffe9fbc46a99ca5389993c6dff8549",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/account-connections-followers-normal.png",
