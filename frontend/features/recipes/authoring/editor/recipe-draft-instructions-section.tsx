@@ -121,11 +121,25 @@ export function RecipeDraftInstructionsSection({
   onTitleChange,
 }: RecipeDraftInstructionsSectionProps) {
   const [view, setView] = useState<RecipeInstructionView>("steps");
-  const hasActionErrors = instructions.some(
-    (instruction) =>
-      Object.keys(instructionActionErrors(errors, instruction.key)).length > 0,
-  );
-  const visibleView = hasActionErrors ? "breakdown" : view;
+  const previousActionErrorSignature = useRef("");
+  const actionErrorSignature = instructions
+    .flatMap((instruction) =>
+      Object.entries(instructionActionErrors(errors, instruction.key)).map(
+        ([field, message]) => `${instruction.key}:${field}:${message}`,
+      ),
+    )
+    .join("\u0000");
+
+  useLayoutEffect(() => {
+    if (
+      actionErrorSignature &&
+      actionErrorSignature !== previousActionErrorSignature.current
+    ) {
+      setView("breakdown");
+    }
+    previousActionErrorSignature.current = actionErrorSignature;
+  }, [actionErrorSignature]);
+
   return (
     <fieldset
       className="draft-editor__section instruction-panel recipe-instructions recipe-workspace__instructions"
@@ -138,7 +152,7 @@ export function RecipeDraftInstructionsSection({
             <h2>Instructions</h2>
           </div>
           <p aria-live="polite">
-            {visibleView === "steps"
+            {view === "steps"
               ? "Write the recipe as clear, human-readable steps."
               : "Add structured cooking details using Recipe Lab’s curated breakdown."}
           </p>
@@ -146,7 +160,7 @@ export function RecipeDraftInstructionsSection({
         <RecipeInstructionViewTabs
           ariaLabel="Instruction editing view"
           idPrefix={INSTRUCTION_VIEW_ID_PREFIX}
-          value={visibleView}
+          value={view}
           onChange={setView}
         />
       </header>
@@ -158,7 +172,7 @@ export function RecipeDraftInstructionsSection({
           INSTRUCTION_VIEW_ID_PREFIX,
           "steps",
         )}
-        hidden={visibleView !== "steps"}
+        hidden={view !== "steps"}
       >
         <ol className="draft-editor__rows draft-editor__rows--instructions recipe-instructions__step-list recipe-workspace__instruction-list">
           {instructions.map((instruction, index) => {
@@ -298,7 +312,7 @@ export function RecipeDraftInstructionsSection({
           INSTRUCTION_VIEW_ID_PREFIX,
           "breakdown",
         )}
-        hidden={visibleView !== "breakdown"}
+        hidden={view !== "breakdown"}
       >
         <ol className="recipe-instructions__breakdown-list recipe-workspace__breakdown-list">
           {instructions.map((instruction, index) => {

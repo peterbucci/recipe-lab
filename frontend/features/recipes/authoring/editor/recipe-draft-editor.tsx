@@ -99,6 +99,8 @@ interface EditorRequest {
   id: number;
 }
 
+type DraftSaveResult = "failed" | "saved" | "skipped-newer-work";
+
 function authorInitial(displayName: string): string {
   return displayName.trim().charAt(0).toLocaleUpperCase() || "Y";
 }
@@ -179,6 +181,7 @@ function RecipeDraftEditorInner({
   const [loadFailure, setLoadFailure] = useState<DraftLookupFailure>(null);
   const [announcement, setAnnouncement] = useState("");
   const [finishOpen, setFinishOpen] = useState(false);
+  const [preparingPublication, setPreparingPublication] = useState(false);
   const [loadedRecipeFamily, setLoadedRecipeFamily] =
     useState<ScopedRecipeFamily | null>(null);
   const [failedRecipeFamily, setFailedRecipeFamily] =
@@ -199,6 +202,9 @@ function RecipeDraftEditorInner({
   const detail = work?.detail ?? null;
   const draft = work?.draft ?? null;
   const { fieldErrors, formError } = domain.validation;
+  const fieldErrorMessages = Array.from(
+    new Set(Object.values(fieldErrors).filter(Boolean)),
+  );
   const dirty = recipeDraftEditorIsDirty(domain);
   const publicationBusy = publicationBlocksDismissal(publicationState);
   const pending = domain.save.status === "saving" ? "save" : null;
@@ -417,9 +423,10 @@ function RecipeDraftEditorInner({
     );
   }
 
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!draft || !detail || activeSaveRequest.current || pending) return;
+  async function saveDraft(): Promise<DraftSaveResult> {
+    if (!draft || !detail || activeSaveRequest.current || pending) {
+      return "failed";
+    }
     const validation = validateRecipeDraft(
       draft,
       detail.revision,
@@ -434,7 +441,7 @@ function RecipeDraftEditorInner({
         type: "validation-applied",
       });
       window.setTimeout(() => errorSummaryRef.current?.focus(), 0);
-      return;
+      return "failed";
     }
     const currentFingerprint = recipeDraftFingerprint(draft);
     const attempt = prepareDraftSaveAttempt(domain, {
@@ -460,7 +467,7 @@ function RecipeDraftEditorInner({
         activeSaveRequest.current?.id !== request.id ||
         request.controller.signal.aborted
       ) {
-        return;
+        return "failed";
       }
       const savedState = hydrateRecipeDraft(saved);
       const hasNewerLocalWork =
@@ -473,14 +480,15 @@ function RecipeDraftEditorInner({
       });
       if (!hasNewerLocalWork)
         latestDraftFingerprint.current = recipeDraftFingerprint(savedState);
+      return hasNewerLocalWork ? "skipped-newer-work" : "saved";
     } catch (reason) {
       if (
         request.controller.signal.aborted ||
         isAbortError(reason)
       ) {
-        return;
+        return "failed";
       }
-      if (activeSaveRequest.current?.id !== request.id) return;
+      if (activeSaveRequest.current?.id !== request.id) return "failed";
       const kind = draftFailureKind(reason);
       dispatch({
         attemptId: attempt.idempotencyKey,
@@ -520,10 +528,31 @@ function RecipeDraftEditorInner({
         });
       }
       window.setTimeout(() => errorSummaryRef.current?.focus(), 0);
+      return "failed";
     } finally {
       if (activeSaveRequest.current?.id === request.id) {
         activeSaveRequest.current = null;
       }
+    }
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await saveDraft();
+  }
+
+  async function preparePublication() {
+    if (preparingPublication || activeSaveRequest.current) return;
+    if (!dirty) {
+      setFinishOpen(true);
+      return;
+    }
+
+    setPreparingPublication(true);
+    const result = await saveDraft();
+    setPreparingPublication(false);
+    if (result === "saved") {
+      setFinishOpen(true);
     }
   }
 
@@ -672,9 +701,12 @@ function RecipeDraftEditorInner({
           >
             <h2>Your draft needs attention</h2>
             <p>{formError}</p>
-            {Object.keys(fieldErrors).length ? (
-              // prettier-ignore
-              <p>{Object.keys(fieldErrors).length} field{Object.keys(fieldErrors).length === 1 ? " needs" : "s need"} attention.</p>
+            {fieldErrorMessages.length ? (
+              <ul>
+                {fieldErrorMessages.map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
             ) : null}
             {conflict ? (
               <div className="button-row">
@@ -869,9 +901,13 @@ function RecipeDraftEditorInner({
                       aria-expanded={finishOpen}
                       aria-haspopup="dialog"
                       disabled={actionDisabled}
-                      pending={sourceRecipeTitlePending}
-                      pendingLabel="Loading source recipe…"
-                      onClick={() => setFinishOpen(true)}
+                      pending={sourceRecipeTitlePending || preparingPublication}
+                      pendingLabel={
+                        preparingPublication
+                          ? "Preparing to publish…"
+                          : "Loading source recipe…"
+                      }
+                      onClick={() => void preparePublication()}
                     >
                       {finishLabel}
                     </LoadingButton>

@@ -25,7 +25,7 @@ export function RecipeDraftNotesSection({
         </div>
       </div>
       <p className="draft-editor__help recipe-workspace__section-help">
-        Add notes that should appear with this recipe when it is published.
+        Optional
       </p>
       <div className="recipe-form-field draft-editor__notes-field">
         <label className="visually-hidden" htmlFor="draft-notes">

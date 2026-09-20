@@ -383,7 +383,7 @@ test("unresolved ingredient validation phone", async ({ page }, testInfo) => {
   await expect(alert).toBeVisible();
   await expect(alert).toBeFocused();
   await expect(
-    page.getByText(
+    alert.getByText(
       "Choose the request’s approved catalog ingredient before publication.",
     ),
   ).toBeVisible();
