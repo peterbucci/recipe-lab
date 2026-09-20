@@ -79,10 +79,26 @@ async function mockEmptyHomeSummary(page: Page) {
         new URL(route.request().url()).searchParams.get("page_size") ?? "3",
         10,
       );
+      const pathname = new URL(route.request().url()).pathname;
+      const counts = pathname === "/api/ingredient-requests/mine"
+        ? {
+            all: 0,
+            pending: 0,
+            approved: 0,
+            duplicate: 0,
+            rejected: 0,
+          }
+        : {
+            drafts: 0,
+            published: 0,
+            saved: 0,
+            withdrawn: 0,
+          };
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
+          counts,
           items: [],
           page: 1,
           page_size: pageSize,
@@ -131,13 +147,49 @@ test("keeps browsing anonymous and starts sign-in with a keyboard", async ({ pag
   await expect(page).toHaveURL("/sign-in");
   await expect(page).toHaveTitle("Sign in · Recipe Lab");
   await expect(page.getByRole("heading", { name: "Sign in to Recipe Lab" })).toBeVisible();
-  await expect(page.getByText("Save recipes", { exact: true })).toBeVisible();
-  await expect(page.getByText("Keep private drafts", { exact: true })).toBeVisible();
+  await expect(page.getByText("Recipe Lab account", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "Account benefits" })).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Continue to sign in", exact: true }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const actionWidths = await page.locator(".sign-in-card__actions").evaluate((actions) => ({
+    container: actions.getBoundingClientRect().width,
+    buttons: Array.from(actions.querySelectorAll(".button"), (button) =>
+      button.getBoundingClientRect().width),
+  }));
+  expect(actionWidths.buttons).toHaveLength(2);
+  expect(
+    actionWidths.buttons.every(
+      (buttonWidth) => Math.abs(buttonWidth - actionWidths.container) < 1,
+    ),
+  ).toBe(true);
   await expect(page.getByRole("link", { name: "Keep browsing" })).toHaveAttribute(
     "href",
     "/recipes",
   );
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
   await expectNoSeriousAccessibilityViolations(page);
+});
+
+test("forwards a signed-in visitor from sign-in to their homepage", async ({ page }) => {
+  await mockSession(page, () => aliceSession);
+  await mockEmptyHomeSummary(page);
+  await mockEmptyRecipeViewerStates(page);
+  await page.goto("/recipes");
+  await page.evaluate(() => {
+    document.cookie = "recipe_lab_session=test-session; Path=/; SameSite=Lax";
+  });
+
+  await page.goto("/sign-in?return_to=%2Frecipes%2Fnew");
+
+  await expect(page).toHaveURL("/");
+  await expect(page.getByLabel("Account menu for Alice Cook")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to Recipe Lab" })).toHaveCount(0);
 });
 
 test("opens the signed-in account menu and signs out on a phone", async ({ page }) => {
