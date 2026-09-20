@@ -57,6 +57,13 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     consumerEvidence: ["frontend/features/account/account-settings.tsx"],
   },
   {
+    file: "app/account/demo/page.tsx",
+    route: "/account/demo",
+    family: "account-access",
+    reachability: "active",
+    consumerEvidence: ["frontend/features/auth/demo-session-notice.tsx"],
+  },
+  {
     file: "app/account/followers/page.tsx",
     route: "/account/followers",
     family: "account-workspace",

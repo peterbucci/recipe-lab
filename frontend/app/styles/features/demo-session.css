@@ -1,0 +1,78 @@
+@layer features {
+
+.demo-session-details-visual__copy h1 {
+  overflow-wrap: anywhere;
+  margin: 0 0 0.45rem;
+  font-size: 1.25rem;
+  line-height: 1.1;
+}
+
+.demo-session-details-card__content {
+  min-height: 27rem;
+}
+
+.demo-session-details {
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  display: flex;
+}
+
+.demo-session-details__header {
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 1rem;
+  padding-bottom: 0.9rem;
+}
+
+.demo-session-details__header h2 {
+  margin: 0;
+  font-size: clamp(1.65rem, 3vw, 2rem);
+  line-height: 1.08;
+}
+
+.demo-session-details__body {
+  min-width: 0;
+}
+
+.demo-sandbox-information {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.demo-sandbox-information p:first-child {
+  margin-top: 0;
+}
+
+.demo-sandbox-information p:last-child {
+  margin-bottom: 0;
+}
+
+.demo-session-details__state p {
+  margin-bottom: 0.75rem;
+}
+
+.demo-session-details__actions {
+  margin-top: auto;
+}
+
+.demo-session-details__actions .button {
+  width: 100%;
+}
+
+@media (max-width: 47.5rem) {
+  .demo-session-details-card__content {
+    min-height: 25rem;
+  }
+
+  .demo-session-details-visual__copy h1 {
+    font-size: 1rem;
+  }
+}
+
+@media (forced-colors: active) {
+  .demo-session-details__header {
+    border-color: canvastext;
+  }
+}
+
+}
