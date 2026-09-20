@@ -294,6 +294,8 @@ def _validate_ingredient_identity(
     current_name = curated_display_label(ingredient, item.name)
     if current_name is None or current_name != item.name:
         raise _invalid("A selected ingredient label is no longer authoritative.")
+    if item.measure_mode is None:
+        raise _invalid("Ingredient amount is required before publication.")
 
     measure = _stored_measure_input(
         mode=item.measure_mode,
@@ -472,6 +474,8 @@ def _prepare_locked_recipe_draft_content(
         _validate_ingredient_identity(session, ingredient)
     catalog_ingredient_ids = {item.id for item in draft.ingredients}
     for instruction in draft.instructions:
+        if not instruction.instruction.strip():
+            raise _invalid("Instruction is required before publication.")
         if not instruction.actions:
             raise _invalid(
                 "Add at least one confirmed cooking action in the cooking details for every "

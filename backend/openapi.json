@@ -3991,23 +3991,30 @@
         "additionalProperties": false,
         "properties": {
           "measure": {
-            "discriminator": {
-              "mapping": {
-                "exact": "#/components/schemas/ExactMeasureInput",
-                "qualitative": "#/components/schemas/QualitativeMeasureInput",
-                "range": "#/components/schemas/RangeMeasureInput"
-              },
-              "propertyName": "kind"
-            },
-            "oneOf": [
+            "anyOf": [
               {
-                "$ref": "#/components/schemas/ExactMeasureInput"
+                "discriminator": {
+                  "mapping": {
+                    "exact": "#/components/schemas/ExactMeasureInput",
+                    "qualitative": "#/components/schemas/QualitativeMeasureInput",
+                    "range": "#/components/schemas/RangeMeasureInput"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ExactMeasureInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RangeMeasureInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/QualitativeMeasureInput"
+                  }
+                ]
               },
               {
-                "$ref": "#/components/schemas/RangeMeasureInput"
-              },
-              {
-                "$ref": "#/components/schemas/QualitativeMeasureInput"
+                "type": "null"
               }
             ],
             "title": "Measure"
@@ -4118,23 +4125,30 @@
             "type": "string"
           },
           "measure": {
-            "discriminator": {
-              "mapping": {
-                "exact": "#/components/schemas/ExactMeasureResponse",
-                "qualitative": "#/components/schemas/QualitativeMeasureResponse",
-                "range": "#/components/schemas/RangeMeasureResponse"
-              },
-              "propertyName": "kind"
-            },
-            "oneOf": [
+            "anyOf": [
               {
-                "$ref": "#/components/schemas/ExactMeasureResponse"
+                "discriminator": {
+                  "mapping": {
+                    "exact": "#/components/schemas/ExactMeasureResponse",
+                    "qualitative": "#/components/schemas/QualitativeMeasureResponse",
+                    "range": "#/components/schemas/RangeMeasureResponse"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ExactMeasureResponse"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RangeMeasureResponse"
+                  },
+                  {
+                    "$ref": "#/components/schemas/QualitativeMeasureResponse"
+                  }
+                ]
               },
               {
-                "$ref": "#/components/schemas/RangeMeasureResponse"
-              },
-              {
-                "$ref": "#/components/schemas/QualitativeMeasureResponse"
+                "type": "null"
               }
             ],
             "title": "Measure"
@@ -4199,7 +4213,6 @@
           },
           "text": {
             "maxLength": 5000,
-            "minLength": 1,
             "pattern": "^[^\\x00]*$",
             "title": "Text",
             "type": "string"
@@ -4248,7 +4261,6 @@
           },
           "text": {
             "maxLength": 5000,
-            "minLength": 1,
             "title": "Text",
             "type": "string"
           },
@@ -11488,7 +11500,7 @@
             "description": "A durable account, identity, or network rate limit was exceeded."
           }
         },
-        "summary": "Save a complete private recipe draft revision",
+        "summary": "Save a private recipe draft revision",
         "tags": [
           "recipe drafts"
         ],

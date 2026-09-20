@@ -115,9 +115,11 @@ def _invalid(message: str) -> InvalidRecipeDraftError:
 def _measure_fields(
     session: Session,
     *,
-    measure: StructuredMeasureInput,
+    measure: StructuredMeasureInput | None,
     ingredient_id: UUID | None,
-) -> RecipeDocumentIngredientMeasure:
+) -> RecipeDocumentIngredientMeasure | None:
+    if measure is None:
+        return None
     try:
         unit = validate_measure_input(
             session,
@@ -575,12 +577,16 @@ def _ingredient_response(item: RecipeDraftIngredient) -> RecipeDraftIngredientRe
     return RecipeDraftIngredientResponse(
         id=item.id,
         selection=selection,
-        measure=serialize_measure(
-            kind=item.measure_mode,
-            quantity_min=item.quantity_min,
-            quantity_max=item.quantity_max,
-            unit=item.measurement_unit,
-            package_size_id=item.package_size_id,
+        measure=(
+            None
+            if item.measure_mode is None
+            else serialize_measure(
+                kind=item.measure_mode,
+                quantity_min=item.quantity_min,
+                quantity_max=item.quantity_max,
+                unit=item.measurement_unit,
+                package_size_id=item.package_size_id,
+            )
         ),
         preparation_notes=item.preparation_notes,
         display_order=item.display_order,

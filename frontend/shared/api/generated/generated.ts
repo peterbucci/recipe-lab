@@ -635,7 +635,7 @@ export type paths = {
         /** Read my private recipe draft */
         readonly get: operations["private_recipe_draft_detail_api_recipe_drafts__draft_id__get"];
         /**
-         * Save a complete private recipe draft revision
+         * Save a private recipe draft revision
          * @description Atomically replaces the member-owned draft document when the submitted revision matches. The source, author, status, and server-controlled ordering remain outside the client contract.
          */
         readonly put: operations["save_private_recipe_draft_api_recipe_drafts__draft_id__put"];
@@ -2339,7 +2339,7 @@ export type components = {
         /** RecipeDraftIngredientInput */
         readonly RecipeDraftIngredientInput: {
             /** Measure */
-            readonly measure: components["schemas"]["ExactMeasureInput"] | components["schemas"]["RangeMeasureInput"] | components["schemas"]["QualitativeMeasureInput"];
+            readonly measure: (components["schemas"]["ExactMeasureInput"] | components["schemas"]["RangeMeasureInput"] | components["schemas"]["QualitativeMeasureInput"]) | null;
             /** Preparation Notes */
             readonly preparation_notes?: string | null;
             /** Ref */
@@ -2373,7 +2373,7 @@ export type components = {
              */
             readonly id: string;
             /** Measure */
-            readonly measure: components["schemas"]["ExactMeasureResponse"] | components["schemas"]["RangeMeasureResponse"] | components["schemas"]["QualitativeMeasureResponse"];
+            readonly measure: (components["schemas"]["ExactMeasureResponse"] | components["schemas"]["RangeMeasureResponse"] | components["schemas"]["QualitativeMeasureResponse"]) | null;
             /** Preparation Notes */
             readonly preparation_notes: string | null;
             /** Selection */

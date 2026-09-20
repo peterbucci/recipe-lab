@@ -29,9 +29,10 @@ slots in the same draft.
 An ingredient slot has one of two explicit states:
 
 - a catalog selection contains one curated ingredient identity, a verified
-  canonical-or-alias display label, one typed quantity, an optional curated
-  unit or package size when the quantity requires it, and optional preparation
-  notes;
+  canonical-or-alias display label, an optional unfinished amount while the
+  recipe remains private, and optional preparation notes. Once entered, an
+  amount is one complete typed quantity with a curated unit or package size
+  when that quantity requires it;
 - an unresolved request uses an ingredient-catalog request owned by the same
   member as its only selection identity. It may retain a typed measure and
   preparation notes, but has no canonical ingredient ID or trusted display
@@ -46,9 +47,13 @@ immutable source; an author cannot select that inactive identity for new draft
 content.
 
 Drafts can be incomplete. An empty original may have no ingredients or
-instructions, and an instruction may retain prose before the author assigns
-structured actions. These states are valid for private saving but are not a
-claim that the draft is publishable.
+instructions; a selected ingredient may still have no amount; and an
+instruction may have blank prose or retain prose before the author assigns
+structured actions. A partly entered amount is still invalid because the
+private aggregate stores either a complete typed measure or no measure. These
+states are valid for private saving but are not a claim that the draft is
+publishable. Publication requires every ingredient amount and instruction text
+in addition to the other public-recipe invariants.
 
 ## API and authorization
 
@@ -144,9 +149,11 @@ typed `RecipeDocument` content boundary. A public-source adapter preserves the
 source graph's explicit ordering while refreshing the current curated unit
 labels expected by an editable draft. The saved-draft adapter preserves the
 stored labels and canonical measurement inputs used by the publication
-fingerprint. The mutable and immutable materializers preallocate every locally
-referenced UUID and stage each complete graph as a batch, so they do not need an
-insert-and-flush loop for ingredients, instructions, or actions.
+fingerprint. The mutable materializer also preserves draft-only blank amounts
+and instruction text; the immutable materializer rejects those incomplete
+states. Both preallocate every locally referenced UUID and stage each graph as
+a batch, so they do not need an insert-and-flush loop for ingredients,
+instructions, or actions.
 
 Materializers do not flush, commit, or catch database failures. Draft and
 publication services own those transaction boundaries. Replacement first

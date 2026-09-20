@@ -80,7 +80,7 @@ export interface RecipeDraftIngredient {
   id: string;
   display_order: number;
   selection: RecipeDraftCatalogSelection | RecipeDraftRequestSelection;
-  measure: RecipeIngredientMeasure;
+  measure: RecipeIngredientMeasure | null;
   preparation_notes: string | null;
 }
 
@@ -129,7 +129,7 @@ export type RecipeDraftIngredientInput =
         ingredient_id: string;
         display_name: string;
       };
-      measure: VariantMeasureInput;
+      measure: VariantMeasureInput | null;
       preparation_notes: string | null;
     }
   | {
@@ -138,7 +138,7 @@ export type RecipeDraftIngredientInput =
         kind: "request";
         ingredient_request_id: string;
       };
-      measure: VariantMeasureInput;
+      measure: VariantMeasureInput | null;
       preparation_notes: string | null;
     };
 
@@ -347,9 +347,9 @@ function parseIngredient(value: unknown): RecipeDraftIngredient | null {
   ) {
     return null;
   }
-  const measure = parseMeasure(value.measure);
+  const measure = value.measure === null ? null : parseMeasure(value.measure);
   if (
-    !measure ||
+    (value.measure !== null && !measure) ||
     (value.preparation_notes !== null &&
       typeof value.preparation_notes !== "string")
   ) {
@@ -449,7 +449,7 @@ function parseInstruction(value: unknown): RecipeDraftInstruction | null {
     (value.title !== undefined &&
       value.title !== null &&
       !boundedText(value.title, 200)) ||
-    !boundedText(value.text, 5_000) ||
+    !boundedText(value.text, 5_000, true) ||
     !Array.isArray(value.actions)
   ) {
     return null;
