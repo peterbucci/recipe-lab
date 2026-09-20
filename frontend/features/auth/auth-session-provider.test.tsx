@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AUTH_SESSION_EXPIRED_EVENT } from "../../shared/api/browser-session";
-import { fetchAuthSession, type AuthSession } from "./auth-api";
+import { fetchAuthSession, startDemoSession, type AuthSession } from "./auth-api";
 import { deferred } from "../../tests/support/deferred";
 import {
   AuthSessionProvider,
@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("./auth-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./auth-api")>();
-  return { ...actual, fetchAuthSession: vi.fn() };
+  return { ...actual, fetchAuthSession: vi.fn(), startDemoSession: vi.fn() };
 });
 
 const alice = {
@@ -36,7 +36,7 @@ const bob = {
 const fetchAuthSessionMock = vi.mocked(fetchAuthSession);
 
 function SessionProbe() {
-  const { refreshSession, replaceSession, sessionExpired, state } = useAuthSession();
+  const { refreshSession, replaceSession, sessionExpired, state, enterDemo } = useAuthSession();
   const stateLabel =
     state.phase === "ready"
       ? state.session.status === "authenticated"
@@ -54,12 +54,15 @@ function SessionProbe() {
       <button type="button" onClick={() => replaceSession(bob)}>
         Replace
       </button>
+      <button type="button" onClick={() => replaceSession(alice, alice.user.id)}>Complete Alice save</button>
+      <button type="button" onClick={() => void enterDemo("generation", new AbortController().signal)}>Demo entry</button>
     </>
   );
 }
 
 beforeEach(() => {
   fetchAuthSessionMock.mockReset();
+  vi.mocked(startDemoSession).mockReset();
   navigationMocks.pathname = "/account/settings";
 });
 
@@ -68,6 +71,28 @@ afterEach(() => {
 });
 
 describe("AuthSessionProvider", () => {
+  it("ignores a member save that belongs to the account replaced by a fresh visit", () => {
+    render(<AuthSessionProvider initialSession={alice}><SessionProbe /></AuthSessionProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete Alice save" }));
+    expect(screen.getByTestId("session-state")).toHaveTextContent("ready:bob-id");
+  });
+
+  it("ignores a late demo entry after account state has changed", async () => {
+    const pending = deferred<AuthSession>();
+    vi.mocked(startDemoSession).mockReturnValueOnce(pending.promise);
+    render(<AuthSessionProvider initialSession={{ status: "anonymous" }}><SessionProbe /></AuthSessionProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Demo entry" }));
+    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
+    await act(async () => pending.resolve(alice));
+    expect(screen.getByTestId("session-state")).toHaveTextContent("ready:bob-id");
+  });
+
+  it("does not promise identity recovery to an expired temporary visitor", () => {
+    render(<AuthSessionProvider initialSession={{ ...alice, temporary: true, expires_at: "2026-09-17T12:00:00Z" }}><SessionRecoveryNotice /></AuthSessionProvider>);
+    act(() => window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT)));
+    expect(screen.getByRole("alert")).toHaveTextContent("Starting fresh will not transfer this draft");
+  });
   it("loads the initial session", async () => {
     fetchAuthSessionMock.mockResolvedValueOnce(alice);
 

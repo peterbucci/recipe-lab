@@ -12,7 +12,8 @@ from typing import Final
 
 MANIFEST_SCHEMA_VERSION: Final[str] = "2"
 MANIFEST_REVIEW_REFERENCE: Final[str] = (
-    "RCP-33E / GitHub issue #93; RCP-53A / GitHub issue #246; RCP-53B / GitHub issue #247"
+    "RCP-33E / GitHub issue #93; RCP-53A / GitHub issue #246; RCP-53B / GitHub issue #247; "
+    "RCP-59A / GitHub issue #277"
 )
 
 
@@ -161,6 +162,19 @@ def _table(
 
 
 DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
+    _table(
+        "sandbox_visitor_entries",
+        "entry_digest generation_id session_id created_at",
+        foreign_keys=("sandbox_visitor_entries(session_id)->user_sessions(id)",),
+        relationships=("sandbox_visitor_entries.user_session->user_sessions",),
+        column_disposition=DataDisposition.DELETE,
+        scope="Temporary retry bindings expire with the isolated sandbox generation.",
+        rationale=(
+            "Store only an entry-key digest; retain revoked entries until generation retirement "
+            "to prevent retry resurrection. Session deletion cascades to its entry binding."
+        ),
+        embedded_content_columns="entry_digest",
+    ),
     _table(
         "user_follows",
         "follower_user_id followed_user_id created_at",
@@ -1161,7 +1175,10 @@ DATABASE_TABLE_POLICIES: Final[tuple[DatabaseTablePolicy, ...]] = (
         "revoked_at "
         "id created_at",
         foreign_keys=("user_sessions(user_id)->users(id)",),
-        relationships=("user_sessions.user->users",),
+        relationships=(
+            "user_sessions.user->users",
+            "user_sessions.sandbox_entry->sandbox_visitor_entries",
+        ),
         column_disposition=DataDisposition.DELETE,
         scope="Lock and delete every session for the member inside the deletion transaction.",
         rationale="Session and CSRF digests have no purpose after account deletion.",

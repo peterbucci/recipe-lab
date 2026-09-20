@@ -99,6 +99,32 @@ class UserSession(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped["User"] = relationship()
+    sandbox_entry: Mapped["SandboxVisitorEntry | None"] = relationship(
+        back_populates="user_session", passive_deletes=True
+    )
+
+
+class SandboxVisitorEntry(CreatedAtMixin, Base):
+    """Digest-only retry binding for one temporary sandbox member session."""
+
+    __tablename__ = "sandbox_visitor_entries"
+    __table_args__ = (
+        CheckConstraint(
+            f"entry_digest ~ '{LOWERCASE_SHA256_PATTERN}'",
+            name="entry_digest_lowercase_sha256",
+        ),
+        Index("ix_sandbox_visitor_entries_generation_id", "generation_id"),
+    )
+
+    entry_digest: Mapped[str] = mapped_column(String(64), primary_key=True)
+    generation_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    session_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("user_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    user_session: Mapped["UserSession"] = relationship(back_populates="sandbox_entry")
 
 
 class OIDCLoginTransaction(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):

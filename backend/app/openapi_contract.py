@@ -65,6 +65,16 @@ def _operation(
 # This registry is intentionally explicit. Function names and router layout may change without
 # silently renaming a public operation or erasing the reviewed consumer classification.
 OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
+    ("GET", "/api/auth/demo"): _operation(
+        "demo_status_api_auth_demo_get",
+        "active_consumer",
+        "frontend/features/auth/auth-api.ts",
+    ),
+    ("POST", "/api/auth/demo"): _operation(
+        "enter_demo_api_auth_demo_post",
+        "active_consumer",
+        "frontend/features/auth/auth-api.ts",
+    ),
     ("DELETE", "/api/auth/account"): _operation(
         "delete_account_api_auth_account_delete",
         "active_consumer",

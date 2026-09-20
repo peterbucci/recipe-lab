@@ -9,6 +9,7 @@ export const PLAYWRIGHT_MODES = [
   "acceptance",
   "performance",
   "release",
+  "sandbox",
 ] as const;
 
 export type PlaywrightMode = (typeof PLAYWRIGHT_MODES)[number];
@@ -19,6 +20,7 @@ export const MODE_TEST_MATCH: Readonly<Record<PlaywrightMode, string>> = {
   acceptance: "acceptance/**/*.spec.ts",
   performance: "performance/**/*.spec.ts",
   release: "release/**/*.spec.ts",
+  sandbox: "sandbox/**/*.spec.ts",
 };
 
 function requireValue(environment: Environment, name: string): string {
@@ -119,6 +121,16 @@ export function validatePlaywrightModeEnvironment(
   const isCi = Boolean(environment.CI);
   validateGuardedStack(environment, isCi);
 
+  if (mode === "sandbox") {
+    requireGuard(environment, "SANDBOX_ACCEPTANCE");
+    requireGuard(environment, "SANDBOX_ENABLED");
+    if (environment.OIDC_ISSUER?.trim() || environment.OIDC_CLIENT_ID?.trim()) {
+      throw new Error("Sandbox acceptance must not use an identity provider.");
+    }
+    validatePostgresDatabase(environment, ["recipe_lab_sandbox_acceptance"], "sandbox acceptance");
+    return;
+  }
+
   if (mode === "acceptance") {
     requireGuard(environment, "MVP_ACCEPTANCE");
     requireValue(environment, "ACCEPTANCE_SESSION_FIXTURE");
@@ -204,12 +216,12 @@ export function createPlaywrightModeConfig(
     testMatch: MODE_TEST_MATCH[mode],
     fullyParallel: true,
     forbidOnly: isCi,
-    retries: mode === "release" ? 0 : isCi ? 2 : 0,
+    retries: mode === "release" || mode === "sandbox" ? 0 : isCi ? 2 : 0,
     // The controlled smoke fixtures are not concurrency-safe yet, and every
     // guarded mode owns state. Keep all current modes bounded to one worker.
     workers: 1,
     reporter: isCi
-      ? mode === "release"
+      ? mode === "release" || mode === "sandbox"
         ? [["github"]]
         : [["github"], ["html", { open: "never" }]]
       : "html",

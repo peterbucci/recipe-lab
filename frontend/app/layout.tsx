@@ -10,6 +10,7 @@ import {
   SiteMobileNavigation,
 } from "../features/auth/site-header-member-navigation";
 import { NavigationBlockerProvider } from "../shared/navigation/navigation-blocker-provider";
+import { DemoSessionNotice } from "../features/auth/demo-session-notice";
 import { SiteFooter } from "../shell/site-footer";
 import { SiteHeader } from "../shell/site-header";
 import "./globals.css";
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           <AuthSessionProvider>
             <div className="app-shell">
               <SessionRecoveryNotice />
+              <DemoSessionNotice />
               <SiteHeader
                 memberActions={<SiteHeaderMemberActions />}
                 mobileNavigation={<SiteMobileNavigation />}

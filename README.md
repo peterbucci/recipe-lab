@@ -8,6 +8,14 @@ changes.
 history.** Those are the current public product capabilities. Recipe Lab does
 not currently present recommendations or automatic substitutions to cooks.
 
+The [interactive portfolio sandbox](docs/portfolio-sandbox.md) adds instant,
+separate temporary visitor identities to those same workflows. Its isolated
+environment expires within 24 hours and is replaced from reviewed seeds. It
+does not collect real sign-up identities, record passive views, serve research
+rankings, or permit visitor-data ML exports. This is an opt-in deployment profile,
+not a persistent public community; normal local development remains unchanged.
+Public hosting still requires the runbook's platform checks and release approval.
+
 ## Product sequence
 
 ### MVP: prove structured recipe versioning

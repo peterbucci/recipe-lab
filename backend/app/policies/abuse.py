@@ -18,6 +18,7 @@ type RateLimitOperation = Literal[
 ]
 type RateLimitRoutePolicyName = Literal[
     "account_auth_entry",
+    "demo_auth_entry",
     "draft_creation",
     "draft_mutation",
     "draft_preflight",
@@ -93,6 +94,15 @@ _INTERACTION_PATH = re.compile(rf"^/api/recipes/{_IDENTIFIER_PATH_PART}/(?:view|
 _FOLLOW_PATH = re.compile(rf"^/api/cooks/{_IDENTIFIER_PATH_PART}/follow$")
 
 RATE_LIMIT_ROUTE_POLICIES: tuple[RateLimitRoutePolicy, ...] = (
+    RateLimitRoutePolicy(
+        name="demo_auth_entry",
+        operation="account_auth",
+        methods=frozenset({"POST"}),
+        exact_paths=frozenset({"/api/auth/demo"}),
+        path_patterns=(),
+        account_limit_setting=None,
+        network_limit_setting="rate_limit_auth_network",
+    ),
     RateLimitRoutePolicy(
         name="account_auth_entry",
         operation="account_auth",

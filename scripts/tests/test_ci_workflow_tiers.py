@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 WORKFLOW = Path(__file__).parents[2] / ".github" / "workflows" / "ci.yml"
+SECURITY_WORKFLOW = WORKFLOW.with_name("security.yml")
 
 
 def _job(workflow: str, job_id: str) -> str:
@@ -62,6 +63,41 @@ def test_frontend_job_provisions_python_for_the_delegated_quality_gate() -> None
     assert frontend.index(python_setup) < frontend.index(node_setup)
     assert frontend.index(node_setup) < frontend.index(install)
     assert frontend.index(install) < frontend.index(gate)
+
+
+def test_full_acceptance_executes_sandbox_after_existing_journey() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    acceptance = _job(workflow, "mvp-acceptance")
+    ordinary = "run: npm run test:e2e:acceptance"
+    sandbox = "run: python -m scripts.run_sandbox_acceptance"
+    assert acceptance.index(ordinary) < acceptance.index(sandbox)
+    sandbox_step = acceptance.split("- name: Run isolated portfolio sandbox", 1)[1]
+    sandbox_step = sandbox_step.split("\n      - name:", 1)[0]
+    assert "timeout-minutes: 8" in sandbox_step
+    assert (
+        "recipe-lab-sandbox-results"
+        not in acceptance[acceptance.index("- name: Upload acceptance diagnostics") :]
+    )
+
+
+def test_security_scans_recognizable_python_exports_and_frontend_development_dependencies() -> None:
+    workflow = SECURITY_WORKFLOW.read_text(encoding="utf-8")
+    for package, directory in (("recipe-lab-api", "api"), ("recipe-lab-evaluation", "evaluation")):
+        export = workflow.split(f"--package {package}", 1)[1].split("\n          uv ", 1)[0]
+        assert "--frozen" in workflow.split(f"--package {package}", 1)[0]
+        assert "--no-dev" in export
+        assert "--no-emit-project" in export
+        assert (
+            f'--output-file "$SECURITY_PRIVATE_DIR/dependencies/{directory}/requirements.txt"'
+            in export
+        )
+        assert f'"$SECURITY_PRIVATE_DIR/dependencies/{directory}"' in workflow
+    dependency_scan = workflow.split("- name: Scan locked dependencies", 1)[1]
+    dependency_scan = dependency_scan.split("\n      - name:", 1)[0]
+    assert "--include-dev-deps" in dependency_scan
+    assert '"$SECURITY_PRIVATE_DIR/dependencies"' in dependency_scan
+    assert "--severity HIGH,CRITICAL" in dependency_scan
+    assert "--exit-code 1" in dependency_scan
 
 
 def test_pull_request_browser_smoke_is_bounded_isolated_and_artifact_free() -> None:

@@ -346,6 +346,78 @@
         "title": "DeidentifiedRecipeReport",
         "type": "object"
       },
+      "DemoEntryRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "entry_key": {
+            "maxLength": 43,
+            "minLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "title": "Entry Key",
+            "type": "string"
+          },
+          "generation_id": {
+            "format": "uuid",
+            "title": "Generation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entry_key",
+          "generation_id"
+        ],
+        "title": "DemoEntryRequest",
+        "type": "object"
+      },
+      "DemoStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "contact_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Url"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "generation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Id"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "DemoStatusResponse",
+        "type": "object"
+      },
       "DuplicateIngredientCatalogRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2057,6 +2129,18 @@
           "capabilities": {
             "$ref": "#/components/schemas/AccountCapabilitiesResponse"
           },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
           "status": {
             "enum": [
               "onboarding_required",
@@ -2064,6 +2148,11 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "temporary": {
+            "default": false,
+            "title": "Temporary",
+            "type": "boolean"
           },
           "user": {
             "$ref": "#/components/schemas/AccountUserResponse"
@@ -6950,6 +7039,178 @@
         "x-recipe-lab-consumer-evidence": [
           "frontend/features/auth/auth-api.ts",
           "frontend/app/api/[...path]/route.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
+      }
+    },
+    "/api/auth/demo": {
+      "get": {
+        "operationId": "demo_status_api_auth_demo_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A durable account, identity, or network rate limit was exceeded."
+          }
+        },
+        "summary": "Read the temporary portfolio demo availability",
+        "tags": [
+          "authentication"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/features/auth/auth-api.ts"
+        ],
+        "x-recipe-lab-external-consumer-status": "unknown_pending",
+        "x-recipe-lab-reachability": "active"
+      },
+      "post": {
+        "operationId": "enter_demo_api_auth_demo_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoEntryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberSessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The authentication request is invalid."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "CSRF or Origin evidence is invalid."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The selected handle is unavailable."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The raw request body exceeds the configured maximum size."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The request parameters are invalid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The authentication rate limit was exceeded."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authentication is unavailable."
+          }
+        },
+        "summary": "Enter the isolated portfolio demo with a temporary identity",
+        "tags": [
+          "authentication"
+        ],
+        "x-recipe-lab-classification": "active_consumer",
+        "x-recipe-lab-consumer-evidence": [
+          "frontend/features/auth/auth-api.ts"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "active"

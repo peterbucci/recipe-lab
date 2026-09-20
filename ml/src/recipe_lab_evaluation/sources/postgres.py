@@ -137,6 +137,16 @@ def _extract_from_connection(
     *,
     cutoff: datetime,
 ) -> tuple[tuple[SnapshotRecipe, ...], tuple[SnapshotEvent, ...]]:
+    # Bind this prohibition to persisted provenance, even if an operator renames
+    # or restores the database with a different URL or application configuration.
+    generation_table = connection.execute(
+        text("SELECT to_regclass('sandbox_generations')")
+    ).scalar()
+    if (
+        generation_table is not None
+        and connection.execute(text("SELECT EXISTS (SELECT 1 FROM sandbox_generations)")).scalar()
+    ):
+        raise SnapshotExportError("Portfolio sandbox data cannot be exported for research.")
     parameters = {"cutoff": cutoff}
     recipe_rows = connection.execute(
         text(

@@ -3,7 +3,12 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Response
 
 from app.api.cache import apply_private_no_store
-from app.api.dependencies import OptionalAuthenticatedSessionDependency, SessionDependency
+from app.api.dependencies import (
+    OptionalAuthenticatedSessionDependency,
+    SessionDependency,
+    SettingsDependency,
+)
+from app.api.errors import ApiError
 from app.repositories.recipes import get_public_recipe_adaptation_sources
 from app.schemas.errors import ErrorResponse
 from app.schemas.recommendations import (
@@ -59,6 +64,7 @@ def get_recommendations(
     response: Response,
     session: SessionDependency,
     authenticated: OptionalAuthenticatedSessionDependency,
+    settings: SettingsDependency,
     limit: Annotated[
         int,
         Query(
@@ -69,6 +75,13 @@ def get_recommendations(
     ] = 10,
 ) -> RecipeRecommendationsResponse:
     apply_private_no_store(response)
+    if settings.sandbox.enabled:
+        raise ApiError(
+            status_code=503,
+            code="sandbox_research_disabled",
+            message="Research recommendations are disabled in the portfolio demo.",
+            headers={"Cache-Control": "no-store"},
+        )
     result = recommend_recipe_versions(
         session,
         authenticated.user_id if authenticated is not None else None,

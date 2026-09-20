@@ -17,10 +17,11 @@ from app.api.routes import (
     recipes,
     recommendations,
 )
+from app.api.sandbox import require_active_sandbox
 from app.schemas.errors import ErrorResponse
 
 api_router = APIRouter(
-    dependencies=[Depends(enforce_abuse_rate_limits)],
+    dependencies=[Depends(require_active_sandbox), Depends(enforce_abuse_rate_limits)],
     responses={
         413: {
             "model": ErrorResponse,

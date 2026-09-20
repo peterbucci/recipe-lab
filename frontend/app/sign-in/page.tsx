@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Pencil } from "lucide-react";
 
-import { safeReturnTo, signInHref } from "../../features/auth/auth-api";
+import { safeReturnTo } from "../../features/auth/auth-api";
+import { SignInAccess } from "../../features/auth/sign-in-access";
 import { BranchIcon, HeartIcon } from "../../features/recipes/shared/recipe-action-icons";
 import { RecipeArtwork } from "../../features/recipes/shared/recipe-artwork";
 
@@ -82,30 +82,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             </li>
           </ul>
 
-          <div className="auth-card__actions sign-in-card__actions">
-            <a
-              aria-label="Continue to sign in"
-              className="button button--primary"
-              href={signInHref(returnTo)}
-            >
-              <span aria-hidden="true">Continue to secure sign in</span>
-              <span aria-hidden="true">→</span>
-            </a>
-            <Link className="button button--secondary" href="/recipes">
-              Keep browsing
-            </Link>
-          </div>
-
-          <div className="auth-card__fine-print sign-in-security-note">
-            <span className="sign-in-security-note__icon" aria-hidden="true">
-              ✓
-            </span>
-            <p>
-              <strong>Recipe Lab doesn&apos;t collect your password on this page.</strong>{" "}
-              Sign-in is handled by our secure identity provider, and you&apos;ll return
-              to Recipe Lab when you&apos;re done.
-            </p>
-          </div>
+          <SignInAccess returnTo={returnTo} />
         </div>
       </section>
     </main>

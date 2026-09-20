@@ -28,6 +28,7 @@ def enforce_abuse_rate_limits(
             raw_session_token=raw_session_token,
             now=now,
             touch=False,
+            settings=settings,
         )
         if raw_session_token is not None
         else None

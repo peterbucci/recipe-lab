@@ -13,6 +13,7 @@ from app.api.dependencies import (
     RequiredAuthenticatedSessionDependency,
     SessionDependency,
     SettingsDependency,
+    require_trusted_request_origin,
 )
 from app.api.errors import ApiError
 from app.core.security import (
@@ -28,9 +29,12 @@ from app.schemas.auth import (
     AccountSessionResponse,
     AccountUserResponse,
     AnonymousSessionResponse,
+    DemoEntryRequest,
+    DemoStatusResponse,
     MemberSessionResponse,
 )
 from app.schemas.errors import ErrorResponse
+from app.services.auth import utc_now
 from app.services.auth_workflows import (
     AccountConfirmationInvalidWorkflowError,
     AuthenticationRequiredWorkflowError,
@@ -43,6 +47,7 @@ from app.services.auth_workflows import (
     RecentAuthenticationRequiredWorkflowError,
     complete_login_workflow,
     delete_account_workflow,
+    enter_demo_workflow,
     logout_workflow,
     read_account_session_workflow,
     start_login_workflow,
@@ -95,6 +100,8 @@ def _member_response(
             review_ingredient_requests=snapshot.can_review_ingredient_requests,
             moderate_recipe_reports=snapshot.can_moderate_recipe_reports,
         ),
+        temporary=authenticated.temporary,
+        expires_at=authenticated.expires_at if authenticated.temporary else None,
     )
 
 
@@ -118,7 +125,9 @@ def _set_session_cookies(
         secure=settings.session.cookie_secure,
         samesite="lax",
         path="/",
-        max_age=settings.session.ttl_seconds,
+        max_age=min(
+            settings.session.ttl_seconds, max(0, int((expires_at - utc_now()).total_seconds()))
+        ),
         expires=expires_at,
     )
     response.set_cookie(
@@ -128,7 +137,9 @@ def _set_session_cookies(
         secure=settings.session.cookie_secure,
         samesite="lax",
         path="/",
-        max_age=settings.session.ttl_seconds,
+        max_age=min(
+            settings.session.ttl_seconds, max(0, int((expires_at - utc_now()).total_seconds()))
+        ),
         expires=expires_at,
     )
 
@@ -203,6 +214,67 @@ def _reauthentication_failure_redirect(
     response.headers["Referrer-Policy"] = "no-referrer"
     _set_no_store(response)
     return response
+
+
+@router.get(
+    "/demo",
+    response_model=DemoStatusResponse,
+    summary="Read the temporary portfolio demo availability",
+)
+def demo_status(response: Response, settings: SettingsDependency) -> DemoStatusResponse:
+    _set_no_store(response)
+    sandbox = settings.sandbox
+    if not sandbox.enabled:
+        return DemoStatusResponse(enabled=False)
+    return DemoStatusResponse(
+        enabled=True,
+        generation_id=sandbox.generation_id,
+        expires_at=sandbox.expires_at,
+        contact_url=sandbox.contact_url,
+    )
+
+
+@router.post(
+    "/demo",
+    response_model=MemberSessionResponse,
+    responses={**AUTH_ERROR_RESPONSES, 404: {"model": ErrorResponse}},
+    summary="Enter the isolated portfolio demo with a temporary identity",
+)
+def enter_demo(
+    payload: DemoEntryRequest,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    authenticated: OptionalAuthenticatedSessionDependency,
+) -> MemberSessionResponse:
+    require_trusted_request_origin(request, settings)
+    if (
+        request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+        != "application/json"
+    ):
+        raise ApiError(
+            status_code=403, code="invalid_csrf", message="The request could not be verified."
+        )
+    result = enter_demo_workflow(
+        session,
+        settings=settings,
+        authenticated=authenticated,
+        entry_key=payload.entry_key,
+        generation_id=payload.generation_id,
+    )
+    if result.issued_session is not None:
+        issued = result.issued_session
+        _set_session_cookies(
+            response,
+            settings=settings,
+            session_token=issued.session_token,
+            csrf_token=issued.csrf_token,
+            expires_at=issued.expires_at,
+        )
+        _clear_fresh_login_requirement(response, settings)
+    _set_no_store(response)
+    return _member_response(result.snapshot)
 
 
 @router.get(
@@ -448,7 +520,10 @@ def logout(
     logout_workflow(session, authenticated=authenticated)
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     _clear_auth_cookies(response, settings)
-    _require_fresh_login_after_sign_out(response, settings)
+    if authenticated.temporary:
+        _clear_fresh_login_requirement(response, settings)
+    else:
+        _require_fresh_login_after_sign_out(response, settings)
     _set_no_store(response)
     return response
 
