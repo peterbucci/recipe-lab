@@ -103,6 +103,14 @@ describe("MemberActivityTimeline", () => {
     );
     expect(within(allFilter).getByText("2")).toHaveAttribute("aria-hidden", "true");
     expect(within(filters).getByRole("button", { name: "Saved" })).toBeVisible();
+    const panelHeader = screen
+      .getByRole("heading", { name: "All activity" })
+      .closest("header");
+    expect(panelHeader).not.toBeNull();
+    expect(panelHeader).not.toHaveTextContent("2 activity items");
+    expect(panelHeader?.querySelector(".workspace-panel-header__meta")).toBeNull();
+    expect(screen.getByText("2 activity items")).toHaveClass("visually-hidden");
+    expect(screen.getByText("2 activity items")).toHaveAttribute("aria-live", "polite");
   });
 
   it("requests one server-filtered page when a tab changes", async () => {
@@ -146,6 +154,33 @@ describe("MemberActivityTimeline", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
     expect(await screen.findByText("Banana oat pancakes")).toBeVisible();
+  });
+
+  it("reports the number of displayed matches for a completed search", async () => {
+    mocks.fetchMemberActivity.mockImplementation(({ q }: { q?: string }) =>
+      Promise.resolve(
+        q
+          ? page({ items: [activity("saved")] })
+          : page(),
+      ),
+    );
+    renderTimeline();
+    await screen.findByText("Banana oat pancakes");
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search activity" }), {
+      target: { value: "garden" },
+    });
+
+    const searchSummary = await screen.findByText(
+      "Showing 1 matching activity item",
+    );
+    expect(searchSummary).toBeVisible();
+    expect(searchSummary).toHaveAttribute("aria-live", "polite");
+    expect(screen.queryByText("2 activity items")).not.toBeInTheDocument();
+    const filters = screen.getByRole("group", { name: "Activity filters" });
+    expect(
+      within(within(filters).getByRole("button", { name: "All" })).getByText("2"),
+    ).toHaveAttribute("aria-hidden", "true");
   });
 
   it("loads only the next cursor page and appends unique activity", async () => {
