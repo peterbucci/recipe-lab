@@ -44,13 +44,31 @@ test("independent visitors use real product permissions and immutable publicatio
   try {
     for (const visitor of [page, other]) {
       await visitor.goto("/sign-in?return_to=%2Frecipes%2Fnew");
-      const entry = visitor.getByRole("button", { name: "Try the demo", exact: true });
+      const entry = visitor.getByRole("button", { name: "Start the demo", exact: true });
       await expect(entry).toBeEnabled();
       await entry.focus();
       await expect(entry).toBeFocused();
       await entry.press("Enter");
       await expect(visitor).toHaveURL(/\/recipes\/drafts\/[0-9a-f-]{36}$/);
-      await expect(visitor.getByRole("complementary", { name: "Temporary demo session" })).toBeVisible();
+      const demoNotice = visitor.getByRole("complementary", { name: "Demo account notice" });
+      await expect(demoNotice).toBeVisible();
+      await expect(demoNotice.getByRole("link", { name: "View details" }))
+        .toHaveAttribute("href", "/account/demo");
+      const noticeAlignment = await demoNotice.evaluate((notice) => {
+        const bannerBounds = notice.getBoundingClientRect();
+        const copy = notice.querySelector("p");
+        if (!copy) throw new Error("Expected the demo notice to contain its expiry copy.");
+        const copyBounds = copy.getBoundingClientRect();
+        return {
+          centerDelta: Math.abs(
+            copyBounds.left + copyBounds.width / 2
+              - (bannerBounds.left + bannerBounds.width / 2),
+          ),
+          textAlign: getComputedStyle(copy).textAlign,
+        };
+      });
+      expect(noticeAlignment.centerDelta).toBeLessThan(1);
+      expect(noticeAlignment.textAlign).toBe("center");
     }
     const alice = await read<Member>(page, "/api/auth/session");
     const bob = await read<Member>(other, "/api/auth/session");
@@ -98,8 +116,16 @@ test("independent visitors use real product permissions and immutable publicatio
     await mutate(other, `/api/recipes/${revised.recipe_version_id}/rating`, "PUT", { rating: 5 });
     await mutate(other, `/api/cooks/${alice.user.handle}/follow`, "PUT", {});
     await other.goto("/account/settings");
-    await other.getByRole("tab", { name: "Danger zone" }).click();
-    await expect(other.getByRole("heading", { name: "Temporary demo identity" })).toBeVisible();
+    await expect(other.getByRole("tab", { name: "Profile" })).toBeVisible();
+    await expect(other.getByRole("tab", { name: "Danger zone" })).toHaveCount(0);
+    await other
+      .getByRole("complementary", { name: "Demo account notice" })
+      .getByRole("link", { name: "View details" })
+      .click();
+    await expect(other).toHaveURL("/account/demo");
+    await expect(other.getByRole("heading", { level: 1, name: "Temporary by design" })).toBeVisible();
+    await expect(other.getByRole("heading", { level: 2, name: "About your demo account" })).toBeVisible();
+    await expect(other.getByRole("link", { name: /Contact .*/ })).toBeVisible();
     expect((await new AxeBuilder({ page: other }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
     await other.getByLabel(/Account menu for/).click();
     await other.getByRole("button", { name: "Sign out", exact: true }).click();
