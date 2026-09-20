@@ -191,7 +191,7 @@ def test_framework_routes_are_separately_inventoried_and_reachable() -> None:
             **item,
             "classification": "staff_internal",
             "reachability": "internal",
-            "consumer_evidence": ["docs/api-contracts.md"],
+            "consumer_evidence": ["docs/testing.md"],
             "external_consumer_status": EXTERNAL_CONSUMER_STATUS,
         }
         for item in FRAMEWORK_ROUTE_CONTRACTS

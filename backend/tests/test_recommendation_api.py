@@ -629,7 +629,7 @@ def test_openapi_documents_the_bounded_read_only_recommendation_contract(
         in (operation["description"])
     )
     assert operation["x-recipe-lab-classification"] == "research_experimental"
-    assert operation["x-recipe-lab-consumer-evidence"] == ["docs/recommendations.md"]
+    assert operation["x-recipe-lab-consumer-evidence"] == ["ml/docs/models.md"]
     responses = operation["responses"]
     assert responses["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/RecipeRecommendationsResponse"

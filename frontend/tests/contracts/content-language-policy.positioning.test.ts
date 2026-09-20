@@ -24,7 +24,7 @@ describe("public product language policy", () => {
       /Research-preview engineering capabilities,[\s\S]{0,120}not consumer product\s+surfaces/,
     );
     expect(readme).toMatch(
-      /\[product language and recommendation boundary\]\(docs\/product-language\.md\)/,
+      /\[frontend and product-language conventions\]\(docs\/frontend\.md#product-language\)/,
     );
 
     const publicReadme = readme.split("### Research preview:", 1)[0];

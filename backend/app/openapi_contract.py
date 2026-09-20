@@ -139,7 +139,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("GET", "/api/health"): _operation(
         "health_check_api_health_get",
         "staff_internal",
-        "docs/operations-observability.md",
+        "docs/operations.md",
     ),
     ("GET", "/api/ingredient-requests"): _operation(
         "review_queue_api_ingredient_requests_get",
@@ -187,7 +187,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("POST", "/api/measurements/convert"): _operation(
         "measurement_conversion_api_measurements_convert_post",
         "research_experimental",
-        "docs/measurements.md",
+        "docs/reference/structured-data.md",
     ),
     ("GET", "/api/moderation/recipe-reports"): _operation(
         "moderation_queue_api_moderation_recipe_reports_get",
@@ -250,7 +250,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("GET", "/api/readiness"): _operation(
         "readiness_check_api_readiness_get",
         "staff_internal",
-        "docs/operations-observability.md",
+        "docs/operations.md",
     ),
     ("GET", "/api/recipe-drafts"): _operation(
         "my_private_recipe_drafts_api_recipe_drafts_get",
@@ -366,7 +366,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("GET", "/api/recommendations"): _operation(
         "get_recommendations_api_recommendations_get",
         "research_experimental",
-        "docs/recommendations.md",
+        "ml/docs/models.md",
     ),
 }
 
@@ -494,7 +494,7 @@ def apply_contract_metadata(document: dict[str, Any]) -> dict[str, Any]:
             **route,
             "classification": "staff_internal",
             "reachability": "internal",
-            "consumer_evidence": ["docs/api-contracts.md"],
+            "consumer_evidence": ["docs/testing.md"],
             "external_consumer_status": EXTERNAL_CONSUMER_STATUS,
         }
         for route in FRAMEWORK_ROUTE_CONTRACTS

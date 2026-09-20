@@ -1,86 +1,50 @@
 # Recipe Lab documentation
 
-This index groups the repository's documentation by responsibility. Document
-paths remain stable so operational runbooks, CI evidence, issue links, and
-historical references do not break merely to create folders.
+The root [README](../README.md) is the portfolio and project entrypoint. These
+guides explain the current system by responsibility.
 
-## Start here
+## Build and understand the application
 
-- [Architecture](architecture.md) — application boundaries and dependency
-  direction.
-- [Frontend ownership architecture](frontend-organization.md) — placement,
-  dependency, and migration rules for frontend code.
-- [Frontend state presentation](frontend-state-presentation.md) — semantic
-  state taxonomy, disclosure rules, and shared presentation primitives.
-- [Frontend workspace navigation](frontend-workspace-navigation.md) — semantic
-  control models, shared panel/menu ownership, and responsive exceptions.
-- [MVP scope](mvp-scope.md) — shipped product boundary and acceptance criteria.
-- [Product language](product-language.md) — member-facing terminology and the
-  boundary between product and research features.
-- [API contracts](api-contracts.md) — deterministic OpenAPI ownership,
-  classifications, and generated frontend wire types.
-- [Reachability and compatibility](reachability-and-compatibility.md) — exhaustive
-  page/API lifecycle inventory, redirects, evidence, and safe-removal rules.
+- [Architecture](architecture.md) — components, dependency direction, data
+  flow, and the boundaries that protect published recipe history.
+- [Development](development.md) — local setup, configuration, migrations,
+  seeds, authentication, and everyday commands.
+- [Testing](testing.md) — check tiers, required environments, and the evidence
+  each suite provides.
+- [Frontend](frontend.md) — ownership, composition, state presentation,
+  navigation, accessibility, and product language.
+- [Recipe model](recipe-model.md) — drafts, publication, editions, lineage,
+  attribution, visibility, and account lifecycle.
+- [Security and data](security.md) — authentication, authorization, abuse
+  controls, moderation, deletion, retention, and privacy limits.
+- [Operations](operations.md) — production images, health and readiness,
+  observability, source export, and the temporary portfolio sandbox.
 
-## Product and domain behavior
+## Precise references
 
-- [Authentication and sessions](authentication.md)
-- [Private recipe drafts](private-recipe-drafts.md)
-- [Cook profiles and libraries](cook-profiles-and-libraries.md)
-- [Homepage dashboard](homepage-dashboard.md)
-- [Ingredient identity](ingredient-identity.md)
-- [Catalog intake](catalog-intake.md)
-- [Measurements](measurements.md)
-- [Structured cooking actions](cooking-actions.md)
-- [Recipe fingerprints](recipe-fingerprints.md)
-- [Duplicate detection](duplicate-detection.md)
-- [Recipe visibility and account lifecycle](recipe-visibility-and-account-lifecycle.md)
-- [Community moderation](community-moderation.md)
-- [Abuse controls](abuse-controls.md)
-- [Account data governance](account-data-governance.md)
-- [Seed data](seed-data.md)
+- [Structured recipe data](reference/structured-data.md) — ingredients,
+  measurements, catalog intake, instructions, and cooking actions.
+- [Recipe similarity](reference/recipe-similarity.md) — fingerprints and
+  duplicate-candidate review.
+- [Recovery and rollback](reference/recovery.md) — release rehearsal,
+  restoration, rollback, and exceptional operational procedures.
 
-## Operations, security, and release evidence
+## Offline research
 
-- [Operations and observability](operations-observability.md)
-- [Stable recipe edition operations](recipe-edition-operations.md)
-- [Repository quality gates](quality-gates.md)
-- [Frontend testing architecture](frontend-testing.md)
-- [RCP-49 frontend architecture certification](baselines/2026-09-05-frontend-architecture-certification.md)
-- [RCP-50 frontend state presentation certification](baselines/2026-09-11-frontend-state-presentation-certification.md)
-- [RCP-51 workspace navigation certification](baselines/2026-09-11-workspace-navigation-certification.md)
-- [RCP-53 recipe editions and corrections certification](baselines/2026-09-14-recipe-editions-certification.md)
-- [RF-13 final refactor starting baseline](baselines/2026-09-09-final-refactor-starting-baseline.md)
-- [RF-13 through RF-26 final refactor execution](baselines/2026-09-10-final-refactor-execution.md)
-- [Production images](production-images.md)
-- [Safe source packaging](source-packaging.md)
-- [Regression baselines](regression-baselines.md)
-- [Community release gate](community-release-gate.md)
-- [Release rehearsal](release-rehearsal.md)
+Research code is intentionally separate from the consumer application:
 
-## Research and offline evaluation
+- [Research overview](../ml/README.md)
+- [Models](../ml/docs/models.md)
+- [Evaluation](../ml/docs/evaluation.md)
 
-These documents describe research-preview or offline capabilities, not shipped
-consumer surfaces.
+## Documentation policy
 
-- [Recommendation preview](recommendations.md)
-- [Offline evaluation](evaluation.md)
-- [Content recommender](content-recommender.md)
-- [Collaborative readiness](collaborative-readiness.md)
-- [Collaborative recommender](collaborative-recommender.md)
-- [Hybrid recommender](hybrid-recommender.md)
-- [Substitution engine](substitution-engine.md)
+Each maintained concept has one authoritative owner above. Other documents
+link to it instead of copying its route inventory, command list, policy, or
+invariants. Generated contracts and executable inventories remain authoritative
+for exact API and route coverage.
 
-## Decisions and historical delivery records
-
-The current architecture and domain documents above are authoritative. These
-records explain why major boundaries or visual contracts exist and preserve
-review evidence for completed work.
-
-- [RCP-13A redesign record](rcp-13a-redesign.md)
-- [RCP-46 visual contract](rcp-46-visual-contract.md)
-- [Refactor execution record](refactor-execution.md)
-
-When a future decision changes an architectural invariant, add a short,
-immutable decision record and link it from this section. Routine implementation
-details belong in the relevant current document instead.
+New documentation needs a durable audience and a responsibility not already
+owned here. Delivery notes, branch maps, transient test totals, and completed
+migration diaries belong in issues, pull requests, CI, and Git history. Update
+the owning guide when behavior changes; do not add a second narrative.
