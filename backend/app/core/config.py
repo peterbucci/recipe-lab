@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta
 from functools import lru_cache
 from typing import Literal
@@ -7,6 +8,11 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
+
+SANDBOX_CONTACT_EMAIL = re.compile(
+    r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
+    r"[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,63}\Z"
+)
 
 
 class ConcernSettings(BaseModel):
@@ -178,14 +184,25 @@ class Settings(BaseSettings):
         if self.oidc_issuer or self.oidc_client_id or self.oidc_client_secret:
             raise ValueError("OIDC authentication must be disabled in the sandbox.")
         contact = urlparse(self.sandbox_contact_url)
-        if (
-            contact.scheme != "https"
-            or not contact.netloc
-            or contact.username
-            or contact.password
-            or contact.fragment
-        ):
-            raise ValueError("SANDBOX_CONTACT_URL must be a public HTTPS contact page.")
+        https_contact = (
+            contact.scheme == "https"
+            and bool(contact.netloc)
+            and not contact.username
+            and not contact.password
+            and not contact.fragment
+        )
+        email_contact = (
+            contact.scheme == "mailto"
+            and not contact.netloc
+            and not contact.params
+            and not contact.query
+            and not contact.fragment
+            and SANDBOX_CONTACT_EMAIL.fullmatch(contact.path) is not None
+        )
+        if not (https_contact or email_contact):
+            raise ValueError(
+                "SANDBOX_CONTACT_URL must be a public HTTPS contact page or direct mailto link."
+            )
         return self
 
     @model_validator(mode="after")
