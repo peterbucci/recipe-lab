@@ -32,6 +32,11 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # Keep ambient Node typings aligned with the repository's pinned runtime.
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: uv
     directory: /
