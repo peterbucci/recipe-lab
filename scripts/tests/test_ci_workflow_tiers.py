@@ -65,6 +65,14 @@ def test_frontend_job_provisions_python_for_the_delegated_quality_gate() -> None
     assert frontend.index(install) < frontend.index(gate)
 
 
+def test_backend_job_keeps_runtime_margin_beyond_the_test_suite() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    backend = _job(workflow, "backend")
+
+    assert "name: Backend unit and integration" in backend
+    assert "timeout-minutes: 15" in backend
+
+
 def test_full_acceptance_executes_sandbox_after_existing_journey() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     acceptance = _job(workflow, "mvp-acceptance")

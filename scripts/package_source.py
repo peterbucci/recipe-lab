@@ -137,11 +137,11 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-settings-profile-intermediate-normal.png",
-            "81544f04d04299ffd5cd2d1dd0e301eba9250080",
+            "d5ef5bd88228831ade7f888dc4cc3395b61c4824",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-settings-profile-normal.png",
-            "ad13a67f263a312977898981cc6ab0794e024f29",
+            "8f5f5ba91d7e4cdcbe69cc4885d1c55ca8d2cec4",
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/auth-callback-error-intermediate.png",
@@ -341,7 +341,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-desktop-chromium/stale-curation-decision.png",
-            "a67f276b34f95952dad83defbf107a634eb25528",
+            "00786b9fea0aff6f2cd2a019f21fa0cc863c7278",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/account-activity-normal.png",
@@ -365,7 +365,7 @@ EXPORT_POLICY = PackagingPolicy(
         ),
         (
             "frontend/baselines/baseline-phone-chromium/account-settings-profile-normal.png",
-            "9a48ad32ea5b6fd05b9fc137c2d822db1a375fd5",
+            "e4092e1b789a5676e73dfb0b772575b4e2323ca3",
         ),
         (
             "frontend/baselines/baseline-phone-chromium/catalog-normal.png",
