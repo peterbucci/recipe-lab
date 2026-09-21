@@ -27,7 +27,7 @@ TOOL_VERSION = "1.2.0"
 SCANNER_NAME = "recipe-lab-source-secret-scan"
 SCANNER_VERSION = "2"
 MANIFEST_SCHEMA_VERSION = 1
-POLICY_VERSION = 6
+POLICY_VERSION = 5
 FIXED_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 MAX_REPORTED_FINDINGS = 20
 
@@ -99,6 +99,30 @@ EXPORT_POLICY = PackagingPolicy(
     # Opaque files cannot receive a meaningful text secret scan. Keep their Git
     # object IDs explicit so any content change requires a policy review.
     reviewed_opaque_git_objects=(
+        (
+            "docs/assets/rcp-13a-catalog-desktop.png",
+            "b912e0901366c54159b0721917a72e1972961a59",
+        ),
+        (
+            "docs/assets/rcp-13a-comparison-desktop.png",
+            "e7abed44190d4d10ad1c8a9216c39aceb043b59b",
+        ),
+        (
+            "docs/assets/rcp-13a-detail-desktop.png",
+            "0bb9ccb1878e8f92ee2e1c50cb5695d8188a666f",
+        ),
+        (
+            "docs/assets/rcp-13a-detail-phone.png",
+            "d22524f68c63d8cde053bf874b0c6fe21a337a71",
+        ),
+        (
+            "docs/assets/rcp-13a-home-desktop.png",
+            "b9812ff36485b1b3736348f230a3b5a663cfc561",
+        ),
+        (
+            "docs/assets/rcp-13a-home-phone.png",
+            "aae4cad63a144996119c07aa3cddcd6fd3f8517b",
+        ),
         (
             "frontend/baselines/baseline-desktop-chromium/account-access-intermediate-normal.png",
             "d65d6135c79c84cff9b111d6cf32c37d52a04a37",

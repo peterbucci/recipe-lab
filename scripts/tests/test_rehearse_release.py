@@ -49,7 +49,7 @@ def _source_manifest() -> dict[str, object]:
             },
             "reviewed_opaque_entries": 0,
             "sha256": "2" * 64,
-            "version": 6,
+            "version": 5,
         },
         "scanner": {
             "findings": 0,
