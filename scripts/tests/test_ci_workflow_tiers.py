@@ -106,7 +106,7 @@ def test_pull_request_browser_smoke_is_bounded_isolated_and_artifact_free() -> N
 
     assert "name: Browser smoke and engine sanity" in smoke
     assert "timeout-minutes: 10" in smoke
-    assert "mcr.microsoft.com/playwright:v1.62.1-noble@sha256:" in smoke
+    assert "mcr.microsoft.com/playwright:v1.63.0-noble@sha256:" in smoke
     assert "HOME: /root" in smoke
     assert "POSTGRES_DB: recipe_lab_smoke" in smoke
     assert (

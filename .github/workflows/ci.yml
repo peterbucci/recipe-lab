@@ -196,11 +196,11 @@ jobs:
   browser-smoke:
     name: Browser smoke and engine sanity
     if: ${{ github.event_name == 'pull_request' }}
-    # Playwright 1.62.1 on Ubuntu 24.04 (Noble), pinned to the linux/amd64
-    # manifest published at mcr.microsoft.com/playwright:v1.62.1-noble.
+    # Playwright 1.63.0 on Ubuntu 24.04 (Noble), pinned to the linux/amd64
+    # manifest published at mcr.microsoft.com/playwright:v1.63.0-noble.
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:bc6ab0d6d44ff4826e4cb8c1e6d801e185bfc42bb0753f8e2a30efc70db054c7
       options: --ipc=host
     services:
       postgres:
@@ -297,11 +297,11 @@ jobs:
   rcp34b-baselines:
     name: RCP-34B deterministic baselines
     if: ${{ github.event_name != 'pull_request' }}
-    # Playwright 1.62.1 on Ubuntu 24.04 (Noble), pinned to the linux/amd64
-    # manifest published at mcr.microsoft.com/playwright:v1.62.1-noble.
+    # Playwright 1.63.0 on Ubuntu 24.04 (Noble), pinned to the linux/amd64
+    # manifest published at mcr.microsoft.com/playwright:v1.63.0-noble.
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:bc6ab0d6d44ff4826e4cb8c1e6d801e185bfc42bb0753f8e2a30efc70db054c7
       options: --ipc=host
     timeout-minutes: 15
     defaults:
@@ -326,7 +326,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(npx --no-install playwright --version)" = "Version 1.62.1"
+          test "$(npx --no-install playwright --version)" = "Version 1.63.0"
           browser_version="$(node - <<'NODE'
           const { chromium } = require("@playwright/test");
 
@@ -340,7 +340,7 @@ jobs:
           });
           NODE
           )"
-          test "$browser_version" = "151.0.7922.34"
+          test "$browser_version" = "153.0.8010.12"
 
       - name: Compare deterministic visual and accessibility baselines twice
         run: npm run test:e2e:visual -- --repeat-each=2

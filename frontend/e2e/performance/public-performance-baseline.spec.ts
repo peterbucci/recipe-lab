@@ -50,7 +50,7 @@ const performanceEnvironmentReady =
   process.env.MVP_ACCEPTANCE === "1" &&
   process.env.ACCEPTANCE_DATABASE_ISOLATED === "1";
 const EXPECTED_NODE_VERSION = "v22.23.2";
-const EXPECTED_CHROMIUM_VERSION = "151.0.7922.34";
+const EXPECTED_CHROMIUM_VERSION = "153.0.8010.12";
 const frontendRoot = process.cwd();
 
 async function committedBaseline(): Promise<PerformanceBaselineDocument> {
