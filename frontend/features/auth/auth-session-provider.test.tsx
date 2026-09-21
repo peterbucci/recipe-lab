@@ -103,9 +103,11 @@ describe("AuthSessionProvider", () => {
     );
 
     expect(screen.getByTestId("session-state")).toHaveTextContent("loading");
-    expect(await screen.findByTestId("session-state")).toHaveTextContent(
-      "ready:alice-id",
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("session-state")).toHaveTextContent(
+        "ready:alice-id",
+      );
+    });
   });
 
   it("exposes an error state when the initial session cannot load", async () => {
