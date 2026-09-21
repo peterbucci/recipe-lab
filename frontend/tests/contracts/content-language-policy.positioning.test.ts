@@ -14,18 +14,20 @@ describe("public product language policy", () => {
       readFileSync(resolve(REPOSITORY_ROOT, path), "utf8").replace(
         /\r\n/g,
         "\n",
-      );
+    );
     const readme = read("README.md");
+    const frontendGuidance = read("docs/frontend.md");
+    const recommendationGuidance = read("docs/recommendations.md");
 
     expect(readme).toMatch(
-      /Find recipes,[\s\S]{0,120}make your own version,[\s\S]{0,120}follow recipe\s+history\./,
+      /version-controlled cooking platform[\s\S]{0,320}keeps each published version[\s\S]{0,220}compare what changed/,
     );
-    expect(readme).toMatch(
-      /Research-preview engineering capabilities,[\s\S]{0,120}not consumer product\s+surfaces/,
+    expect(readme).toContain("[Recommendations](docs/recommendations.md)");
+    expect(recommendationGuidance).toContain(
+      "does **not** currently have a member-facing recommendation feature",
     );
-    expect(readme).toMatch(
-      /\[frontend and product-language conventions\]\(docs\/frontend\.md#product-language\)/,
-    );
+    expect(readme).toContain("[Frontend](docs/frontend.md)");
+    expect(frontendGuidance).toContain("## Product language");
 
     const publicReadme = readme.split("### Research preview:", 1)[0];
     const positioningSources = [

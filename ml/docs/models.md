@@ -51,7 +51,7 @@ cancelled cell is removed. An unobserved item is unknown, not negative.
 point-in-time state from snapshot events and calls the same database-free
 scorer used by `GET /api/recommendations`. The endpoint is an API-only research
 preview with no consumer recommendation surface; it remains inside the
-[research architecture boundary](../../docs/architecture.md#research-boundary).
+[research boundary](../../docs/recommendations.md#current-product-status).
 
 ### Global score
 

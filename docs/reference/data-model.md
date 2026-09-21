@@ -2,7 +2,7 @@
 
 This document is a compact reference for Recipe Lab's persistent data model.
 
-It is meant for developers reading SQLAlchemy models, migrations, repositories, or database failures. For the product meaning of drafts, revisions, adaptations, and published history, see [Recipe lifecycle](../recipe-model.md). For ingredient identities, measures, and structured cooking actions, see [Structured recipe data](structured-data.md).
+It is meant for developers reading SQLAlchemy models, migrations, repositories, or database failures. For the product meaning of drafts, revisions, adaptations, and published history, see [Recipe lifecycle](../recipe-model.md). For ingredient identities, measures, and structured cooking actions, see [Published recipe content](#published-recipe-content).
 
 This reference names the important domain entities and fields rather than reproducing every database column.
 

@@ -52,6 +52,6 @@ in [Testing](../docs/testing.md).
 
 See [Architecture](../docs/architecture.md), the
 [recipe model](../docs/recipe-model.md), [security and data](../docs/security.md),
-and [structured recipe data](../docs/reference/structured-data.md) for the
+and [structured recipe data](../docs/reference/data-model.md#published-recipe-content) for the
 current invariants. Seed licensing and source identity remain authoritative in
 [`app/seeds/data/PROVENANCE.md`](app/seeds/data/PROVENANCE.md).

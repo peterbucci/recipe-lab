@@ -70,7 +70,7 @@ not a production export path. Capturing production or real-member data is
 prohibited until an artifact registry can bind every derived artifact to
 account deletion and bounded expiry. Delete local observed-data snapshots and
 reports after use; only deliberately synthetic fixtures may be committed. See
-[account-data governance](../../docs/security.md#account-data-governance).
+[account deletion and retained history](../../docs/security.md#account-deletion-and-retained-history).
 
 Snapshot JSON is limited to 512 MiB, 32 nesting levels, and 16 million nodes.
 Substitution and duplicate benchmarks are each limited to 32 MiB, 32 levels,

@@ -41,7 +41,7 @@ uv pip check
 ..\.venv\Scripts\Activate.ps1
 ```
 
-See [locked dependencies](../docs/operations.md#locked-dependencies) for the
+See [locked dependencies](../docs/development.md#backend-dependencies) for the
 dependency-update contract.
 
 ## Run an experiment
@@ -98,7 +98,7 @@ export path. Do not point it at production or real-member data until Recipe Lab
 has an artifact registry that binds derived data to account deletion and a
 bounded expiry. Delete locally captured observed-data snapshots and their
 reports after the run. See
-[account-data governance](../docs/security.md#account-data-governance).
+[account deletion and retained history](../docs/security.md#account-deletion-and-retained-history).
 
 ## Verify the workspace
 
