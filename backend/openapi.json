@@ -9581,7 +9581,7 @@
         ],
         "x-recipe-lab-classification": "research_experimental",
         "x-recipe-lab-consumer-evidence": [
-          "docs/reference/structured-data.md"
+          "docs/reference/data-model.md"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "internal"

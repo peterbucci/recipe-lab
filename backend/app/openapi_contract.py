@@ -187,7 +187,7 @@ OPERATION_CONTRACTS: dict[tuple[str, str], OperationContract] = {
     ("POST", "/api/measurements/convert"): _operation(
         "measurement_conversion_api_measurements_convert_post",
         "research_experimental",
-        "docs/reference/structured-data.md",
+        "docs/reference/data-model.md",
     ),
     ("GET", "/api/moderation/recipe-reports"): _operation(
         "moderation_queue_api_moderation_recipe_reports_get",
