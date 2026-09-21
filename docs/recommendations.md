@@ -1,244 +1,440 @@
-# Baseline recommendation research preview
+# Recommendations and Offline Evaluation
 
-## Purpose and boundary
+Recipe Lab has recommendation infrastructure for experimentation, but it does **not** currently have a member-facing recommendation feature.
 
-`GET /api/recommendations` and its deterministic `baseline-v1` strategy are an
-API-only research preview. Recipe Lab has no consumer recommendation shelf or
-other member-facing recommendation surface, and the endpoint is not evidence
-for a sign-in, onboarding, home-page, or product-positioning promise. It remains
-online as the tested deterministic reference point used by Recipe Lab's offline
-evaluator for every comparison model, including `content-v1`. It does not train
-a model, persist a user profile or recommendation artifact, introduce
-randomness, or depend on a clock.
+There are two separate pieces:
 
-`GET /api/recommendations?limit=10` returns up to the requested number of
-recommendations. Each item contains a recipe-version summary, its score, and a
-short reason plus the six scoring components. The response identifies the
-strategy as `baseline-v1`, reports whether positive history personalized the
-ranking, and publishes the weights and quality prior it used. The read uses the
-existing catalog, current saves and ratings, and the privacy-bounded preference
-events. Every request uses the aggregate activity for publicly readable recipes.
-A signed-in request additionally reads only the active member's private history
-for personalization. A signed-out request loads no account-specific history and
-sets `personalized` to false; it does not create anonymous tracking or return
-additional personal data.
+1. an online, deterministic `baseline-v1` endpoint used as a reference implementation; and
+2. an offline evaluation package for comparing content-based, collaborative, and hybrid approaches against that baseline.
 
-`limit` defaults to 10 and accepts values from 1 through 50. An invalid value
-returns the standard HTTP 422 error envelope. Public cold-start requests do not
-depend on the seeded Demo Cook identity.
+The separation is intentional. Offline results do not automatically change what the application serves, and no learned recommendation model runs in the FastAPI request path today.
 
-The adapter applies the explicit `baseline-v1-shortlist-v1` retrieval policy
-before constructing the in-memory scoring input. The database first computes
-the unchanged Bayesian/global-support score across every eligible public
-version. Signed-out requests take the best
-`RECOMMENDATION_MAX_CANDIDATES` versions by that score and the published
-title/version/UUID tie-breaks. A catalog larger than the configured bound
-therefore still returns a deterministic result instead of failing at an
-arbitrary capacity cliff.
+## Current product status
 
-Signed-in retrieval reserves enough capacity for the API's maximum 50 results
-and uses the remaining candidate budget for positive history anchors. Candidate
-selection combines two bounded lanes: canonical-ingredient overlap with those
-anchors and the catalog-wide global ranking. The overlap lane may occupy at most
-half of the result-candidate budget; the global lane deterministically fills
-every remaining slot. The pure scorer then applies the same `baseline-v1`
-formula and final tie-breaks to that shortlist. Catalog-wide save, fork, and
-view maxima travel with the shortlist, so support normalization does not change
-merely because candidate details were bounded.
-
-Profile reads are also deterministic and bounded. Current active saves come
-first in newest-first order, followed by positive current ratings ordered by
-strength and recency, then distinct fork and view sources ordered by signal
-strength and recency. UUIDs break exact timestamp ties. Only the active member
-is queried. When positive history exceeds
-`RECOMMENDATION_MAX_PROFILE_RECORDS` or the available anchor capacity, older or
-weaker sources stop contributing to similarity; every exact save, rating, view,
-or fork interaction is still excluded with indexed database predicates. This
-is an explicit, privacy-safe degradation policy rather than an arbitrary
-first-row truncation, and it never exposes another member's history.
-
-Because the same URL may vary by the private member session, the API marks every
-recommendation response `private, no-store` and varies it by cookie. No
-recommendation result is embedded in a shared cache or public server-rendered
-page, and there is no recommendation UI.
-
-The endpoint has no frontend surface, database migration, or offline training
-dependency. The separate offline harness reconstructs point-in-time state from
-immutable event snapshots and calls the same pure scorer for the baseline
-comparison; the API never imports or runs that harness or the offline
-`content-v1` model.
-
-## Actual-member data use, retention, and deletion
-
-The global component aggregates every currently stored rating, active save, and
-distinct-user fork or view event for publicly readable recipes. That aggregate
-can include activity from actual members as well as retained legacy or demo
-activity. A signed-out request uses only this aggregate ranking and does not
-load an account-specific profile. A signed-in request additionally reads only
-the active member's current saves and ratings plus that member's view, save,
-rating, and fork preference events. Exact recipes already present in that
-member's activity are excluded from the returned ranking.
-
-Scoring happens in memory for the current request. Recipe Lab does not store the
-returned order, scores, explanations, a derived member profile, or fitted model
-state, and the response is `private, no-store`. Current save and rating rows
-remain only as account activity until changed or deleted. Append-only preference
-events remain for the lifetime of the account. Account deletion removes that
-member's saves, ratings, and preference events in the deletion transaction, and
-the backup policy requires deleted account data to age out within the documented
-30-day maximum and to be reapplied before a restored database serves traffic.
-
-Observed-member ML snapshots, retained row-level evaluation outputs, and online
-fitted member state remain prohibited until a reviewed artifact registry can
-enforce member binding, deletion propagation, and bounded expiry. The offline
-experiments described below therefore do not represent a shipped learned
-strategy. See [account-data governance](account-data-governance.md) for the
-authoritative database, backup, export, and derived-artifact rules.
-
-## Global score
-
-Every candidate recipe version receives a rating-quality score and three
-support signals. Rating quality uses a Bayesian prior with mean 3 and strength
-5 so one rating cannot dominate a small catalog. For rating count `n` and
-rating sum `R`:
+The backend exposes:
 
 ```text
-posterior_rating = (5 * 3 + R) / (5 + n)
-Q = (posterior_rating - 1) / 4
+GET /api/recommendations
 ```
 
-`Q` maps the supported one-to-five rating range to zero through one. An unrated
-candidate therefore starts at the neutral prior, `Q = 0.5`.
+This is a research-preview API. There is no recommendation shelf, personalized home feed, onboarding promise, or other frontend surface that consumes it.
 
-The support inputs are:
+The endpoint returns deterministic recommendations from `baseline-v1`. It does not:
 
-- distinct users with an active save for the candidate;
-- distinct users with at least one fork event whose source is the candidate;
-- distinct users with at least one view event for the candidate.
+- train a model;
+- persist a recommendation list;
+- persist a derived member profile;
+- write recommendation artifacts;
+- use random ranking;
+- depend on the current time; or
+- import the offline ML package.
 
-Each support input is normalized independently by the largest value for that
-input across the complete eligible public pool after exact interacted versions
-are excluded. A shortlisted candidate's normalized value is its count divided
-by that maximum; when every eligible candidate has a zero count, the normalized
-value is zero.
-Repeated views or forks by one user therefore do not increase that signal beyond
-one user of support.
+Signed-out requests use public aggregate recipe activity only.
 
-The global score is:
+Signed-in requests may additionally use the current member's own positive history. They never read another member's private history.
+
+Because a signed-in response can depend on private account activity, recommendation responses are private and not stored in shared caches.
+
+## Why the data model is useful for recommendations
+
+Recipe Lab stores more structure than a typical recipe document.
+
+Published versions have stable identifiers, ingredients use curated canonical identities, and saves, ratings, views, and adaptations are recorded against exact recipe versions. That creates cleaner signals for recommendation experiments than trying to infer everything from free-form recipe text.
+
+The current experiments can work with signals such as:
+
+- canonical ingredient overlap;
+- recipe titles;
+- exact published-version identity;
+- saves;
+- ratings;
+- views;
+- adaptations/forks; and
+- the history available before a fixed evaluation cutoff.
+
+Structured cooking actions, instruction prose, dietary suitability, and substitution relationships are **not** features of the current recommendation models. Adding them would require a new model/snapshot version rather than silently changing an existing model.
+
+## Online baseline: `baseline-v1`
+
+`baseline-v1` is designed to be simple, explainable, deterministic, and cheap enough to run directly against the serving database.
+
+It combines a global recipe score with an optional ingredient-similarity boost for signed-in members.
+
+### Global score
+
+The global score uses:
+
+- Bayesian-smoothed rating quality;
+- active saves;
+- distinct users who adapted the recipe; and
+- distinct users who viewed the recipe.
+
+Rating quality receives the largest weight:
 
 ```text
-G = 0.55 * Q
-  + 0.20 * normalized_active_saves
-  + 0.15 * normalized_fork_source_users
-  + 0.10 * normalized_view_users
+global_score =
+    0.55 * rating_quality
+  + 0.20 * normalized_saves
+  + 0.15 * normalized_adaptations
+  + 0.10 * normalized_views
 ```
 
-These weights make smoothed rating quality the primary signal while still
-recognizing deliberate saves, forks, and views in descending order of
-strength.
+The rating component uses a neutral prior so a recipe with one high rating does not immediately outrank recipes with stronger evidence.
 
-## Member-history personalization
+Support signals count distinct users rather than repeated actions from the same account.
 
-Personalization is a bounded ingredient-similarity boost, not a learned content
-model. When a valid member session is present, the server builds history
-anchors from only that member's existing product state and events:
+### Member history
 
-| Positive history signal | Strength |
-| --- | ---: |
-| Active save | `1.00` |
-| Current rating of 4 | `0.50` |
-| Current rating of 5 | `1.00` |
-| Fork source | `1.00` |
-| Forked child | `1.00` |
-| View | `0.25` |
+For a signed-in member, the baseline can use positive history from:
 
-Ratings from one through three and inactive saves do not create positive
-anchors. Repeated events do not accumulate strength. When a version qualifies
-through more than one signal, taking the maximum below naturally retains its
-strongest evidence.
+| Signal                     | Strength |
+| -------------------------- | -------: |
+| Active save                |   `1.00` |
+| Rating 4                   |   `0.50` |
+| Rating 5                   |   `1.00` |
+| Adaptation source or child |   `1.00` |
+| View                       |   `0.25` |
 
-Each recipe is represented by the set of its distinct canonical ingredient
-IDs. For candidate `c` and history anchor `h`, ingredient similarity is the
-Jaccard coefficient:
+Ratings below four and inactive saves do not create positive similarity anchors.
+
+Recipes are compared using the Jaccard similarity of their canonical ingredient sets:
 
 ```text
-J(c, h) = |ingredients(c) intersection ingredients(h)|
-          / |ingredients(c) union ingredients(h)|
+similarity(A, B) =
+    shared_ingredients
+    / ingredients_in_either_recipe
 ```
 
-The database adapter retains every ingredient occurrence as a structured
-measure signal before deriving that set. Each signal carries exact, range, or
-qualitative shape, curated unit identity, and any reviewed package-size
-identity without display labels. `baseline-v1` deliberately projects those
-records to distinct ingredient IDs so this catalog change does not alter its
-published score; later recommendation strategies can consume the structured
-amounts without reparsing recipe text or changing the data-loading boundary.
-
-Recipe instruction action graphs are available to product reads but are not a
-`baseline-v1` feature. Action types, input order, duration, and temperature do
-not affect its candidate loading, component values, ordering, reasons, or model
-identity. Consuming those fields would require a separately versioned strategy
-and evaluation rather than silently changing this published baseline. See
-[structured cooking actions](cooking-actions.md).
-
-The personal score is the best strength-adjusted match:
-
-```text
-P(c) = max over history anchors h of strength(h) * J(c, h)
-```
-
-If there is no positive history, `P` is unavailable and the request uses the
-cold-start rule. Exact recipe versions already interacted with by the current
-member are excluded from the returned candidates by database predicates even
-when the bounded profile omits an older signal; selected public positive-history
-versions may still act as ingredient anchors. This favors novel versions
-without treating one version's activity as activity on its lineage relatives.
-
-## Final score and ordering
+For each candidate, the personal component is its strongest strength-adjusted match to the member's positive history.
 
 When positive history exists:
 
 ```text
-score = 0.60 * G + 0.40 * P
+score = 0.60 * global_score + 0.40 * personal_similarity
 ```
 
-For a cold-start profile with no positive history:
+Without usable positive history:
 
 ```text
-score = G
+score = global_score
 ```
 
-Calculations use decimal arithmetic. The exposed score is rounded to six
-decimal places with `ROUND_HALF_UP`, and ranking uses that rounded value. Ties
-are resolved by descending rounded ingredient similarity, descending rounded
-global score, ascending trimmed case-insensitive title, ascending trimmed title,
-ascending version number, and ascending recipe-version UUID, in that order. The
-same database snapshot, shortlist configuration, and limit therefore produce
-the same order and scores.
-There is no random shuffle, time window, or time-decay term.
+Recipes the member has already interacted with are excluded from the returned recommendations.
 
-Reasons are short deterministic summaries of the ranking signal. A
-personalized item identifies ingredient similarity to the signed-in member's
-activity; otherwise the reason identifies global rating or support evidence. A
-catalog with no support still produces a stable Bayesian-prior fallback rather
-than an arbitrary order. Reasons do not expose user IDs or raw event history.
+### Bounded retrieval
 
-## Known limitations
+The endpoint does not load an unbounded catalog or an unbounded member history into memory.
 
-Member histories are isolated, but the available real-account cohort and
-outcome evidence remain insufficient to claim that personalization improves
-recommendation quality. Legacy Demo Cook activity may still contribute to the
-same aggregate popularity and rating signals as other historical activity, but
-it is never used as a member's personal history or transferred to an account.
-`baseline-v1` remains an explainable online research-preview and evaluation
-baseline. It deliberately has no recency model, popularity
-dampening, semantic ingredient representation, collaborative signal, or
-training pipeline. The [offline evaluation harness](evaluation.md) measures it
-with a fixed-cutoff protocol and compares it with the
-[offline `content-v1` recommender](content-recommender.md) and the opt-in,
-readiness-gated
-[offline `collaborative-v1` recommender](collaborative-recommender.md). Those
-experiments also feed the evaluator-only
-[offline `hybrid-v1` rank fusion](hybrid-recommender.md). Its human-readable
-reasons are tested model details, not API output. None of these experiments
-replaces this online research-preview strategy or adds a serving dependency.
+Candidate retrieval and profile history are explicitly capped by configuration. Signed-in retrieval combines:
+
+- globally strong public candidates; and
+- candidates that overlap with bounded positive-history anchors.
+
+The final ranking is still deterministic.
+
+This keeps the online baseline usable as the catalog grows without pretending that it is a production-scale learned recommender.
+
+### Explanations
+
+Each result includes a short deterministic reason based on the signals that affected its rank.
+
+Reasons describe things such as ingredient similarity or public rating/activity support. They do not expose user IDs, raw member history, or another member's activity.
+
+## Offline recommendation research
+
+The offline package lives under:
+
+```text
+ml/src/recipe_lab_evaluation/
+```
+
+It compares recommendation strategies using one evaluation protocol rather than giving each model its own custom metric or split.
+
+Built-in models include:
+
+| Model              | Purpose                                                                    |
+| ------------------ | -------------------------------------------------------------------------- |
+| `baseline-v1`      | Reference implementation shared with the online research-preview scorer    |
+| `content-v1`       | Content-based ranking from recipe structure and signed member history      |
+| `collaborative-v1` | User-neighborhood ranking from interaction patterns                        |
+| `hybrid-v1`        | Deterministic rank fusion of baseline, content, and collaborative rankings |
+
+The offline package does not run inside FastAPI and does not deploy a model.
+
+## `content-v1`
+
+`content-v1` represents each recipe using three feature groups:
+
+- canonical ingredient IDs;
+- normalized title tokens; and
+- version number.
+
+Its pairwise recipe similarity is:
+
+```text
+similarity =
+    0.60 * ingredient_similarity
+  + 0.30 * title_similarity
+  + 0.10 * version_proximity
+```
+
+Ingredient and title similarity use Jaccard overlap. Version proximity is a small deterministic metadata term.
+
+The model builds a **signed** profile from training interactions rather than treating every interaction as positive:
+
+| Training signal   |              Weight |
+| ----------------- | ------------------: |
+| Active save       |                `+3` |
+| Removed save      |                `-3` |
+| Rating 1–5        | `-4, -2, 0, +2, +4` |
+| Distinct view     |                `+1` |
+| Adaptation source |                `+4` |
+| Adapted child     |                `+4` |
+
+Repeated events do not accumulate indefinitely. Current save/rating state is reconstructed from the event history available before the evaluation cutoff.
+
+The candidate's affinity is the weighted similarity to the recipes in the member's training history.
+
+`content-v1` is closed-form and deterministic. It does not train learned embeddings or use an LLM.
+
+## `collaborative-v1`
+
+`collaborative-v1` asks whether interaction patterns across profiles add useful information beyond structured recipe similarity.
+
+It builds a signed profile-by-recipe interaction matrix from the same training signals used by `content-v1`.
+
+Profiles become neighbors only when they share enough nonzero interaction history. Candidate scores are based on the signed preferences of qualifying neighbors.
+
+The model is deliberately conservative with sparse data:
+
+- profiles with too little history fall back to `content-v1`;
+- items with too little support receive no invented collaborative evidence;
+- profile pairs with insufficient overlap are not treated as neighbors; and
+- zero-evidence candidates retain deterministic content ordering.
+
+Collaborative evaluation is gated by a data-readiness check. A snapshot that does not contain enough support for a meaningful collaborative experiment is rejected before the model is fit.
+
+Passing the readiness check means only that the offline experiment is technically supported. It is not a deployment or product-quality decision.
+
+## `hybrid-v1`
+
+`hybrid-v1` combines the rankings from:
+
+- `baseline-v1`;
+- `content-v1`; and
+- `collaborative-v1`.
+
+It uses deterministic rank fusion rather than assuming the raw model scores are directly comparable.
+
+The route used for a candidate depends on the evidence available:
+
+- **fallback** — baseline ranking when the profile has no usable signed preference signal;
+- **content fallback** — content plus baseline when collaborative evidence is unavailable; or
+- **hybrid** — content, collaborative, and baseline when collaborative evidence is supported.
+
+The full hybrid route gives the most weight to content and collaborative evidence and a smaller weight to the baseline.
+
+`hybrid-v1` also has a conservative offline adoption scorecard. A result must have enough evaluated profiles, improve the primary NDCG target, avoid regressions in NDCG and recall at the requested cutoffs, and stay within the coverage guardrail before the report can prefer the hybrid over a simpler model.
+
+That scorecard still does **not** deploy anything. It only records what the offline evidence supports.
+
+## Evaluation snapshots
+
+Offline evaluation runs from an immutable, versioned JSON snapshot rather than directly querying mutable current account state during scoring.
+
+The current snapshot format includes:
+
+- a dataset ID;
+- one UTC cutoff;
+- recipe-version IDs and creation times;
+- recipe titles and version numbers;
+- structured ingredient occurrences; and
+- typed view, save, rating, and adaptation events using opaque profile/event IDs.
+
+It deliberately excludes data that the current recommendation experiments do not need, including:
+
+- names;
+- email addresses;
+- IP addresses;
+- user agents;
+- referrers;
+- search text;
+- instruction prose; and
+- structured cooking-action graphs.
+
+Snapshot contents are canonicalized before hashing so equivalent inputs produce the same fingerprint.
+
+## Leakage-safe evaluation
+
+The offline protocol uses one fixed cutoff:
+
+```text
+before cutoff  → training information
+at/after cutoff → held-out evaluation information
+```
+
+A model receives only:
+
+- recipe versions available before the cutoff;
+- events from before the cutoff; and
+- the candidate IDs it is allowed to rank.
+
+It cannot inspect held-out relevance labels.
+
+Candidates are the complete available catalog minus exact recipe versions already interacted with during training. The evaluator does not use negative sampling.
+
+This matters because present-day save or rating rows cannot tell the evaluator what the member's state was at an older cutoff. Historical state is reconstructed from the append-only interaction events instead.
+
+## Relevance
+
+A held-out recipe version is treated as relevant when the held-out behavior includes one of these positive outcomes:
+
+- final save state is active;
+- final rating is at least four; or
+- the member adapts that version.
+
+Views provide training context but are not positive evaluation labels.
+
+Unobserved recipes are not treated as known dislikes.
+
+## Metrics
+
+All models are evaluated with the same candidate sets and metric implementation.
+
+Reports include:
+
+- Precision@K;
+- Recall@K;
+- NDCG@K;
+- catalog coverage; and
+- popularity bias.
+
+Non-baseline models also report their deltas from `baseline-v1`.
+
+Popularity bias compares the popularity of recommended recipes with the popularity of the candidate pool available to the same profiles. The signed direction is reported rather than automatically labeling more or less popularity as better.
+
+Metrics are deterministic and serialized to six decimal places.
+
+## Reproducibility
+
+Reproducibility is part of the evaluation contract.
+
+Evaluation runs use:
+
+- one immutable snapshot;
+- one cutoff;
+- stable event ordering;
+- stable candidate ordering;
+- deterministic model IDs and parameters;
+- fixed tie-break rules; and
+- model-specific seeds derived from the run seed.
+
+Closed-form models record the seed for provenance even when they do not consume randomness.
+
+Equivalent snapshots, parameters, seeds, and K values are expected to produce the same report.
+
+The repository's ML tests verify these properties.
+
+## Running the evaluator
+
+The normal evaluator automatically includes `baseline-v1` and `content-v1`.
+
+A typical run looks like:
+
+```powershell
+recipe-lab-eval run `
+  --snapshot snapshots/example.json `
+  --k 5 --k 10 `
+  --seed 20260821 `
+  --output reports/recommendations.json `
+  --strict
+```
+
+Add collaborative evaluation with:
+
+```text
+--collaborative
+```
+
+or run the complete hybrid comparison with:
+
+```text
+--hybrid
+```
+
+Collaborative and hybrid runs first apply the collaborative-readiness gate.
+
+The evaluator also exposes a lower-level Python API for focused model tests, but qualifying comparisons should use the shared split and metric implementation rather than custom one-off evaluations.
+
+See [Testing](testing.md) for how the ML suite is verified in the repository.
+
+## Privacy and data lifecycle
+
+The online and offline paths have different privacy boundaries.
+
+### Online
+
+A signed-out request uses only aggregate activity for public recipes.
+
+A signed-in request may read:
+
+- the current member's active saves;
+- the current member's ratings; and
+- that member's view, save, rating, and adaptation events.
+
+The online scorer does not persist its ranking, scores, explanation output, derived profile, or fitted model state.
+
+Account deletion removes the member's source interaction data under the account-lifecycle rules documented in [Security](security.md).
+
+### Offline
+
+Durable research fixtures committed to the repository are synthetic.
+
+Real-member evaluation snapshots and reports require stronger lifecycle controls because deleting the source database rows would not automatically delete copies in research artifacts.
+
+Until an approved artifact lifecycle can bind derived files to deletion and expiry rules, observed-member snapshots are treated as disposable research data rather than durable project artifacts.
+
+Do not commit real-member snapshots or generated reports to the repository.
+
+## What the results do and do not mean
+
+The offline system is built to answer engineering questions such as:
+
+- Does a model obey the fixed-cutoff boundary?
+- Does it rank the complete candidate set deterministically?
+- Does collaborative evidence add anything beyond structured content on a supported dataset?
+- Does a hybrid improve the agreed metrics without violating coverage guardrails?
+- Can the experiment be reproduced from the same inputs?
+
+It does **not** establish, by itself:
+
+- real-user lift;
+- statistical significance;
+- causal improvement;
+- culinary correctness;
+- dietary or allergy safety;
+- calibration;
+- long-term satisfaction; or
+- that a model should be deployed.
+
+Synthetic fixtures prove implementation and reproducibility. They are not evidence that one model is better for real Recipe Lab members.
+
+Moving any offline model into the product would require a separate product, privacy, serving, monitoring, and artifact-lifecycle decision.
+
+## Current limitations
+
+The recommendation work intentionally remains limited.
+
+Among the current limitations:
+
+- the catalog and observed interaction history are small;
+- there is no impression log distinguishing "not shown" from "shown and ignored";
+- views are weak behavioral evidence;
+- removing a save does not necessarily mean dislike;
+- exact ingredient overlap does not capture full culinary similarity;
+- current content features do not model quantities, preparation, dietary suitability, or cooking outcomes;
+- collaborative methods depend heavily on having enough overlapping interaction history;
+- the baseline has no recency or popularity-dampening model; and
+- none of the current offline comparisons establish online usefulness.
+
+Those limitations are part of the reason the recommendation work remains an evaluation/research subsystem rather than a shipped product feature.

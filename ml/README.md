@@ -1,21 +1,37 @@
-# Recipe Lab offline evaluation
+# Recipe Lab research workspace
 
-This Python package fits and evaluates Recipe Lab's deterministic offline
-`content-v1`, readiness-gated `collaborative-v1`, and explicit rank-fusion
-`hybrid-v1` recommenders against the mandatory `baseline-v1`. It also provides
-a versioned synthetic cohort, a structural readiness gate, and a conservative
-hybrid-adoption scorecard. The package separately evaluates the deterministic
-`substitution-rules-v1` engine against a versioned direct-edge benchmark before
-any learned substitution ranking is attempted. It also evaluates the production,
-explainable duplicate-candidate scorer without training a classifier. The package
-is deliberately separate from the FastAPI request path, persists no serving model,
-and has no serving responsibility. Canonical reports carry aggregate evaluation
-and provenance only.
+Recipe Lab's `ml` package is a deterministic **offline research and evaluation
+workspace**. It compares transparent ranking strategies, checks whether a
+snapshot can support collaborative experiments, and evaluates the substitution
+and duplicate-scoring baselines.
 
-## Install
+These models are not shipped in the normal application. They are not imported
+by FastAPI, do not run in the request path, do not power a frontend surface, and
+do not deploy or persist a serving model. The sole online ranker,
+`baseline-v1`, remains an API-only research preview and a shared reference
+implementation; it has no consumer recommendation UI.
 
-Install the local backend package so the evaluator and production API share the
-same pure baseline scorer:
+## Current evidence
+
+| Area | Current result | What it means |
+| --- | --- | --- |
+| Recommendation comparison | `baseline-v1` and `content-v1` run on the committed synthetic fixture | The split, metrics, and deterministic comparison work; this is not evidence of real-user lift. |
+| Collaborative readiness | The fixed 64-profile simulated cohort passes the structural gate | The cohort can exercise `collaborative-v1` and `hybrid-v1`; it says nothing about observed-user readiness or quality. |
+| Hybrid adoption | The fixed cohort retains `content-v1` | Primary-K NDCG lift is `0.001028`, below the `0.010000` policy minimum, and synthetic evidence is independently ineligible for adoption. |
+| Substitution rules | The six-case synthetic benchmark is `engineering_validated` | Direct-edge filtering, ordering, cautions, and reporting match the fixture; taste and safety are not validated. |
+| Duplicate scorer | The labeled synthetic benchmark is `engineering_validated` | The production structural scorer matches its engineering fixture; duplicate suggestions remain advisory. |
+
+The detailed contracts live in two places:
+
+- [Models](docs/models.md) — exact formulas, support rules, fallbacks,
+  explanations, and change boundaries.
+- [Evaluation](docs/evaluation.md) — snapshots, temporal splitting, metrics,
+  readiness, reproducibility, benchmark interpretation, and limitations.
+
+## Set up
+
+The root workspace locks the evaluator and the local backend package together,
+so the offline baseline adapter and the API call the same pure scorer.
 
 ```powershell
 cd ml
@@ -25,17 +41,23 @@ uv pip check
 ..\.venv\Scripts\Activate.ps1
 ```
 
-The root workspace binds `recipe-lab-api` to the reviewed local backend package
-and uses one lock for backend and evaluation dependencies. See
-[locked dependencies and production images](../docs/production-images.md) for
-the update contract.
+See [locked dependencies](../docs/operations.md#locked-dependencies) for the
+dependency-update contract.
 
-## Verify collaborative-filtering data readiness
+## Run an experiment
 
-Generate the fixed engineering cohort from the committed, event-free catalog
-and assess it without touching a live database:
+The committed fixtures are synthetic and safe to retain. Generated snapshots
+and reports go under ignored `snapshots/` and `reports/` directories.
 
 ```powershell
+# Baseline and content comparison.
+recipe-lab-eval run `
+  --snapshot tests/fixtures/synthetic_snapshot_v2.json `
+  --k 5 --k 10 `
+  --seed 20260821 `
+  --output reports/synthetic-report.json
+
+# Generate the fixed collaborative engineering cohort and verify readiness.
 recipe-lab-eval simulate `
   --catalog tests/fixtures/readiness_catalog_v2.json `
   --profiles 64 --seed 20260822 `
@@ -45,325 +67,40 @@ recipe-lab-eval readiness `
   --snapshot snapshots/readiness-simulated-v1.json `
   --output reports/readiness-v2.json `
   --strict
-```
 
-The simulator emits only opaque profile/event IDs and typed view, save, and
-rating context. It refuses catalogs with recorded activity and omits fork events
-because it creates no adaptations and never invents recipe topology. The
-default cohort deterministically produces 640 training events across 64
-profiles and 320 distinct profile-item pairs, plus 64 supported temporal
-profiles and 128 eligible holdout items.
-Generation is capped at 1,000,000 events. Training and holdout phases stream
-drafts and timestamps into the final event tuple instead of retaining parallel
-event-sized working collections.
-
-The readiness report checks fixed minimums for profile, item, interaction,
-raw matrix support, effective nonzero signed support, sparsity, usable
-candidate-level neighbor evidence, and temporal-evaluation counts. `ready` for
-this synthetic cohort authorizes only fitting and testing the offline
-collaborative and hybrid experiments; it is not evidence about real users,
-recommendation quality, or production readiness. For an insufficient snapshot,
-the default command still writes an `insufficient_data` report and exits zero;
-`--strict` exits 3 after writing that same report. See
-[collaborative-filtering data readiness](../docs/collaborative-readiness.md) for
-the exact thresholds, assumptions, privacy rules, and proceed condition.
-
-## Run the synthetic verification snapshot
-
-```powershell
-recipe-lab-eval run `
-  --snapshot tests/fixtures/synthetic_snapshot_v2.json `
-  --k 5 --k 10 `
-  --seed 20260821 `
-  --output reports/synthetic-report.json
-```
-
-The fixture contains only invented recipes, opaque UUIDs, and synthetic typed
-events. The command always evaluates `content-v1`; the runner automatically
-adds `baseline-v1` and records metrics and deltas for both. The fixture verifies
-temporal isolation, metric arithmetic, baseline comparison, and byte-for-byte
-reproducibility. It is not a benchmark or evidence about real users.
-
-## Run the gated collaborative experiment
-
-Use the ready simulated snapshot from above:
-
-```powershell
+# Compare all four built-in recommenders on that same ready snapshot.
 recipe-lab-eval run `
   --snapshot snapshots/readiness-simulated-v1.json `
-  --collaborative `
-  --k 1 --k 3 `
-  --seed 20260822 `
-  --output reports/collaborative-v1.json `
-  --strict
-```
-
-`--collaborative` applies the complete RCP-18A readiness gate before any model
-is fit. An insufficient snapshot exits 3 regardless of `--strict`, writes no
-evaluation report, and directs the caller to the `readiness` command for the
-aggregate failure report. A ready run evaluates `baseline-v1`,
-`collaborative-v1`, and `content-v1` in stable model-ID order. Their shared
-report includes quality, recommendation coverage, popularity bias, baseline
-deltas, and flat aggregate artifact metadata for the collaborative fit.
-
-The eight-item cohort leaves three candidates per profile after five training
-items, so K values 1 and 3 show top-rank behavior and full-pool coverage. Its
-results verify only engineering behavior and cannot establish real-user lift.
-See the [offline collaborative recommender](../docs/collaborative-recommender.md)
-for the signed-neighborhood formula, sparse fallback, artifact contract, and
-interpretation rules.
-
-## Run the hybrid experiment
-
-Use the same ready snapshot to evaluate every built-in candidate on one split:
-
-```powershell
-recipe-lab-eval run `
-  --snapshot snapshots/readiness-simulated-v1.json `
-  --hybrid `
-  --k 1 --k 3 `
-  --seed 20260822 `
+  --hybrid --k 1 --k 3 --seed 20260822 `
   --output reports/hybrid-v1.json `
   --strict
-```
 
-`--hybrid` and `--collaborative` are mutually exclusive. The hybrid suite
-contains `baseline-v1`, `collaborative-v1`, `content-v1`, and `hybrid-v1` in
-stable model-ID order and applies the complete collaborative-readiness gate
-before fitting. Report schema v3 adds an aggregate `hybrid_adoption` decision.
-Retaining a simpler model is a successful evaluation and returns zero; it does
-not make `--strict` fail.
-
-The generated cohort deterministically retains `content-v1`. Its hybrid NDCG
-is `0.718750` at K=1 and `0.887435` at K=3; the primary-K gain over content is
-only `0.001028`, below the policy's `0.010000` minimum. Synthetic evidence is
-independently barred from adoption. See the
-[offline hybrid recommender](../docs/hybrid-recommender.md) for the exact
-component formula, cold-start routes, reasons, metrics, and policy.
-
-## Run the substitution rules benchmark
-
-Evaluate the committed deterministic rules fixture without a database:
-
-```powershell
+# Evaluate the two independent engineering benchmarks.
 recipe-lab-eval substitution-run `
   --benchmark tests/fixtures/substitution_benchmark_v1.json `
   --output reports/substitution-rules-v1.json `
   --strict
-```
 
-This command uses a separate `recipe-lab-substitution-benchmark-v1` contract;
-it does not consume a recommendation snapshot or run a temporal split. Cases
-exercise curated direct edges, dietary and allergen tag filters, recipe-context
-ordering, signed preference ordering, constraint precedence, and an expected
-empty result. The canonical aggregate report records deterministic counts and
-coverage/accuracy metrics, including exact caution compliance, and always states
-`learned_ranking_attempted: false`.
-
-The fixture reaches `engineering_validated` with six synthetic cases. That
-status verifies rule execution and report reproducibility, not taste, cooking
-outcomes, cross-contact, medical suitability, or user demand. Ingredient tags
-are positive declarations only; missing metadata remains unknown. `--strict`
-writes the report and exits 3 for `invalid` or `insufficient_data`, while a
-validated report exits zero. See the
-[offline substitution rules engine](../docs/substitution-engine.md) for hard
-constraints, exact ordering, output explanations, caution text, metrics, and
-scope.
-
-## Run the duplicate-candidate benchmark
-
-Evaluate the production structural scorer against the committed labeled pair
-fixture without a database:
-
-```powershell
 recipe-lab-eval duplicate-run `
   --benchmark tests/fixtures/duplicate_candidates_v1.json `
   --output reports/duplicate-candidates-v1.json `
   --strict
 ```
 
-The `recipe-lab-duplicate-evaluation-fixture-v1` contract keeps synthetic
-instruction prose and authored ingredient source labels outside each recipe's
-fingerprint structure. Its paraphrase case uses two different recipe records with
-genuinely different instructions but identical curated structure. Its alias case
-uses different source labels that map to the same canonical ingredient identities.
-Category-specific validation rejects label-only coverage: the unit, reorder,
-proportional quantity, action-type, action-order, duration, temperature, and
-adversarial cases must each contain their claimed source perturbation. Every case
-also declares its expected scorer-component relations and ordered reason codes,
-which are checked against fingerprints and results produced by the production
-builder and scorer. Prose, source labels, and recipe, user, or profile identifiers
-are absent from the aggregate report.
+Use `run --collaborative` instead of `--hybrid` for the three-model
+baseline/content/collaborative suite. The two flags are mutually exclusive and
+both require the complete readiness gate to pass before fitting.
 
-The byte-deterministic `recipe-lab-duplicate-evaluation-report-v1` records the
-production algorithm version, parameter SHA-256, capacity/work budget, threshold,
-feature weights,
-three-class confusion matrix, positive-class precision and recall (where exact
-and probable are positive), accuracy,
-category, component-expectation, and explanation coverage, plus aggregate
-classification, component, explanation, false-positive, and false-negative error
-categories. Its fixed
-limitations make clear that `engineering_validated` is small synthetic contract
-evidence only. Duplicate suggestions remain advisory: the report does not authorize
-blocking publication, merging or deleting recipes, plagiarism claims, or a learned
-classifier. `--strict` writes the report and exits 3 unless engineering validation
-passes.
+## Observed-data warning
 
-## Capture an evaluation snapshot
+The `snapshot` command is a disposable local research tool, not a production
+export path. Do not point it at production or real-member data until Recipe Lab
+has an artifact registry that binds derived data to account deletion and a
+bounded expiry. Delete locally captured observed-data snapshots and their
+reports after the run. See
+[account-data governance](../docs/security.md#account-data-governance).
 
-Use an intentionally selected database. Persistent developer and browser
-activity is valid product history and is not erased by seeding.
-
-```powershell
-recipe-lab-eval snapshot `
-  --database-url $env:DATABASE_URL `
-  --dataset-id recipe-lab-local-2026-08-21 `
-  --cutoff 2026-08-21T00:00:00Z `
-  --limitation "Shared demo activity may combine multiple visitors." `
-  --limitation "No recommendation-impression log is available." `
-  --output snapshots/local-2026-08-21.json
-```
-
-The exporter writes strict snapshot v3 in one repeatable-read transaction. It
-includes only currently published versions. Versions published by the UTC
-training cutoff must also have been published under their latest audited state
-at that boundary. Later versions are retained only when currently eligible so
-post-cutoff references and holdout context remain truthful; the temporal split
-keeps them out of the training catalog. Each record retains its opaque stable
-recipe and exact version IDs, series-local edition number, exact base version,
-topology-derived relation kind, optional weak author-declared revision reason,
-publication time, and structural-fingerprint algorithm/digest metadata. It does
-not export the fingerprint's canonical payload. Existing v1 and v2 snapshots
-remain readable and are not reinterpreted as v3.
-
-Occurrence-preserving structured ingredient measures retain canonical identity,
-exact/range/qualitative shape, decimal bounds, curated unit identity, and an
-optional reviewed package-size identity; display text is omitted. Events on
-both sides of the training cutoff are retained for the existing temporal split;
-activity from deleted or otherwise ineligible accounts and events whose exact
-recipes are ineligible are excluded before serialization. Fork
-events remain adaptation signals only: a same-recipe revision or correction is
-never exported as a fork. The exporter also excludes user names and emails,
-request fingerprints, network/device metadata, canonical fingerprint payloads,
-and free-form context. Opaque activity IDs remain necessary for state
-reconstruction, so local snapshots are ignored by Git. Reports contain
-aggregate metrics rather than those raw IDs, but are also ignored as generated
-run artifacts and can include caller-supplied dataset labels and limitation
-text.
-
-This command is a disposable local research tool, not a production export
-path. Do not point it at production or real-member data until Recipe Lab has an
-artifact registry that can bind every included profile to account deletion and
-expiry. Delete local observed-data snapshots and their reports after the run;
-only deliberately synthetic fixtures may be retained. See
-[account-data governance](../docs/account-data-governance.md).
-
-The snapshot embeds one UTC cutoff. The exporter captures currently eligible
-recipe context on both sides of that boundary, and the evaluator keeps only
-recipes published strictly before it in the frozen training catalog. Events
-strictly before the cutoff are training; events at or after it are held-out
-context. Changing a snapshot after capture changes its canonical SHA-256
-fingerprint.
-
-## Built-in content model
-
-`content-v1` combines canonical ingredient overlap, normalized title tokens,
-version proximity, and signed profile signals. It reconstructs the latest save
-and rating state, deduplicates views and forks, uses exact rational arithmetic,
-and defines a signed-global-prior cold start with stable metadata and UUID
-tie-breaks. See [offline content recommender](../docs/content-recommender.md) for
-the exact formulas, signal weights, and limitations.
-
-The command-line `run` path always supplies `ContentBasedV1Model()` to the
-evaluator. The generic Python `evaluate(snapshot, models=())` call remains
-baseline-only unless the caller explicitly supplies the content model or
-another comparison adapter.
-
-## Built-in collaborative model
-
-`collaborative-v1` reuses the documented signed save, rating, view, and fork
-signals to build a user-version matrix. It requires five nonzero items for a
-target profile, three nonzero-signal profiles for a candidate, and two shared
-items for a profile pair. Eligible neighbors use exact signed similarity and a
-normalized signed candidate score. Sparse profiles, sparse candidates, missing
-neighbors, and equal scores resolve through the deterministic `content-v1`
-order.
-
-The CLI adds this model with `--collaborative` or as a comparator in the
-`--hybrid` suite; the default command remains the baseline/content comparison.
-The public evaluator enforces the same gate
-when `CollaborativeV1Model()` is supplied. Direct `.fit()` calls remain useful
-only for focused tests because the leakage-safe model protocol does not expose
-the held-out events required by the full-snapshot gate.
-
-## Built-in hybrid model
-
-`hybrid-v1` converts each component's top-50-or-smaller rank to an exact common
-score, then uses baseline-only, content-plus-baseline, or full
-content-plus-collaborative-plus-baseline routes according to the candidate's
-available evidence. Every detail carries a deterministic, non-identifying
-reason; the aggregate report intentionally omits candidate details and raw IDs.
-Its per-model artifact is null because it is closed-form rank fusion, while its
-metadata and parameter hash record the component versions, weights, routes,
-tie-break, and reason policy.
-
-The public evaluator requires `ContentBasedV1Model()` and
-`CollaborativeV1Model()` in the same call whenever `HybridV1Model()` is present,
-then applies readiness before fitting. This preserves the required same-split
-comparison rather than silently producing a baseline-versus-hybrid report.
-
-## Built-in substitution rules
-
-`substitution-rules-v1` considers only curated outgoing relationships for one
-source ingredient. Required dietary flags and excluded declared allergens are
-hard filters. The remaining candidates use relationship evidence first, then
-exact recipe-context Jaccard similarity, normalized signed preference affinity,
-and stable ingredient metadata tie-breaks. Every item retains its ratio or
-guidance, provenance or confidence, components, and a deterministic
-human-readable explanation.
-
-Queries require the source ingredient to appear in the recipe context and
-accept preference weights only for its direct curated replacements.
-Relationship confidence describes the curated edge; it is never medical,
-allergen, label, cross-contact, or food-safety confidence.
-
-The Python API can build the catalog from the bundled seed, but no FastAPI
-route or frontend consumes it. Missing dietary or allergen metadata is unknown,
-not proof of suitability, and every result carries a label/cross-contact
-caution. The rules engine is the offline baseline for later substitution work;
-it is not a learned ranker.
-
-## Add another comparison model
-
-Implement the `EvaluationModel` protocol:
-
-- declare a stable `ModelMetadata` ID, version, and JSON-safe parameters;
-- fit using only the provided `ModelTrainingData` and derived seed; and
-- return the explicit `FittedRankingModel` contract and rank the supplied complete
-  candidate IDs as a tuple without duplicates or unknown IDs.
-
-Call `evaluate(snapshot, models=(your_model,), config=...)`. The runner always
-adds `baseline-v1`, rejects attempts to replace it, and records raw metrics plus
-baseline deltas for every model. Experiment code can supply additional adapters
-through the Python API; the CLI intentionally exposes only the fixed built-in
-content comparison and its explicit, readiness-gated collaborative and hybrid
-suites rather than accepting an arbitrary import path.
-
-## Artifact and benchmark boundaries
-
-Untrusted snapshot and benchmark files pass through one shared bounded UTF-8/JSON
-codec before domain validation. Snapshot files are limited to 512 MiB, 32 levels,
-and 16 million JSON nodes; each substitution or duplicate benchmark is limited to
-32 MiB, 32 levels, and one million nodes. Duplicate keys are rejected before schema
-validation. In-memory values are normalized once at each public evaluation boundary;
-the readiness gate reuses the runner's validated snapshot.
-
-Each benchmark keeps loading, rule/scorer execution, aggregate metric calculation,
-and report serialization in separate modules. All aggregate serializers use the
-same deterministic envelope and canonical newline-terminated JSON encoding while
-retaining their existing versioned field sets and byte-exact outputs.
-
-## Checks
+## Verify the workspace
 
 ```powershell
 uv lock --check
@@ -376,15 +113,6 @@ python -m mypy src tests
 python -m pytest
 ```
 
-The complete split, relevance, metrics, insufficiency, privacy, and report
-contract is documented in
-[offline recommendation evaluation](../docs/evaluation.md). The separate
-[collaborative-filtering data readiness](../docs/collaborative-readiness.md)
-contract defines when the snapshot structure is sufficient to run the RCP-18
-experiment, and the
-[offline collaborative recommender](../docs/collaborative-recommender.md)
-defines its scoring, fallback, artifact, and evaluation behavior. The
-[offline hybrid recommender](../docs/hybrid-recommender.md) defines rank fusion,
-explanation routes, and the conservative adoption policy. The separate
-[offline substitution rules engine](../docs/substitution-engine.md) defines the
-curated candidate, hard-constraint, ordering, caution, and benchmark contracts.
+Passing these checks establishes deterministic engineering behavior. It does
+not authorize deployment, product claims, medical or food-safety advice, or a
+consumer recommendation experience.

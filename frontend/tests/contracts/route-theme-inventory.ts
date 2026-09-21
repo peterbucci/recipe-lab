@@ -68,7 +68,7 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/account/followers",
     family: "account-workspace",
     reachability: "compatibility-only",
-    consumerEvidence: ["docs/cook-profiles-and-libraries.md"],
+    consumerEvidence: ["docs/recipe-model.md"],
     redirectTo: "/account/connections?view=followers",
   },
   {
@@ -91,7 +91,7 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/account/recipe-drafts",
     family: "account-workspace",
     reachability: "compatibility-only",
-    consumerEvidence: ["docs/cook-profiles-and-libraries.md"],
+    consumerEvidence: ["docs/recipe-model.md"],
     redirectTo: "/account/recipes?view=drafts",
   },
   {
@@ -106,7 +106,7 @@ export const RCP46_PAGE_THEME_INVENTORY = [
     route: "/account/saved-recipes",
     family: "account-workspace",
     reachability: "compatibility-only",
-    consumerEvidence: ["docs/cook-profiles-and-libraries.md"],
+    consumerEvidence: ["docs/recipe-model.md"],
     redirectTo: "/account/recipes?view=saved",
   },
   {

@@ -1,86 +1,27 @@
 # Recipe Lab documentation
 
-This index groups the repository's documentation by responsibility. Document
-paths remain stable so operational runbooks, CI evidence, issue links, and
-historical references do not break merely to create folders.
+The root [README](../README.md) is the portfolio and project entry point. These guides document the current system by responsibility so each major concept has one clear owner.
 
-## Start here
+## Understand the application
 
-- [Architecture](architecture.md) — application boundaries and dependency
-  direction.
-- [Frontend ownership architecture](frontend-organization.md) — placement,
-  dependency, and migration rules for frontend code.
-- [Frontend state presentation](frontend-state-presentation.md) — semantic
-  state taxonomy, disclosure rules, and shared presentation primitives.
-- [Frontend workspace navigation](frontend-workspace-navigation.md) — semantic
-  control models, shared panel/menu ownership, and responsive exceptions.
-- [MVP scope](mvp-scope.md) — shipped product boundary and acceptance criteria.
-- [Product language](product-language.md) — member-facing terminology and the
-  boundary between product and research features.
-- [API contracts](api-contracts.md) — deterministic OpenAPI ownership,
-  classifications, and generated frontend wire types.
-- [Reachability and compatibility](reachability-and-compatibility.md) — exhaustive
-  page/API lifecycle inventory, redirects, evidence, and safe-removal rules.
+- [Architecture](architecture.md) — system components, dependency direction, request paths, and major frontend/backend boundaries.
+- [Recipe model](recipe-model.md) — recipes, published versions, revisions, adaptations, drafts, publication, history, and visibility.
+- [Frontend](frontend.md) — frontend organization, state ownership, server/client boundaries, navigation, accessibility, styling, and product language.
+- [Security](security.md) — authentication, sessions, CSRF, authorization, staff grants, abuse controls, privacy, and account deletion.
+- [API contracts](api-contracts.md) — FastAPI/OpenAPI ownership, generated frontend types, runtime validation, compatibility, and API consumer tracking.
 
-## Product and domain behavior
+## Develop and operate the project
 
-- [Authentication and sessions](authentication.md)
-- [Private recipe drafts](private-recipe-drafts.md)
-- [Cook profiles and libraries](cook-profiles-and-libraries.md)
-- [Homepage dashboard](homepage-dashboard.md)
-- [Ingredient identity](ingredient-identity.md)
-- [Catalog intake](catalog-intake.md)
-- [Measurements](measurements.md)
-- [Structured cooking actions](cooking-actions.md)
-- [Recipe fingerprints](recipe-fingerprints.md)
-- [Duplicate detection](duplicate-detection.md)
-- [Recipe visibility and account lifecycle](recipe-visibility-and-account-lifecycle.md)
-- [Community moderation](community-moderation.md)
-- [Abuse controls](abuse-controls.md)
-- [Account data governance](account-data-governance.md)
-- [Seed data](seed-data.md)
+- [Development](development.md) — local setup, migrations, seed data, dependencies, common commands, and contributor workflow.
+- [Testing](testing.md) — test layers, quality gates, browser suites, accessibility, contract checks, and when to run each level of verification.
+- [Operations](operations.md) — production images, runtime configuration, health and readiness, observability, source packaging, the portfolio sandbox, and release boundaries.
 
-## Operations, security, and release evidence
+## Recommendations and evaluation
 
-- [Operations and observability](operations-observability.md)
-- [Stable recipe edition operations](recipe-edition-operations.md)
-- [Repository quality gates](quality-gates.md)
-- [Frontend testing architecture](frontend-testing.md)
-- [RCP-49 frontend architecture certification](baselines/2026-09-05-frontend-architecture-certification.md)
-- [RCP-50 frontend state presentation certification](baselines/2026-09-11-frontend-state-presentation-certification.md)
-- [RCP-51 workspace navigation certification](baselines/2026-09-11-workspace-navigation-certification.md)
-- [RCP-53 recipe editions and corrections certification](baselines/2026-09-14-recipe-editions-certification.md)
-- [RF-13 final refactor starting baseline](baselines/2026-09-09-final-refactor-starting-baseline.md)
-- [RF-13 through RF-26 final refactor execution](baselines/2026-09-10-final-refactor-execution.md)
-- [Production images](production-images.md)
-- [Safe source packaging](source-packaging.md)
-- [Regression baselines](regression-baselines.md)
-- [Community release gate](community-release-gate.md)
-- [Release rehearsal](release-rehearsal.md)
+- [Recommendations and offline evaluation](recommendations.md) — the online recommendation research preview, offline content-based, collaborative, and hybrid models, evaluation methodology, reproducibility, and privacy boundaries.
 
-## Research and offline evaluation
+## Reference
 
-These documents describe research-preview or offline capabilities, not shipped
-consumer surfaces.
-
-- [Recommendation preview](recommendations.md)
-- [Offline evaluation](evaluation.md)
-- [Content recommender](content-recommender.md)
-- [Collaborative readiness](collaborative-readiness.md)
-- [Collaborative recommender](collaborative-recommender.md)
-- [Hybrid recommender](hybrid-recommender.md)
-- [Substitution engine](substitution-engine.md)
-
-## Decisions and historical delivery records
-
-The current architecture and domain documents above are authoritative. These
-records explain why major boundaries or visual contracts exist and preserve
-review evidence for completed work.
-
-- [RCP-13A redesign record](rcp-13a-redesign.md)
-- [RCP-46 visual contract](rcp-46-visual-contract.md)
-- [Refactor execution record](refactor-execution.md)
-
-When a future decision changes an architectural invariant, add a short,
-immutable decision record and link it from this section. Routine implementation
-details belong in the relevant current document instead.
+- [Data model](reference/data-model.md) — persistent entities, important relationships, and database constraints.
+- [Configuration](reference/configuration.md) — environment variables, service ownership, defaults, validation, and production requirements.
+- [Recovery and rollback](reference/recovery.md) — backup restoration, deletion replay, migration recovery, application rollback, and release-rehearsal procedures.

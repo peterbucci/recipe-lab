@@ -8480,7 +8480,7 @@
         ],
         "x-recipe-lab-classification": "staff_internal",
         "x-recipe-lab-consumer-evidence": [
-          "docs/operations-observability.md"
+          "docs/operations.md"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "internal"
@@ -9581,7 +9581,7 @@
         ],
         "x-recipe-lab-classification": "research_experimental",
         "x-recipe-lab-consumer-evidence": [
-          "docs/measurements.md"
+          "docs/reference/structured-data.md"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "internal"
@@ -10860,7 +10860,7 @@
         ],
         "x-recipe-lab-classification": "staff_internal",
         "x-recipe-lab-consumer-evidence": [
-          "docs/operations-observability.md"
+          "docs/operations.md"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "internal"
@@ -13729,7 +13729,7 @@
         ],
         "x-recipe-lab-classification": "research_experimental",
         "x-recipe-lab-consumer-evidence": [
-          "docs/recommendations.md"
+          "ml/docs/models.md"
         ],
         "x-recipe-lab-external-consumer-status": "unknown_pending",
         "x-recipe-lab-reachability": "internal"
@@ -13741,7 +13741,7 @@
     {
       "classification": "staff_internal",
       "consumer_evidence": [
-        "docs/api-contracts.md"
+        "docs/testing.md"
       ],
       "external_consumer_status": "unknown_pending",
       "methods": [
@@ -13754,7 +13754,7 @@
     {
       "classification": "staff_internal",
       "consumer_evidence": [
-        "docs/api-contracts.md"
+        "docs/testing.md"
       ],
       "external_consumer_status": "unknown_pending",
       "methods": [
@@ -13767,7 +13767,7 @@
     {
       "classification": "staff_internal",
       "consumer_evidence": [
-        "docs/api-contracts.md"
+        "docs/testing.md"
       ],
       "external_consumer_status": "unknown_pending",
       "methods": [
@@ -13780,7 +13780,7 @@
     {
       "classification": "staff_internal",
       "consumer_evidence": [
-        "docs/api-contracts.md"
+        "docs/testing.md"
       ],
       "external_consumer_status": "unknown_pending",
       "methods": [

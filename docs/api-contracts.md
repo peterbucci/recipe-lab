@@ -1,185 +1,344 @@
-# Backend API contract baseline
+# API Contracts
 
-RCP-34A records the backend HTTP surface before later transport and workflow
-refactors. The baseline is an inventory, not a redesign: outside intentional
-OpenAPI metadata, it changes no ordinary endpoint path, request/response
-application behavior, authorization rule, database query, migration, frontend
-behavior, recommendation behavior, or product claim.
+Recipe Lab treats its HTTP API as a reviewed contract between the FastAPI backend and the frontend.
 
-## Sources of truth
+The contract is generated from the backend, checked into the repository, and used to generate frontend TypeScript types. Feature code may add runtime validation and domain-specific parsing on top of those generated wire types.
 
-FastAPI remains the executable source of the HTTP contract. The repository also
-commits its deterministic OpenAPI rendering at
-[`backend/openapi.json`](../backend/openapi.json). The snapshot makes route,
-schema, response, stable operation-ID, classification, and consumer-evidence
-drift reviewable without starting a server or querying PostgreSQL.
+This document describes that lifecycle. It does not define product behavior, authentication policy, or frontend ownership; those belong in [Recipe model](recipe-model.md), [Security](security.md), and [Frontend](frontend.md).
 
-FastAPI's four framework-owned documentation/schema routes are tracked as
-`staff_internal`/`internal` GET/HEAD surfaces even though the framework does not include
-those routes as operations inside its own OpenAPI document. They are inventory
-evidence, not ordinary product endpoints.
+## Contract flow
 
-From `backend`, check the committed snapshot with:
+The authoritative direction is:
 
-```powershell
-python -m app.openapi_contract check
+```text
+FastAPI routes and Pydantic schemas
+            │
+            ▼
+backend/app/openapi_contract.py
+            │
+            ▼
+backend/openapi.json
+            │
+            ▼
+frontend/scripts/api-contract-codegen.mjs
+            │
+            ▼
+frontend/shared/api/generated/generated.ts
+            │
+            ▼
+feature API adapters, parsers, and domain models
 ```
 
-Running `python -m app.openapi_contract` without a subcommand performs the same
-check. CI runs the explicit `check` form in the separately named **Check backend
-API contract drift** step so a stale contract is distinguishable from lint,
-typing, migration, or test failures.
+Each layer has a different job:
 
-After an intentional, reviewed backend contract change, regenerate with:
+- **FastAPI routes and schemas** define the actual HTTP surface.
+- **`backend/app/openapi_contract.py`** applies reviewed contract metadata and verifies the generated schema.
+- **`backend/openapi.json`** is the committed OpenAPI snapshot used for review and drift detection.
+- **`frontend/shared/api/generated/generated.ts`** is the generated TypeScript representation of that wire contract.
+- **Feature API modules** translate wire data into the narrower types and behavior needed by the product.
 
-```powershell
-python -m app.openapi_contract write
-python -m app.openapi_contract check
+The generated files are review artifacts. They are not alternate sources of truth.
+
+## Backend contract ownership
+
+FastAPI is the source of the HTTP contract.
+
+Changes to areas such as these can change OpenAPI:
+
+- routes and HTTP methods;
+- request and response schemas;
+- path or query parameters;
+- response status codes;
+- operation IDs;
+- public error schemas; and
+- authentication/security declarations represented in the schema.
+
+`backend/app/openapi_contract.py` adds the repository's reviewed metadata and checks that the generated contract still matches what is committed.
+
+The resulting snapshot is:
+
+```text
+backend/openapi.json
 ```
 
-Review the `backend/openapi.json` diff as contract code. Do not regenerate merely
-to make CI green: the route change, compatibility decision, classification, and
-consumer evidence must be reviewed together. The write/check commands generate
-the schema in process; they do not connect to the database or change runtime or
-stored data.
-
-## Operation classifications
-
-The snapshot records these as `x-recipe-lab-classification`,
-`x-recipe-lab-reachability`, and `x-recipe-lab-consumer-evidence`. Its 55
-OpenAPI operations have exactly one of
-four classifications:
-
-| Classification | OpenAPI operations | Meaning |
-| --- | ---: | --- |
-| `active_consumer` | 45 | A current in-repository product workflow calls the operation. Its evidence identifies the maintained consumer boundary. |
-| `staff_internal` | 8 | The operation supports a bounded curator, moderator, or operator workflow rather than an ordinary cook-facing workflow. Staff-only does not mean unreviewed or safe to remove. The four separately inventoried framework routes use this classification too. |
-| `research_experimental` | 2 | The operation is limited to an explicitly identified research or experimental boundary. It is not evidence of a supported consumer product claim. |
-| `retired` | 0 | No maintained in-repository product consumer remains. A deployed operation stays in this class until an external-consumer, deprecation, or removal decision is reviewed; new consumers must not depend on it. |
-
-These labels describe the present contract and its known in-repository use. They
-do not authorize a behavior change. Reclassification is itself inventory drift
-and must be reviewed with updated evidence.
-
-The repository-wide lifecycle vocabulary is deliberately smaller: the 45
-`active_consumer` operations are `active`; the eight `staff_internal` and two
-`research_experimental` operations are `internal`; and a `retired` operation is
-`retired`. There are no live `compatibility-only` backend operations. That class
-is available for a deliberately retained transport adapter, not for an operation
-that merely lacks a known frontend caller. The complete reviewed operation and
-frontend-route inventory is in [Reachability and compatibility](reachability-and-compatibility.md).
-
-Classification describes consumers, not implementation quality. In particular,
-measurement conversion is `research_experimental` because the evidence audit
-found no production frontend caller; its conversion rules remain reviewed and
-tested. Removing the former legacy HTTP adapters does not retire the still-used
-duplicate evidence/services, the active saved-draft duplicate client, or the
-review and publication workflow that consumes its results.
-
-## Consumer evidence and the external boundary
-
-Consumer evidence is a bounded repository reference that explains why the
-classification is true, such as a maintained frontend API module, a staff
-workflow, or a research boundary. Contract tests alone prove a response shape;
-they do not prove that an operation has an active runtime consumer.
-
-The external-consumer status is separate from the four classifications and is
-recorded as `x-recipe-lab-external-consumer-status`, currently
-`unknown_pending`. Repository searches cannot prove that a deployed API has no
-callers outside this repository, and privacy-safe operations policy does not
-retain raw paths or account activity to manufacture that proof. Until the status
-is resolved by an explicit release/governance decision, no deployed operation
-may be removed solely because its in-repository consumer evidence is empty. Use
-a reviewed deprecation or compatibility response when removal cannot be proven
-safe. Retired operations also name their active replacements through
-`x-recipe-lab-successor-operation-ids`.
-
-### RCP-34E pre-deployment removal decision
-
-RCP-34E removed these three previously retired operations rather than retaining
-temporary `410 Gone` responses:
-
-- `POST /api/recipes/{recipe_version_id}/variants`;
-- `POST /api/recipes/{recipe_version_id}/duplicate-preflights`; and
-- `POST /api/recipe-duplicate-preflights/{preflight_id}/decision`.
-
-This is a reviewed pre-deployment removal, not an inference from missing access
-logs. The production-deployment story RCP-21 remains open and explicitly depends
-on completion of the RCP-34 through RCP-36 prelaunch epics. A fresh repository
-search found no maintained frontend, service-to-service, script, or end-to-end
-caller, and RCP-34D had already removed the isolated frontend workflow. The
-operations therefore never formed a deployed external contract, so a runtime
-deprecation window or `410` compatibility shim would preserve dead behavior
-without protecting a caller. The active replacements are private draft creation,
-revisioned saving, draft-scoped duplicate preflight, and atomic draft publication.
-
-This decision does not authorize removing the duplicate evidence tables,
-decisions, fingerprints, scoring, publication receipts, lineage, migration
-history, or fork events used by the active workflow. If deployment evidence ever
-contradicts the pre-deployment premise, removal must stop and return to an
-explicit compatibility decision.
-
-## Stable operation IDs and drift review
-
-An OpenAPI `operationId` is a contract identifier for generated clients,
-documentation, tests, and future shared transport work. Operation IDs must be
-unique and stable across refactors. Renaming a Python function, moving a router,
-or reorganizing a module must not silently rename the operation. An intentional
-operation-ID change is reviewed as a consumer-facing contract change even when
-the HTTP method, path, and schema remain the same.
-
-The committed snapshot is a baseline, not compatibility analysis by itself.
-Reviewers must still decide whether a diff is additive, breaking, incorrectly
-classified, missing evidence, or an intentional retirement.
+Do not edit `backend/openapi.json` by hand.
 
 ## Frontend generated types
 
-RCP-34G generates one committed TypeScript file at
-[`frontend/shared/api/generated/generated.ts`](../frontend/shared/api/generated/generated.ts)
-from `backend/openapi.json`. The file contains compile-time request, response,
-and operation types. It is not a second HTTP client and does not replace runtime
-validation.
+The frontend contract generator reads the committed OpenAPI snapshot and writes:
 
-From `frontend`, regenerate and check it with:
+```text
+frontend/shared/api/generated/generated.ts
+```
+
+Do not edit this file by hand.
+
+Generated types describe the HTTP wire shape at compile time. They are intentionally lower-level than many frontend feature models.
+
+A generated response type may therefore be adapted into a narrower feature type before it reaches UI or state-management code.
+
+For example, a feature may:
+
+- narrow a string field to the subset of values it supports;
+- turn nullable wire fields into a clearer domain representation;
+- validate an identifier before storing it in feature state; or
+- convert a response envelope into a smaller model used by one workflow.
+
+That adaptation belongs with the feature that understands the meaning of the data, not in the generated contract.
+
+## Generated types are not runtime validation
+
+TypeScript types disappear at runtime.
+
+Receiving a value typed as a generated response does not prove that the server actually returned the expected JSON shape.
+
+Recipe Lab keeps explicit runtime parsing where a feature needs to defend an exact response shape, privacy boundary, or domain invariant.
+
+That does **not** mean every internal response needs a generic schema framework. The useful boundary is:
+
+```text
+generated wire type
+        │
+        ▼
+feature-owned runtime/domain adaptation where needed
+        │
+        ▼
+UI or application state
+```
+
+Do not replace feature parsers with a large repository-wide validation abstraction solely to remove repeated object checks.
+
+Likewise, do not remove existing runtime validation merely because a generated TypeScript type exists.
+
+## Checking the contract
+
+From `backend/`, verify that the committed OpenAPI snapshot matches the application:
 
 ```powershell
+python -m app.openapi_contract check
+```
+
+From `frontend/`, verify that the generated TypeScript matches the committed backend snapshot:
+
+```powershell
+npm run api:contracts:check
+```
+
+These checks also run as part of the repository contract/quality gates.
+
+## Updating the contract
+
+After an intentional backend HTTP-contract change:
+
+```powershell
+cd backend
+python -m app.openapi_contract write
+
+cd ..\frontend
 npm run api:contracts:generate
 npm run api:contracts:check
 ```
 
-CI runs the check and fails when the OpenAPI snapshot and generated TypeScript
-file differ. When a backend contract changes intentionally, regenerate the file
-and review both diffs together. Intentional breaking changes must be called out
-in the pull request or release note. Automated comparison between released API
-versions is deferred until Recipe Lab has an independently released API or an
-external client to protect.
+Then review both generated diffs:
 
-Production frontend feature clients import the generated operation types for
-represented request and response wires. Feature modules retain their domain and
-view models plus strict parsers where privacy or exact-shape validation requires
-them; generated compile-time types do not weaken those runtime boundaries.
+```text
+backend/openapi.json
+frontend/shared/api/generated/generated.ts
+```
 
-Generated types do not own requests. The shared Recipe Lab transport remains
-responsible for same-origin routing, sessions, CSRF, idempotency, request
-fingerprints, cancellation, and recovery behavior.
+A generated diff should be explainable by the backend change that caused it.
 
-## Shared browser mutation headers
+If unrelated operations or schemas change, investigate before committing the result.
 
-Browser callers for retry-safe operations give the shared transport a mutation
-identity containing an opaque idempotency key and a lowercase SHA-256 request
-fingerprint. The transport requires every caller to make the decision explicit:
-retry-safe operations pass a validated identity, while operations without an
-idempotency contract pass `null`. It writes the validated `Idempotency-Key` or
-strips any caller-supplied key for the explicit `null` case. Every protected
-mutation obtains `X-CSRF-Token` from the current member session.
-The browser supplies the same-origin session cookie through normal credential
-handling; callers never copy a cookie into request options. JSON consumers add
-`Content-Type: application/json`, while the transport supplies
-`Accept: application/json` unless the caller already set it.
+## What should not change the HTTP contract
 
-The request fingerprint is client-side attempt identity, not a trusted request
-header. Feature endpoints that persist replay evidence, including private draft
-creation, recompute their versioned canonical fingerprint on the server. This
-keeps equality and conflict decisions under server control while the shared
-transport owns the transmitted `Idempotency-Key`, CSRF header, same-origin
-route, no-store behavior, deadline, and redirect rejection.
+Internal refactoring normally should not change OpenAPI.
+
+Examples include:
+
+- moving a frontend API helper between feature folders;
+- replacing a component;
+- changing client-side state ownership;
+- moving backend code between a route helper, service, or repository while preserving the route;
+- renaming an internal Python or TypeScript symbol that is not part of the wire contract; or
+- changing CSS, rendering, or navigation composition.
+
+If an internal refactor changes `backend/openapi.json`, treat that as a signal to inspect the change rather than accepting the generated diff automatically.
+
+## Operation IDs
+
+Operation IDs are part of the generated client contract.
+
+Keep an existing `operationId` stable unless the public operation itself is intentionally being migrated.
+
+Changing an internal function name should not silently rename a public operation.
+
+An operation-ID change can affect:
+
+- generated TypeScript names;
+- frontend imports;
+- API metadata;
+- tests; and
+- external clients.
+
+That makes it a contract change, not cosmetic cleanup.
+
+## Compatibility
+
+Recipe Lab has some HTTP names that reflect earlier phases of the project even though the implementation has since become more general.
+
+Historical naming should not be changed only to make the internal vocabulary cleaner.
+
+Before renaming or removing a public operation, schema, path, error code, or operation ID, establish:
+
+1. whether the current frontend consumes it;
+2. whether browser/acceptance/release code consumes it directly;
+3. whether an external consumer is known;
+4. whether the surface is intentionally retained for compatibility; and
+5. what migration or sunset policy applies.
+
+Internal code can use clearer names while a historical wire name remains stable.
+
+Compatibility is a contract decision, not a side effect of refactoring.
+
+## API consumer metadata
+
+`backend/app/openapi_contract.py` also records reviewed information about API consumers and contract status.
+
+That metadata should describe the **real consumer**, not merely point to a file that happens to contain a helper for the operation.
+
+For example, these are different situations:
+
+```text
+product runtime
+    → operation is used by the current application
+
+acceptance/release tooling
+    → operation is used to verify behavior but not by the product UI
+
+research preview
+    → operation exists for an explicitly non-product research surface
+
+compatibility/external use
+    → operation remains supported even when no current product code calls it
+```
+
+When a frontend helper becomes unused, remove or update that helper and correct the consumer evidence. Do not infer from the dead helper alone that the backend endpoint can also be deleted.
+
+Likewise, module reachability does not prove that every exported operation in that module is used.
+
+## Feature API modules
+
+Generated contract types should not become the frontend's domain model.
+
+A feature API module may own:
+
+- the endpoint path and method used by that feature;
+- request construction;
+- CSRF/idempotency handling required by that operation;
+- runtime parsing;
+- feature-specific error mapping; and
+- conversion from a generated response into a smaller domain model.
+
+Generic transport mechanics belong in `frontend/shared/api`.
+
+Product meaning belongs in the feature.
+
+For example, a shared transport layer should know how to make a request or surface a transport failure. It should not know what a recipe publication conflict means to the authoring workflow.
+
+## Browser and server transports
+
+The same HTTP contract is consumed through two frontend transport paths:
+
+```text
+public server-rendered read
+→ frontend/shared/api/server.ts
+→ FastAPI
+
+member/browser request
+→ frontend/shared/api/browser.ts
+→ same-origin /api proxy
+→ FastAPI
+```
+
+These are intentionally separate trust boundaries.
+
+The server transport does not forward browser session cookies or CSRF credentials into anonymous public SSR.
+
+The browser transport uses the same-origin proxy for authenticated/member behavior.
+
+The OpenAPI contract describes the backend operation. It does not erase the security differences between those two transport paths.
+
+See [Architecture](architecture.md) and [Security](security.md) for those boundaries.
+
+## Error contracts
+
+Backend domain failures are translated into safe HTTP responses before they cross the API boundary.
+
+Frontend features may then map those wire errors into feature-specific recovery behavior.
+
+Keep those responsibilities separate:
+
+```text
+backend domain/workflow error
+        │
+        ▼
+HTTP status + public error response
+        │
+        ▼
+frontend transport error
+        │
+        ▼
+feature-specific meaning and recovery
+```
+
+Do not create one application-wide frontend error model merely because several endpoints share common HTTP mechanics.
+
+A publication conflict, expired session, moderation refusal, and unavailable upstream service may all arrive through the same transport but require different product behavior.
+
+## Adding a new endpoint
+
+A new endpoint should normally include:
+
+1. the FastAPI route and request/response schemas;
+2. appropriate authentication, authorization, CSRF, idempotency, and transaction behavior;
+3. API/backend tests;
+4. reviewed OpenAPI metadata;
+5. an updated `backend/openapi.json`;
+6. regenerated frontend contract types;
+7. a feature API consumer if the product uses the endpoint; and
+8. accurate consumer/compatibility metadata.
+
+Do not add a frontend wrapper solely to make an endpoint appear consumed.
+
+If the endpoint is intentionally research-only, operator-only, compatibility-only, or externally consumed, document that status accurately instead.
+
+## Removing an endpoint
+
+Before removing an endpoint:
+
+1. find current frontend callers;
+2. search browser, acceptance, release, and repository scripts;
+3. review contract/consumer metadata;
+4. determine whether external compatibility is known or explicitly unknown;
+5. remove generated/frontend surfaces that exist only for that endpoint; and
+6. regenerate and review the contract.
+
+Lack of a current React caller is not, by itself, proof that an HTTP operation is safe to remove.
+
+## Contract review checklist
+
+When reviewing an API-contract diff, check:
+
+- Is every changed operation intentional?
+- Did an internal rename accidentally change an `operationId`?
+- Did request or response requiredness change?
+- Did an enum or error code change?
+- Did authentication/security metadata change?
+- Did a compatibility-only operation disappear?
+- Do generated frontend changes correspond exactly to the backend diff?
+- Does consumer metadata still describe a real consumer?
+- Does feature code still own runtime/domain parsing where needed?
+- Did an internal refactor accidentally widen the public contract?
+
+The goal is a contract that changes when the product/API changes—not whenever implementation details move.
